@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  --gkli-primary: #03658C;
+  --gkli-primary-hover: #024F6F;
+  --gkli-primary-soft: #E6F1F5;
+  --gkli-background: #F8FAFC;
+  --gkli-surface: #FFFFFF;
+  --gkli-border: #E5E7EB;
+  --gkli-text-primary: #0F172A;
+  --gkli-text-secondary: #475569;
+  --gkli-text-muted: #94A3B8;
+}
+* { box-sizing: border-box; }
+html { min-height: 100%; }
+body { min-height: 100%; margin: 0; background: radial-gradient(circle at top right, rgba(3,101,140,.08), transparent 30rem), var(--gkli-background); color: var(--gkli-text-primary); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-feature-settings: "kern" 1, "liga" 1, "calt" 1; text-rendering: geometricPrecision; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+button, input, select, textarea { font: inherit; }
+a { color: inherit; text-decoration: none; }
+.gkli-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.gkli-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 999px; }
+.gkli-card { border-radius: 1.5rem; border: 1px solid var(--gkli-border); background: #fff; box-shadow: 0 18px 40px -34px rgba(15,23,42,.45); }
+.gkli-page-header [data-variant="primary"], .gkli-page-header [data-variant="header"] { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.24); color: white; }
+.gkli-page-header [data-variant="primary"]:hover, .gkli-page-header [data-variant="header"]:hover { background: rgba(255,255,255,.16); }
+.gkli-page-header [data-variant="secondary"], .gkli-page-header [data-variant="ghost"] { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.24); color: white; }
+.gkli-list-shell { overflow: hidden; border-radius: 24px; border: 1px solid var(--gkli-border); background: var(--gkli-surface); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+.gkli-filter-bar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; border-bottom:1px solid #f1f5f9; background:rgba(255,255,255,.86); padding:16px 20px; }
+.gkli-row-hover { transition: background-color 160ms ease, border-color 160ms ease; }
+.gkli-row-hover:hover { background:#f8fafc; }

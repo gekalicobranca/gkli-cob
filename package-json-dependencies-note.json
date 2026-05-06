@@ -1,0 +1,5 @@
+{
+  "dependencies_to_add_if_missing": {
+    "xlsx": "^0.18.5"
+  }
+}
