@@ -48,3 +48,50 @@ export async function createUnidade(formData: FormData) {
   revalidatePath('/app/unidades')
   redirect('/app/unidades')
 }
+
+export async function updateUnidade(formData: FormData) {
+  await requireUser()
+
+  const id = String(formData.get('id') ?? '').trim()
+  const carteiraId = String(formData.get('carteira_id') ?? '').trim()
+  const condominioId = String(formData.get('condominio_id') ?? '').trim()
+  const identificacao = String(formData.get('identificacao') ?? '').trim()
+  const bloco = String(formData.get('bloco') ?? '').trim()
+  const responsavelNome = String(formData.get('responsavel_nome') ?? '').trim()
+  const responsavelDocumento = onlyDigits(String(formData.get('responsavel_documento') ?? ''))
+  const telefone = onlyDigits(String(formData.get('telefone') ?? ''))
+  const email = String(formData.get('email') ?? '').trim()
+  const status = String(formData.get('status') ?? 'ativa').trim()
+  const observacoes = String(formData.get('observacoes') ?? '').trim()
+
+  if (!id) throw new Error('Unidade obrigatória.')
+  if (!carteiraId) throw new Error('Carteira obrigatória.')
+  if (!condominioId) throw new Error('Condomínio obrigatório.')
+  if (!identificacao) throw new Error('Identificação da unidade obrigatória.')
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('unidades')
+    .update({
+      carteira_id: carteiraId,
+      condominio_id: condominioId,
+      identificacao,
+      bloco: bloco || null,
+      responsavel_nome: responsavelNome || null,
+      responsavel_documento: responsavelDocumento || null,
+      telefone: telefone || null,
+      email: email || null,
+      status: status || 'ativa',
+      observacoes: observacoes || null,
+    })
+    .eq('id', id)
+
+  if (error) {
+    throw new Error(`Erro ao atualizar unidade: ${error.message}`)
+  }
+
+  revalidatePath('/app/unidades')
+  revalidatePath(`/app/unidades/${id}`)
+  redirect(`/app/unidades/${id}`)
+}

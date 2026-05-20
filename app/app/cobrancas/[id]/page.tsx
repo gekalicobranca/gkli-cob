@@ -1,184 +1,166 @@
 import { notFound } from 'next/navigation'
-import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { Button, ButtonLink } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/data/status-badge'
 import { formatCurrency } from '@/utils/formatters/currency'
-import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { getCobrancaDetalhe, listInteracoesDaCobranca } from '@/features/cobrancas/queries'
-import { createInteracaoCobranca, updateCobrancaStatus } from '@/features/cobrancas/actions'
+import {
+  getAcordoVigenteDaCobranca,
+  getCobrancaDetalhe,
+  listEventosOperacionaisDaCobranca,
+  listInteracoesDaCobranca,
+  listMensagensDaCobranca,
+} from '@/features/cobrancas/queries'
+import {
+  agendarRetornoCobranca,
+  createInteracaoCobranca,
+  updateCobrancaFinanceiro,
+  updateCobrancaStatus,
+} from '@/features/cobrancas/actions'
+import { calcularProximaAcaoCobranca } from '@/features/cobrancas/next-action'
+import { CobrancaFinanceiroCard } from '@/features/cobrancas/components/cobranca-financeiro-card'
+import { CobrancaMensageriaCard } from '@/features/cobrancas/components/cobranca-mensageria-card'
+import { CobrancaNextActionCard } from '@/features/cobrancas/components/cobranca-next-action-card'
+import { CobrancaQuickActions } from '@/features/cobrancas/components/cobranca-quick-actions'
+import { CobrancaProntuarioHeader } from '@/features/cobrancas/components/cobranca-prontuario-header'
+import { CobrancaSideCards } from '@/features/cobrancas/components/cobranca-side-cards'
+import { CobrancaStatusActions } from '@/features/cobrancas/components/cobranca-status-actions'
+import { CobrancaTimeline } from '@/features/cobrancas/components/cobranca-timeline'
+import {
+  COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO,
+  COBRANCA_STATUS_OPERACIONAL_LIST,
+} from '@/lib/core/status'
 
 type PageProps = {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ acao?: string }>
 }
 
-const statusOptions = [
-  'novo',
-  'em cobrança ativa',
-  'em negociação',
-  'acordo firmado',
-  'acordo efetivado',
-  'judicializado',
-  'suspenso',
-]
+function asNumber(value: unknown) {
+  const parsed = Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
 
-export default async function CobrancaDetalhePage({ params }: PageProps) {
+function diasDeAtraso(vencimento: string | null | undefined) {
+  if (!vencimento) return 0
+  const base = new Date(`${vencimento}T00:00:00`)
+  const hoje = new Date()
+  const diff = Math.floor((hoje.getTime() - base.getTime()) / (1000 * 60 * 60 * 24))
+  return Math.max(0, diff)
+}
+
+export default async function CobrancaDetalhePage({ params, searchParams }: PageProps) {
   const { id } = await params
+  const query = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
 
-  const [cobranca, interacoes] = await Promise.all([
+  const [cobranca, interacoes, acordoVigente, eventosOperacionais, mensagens] = await Promise.all([
     getCobrancaDetalhe(id, scope),
     listInteracoesDaCobranca(id),
+    getAcordoVigenteDaCobranca(id),
+    listEventosOperacionaisDaCobranca(id),
+    listMensagensDaCobranca(id),
   ])
 
-  if (!cobranca) {
-    notFound()
-  }
+  if (!cobranca) notFound()
 
-  const canCreateAcordo = ['novo', 'em cobrança ativa', 'em negociação'].includes(cobranca.status)
+  const statusOperacional = cobranca.status_operacional ?? cobranca.status ?? 'novo'
+  const statusFinanceiro = cobranca.status_financeiro ?? 'em_aberto'
+  const canCreateAcordo =
+    !acordoVigente &&
+    (COBRANCA_STATUS_OPERACIONAL_LIST as string[]).includes(statusOperacional) &&
+    !(COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(statusOperacional)
+
+  const principal = asNumber(cobranca.valor_original)
+  const juros = asNumber(cobranca.juros)
+  const multa = asNumber(cobranca.multa)
+  const correcao = asNumber(cobranca.correcao)
+  const desconto = asNumber(cobranca.desconto)
+  const atualizadoCalculado = Math.max(0, principal + juros + multa + correcao - desconto)
+  const valorAtualizado = asNumber(cobranca.valor_atualizado) || atualizadoCalculado
+  const percentualDespesa = 10
+  const despesaCobranca = valorAtualizado * (percentualDespesa / 100)
+  const valorNegociacao = valorAtualizado + despesaCobranca
+  const atraso = diasDeAtraso(cobranca.vencimento)
+  const nextAction = calcularProximaAcaoCobranca({
+    statusOperacional,
+    statusFinanceiro,
+    vencimento: cobranca.vencimento,
+    valorAtualizado,
+    ultimaInteracaoAt: cobranca.ultima_interacao_at,
+    temAcordoVigente: Boolean(acordoVigente),
+  })
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Cobrança"
-        title={`${cobranca.unidades?.responsavel_nome ?? 'Responsável não informado'} · Unidade ${cobranca.unidades?.identificacao ?? '-'}`}
-        description={`${cobranca.condominios?.nome ?? '-'} · competência ${cobranca.competencia ?? '-'} · vencimento ${formatDateBR(cobranca.vencimento)}`}
-        actions={
-          <>
-            {canCreateAcordo ? (
-              <ButtonLink href={`/app/acordos/novo?cobrancaId=${cobranca.id}`}>Criar acordo</ButtonLink>
-            ) : null}
-            <ButtonLink href="/app/cobrancas" variant="secondary">Voltar</ButtonLink>
-          </>
-        }
+      <CobrancaProntuarioHeader
+        cobranca={cobranca}
+        statusOperacional={statusOperacional}
+        valorAtualizado={valorAtualizado}
+        atraso={atraso}
+        nextAction={nextAction}
+        acordoVigenteId={acordoVigente?.id ?? null}
+        canCreateAcordo={canCreateAcordo}
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
-          <p className="text-sm font-semibold text-slate-500">Status</p>
-          <div className="mt-3">
-            <StatusBadge status={cobranca.status} />
-          </div>
+          <p className="text-sm font-semibold text-slate-500">Status operacional</p>
+          <div className="mt-3"><StatusBadge status={statusOperacional} /></div>
         </Card>
-
         <Card>
-          <p className="text-sm font-semibold text-slate-500">Valor original</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{formatCurrency(Number(cobranca.valor_original))}</p>
+          <p className="text-sm font-semibold text-slate-500">Status financeiro</p>
+          <div className="mt-3"><StatusBadge status={statusFinanceiro} /></div>
         </Card>
-
         <Card>
-          <p className="text-sm font-semibold text-slate-500">Valor atualizado</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{formatCurrency(Number(cobranca.valor_atualizado))}</p>
+          <p className="text-sm font-semibold text-slate-500">Dias em atraso</p>
+          <p className="mt-3 text-3xl font-semibold text-slate-950">{atraso}</p>
         </Card>
-
         <Card>
-          <p className="text-sm font-semibold text-slate-500">Última interação</p>
-          <p className="mt-3 text-lg font-semibold text-slate-950">{formatDateBR(cobranca.ultima_interacao_at)}</p>
+          <p className="text-sm font-semibold text-slate-500">Valor em negociação</p>
+          <p className="mt-3 text-2xl font-semibold text-slate-950">{formatCurrency(valorNegociacao)}</p>
         </Card>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1fr_380px]">
         <div className="space-y-6">
-          <Card>
-            <h2 className="text-lg font-semibold text-slate-950">Atualizar status</h2>
-            <form action={updateCobrancaStatus} className="mt-4 flex flex-col gap-3 md:flex-row">
-              <input type="hidden" name="cobranca_id" value={cobranca.id} />
-              <select
-                name="status"
-                defaultValue={cobranca.status}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none"
-              >
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-              <Button type="submit">Salvar status</Button>
-            </form>
-          </Card>
-
-          <Card>
-            <h2 className="text-lg font-semibold text-slate-950">Registrar interação</h2>
-            <form action={createInteracaoCobranca} className="mt-4 space-y-4">
-              <input type="hidden" name="cobranca_id" value={cobranca.id} />
-              <input type="hidden" name="carteira_id" value={cobranca.carteira_id} />
-
-              <select
-                name="tipo"
-                defaultValue="registro"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none"
-              >
-                <option value="registro">registro</option>
-                <option value="whatsapp">whatsapp</option>
-                <option value="ligacao">ligação</option>
-                <option value="email">e-mail</option>
-                <option value="negociacao">negociação</option>
-                <option value="alerta">alerta</option>
-              </select>
-
-              <Textarea name="conteudo" required placeholder="Descreva o contato, retorno do responsável, proposta ou próxima ação..." />
-
-              <div className="flex justify-end">
-                <Button type="submit">Salvar interação</Button>
-              </div>
-            </form>
-          </Card>
-
-          <Card className="overflow-hidden p-0">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-base font-semibold text-slate-950">Linha do tempo</h2>
-              <p className="mt-1 text-sm text-slate-500">Histórico operacional desta cobrança.</p>
-            </div>
-
-            {interacoes.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-slate-500">Nenhuma interação registrada.</p>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {interacoes.map((interacao: any) => (
-                  <div key={interacao.id} className="px-5 py-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="text-sm font-semibold text-slate-950">{interacao.tipo}</p>
-                      <p className="text-xs text-slate-500">{formatDateBR(interacao.created_at)}</p>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{interacao.conteudo}</p>
-                    <p className="mt-2 text-xs text-slate-400">
-                      Por {interacao.profiles?.nome ?? interacao.profiles?.email ?? 'usuário não identificado'}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+          <CobrancaQuickActions
+            cobranca={cobranca}
+            canCreateAcordo={canCreateAcordo}
+            defaultAction={query.acao ?? nextAction.acao}
+            updateStatusAction={updateCobrancaStatus}
+            createInteracaoAction={createInteracaoCobranca}
+            agendarRetornoAction={agendarRetornoCobranca}
+          />
+          <CobrancaNextActionCard action={nextAction} />
+          <CobrancaFinanceiroCard
+            cobranca={cobranca}
+            principal={principal}
+            juros={juros}
+            multa={multa}
+            correcao={correcao}
+            desconto={desconto}
+            valorAtualizado={valorAtualizado}
+            despesaCobranca={despesaCobranca}
+            valorNegociacao={valorNegociacao}
+            updateAction={updateCobrancaFinanceiro}
+          />
+          <CobrancaStatusActions
+            cobranca={cobranca}
+            statusOperacional={statusOperacional}
+            statusFinanceiro={statusFinanceiro}
+            updateStatusAction={updateCobrancaStatus}
+            createInteracaoAction={createInteracaoCobranca}
+          />
+          <CobrancaTimeline eventos={eventosOperacionais} interacoes={interacoes} />
         </div>
 
         <div className="space-y-4">
-          <Card>
-            <h2 className="text-lg font-semibold text-slate-950">Responsável</h2>
-            <div className="mt-4 space-y-2 text-sm text-slate-600">
-              <p>Nome: {cobranca.unidades?.responsavel_nome ?? '-'}</p>
-              <p>Documento: {cobranca.unidades?.responsavel_documento ?? '-'}</p>
-              <p>Telefone: {cobranca.unidades?.telefone ?? '-'}</p>
-              <p>E-mail: {cobranca.unidades?.email ?? '-'}</p>
-            </div>
-          </Card>
-
-          <Card>
-            <h2 className="text-lg font-semibold text-slate-950">Condomínio</h2>
-            <div className="mt-4 space-y-2 text-sm text-slate-600">
-              <p>Nome: {cobranca.condominios?.nome ?? '-'}</p>
-              <p>CNPJ: {cobranca.condominios?.cnpj ?? '-'}</p>
-              <p>Administradora: {cobranca.condominios?.administradora ?? '-'}</p>
-              <p>Régua: D+{cobranca.condominios?.inicio_cobranca_dias ?? '-'}</p>
-            </div>
-          </Card>
-
-          <Card>
-            <h2 className="text-lg font-semibold text-slate-950">Observações</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {cobranca.observacoes ?? 'Nenhuma observação registrada.'}
-            </p>
-          </Card>
+          <CobrancaMensageriaCard
+            mensagens={mensagens}
+            telefone={cobranca.unidades?.telefone}
+            responsavel={cobranca.unidades?.responsavel_nome}
+          />
+          <CobrancaSideCards cobranca={cobranca} acordoVigente={acordoVigente} statusOperacional={statusOperacional} />
         </div>
       </section>
     </div>

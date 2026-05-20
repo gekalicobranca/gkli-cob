@@ -1,116 +1,122 @@
-import { PageHeader } from '@/components/ui/page-header'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { StatusBadge } from '@/components/data/status-badge'
-import { EmptyState } from '@/components/data/empty-state'
-import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { listMensagens } from '@/features/mensageria/queries'
-import { listReguaCobrancaPreview } from '@/features/regua/queries'
-import { gerarLoteReguaCobranca } from '@/features/regua/actions'
+import Link from 'next/link'
+import { MessageSquarePlus } from 'lucide-react'
 
-export default async function MensageriaPage() {
-  const scope = await getPermittedCarteiras()
-  const [rows, preview] = await Promise.all([listMensagens(scope), listReguaCobrancaPreview(scope)])
-  const elegiveis = preview.filter((item: any) => item.elegivel)
+import { PageHeader } from '@/components/layout/page-header'
+import { ButtonLink } from '@/components/ui/button'
+import { EmptyState } from '@/components/data/empty-state'
+import { StatusBadge } from '@/components/data/status-badge'
+import { listTemplatesMensageria } from '@/features/mensageria/queries'
+import { listReguaEtapas } from '@/features/reguas/queries'
+
+function formatCanal(canal: string) {
+  switch (canal) {
+    case 'email':
+      return 'E-mail'
+    case 'sms':
+      return 'SMS'
+    case 'whatsapp':
+    default:
+      return 'WhatsApp'
+  }
+}
+
+export default async function TemplatesMensageriaPage() {
+  const [templates, etapas] = await Promise.all([
+    listTemplatesMensageria(),
+    listReguaEtapas(),
+  ])
+
+  const usageByTemplateId = new Map<string, number>()
+
+  etapas.forEach((etapa: any) => {
+    const templateId = etapa.template_id
+
+    if (!templateId) return
+
+    usageByTemplateId.set(
+      templateId,
+      (usageByTemplateId.get(templateId) ?? 0) + 1
+    )
+  })
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="gkli-cob"
-        title="Mensageria"
-        description="Acompanhe fila, logs e geração de mensagens da régua respeitando a configuração de cada condomínio."
+        eyebrow="Mensageria"
+        title="Templates"
+        description="Gerencie os templates utilizados nas réguas de cobrança e acordos."
         actions={
-          <form action={gerarLoteReguaCobranca}>
-            <Button type="submit">Gerar lote da régua</Button>
-          </form>
+          <ButtonLink href="/app/mensageria/templates/novo" variant="header">
+            <MessageSquarePlus className="h-4 w-4" />
+            Novo template
+          </ButtonLink>
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Elegíveis agora</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{elegiveis.length}</p>
-          <p className="mt-1 text-sm text-slate-500">Cobranças que já atingiram o D+ do condomínio.</p>
-        </Card>
-        <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Em análise</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{preview.length}</p>
-          <p className="mt-1 text-sm text-slate-500">Cobranças abertas avaliadas pelo motor da régua.</p>
-        </Card>
-        <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Fila registrada</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{rows.length}</p>
-          <p className="mt-1 text-sm text-slate-500">Mensagens já existentes na fila operacional.</p>
-        </Card>
-      </div>
-
-      <Card>
-        <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
-          <Input placeholder="Buscar..." />
-          <select className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none">
-            <option>Status</option>
-          </select>
-          <select className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none">
-            <option>Carteira</option>
-          </select>
-        </div>
-      </Card>
-
-      <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-950">Prévia da régua de cobrança</h2>
-          <p className="mt-1 text-xs text-slate-500">Cada cobrança respeita o campo “início da cobrança em D+” configurado no condomínio.</p>
-        </div>
-        {preview.length === 0 ? (
-          <div className="p-5">
-            <EmptyState title="Nenhuma cobrança em análise" description="Importe cobranças abertas para alimentar a régua." />
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {preview.slice(0, 12).map((row: any) => (
-              <div key={row.id} className="grid gap-3 px-5 py-4 lg:grid-cols-[1fr_140px_150px] lg:items-center">
-                <div>
-                  <p className="text-sm font-semibold text-slate-950">
-                    {row.unidades?.responsavel_nome ?? 'Responsável não informado'} · {row.unidades?.identificacao ?? 'Unidade'}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {row.condominios?.nome ?? 'Condomínio'} · atraso D+{row.dias_atraso} · entra na régua em D+{row.inicio_cobranca_dias}
-                  </p>
-                  <p className="mt-2 line-clamp-2 text-xs text-slate-600">{row.mensagem_preview}</p>
-                </div>
-                <StatusBadge status={row.elegivel ? 'elegível' : 'aguardando'} />
-                <div className="text-sm text-slate-500 lg:text-right">{row.etapa?.canal ?? 'whatsapp'} · {row.intensidade}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      {rows.length === 0 ? (
-        <EmptyState title="Nenhuma mensagem na fila" description="Gere um lote para iniciar a fila operacional." />
+      {templates.length === 0 ? (
+        <EmptyState
+          title="Nenhum template cadastrado"
+          description="Crie templates para utilizar nas réguas de mensageria."
+          action={{
+            href: '/app/mensageria/templates/novo',
+            label: 'Criar template',
+          }}
+        />
       ) : (
-        <Card className="overflow-hidden p-0">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-slate-950">Fila de mensagens</h2>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="hidden grid-cols-12 gap-4 border-b border-slate-200 bg-slate-50 px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500 xl:grid">
+            <div className="col-span-4">Template</div>
+            <div className="col-span-2">Canal</div>
+            <div className="col-span-2">Status</div>
+            <div className="col-span-2">Uso em réguas</div>
+            <div className="col-span-2 text-right">Ações</div>
           </div>
+
           <div className="divide-y divide-slate-100">
-            {rows.map((row: any) => (
-              <div key={row.id} className="grid gap-3 px-5 py-4 lg:grid-cols-[1fr_160px_220px] lg:items-center">
-                <div>
-                  <p className="text-sm font-semibold text-slate-950">
-                    {row.destinatario ?? 'Destinatário não informado'}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                    {row.conteudo ?? row.contexto ?? 'Mensagem operacional'}
-                  </p>
+            {templates.map((template: any) => (
+              <div
+                key={template.id}
+                className="grid grid-cols-1 gap-4 px-6 py-5 xl:grid-cols-12 xl:items-center"
+              >
+                <div className="xl:col-span-4">
+                  <div className="font-medium text-slate-900">
+                    {template.nome}
+                  </div>
+
+                  {template.assunto ? (
+                    <div className="mt-1 text-sm text-slate-500">
+                      {template.assunto}
+                    </div>
+                  ) : null}
                 </div>
-                <StatusBadge status={String(row.status ?? 'pendente')} />
-                <div className="text-sm text-slate-500 lg:text-right">{row.canal ?? 'canal'} · ID {String(row.id).slice(0, 8)}</div>
+
+                <div className="text-sm text-slate-600 xl:col-span-2">
+                  {formatCanal(template.canal ?? 'whatsapp')}
+                </div>
+
+                <div className="xl:col-span-2">
+                  <StatusBadge
+                    label={template.ativo ? 'ativo' : 'inativo'}
+                    tone={template.ativo ? 'green' : 'slate'}
+                  />
+                </div>
+
+                <div className="text-sm text-slate-500 xl:col-span-2">
+                  {usageByTemplateId.get(template.id) ?? 0} etapa(s)
+                </div>
+
+                <div className="flex items-center gap-2 xl:col-span-2 xl:justify-end">
+                  <Link
+                    href={`/app/mensageria/templates/${template.id}`}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Editar
+                  </Link>
+                </div>
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
     </div>
   )

@@ -1,64 +1,189 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Building2 } from 'lucide-react'
+import { Activity, ArrowLeft, Building2, ClipboardList, FileClock, History, Home, Landmark, MessageCircle, PencilLine, Plus, Upload, Users } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { ButtonLink } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Button, ButtonLink } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { FormField } from '@/components/ui/form-field'
 import { StatusBadge } from '@/components/data/status-badge'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { listCondominios } from '@/features/condominios/queries'
+import { listCarteirasForSelect } from '@/features/cadastros/queries'
+import { getCondominioIntegral, listEventosDoCondominio, listImportacoesDoCondominio, listUnidadesDoCondominio } from '@/features/condominios/queries'
+import { updateCondominioIntegral } from '@/features/condominios/actions'
 
-export default async function CondominioDetalhePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CondominioIntegralPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const scope = await getPermittedCarteiras()
-  const rows = await listCondominios(scope)
-  const condominio = rows.find((row: any) => row.id === id)
+  const [condominio, carteiras] = await Promise.all([
+    getCondominioIntegral(id, scope),
+    listCarteirasForSelect(scope),
+  ])
 
-  if (!condominio) {
-    notFound()
-  }
+  if (!condominio) notFound()
+
+  const [unidades, importacoes, eventos] = await Promise.all([
+    listUnidadesDoCondominio(condominio.id, scope),
+    listImportacoesDoCondominio(condominio, scope),
+    listEventosDoCondominio(condominio, scope),
+  ])
+
+  const unidadesAtivas = unidades.filter((row: any) => row.status === 'ativo').length
+  const contatosComTelefone = unidades.filter((row: any) => row.telefone).length
+  const contatosComEmail = unidades.filter((row: any) => row.email).length
+  const coberturaContato = unidades.length ? Math.round(((contatosComTelefone + contatosComEmail) / (unidades.length * 2)) * 100) : 0
+  const ultimaImportacao = importacoes[0]
 
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Base Cadastral"
+        eyebrow="Base Cadastral · Condomínio Integral"
         title={condominio.nome ?? 'Condomínio'}
-        description="Consulta operacional do condomínio e dos parâmetros usados na cobrança."
-        actions={<ButtonLink href="/app/condominios" variant="secondary">Voltar</ButtonLink>}
+        description="Visão integral do cadastro, parâmetros de cobrança, unidades vinculadas, histórico e auditoria operacional."
+        actions={
+          <>
+            <ButtonLink href="/app/condominios" variant="secondary"><ArrowLeft size={16} />Voltar</ButtonLink>
+            <ButtonLink href={`/app/importacoes/nova?tipo=unidades&condominio_id=${condominio.id}`} variant="secondary"><Upload size={16} />Importar unidades</ButtonLink>
+            <ButtonLink href="/app/cobrancas/nova"><Plus size={16} />Nova cobrança</ButtonLink>
+          </>
+        }
       />
 
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="relative overflow-hidden p-6">
-          <div className="absolute right-5 top-5 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
-            <Building2 size={18} />
+      <Card className="overflow-hidden p-0">
+        <div className="bg-[linear-gradient(135deg,var(--gkli-primary),#111827)] p-5 text-white">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/12 ring-1 ring-white/20">
+                <Building2 size={22} />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-medium tracking-tight">{condominio.nome}</h2>
+                  <StatusBadge status={condominio.status} />
+                </div>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-white/75">
+                  CNPJ {condominio.cnpj || '-'} · Carteira {condominio.carteiras?.nome || '-'} · Administradora {condominio.administradora || '-'}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-2 text-sm text-white/80 sm:grid-cols-3 lg:min-w-[480px]">
+              <HeaderMetric label="Valor da cota" value={formatCurrency(Number(condominio.valor_cota_condominial ?? 0))} />
+              <HeaderMetric label="Início da cobrança" value={`D+${condominio.inicio_cobranca_dias ?? 0}`} />
+              <HeaderMetric label="Última importação" value={ultimaImportacao ? formatDate(ultimaImportacao.created_at) : '-'} />
+            </div>
           </div>
-          <h2 className="text-lg font-semibold text-slate-950">Dados principais</h2>
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <Info label="CNPJ" value={condominio.cnpj} />
-            <Info label="Administradora" value={condominio.administradora} />
-            <Info label="Carteira" value={condominio.carteiras?.nome} />
-            <Info label="Status" value={<StatusBadge status={condominio.status} />} />
+        </div>
+      </Card>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <Kpi icon={<Home size={18} />} label="Unidades" value={String(unidades.length)} detail={`${unidadesAtivas} ativas`} />
+        <Kpi icon={<Users size={18} />} label="Cobertura contatos" value={`${coberturaContato}%`} detail={`${contatosComTelefone} telefones · ${contatosComEmail} e-mails`} />
+        <Kpi icon={<Landmark size={18} />} label="Vencimento" value={`Dia ${condominio.vencimento_cota_dia ?? '-'}`} detail="referência da cota" />
+        <Kpi icon={<MessageCircle size={18} />} label="Régua" value={`D+${condominio.inicio_cobranca_dias ?? 0}`} detail="entrada na cobrança" />
+        <Kpi icon={<Activity size={18} />} label="Eventos" value={String(eventos.length)} detail="auditoria operacional" />
+      </section>
+
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <Tab href="#cadastro" icon={<PencilLine size={15} />} label="Cadastro" />
+        <Tab href="#cobranca" icon={<Landmark size={15} />} label="Cobrança" />
+        <Tab href="#unidades" icon={<Home size={15} />} label="Unidades" />
+        <Tab href="#historico" icon={<History size={15} />} label="Histórico" />
+        <Tab href="#auditoria" icon={<FileClock size={15} />} label="Auditoria" />
+      </div>
+
+      <form action={updateCondominioIntegral} className="grid gap-5 xl:grid-cols-[1.05fr_.95fr]">
+        <input type="hidden" name="id" value={condominio.id} />
+
+        <Card id="cadastro" className="space-y-5 scroll-mt-24">
+          <div>
+            <Badge tone="primary">Cadastro</Badge>
+            <h2 className="mt-3 text-lg font-medium text-slate-950">Dados principais</h2>
+            <p className="mt-1 text-sm text-slate-500">Edite o cadastro sem depender de uma nova importação CSV.</p>
           </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField label="Carteira"><Select name="carteira_id" defaultValue={condominio.carteira_id ?? ''} required><option value="">Selecione...</option>{carteiras.map((carteira: any) => (<option key={carteira.id} value={carteira.id}>{carteira.nome}</option>))}</Select></FormField>
+            <FormField label="Status"><Select name="status" defaultValue={condominio.status ?? 'ativo'}><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="pausado">Pausado</option></Select></FormField>
+            <FormField label="Nome do condomínio"><Input name="nome" defaultValue={condominio.nome ?? ''} required /></FormField>
+            <FormField label="CNPJ"><Input name="cnpj" defaultValue={condominio.cnpj ?? ''} /></FormField>
+            <FormField label="Administradora"><Input name="administradora" defaultValue={condominio.administradora ?? ''} /></FormField>
+          </div>
+
+          <FormField label="Observações internas">
+            <Textarea name="observacoes" defaultValue={condominio.observacoes ?? ''} placeholder="Observações do condomínio, regras combinadas, exceções operacionais..." />
+          </FormField>
         </Card>
 
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold text-slate-950">Parâmetros de cobrança</h2>
-          <div className="mt-5 space-y-4">
-            <Info label="Dia de vencimento" value={condominio.vencimento_cota_dia ? `Dia ${condominio.vencimento_cota_dia}` : '-'} />
-            <Info label="Valor da cota" value={formatCurrency(Number(condominio.valor_cota_condominial ?? 0))} />
-            <Info label="Início da cobrança" value={condominio.inicio_cobranca_dias ? `${condominio.inicio_cobranca_dias} dias após vencimento` : '-'} />
+        <Card id="cobranca" className="space-y-5 scroll-mt-24">
+          <div>
+            <Badge tone="primary">Cobrança</Badge>
+            <h2 className="mt-3 text-lg font-medium text-slate-950">Parâmetros operacionais</h2>
+            <p className="mt-1 text-sm text-slate-500">Campos usados para importação, régua e leitura operacional.</p>
           </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField label="Dia de vencimento da cota"><Input name="vencimento_cota_dia" type="number" min="1" max="31" defaultValue={condominio.vencimento_cota_dia ?? 10} /></FormField>
+            <FormField label="Valor médio da cota"><Input name="valor_cota_condominial" defaultValue={String(condominio.valor_cota_condominial ?? 0).replace('.', ',')} /></FormField>
+            <FormField label="Início da cobrança após X dias"><Input name="inicio_cobranca_dias" type="number" min="0" max="365" defaultValue={condominio.inicio_cobranca_dias ?? 30} /></FormField>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            <p className="text-sm text-slate-800">Leitura operacional atual</p>
+            <p className="mt-2">A cobrança entra na régua <span className="text-slate-950">D+{condominio.inicio_cobranca_dias ?? 0}</span> após o vencimento da cota no dia <span className="text-slate-950">{condominio.vencimento_cota_dia ?? '-'}</span>.</p>
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+            <ButtonLink href="/app/condominios" variant="secondary">Cancelar</ButtonLink>
+            <Button type="submit">Salvar Condomínio Integral</Button>
+          </div>
+        </Card>
+      </form>
+
+      <section id="unidades" className="scroll-mt-24">
+        <Card className="overflow-hidden p-0">
+          <div className="flex flex-col gap-3 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between">
+            <div><Badge tone="primary">Unidades</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Unidades vinculadas</h2><p className="mt-1 text-sm text-slate-500">Primeira leitura para saneamento cadastral antes da régua.</p></div>
+            <ButtonLink href="/app/unidades/nova" variant="secondary"><Plus size={16} />Nova unidade</ButtonLink>
+          </div>
+          {unidades.length === 0 ? <div className="p-5 text-sm text-slate-500">Nenhuma unidade vinculada a este condomínio.</div> : (
+            <div className="divide-y divide-slate-100">{unidades.slice(0, 12).map((unidade: any) => (<Link key={unidade.id} href={`/app/unidades/${unidade.id}`} className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[1fr_1.2fr_1fr_1fr_90px] lg:items-center"><div><p className="text-sm font-medium text-slate-950">{unidade.identificacao}</p><p className="mt-1 text-xs text-slate-500">Bloco {unidade.bloco || '-'}</p></div><div><p className="text-sm text-slate-700">{unidade.responsavel_nome || 'Responsável não informado'}</p><p className="mt-1 text-xs text-slate-500">{unidade.responsavel_documento || '-'}</p></div><div className="text-sm text-slate-600">{unidade.telefone || '-'}</div><div className="truncate text-sm text-slate-600">{unidade.email || '-'}</div><StatusBadge status={unidade.status} /></Link>))}</div>
+          )}
+        </Card>
+      </section>
+
+      <section id="historico" className="scroll-mt-24">
+        <Card className="overflow-hidden p-0">
+          <div className="border-b border-slate-100 p-5"><Badge tone="primary">Histórico</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Histórico operacional</h2><p className="mt-1 text-sm text-slate-500">Eventos do Condomínio Integral e importações recentes ficam concentrados aqui.</p></div>
+          {eventos.length === 0 && importacoes.length === 0 ? <div className="p-5 text-sm text-slate-500">Nenhum histórico encontrado para este condomínio.</div> : (
+            <div className="grid gap-5 p-5 xl:grid-cols-[1fr_.9fr]">
+              <div className="space-y-3"><div className="flex items-center gap-2 text-sm text-slate-700"><FileClock size={16} className="text-[var(--gkli-primary)]" />Timeline de alterações</div>{eventos.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Rode a migration da Fase 2 para começar a registrar eventos de auditoria.</div> : <div className="space-y-3">{eventos.map((evento: any) => <TimelineItem key={evento.id} evento={evento} />)}</div>}</div>
+              <div className="space-y-3"><div className="flex items-center gap-2 text-sm text-slate-700"><ClipboardList size={16} className="text-[var(--gkli-primary)]" />Importações relacionadas</div>{importacoes.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Nenhuma importação recente encontrada para a carteira deste condomínio.</div> : <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200">{importacoes.map((importacao: any) => (<Link key={importacao.id} href={`/app/importacoes/${importacao.id}`} className="block p-4 transition hover:bg-slate-50"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium text-slate-950">{importacao.arquivo_nome || 'Importação'}</p><p className="mt-1 text-xs text-slate-500">{importacao.tipo} · {formatDate(importacao.created_at)}</p><p className="mt-2 text-xs text-slate-500">{importacao.total_validas ?? 0} válidas · {importacao.total_invalidas ?? 0} inválidas</p></div><StatusBadge status={importacao.status} /></div></Link>))}</div>}</div>
+            </div>
+          )}
+        </Card>
+      </section>
+
+      <section id="auditoria" className="scroll-mt-24">
+        <Card className="space-y-4">
+          <div><Badge tone="primary">Auditoria</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Alterações rastreadas</h2><p className="mt-1 text-sm text-slate-500">Na Fase 2, toda edição salva no Condomínio Integral registra usuário, data e campos alterados.</p></div>
+          <div className="grid gap-3 md:grid-cols-3"><AuditInfo title="Quem alterou" text="Nome e e-mail do usuário autenticado." /><AuditInfo title="O que mudou" text="Campos antes/depois em JSON estruturado." /><AuditInfo title="Quando mudou" text="Linha do tempo ordenada por data." /></div>
         </Card>
       </section>
     </div>
   )
 }
 
-function Info({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <div className="mt-1 text-sm font-medium text-slate-800">{value || '-'}</div>
-    </div>
-  )
-}
+function HeaderMetric({ label, value }: { label: string; value: string }) { return <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/15"><p className="text-[11px] uppercase tracking-[0.16em] text-white/55">{label}</p><p className="mt-2 text-sm text-white">{value}</p></div> }
+function Kpi({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: string; detail: string }) { return <Card className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[0.16em] text-slate-400">{label}</p><p className="mt-3 text-3xl font-medium tracking-tight text-slate-950">{value}</p><p className="mt-1 text-sm text-slate-500">{detail}</p></div><div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">{icon}</div></div></Card> }
+function Tab({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) { return <a href={href} className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-950">{icon}{label}</a> }
+function AuditInfo({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-medium text-slate-900">{title}</p><p className="mt-2 text-sm text-slate-500">{text}</p></div> }
+function TimelineItem({ evento }: { evento: any }) { const changes = Object.entries(evento.diferencas ?? {}); return <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><p className="text-sm font-medium text-slate-950">{evento.titulo}</p><p className="mt-1 text-xs text-slate-500">{formatDateTime(evento.criado_em)} · {evento.usuario_nome || evento.usuario_email || 'Usuário'}</p>{evento.descricao ? <p className="mt-2 text-sm text-slate-600">{evento.descricao}</p> : null}</div><Badge tone="slate">{formatEventoTipo(evento.evento_tipo)}</Badge></div>{changes.length > 0 ? <div className="mt-4 grid gap-2 md:grid-cols-2">{changes.slice(0, 6).map(([field, change]: [string, any]) => <div key={field} className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><p className="uppercase tracking-[0.14em] text-slate-400">{formatField(field)}</p><p className="mt-2"><span className="text-slate-400">Antes:</span> {formatAuditValue(change?.antes)}</p><p className="mt-1"><span className="text-slate-400">Depois:</span> {formatAuditValue(change?.depois)}</p></div>)}</div> : null}</div> }
+function formatEventoTipo(value?: string | null) { return value ? value.replaceAll('_', ' ') : 'evento' }
+function formatField(value: string) { return value.replaceAll('_', ' ') }
+function formatAuditValue(value: unknown) { if (value === null || value === undefined || value === '') return '-'; if (typeof value === 'boolean') return value ? 'sim' : 'não'; return String(value) }
+function formatDate(value?: string | null) { if (!value) return '-'; return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) }
+function formatDateTime(value?: string | null) { if (!value) return '-'; return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) }

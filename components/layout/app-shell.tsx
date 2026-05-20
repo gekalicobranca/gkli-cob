@@ -1,364 +1,496 @@
-"use client"
+'use client'
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
+import { LogoutButton } from '@/components/auth/logout-button'
 
-type ShellUser = {
-  id?: string
-  email?: string
-  nome?: string
-  perfil?: string
-} | null
-
-type AppShellProps = {
-  children: React.ReactNode
-  user?: ShellUser
+type SidebarItem = {
+  label: string
+  href: string
+  icon?: string
+  description?: string
 }
 
-const ACCENT = "#075F77"
-const PRODUCT = "Cobrança"
-const STORAGE_KEY = "gkli:cobranca:sidebar:v8"
+type SidebarSection = {
+  id: string
+  title: string
+  items: SidebarItem[]
+}
 
-const sections = [
+type AppShellUser = {
+  id: string
+  email?: string | null
+  nome?: string | null
+  perfil?: string | null
+}
+
+const SIDEBAR_STORAGE_KEY = 'gkli:cobranca:sidebar:v13-lite'
+const GROUPS_STORAGE_KEY = 'gkli:cobranca:sidebar-groups:v2-lite'
+
+const featuredItem: SidebarItem = {
+  label: 'Inbox operacional',
+  href: '/app/inbox',
+  icon: 'inbox',
+  description: 'Fila única do dia',
+}
+
+const sections: SidebarSection[] = [
   {
-    title: "Cockpit",
-    items: [{ label: "Cockpit", href: "/app/cockpit", icon: "chart" }],
-  },
-  {
-    title: "Base Operacional",
+    id: 'operacional',
+    title: 'Base Operacional',
     items: [
-      { label: "Acordos", href: "/app/acordos", icon: "handshake" },
-      { label: "Cobranças", href: "/app/cobrancas", icon: "money" },
-      { label: "Régua de Cobrança", href: "/app/regua-cobranca", icon: "nodes" },
-      { label: "Lotes", href: "/app/lotes", icon: "layers" },
-      { label: "Mensageria", href: "/app/mensageria", icon: "message" },
+      { label: 'Acordos', href: '/app/acordos', icon: 'handshake' },
+      { label: 'Cobranças', href: '/app/cobrancas', icon: 'money' },
+      { label: 'Central de pendências', href: '/app/pendencias', icon: 'alert' },
     ],
   },
   {
-    title: "Base Cadastral",
+    id: 'cadastro',
+    title: 'Base Cadastral',
     items: [
-      { label: "Unidades", href: "/app/unidades", icon: "home" },
-      { label: "Condomínios", href: "/app/condominios", icon: "building" },
-      { label: "Importações", href: "/app/importacoes", icon: "upload" },
-      { label: "Conversão de Relatório", href: "/app/conversao-relatorio", icon: "document" },
+      { label: 'Condomínios', href: '/app/condominios', icon: 'building' },
+      { label: 'Unidades', href: '/app/unidades', icon: 'unit' },
+      { label: 'Importações', href: '/app/importacoes', icon: 'upload' },
     ],
   },
   {
-    title: "Gestão",
+    id: 'gestao',
+    title: 'Gestão',
     items: [
-      { label: "Dashboard", href: "/app/dashboard", icon: "dashboard" },
-      { label: "Carteiras x Usuários", href: "/app/carteiras-usuarios", icon: "users" },
+      { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
+      { label: 'Cockpit operacional', href: '/app/cockpit', icon: 'chart' },
     ],
   },
 ]
 
-const iconPaths: Record<string, React.ReactNode> = {
-  chart: <path d="M5 19V5M5 19H19M9 15V11M13 15V8M17 15V13" />,
-  handshake: <path d="M7 12L10 15C11.1 16.1 12.9 16.1 14 15L17 12M8 10L10.5 7.5C11.3 6.7 12.7 6.7 13.5 7.5L16 10M4 12L7 9L10 12M20 12L17 9L14 12" />,
-  money: <path d="M12 7V17M9 10C9 8.9 10.3 8 12 8C13.7 8 15 8.9 15 10C15 11.1 13.7 12 12 12C10.3 12 9 12.9 9 14C9 15.1 10.3 16 12 16C13.7 16 15 15.1 15 14M4 12A8 8 0 1 0 20 12A8 8 0 1 0 4 12" />,
-  nodes: <path d="M6 8A2 2 0 1 0 6 4A2 2 0 0 0 6 8ZM18 20A2 2 0 1 0 18 16A2 2 0 0 0 18 20ZM6 20A2 2 0 1 0 6 16A2 2 0 0 0 6 20ZM8 6H12C14 6 15 7 15 9V15M8 18H16" />,
-  layers: <path d="M12 4L4 8L12 12L20 8L12 4ZM4 12L12 16L20 12M4 16L12 20L20 16" />,
-  message: <path d="M5 6H19V16H8L5 19V6Z" />,
-  home: <path d="M4 11L12 4L20 11M6 10V20H18V10M10 20V14H14V20" />,
-  building: <path d="M6 20V4H18V20M4 20H20M9 8H10M14 8H15M9 12H10M14 12H15M9 16H10M14 16H15" />,
-  upload: <path d="M12 16V5M8 9L12 5L16 9M5 19H19" />,
-  dashboard: <path d="M4 13H10V20H4V13ZM14 4H20V20H14V4ZM4 4H10V9H4V4Z" />,
-  users: <path d="M9 11A3 3 0 1 0 9 5A3 3 0 0 0 9 11ZM3 20C3.7 16.7 5.8 15 9 15C12.2 15 14.3 16.7 15 20M16 11A2.5 2.5 0 1 0 16 6M18 20C17.8 18.4 17.2 17.2 16.2 16.3" />,
-  document: <path d="M7 4H14L18 8V20H7V4ZM14 4V8H18M10 12H15M10 16H15" />,
+const settingsGroups: SidebarSection[] = [
+  {
+    id: 'automacao',
+    title: 'Automação e Mensageria',
+    items: [
+      { label: 'Mensageria', href: '/app/mensageria', icon: 'message' },
+      { label: 'Templates', href: '/app/mensageria/templates', icon: 'document' },
+      { label: 'Automações', href: '/app/automacoes', icon: 'gear' },
+      { label: 'Agente automático', href: '/app/agente-automatico', icon: 'robot' },
+      { label: 'Régua cobrança', href: '/app/regua-cobranca', icon: 'nodes' },
+      { label: 'Régua acordo', href: '/app/regua-acordo', icon: 'repeat' },
+      { label: 'Lotes', href: '/app/lotes', icon: 'layers' },
+      { label: 'Logs de mensageria', href: '/app/mensageria/log', icon: 'log' },
+      { label: 'Saneamento', href: '/app/mensageria/saneamento', icon: 'shield' },
+      { label: 'Inteligência da mensageria', href: '/app/mensageria/inteligencia', icon: 'spark' },
+    ],
+  },
+  {
+    id: 'administracao',
+    title: 'Administração e Cadastros Avançados',
+    items: [
+      { label: 'Carteiras x Usuários', href: '/app/carteiras-usuarios', icon: 'users' },
+      { label: 'Administradoras', href: '/app/administradoras', icon: 'building' },
+      { label: 'Solicitações ADM', href: '/app/administradoras/solicitacoes', icon: 'clipboard' },
+      { label: 'Mensageria ADM', href: '/app/administradoras/mensageria', icon: 'message' },
+      { label: 'Conversão de relatório', href: '/app/conversao-relatorio', icon: 'document' },
+      { label: 'Timeline operacional', href: '/app/timeline', icon: 'timeline' },
+    ],
+  },
+  {
+    id: 'inteligencia',
+    title: 'IA, BI e Indicadores Avançados',
+    items: [
+      { label: 'Assistente IA', href: '/app/ia', icon: 'bot' },
+      { label: 'Inteligência operacional', href: '/app/inteligencia', icon: 'spark' },
+      { label: 'Funil operacional', href: '/app/dashboard/funil', icon: 'funnel' },
+      { label: 'Central analítica', href: '/app/analitica', icon: 'chart' },
+    ],
+  },
+]
+
+function getIcon(icon?: string) {
+  switch (icon) {
+    case 'chart': return '◢'
+    case 'money': return '$'
+    case 'handshake': return '↔'
+    case 'document': return '◫'
+    case 'nodes': return '◎'
+    case 'layers': return '▦'
+    case 'message': return '▱'
+    case 'building': return '▣'
+    case 'unit': return '□'
+    case 'home': return '⌂'
+    case 'upload': return '↑'
+    case 'bot': return '◉'
+    case 'spark': return '✦'
+    case 'gear': return '⚙'
+    case 'robot': return '⬢'
+    case 'dashboard': return '◫'
+    case 'users': return '◌'
+    case 'repeat': return '↻'
+    case 'log': return '☰'
+    case 'shield': return '◇'
+    case 'funnel': return '▽'
+    case 'clipboard': return '☰'
+    case 'timeline': return '◫'
+    case 'alert': return '⚠'
+    case 'inbox': return '▤'
+    default: return '•'
+  }
 }
 
-const styles = {
-  shell: {
-    minHeight: "100vh",
-    background: "#f8fafc",
-    color: "#0f172a",
-    fontFamily:
-      'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  },
-  sidebar: {
-    position: "fixed" as const,
-    inset: "0 auto 0 0",
-    zIndex: 50,
-    width: 256,
-    borderRight: "1px solid #e2e8f0",
-    background: "#fff",
-    display: "flex",
-    flexDirection: "column" as const,
-  },
-  brand: {
-    height: 88,
-    padding: "0 20px",
-    borderBottom: "1px solid #eef2f7",
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    textDecoration: "none",
-  },
-  logo: {
-    width: 40,
-    height: 40,
-    borderRadius: 16,
-    background: ACCENT,
-    color: "#fff",
-    display: "grid",
-    placeItems: "center",
-    fontSize: 14,
-    fontWeight: 800,
-    letterSpacing: "-0.03em",
-    boxShadow: "0 10px 22px rgba(15, 23, 42, 0.10)",
-  },
-  brandKicker: {
-    color: "#94a3b8",
-    fontSize: 10,
-    letterSpacing: "0.34em",
-    textTransform: "uppercase" as const,
-    fontWeight: 700,
-    lineHeight: 1.2,
-  },
-  brandName: {
-    color: "#020617",
-    fontSize: 15,
-    fontWeight: 700,
-    lineHeight: 1.15,
-    marginTop: 4,
-    letterSpacing: "-0.02em",
-  },
-  nav: {
-    flex: 1,
-    minHeight: 0,
-    padding: "14px 12px 8px",
-    overflow: "hidden",
-  },
-  section: {
-    marginBottom: 7,
-  },
-  sectionButton: {
-    width: "100%",
-    border: 0,
-    background: "transparent",
-    cursor: "pointer",
-    padding: "7px 8px",
-    borderRadius: 12,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    color: "#8da0bd",
-    fontSize: 10,
-    letterSpacing: "0.24em",
-    textTransform: "uppercase" as const,
-    fontWeight: 700,
-    lineHeight: 1,
-    textAlign: "left" as const,
-    fontFamily: "inherit",
-  },
-  items: {
-    paddingTop: 3,
-    paddingBottom: 4,
-    display: "grid",
-    gap: 3,
-  },
-  item: {
-    display: "flex",
-    alignItems: "center",
-    gap: 11,
-    minHeight: 40,
-    padding: "6px 10px",
-    borderRadius: 16,
-    color: "#334155",
-    fontSize: 13,
-    fontWeight: 500,
-    lineHeight: 1,
-    textDecoration: "none",
-    transition: "background 160ms ease, box-shadow 160ms ease, color 160ms ease",
-  },
-  itemActive: {
-    background: "#f1f5f9",
-    color: "#020617",
-    boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
-  },
-  iconBox: {
-    width: 30,
-    height: 30,
-    flex: "0 0 30px",
-    borderRadius: 12,
-    border: "1px solid #dbe5f0",
-    background: "#fff",
-    color: ACCENT,
-    display: "grid",
-    placeItems: "center",
-  },
-  userBox: {
-    margin: 12,
-    borderRadius: 16,
-    background: "#f1f5f9",
-    padding: "12px 14px",
-  },
-  userEmail: {
-    color: "#020617",
-    fontSize: 13,
-    fontWeight: 700,
-    lineHeight: 1.2,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap" as const,
-  },
-  userRole: {
-    marginTop: 4,
-    color: "#64748b",
-    fontSize: 11,
-    lineHeight: 1.2,
-  },
-  main: {
-    minHeight: "100vh",
-    paddingLeft: 256,
-  },
-  content: {
-    width: "100%",
-    maxWidth: 1480,
-    margin: "0 auto",
-    padding: "24px 32px",
-  },
+function safeParseGroups(value: string | null) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed)
+      ? parsed.filter((item) => typeof item === 'string')
+      : []
+  } catch {
+    return []
+  }
 }
 
-function Icon({ name }: { name: string }) {
-  return (
-    <span style={styles.iconBox}>
-      <svg
-        viewBox="0 0 24 24"
-        style={{ width: 15, height: 15, display: "block" }}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.85"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        {iconPaths[name] || iconPaths.chart}
-      </svg>
-    </span>
-  )
+function isItemActive(pathname: string, href: string) {
+  if (href === '/app') return pathname === '/app'
+  return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-function isActive(pathname: string, href: string) {
-  if (href === "/app") return pathname === "/app"
-  return pathname === href || pathname.startsWith(href + "/")
+function findCurrentItem(pathname: string) {
+  const allItems = [featuredItem, ...sections.flatMap((section) => section.items), ...settingsGroups.flatMap((section) => section.items)]
+  return allItems.find((item) => isItemActive(pathname, item.href))
 }
 
-export function AppShell({ children, user }: AppShellProps) {
+export function AppShell({
+  children,
+  user,
+}: {
+  children: React.ReactNode
+  user?: AppShellUser
+}) {
   const pathname = usePathname()
+  const [collapsed, setCollapsed] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([])
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
-  const defaults = useMemo(() => {
-    const state: Record<string, boolean> = {}
-    sections.forEach((section) => {
-      state[section.title] =
-        section.title === "Cockpit" ||
-        section.items.some((item) => isActive(pathname, item.href))
-    })
-    return state
-  }, [pathname])
-
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(defaults)
+  const currentItem = useMemo(() => findCurrentItem(pathname), [pathname])
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY)
-      setOpenSections(saved ? { ...defaults, ...JSON.parse(saved) } : defaults)
-    } catch {
-      setOpenSections(defaults)
-    }
-  }, [defaults])
+    const savedSidebar = window.localStorage.getItem(SIDEBAR_STORAGE_KEY)
+    const savedGroups = window.localStorage.getItem(GROUPS_STORAGE_KEY)
 
-  function toggleSection(title: string) {
-    setOpenSections((current) => {
-      const next = { ...current, [title]: !current[title] }
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-      return next
+    setCollapsed(savedSidebar === 'collapsed')
+    setCollapsedGroups(safeParseGroups(savedGroups))
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, collapsed ? 'collapsed' : 'expanded')
+  }, [collapsed, mounted])
+
+  useEffect(() => {
+    if (!mounted) return
+    window.localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(collapsedGroups))
+  }, [collapsedGroups, mounted])
+
+  useEffect(() => {
+    const activeGroup = sections.find((section) =>
+      section.items.some((item) => isItemActive(pathname, item.href)),
+    )
+
+    if (!activeGroup) return
+
+    setCollapsedGroups((current) =>
+      current.filter((groupId) => groupId !== activeGroup.id),
+    )
+  }, [pathname])
+
+  useEffect(() => {
+    setSettingsOpen(false)
+  }, [pathname])
+
+  function toggleGroup(sectionId: string) {
+    setCollapsedGroups((current) => {
+      if (current.includes(sectionId)) {
+        return current.filter((groupId) => groupId !== sectionId)
+      }
+      return [...current, sectionId]
     })
   }
 
-  const displayName = user?.email || user?.nome || "Usuário GKLI"
+  function renderItem(item: SidebarItem, options?: { featured?: boolean; compact?: boolean }) {
+    const active = isItemActive(pathname, item.href)
+
+    if (options?.featured) {
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          title={collapsed ? item.label : undefined}
+          className={[
+            'group flex items-center rounded-[22px] bg-gradient-to-br from-[#04799a] via-[#03658C] to-[#024F6F] text-white shadow-[0_18px_42px_rgba(3,101,140,0.28)] ring-1 ring-white/10 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_48px_rgba(3,101,140,0.34)]',
+            collapsed ? 'mx-auto h-12 w-12 justify-center' : 'gap-3 px-4 py-3.5',
+          ].join(' ')}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/16 text-[13px] font-semibold text-white ring-1 ring-white/15">
+            {getIcon(item.icon)}
+          </span>
+
+          {!collapsed && (
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold leading-5 text-white">
+                {item.label}
+              </span>
+              {item.description ? (
+                <span className="block truncate text-[11px] font-medium text-white/78">
+                  {item.description}
+                </span>
+              ) : null}
+            </span>
+          )}
+        </Link>
+      )
+    }
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        title={collapsed ? item.label : undefined}
+        className={[
+          'group relative flex items-center rounded-2xl text-sm font-medium transition duration-150',
+          options?.compact ? 'gap-3 px-3 py-2' : collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5',
+          active
+            ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200/80 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-[#04799a]'
+            : 'text-slate-600 hover:bg-white/80 hover:text-slate-950 hover:shadow-sm hover:ring-1 hover:ring-slate-200/70',
+        ].join(' ')}
+      >
+        <span
+          className={[
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[13px] transition',
+            active
+              ? 'bg-[#e8f6fb] text-[#04799a]'
+              : 'bg-slate-100 text-slate-500 group-hover:bg-[#edf8fb] group-hover:text-[#04799a]',
+          ].join(' ')}
+        >
+          {getIcon(item.icon)}
+        </span>
+
+        {(!collapsed || options?.compact) && <span className="min-w-0 truncate">{item.label}</span>}
+      </Link>
+    )
+  }
 
   return (
-    <div style={styles.shell}>
-      <aside style={styles.sidebar}>
-        <Link href="/app" style={styles.brand} title="Voltar para a página inicial de cards">
-          <div style={styles.logo}>GK</div>
-          <div style={{ minWidth: 0 }}>
-            <div style={styles.brandKicker}>GKLI</div>
-            <div style={styles.brandName}>{PRODUCT}</div>
-          </div>
-        </Link>
+    <div className="flex min-h-screen bg-[var(--gkli-background)]">
+      <aside
+        className={[
+          'sticky top-0 h-screen shrink-0 overflow-hidden border-r border-slate-200/75 bg-[#f8fafc] transition-[width] duration-200 ease-in-out',
+          collapsed ? 'w-[84px]' : 'w-[282px]',
+        ].join(' ')}
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex h-[76px] items-center justify-between gap-3 border-b border-slate-200/75 px-4">
+            <Link
+              href="/app"
+              className={[
+                'flex min-w-0 items-center gap-3 rounded-2xl transition hover:opacity-90',
+                collapsed ? 'mx-auto' : '',
+              ].join(' ')}
+              title="GKLI Cobrança"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#04799a] to-[#005f7c] text-xs font-semibold text-white shadow-[0_10px_24px_rgba(0,105,136,0.24)]">
+                GK
+              </span>
 
-        <nav style={styles.nav}>
-          {sections.map((section) => {
-            const opened = !!openSections[section.title]
-
-            return (
-              <div key={section.title} style={styles.section}>
-                <button
-                  type="button"
-                  onClick={() => toggleSection(section.title)}
-                  style={styles.sectionButton}
-                >
-                  <span>{section.title}</span>
-                  <span
-                    style={{
-                      color: "#94a3b8",
-                      fontSize: 13,
-                      transform: opened ? "rotate(180deg)" : "rotate(0deg)",
-                      transition: "transform 160ms ease",
-                    }}
-                  >
-                    ⌃
+              {!collapsed && (
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+                    GKLI
                   </span>
-                </button>
+                  <span className="block truncate text-lg font-semibold tracking-tight text-slate-950">
+                    Cobrança
+                  </span>
+                </span>
+              )}
+            </Link>
 
-                {opened ? (
-                  <div style={styles.items}>
-                    {section.items.map((item) => {
-                      const active = isActive(pathname, item.href)
+            {!collapsed && (
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-sm text-slate-400 transition hover:bg-white hover:text-[#04799a] hover:shadow-sm hover:ring-1 hover:ring-slate-200"
+                aria-label="Recolher menu"
+              >
+                ‹
+              </button>
+            )}
+          </div>
 
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          style={{
-                            ...styles.item,
-                            ...(active ? styles.itemActive : {}),
-                          }}
+          {collapsed && (
+            <div className="border-b border-slate-200/75 px-3 py-3">
+              <button
+                type="button"
+                onClick={() => setCollapsed(false)}
+                className="mx-auto flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-sm text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-[#04799a]"
+                aria-label="Expandir menu"
+              >
+                ›
+              </button>
+            </div>
+          )}
+
+          <nav className="gkli-scrollbar flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
+            <div className="space-y-5">
+              {renderItem(featuredItem, { featured: true })}
+
+              {sections.map((section) => {
+                const groupCollapsed = collapsedGroups.includes(section.id)
+                const groupActive = section.items.some((item) =>
+                  isItemActive(pathname, item.href),
+                )
+
+                return (
+                  <section key={section.id} className="space-y-2">
+                    {!collapsed && (
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(section.id)}
+                        className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left transition hover:bg-white/70"
+                      >
+                        <span
+                          className={[
+                            'truncate text-[11px] font-semibold uppercase tracking-[0.28em]',
+                            groupActive ? 'text-[#04799a]' : 'text-slate-400',
+                          ].join(' ')}
                         >
-                          <Icon name={item.icon} />
-                          <span
-                            style={{
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {item.label}
-                          </span>
-                        </Link>
-                      )
-                    })}
-                  </div>
-                ) : null}
-              </div>
-            )
-          })}
-        </nav>
+                          {section.title}
+                        </span>
 
-        <div style={styles.userBox}>
-          <div style={styles.userEmail}>{displayName}</div>
-          <div style={styles.userRole}>{user?.perfil || "Operação"}</div>
+                        <span
+                          className={[
+                            'text-xs text-slate-400 transition-transform',
+                            groupCollapsed ? '-rotate-90' : 'rotate-0',
+                          ].join(' ')}
+                        >
+                          ⌄
+                        </span>
+                      </button>
+                    )}
+
+                    {(!groupCollapsed || collapsed) && (
+                      <div className="space-y-1">
+                        {section.items.map((item) => renderItem(item))}
+                      </div>
+                    )}
+                  </section>
+                )
+              })}
+            </div>
+          </nav>
+
+          <div className="border-t border-slate-200/75 p-3">
+            {!collapsed ? (
+              <div className="rounded-2xl bg-white px-3 py-3 shadow-sm ring-1 ring-slate-200/75">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[12px] font-semibold text-white">
+                    {(user?.nome || user?.email || 'GK').slice(0, 1).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium text-slate-800">
+                      {user?.nome || 'Usuário'}
+                    </div>
+                    <div className="truncate text-[11px] text-slate-500">
+                      {user?.email || 'Autenticado'}
+                    </div>
+                  </div>
+                  <LogoutButton />
+                </div>
+              </div>
+            ) : (
+              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                {(user?.nome || user?.email || 'GK').slice(0, 1).toUpperCase()}
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
-      <main style={styles.main}>
-        <div style={styles.content}>{children}</div>
+      <main className="min-w-0 flex-1">
+        <div className="mx-auto max-w-[1480px] p-6">
+          <header className="sticky top-0 z-30 mb-5 rounded-[1.5rem] border border-slate-200/75 bg-white/88 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/72">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-[#d7eef5] bg-[#edf8fb] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#04799a]">
+                    GKLI Cob
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-500">
+                    Experiência Lite
+                  </span>
+                </div>
+                <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950">
+                  {currentItem?.label || 'Área operacional'}
+                </h1>
+              </div>
+
+              <div className="relative flex items-center gap-2">
+                <Link
+                  href="/app/busca"
+                  className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:text-[#04799a]"
+                >
+                  <span className="text-base">⌕</span>
+                  <span className="hidden sm:inline">Busca</span>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen((value) => !value)}
+                  className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800"
+                  aria-expanded={settingsOpen}
+                  aria-label="Abrir configurações"
+                >
+                  <span>⚙</span>
+                  <span className="hidden sm:inline">Configurações</span>
+                </button>
+
+                {settingsOpen && (
+                  <div className="absolute right-0 top-12 z-50 w-[min(92vw,760px)] rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-900/12">
+                    <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950">Configurações e recursos avançados</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          Área separada para parametrizações, automações, administração e recursos que não precisam poluir a operação diária.
+                        </p>
+                      </div>
+                      <Link
+                        href="/app/configuracoes"
+                        className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 transition hover:text-[#04799a]"
+                      >
+                        Ver central
+                      </Link>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-3">
+                      {settingsGroups.map((group) => (
+                        <section key={group.id}>
+                          <h2 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                            {group.title}
+                          </h2>
+                          <div className="space-y-1">
+                            {group.items.map((item) => renderItem(item, { compact: true }))}
+                          </div>
+                        </section>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </header>
+
+          {children}
+        </div>
       </main>
     </div>
   )
 }
-
-export default AppShell

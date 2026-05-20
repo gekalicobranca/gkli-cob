@@ -16,6 +16,7 @@
     "date-fns": "latest",
     "lucide-react": "latest",
     "next": "16.2.4",
+    "openai": "^6.37.0",
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "tailwind-merge": "latest",

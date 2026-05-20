@@ -301,6 +301,10 @@ export default async function DashboardPage() {
               <Activity size={16} />
               Ir para cockpit
             </ButtonLink>
+            <ButtonLink href="/app/dashboard/funil" variant="secondary">
+              <Target size={16} />
+              Funil operacional
+            </ButtonLink>
             <ButtonLink href="/app/cobrancas" variant="secondary">
               <ArrowUpRight size={16} />
               Base de cobranças

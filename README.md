@@ -1,26 +1,46 @@
+# GKLI-Cob — Login Premium
 
-# GKLI Cobrança — Conectcon V2 + Menu Fix
+## Objetivo
 
-## Inclui
+Criar uma página de entrada/login mais impactante, inspirada na abertura institucional da GEKALI/GKLI, com:
 
-### Conversão de Relatório
-- parser Conectcon bloco/unidade
-- leitura por:
-  - Unidade:
-  - Recibo
-  - Vencimento
-  - Total
+- visual premium
+- identidade institucional preservada
+- composição geométrica
+- foto em moldura inclinada
+- painel de login limpo
+- responsividade
+- sem alterar banco
+- sem quebrar autenticação existente
 
-### Sidebar
-- fontes mais leves
-- menor peso visual
-- padrão próximo ao CRM
-- mantém colapso do menu
+## Arquivos incluídos
 
-## Substituir
+```txt
+app/login/page.tsx
+components/auth/gkli-login-page.tsx
+public/gkli/gkli-login-reference.png
+```
 
-### Parser
-features/conversao-relatorio/lib/parse-conectcon.ts
+## Como aplicar
 
-### Ajustes visuais
-components/layout/app-shell.tsx
+Copie os arquivos para a raiz do projeto.
+
+Depois rode:
+
+```bash
+npm run dev
+```
+
+Acesse:
+
+```txt
+/login
+```
+
+## Observação importante
+
+O formulário está preparado para integração com a autenticação existente.
+
+Se o seu projeto já possui uma action de login, basta ligar o `form action` ou manter a lógica atual da página antiga.
+
+Esta entrega foca na camada visual/UX da entrada.

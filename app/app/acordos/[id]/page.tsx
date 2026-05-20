@@ -1,182 +1,391 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { AlertTriangle } from 'lucide-react'
-import { PageHeader } from '@/components/ui/page-header'
-import { Card } from '@/components/ui/card'
-import { Button, ButtonLink } from '@/components/ui/button'
-import { StatusBadge } from '@/components/data/status-badge'
-import { formatCurrency } from '@/utils/formatters/currency'
-import { formatDateBR } from '@/utils/formatters/date'
-import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { getAcordoDetalhe, listParcelasDoAcordo } from '@/features/acordos/queries'
-import { marcarParcelaComoPaga, marcarParcelaComoVencida } from '@/features/acordos/actions'
 
-type PageProps = {
-  params: Promise<{ id: string }>
+import { Card, CardContent } from '@/components/ui/card'
+import { PageHeader } from '@/components/ui/page-header'
+import { getAcordoDetalhe } from '@/features/acordos/queries'
+import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+
+type Props = {
+  params: Promise<{
+    id: string
+  }>
 }
 
-export default async function AcordoDetalhePage({ params }: PageProps) {
-  const { id } = await params
-  const scope = await getPermittedCarteiras()
+function formatCurrency(value?: number | null) {
+  return Number(value || 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  })
+}
 
-  const [acordo, parcelas] = await Promise.all([
-    getAcordoDetalhe(id, scope),
-    listParcelasDoAcordo(id),
-  ])
+function formatDate(value?: string | null) {
+  if (!value) return '-'
 
-  if (!acordo) {
-    notFound()
+  return new Intl.DateTimeFormat('pt-BR').format(new Date(value))
+}
+
+function normalizeLabel(value?: string | null) {
+  if (!value) return '-'
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function badgeTone(value?: string | null) {
+  const v = String(value || '').toLowerCase()
+
+  if (['ativo', 'adimplente', 'quitado', 'baixo'].includes(v)) {
+    return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
   }
 
-  const totalParcelas = parcelas.reduce((sum: number, parcela: any) => sum + Number(parcela.valor ?? 0), 0)
-  const totalPago = parcelas
-    .filter((parcela: any) => parcela.status === 'paga')
-    .reduce((sum: number, parcela: any) => sum + Number(parcela.valor ?? 0), 0)
+  if (['parcial', 'medio', 'médio', 'em atraso'].includes(v)) {
+    return 'bg-amber-50 text-amber-700 ring-amber-200'
+  }
 
-  const hasVencida = parcelas.some((parcela: any) => parcela.status === 'vencida')
-  const isRompido = acordo.status === 'rompido'
+  if (['rompido', 'inadimplente', 'alto', 'cancelado'].includes(v)) {
+    return 'bg-rose-50 text-rose-700 ring-rose-200'
+  }
+
+  return 'bg-sky-50 text-sky-700 ring-sky-200'
+}
+
+function Badge({ value }: { value?: string | null }) {
+  return (
+    <span
+      className={[
+        'inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1',
+        badgeTone(value),
+      ].join(' ')}
+    >
+      {normalizeLabel(value)}
+    </span>
+  )
+}
+
+function MetricCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string
+  value: string
+  helper?: string
+}) {
+  return (
+    <Card>
+      <CardContent className="flex min-h-[112px] items-center gap-4 p-5">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-lg text-sky-700 ring-1 ring-sky-100">
+          ●
+        </div>
+
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            {label}
+          </div>
+
+          <div className="mt-1 truncate text-xl font-semibold text-slate-950">
+            {value}
+          </div>
+
+          {helper && (
+            <div className="mt-1 text-sm text-slate-500">
+              {helper}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function SectionTitle({
+  title,
+  description,
+  count,
+}: {
+  title: string
+  description?: string
+  count?: number
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-slate-950">
+            {title}
+          </h2>
+
+          {typeof count === 'number' && (
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+              {count}
+            </span>
+          )}
+        </div>
+
+        {description && (
+          <p className="mt-1 text-sm text-slate-500">
+            {description}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default async function AcordoDetalhePage({ params }: Props) {
+  const { id } = await params
+  const scope = await getPermittedCarteiras()
+  const data = await getAcordoDetalhe(id, scope)
+
+  if (!data?.acordo) notFound()
+
+  const { acordo, parcelas, timeline } = data
+
+  const entrada = parcelas.find((parcela: any) => parcela.tipo === 'entrada')
+  const parcelasNormais = parcelas.filter((parcela: any) => parcela.tipo !== 'entrada')
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Acordo"
-        title={`${acordo.unidades?.responsavel_nome ?? 'Responsável não informado'} · Unidade ${acordo.unidades?.identificacao ?? '-'}`}
-        description={`${acordo.condominios?.nome ?? '-'} · acordo ${acordo.tipo} · criado em ${formatDateBR(acordo.data_acordo)}`}
+        eyebrow="GKLI Cobrança"
+        title="Acordo operacional"
+        description="Gestão completa do acordo, entrada, parcelas e acompanhamento operacional."
         actions={
-          <ButtonLink href="/app/acordos" variant="secondary">Voltar</ButtonLink>
+          <div className="flex gap-2">
+            <Link
+              href={`/app/cobrancas/${acordo.cobranca_id}`}
+              className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+            >
+              Ver cobrança
+            </Link>
+
+            <Link
+              href="/app/acordos"
+              className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+            >
+              Voltar
+            </Link>
+          </div>
         }
       />
 
-      {isRompido || hasVencida ? (
-        <Card className={isRompido ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}>
-          <div className="flex items-start gap-3">
-            <div className={isRompido ? 'text-red-700' : 'text-amber-700'}>
-              <AlertTriangle size={22} />
-            </div>
-            <div>
-              <h2 className={isRompido ? 'font-semibold text-red-900' : 'font-semibold text-amber-900'}>
-                {isRompido ? 'Acordo rompido' : 'Acordo em atenção'}
-              </h2>
-              <p className={isRompido ? 'mt-1 text-sm text-red-800' : 'mt-1 text-sm text-amber-800'}>
-                {isRompido
-                  ? 'A cobrança vinculada deve retornar para cobrança ativa. Verifique a estratégia de reabordagem.'
-                  : 'Há parcelas vencidas. Rode a verificação de status para aplicar a regra de quebra quando necessário.'}
-              </p>
-            </div>
-          </div>
-        </Card>
-      ) : null}
+      <div className="grid gap-4 xl:grid-cols-4">
+        <MetricCard
+          label="Status"
+          value={normalizeLabel(acordo.status)}
+          helper="Situação operacional"
+        />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Status</p>
-          <div className="mt-3">
-            <StatusBadge status={acordo.status} />
-          </div>
-        </Card>
+        <MetricCard
+          label="Financeiro"
+          value={normalizeLabel(acordo.status_financeiro)}
+          helper="Acompanhamento de pagamento"
+        />
 
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Valor acordado</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{formatCurrency(Number(acordo.valor_acordado))}</p>
-        </Card>
+        <MetricCard
+          label="Valor do acordo"
+          value={formatCurrency(acordo.valor_acordado)}
+          helper="Total negociado"
+        />
 
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Entrada</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{formatCurrency(Number(acordo.entrada))}</p>
-        </Card>
+        <MetricCard
+          label="Risco"
+          value={normalizeLabel(acordo.risco)}
+          helper="Risco de rompimento"
+        />
+      </div>
 
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Pago em parcelas</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{formatCurrency(totalPago)}</p>
-          <p className="mt-1 text-sm text-slate-500">de {formatCurrency(totalParcelas)}</p>
-        </Card>
-      </section>
+      <div className="grid gap-5 xl:grid-cols-5">
+        <Card className="xl:col-span-2">
+          <CardContent className="space-y-5 p-6">
+            <SectionTitle
+              title="Entrada"
+              description="Primeiro pagamento do acordo."
+            />
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_380px]">
-        <Card className="overflow-hidden p-0">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-base font-semibold text-slate-950">Parcelas do acordo</h2>
-            <p className="mt-1 text-sm text-slate-500">Controle financeiro básico do acordo.</p>
-          </div>
-
-          <div className="divide-y divide-slate-100">
-            {parcelas.map((parcela: any) => (
-              <div key={parcela.id} className="grid gap-3 px-5 py-4 md:grid-cols-[90px_1fr_140px_220px] md:items-center">
-                <div>
-                  <p className="text-sm font-semibold text-slate-950">#{parcela.numero}</p>
+            {!entrada ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-5">
+                <div className="text-2xl font-semibold text-slate-950">
+                  Sem entrada
                 </div>
 
-                <div>
-                  <p className="text-sm font-semibold text-slate-950">{formatCurrency(Number(parcela.valor))}</p>
-                  <p className="mt-1 text-xs text-slate-500">Venc. {formatDateBR(parcela.vencimento)}</p>
-                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  Este acordo não possui parcela de entrada cadastrada.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-3xl font-semibold text-slate-950">
+                      {formatCurrency(entrada.valor)}
+                    </div>
 
-                <StatusBadge status={parcela.status} />
+                    <div className="mt-2 text-sm text-slate-500">
+                      Vencimento: {formatDate(entrada.vencimento)}
+                    </div>
+                  </div>
 
-                <div className="flex justify-end gap-2">
-                  {parcela.status !== 'paga' && !isRompido ? (
-                    <>
-                      <form action={marcarParcelaComoPaga}>
-                        <input type="hidden" name="parcela_id" value={parcela.id} />
-                        <input type="hidden" name="acordo_id" value={acordo.id} />
-                        <Button type="submit" variant="secondary">Pagar</Button>
-                      </form>
-
-                      <form action={marcarParcelaComoVencida}>
-                        <input type="hidden" name="parcela_id" value={parcela.id} />
-                        <input type="hidden" name="acordo_id" value={acordo.id} />
-                        <Button type="submit" variant="danger">Vencida</Button>
-                      </form>
-                    </>
-                  ) : parcela.status === 'paga' ? (
-                    <p className="text-sm text-slate-500">Pago em {formatDateBR(parcela.data_pagamento)}</p>
-                  ) : (
-                    <p className="text-sm text-slate-500">Acordo rompido</p>
-                  )}
+                  <Badge value={entrada.status} />
                 </div>
               </div>
-            ))}
-          </div>
+            )}
+          </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          <Card>
-            <h2 className="text-lg font-semibold text-slate-950">Dados da cobrança</h2>
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Competência</span>
-                <strong className="text-slate-900">{acordo.cobrancas?.competencia ?? '-'}</strong>
+        <Card className="xl:col-span-3">
+          <CardContent className="space-y-5 p-6">
+            <SectionTitle
+              title="Origem do acordo"
+              description="Cobrança e unidade relacionadas ao acordo."
+            />
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
+              <div className="text-lg font-semibold text-slate-950">
+                {acordo.condominios?.nome || 'Condomínio não informado'}
               </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Vencimento</span>
-                <strong className="text-slate-900">{formatDateBR(acordo.cobrancas?.vencimento)}</strong>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Valor atualizado</span>
-                <strong className="text-slate-900">{formatCurrency(Number(acordo.cobrancas?.valor_atualizado ?? 0))}</strong>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Status cobrança</span>
-                <StatusBadge status={acordo.cobrancas?.status ?? '-'} />
+
+              <div className="mt-1 text-sm text-slate-500">
+                Unidade {acordo.unidades?.identificacao || '-'}
+                {acordo.unidades?.bloco ? ` • Bloco ${acordo.unidades.bloco}` : ''}
               </div>
             </div>
-          </Card>
 
-          <Card>
-            <h2 className="text-lg font-semibold text-slate-950">Contato</h2>
-            <div className="mt-4 space-y-2 text-sm text-slate-600">
-              <p>Telefone: {acordo.unidades?.telefone ?? '-'}</p>
-              <p>E-mail: {acordo.unidades?.email ?? '-'}</p>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Valor cobrança
+                </div>
+
+                <div className="mt-2 text-lg font-semibold text-slate-950">
+                  {formatCurrency(acordo.cobrancas?.valor_atualizado)}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Principal
+                </div>
+
+                <div className="mt-2 text-lg font-semibold text-slate-950">
+                  {formatCurrency(acordo.cobrancas?.valor_original)}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Vencimento
+                </div>
+
+                <div className="mt-2 text-lg font-semibold text-slate-950">
+                  {formatDate(acordo.cobrancas?.vencimento)}
+                </div>
+              </div>
             </div>
-          </Card>
+          </CardContent>
+        </Card>
+      </div>
 
-          <Card>
-            <h2 className="text-lg font-semibold text-slate-950">Observações</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {acordo.observacoes ?? 'Nenhuma observação registrada.'}
-            </p>
-          </Card>
-        </div>
-      </section>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Card>
+          <CardContent className="space-y-5 p-6">
+            <SectionTitle
+              title="Parcelas do acordo"
+              description="Acompanhamento operacional do parcelamento."
+              count={parcelasNormais.length}
+            />
+
+            {parcelasNormais.length === 0 ? (
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
+                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">
+                  □
+                </div>
+
+                <div className="font-semibold text-slate-950">
+                  Nenhuma parcela cadastrada
+                </div>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Este acordo ainda não possui parcelas.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {parcelasNormais.map((parcela: any) => (
+                  <div
+                    key={parcela.id}
+                    className="flex items-center justify-between rounded-2xl border border-slate-200 p-4"
+                  >
+                    <div>
+                      <div className="font-semibold text-slate-950">
+                        Parcela #{parcela.numero}
+                      </div>
+
+                      <div className="mt-1 text-sm text-slate-500">
+                        Vencimento: {formatDate(parcela.vencimento)}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="font-semibold text-slate-950">
+                        {formatCurrency(parcela.valor)}
+                      </div>
+
+                      <div className="mt-1">
+                        <Badge value={parcela.status} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-5 p-6">
+            <SectionTitle
+              title="Timeline operacional"
+              description="Eventos registrados neste acordo."
+              count={timeline.length}
+            />
+
+            {timeline.length === 0 ? (
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
+                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">
+                  ○
+                </div>
+
+                <div className="font-semibold text-slate-950">
+                  Nenhum evento registrado
+                </div>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  A timeline deste acordo está vazia.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {timeline.map((evento: any) => (
+                  <div
+                    key={evento.id}
+                    className="relative border-l border-slate-200 pl-5"
+                  >
+                    <div className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full bg-sky-600" />
+
+                    <div className="font-semibold text-slate-950">
+                      {evento.descricao}
+                    </div>
+
+                    <div className="mt-1 text-sm text-slate-500">
+                      {formatDate(evento.criado_em)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

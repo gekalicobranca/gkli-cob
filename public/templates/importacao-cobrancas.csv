@@ -1,0 +1,2 @@
+condominio_cnpj;unidade;bloco;responsavel_nome;responsavel_documento;telefone;email;competencia;vencimento;valor_original;valor_atualizado;observacoes
+12345678000190;101;A;Maria Exemplo;12345678901;11999999999;maria@email.com;04/2026;10/04/2026;850,00;912,35;Débito condominial
