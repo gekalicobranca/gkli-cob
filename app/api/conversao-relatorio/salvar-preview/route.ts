@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/utils/supabase/admin"
+import { requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
 
 export const runtime = "nodejs"
 
 export async function POST(request: NextRequest) {
   try {
+    const { response } = await requireAuthenticatedApiUser()
+    if (response) return response
+
     const body = await request.json()
     const preview = body?.preview
 

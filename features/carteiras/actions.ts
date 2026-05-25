@@ -20,19 +20,99 @@ export async function createCarteira(formData: FormData) {
 
   const supabase = await createClient()
 
+  const nomeNormalizado = normalizeName(nome)
+
+  const { data: existente, error: existingError } = await supabase
+    .from('carteiras')
+    .select('id')
+    .eq('nome_normalizado', nomeNormalizado)
+    .maybeSingle()
+
+  if (existingError) {
+    throw new Error(`Erro ao validar carteira existente: ${existingError.message}`)
+  }
+
+  if (existente) {
+    throw new Error('Já existe uma carteira com esse nome.')
+  }
+
   const { error } = await supabase.from('carteiras').insert({
     nome,
-    nome_normalizado: normalizeName(nome),
+    nome_normalizado: nomeNormalizado,
     descricao: descricao || null,
     logo_url: logoUrl || null,
     ativo: true,
   })
 
   if (error) {
+    if (error.code === '23505') {
+      throw new Error('Já existe uma carteira com esse nome.')
+    }
+
     throw new Error(`Erro ao criar carteira: ${error.message}`)
   }
 
   revalidatePath('/app/carteiras-usuarios')
+  redirect('/app/carteiras-usuarios')
+}
+
+export async function updateCarteira(formData: FormData) {
+  await requireAdmin()
+
+  const id = String(formData.get('id') ?? '').trim()
+  const nome = String(formData.get('nome') ?? '').trim()
+  const descricao = String(formData.get('descricao') ?? '').trim()
+  const logoUrl = String(formData.get('logo_url') ?? '').trim()
+  const ativo = formData.get('ativo') === 'on'
+
+  if (!id) {
+    throw new Error('Carteira obrigatória.')
+  }
+
+  if (nome.length < 2) {
+    throw new Error('Nome da carteira obrigatório.')
+  }
+
+  const supabase = await createClient()
+  const nomeNormalizado = normalizeName(nome)
+
+  const { data: existente, error: existingError } = await supabase
+    .from('carteiras')
+    .select('id')
+    .eq('nome_normalizado', nomeNormalizado)
+    .neq('id', id)
+    .maybeSingle()
+
+  if (existingError) {
+    throw new Error(`Erro ao validar carteira existente: ${existingError.message}`)
+  }
+
+  if (existente) {
+    throw new Error('Já existe outra carteira com esse nome.')
+  }
+
+  const { error } = await supabase
+    .from('carteiras')
+    .update({
+      nome,
+      nome_normalizado: nomeNormalizado,
+      descricao: descricao || null,
+      logo_url: logoUrl || null,
+      ativo,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('Já existe outra carteira com esse nome.')
+    }
+
+    throw new Error(`Erro ao atualizar carteira: ${error.message}`)
+  }
+
+  revalidatePath('/app/carteiras-usuarios')
+  revalidatePath(`/app/carteiras-usuarios/${id}/editar`)
   redirect('/app/carteiras-usuarios')
 }
 
@@ -211,4 +291,5 @@ export async function removeUsuarioCarteira(formData: FormData) {
   }
 
   revalidatePath('/app/carteiras-usuarios')
+  redirect('/app/carteiras-usuarios')
 }

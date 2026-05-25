@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { requireRole } from "@/utils/auth/require-role";
-import * as XLSX from "xlsx";
 import {
   estimatePriority,
   getFirst,
@@ -14,6 +13,8 @@ import {
   onlyDigits,
   parseMoney,
 } from "./preview-rules";
+import { parseXlsx, type ParsedImportFile } from "./engine/xlsx-parser";
+import { isLegacyImportType, isValidImportType } from "./engine/types";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -64,16 +65,6 @@ function emptyImportExecutionResult(): ImportExecutionResult {
   return { importados: 0, criados: 0, atualizados: 0, ignorados: 0, erros: [] };
 }
 
-const OPERATIONAL_IMPORT_TYPES = [
-  "condominios",
-  "unidades",
-  "cobrancas",
-] as const;
-const LEGACY_IMPORT_TYPES = ["acordos_extra", "acordos_judiciais"] as const;
-const ALL_IMPORT_TYPES = [
-  ...OPERATIONAL_IMPORT_TYPES,
-  ...LEGACY_IMPORT_TYPES,
-] as const;
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
 
 const CONDOMINIO_NOME_KEYS = [
@@ -128,26 +119,14 @@ function getDocumento(
   );
 }
 
-function isOperationalImportType(tipo: string) {
-  return OPERATIONAL_IMPORT_TYPES.includes(tipo as any);
-}
-
-function isLegacyImportType(tipo: string) {
-  return LEGACY_IMPORT_TYPES.includes(tipo as any);
-}
-
-function isValidImportType(tipo: string) {
-  return ALL_IMPORT_TYPES.includes(tipo as any);
+function toISODate(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function addMonths(date: Date, months: number) {
   const copy = new Date(date);
   copy.setMonth(copy.getMonth() + months);
   return copy;
-}
-
-function toISODate(date: Date) {
-  return date.toISOString().slice(0, 10);
 }
 
 function roundMoney(value: number) {
@@ -180,89 +159,6 @@ function calcularValorAcordoComDespesa(payload: Record<string, any>) {
     despesaValor,
     valorAcordado: roundMoney(valorOriginal + despesaValor),
   };
-}
-
-type ParsedImportRow = {
-  linha: number;
-  payload: Record<string, string>;
-};
-
-type ParsedImportFile = {
-  rows: ParsedImportRow[];
-  sheetName: string;
-};
-
-function normalizeXlsxCellValue(value: unknown) {
-  if (value instanceof Date) return toISODate(value);
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) return "";
-    return Number.isInteger(value) ? String(value) : String(value);
-  }
-  if (typeof value === "boolean") return value ? "sim" : "nao";
-  return String(value ?? "").trim();
-}
-
-function chooseImportSheet(workbook: XLSX.WorkBook) {
-  const preferred = workbook.SheetNames.find(
-    (name) => normalizeKey(name) === "dados" || normalizeKey(name) === "importacao",
-  );
-
-  if (preferred) return preferred;
-
-  return (
-    workbook.SheetNames.find((name) => {
-      const key = normalizeKey(name);
-      return key !== "instrucoes" && key !== "instrucoes_de_uso" && key !== "exemplos";
-    }) ?? workbook.SheetNames[0]
-  );
-}
-
-function parseXlsx(fileName: string, buffer: ArrayBuffer): ParsedImportFile {
-  const extension = fileName.split(".").pop()?.toLowerCase();
-
-  if (extension !== "xlsx") {
-    throw new Error(
-      "Arquivo XLSX obrigatório. O fluxo CSV foi descontinuado no GKLI Cobrança para reduzir erros de data, acentuação e valores.",
-    );
-  }
-
-  const workbook = XLSX.read(buffer, {
-    type: "array",
-    cellDates: true,
-    cellNF: false,
-    cellText: false,
-  });
-  const sheetName = chooseImportSheet(workbook);
-
-  if (!sheetName) return { rows: [], sheetName: "" };
-
-  const worksheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, {
-    defval: "",
-    raw: true,
-    blankrows: false,
-  });
-
-  const parsedRows = rows
-    .map((row, index) => {
-      const payload: Record<string, string> = {};
-
-      Object.entries(row).forEach(([key, value]) => {
-        const normalizedKey = String(normalizeKey(key));
-        if (!normalizedKey || normalizedKey.startsWith("__empty")) return;
-        payload[normalizedKey] = normalizeXlsxCellValue(value);
-      });
-
-      return {
-        linha: index + 2,
-        payload,
-      };
-    })
-    .filter((row) =>
-      Object.values(row.payload).some((value) => String(value ?? "").trim() !== ""),
-    );
-
-  return { rows: parsedRows, sheetName };
 }
 
 function parseImportFile(fileName: string, buffer: ArrayBuffer): ParsedImportFile {
@@ -351,7 +247,7 @@ function cnpjKeyFromPayload(payload: Record<string, any>) {
 }
 
 function normalizeUnidadeStatus(value: unknown) {
-  const key = normalizeKey(value || "ativa");
+  const key = normalizeKey(String(value || "ativa"));
 
   if (["ativo", "ativa", "active", "habilitado", "habilitada"].includes(key)) {
     return "ativa";

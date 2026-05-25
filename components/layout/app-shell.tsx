@@ -37,21 +37,33 @@ const featuredItem: SidebarItem = {
 
 const sections: SidebarSection[] = [
   {
-    id: 'operacional',
-    title: 'Base Operacional',
+    id: 'operacao',
+    title: 'Operação',
     items: [
-      { label: 'Acordos', href: '/app/acordos', icon: 'handshake' },
       { label: 'Cobranças', href: '/app/cobrancas', icon: 'money' },
-      { label: 'Central de pendências', href: '/app/pendencias', icon: 'alert' },
+      { label: 'Acordos', href: '/app/acordos', icon: 'handshake' },
+      { label: 'Pendências', href: '/app/pendencias', icon: 'alert' },
     ],
   },
   {
-    id: 'cadastro',
-    title: 'Base Cadastral',
+    id: 'cadastros',
+    title: 'Cadastros',
     items: [
       { label: 'Condomínios', href: '/app/condominios', icon: 'building' },
       { label: 'Unidades', href: '/app/unidades', icon: 'unit' },
+      { label: 'Administradoras', href: '/app/administradoras', icon: 'building' },
       { label: 'Importações', href: '/app/importacoes', icon: 'upload' },
+    ],
+  },
+  {
+    id: 'comunicacao',
+    title: 'Comunicação',
+    items: [
+      { label: 'Templates', href: '/app/mensageria/templates', icon: 'document' },
+      { label: 'Réguas', href: '/app/mensageria/reguas', icon: 'nodes' },
+      { label: 'Lotes', href: '/app/lotes', icon: 'layers' },
+      { label: 'Logs', href: '/app/mensageria/log', icon: 'log' },
+      { label: 'Saneamento', href: '/app/mensageria/saneamento', icon: 'shield' },
     ],
   },
   {
@@ -59,48 +71,44 @@ const sections: SidebarSection[] = [
     title: 'Gestão',
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
-      { label: 'Cockpit operacional', href: '/app/cockpit', icon: 'chart' },
     ],
   },
 ]
 
 const settingsGroups: SidebarSection[] = [
   {
-    id: 'automacao',
-    title: 'Automação e Mensageria',
+    id: 'administracao',
+    title: 'Administração',
     items: [
-      { label: 'Mensageria', href: '/app/mensageria', icon: 'message' },
-      { label: 'Templates', href: '/app/mensageria/templates', icon: 'document' },
-      { label: 'Automações', href: '/app/automacoes', icon: 'gear' },
-      { label: 'Agente automático', href: '/app/agente-automatico', icon: 'robot' },
-      { label: 'Régua cobrança', href: '/app/regua-cobranca', icon: 'nodes' },
-      { label: 'Régua acordo', href: '/app/regua-acordo', icon: 'repeat' },
-      { label: 'Lotes', href: '/app/lotes', icon: 'layers' },
-      { label: 'Logs de mensageria', href: '/app/mensageria/log', icon: 'log' },
-      { label: 'Saneamento', href: '/app/mensageria/saneamento', icon: 'shield' },
-      { label: 'Inteligência da mensageria', href: '/app/mensageria/inteligencia', icon: 'spark' },
+      { label: 'Central de configurações', href: '/app/configuracoes', icon: 'gear' },
+      { label: 'Carteiras x Usuários', href: '/app/carteiras-usuarios', icon: 'users' },
+      { label: 'Solicitações ADM', href: '/app/administradoras/solicitacoes', icon: 'clipboard' },
+      { label: 'Mensageria ADM', href: '/app/administradoras/mensageria', icon: 'message' },
     ],
   },
   {
-    id: 'administracao',
-    title: 'Administração e Cadastros Avançados',
+    id: 'automacao',
+    title: 'Automação e IA',
     items: [
-      { label: 'Carteiras x Usuários', href: '/app/carteiras-usuarios', icon: 'users' },
-      { label: 'Administradoras', href: '/app/administradoras', icon: 'building' },
-      { label: 'Solicitações ADM', href: '/app/administradoras/solicitacoes', icon: 'clipboard' },
-      { label: 'Mensageria ADM', href: '/app/administradoras/mensageria', icon: 'message' },
+      { label: 'Mensageria', href: '/app/mensageria', icon: 'message' },
+      { label: 'Automações', href: '/app/automacoes', icon: 'gear' },
+      { label: 'Agente automático', href: '/app/agente-automatico', icon: 'robot' },
+      { label: 'Assistente IA', href: '/app/ia', icon: 'bot' },
+      { label: 'Inteligência operacional', href: '/app/inteligencia', icon: 'spark' },
       { label: 'Conversão de relatório', href: '/app/conversao-relatorio', icon: 'document' },
       { label: 'Timeline operacional', href: '/app/timeline', icon: 'timeline' },
     ],
   },
   {
-    id: 'inteligencia',
-    title: 'IA, BI e Indicadores Avançados',
+    id: 'lab',
+    title: 'Lab',
     items: [
-      { label: 'Assistente IA', href: '/app/ia', icon: 'bot' },
-      { label: 'Inteligência operacional', href: '/app/inteligencia', icon: 'spark' },
-      { label: 'Funil operacional', href: '/app/dashboard/funil', icon: 'funnel' },
-      { label: 'Central analítica', href: '/app/analitica', icon: 'chart' },
+      { label: 'Lab experimental', href: '/app/configuracoes/lab', icon: 'beaker' },
+      { label: 'Lite legado', href: '/app/configuracoes/lab/lite', icon: 'spark' },
+      { label: 'Mobile', href: '/app/configuracoes/lab/mobile', icon: 'mobile' },
+      { label: 'Workspace Focus', href: '/app/configuracoes/lab/workspace/demo/focus', icon: 'target' },
+      { label: 'Workspace Smart', href: '/app/configuracoes/lab/workspace/demo/smart', icon: 'spark' },
+      { label: 'Workspace Mobile', href: '/app/configuracoes/lab/workspace/demo/mobile', icon: 'mobile' },
     ],
   },
 ]
@@ -131,6 +139,9 @@ function getIcon(icon?: string) {
     case 'clipboard': return '☰'
     case 'timeline': return '◫'
     case 'alert': return '⚠'
+    case 'beaker': return '⚗'
+    case 'mobile': return '▯'
+    case 'target': return '◎'
     case 'inbox': return '▤'
     default: return '•'
   }
@@ -281,7 +292,7 @@ export function AppShell({
   }
 
   return (
-    <div className="flex min-h-screen bg-[var(--gkli-background)]">
+    <div className="flex h-screen overflow-hidden bg-[var(--gkli-background)]">
       <aside
         className={[
           'sticky top-0 h-screen shrink-0 overflow-hidden border-r border-slate-200/75 bg-[#f8fafc] transition-[width] duration-200 ease-in-out',
@@ -415,9 +426,9 @@ export function AppShell({
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1">
-        <div className="mx-auto max-w-[1480px] p-6">
-          <header className="sticky top-0 z-30 mb-5 rounded-[1.5rem] border border-slate-200/75 bg-white/88 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/72">
+      <main className="gkli-app-main min-w-0 flex-1">
+        <div className="gkli-app-frame mx-auto max-w-[1480px] p-4 xl:p-5">
+          <header className="gkli-app-header z-30 mb-4 rounded-[1.35rem] border border-slate-200/75 bg-white/88 px-4 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/72">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -459,7 +470,7 @@ export function AppShell({
                       <div>
                         <p className="text-sm font-semibold text-slate-950">Configurações e recursos avançados</p>
                         <p className="mt-1 text-xs leading-5 text-slate-500">
-                          Área separada para parametrizações, automações, administração e recursos que não precisam poluir a operação diária.
+                          Parametrizações, automações, administração e Lab ficam fora do fluxo diário para manter a operação limpa.
                         </p>
                       </div>
                       <Link
@@ -488,7 +499,9 @@ export function AppShell({
             </div>
           </header>
 
-          {children}
+          <div className="gkli-app-content">
+            {children}
+          </div>
         </div>
       </main>
     </div>

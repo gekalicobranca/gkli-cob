@@ -1,17 +1,10 @@
 import { NextResponse } from 'next/server'
 import { processarReguaCobranca } from '@/features/regua/services/processar-regua-cobranca'
-
-function isAuthorized(req: Request) {
-  const secret = process.env.REGUA_CRON_SECRET
-  if (!secret) return true
-  const auth = req.headers.get('authorization')
-  return auth === `Bearer ${secret}`
-}
+import { requireCronSecret } from '@/app/api/_lib/auth'
 
 export async function POST(req: Request) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
-  }
+  const unauthorized = requireCronSecret(req)
+  if (unauthorized) return unauthorized
 
   try {
     const resultado = await processarReguaCobranca({ origem: 'api' })

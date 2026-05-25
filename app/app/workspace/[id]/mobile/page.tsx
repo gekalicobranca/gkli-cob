@@ -1,7 +1,6 @@
-import { MobileCaseWorkspace } from '@/components/mobile/mobile-case-workspace'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
-
-export default function MobileWorkspacePage() {
-  return <MobileCaseWorkspace />
+export default async function MobileWorkspaceRedirectPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  redirect(`/app/configuracoes/lab/workspace/${id}/mobile`)
 }

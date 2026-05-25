@@ -4,6 +4,7 @@ import {
   BellRing,
   Bot,
   Database,
+  FlaskConical,
   FileSpreadsheet,
   KeyRound,
   MessageSquareText,
@@ -34,7 +35,7 @@ const groups: Array<{
       {
         title: 'Automações de cobrança',
         description: 'Central para réguas, etapas e regras automáticas.',
-        href: '/app/reguas',
+        href: '/app/mensageria/reguas',
         icon: Bot,
         tag: 'Motor',
       },
@@ -81,7 +82,7 @@ const groups: Array<{
       {
         title: 'Carteiras',
         description: 'Organize escopos operacionais e vínculos.',
-        href: '/app/carteiras',
+        href: '/app/carteiras-usuarios',
         icon: WalletCards,
         tag: 'Escopo',
       },
@@ -101,14 +102,14 @@ const groups: Array<{
       {
         title: 'Usuários x Carteiras',
         description: 'Controle acesso operacional por carteira.',
-        href: '/app/administrativo',
+        href: '/app/carteiras-usuarios',
         icon: UsersRound,
         tag: 'Admin',
       },
       {
         title: 'Permissões',
         description: 'Perfis, permissões e escopos de segurança.',
-        href: '/app/administrativo/permissoes',
+        href: '/app/carteiras-usuarios',
         icon: ShieldCheck,
         tag: 'Segurança',
       },
@@ -131,6 +132,20 @@ const groups: Array<{
         href: '/app/configuracoes/integracoes',
         icon: Plug,
         tag: 'Integrações',
+      },
+    ],
+  },
+
+  {
+    title: 'Lab',
+    description: 'Protótipos e experiências beta isolados da operação principal.',
+    cards: [
+      {
+        title: 'Laboratório experimental',
+        description: 'Mobile, Lite legado, Focus, Smart e UXs em validação.',
+        href: '/app/configuracoes/lab',
+        icon: FlaskConical,
+        tag: 'Beta',
       },
     ],
   },

@@ -1,6 +1,6 @@
+import { redirect } from 'next/navigation'
 
-import { SmartCase } from '@/components/workspace/smart-case'
-
-export default function SmartCasePage() {
-  return <SmartCase />
+export default async function SmartWorkspaceRedirectPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  redirect(`/app/configuracoes/lab/workspace/${id}/smart`)
 }

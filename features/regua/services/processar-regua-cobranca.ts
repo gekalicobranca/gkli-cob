@@ -22,6 +22,15 @@ import {
 } from "../engine";
 import { carregarEtapasDeReguaAdmin } from "../queries";
 import type { ReguaTom } from "../types";
+import {
+  cicloReferencia,
+  criarReguaFingerprint,
+  normalizarEtapaId,
+  novoContador,
+  resumoContadores,
+  statusFinalDoLote,
+  type ReguaContadores,
+} from "./regua-shared";
 
 type LoteItemStatus = (typeof LOTE_ITEM_STATUS)[keyof typeof LOTE_ITEM_STATUS];
 
@@ -78,47 +87,13 @@ type ProcessarReguaParams = {
   cooldownDias?: number;
 };
 
-type Contadores = {
-  avaliadas: number;
-  criadas: number;
-  puladas: number;
-  duplicadas: number;
-  erros: number;
-};
+type Contadores = ReguaContadores;
 
 type LoteContext = {
   id: string;
   carteiraId: string;
   contadores: Contadores;
 };
-
-function novoContador(): Contadores {
-  return { avaliadas: 0, criadas: 0, puladas: 0, duplicadas: 0, erros: 0 };
-}
-
-function cicloReferencia(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function normalizarEtapaId(etapaId?: string | null) {
-  if (!etapaId) return null;
-  return etapaId.startsWith("default-") ? null : etapaId;
-}
-
-function criarFingerprint(params: {
-  cobrancaId: string;
-  etapaId?: string | null;
-  canal: string;
-  ciclo: string;
-}) {
-  return [
-    "regua_cobranca",
-    params.cobrancaId,
-    params.etapaId ?? "sem_etapa",
-    params.canal,
-    params.ciclo,
-  ].join(":");
-}
 
 function getInicioRegua(row: CobrancaReguaRow) {
   const condominio = row.condominios;
@@ -237,11 +212,7 @@ async function atualizarLote(params: {
   status?: string;
   erro?: string;
 }) {
-  const status =
-    params.status ??
-    (params.contadores.erros > 0
-      ? LOTE_STATUS.CONCLUIDO_COM_FALHAS
-      : LOTE_STATUS.PENDENTE_APROVACAO);
+  const status = params.status ?? statusFinalDoLote(params.contadores);
 
   await params.supabase
     .from("lotes")
@@ -255,14 +226,7 @@ async function atualizarLote(params: {
       total_pendentes: params.contadores.criadas,
       total_aprovadas: 0,
       total_enviadas: 0,
-      resumo: {
-        total_avaliadas: params.contadores.avaliadas,
-        total_criadas: params.contadores.criadas,
-        total_puladas: params.contadores.puladas,
-        total_duplicadas: params.contadores.duplicadas,
-        total_erros: params.contadores.erros,
-        erro: params.erro ?? null,
-      },
+      resumo: resumoContadores(params.contadores, { erro: params.erro ?? null }),
       finalizado_em: new Date().toISOString(),
     } as any)
     .eq("id", params.loteId);
@@ -505,8 +469,9 @@ export async function processarReguaCobranca(
         const destinatario = canal === "email" ? unidade?.email : unidade?.telefone;
         const reguaEtapaId = normalizarEtapaId(etapa.id);
         const etapaReferencia = reguaEtapaId ?? etapa.id ?? null;
-        const fingerprint = criarFingerprint({
-          cobrancaId: row.id,
+        const fingerprint = criarReguaFingerprint({
+          contexto: "regua_cobranca",
+          entidadeId: row.id,
           etapaId: etapaReferencia,
           canal,
           ciclo,

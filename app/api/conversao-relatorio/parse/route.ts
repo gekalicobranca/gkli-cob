@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { parseRelatorioBuffer } from "@/features/conversao-relatorio/server/parse-relatorio-buffer"
+import { requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
 
 export const runtime = "nodejs"
 
 export async function POST(request: NextRequest) {
   try {
+    const { response } = await requireAuthenticatedApiUser()
+    if (response) return response
+
     const formData = await request.formData()
     const file = formData.get("file")
 

@@ -67,7 +67,7 @@ function FeatureItem({
   )
 }
 
-export function GKLIloginPage() {
+export function GKLIloginPage({ errorMessage }: { errorMessage?: string }) {
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#f5f7f6] text-slate-900">
       <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-8 bg-[#004b63] xl:block" />
@@ -147,6 +147,12 @@ export function GKLIloginPage() {
                   Bem-vindo à plataforma completa de gestão e recuperação condominial.
                 </p>
               </div>
+
+              {errorMessage ? (
+                <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                  {errorMessage}
+                </div>
+              ) : null}
 
               <form className="mt-8 space-y-4" action="/auth/login" method="post">
                 <label className="group flex h-14 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm transition focus-within:border-[#004b63] focus-within:ring-4 focus-within:ring-[#d7eef5]">

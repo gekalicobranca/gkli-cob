@@ -23,7 +23,6 @@ export async function listPendenciasOperacionais(
   let query = supabase
     .from('central_pendencias')
     .select('*')
-    .order('prioridade_ordem', { ascending: false })
     .order('prazo_limite', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(200)

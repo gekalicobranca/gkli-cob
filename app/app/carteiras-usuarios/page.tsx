@@ -1,4 +1,4 @@
-import { ArrowUpRight, Plus, ShieldCheck, UserPlus, Users } from 'lucide-react'
+import { Edit3, Plus, ShieldCheck, UserPlus, Users } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -68,9 +68,12 @@ export default async function CarteirasUsuariosPage() {
           {carteiras.length === 0 ? <div className="p-5"><EmptyState title="Nenhuma carteira" description="Crie uma carteira para iniciar." /></div> : (
             <div className="divide-y divide-slate-100">
               {carteiras.map((carteira: any) => (
-                <div key={carteira.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_120px] md:items-center">
+                <div key={carteira.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_220px] md:items-center">
                   <div><p className="text-sm font-medium text-slate-950">{carteira.nome}</p><p className="mt-1 text-xs text-slate-500">{carteira.descricao ?? 'Sem descrição'}</p></div>
-                  <StatusBadge status={carteira.ativo ? 'ativo' : 'inativo'} />
+                  <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+                    <StatusBadge status={carteira.ativo ? 'ativo' : 'inativo'} />
+                    <ButtonLink href={`/app/carteiras-usuarios/${carteira.id}/editar`} variant="secondary" size="sm"><Edit3 size={14} />Editar</ButtonLink>
+                  </div>
                 </div>
               ))}
             </div>

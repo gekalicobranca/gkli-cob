@@ -1,7 +1,5 @@
-import { MobileOperationalHome } from '@/components/mobile/mobile-operational-home'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
-
-export default function MobilePage() {
-  return <MobileOperationalHome />
+export default function MobileRedirectPage() {
+  redirect('/app/configuracoes/lab/mobile')
 }

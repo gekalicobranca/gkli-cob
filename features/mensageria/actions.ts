@@ -10,6 +10,8 @@ import {
   LOTE_STATUS,
   MENSAGEM_STATUS,
 } from "@/lib/core/status";
+import { registrarLogMensageria } from "./engine/logs";
+import { revalidarMensageria } from "./engine/revalidation";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -27,13 +29,7 @@ type MensagemEnvio = {
 };
 
 function touchedPaths(loteId?: string | null) {
-  revalidatePath("/app/mensageria");
-  revalidatePath("/app/lotes");
-  revalidatePath("/app/mensageria/lotes");
-  if (loteId) {
-    revalidatePath(`/app/lotes/${loteId}`);
-    revalidatePath(`/app/mensageria/lotes/${loteId}`);
-  }
+  revalidarMensageria(loteId);
 }
 
 async function getUserId(supabase: SupabaseClient) {
@@ -55,17 +51,7 @@ async function logMensageria(
     payload?: Record<string, unknown>;
   },
 ) {
-  await supabase.from("mensageria_logs").insert({
-    carteira_id: input.carteira_id ?? null,
-    lote_id: input.lote_id ?? null,
-    lote_item_id: input.lote_item_id ?? null,
-    mensagem_id: input.mensagem_id ?? null,
-    evento: input.evento,
-    status_anterior: input.status_anterior ?? null,
-    status_novo: input.status_novo ?? null,
-    descricao: input.descricao ?? null,
-    payload: input.payload ?? {},
-  } as any);
+  await registrarLogMensageria(supabase, input);
 }
 
 async function getMensagemEnvio(supabase: SupabaseClient, id: string) {

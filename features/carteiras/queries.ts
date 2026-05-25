@@ -72,3 +72,20 @@ export async function listUsuariosCarteirasForAdmin() {
 
   return normalizeRelationsList((data ?? []) as any[], ['profiles', 'carteiras']) as any[]
 }
+
+
+export async function getCarteiraByIdForAdmin(id: string) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('carteiras')
+    .select('id, nome, descricao, logo_url, ativo, created_at, updated_at')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Erro ao carregar carteira: ${error.message}`)
+  }
+
+  return data as any | null
+}

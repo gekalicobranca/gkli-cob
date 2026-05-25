@@ -15,6 +15,15 @@ import {
 import { formatDateBR, formatMoneyBR, montarMensagem } from '../engine'
 import { carregarEtapasDeReguaAdmin, DEFAULT_ACORDO_ETAPAS } from '../queries'
 import type { ReguaEtapa, ReguaTom } from '../types'
+import {
+  cicloReferencia,
+  criarReguaFingerprint,
+  normalizarEtapaId,
+  novoContador,
+  resumoContadores,
+  statusFinalDoLote,
+  type ReguaContadores,
+} from './regua-shared'
 
 type LoteItemStatus = (typeof LOTE_ITEM_STATUS)[keyof typeof LOTE_ITEM_STATUS]
 
@@ -23,13 +32,7 @@ type ProcessarReguaAcordosParams = {
   origem?: 'manual' | 'api' | 'cron'
 }
 
-type Contadores = {
-  avaliadas: number
-  criadas: number
-  puladas: number
-  duplicadas: number
-  erros: number
-}
+type Contadores = ReguaContadores
 
 type LoteContext = {
   id: string
@@ -53,14 +56,6 @@ export type ResultadoLoteReguaAcordos = {
   }>
 }
 
-function novoContador(): Contadores {
-  return { avaliadas: 0, criadas: 0, puladas: 0, duplicadas: 0, erros: 0 }
-}
-
-function hojeReferencia() {
-  return new Date().toISOString().slice(0, 7)
-}
-
 function parseDate(value: string | null | undefined) {
   if (!value) return null
   const date = new Date(`${value}T00:00:00`)
@@ -73,11 +68,6 @@ function diasRelativosAoVencimento(vencimento: string | null | undefined, hoje =
   return differenceInCalendarDays(hoje, date)
 }
 
-function normalizarEtapaId(etapaId?: string | null) {
-  if (!etapaId) return null
-  return etapaId.startsWith('default-') ? null : etapaId
-}
-
 function selecionarEtapaAcordo(params: {
   etapas: ReguaEtapa[]
   diasRelativos: number
@@ -86,21 +76,6 @@ function selecionarEtapaAcordo(params: {
     .filter((etapa) => etapa.ativo !== false)
     .filter((etapa) => params.diasRelativos >= Number(etapa.delay_dias ?? 0))
     .sort((a, b) => Number(b.delay_dias) - Number(a.delay_dias) || Number(b.ordem) - Number(a.ordem))[0]
-}
-
-function criarFingerprint(params: {
-  parcelaId: string
-  etapaId?: string | null
-  canal: string
-  dataReferencia: string
-}) {
-  return [
-    'regua_acordo',
-    params.parcelaId,
-    params.etapaId ?? 'sem_etapa',
-    params.canal,
-    params.dataReferencia,
-  ].join(':')
 }
 
 async function criarLote(params: {
@@ -174,9 +149,7 @@ async function atualizarLote(params: {
   status?: string
   erro?: string
 }) {
-  const status =
-    params.status ??
-    (params.contadores.erros > 0 ? LOTE_STATUS.ERRO : LOTE_STATUS.PENDENTE_APROVACAO)
+  const status = params.status ?? statusFinalDoLote(params.contadores)
 
   await params.supabase
     .from('lotes')
@@ -187,15 +160,7 @@ async function atualizarLote(params: {
       total_puladas: params.contadores.puladas,
       total_duplicadas: params.contadores.duplicadas,
       total_erros: params.contadores.erros,
-      resumo: {
-        contexto: 'regua_acordo',
-        total_avaliadas: params.contadores.avaliadas,
-        total_criadas: params.contadores.criadas,
-        total_puladas: params.contadores.puladas,
-        total_duplicadas: params.contadores.duplicadas,
-        total_erros: params.contadores.erros,
-        erro: params.erro ?? null,
-      },
+      resumo: resumoContadores(params.contadores, { contexto: 'regua_acordo', erro: params.erro ?? null }),
       finalizado_em: new Date().toISOString(),
     } as any)
     .eq('id', params.loteId)
@@ -284,7 +249,7 @@ export async function processarReguaAcordos(
   }
 
   try {
-    const dataReferencia = hojeReferencia()
+    const dataReferencia = cicloReferencia()
 
     for (const acordo of acordos) {
       const parcelas = parcelasPorAcordo.get(acordo.id) ?? []
@@ -345,11 +310,12 @@ export async function processarReguaAcordos(
           const destinatario = canal === 'email' ? unidade?.email : unidade?.telefone
           const reguaEtapaId = normalizarEtapaId(etapa?.id)
           const etapaReferencia = reguaEtapaId ?? etapa?.id ?? null
-          const fingerprint = criarFingerprint({
-            parcelaId: parcela.id,
+          const fingerprint = criarReguaFingerprint({
+            contexto: 'regua_acordo',
+            entidadeId: parcela.id,
             etapaId: etapaReferencia,
             canal,
-            dataReferencia,
+            ciclo: dataReferencia,
           })
           const tom = (etapa?.tom ?? (diasRelativos >= 2 ? 'agressivo' : diasRelativos >= 0 ? 'medio' : 'leve')) as ReguaTom
 
