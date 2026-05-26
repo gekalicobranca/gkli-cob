@@ -98,6 +98,16 @@ const PADRAO_HFLEX_LIVEFACILITIES_UNIDADES: Omit<PadraoConversaoDetectado, "cond
   ativo: true,
 }
 
+const PADRAO_SUPERLOGICA_UNIDADES: Omit<PadraoConversaoDetectado, "condominioDetectado" | "confianca"> = {
+  id: "superlogica-unidades-completo-v1",
+  nome: "Superlógica · Unidades",
+  tipoConversao: "unidades",
+  fornecedor: "Superlógica",
+  sistema: "Superlógica Condomínios",
+  relatorio: "Relatório de Unidades - Completo",
+  ativo: true,
+}
+
 const PADRAO_CONDOPRO_BBZ_COBRANCAS: Omit<PadraoConversaoDetectado, "condominioDetectado" | "confianca"> = {
   id: "condopro-bbz-cobrancas-v1",
   nome: "Condopro / BBZ · Cobranças",
@@ -1036,6 +1046,132 @@ function detectHflexLiveFacilitiesUnidades(text: string) {
   }
 }
 
+
+function extractSuperlogicaCondominio(text: string) {
+  const match = normalizePdfText(text).match(/Condomínio:\s*\d+\s*-\s*([^\n]+)/i)
+  return match ? normalize(match[1]).replace(/\s+CNPJ:.*$/i, "") : null
+}
+
+function detectSuperlogicaUnidades(text: string) {
+  const normalized = normalizePdfText(text)
+  const sinais = [
+    /Emitido\s+em/i,
+    /Relat[óo]rio\s+de\s+Unidades\s*-\s*Completo/i,
+    /Condom[íi]nio:\s*\d+\s*-/i,
+    /CNPJ:\s*\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/i,
+    /Bloco:\s*\S+\s+Unidade:\s*\S+\s+-\s+.+?C[óo]digo\s+do\s+cliente:/i,
+    /Endere[çc]o\s+de\s+cobran[çc]a/i,
+    /Dados\s+pessoais/i,
+    /Telefone\/e-mail\s+do\s+cliente/i,
+    /Dados\s+gerais/i,
+    /Dados\s+do\s+pagador/i,
+  ]
+
+  const hits = sinais.reduce((total, regex) => total + (regex.test(normalized) ? 1 : 0), 0)
+  const unidadeMatches = [...normalized.matchAll(/(?:^|\n)Bloco:\s*\S+\s+Unidade:\s*\S+\s+-\s+.+?C[óo]digo\s+do\s+cliente:/gi)].length
+  const hasSuperlogicaShape = hits >= 7 && unidadeMatches > 0
+  const condominioDetectado = extractSuperlogicaCondominio(normalized)
+  const confianca = hasSuperlogicaShape
+    ? Math.min(99, 70 + hits * 2 + Math.min(12, unidadeMatches))
+    : Math.min(60, hits * 7)
+
+  return {
+    ok: hasSuperlogicaShape,
+    condominioDetectado,
+    confianca,
+    detalhes: { hits, unidadeMatches },
+  }
+}
+
+function extractFirstEmail(value: string) {
+  return value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase() ?? ""
+}
+
+function extractFirstPhone(value: string) {
+  const match = value.match(/(?:Celular|Telefone\s+(?:residencial|comercial)|Outros)\s*-\s*([()0-9\s.\/-]{7,})(?:\s+-\s*[^\n]+)?/i)
+  return match ? cleanPhone(match[1]) : ""
+}
+
+function extractSuperlogicaSection(block: string, startLabel: RegExp, endLabels: RegExp[]) {
+  const start = block.search(startLabel)
+  if (start < 0) return ""
+  const rest = block.slice(start)
+  const nextPositions = endLabels
+    .map((regex) => {
+      const index = rest.search(regex)
+      return index > 0 ? index : -1
+    })
+    .filter((index) => index > 0)
+
+  const end = nextPositions.length ? Math.min(...nextPositions) : rest.length
+  return rest.slice(0, end)
+}
+
+function splitSuperlogicaUnitBlocks(text: string) {
+  const normalized = normalizePdfText(text)
+  const unitRegex = /(?:^|\n)Bloco:\s*(\S+)\s+Unidade:\s*(\S+)\s+-\s+(.+?)\s+C[óo]digo\s+do\s+cliente:\s*(\d+)/gi
+  const matches = [...normalized.matchAll(unitRegex)]
+
+  return matches.map((match, index) => {
+    const start = match.index ?? 0
+    const nextStart = index + 1 < matches.length ? matches[index + 1].index ?? normalized.length : normalized.length
+    return {
+      bloco: normalize(match[1]),
+      identificacao: normalize(match[2]),
+      responsavel: normalize(match[3]),
+      codigoCliente: normalize(match[4]),
+      text: normalized.slice(start, nextStart),
+    }
+  })
+}
+
+function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
+  const blocks = splitSuperlogicaUnitBlocks(text)
+  const unidades: UnidadeConversaoPreview[] = []
+
+  for (const block of blocks) {
+    const dadosPessoais = extractSuperlogicaSection(block.text, /Dados\s+pessoais/i, [/Telefone\/e-mail/i, /Dados\s+gerais/i, /Rateio\/fra[çc][õo]es/i])
+    const dadosPagador = extractSuperlogicaSection(block.text, /Dados\s+do\s+pagador/i, [/Forma\s+de\s+envio/i, /Bloquear\s+reenvio/i, /Observa[çc][õo]es/i, /Rateio\/fra[çc][õo]es/i])
+    const contatoCliente = extractSuperlogicaSection(block.text, /Telefone\/e-mail\s+do\s+cliente/i, [/Dados\s+gerais/i, /Dados\s+do\s+pagador/i, /Unidade\s+alugada/i, /Rateio\/fra[çc][õo]es/i])
+    const contatoUnidade = extractSuperlogicaSection(block.text, /Telefone\/e-mail\s+da\s+unidade/i, [/Telefone\/e-mail\s+do\s+cliente/i, /Dados\s+gerais/i, /Unidade\s+alugada/i])
+
+    const documentoFonte = dadosPagador || dadosPessoais || block.text
+    const documentoMatch = documentoFonte.match(/\b(CPF|CNPJ):\s*([0-9.\/-]+)/i)
+    const tipoUnidadeMatch = block.text.match(/Tipo\s+de\s+unidade:\s*([^\n]+)/i)
+    const tipoPessoaMatch = (dadosPagador || dadosPessoais).match(/Tipo\s+de\s+pessoa:\s*([^\n]+)/i)
+    const hasLocatario = /Unidade\s+alugada|Locat[áa]rio|Telefone\/e-mail\s+de\s+locat[áa]rio/i.test(block.text)
+
+    const telefone = extractFirstPhone(contatoCliente) || extractFirstPhone(contatoUnidade)
+    const email = extractFirstEmail(contatoCliente) || extractFirstEmail(contatoUnidade)
+    const documento = documentoMatch ? cleanDocument(documentoMatch[2]) : ""
+    const tipo = normalize(tipoUnidadeMatch?.[1] ?? "Apartamento").split(/\s{2,}| Dias de prazo:/i)[0] || "Apartamento"
+    const observacoes = [
+      "Origem: Conversão de PDF de unidades",
+      "Sistema: Superlógica",
+      `Código do cliente: ${block.codigoCliente}`,
+      block.bloco ? `Bloco: ${block.bloco}` : "",
+      tipoPessoaMatch ? `Tipo pessoa: ${normalize(tipoPessoaMatch[1])}` : "",
+      hasLocatario ? "Unidade com indicação de locatário no relatório" : "",
+    ]
+      .filter(Boolean)
+      .join(" | ")
+
+    unidades.push({
+      identificacao: block.identificacao,
+      bloco: block.bloco,
+      tipo,
+      responsavelNome: block.responsavel || "Responsável não identificado",
+      responsavelDocumento: documento,
+      telefone,
+      email,
+      status: "ativo",
+      observacoes,
+    })
+  }
+
+  return unidades
+}
+
 function parseUnidadesPdf(text: string, condominioCnpj = ""): UnidadeConversaoPreview[] {
   const blocks = splitUnitPdfBlocks(text)
   const unidades: UnidadeConversaoPreview[] = []
@@ -1192,26 +1328,40 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
 
   if (isPdfInput(input)) {
     const text = await extractPdfText(input)
-    const deteccao = detectHflexLiveFacilitiesUnidades(text)
+    const deteccaoSuperlogica = detectSuperlogicaUnidades(text)
+    const deteccaoHflex = detectHflexLiveFacilitiesUnidades(text)
 
-    if (!deteccao.ok) {
-      return {
-        ok: false,
-        error:
-          "PDF lido, mas nenhum padrão ativo de Unidades foi reconhecido com segurança. Nesta versão, o parser ativo é Hflex / LiveFacilities - Relatório de Unidades.",
-      }
+    if (deteccaoSuperlogica.ok && deteccaoSuperlogica.confianca >= deteccaoHflex.confianca) {
+      const unidades = parseSuperlogicaUnidadesPdf(text)
+      return buildPreviewFromUnidadesPdf({
+        filename: input.filename,
+        unidades,
+        condominioCnpj: input.condominioCnpj,
+        padraoDetectado: buildPadraoDetectado(PADRAO_SUPERLOGICA_UNIDADES, {
+          condominioDetectado: deteccaoSuperlogica.condominioDetectado,
+          confianca: deteccaoSuperlogica.confianca,
+        }),
+      })
     }
 
-    const unidades = parseUnidadesPdf(text, input.condominioCnpj)
-    return buildPreviewFromUnidadesPdf({
-      filename: input.filename,
-      unidades,
-      condominioCnpj: input.condominioCnpj,
-      padraoDetectado: buildPadraoDetectado(PADRAO_HFLEX_LIVEFACILITIES_UNIDADES, {
-        condominioDetectado: deteccao.condominioDetectado,
-        confianca: deteccao.confianca,
-      }),
-    })
+    if (deteccaoHflex.ok) {
+      const unidades = parseUnidadesPdf(text, input.condominioCnpj)
+      return buildPreviewFromUnidadesPdf({
+        filename: input.filename,
+        unidades,
+        condominioCnpj: input.condominioCnpj,
+        padraoDetectado: buildPadraoDetectado(PADRAO_HFLEX_LIVEFACILITIES_UNIDADES, {
+          condominioDetectado: deteccaoHflex.condominioDetectado,
+          confianca: deteccaoHflex.confianca,
+        }),
+      })
+    }
+
+    return {
+      ok: false,
+      error:
+        "PDF lido, mas nenhum padrão ativo de Unidades foi reconhecido com segurança. Nesta versão, os parsers ativos são Superlógica - Relatório de Unidades - Completo e Hflex / LiveFacilities - Relatório de Unidades.",
+    }
   }
 
   return {
