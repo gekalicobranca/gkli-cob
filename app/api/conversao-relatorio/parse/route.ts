@@ -24,12 +24,14 @@ export async function POST(request: NextRequest) {
     const condominioCnpj = String(formData.get("condominio_cnpj") ?? "")
       .replace(/\D/g, "")
       .trim()
+    const tipoConversao = String(formData.get("tipo_conversao") ?? "cobrancas") === "unidades" ? "unidades" : "cobrancas"
 
-    const result = parseRelatorioBuffer({
+    const result = await parseRelatorioBuffer({
       buffer,
       filename: file.name,
       mimeType: file.type,
       condominioCnpj,
+      tipoConversao,
     })
 
     return NextResponse.json(result)

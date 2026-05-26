@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
-import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listAdministradoras, normalizeAdmFilters } from '@/features/administradoras/queries'
 
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> }
@@ -15,23 +14,22 @@ function getParam(value: string | string[] | undefined) { return Array.isArray(v
 
 export default async function AdministradorasPage({ searchParams }: Props) {
   const params = await searchParams
-  const scope = await getPermittedCarteiras()
-  const filters = normalizeAdmFilters({ search: getParam(params?.q), status: getParam(params?.status), carteiraId: getParam(params?.carteira_id) })
-  const rows = await listAdministradoras(scope, filters)
+  const filters = normalizeAdmFilters({ search: getParam(params?.q), status: getParam(params?.status) })
+  const rows = await listAdministradoras(filters)
   const ativas = rows.filter((row) => row.status !== 'inativo').length
-  const filtrosAtivos = Boolean(filters.search || filters.status || filters.carteiraId)
+  const filtrosAtivos = Boolean(filters.search || filters.status)
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Administradoras"
         title="Cadastro de administradoras"
-        description="Controle as administradoras, seus contatos e a operação externa que destrava planilhas, boletos e registros de acordo."
+        description="Controle global das administradoras, seus contatos e a operação externa que destrava planilhas, boletos e registros de acordo."
         actions={<ButtonLink href="/app/administradoras/nova"><Plus size={16} />Nova administradora</ButtonLink>}
       />
 
       <section className="grid gap-3 md:grid-cols-3">
-        <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Total</p><p className="mt-3 text-3xl font-semibold text-slate-950">{rows.length}</p><p className="mt-1 text-sm text-slate-500">administradoras filtradas</p></Card>
+        <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Total</p><p className="mt-3 text-3xl font-semibold text-slate-950">{rows.length}</p><p className="mt-1 text-sm text-slate-500">administradoras cadastradas</p></Card>
         <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativas</p><p className="mt-3 text-3xl font-semibold text-slate-950">{ativas}</p><p className="mt-1 text-sm text-slate-500">aptas para operação</p></Card>
         <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Hub externo</p><p className="mt-3 text-3xl font-semibold text-slate-950">ADM</p><p className="mt-1 text-sm text-slate-500">planilhas, boletos e retornos</p></Card>
       </section>
@@ -39,7 +37,7 @@ export default async function AdministradorasPage({ searchParams }: Props) {
       <Card className="overflow-hidden p-0">
         <div className="border-b border-slate-100 px-5 py-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div><h2 className="text-base font-medium text-slate-950">Base de administradoras</h2><p className="mt-1 text-sm text-slate-500">Busque por nome, CNPJ ou e-mail.</p></div>
+            <div><h2 className="text-base font-medium text-slate-950">Base de administradoras</h2><p className="mt-1 text-sm text-slate-500">Busque por nome, CNPJ ou e-mail. Este cadastro é global e não depende de carteira.</p></div>
             {filtrosAtivos ? <ButtonLink href="/app/administradoras" variant="secondary" size="sm"><X size={15} />Limpar filtros</ButtonLink> : null}
           </div>
           <form className="mt-4 grid gap-3 md:grid-cols-[minmax(220px,1fr)_180px_auto] md:items-end">

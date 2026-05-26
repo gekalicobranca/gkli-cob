@@ -23,12 +23,41 @@ export type CobrancaPreview = {
   parcelas: ParcelaNormalizada[]
 }
 
+export type TipoConversaoRelatorio = "cobrancas" | "unidades"
+
+export type PadraoConversaoDetectado = {
+  id: string
+  nome: string
+  tipoConversao: TipoConversaoRelatorio
+  fornecedor: string
+  sistema: string
+  relatorio: string
+  condominioDetectado: string | null
+  confianca: number
+  ativo: boolean
+}
+
+export type UnidadeConversaoPreview = {
+  identificacao: string
+  bloco: string
+  tipo: string
+  responsavelNome: string
+  responsavelDocumento: string
+  telefone: string
+  email: string
+  status: string
+  observacoes: string
+}
+
 export type ConversaoPreview = {
+  tipoConversao: TipoConversaoRelatorio
   origem: string
   arquivo: string
   totalParcelas: number
   valorTotal: number
+  padraoDetectado: PadraoConversaoDetectado | null
   cobrancas: CobrancaPreview[]
+  unidades: UnidadeConversaoPreview[]
   inconsistencias: string[]
   csv: string
   xlsxBase64: string
@@ -39,6 +68,7 @@ type ParseInput = {
   filename: string
   mimeType?: string
   condominioCnpj?: string
+  tipoConversao?: TipoConversaoRelatorio
 }
 
 type ParseResult =
@@ -56,6 +86,47 @@ type ReciboCondopro = {
   correcao: number
   juros: number
   valorTotal: number
+}
+
+const PADRAO_HFLEX_LIVEFACILITIES_UNIDADES: Omit<PadraoConversaoDetectado, "condominioDetectado" | "confianca"> = {
+  id: "hflex-livefacilities-unidades-v1",
+  nome: "Hflex / LiveFacilities · Unidades",
+  tipoConversao: "unidades",
+  fornecedor: "Hflex",
+  sistema: "LiveFacilities",
+  relatorio: "Relatório de Unidades",
+  ativo: true,
+}
+
+const PADRAO_CONDOPRO_BBZ_COBRANCAS: Omit<PadraoConversaoDetectado, "condominioDetectado" | "confianca"> = {
+  id: "condopro-bbz-cobrancas-v1",
+  nome: "Condopro / BBZ · Cobranças",
+  tipoConversao: "cobrancas",
+  fornecedor: "Condopro / BBZ",
+  sistema: "Exportação HTML/XLS",
+  relatorio: "Recibos por Unidade",
+  ativo: true,
+}
+
+const PADRAO_CONECTCON_COBRANCAS: Omit<PadraoConversaoDetectado, "condominioDetectado" | "confianca"> = {
+  id: "conectcon-cobrancas-v1",
+  nome: "Conectcon · Cobranças",
+  tipoConversao: "cobrancas",
+  fornecedor: "Conectcon",
+  sistema: "Exportação de Inadimplência",
+  relatorio: "Cobranças/Inadimplência",
+  ativo: true,
+}
+
+function buildPadraoDetectado(
+  padrao: Omit<PadraoConversaoDetectado, "condominioDetectado" | "confianca">,
+  options: { condominioDetectado?: string | null; confianca?: number } = {}
+): PadraoConversaoDetectado {
+  return {
+    ...padrao,
+    condominioDetectado: options.condominioDetectado ?? null,
+    confianca: Math.max(0, Math.min(100, Math.round(options.confianca ?? 0))),
+  }
 }
 
 function normalize(value: unknown) {
@@ -725,11 +796,14 @@ function buildPreviewFromRecibos({
   return {
     ok: true,
     preview: {
+      tipoConversao: "cobrancas",
       origem,
       arquivo: filename,
       totalParcelas: recibos.length,
       valorTotal: recibos.reduce((sum, recibo) => sum + recibo.valorTotal, 0),
+      padraoDetectado: buildPadraoDetectado(PADRAO_CONDOPRO_BBZ_COBRANCAS, { confianca: 96 }),
       cobrancas,
+      unidades: [],
       inconsistencias: [],
       csv: buildCsvPadraoGkli(cobrancas, condominioCnpj),
       xlsxBase64: buildXlsxBase64PadraoGkli(cobrancas, condominioCnpj),
@@ -789,11 +863,14 @@ function buildPreviewFromParcelas({
   return {
     ok: true,
     preview: {
+      tipoConversao: "cobrancas",
       origem,
       arquivo: filename,
       totalParcelas: parcelas.length,
       valorTotal: parcelas.reduce((sum, parcela) => sum + parcela.valor, 0),
+      padraoDetectado: buildPadraoDetectado(PADRAO_CONECTCON_COBRANCAS, { confianca: 90 }),
       cobrancas,
+      unidades: [],
       inconsistencias: [],
       csv: buildCsvPadraoGkli(cobrancas, condominioCnpj),
       xlsxBase64: buildXlsxBase64PadraoGkli(cobrancas, condominioCnpj),
@@ -801,7 +878,361 @@ function buildPreviewFromParcelas({
   }
 }
 
-export function parseRelatorioBuffer(input: ParseInput): ParseResult {
+
+async function extractPdfText(input: ParseInput) {
+  try {
+    // pdf-parse deve estar instalado no projeto para conversão direta de PDF no servidor.
+    // @ts-ignore - dependência opcional em alguns pacotes incrementais.
+    const pdfParseModule = await import("pdf-parse")
+    const pdfParse = (pdfParseModule.default ?? pdfParseModule) as (buffer: Buffer) => Promise<{ text?: string }>
+    const parsed = await pdfParse(input.buffer)
+    return normalizePdfText(parsed.text ?? "")
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Não foi possível ler PDF no servidor. Instale a dependência pdf-parse ou envie XLSX/CSV. Detalhe: ${message}`
+    )
+  }
+}
+
+function normalizePdfText(value: string) {
+  return value
+    .replace(/\r/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
+function isPdfInput(input: ParseInput) {
+  const filename = input.filename.toLowerCase()
+  const mime = String(input.mimeType ?? "").toLowerCase()
+  return filename.endsWith(".pdf") || mime.includes("pdf")
+}
+
+function normalizeRole(value: string) {
+  const raw = normalize(value).toUpperCase()
+  if (raw.includes("INQUIL")) return "INQUILINO"
+  if (raw.includes("CO-PROPRI")) return "CO-PROPRIETARIO"
+  if (raw.includes("PROPRI")) return "PROPRIETARIO"
+  return raw || "RESPONSAVEL"
+}
+
+function onlyDigits(value: string) {
+  return normalize(value).replace(/\D/g, "")
+}
+
+function cleanDocument(value: string) {
+  const digits = onlyDigits(value)
+  if (digits.length === 11) {
+    return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
+  }
+  if (digits.length === 14) {
+    return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")
+  }
+  return normalize(value)
+}
+
+function cleanPhone(value: string) {
+  const digits = onlyDigits(value)
+  return digits || normalize(value)
+}
+
+type PessoaUnidadePdf = {
+  nome: string
+  papel: string
+  documento: string
+  telefone: string
+  email: string
+  tipoPessoa: string
+}
+
+function scorePessoaUnidade(pessoa: PessoaUnidadePdf) {
+  if (pessoa.papel === "PROPRIETARIO") return 3
+  if (pessoa.papel === "CO-PROPRIETARIO") return 2
+  if (pessoa.papel === "INQUILINO") return 1
+  return 0
+}
+
+function parsePessoaFromPdfChunk(chunk: string): PessoaUnidadePdf | null {
+  const text = normalizePdfText(chunk)
+  const lines = text
+    .split("\n")
+    .map((line) => normalize(line))
+    .filter(Boolean)
+
+  const joined = lines.join(" ")
+  const roleMatch = joined.match(/(.+?)\s+(PROPRIET[ÁA]RIO|CO-PROPRIET[ÁA]RIO|INQUILINO)\b/i)
+  if (!roleMatch) return null
+
+  const rawNome = normalize(roleMatch[1])
+    .replace(/^#?[A-Z0-9]+\s+/, "")
+    .replace(/^(CIPO|TORRE DO CIP[ÓO])\s+/i, "")
+    .trim()
+
+  const nome = rawNome || "Responsável não identificado"
+  const papel = normalizeRole(roleMatch[2])
+  const tipoPessoa = /TIPO PESSOA\s*:\s*JUR[ÍI]DICA/i.test(joined) ? "Jurídica" : "Física"
+  const docMatch = joined.match(/\b(?:CPF|CNPJ)\s*:\s*([0-9.\/\-]+)/i)
+  const telefoneMatch = joined.match(/TELEFONE\s+(?:CELULAR|RESIDENCIAL|COMERCIAL)(?:\s*\d)?\s*:\s*([()0-9\s+\-]+)/i)
+  const emailMatch = joined.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
+
+  return {
+    nome,
+    papel,
+    documento: docMatch ? cleanDocument(docMatch[1]) : "",
+    telefone: telefoneMatch ? cleanPhone(telefoneMatch[1]) : "",
+    email: emailMatch ? emailMatch[0].toLowerCase() : "",
+    tipoPessoa,
+  }
+}
+
+function splitUnitPdfBlocks(text: string) {
+  const normalized = normalizePdfText(text)
+  const unitRegex = /(?:^|\n)(\d{5,6})\s+(?:CIPO|TORRE DO CIP[ÓO])\b/gi
+  const matches = [...normalized.matchAll(unitRegex)]
+
+  return matches.map((match, index) => {
+    const start = match.index ?? 0
+    const nextStart = index + 1 < matches.length ? matches[index + 1].index ?? normalized.length : normalized.length
+    return {
+      identificacao: match[1],
+      text: normalized.slice(start, nextStart),
+    }
+  })
+}
+
+function detectHflexLiveFacilitiesUnidades(text: string) {
+  const normalized = normalizePdfText(text)
+  const normalizedUpper = normalized.toUpperCase()
+  const sinais = [
+    /PROCESSADO\s+EM/i,
+    /TIPO\s+PESSOA/i,
+    /PROPRIET[ÁA]RIO/i,
+    /INQUILINO/i,
+    /TELEFONE\s+CELULAR/i,
+    /E-MAIL|EMAIL/i,
+    /CPF|CNPJ/i,
+    /CIPO|TORRE\s+DO\s+CIP[ÓO]/i,
+  ]
+
+  const hits = sinais.reduce((total, regex) => total + (regex.test(normalized) ? 1 : 0), 0)
+  const unidadeMatches = [...normalized.matchAll(/(?:^|\n)(\d{5,6})\s+(?:CIPO|TORRE DO CIP[ÓO])\b/gi)].length
+  const hasLiveFacilitiesShape = hits >= 5 && unidadeMatches > 0
+
+  const condominioDetectado = /TORRE\s+DO\s+CIP[ÓO]/i.test(normalized) || /\bCIPO\b/i.test(normalized)
+    ? "Torre do Cipó"
+    : null
+
+  const confianca = hasLiveFacilitiesShape
+    ? Math.min(99, 68 + hits * 3 + Math.min(15, unidadeMatches))
+    : Math.min(55, hits * 8)
+
+  return {
+    ok: hasLiveFacilitiesShape,
+    condominioDetectado,
+    confianca,
+    detalhes: { hits, unidadeMatches, sample: normalizedUpper.slice(0, 160) },
+  }
+}
+
+function parseUnidadesPdf(text: string, condominioCnpj = ""): UnidadeConversaoPreview[] {
+  const blocks = splitUnitPdfBlocks(text)
+  const unidades: UnidadeConversaoPreview[] = []
+
+  for (const block of blocks) {
+    const roleRegex = /(PROPRIET[ÁA]RIO|CO-PROPRIET[ÁA]RIO|INQUILINO)/gi
+    const roleMatches = [...block.text.matchAll(roleRegex)]
+    const pessoas: PessoaUnidadePdf[] = []
+
+    if (roleMatches.length) {
+      for (let index = 0; index < roleMatches.length; index += 1) {
+        const roleIndex = roleMatches[index].index ?? 0
+        const previousRoleIndex = index === 0 ? 0 : roleMatches[index - 1].index ?? 0
+        const nextRoleIndex = index + 1 < roleMatches.length ? roleMatches[index + 1].index ?? block.text.length : block.text.length
+        const chunkStart = Math.max(0, previousRoleIndex === 0 ? 0 : previousRoleIndex + 20)
+        const chunk = block.text.slice(chunkStart, nextRoleIndex)
+        const pessoa = parsePessoaFromPdfChunk(chunk)
+        if (pessoa) pessoas.push(pessoa)
+      }
+    } else {
+      const pessoa = parsePessoaFromPdfChunk(block.text)
+      if (pessoa) pessoas.push(pessoa)
+    }
+
+    const principal = pessoas.sort((a, b) => scorePessoaUnidade(b) - scorePessoaUnidade(a))[0]
+    if (!principal) continue
+
+    const papeis = [...new Set(pessoas.map((pessoa) => pessoa.papel))].join(", ")
+    const observacoes = [
+      "Origem: Conversão de PDF de unidades",
+      `Papel importado: ${principal.papel}`,
+      pessoas.length > 1 ? `Outros vínculos no PDF: ${papeis}` : "",
+      principal.tipoPessoa ? `Tipo pessoa: ${principal.tipoPessoa}` : "",
+    ]
+      .filter(Boolean)
+      .join(" | ")
+
+    unidades.push({
+      identificacao: block.identificacao,
+      bloco: "",
+      tipo: "Apartamento",
+      responsavelNome: principal.nome,
+      responsavelDocumento: principal.documento,
+      telefone: principal.telefone,
+      email: principal.email,
+      status: "ativo",
+      observacoes,
+    })
+  }
+
+  return unidades
+}
+
+function buildRowsUnidadesPadraoGkli(unidades: UnidadeConversaoPreview[], condominioCnpj = "") {
+  const headers = [
+    "condominio_cnpj",
+    "identificacao",
+    "bloco",
+    "tipo",
+    "responsavel_nome",
+    "responsavel_documento",
+    "telefone",
+    "email",
+    "status",
+    "observacoes",
+  ]
+
+  const rows = unidades.map((unidade) => [
+    condominioCnpj,
+    unidade.identificacao,
+    unidade.bloco,
+    unidade.tipo,
+    unidade.responsavelNome,
+    unidade.responsavelDocumento,
+    unidade.telefone,
+    unidade.email,
+    unidade.status,
+    unidade.observacoes,
+  ])
+
+  return { headers, rows }
+}
+
+function buildCsvUnidadesPadraoGkli(unidades: UnidadeConversaoPreview[], condominioCnpj = "") {
+  const { headers, rows } = buildRowsUnidadesPadraoGkli(unidades, condominioCnpj)
+  return [headers, ...rows].map((row) => row.map(csvEscape).join(";")).join("\n")
+}
+
+function buildXlsxBase64UnidadesPadraoGkli(unidades: UnidadeConversaoPreview[], condominioCnpj = "") {
+  const { headers, rows } = buildRowsUnidadesPadraoGkli(unidades, condominioCnpj)
+  const workbook = XLSX.utils.book_new()
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
+  worksheet["!cols"] = [
+    { wch: 20 },
+    { wch: 16 },
+    { wch: 10 },
+    { wch: 16 },
+    { wch: 34 },
+    { wch: 20 },
+    { wch: 18 },
+    { wch: 32 },
+    { wch: 12 },
+    { wch: 72 },
+  ]
+  XLSX.utils.book_append_sheet(workbook, worksheet, "DADOS")
+  const output = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer
+  return output.toString("base64")
+}
+
+function buildPreviewFromUnidadesPdf({
+  filename,
+  unidades,
+  condominioCnpj,
+  padraoDetectado,
+}: {
+  filename: string
+  unidades: UnidadeConversaoPreview[]
+  condominioCnpj?: string
+  padraoDetectado: PadraoConversaoDetectado
+}): ParseResult {
+  if (!unidades.length) {
+    return {
+      ok: false,
+      error:
+        "Arquivo reconhecido como PDF de unidades, mas nenhuma unidade com responsável foi encontrada.",
+    }
+  }
+
+  return {
+    ok: true,
+    preview: {
+      tipoConversao: "unidades",
+      origem: padraoDetectado.nome,
+      arquivo: filename,
+      totalParcelas: unidades.length,
+      valorTotal: 0,
+      padraoDetectado,
+      cobrancas: [],
+      unidades,
+      inconsistencias: [],
+      csv: buildCsvUnidadesPadraoGkli(unidades, condominioCnpj),
+      xlsxBase64: buildXlsxBase64UnidadesPadraoGkli(unidades, condominioCnpj),
+    },
+  }
+}
+
+async function parseUnidades(input: ParseInput): Promise<ParseResult> {
+  if (!input.condominioCnpj) {
+    return {
+      ok: false,
+      error: "Selecione o condomínio para converter unidades. O arquivo de importação exige condominio_cnpj.",
+    }
+  }
+
+  if (isPdfInput(input)) {
+    const text = await extractPdfText(input)
+    const deteccao = detectHflexLiveFacilitiesUnidades(text)
+
+    if (!deteccao.ok) {
+      return {
+        ok: false,
+        error:
+          "PDF lido, mas nenhum padrão ativo de Unidades foi reconhecido com segurança. Nesta versão, o parser ativo é Hflex / LiveFacilities - Relatório de Unidades.",
+      }
+    }
+
+    const unidades = parseUnidadesPdf(text, input.condominioCnpj)
+    return buildPreviewFromUnidadesPdf({
+      filename: input.filename,
+      unidades,
+      condominioCnpj: input.condominioCnpj,
+      padraoDetectado: buildPadraoDetectado(PADRAO_HFLEX_LIVEFACILITIES_UNIDADES, {
+        condominioDetectado: deteccao.condominioDetectado,
+        confianca: deteccao.confianca,
+      }),
+    })
+  }
+
+  return {
+    ok: false,
+    error: "Nesta versão, a conversão de unidades aceita PDF. Para cobranças, use XLS, XLSX, CSV ou HTML.",
+  }
+}
+export async function parseRelatorioBuffer(input: ParseInput): Promise<ParseResult> {
+  const tipoConversao = input.tipoConversao ?? "cobrancas"
+
+  if (tipoConversao === "unidades") {
+    return parseUnidades(input)
+  }
+
+  if (isPdfInput(input)) {
+    return {
+      ok: false,
+      error: "PDF agora deve ser convertido pela categoria Unidades. Para Cobranças, envie XLS, XLSX, CSV ou HTML.",
+    }
+  }
+
   let allRows: unknown[][]
 
   try {
@@ -853,7 +1284,7 @@ export function parseRelatorioBuffer(input: ParseInput): ParseResult {
     return {
       ok: false,
       error:
-        "Ainda não reconheci esse layout. Nesta versão, o parser server-side suporta Conectcon e Condopro/BBZ.",
+        "Ainda não reconheci esse layout. Nesta versão, o parser server-side suporta Conectcon e Condopro/BBZ para cobranças.",
     }
   }
 

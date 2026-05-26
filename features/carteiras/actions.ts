@@ -352,3 +352,80 @@ export async function removeUsuarioCarteira(formData: FormData) {
   revalidatePath('/app/carteiras-usuarios')
   redirect('/app/carteiras-usuarios')
 }
+
+export async function updateUsuarioCompleto(formData: FormData) {
+  await requireAdmin()
+
+  const userId = String(formData.get('user_id') ?? '').trim()
+  const nome = String(formData.get('nome') ?? '').trim()
+  const role = String(formData.get('role') ?? '').trim()
+  const carteiraIds = formData
+    .getAll('carteira_ids')
+    .map((value) => String(value).trim())
+    .filter(Boolean)
+
+  if (!userId) {
+    throw new Error('Usuário obrigatório.')
+  }
+
+  if (nome.length < 2) {
+    throw new Error('Nome do usuário obrigatório.')
+  }
+
+  if (!['admin', 'gestor', 'operador', 'leitura'].includes(role)) {
+    throw new Error('Perfil inválido.')
+  }
+
+  const admin = createAdminClient()
+
+  const { error: profileError } = await admin
+    .from('profiles')
+    .update({
+      nome,
+      role,
+    })
+    .eq('id', userId)
+
+  if (profileError) {
+    throw new Error(`Erro ao atualizar usuário: ${profileError.message}`)
+  }
+
+  const { error: removeError } = await admin
+    .from('usuarios_carteiras')
+    .delete()
+    .eq('user_id', userId)
+
+  if (removeError) {
+    throw new Error(`Erro ao atualizar vínculos do usuário: ${removeError.message}`)
+  }
+
+  if (carteiraIds.length > 0) {
+    const rows = carteiraIds.map((carteiraId) => ({
+      user_id: userId,
+      carteira_id: carteiraId,
+    }))
+
+    const { error: insertError } = await admin
+      .from('usuarios_carteiras')
+      .insert(rows)
+
+    if (insertError) {
+      throw new Error(`Erro ao salvar carteiras do usuário: ${insertError.message}`)
+    }
+  }
+
+  try {
+    await admin.auth.admin.updateUserById(userId, {
+      user_metadata: {
+        nome,
+        role,
+      },
+    })
+  } catch {
+    // O profile é a fonte operacional do app. Falha em metadata do Auth não deve desfazer a edição administrativa.
+  }
+
+  revalidatePath('/app/carteiras-usuarios')
+  revalidatePath(`/app/carteiras-usuarios/usuarios/${userId}/editar`)
+  redirect('/app/carteiras-usuarios')
+}

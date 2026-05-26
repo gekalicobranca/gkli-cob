@@ -48,15 +48,18 @@ export default async function CarteirasUsuariosPage() {
           {profiles.length === 0 ? <div className="p-5"><EmptyState title="Nenhum usuário" description="Crie um usuário para começar." /></div> : (
             <div className="divide-y divide-slate-100">
               {profiles.map((profile: any) => (
-                <div key={profile.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_230px] md:items-center">
+                <div key={profile.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_310px] md:items-center">
                   <div><p className="text-sm font-medium text-slate-950">{profile.nome ?? 'Sem nome'}</p><p className="mt-1 text-xs text-slate-500">{profile.email}</p></div>
-                  <form action={updateUserRole} className="flex gap-2">
-                    <input type="hidden" name="user_id" value={profile.id} />
-                    <select name="role" defaultValue={profile.role} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none">
-                      <option value="admin">admin</option><option value="gestor">gestor</option><option value="operador">operador</option><option value="leitura">leitura</option>
-                    </select>
-                    <Button type="submit" variant="secondary">Salvar</Button>
-                  </form>
+                  <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+                    <form action={updateUserRole} className="flex gap-2">
+                      <input type="hidden" name="user_id" value={profile.id} />
+                      <select name="role" defaultValue={profile.role} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none">
+                        <option value="admin">admin</option><option value="gestor">gestor</option><option value="operador">operador</option><option value="leitura">leitura</option>
+                      </select>
+                      <Button type="submit" variant="secondary">Salvar</Button>
+                    </form>
+                    <ButtonLink href={`/app/carteiras-usuarios/usuarios/${profile.id}/editar`} variant="secondary" size="sm"><Edit3 size={14} />Editar</ButtonLink>
+                  </div>
                 </div>
               ))}
             </div>

@@ -14,15 +14,16 @@ export default async function ConversaoRelatorioPage() {
       nome: String(condominio.nome ?? ""),
       cnpj: String(condominio.cnpj ?? ""),
     }))
+
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Base Cadastral"
-        title="Conversão de Relatório"
-        description="Transforme relatórios de inadimplência das administradoras em cobranças estruturadas. No Condopro/BBZ, o Lab gera uma cobrança por recibo, com unidade, bloco, vencimento e composição financeira."
+        title="Motor de Conversão"
+        description="Converta arquivos externos para o modelo oficial de Importações. O motor identifica o padrão ativo da administradora/sistema e separa isso do condomínio operacional."
         actions={
           <span className="inline-flex min-h-10 items-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white/90 shadow-sm">
-            V1 · Conectcon · Condopro/BBZ
+            Conversão por categoria
           </span>
         }
       />
@@ -36,10 +37,10 @@ export default async function ConversaoRelatorioPage() {
         <h2 className="text-lg font-semibold text-slate-950">Como a conversão funciona</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-4">
           {[
-            ["1", "Upload", "Envie XLS, CSV ou PDF exportado pela administradora."],
-            ["2", "Detecção", "O sistema identifica a origem e aplica o parser correto."],
-            ["3", "Preview", "Você confere cobranças, parcelas, inconsistências e totais."],
-            ["4", "Saída GKLI", "Baixe o XLSX padrão e use a importação oficial de cobranças."],
+            ["1", "Tipo", "Escolha se o arquivo será convertido para Unidades ou Cobranças."],
+            ["2", "Padrão", "O motor detecta o fornecedor/layout ativo, como Hflex / LiveFacilities."],
+            ["3", "Condomínio", "Confirme o condomínio operacional usado no XLSX final."],
+            ["4", "Saída GKLI", "Baixe o XLSX padrão e importe no módulo oficial correspondente."],
           ].map(([step, title, text]) => (
             <div key={step} className="rounded-2xl bg-slate-50 p-4">
               <div className="grid h-8 w-8 place-items-center rounded-xl bg-slate-900 text-xs font-bold text-white">

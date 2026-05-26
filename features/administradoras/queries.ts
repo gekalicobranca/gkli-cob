@@ -1,35 +1,22 @@
 import { createAdminClient } from '@/utils/supabase/admin'
 import type { Administradora, AdministradoraContato, AdministradoraMetricas, SolicitacaoAdministradora, TemplateMensageriaAdm } from './types'
 
-type Scope = { permittedCarteiraIds?: string[] | null; carteiraIds?: string[] | null; isAdmin?: boolean }
-type Filters = { search?: string | null; status?: string | null; carteiraId?: string | null }
-
-function applyCarteira(query: any, scope?: Scope, column = 'carteira_id') {
-  if (scope?.isAdmin) return query
-  const ids = (scope?.permittedCarteiraIds ?? scope?.carteiraIds ?? [])?.filter(Boolean) ?? []
-  if (ids.length === 0) return query
-  return query.in(column, ids)
-}
+type Filters = { search?: string | null; status?: string | null }
 
 export function normalizeAdmFilters(input: Record<string, string | null | undefined>): Filters {
   return {
     search: input.search?.trim() || null,
     status: input.status?.trim() || null,
-    carteiraId: input.carteiraId?.trim() || null,
   }
 }
 
-export async function listAdministradoras(scope?: Scope, filters: Filters = {}) {
+export async function listAdministradoras(filters: Filters = {}) {
   const supabase = createAdminClient()
   let query = supabase
     .from('administradoras')
     .select('*')
     .order('nome', { ascending: true })
     .limit(200)
-
-  query = applyCarteira(query, scope)
-
-  if (filters.carteiraId) query = query.eq('carteira_id', filters.carteiraId)
   if (filters.status) query = query.eq('status', filters.status)
   if (filters.search) {
     const term = filters.search.replace(/[%_]/g, '')

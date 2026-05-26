@@ -1,23 +1,23 @@
 const templates = [
   {
-    nome: "Conectcon",
-    status: "Disponível na V1",
+    nome: "Hflex / LiveFacilities · Unidades",
+    status: "Ativo",
+    descricao: "Parser de Relatório de Unidades em PDF. Detecta o fornecedor Hflex/LiveFacilities, identifica o condomínio no documento e gera XLSX para Importações/Unidades.",
+  },
+  {
+    nome: "Conectcon · Cobranças",
+    status: "Ativo",
     descricao: "XLS/HTML em linhas diretas: unidade, nome, vencimento, referência e valor.",
   },
   {
-    nome: "Condopro",
-    status: "Disponível na V1",
+    nome: "Condopro/BBZ · Cobranças",
+    status: "Ativo",
     descricao: "XLS/HTML por blocos de unidade, com 1 cobrança por recibo e saída em XLSX padrão GKLI.",
   },
   {
-    nome: "Manager / Webware",
+    nome: "Novos fornecedores",
     status: "Próxima fase",
-    descricao: "PDF estruturado com blocos por unidade e totais por recibo.",
-  },
-  {
-    nome: "Superlógica",
-    status: "A mapear",
-    descricao: "Será incluído após amostras reais de exportação.",
+    descricao: "Cada administradora/sistema entra como padrão ativo próprio, sem depender do nome do condomínio.",
   },
 ]
 
@@ -25,9 +25,12 @@ export function RecognizedTemplatesCard() {
   return (
     <aside className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
-        Templates reconhecidos
+        Padrões ativos
       </p>
-      <h2 className="mt-2 text-xl font-semibold text-slate-950">Origens suportadas</h2>
+      <h2 className="mt-2 text-xl font-semibold text-slate-950">Layouts reconhecidos</h2>
+      <p className="mt-2 text-sm leading-6 text-slate-500">
+        Esta lista representa os parsers disponíveis. O condomínio detectado no arquivo é dado operacional, não o padrão do layout.
+      </p>
 
       <div className="mt-5 space-y-3">
         {templates.map((template) => (
