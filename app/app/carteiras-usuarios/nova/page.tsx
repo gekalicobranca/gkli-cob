@@ -21,7 +21,9 @@ export default async function NovaCarteiraPage() {
       <Card>
         <form action={createCarteira} className="space-y-5">
           <FormField label="Nome da carteira">
-            <Input name="nome" required placeholder="Ex.: Genske Advogados" />
+            
+
+<Input name="nome" required placeholder="Ex.: Genske Advogados" />
           </FormField>
 
           <FormField label="Descrição">

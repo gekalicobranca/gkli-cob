@@ -6,8 +6,8 @@ const templates = [
   },
   {
     nome: "Condopro",
-    status: "Próxima fase",
-    descricao: "XLS/HTML por blocos de unidade, recibos e total geral da unidade.",
+    status: "Disponível na V1",
+    descricao: "XLS/HTML por blocos de unidade, com 1 cobrança por recibo e saída em XLSX padrão GKLI.",
   },
   {
     nome: "Manager / Webware",

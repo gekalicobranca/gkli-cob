@@ -32,6 +32,9 @@ type UnidadeImportacaoRow = {
   identificacao: string;
   bloco: string | null;
   responsavel_nome?: string | null;
+  responsavel_documento?: string | null;
+  telefone?: string | null;
+  email?: string | null;
 };
 
 type PreviewItem = {
@@ -390,7 +393,7 @@ async function resolveUnidadesByCondominioIds(
   const { data, error } = await supabase
     .from("unidades")
     .select(
-      "id, condominio_id, carteira_id, identificacao, bloco, responsavel_nome",
+      "id, condominio_id, carteira_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email",
     )
     .in("condominio_id", ids.length > 0 ? ids : [EMPTY_UUID]);
 
@@ -408,9 +411,15 @@ async function resolveUnidadesByCondominioIds(
   );
 }
 
-function buildImportacaoPayload(tipo: string, raw: Record<string, string>) {
+function buildImportacaoPayload(
+  tipo: string,
+  raw: Record<string, string>,
+  condominioPadrao?: CondominioImportacaoRow | null,
+) {
   if (tipo === "cobrancas") {
-    const condominioCnpj = getDocumento(raw, CONDOMINIO_CNPJ_KEYS, 14);
+    const condominioCnpj =
+      getDocumento(raw, CONDOMINIO_CNPJ_KEYS, 14) ||
+      normalizeCnpj(condominioPadrao?.cnpj ?? "");
     const unidade = getFirst(raw, ["unidade", "identificacao", "numero"]);
     const bloco = getFirst(raw, ["bloco"]);
     const responsavelNome = getFirst(raw, [
@@ -429,17 +438,42 @@ function buildImportacaoPayload(tipo: string, raw: Record<string, string>) {
     const vencimento = normalizeDate(
       getFirst(raw, ["vencimento", "data_vencimento"]),
     );
-    const valorOriginal = parseMoney(
+    const multa = parseMoney(getFirst(raw, ["multa"]));
+    const correcao = parseMoney(getFirst(raw, ["correcao", "correção"]));
+    const juros = parseMoney(getFirst(raw, ["juros"]));
+    const totalDoRecibo = parseMoney(
       getFirst(raw, [
-        "valor_original",
-        "valor",
-        "valor_devido",
-        "valor_atualizado",
+        "total_do_recibo",
+        "total_recibo",
+        "total",
+        "valor_total",
       ]),
     );
+    const valorAtualizadoInformado = parseMoney(
+      getFirst(raw, [
+        "valor_atualizado",
+        "valor_corrigido",
+        "total_do_recibo",
+        "total_recibo",
+        "total",
+        "valor_total",
+      ]),
+    );
+    const valorOriginalInformado = parseMoney(
+      getFirst(raw, ["valor_original", "valor", "valor_devido"]),
+    );
+    const valorOriginal =
+      valorOriginalInformado ||
+      Math.max(
+        0,
+        roundMoney(
+          (valorAtualizadoInformado || totalDoRecibo) - multa - correcao - juros,
+        ),
+      );
     const valorAtualizado =
-      parseMoney(getFirst(raw, ["valor_atualizado", "valor_corrigido"])) ||
-      valorOriginal;
+      valorAtualizadoInformado ||
+      totalDoRecibo ||
+      roundMoney(valorOriginal + multa + correcao + juros);
 
     return {
       condominio_cnpj: condominioCnpj,
@@ -453,6 +487,11 @@ function buildImportacaoPayload(tipo: string, raw: Record<string, string>) {
       vencimento,
       valor_original: valorOriginal,
       valor_atualizado: valorAtualizado,
+      total_do_recibo: totalDoRecibo || valorAtualizado,
+      multa,
+      correcao,
+      juros,
+      status: getFirst(raw, ["status"]) || "novo",
       observacoes: getFirst(raw, ["observacoes", "obs"]),
     };
   }
@@ -682,13 +721,17 @@ async function enrichSimplePreview(
 async function enrichCobrancaPreview(
   supabase: SupabaseClient,
   rows: Array<{ linha: number; payload: Record<string, any> }>,
+  condominioPadrao?: CondominioImportacaoRow | null,
 ) {
   const cnpjs = rows
     .map((row) => cnpjKeyFromPayload(row.payload))
     .filter(Boolean);
   const condominiosByCnpj = await resolveCondominiosByCnpj(supabase, cnpjs);
   const condominioIds = [
-    ...new Set([...condominiosByCnpj.values()].map((item) => item.id)),
+    ...new Set([
+      ...[...condominiosByCnpj.values()].map((item) => item.id),
+      ...(condominioPadrao?.id ? [condominioPadrao.id] : []),
+    ]),
   ];
   const unidadesByKey = await resolveUnidadesByCondominioIds(
     supabase,
@@ -701,16 +744,27 @@ async function enrichCobrancaPreview(
     const alertas: string[] = [];
     const condominioCnpj = normalizeCnpj(payload.condominio_cnpj ?? "");
 
-    if (!condominioCnpj) erros.push("CNPJ do condomínio vazio");
+    if (!condominioCnpj && !condominioPadrao) erros.push("CNPJ do condomínio vazio");
     if (condominioCnpj && condominioCnpj.length !== 14)
       erros.push("CNPJ do condomínio inválido");
 
-    const condominio = condominiosByCnpj.get(condominioCnpj);
-    if (!condominio) erros.push("Condomínio não encontrado pelo CNPJ");
+    const condominio =
+      condominiosByCnpj.get(condominioCnpj) ??
+      (condominioPadrao && (!condominioCnpj || condominioCnpj === normalizeCnpj(condominioPadrao.cnpj ?? ""))
+        ? condominioPadrao
+        : undefined);
+
+    if (!condominio) {
+      erros.push(
+        condominioCnpj
+          ? "Condomínio não encontrado pelo CNPJ"
+          : "CNPJ do condomínio vazio e nenhum condomínio padrão foi selecionado",
+      );
+    }
     if (!payload.unidade) erros.push("Unidade vazia");
     if (!payload.vencimento) erros.push("Vencimento vazio");
-    if (Number(payload.valor_original) <= 0)
-      erros.push("Valor original inválido");
+    if (Number(payload.valor_original) <= 0 && Number(payload.valor_atualizado) <= 0)
+      erros.push("Valor original/total do recibo inválido");
 
     let unidade: UnidadeImportacaoRow | undefined;
     let unidadeNova = false;
@@ -729,8 +783,7 @@ async function enrichCobrancaPreview(
       }
     }
 
-    if (!payload.telefone && !payload.email)
-      alertas.push("Sem telefone/e-mail: menor chance de conversão");
+    // Dados de contato vêm do cadastro da unidade; não bloqueia nem gera alerta no layout GKLI por recibo.
 
     const blocked = erros.length > 0;
     const priority = estimatePriority({
@@ -748,6 +801,11 @@ async function enrichCobrancaPreview(
         condominio_nome: condominio?.nome ?? null,
         unidade_id: unidade?.id ?? null,
         unidade_nova: unidadeNova,
+        responsavel_nome: payload.responsavel_nome || unidade?.responsavel_nome || null,
+        responsavel_documento:
+          payload.responsavel_documento || unidade?.responsavel_documento || null,
+        telefone: payload.telefone || unidade?.telefone || null,
+        email: payload.email || unidade?.email || null,
         prioridade_estimada: priority.prioridade,
         score_estimado: priority.score,
         acao_sugerida: priority.acao,
@@ -1005,7 +1063,7 @@ export async function createImportacaoPreview(formData: FormData) {
 
   const supabase = await createClient();
   const condominioPadrao =
-    tipo === "unidades"
+    tipo === "unidades" || tipo === "cobrancas"
       ? await resolveCondominioById(supabase, condominioIdPadrao)
       : null;
   let itens: PreviewItem[];
@@ -1013,9 +1071,9 @@ export async function createImportacaoPreview(formData: FormData) {
   if (tipo === "cobrancas") {
     const rows = parsedRows.map((row) => ({
       linha: row.linha,
-      payload: buildImportacaoPayload(tipo, row.payload),
+      payload: buildImportacaoPayload(tipo, row.payload, condominioPadrao),
     }));
-    itens = await enrichCobrancaPreview(supabase, rows);
+    itens = await enrichCobrancaPreview(supabase, rows, condominioPadrao);
   } else {
     const rows = parsedRows.map((row) => {
       const payload =
@@ -1085,7 +1143,7 @@ export async function createImportacaoPreview(formData: FormData) {
         regra_chave: isLegacyImportType(tipo)
           ? "Legados exigem condomínio e unidade existentes; acordo e parcelas são criados somente na confirmação."
           : tipo === "cobrancas"
-            ? "CNPJ do condomínio obrigatório; sem match a linha não entra na base."
+            ? "Layout GKLI por recibo: usa condomínio selecionado/CNPJ quando houver, cruza unidade no banco e aceita multa, correção e juros opcionais."
             : "Linhas duplicadas ou com vínculo inseguro ficam bloqueadas no preview.",
       },
     })
@@ -1273,6 +1331,9 @@ async function importarCobrancas(
         vencimento: payload.vencimento,
         valor_original: Number(payload.valor_original),
         valor_atualizado: Number(payload.valor_atualizado || payload.valor_original),
+        multa: Number(payload.multa || 0),
+        correcao: Number(payload.correcao || 0),
+        juros: Number(payload.juros || 0),
         status: "novo",
         status_operacional: "novo",
         status_financeiro: "em_aberto",

@@ -1,4 +1,5 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
+import { requireUser } from '@/utils/auth/require-user'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { applyCarteiraScope, applyCarteiraScopeWithGlobal } from '@/utils/auth/carteira-scope'
 
@@ -12,6 +13,7 @@ export type TemplateMensageria = {
   conteudo: string
   ativo: boolean
   carteira_id?: string | null
+  carteira_nome?: string | null
   created_at: string
   updated_at?: string | null
 }
@@ -42,8 +44,34 @@ function logSupabaseError(contexto: string, error: unknown) {
   })
 }
 
+async function getCarteiraNomeMap(carteiraIds: string[]) {
+  await requireUser()
+  const uniqueIds = Array.from(new Set(carteiraIds.filter(Boolean)))
+  const result = new Map<string, string>()
+
+  if (uniqueIds.length === 0) return result
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('carteiras')
+    .select('id,nome')
+    .in('id', uniqueIds)
+
+  if (error) {
+    logSupabaseError('Erro ao carregar nomes das carteiras dos templates:', error)
+    return result
+  }
+
+  for (const row of data ?? []) {
+    result.set((row as any).id, (row as any).nome ?? 'Carteira')
+  }
+
+  return result
+}
+
 export async function listTemplates(scope?: CarteiraScope): Promise<TemplateMensageria[]> {
-  const supabase = await createClient()
+  await requireUser()
+  const supabase = createAdminClient()
 
   let query = supabase
     .from('mensagens_templates')
@@ -59,9 +87,13 @@ export async function listTemplates(scope?: CarteiraScope): Promise<TemplateMens
     return []
   }
 
-  return (data ?? []).map((row: any) => ({
+  const rows = (data ?? []) as any[]
+  const carteiraNome = await getCarteiraNomeMap(rows.map((row) => row.carteira_id).filter(Boolean))
+
+  return rows.map((row: any) => ({
     ...row,
     codigo: row.tipo ?? null,
+    carteira_nome: row.carteira_id ? carteiraNome.get(row.carteira_id) ?? 'Carteira específica' : null,
   })) as TemplateMensageria[]
 }
 
@@ -70,7 +102,8 @@ export async function listTemplatesMensageria(scope?: CarteiraScope) {
 }
 
 export async function getTemplateById(id: string, scope?: CarteiraScope): Promise<TemplateMensageria | null> {
-  const supabase = await createClient()
+  await requireUser()
+  const supabase = createAdminClient()
 
   let query = supabase
     .from('mensagens_templates')
@@ -88,7 +121,13 @@ export async function getTemplateById(id: string, scope?: CarteiraScope): Promis
 
   if (!data) return null
 
-  return { ...(data as any), codigo: (data as any).tipo ?? null } as TemplateMensageria
+  const row = data as any
+  const carteiraNome = await getCarteiraNomeMap(row.carteira_id ? [row.carteira_id] : [])
+  return {
+    ...row,
+    codigo: row.tipo ?? null,
+    carteira_nome: row.carteira_id ? carteiraNome.get(row.carteira_id) ?? 'Carteira específica' : null,
+  } as TemplateMensageria
 }
 
 export async function getTemplateDetalhe(id: string, scope?: CarteiraScope) {
@@ -96,7 +135,8 @@ export async function getTemplateDetalhe(id: string, scope?: CarteiraScope) {
 }
 
 export async function countReguaEtapasPorTemplate(templateIds?: string[]) {
-  const supabase = await createClient()
+  await requireUser()
+  const supabase = createAdminClient()
 
   let query = supabase
     .from('regua_etapas')
@@ -125,7 +165,8 @@ export async function countReguaEtapasPorTemplate(templateIds?: string[]) {
 }
 
 export async function listMensageriaLogs(scope?: CarteiraScope): Promise<MensageriaLog[]> {
-  const supabase = await createClient()
+  await requireUser()
+  const supabase = createAdminClient()
 
   let query = supabase
     .from('mensageria_logs')
@@ -150,7 +191,7 @@ export async function listMensagens(scope?: CarteiraScope) {
 }
 
 export async function getMensagemById(id: string): Promise<MensageriaLog | null> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('mensageria_logs')
@@ -171,7 +212,7 @@ export async function getMensagemDetalhe(id: string) {
 }
 
 export async function listMensagensPorTemplate(templateId: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('mensagens')
@@ -188,7 +229,7 @@ export async function listMensagensPorTemplate(templateId: string) {
 }
 
 export async function listMensagensPorStatus(status: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('mensagens')
@@ -259,7 +300,7 @@ function statusOperacional(row: { status_operacional?: string | null; status?: s
 }
 
 export async function getMensageriaCockpit(scope?: CarteiraScope): Promise<MensageriaCockpitData> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   let mensagensQuery = supabase
     .from('mensagens')

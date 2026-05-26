@@ -25,7 +25,9 @@ export default async function NovoUsuarioPage() {
         <form action={createUsuario} className="space-y-5">
           <div className="grid gap-5 md:grid-cols-2">
             <FormField label="Nome">
-              <Input name="nome" required placeholder="Nome do usuário" />
+              
+
+<Input name="nome" required placeholder="Nome do usuário" />
             </FormField>
 
             <FormField label="E-mail">

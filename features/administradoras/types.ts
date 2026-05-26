@@ -2,6 +2,7 @@ export type Administradora = {
   id: string
   carteira_id?: string | null
   nome: string
+  nome_operacional?: string | null
   cnpj?: string | null
   telefone?: string | null
   email?: string | null

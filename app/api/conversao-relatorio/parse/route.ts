@@ -21,11 +21,15 @@ export async function POST(request: NextRequest) {
 
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
+    const condominioCnpj = String(formData.get("condominio_cnpj") ?? "")
+      .replace(/\D/g, "")
+      .trim()
 
     const result = parseRelatorioBuffer({
       buffer,
       filename: file.name,
       mimeType: file.type,
+      condominioCnpj,
     })
 
     return NextResponse.json(result)

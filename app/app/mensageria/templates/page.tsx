@@ -26,6 +26,7 @@ export default async function TemplatesMensageriaPage() {
   const ativos = templates.filter((template: any) => template.ativo).length
   const cobranca = templates.filter((template: any) => template.tipo === 'cobranca').length
   const acordo = templates.filter((template: any) => template.tipo === 'acordo').length
+  const globais = templates.filter((template: any) => !template.carteira_id).length
 
   return (
     <div className="space-y-6">
@@ -36,7 +37,7 @@ export default async function TemplatesMensageriaPage() {
         actions={<ButtonLink href="/app/mensageria/templates/novo" variant="header">Novo template</ButtonLink>}
       />
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Templates</p>
           <p className="mt-3 text-3xl font-semibold text-slate-950">{templates.length}</p>
@@ -57,6 +58,11 @@ export default async function TemplatesMensageriaPage() {
           <p className="mt-3 text-3xl font-semibold text-slate-950">{acordo}</p>
           <p className="mt-1 text-sm text-slate-500">modelos de acordo</p>
         </Card>
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Globais</p>
+          <p className="mt-3 text-3xl font-semibold text-slate-950">{globais}</p>
+          <p className="mt-1 text-sm text-slate-500">visíveis para todas as carteiras</p>
+        </Card>
       </div>
 
       {templates.length === 0 ? (
@@ -75,12 +81,13 @@ export default async function TemplatesMensageriaPage() {
                 <Link
                   key={template.id}
                   href={`/app/mensageria/templates/${template.id}`}
-                  className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[1fr_110px_110px_110px_120px] xl:items-center"
+                  className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[1fr_150px_110px_110px_110px_120px] xl:items-center"
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-950">{template.nome}</p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{preview || template.conteudo}</p>
                   </div>
+                  <div>{badge(template.carteira_id ? String(template.carteira_nome ?? 'Carteira específica') : 'Global', template.carteira_id ? 'blue' : 'green')}</div>
                   <div>{badge(String(template.tipo ?? 'manual'), template.tipo === 'acordo' ? 'amber' : 'blue')}</div>
                   <div>{badge(String(template.canal ?? 'whatsapp'))}</div>
                   <div>{badge(template.ativo ? 'ativo' : 'inativo', template.ativo ? 'green' : 'slate')}</div>

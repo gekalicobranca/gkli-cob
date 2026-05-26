@@ -49,8 +49,8 @@ export default async function AdministradoraDetalhePage({ params }: Props) {
     <div className="space-y-5">
       <PageHeader
         eyebrow="Administradoras"
-        title={administradora.nome}
-        description="Hub operacional da relação com a administradora: contatos, solicitações, SLA básico e pendências externas."
+        title={administradora.nome_operacional || administradora.nome}
+        description={`Razão social: ${administradora.nome}. Hub operacional da relação com a administradora: contatos, solicitações, SLA básico e pendências externas.`}
         actions={<><ButtonLink href="/app/administradoras" variant="secondary">Voltar</ButtonLink><ButtonLink href="/app/administradoras/solicitacoes" variant="secondary">Solicitações ADM</ButtonLink></>}
       />
 
@@ -66,8 +66,9 @@ export default async function AdministradoraDetalhePage({ params }: Props) {
           <div><h2 className="text-base font-medium text-slate-950">Dados cadastrais</h2><p className="mt-1 text-sm text-slate-500">Cadastro central da administradora.</p></div>
           <form action={updateAdministradora} className="grid gap-4 md:grid-cols-2">
             <input type="hidden" name="id" value={administradora.id} />
-            <label className="space-y-1.5 md:col-span-2"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Nome</span><Input name="nome" defaultValue={administradora.nome} required /></label>
-            <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">CNPJ</span><Input name="cnpj" defaultValue={administradora.cnpj ?? ''} /></label>
+            <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Nome / razão social</span><Input name="nome" defaultValue={administradora.nome} required /></label>
+            <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Nome operacional</span><Input name="nome_operacional" defaultValue={administradora.nome_operacional ?? ''} placeholder="Como a equipe chama no dia a dia" /></label>
+            <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">CNPJ *</span><Input name="cnpj" defaultValue={administradora.cnpj ?? ''} required inputMode="numeric" placeholder="00.000.000/0000-00" /></label>
             <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Status</span><Select name="status" defaultValue={administradora.status ?? 'ativo'}><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="suspenso">Suspenso</option></Select></label>
             <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">E-mail</span><Input name="email" defaultValue={administradora.email ?? ''} /></label>
             <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Telefone</span><Input name="telefone" defaultValue={administradora.telefone ?? ''} /></label>

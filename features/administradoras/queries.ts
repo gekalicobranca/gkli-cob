@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import type { Administradora, AdministradoraContato, AdministradoraMetricas, SolicitacaoAdministradora, TemplateMensageriaAdm } from './types'
 
 type Scope = { permittedCarteiraIds?: string[] | null; carteiraIds?: string[] | null; isAdmin?: boolean }
@@ -20,7 +20,7 @@ export function normalizeAdmFilters(input: Record<string, string | null | undefi
 }
 
 export async function listAdministradoras(scope?: Scope, filters: Filters = {}) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   let query = supabase
     .from('administradoras')
     .select('*')
@@ -33,7 +33,7 @@ export async function listAdministradoras(scope?: Scope, filters: Filters = {}) 
   if (filters.status) query = query.eq('status', filters.status)
   if (filters.search) {
     const term = filters.search.replace(/[%_]/g, '')
-    query = query.or(`nome.ilike.%${term}%,cnpj.ilike.%${term}%,email.ilike.%${term}%`)
+    query = query.or(`nome.ilike.%${term}%,nome_operacional.ilike.%${term}%,cnpj.ilike.%${term}%,email.ilike.%${term}%`)
   }
 
   const { data, error } = await query
@@ -42,14 +42,14 @@ export async function listAdministradoras(scope?: Scope, filters: Filters = {}) 
 }
 
 export async function getAdministradora(id: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase.from('administradoras').select('*').eq('id', id).maybeSingle()
   if (error) return null
   return data as Administradora | null
 }
 
 export async function listContatosAdministradora(administradoraId: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('administradora_contatos')
     .select('*')
@@ -61,7 +61,7 @@ export async function listContatosAdministradora(administradoraId: string) {
 }
 
 export async function listSolicitacoesAdministradora(administradoraId?: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   let query = supabase
     .from('solicitacoes_administradora')
     .select('*, administradoras(nome), administradora_contatos(nome,email,whatsapp)')
@@ -74,7 +74,7 @@ export async function listSolicitacoesAdministradora(administradoraId?: string) 
 }
 
 export async function listTemplatesAdm() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('templates_mensageria_adm')
     .select('*')
@@ -108,7 +108,7 @@ export async function getMetricasAdministradora(administradoraId: string): Promi
 }
 
 export async function listCondominiosVinculados(administradoraId: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('condominios')
     .select('id,nome,cnpj,status,carteira_id')

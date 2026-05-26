@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
         unidadeId = novaUnidade.id
       }
 
+      const vencimentoPorRecibo = brDateToIso(String(item.vencimento ?? ""))
       const vencimentos = Array.isArray(item.parcelas)
         ? item.parcelas
             .map((p: any) => brDateToIso(String(p.vencimento ?? "")))
@@ -107,7 +108,16 @@ export async function POST(request: NextRequest) {
             .sort()
         : []
 
-      const vencimentoMaisAntigo = vencimentos[0] ?? null
+      const vencimentoMaisAntigo = vencimentoPorRecibo ?? vencimentos[0] ?? null
+      const valorPrincipal = Number(item.valorPrincipal ?? item.valorTotal ?? 0)
+      const multa = Number(item.multa ?? 0)
+      const correcao = Number(item.correcao ?? 0)
+      const juros = Number(item.juros ?? 0)
+      const valorTotal = Number(item.valorTotal ?? valorPrincipal + multa + correcao + juros)
+      const recibo = String(item.recibo ?? "").trim()
+      const observacoes = recibo
+        ? `Conversão de relatório - recibo ${recibo}`
+        : "Conversão de relatório"
 
       const { data: cobranca, error: cobrancaError } = await supabase
         .from("cobrancas")
@@ -116,11 +126,17 @@ export async function POST(request: NextRequest) {
           condominio_id: condominioId,
           unidade_id: unidadeId,
           responsavel_nome: responsavelNome || "Responsável não identificado",
-          valor_original: Number(item.valorTotal ?? 0),
-          valor_atualizado: Number(item.valorTotal ?? 0),
-          valor_total: Number(item.valorTotal ?? 0),
+          valor_original: valorPrincipal,
+          valor_atualizado: valorTotal,
+          valor_total: valorTotal,
+          multa,
+          correcao,
+          juros,
           vencimento: vencimentoMaisAntigo,
           status: "novo",
+          status_operacional: "novo",
+          status_financeiro: "em_aberto",
+          observacoes,
           origem_importacao: "conversao_relatorio",
           conversao_relatorio_id: conversaoId,
         } as any)
@@ -143,12 +159,12 @@ export async function POST(request: NextRequest) {
           .map((parcela: any) => ({
             cobranca_id: cobranca.id,
             conversao_relatorio_id: conversaoId,
-            data_vencimento: brDateToIso(String(parcela.vencimento ?? "")),
-            referencia: parcela.referencia ?? null,
-            valor_original: Number(parcela.valor ?? 0),
-            valor_atualizado: Number(parcela.valor ?? 0),
+            data_vencimento: brDateToIso(String(parcela.vencimento ?? item.vencimento ?? "")),
+            referencia: parcela.referencia ?? (recibo ? `Recibo ${recibo}` : null),
+            valor_original: Number(item.valorPrincipal ?? parcela.valor ?? 0),
+            valor_atualizado: Number(item.valorTotal ?? parcela.valor ?? 0),
             status: "aberto",
-            origem_linha_json: parcela,
+            origem_linha_json: { ...parcela, recibo, multa, correcao, juros, valorTotal },
           }))
           .filter((parcela: any) => parcela.data_vencimento && parcela.valor_atualizado > 0)
 

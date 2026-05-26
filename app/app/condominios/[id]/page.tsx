@@ -108,7 +108,9 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Carteira"><Select name="carteira_id" defaultValue={condominio.carteira_id ?? ''} required><option value="">Selecione...</option>{carteiras.map((carteira: any) => (<option key={carteira.id} value={carteira.id}>{carteira.nome}</option>))}</Select></FormField>
             <FormField label="Status"><Select name="status" defaultValue={condominio.status ?? 'ativo'}><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="pausado">Pausado</option></Select></FormField>
-            <FormField label="Nome do condomínio"><Input name="nome" defaultValue={condominio.nome ?? ''} required /></FormField>
+            <FormField label="Nome do condomínio">
+
+<Input name="nome" defaultValue={condominio.nome ?? ''} required /></FormField>
             <FormField label="CNPJ"><Input name="cnpj" defaultValue={condominio.cnpj ?? ''} /></FormField>
             <FormField label="Administradora"><Input name="administradora" defaultValue={condominio.administradora ?? ''} /></FormField>
           </div>

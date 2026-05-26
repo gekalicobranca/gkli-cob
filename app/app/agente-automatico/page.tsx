@@ -95,7 +95,9 @@ export default async function AgenteAutomaticoPage() {
 
             <label className="block">
               <span className="text-sm text-slate-600">Administradora</span>
-              <input
+              
+
+<input
                 name="nome"
                 required
                 placeholder="Ex.: Administradora Modelo"

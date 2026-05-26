@@ -38,7 +38,9 @@ export default async function EditarCarteiraPage({ params }: EditarCarteiraPageP
           <input type="hidden" name="id" value={carteira.id} />
 
           <FormField label="Nome da carteira">
-            <Input name="nome" required defaultValue={carteira.nome ?? ''} placeholder="Ex.: Genske Advogados" />
+            
+
+<Input name="nome" required defaultValue={carteira.nome ?? ''} placeholder="Ex.: Genske Advogados" />
           </FormField>
 
           <FormField label="Descrição">

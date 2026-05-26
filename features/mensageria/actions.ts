@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
+import { requireUser } from "@/utils/auth/require-user";
+import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { sendSmtpEmail } from "@/features/mensageria/email-provider";
 import { registrarEventoOperacional } from "@/features/operacional/service";
 import { TEMPLATE_VARIABLES } from "@/features/mensageria/render-template";
@@ -111,16 +114,35 @@ function templatePayloadFromForm(formData: FormData) {
   };
 }
 
+async function resolveTemplateCarteiraId(formData: FormData) {
+  const scope = await getPermittedCarteiras();
+  const carteiraId = getFormString(formData, "carteira_id");
+
+  if (!carteiraId) {
+    if (scope.isAdmin) return null;
+    if (scope.carteiraIds?.length === 1) return scope.carteiraIds[0];
+    throw new Error("Selecione a carteira que poderá usar este template.");
+  }
+
+  if (!scope.isAdmin && !scope.carteiraIds?.includes(carteiraId)) {
+    throw new Error("Você não tem permissão para vincular template a esta carteira.");
+  }
+
+  return carteiraId;
+}
+
 export async function criarTemplateMensagem(formData: FormData) {
-  const supabase = await createClient();
+  await requireUser();
+  const supabase = createAdminClient();
   const payload = templatePayloadFromForm(formData);
+  const carteiraId = await resolveTemplateCarteiraId(formData);
   const now = new Date().toISOString();
 
   const { data, error } = await supabase
     .from("mensagens_templates")
     .insert({
       ...payload,
-      carteira_id: null,
+      carteira_id: carteiraId,
       created_at: now,
       criado_em: now,
     } as any)
@@ -137,12 +159,14 @@ export async function atualizarTemplateMensagem(
   id: string,
   formData: FormData,
 ) {
-  const supabase = await createClient();
+  await requireUser();
+  const supabase = createAdminClient();
   const payload = templatePayloadFromForm(formData);
+  const carteiraId = await resolveTemplateCarteiraId(formData);
 
   const { error } = await supabase
     .from("mensagens_templates")
-    .update(payload as any)
+    .update({ ...payload, carteira_id: carteiraId } as any)
     .eq("id", id);
 
   if (error) throw new Error(`Erro ao atualizar template: ${error.message}`);

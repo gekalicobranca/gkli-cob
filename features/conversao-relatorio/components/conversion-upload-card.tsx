@@ -22,11 +22,44 @@ function downloadCsv(filename: string, csv: string) {
   URL.revokeObjectURL(url)
 }
 
-export function ConversionUploadCard() {
+function downloadXlsx(filename: string, base64: string) {
+  const binary = window.atob(base64)
+  const bytes = new Uint8Array(binary.length)
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+
+  const blob = new Blob([bytes], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  })
+
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+
+  link.href = url
+  link.download = filename
+  link.click()
+
+  URL.revokeObjectURL(url)
+}
+
+type CondominioOption = {
+  id: string
+  nome: string
+  cnpj: string
+}
+
+type ConversionUploadCardProps = {
+  condominios: CondominioOption[]
+}
+
+export function ConversionUploadCard({ condominios }: ConversionUploadCardProps) {
   const [preview, setPreview] = useState<ConversaoPreview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [filename, setFilename] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [condominioCnpj, setCondominioCnpj] = useState("")
 
   const topCobrancas = useMemo(() => {
     return [...(preview?.cobrancas ?? [])]
@@ -46,6 +79,7 @@ export function ConversionUploadCard() {
     try {
       const formData = new FormData()
       formData.append("file", file)
+      if (condominioCnpj) formData.append("condominio_cnpj", condominioCnpj)
 
       const response = await fetch("/api/conversao-relatorio/parse", {
         method: "POST",
@@ -71,9 +105,12 @@ export function ConversionUploadCard() {
     }
   }
 
-  const csvFilename =
-    filename?.replace(/\.[^.]+$/, "")?.concat("_gkli_cobrancas.csv") ??
-    "gkli_cobrancas_convertidas.csv"
+  const outputBaseName =
+    filename?.replace(/\.[^.]+$/, "")?.concat("_gkli_cobrancas") ??
+    "gkli_cobrancas_convertidas"
+
+  const csvFilename = `${outputBaseName}.csv`
+  const xlsxFilename = `${outputBaseName}.xlsx`
 
   return (
     <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -83,9 +120,29 @@ export function ConversionUploadCard() {
         </p>
         <h2 className="mt-2 text-xl font-semibold text-slate-950">Subir relatório</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          A Conversão de Relatório transforma o arquivo da administradora em CSV padrão GKLI,
-          pronto para o módulo de Importações. Ela não altera cadastro, não cria unidade e não
-          grava cobranças diretamente.
+          A Conversão de Relatório transforma o arquivo da administradora em XLSX padrão GKLI,
+          pronto para o módulo de Importações. Para Condopro/BBZ, a conversão gera 1 cobrança por recibo, preservando bloco, unidade, vencimento, principal, multa, correção, juros e total.
+        </p>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Condomínio da importação
+        </label>
+        <select
+          value={condominioCnpj}
+          onChange={(event) => setCondominioCnpj(event.target.value)}
+          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
+        >
+          <option value="">Não preencher CNPJ no arquivo convertido</option>
+          {condominios.map((condominio) => (
+            <option key={condominio.id} value={condominio.cnpj}>
+              {condominio.nome} · {condominio.cnpj}
+            </option>
+          ))}
+        </select>
+        <p className="mt-2 text-xs leading-5 text-slate-500">
+          Se selecionar o condomínio, o XLSX já sai com o CNPJ correto. Os dados do responsável continuam vindo da base de unidades na importação oficial.
         </p>
       </div>
 
@@ -128,7 +185,7 @@ export function ConversionUploadCard() {
               <p className="mt-2 text-lg font-semibold text-slate-950">{preview.cobrancas.length}</p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Parcelas</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Registros</p>
               <p className="mt-2 text-lg font-semibold text-slate-950">{preview.totalParcelas}</p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
@@ -141,42 +198,59 @@ export function ConversionUploadCard() {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h3 className="text-sm font-semibold text-slate-950">
-                  CSV padrão GKLI pronto
+                  XLSX padrão GKLI pronto
                 </h3>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Baixe o arquivo e importe no módulo de Importações/Cobranças.
+                  Baixe o XLSX e importe no módulo de Importações/Cobranças. CNPJ e dados do responsável ficam vazios para serem enriquecidos pela base de condomínios/unidades.
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => downloadCsv(csvFilename, preview.csv)}
-                className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-              >
-                Baixar CSV GKLI
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadXlsx(xlsxFilename, preview.xlsxBase64)}
+                  className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                >
+                  Baixar XLSX GKLI
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadCsv(csvFilename, preview.csv)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  Baixar CSV auxiliar
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200">
-            <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="min-w-[980px] w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-[0.18em] text-slate-400">
                 <tr>
+                  <th className="px-4 py-3">Bloco</th>
                   <th className="px-4 py-3">Unidade</th>
-                  <th className="px-4 py-3">Responsável</th>
-                  <th className="px-4 py-3 text-right">Parcelas origem</th>
-                  <th className="px-4 py-3 text-right">Valor consolidado</th>
-                  <th className="px-4 py-3">Vencimento base</th>
+                  <th className="px-4 py-3">Recibo</th>
+                  <th className="px-4 py-3">Vencimento</th>
+                  <th className="px-4 py-3 text-right">Principal</th>
+                  <th className="px-4 py-3 text-right">Multa</th>
+                  <th className="px-4 py-3 text-right">Correção</th>
+                  <th className="px-4 py-3 text-right">Juros</th>
+                  <th className="px-4 py-3 text-right">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {topCobrancas.map((cobranca) => (
-                  <tr key={cobranca.unidade}>
+                {topCobrancas.map((cobranca, index) => (
+                  <tr key={`${cobranca.recibo ?? cobranca.unidade}-${index}`}>
+                    <td className="px-4 py-3 text-slate-600">{cobranca.bloco || "—"}</td>
                     <td className="px-4 py-3 font-semibold text-slate-950">{cobranca.unidade}</td>
-                    <td className="px-4 py-3 text-slate-600">{cobranca.responsavel}</td>
-                    <td className="px-4 py-3 text-right text-slate-600">{cobranca.parcelas.length}</td>
+                    <td className="px-4 py-3 text-slate-600">{cobranca.recibo || "—"}</td>
+                    <td className="px-4 py-3 text-slate-600">{cobranca.vencimento || cobranca.vencimentoMaisAntigo || "—"}</td>
+                    <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(cobranca.valorPrincipal ?? cobranca.valorTotal)}</td>
+                    <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(cobranca.multa ?? 0)}</td>
+                    <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(cobranca.correcao ?? 0)}</td>
+                    <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(cobranca.juros ?? 0)}</td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-950">{formatCurrency(cobranca.valorTotal)}</td>
-                    <td className="px-4 py-3 text-slate-600">{cobranca.vencimentoMaisAntigo || "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -184,8 +258,8 @@ export function ConversionUploadCard() {
           </div>
 
           <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Conversão consolidada: 1 linha no CSV por unidade. Os vencimentos originais ficam
-            preservados em observações, e o vencimento base é o mais antigo identificado.
+            Conversão por recibo: no padrão Condopro/BBZ, 1 recibo = 1 vencimento = 1 cobrança.
+            Itens como água, gás, fundo e condomínio ficam apenas na administradora. O XLSX gerado segue o padrão GKLI e não duplica dados cadastrais já existentes no banco.
           </div>
         </div>
       ) : null}

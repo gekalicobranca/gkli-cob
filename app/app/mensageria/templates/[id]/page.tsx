@@ -8,11 +8,15 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getTemplateDetalhe } from '@/features/mensageria/queries'
 import { atualizarTemplateMensagem } from '@/features/mensageria/actions'
 import { TemplatePreview } from '@/features/mensageria/components/template-preview'
+import { listCarteirasForSelect } from '@/features/cadastros/queries'
 
 export default async function EditarTemplateMensageriaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const scope = await getPermittedCarteiras()
-  const template = await getTemplateDetalhe(id, scope)
+  const [template, carteiras] = await Promise.all([
+    getTemplateDetalhe(id, scope),
+    listCarteirasForSelect(scope),
+  ])
 
   if (!template) notFound()
 
@@ -33,11 +37,12 @@ export default async function EditarTemplateMensageriaPage({ params }: { params:
 
       <form action={updateTemplate} className="space-y-5">
         <Card className="space-y-5">
-          <div className="grid gap-4 lg:grid-cols-4">
-            <div className="space-y-2 lg:col-span-2">
+          <div className="grid gap-4 xl:grid-cols-4">
+            <div className="space-y-2 xl:col-span-2">
               <label className="text-sm font-medium text-slate-700" htmlFor="nome">Nome</label>
               <Input id="nome" name="nome" defaultValue={template.nome ?? ''} required />
             </div>
+
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700" htmlFor="tipo">Tipo</label>
               <Select id="tipo" name="tipo" defaultValue={template.tipo ?? 'cobranca'}>
@@ -47,6 +52,7 @@ export default async function EditarTemplateMensageriaPage({ params }: { params:
                 <option value="manual">Manual</option>
               </Select>
             </div>
+
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700" htmlFor="canal">Canal</label>
               <Select id="canal" name="canal" defaultValue={template.canal ?? 'whatsapp'}>
@@ -57,11 +63,29 @@ export default async function EditarTemplateMensageriaPage({ params }: { params:
             </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[1fr_160px] lg:items-end">
+          <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.8fr)_minmax(320px,1fr)_160px] xl:items-end">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700" htmlFor="carteira_id">Carteira autorizada</label>
+              <Select id="carteira_id" name="carteira_id" defaultValue={template.carteira_id ?? ''} required={!scope.isAdmin}>
+                {scope.isAdmin ? (
+                  <option value="">Global — todas as carteiras</option>
+                ) : (
+                  <option value="">Selecione uma carteira</option>
+                )}
+                {carteiras.map((carteira: any) => (
+                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
+                ))}
+              </Select>
+              <p className="text-xs text-slate-500">
+                Altere a carteira para limitar quem pode usar este template.
+              </p>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700" htmlFor="assunto">Assunto</label>
               <Input id="assunto" name="assunto" defaultValue={template.assunto ?? ''} placeholder="Opcional para e-mail" />
             </div>
+
             <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700">
               <input type="checkbox" name="ativo" defaultChecked={Boolean(template.ativo)} className="h-4 w-4 rounded border-slate-300" />
               Ativo

@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -309,8 +310,15 @@ export function AppShell({
               ].join(' ')}
               title="GKLI Cobrança"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#04799a] to-[#005f7c] text-xs font-semibold text-white shadow-[0_10px_24px_rgba(0,105,136,0.24)]">
-                GK
+              <span className="relative flex h-11 w-11 shrink-0 overflow-hidden rounded-2xl bg-[#004b63] shadow-[0_10px_24px_rgba(0,75,99,0.24)] ring-1 ring-white/70">
+                <Image
+                  src="/logo-gkli-menu-icon.png"
+                  alt="GKLI"
+                  fill
+                  priority
+                  className="object-cover"
+                  sizes="44px"
+                />
               </span>
 
               {!collapsed && (

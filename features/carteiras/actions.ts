@@ -7,6 +7,35 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { normalizeName } from '@/utils/formatters/normalize'
 import { requireAdmin } from '@/utils/auth/require-admin'
 
+
+async function findAuthUserIdByEmail(email: string) {
+  const admin = createAdminClient()
+  const targetEmail = email.trim().toLowerCase()
+
+  for (let page = 1; page <= 20; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: 100,
+    })
+
+    if (error) {
+      throw new Error(`Erro ao consultar usuários do Auth: ${error.message}`)
+    }
+
+    const user = data.users.find((item) => item.email?.toLowerCase() === targetEmail)
+
+    if (user?.id) {
+      return user.id
+    }
+
+    if (data.users.length < 100) {
+      break
+    }
+  }
+
+  return null
+}
+
 export async function createCarteira(formData: FormData) {
   await requireAdmin()
 
@@ -143,6 +172,8 @@ export async function createUsuario(formData: FormData) {
 
   const admin = createAdminClient()
 
+  let userId: string | undefined
+
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email,
     password,
@@ -154,10 +185,38 @@ export async function createUsuario(formData: FormData) {
   })
 
   if (createError) {
-    throw new Error(`Erro ao criar usuário no Auth: ${createError.message}`)
-  }
+    const alreadyExists =
+      createError.message.toLowerCase().includes('already been registered') ||
+      createError.message.toLowerCase().includes('already registered') ||
+      createError.message.toLowerCase().includes('already exists') ||
+      createError.status === 422
 
-  const userId = created.user?.id
+    if (!alreadyExists) {
+      throw new Error(`Erro ao criar usuário no Auth: ${createError.message}`)
+    }
+
+    const { data: existingProfile, error: existingProfileError } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle()
+
+    if (existingProfileError) {
+      throw new Error(`Erro ao localizar usuário existente: ${existingProfileError.message}`)
+    }
+
+    userId = existingProfile?.id
+
+    if (!userId) {
+      userId = await findAuthUserIdByEmail(email)
+    }
+
+    if (!userId) {
+      throw new Error('Este e-mail já existe no Supabase Auth, mas não foi possível localizar o ID do usuário para vincular a carteira.')
+    }
+  } else {
+    userId = created.user?.id
+  }
 
   if (!userId) {
     throw new Error('Usuário criado sem ID retornado pelo Supabase Auth.')
