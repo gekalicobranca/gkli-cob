@@ -168,7 +168,7 @@ export function CobrancaResolutionDock({
             </p>
             {canCreateAcordo ? (
               <ButtonLink
-                href={`/app/acordos/novo?cobranca_id=${cobrancaId}`}
+                href={`/app/acordos/selecionar?cobrancaId=${cobrancaId}`}
                 className="w-full"
               >
                 <Handshake size={15} />

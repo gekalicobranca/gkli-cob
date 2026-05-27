@@ -1,64 +1,64 @@
-import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
-import { Card, CardContent } from '@/components/ui/card'
-import { PageHeader } from '@/components/ui/page-header'
-import { getAcordoDetalhe } from '@/features/acordos/queries'
-import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { getAcordoDetalhe } from "@/features/acordos/queries";
+import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 
 type Props = {
   params: Promise<{
-    id: string
-  }>
-}
+    id: string;
+  }>;
+};
 
 function formatCurrency(value?: number | null) {
-  return Number(value || 0).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  })
+  return Number(value || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return '-'
+  if (!value) return "-";
 
-  return new Intl.DateTimeFormat('pt-BR').format(new Date(value))
+  return new Intl.DateTimeFormat("pt-BR").format(new Date(value));
 }
 
 function normalizeLabel(value?: string | null) {
-  if (!value) return '-'
-  return value.charAt(0).toUpperCase() + value.slice(1)
+  if (!value) return "-";
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function badgeTone(value?: string | null) {
-  const v = String(value || '').toLowerCase()
+  const v = String(value || "").toLowerCase();
 
-  if (['ativo', 'adimplente', 'quitado', 'baixo'].includes(v)) {
-    return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+  if (["ativo", "adimplente", "quitado", "baixo"].includes(v)) {
+    return "bg-emerald-50 text-emerald-700 ring-emerald-200";
   }
 
-  if (['parcial', 'medio', 'médio', 'em atraso'].includes(v)) {
-    return 'bg-amber-50 text-amber-700 ring-amber-200'
+  if (["parcial", "medio", "médio", "em atraso"].includes(v)) {
+    return "bg-amber-50 text-amber-700 ring-amber-200";
   }
 
-  if (['rompido', 'inadimplente', 'alto', 'cancelado'].includes(v)) {
-    return 'bg-rose-50 text-rose-700 ring-rose-200'
+  if (["rompido", "inadimplente", "alto", "cancelado"].includes(v)) {
+    return "bg-rose-50 text-rose-700 ring-rose-200";
   }
 
-  return 'bg-sky-50 text-sky-700 ring-sky-200'
+  return "bg-sky-50 text-sky-700 ring-sky-200";
 }
 
 function Badge({ value }: { value?: string | null }) {
   return (
     <span
       className={[
-        'inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1',
+        "inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1",
         badgeTone(value),
-      ].join(' ')}
+      ].join(" ")}
     >
       {normalizeLabel(value)}
     </span>
-  )
+  );
 }
 
 function MetricCard({
@@ -66,9 +66,9 @@ function MetricCard({
   value,
   helper,
 }: {
-  label: string
-  value: string
-  helper?: string
+  label: string;
+  value: string;
+  helper?: string;
 }) {
   return (
     <Card>
@@ -87,14 +87,12 @@ function MetricCard({
           </div>
 
           {helper && (
-            <div className="mt-1 text-sm text-slate-500">
-              {helper}
-            </div>
+            <div className="mt-1 text-sm text-slate-500">{helper}</div>
           )}
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function SectionTitle({
@@ -102,19 +100,17 @@ function SectionTitle({
   description,
   count,
 }: {
-  title: string
-  description?: string
-  count?: number
+  title: string;
+  description?: string;
+  count?: number;
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-slate-950">
-            {title}
-          </h2>
+          <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
 
-          {typeof count === 'number' && (
+          {typeof count === "number" && (
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
               {count}
             </span>
@@ -122,26 +118,26 @@ function SectionTitle({
         </div>
 
         {description && (
-          <p className="mt-1 text-sm text-slate-500">
-            {description}
-          </p>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
         )}
       </div>
     </div>
-  )
+  );
 }
 
 export default async function AcordoDetalhePage({ params }: Props) {
-  const { id } = await params
-  const scope = await getPermittedCarteiras()
-  const data = await getAcordoDetalhe(id, scope)
+  const { id } = await params;
+  const scope = await getPermittedCarteiras();
+  const data = await getAcordoDetalhe(id, scope);
 
-  if (!data?.acordo) notFound()
+  if (!data?.acordo) notFound();
 
-  const { acordo, parcelas, timeline } = data
+  const { acordo, parcelas, timeline, cobrancasVinculadas } = data;
 
-  const entrada = parcelas.find((parcela: any) => parcela.tipo === 'entrada')
-  const parcelasNormais = parcelas.filter((parcela: any) => parcela.tipo !== 'entrada')
+  const entrada = parcelas.find((parcela: any) => parcela.tipo === "entrada");
+  const parcelasNormais = parcelas.filter(
+    (parcela: any) => parcela.tipo !== "entrada",
+  );
 
   return (
     <div className="space-y-6">
@@ -236,51 +232,82 @@ export default async function AcordoDetalhePage({ params }: Props) {
           <CardContent className="space-y-5 p-6">
             <SectionTitle
               title="Origem do acordo"
-              description="Cobrança e unidade relacionadas ao acordo."
+              description="Unidade e cobranças agrupadas neste acordo."
             />
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
               <div className="text-lg font-semibold text-slate-950">
-                {acordo.condominios?.nome || 'Condomínio não informado'}
+                {acordo.condominios?.nome || "Condomínio não informado"}
               </div>
 
               <div className="mt-1 text-sm text-slate-500">
-                Unidade {acordo.unidades?.identificacao || '-'}
-                {acordo.unidades?.bloco ? ` • Bloco ${acordo.unidades.bloco}` : ''}
+                Unidade {acordo.unidades?.identificacao || "-"}
+                {acordo.unidades?.bloco
+                  ? ` • Bloco ${acordo.unidades.bloco}`
+                  : ""}
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Valor cobrança
+            {cobrancasVinculadas?.length ? (
+              <div className="space-y-3">
+                {cobrancasVinculadas.map((item: any) => (
+                  <div
+                    key={item.id}
+                    className="grid gap-3 rounded-2xl border border-slate-200 p-4 md:grid-cols-[1fr_auto]"
+                  >
+                    <div>
+                      <div className="font-semibold text-slate-950">
+                        Venc. {formatDate(item.cobrancas?.vencimento)} ·{" "}
+                        {item.cobrancas?.competencia || "Sem competência"}
+                      </div>
+                      <div className="mt-1 text-sm text-slate-500">
+                        <Badge
+                          value={
+                            item.cobrancas?.status_operacional ??
+                            item.cobrancas?.status
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        Total no acordo
+                      </div>
+                      <div className="mt-1 text-lg font-semibold text-slate-950">
+                        {formatCurrency(item.valor_total_no_acordo)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Valor cobrança
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-slate-950">
+                    {formatCurrency(acordo.cobrancas?.valor_atualizado)}
+                  </div>
                 </div>
-
-                <div className="mt-2 text-lg font-semibold text-slate-950">
-                  {formatCurrency(acordo.cobrancas?.valor_atualizado)}
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Principal
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-slate-950">
+                    {formatCurrency(acordo.cobrancas?.valor_original)}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Vencimento
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-slate-950">
+                    {formatDate(acordo.cobrancas?.vencimento)}
+                  </div>
                 </div>
               </div>
-
-              <div className="rounded-2xl border border-slate-200 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Principal
-                </div>
-
-                <div className="mt-2 text-lg font-semibold text-slate-950">
-                  {formatCurrency(acordo.cobrancas?.valor_original)}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Vencimento
-                </div>
-
-                <div className="mt-2 text-lg font-semibold text-slate-950">
-                  {formatDate(acordo.cobrancas?.vencimento)}
-                </div>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -387,5 +414,5 @@ export default async function AcordoDetalhePage({ params }: Props) {
         </Card>
       </div>
     </div>
-  )
+  );
 }

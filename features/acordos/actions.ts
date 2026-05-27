@@ -51,7 +51,19 @@ export async function createAcordo(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();
 
-  const cobrancaId = String(formData.get("cobranca_id") ?? "");
+  const cobrancaIdsFromList = formData
+    .getAll("cobranca_ids")
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+  const cobrancaIdLegado = String(formData.get("cobranca_id") ?? "").trim();
+  const cobrancaIds = Array.from(
+    new Set(
+      cobrancaIdsFromList.length > 0
+        ? cobrancaIdsFromList
+        : [cobrancaIdLegado].filter(Boolean),
+    ),
+  );
+  const cobrancaIdPrincipal = cobrancaIds[0] ?? "";
   const tipo = String(formData.get("tipo") ?? "extrajudicial");
   const numeroProcesso = String(formData.get("numero_processo") ?? "").trim();
   const despesaCobrancaPercentual = toNumber(
@@ -66,7 +78,9 @@ export async function createAcordo(formData: FormData) {
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
   const observacoes = String(formData.get("observacoes") ?? "").trim();
 
-  if (!cobrancaId) throw new Error("Cobrança obrigatória.");
+  if (cobrancaIds.length === 0)
+    throw new Error("Selecione ao menos uma cobrança para o acordo.");
+  if (!cobrancaIdPrincipal) throw new Error("Cobrança obrigatória.");
   if (!["extrajudicial", "judicial"].includes(tipo))
     throw new Error("Tipo de acordo inválido.");
   if (tipo === "judicial" && !numeroProcesso)
@@ -83,24 +97,76 @@ export async function createAcordo(formData: FormData) {
 
   const supabase = await createClient();
 
-  const { data: cobranca, error: cobrancaError } = await supabase
+  const { data: cobrancas, error: cobrancasError } = await supabase
     .from("cobrancas")
     .select(
-      "id, carteira_id, condominio_id, unidade_id, status, valor_atualizado, valor_original",
+      "id, carteira_id, condominio_id, unidade_id, status, status_operacional, valor_atualizado, valor_original, juros, multa, correcao, desconto, vencimento",
     )
-    .eq("id", cobrancaId)
-    .maybeSingle();
+    .in("id", cobrancaIds);
 
-  if (cobrancaError) {
-    throw new Error(`Erro ao carregar cobrança: ${cobrancaError.message}`);
+  if (cobrancasError) {
+    throw new Error(`Erro ao carregar cobranças: ${cobrancasError.message}`);
   }
 
-  if (!cobranca) {
-    throw new Error("Cobrança não encontrada.");
+  if (!cobrancas || cobrancas.length !== cobrancaIds.length) {
+    throw new Error(
+      "Uma ou mais cobranças selecionadas não foram encontradas.",
+    );
   }
 
-  const valorBaseCobranca = Number(
-    cobranca.valor_atualizado ?? cobranca.valor_original ?? 0,
+  const cobrancaPrincipal =
+    cobrancas.find((item) => item.id === cobrancaIdPrincipal) ?? cobrancas[0];
+
+  const mesmaCarteira = cobrancas.every(
+    (item) => item.carteira_id === cobrancaPrincipal.carteira_id,
+  );
+  const mesmoCondominio = cobrancas.every(
+    (item) => item.condominio_id === cobrancaPrincipal.condominio_id,
+  );
+  const mesmaUnidade = cobrancas.every(
+    (item) => item.unidade_id === cobrancaPrincipal.unidade_id,
+  );
+
+  if (!mesmaCarteira || !mesmoCondominio || !mesmaUnidade) {
+    throw new Error(
+      "O acordo só pode agrupar cobranças da mesma carteira, condomínio e unidade.",
+    );
+  }
+
+  const bloqueada = cobrancas.find((item) =>
+    [...COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO].includes(
+      item.status_operacional ?? item.status,
+    ),
+  );
+
+  if (bloqueada) {
+    throw new Error(
+      "Uma das cobranças selecionadas não está elegível para novo acordo.",
+    );
+  }
+
+  const cobrancasComValores = cobrancas.map((item) => {
+    const valorCalculado = Math.max(
+      0,
+      Number(item.valor_original ?? 0) +
+        Number(item.juros ?? 0) +
+        Number(item.multa ?? 0) +
+        Number(item.correcao ?? 0) -
+        Number(item.desconto ?? 0),
+    );
+    const valorBase = Number(item.valor_atualizado ?? 0) || valorCalculado;
+
+    return {
+      ...item,
+      valor_base_acordo: roundMoney(valorBase),
+    };
+  });
+
+  const valorBaseCobranca = roundMoney(
+    cobrancasComValores.reduce(
+      (total, item) => total + item.valor_base_acordo,
+      0,
+    ),
   );
   const despesaCobrancaValor = roundMoney(
     despesaCobrancaValorInformado > 0
@@ -110,7 +176,7 @@ export async function createAcordo(formData: FormData) {
   const valorAcordado = roundMoney(valorBaseCobranca + despesaCobrancaValor);
 
   if (valorBaseCobranca <= 0)
-    throw new Error("Valor da cobrança deve ser maior que zero.");
+    throw new Error("Valor das cobranças deve ser maior que zero.");
   if (valorAcordado <= 0)
     throw new Error("Valor acordado deve ser maior que zero.");
   if (despesaCobrancaPercentual < 0)
@@ -118,17 +184,13 @@ export async function createAcordo(formData: FormData) {
   if (entrada > valorAcordado)
     throw new Error("Entrada não pode ser maior que o valor acordado.");
 
-  if ([...COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO].includes(cobranca.status)) {
-    throw new Error("Esta cobrança não está elegível para novo acordo.");
-  }
-
   const { data: acordo, error: acordoError } = await supabase
     .from("acordos")
     .insert({
-      carteira_id: cobranca.carteira_id,
-      cobranca_id: cobranca.id,
-      condominio_id: cobranca.condominio_id,
-      unidade_id: cobranca.unidade_id,
+      carteira_id: cobrancaPrincipal.carteira_id,
+      cobranca_id: cobrancaPrincipal.id,
+      condominio_id: cobrancaPrincipal.condominio_id,
+      unidade_id: cobrancaPrincipal.unidade_id,
       tipo,
       numero_processo: tipo === "judicial" ? numeroProcesso : null,
       valor_acordado: valorAcordado,
@@ -145,6 +207,33 @@ export async function createAcordo(formData: FormData) {
 
   if (acordoError) {
     throw new Error(`Erro ao criar acordo: ${acordoError.message}`);
+  }
+
+  const itensAcordo = cobrancasComValores.map((item) => {
+    const proporcao =
+      valorBaseCobranca > 0 ? item.valor_base_acordo / valorBaseCobranca : 0;
+    const despesaRateada = roundMoney(despesaCobrancaValor * proporcao);
+
+    return {
+      acordo_id: acordo.id,
+      cobranca_id: item.id,
+      valor_original_no_acordo: Number(item.valor_original ?? 0),
+      valor_atualizado_no_acordo: item.valor_base_acordo,
+      encargos_no_acordo: despesaRateada,
+      valor_total_no_acordo: roundMoney(
+        item.valor_base_acordo + despesaRateada,
+      ),
+    };
+  });
+
+  const { error: itensError } = await supabase
+    .from("acordo_cobrancas")
+    .insert(itensAcordo);
+
+  if (itensError) {
+    throw new Error(
+      `Acordo criado, mas houve erro ao vincular cobranças selecionadas. Rode a migração acordo_cobrancas. Detalhe: ${itensError.message}`,
+    );
   }
 
   const saldoParcelado = roundMoney(valorAcordado - entrada);
@@ -201,25 +290,26 @@ export async function createAcordo(formData: FormData) {
       status: COBRANCA_STATUS.ACORDO_FIRMADO,
       status_operacional: COBRANCA_STATUS.ACORDO_FIRMADO,
     })
-    .eq("id", cobranca.id);
+    .in("id", cobrancaIds);
 
   if (cobrancaUpdateError) {
     throw new Error(
-      `Acordo criado, mas houve erro ao atualizar cobrança: ${cobrancaUpdateError.message}`,
+      `Acordo criado, mas houve erro ao atualizar cobranças: ${cobrancaUpdateError.message}`,
     );
   }
 
   await registrarEventoOperacional(supabase as any, {
-    carteiraId: cobranca.carteira_id,
+    carteiraId: cobrancaPrincipal.carteira_id,
     entidadeTipo: "acordo",
     entidadeId: acordo.id,
     eventoCodigo: "acordo.criado",
     estadoNovo: ACORDO_STATUS.ATIVO,
     titulo: "Acordo criado",
-    descricao: `Acordo ${tipo} criado no valor de ${valorAcordado}.`,
+    descricao: `Acordo ${tipo} criado no valor de ${valorAcordado} com ${cobrancaIds.length} cobrança(s).`,
     severidade: "sucesso",
     payload: {
-      cobranca_id: cobranca.id,
+      cobranca_id: cobrancaPrincipal.id,
+      cobranca_ids: cobrancaIds,
       valor_base_cobranca: valorBaseCobranca,
       valor_acordado: valorAcordado,
       entrada,
@@ -229,19 +319,23 @@ export async function createAcordo(formData: FormData) {
     userId: user?.id ?? null,
   });
 
-  await registrarEventoOperacional(supabase as any, {
-    carteiraId: cobranca.carteira_id,
-    entidadeTipo: "cobranca",
-    entidadeId: cobranca.id,
-    eventoCodigo: "cobranca.acordo_firmado",
-    estadoAnterior: cobranca.status ?? null,
-    estadoNovo: COBRANCA_STATUS.ACORDO_FIRMADO,
-    titulo: "Acordo firmado para cobrança",
-    descricao: `Cobrança vinculada ao acordo ${acordo.id}.`,
-    severidade: "sucesso",
-    payload: { acordo_id: acordo.id, valor_acordado: valorAcordado },
-    userId: user?.id ?? null,
-  });
+  await Promise.all(
+    cobrancas.map((cobranca) =>
+      registrarEventoOperacional(supabase as any, {
+        carteiraId: cobrancaPrincipal.carteira_id,
+        entidadeTipo: "cobranca",
+        entidadeId: cobranca.id,
+        eventoCodigo: "cobranca.acordo_firmado",
+        estadoAnterior: cobranca.status ?? null,
+        estadoNovo: COBRANCA_STATUS.ACORDO_FIRMADO,
+        titulo: "Cobrança vinculada a acordo",
+        descricao: `Cobrança vinculada ao acordo ${acordo.id}.`,
+        severidade: "sucesso",
+        payload: { acordo_id: acordo.id, valor_acordado: valorAcordado },
+        userId: user?.id ?? null,
+      }),
+    ),
+  );
 
   revalidatePath("/app/acordos");
   revalidatePath("/app/cobrancas");

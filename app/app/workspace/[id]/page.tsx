@@ -164,7 +164,9 @@ export default async function WorkspaceOperacionalPage({
               Prontuário completo
             </ButtonLink>
             {canCreateAcordo ? (
-              <ButtonLink href={`/app/acordos/novo?cobranca_id=${cobranca.id}`}>
+              <ButtonLink
+                href={`/app/acordos/selecionar?cobrancaId=${cobranca.id}`}
+              >
                 <Handshake size={16} />
                 Criar acordo
               </ButtonLink>

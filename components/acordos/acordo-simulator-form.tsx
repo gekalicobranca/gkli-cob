@@ -20,7 +20,13 @@ type CobrancaOption = {
   vencimento: string;
   valor_original: number;
   valor_atualizado: number;
+  juros?: number | null;
+  multa?: number | null;
+  correcao?: number | null;
+  desconto?: number | null;
   status: string;
+  status_operacional?: string | null;
+  status_financeiro?: string | null;
   condominios?: { nome: string } | null;
   unidades?: { identificacao: string; responsavel_nome: string | null } | null;
 };
@@ -28,6 +34,7 @@ type CobrancaOption = {
 type AcordoSimulatorFormProps = {
   cobrancas: CobrancaOption[];
   initialCobrancaId?: string;
+  selectedCobrancaIds?: string[];
 };
 
 function parseMoney(value: string) {
@@ -80,6 +87,7 @@ function toISODate(date: Date) {
 export function AcordoSimulatorForm({
   cobrancas,
   initialCobrancaId,
+  selectedCobrancaIds = [],
 }: AcordoSimulatorFormProps) {
   const initial =
     cobrancas.find((item) => item.id === initialCobrancaId) ?? cobrancas[0];
@@ -96,10 +104,32 @@ export function AcordoSimulatorForm({
     return toISODate(date);
   });
 
-  const cobrancaSelecionada = cobrancas.find((item) => item.id === cobrancaId);
+  const isSelecaoAgrupada = selectedCobrancaIds.length > 0;
+  const cobrancasSelecionadas = isSelecaoAgrupada
+    ? cobrancas.filter((item) => selectedCobrancaIds.includes(item.id))
+    : cobrancas.filter((item) => item.id === cobrancaId);
+  const cobrancaSelecionada =
+    cobrancasSelecionadas[0] ??
+    cobrancas.find((item) => item.id === cobrancaId);
+
+  function getValorAtualizado(cobranca?: CobrancaOption) {
+    if (!cobranca) return 0;
+    const calculado = Math.max(
+      0,
+      Number(cobranca.valor_original ?? 0) +
+        Number(cobranca.juros ?? 0) +
+        Number(cobranca.multa ?? 0) +
+        Number(cobranca.correcao ?? 0) -
+        Number(cobranca.desconto ?? 0),
+    );
+    return Number(cobranca.valor_atualizado ?? 0) || calculado;
+  }
 
   const preview = useMemo(() => {
-    const valorOriginal = Number(cobrancaSelecionada?.valor_atualizado ?? 0);
+    const valorOriginal = cobrancasSelecionadas.reduce(
+      (total, item) => total + getValorAtualizado(item),
+      0,
+    );
     const percentualDespesa = Math.max(
       0,
       parsePercent(despesaCobrancaPercentual),
@@ -144,7 +174,7 @@ export function AcordoSimulatorForm({
       parcelas,
     };
   }, [
-    cobrancaSelecionada?.valor_atualizado,
+    cobrancasSelecionadas,
     despesaCobrancaPercentual,
     entrada,
     quantidadeParcelas,
@@ -171,45 +201,93 @@ export function AcordoSimulatorForm({
 
   return (
     <form action={createAcordo} className="grid gap-6 xl:grid-cols-[1fr_420px]">
+      {cobrancasSelecionadas.map((cobranca) => (
+        <input
+          key={cobranca.id}
+          type="hidden"
+          name="cobranca_ids"
+          value={cobranca.id}
+        />
+      ))}
       <Card className="space-y-5">
-        <FormField label="Cobrança de origem">
-          <Select
-            name="cobranca_id"
-            required
-            value={cobrancaId}
-            onChange={(
-              event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-            ) => handleCobrancaChange(event.target.value)}
-          >
-            {cobrancas.map((cobranca) => (
-              <option key={cobranca.id} value={cobranca.id}>
-                {cobranca.unidades?.responsavel_nome ??
-                  "Responsável não informado"}{" "}
-                · Unidade {cobranca.unidades?.identificacao ?? "-"} ·{" "}
-                {formatCurrency(Number(cobranca.valor_atualizado))}
-              </option>
-            ))}
-          </Select>
-        </FormField>
+        {isSelecaoAgrupada ? (
+          <div className="space-y-3 rounded-2xl border border-[#DDE5E2] bg-[#F6F8F7] p-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">
+                {cobrancaSelecionada?.condominios?.nome ??
+                  "Condomínio não informado"}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Unidade {cobrancaSelecionada?.unidades?.identificacao ?? "-"} ·{" "}
+                {cobrancaSelecionada?.unidades?.responsavel_nome ??
+                  "Responsável não informado"}
+              </p>
+            </div>
 
-        {cobrancaSelecionada ? (
-          <div className="rounded-2xl border border-[#DDE5E2] bg-[#F6F8F7] p-4">
-            <p className="text-sm font-semibold text-slate-950">
-              {cobrancaSelecionada.condominios?.nome ??
-                "Condomínio não informado"}
-            </p>
-            <p className="mt-1 text-sm text-slate-600">
-              Unidade {cobrancaSelecionada.unidades?.identificacao ?? "-"} ·{" "}
-              {cobrancaSelecionada.unidades?.responsavel_nome ??
-                "Responsável não informado"}
-            </p>
-            <p className="mt-1 text-sm text-slate-600">
-              Competência {cobrancaSelecionada.competencia ?? "-"} · vencimento{" "}
-              {formatDateBR(cobrancaSelecionada.vencimento)} · status{" "}
-              {cobrancaSelecionada.status}
-            </p>
+            <div className="divide-y divide-slate-200 rounded-xl bg-white/70">
+              {cobrancasSelecionadas.map((cobranca) => (
+                <div
+                  key={cobranca.id}
+                  className="flex items-center justify-between gap-3 px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-950">
+                      Venc. {formatDateBR(cobranca.vencimento)} ·{" "}
+                      {cobranca.competencia ?? "Sem competência"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Status {cobranca.status_operacional ?? cobranca.status}
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-950">
+                    {formatCurrency(getValorAtualizado(cobranca))}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
-        ) : null}
+        ) : (
+          <>
+            <FormField label="Cobrança de origem">
+              <Select
+                name="cobranca_id"
+                required
+                value={cobrancaId}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+                ) => handleCobrancaChange(event.target.value)}
+              >
+                {cobrancas.map((cobranca) => (
+                  <option key={cobranca.id} value={cobranca.id}>
+                    {cobranca.unidades?.responsavel_nome ??
+                      "Responsável não informado"}{" "}
+                    · Unidade {cobranca.unidades?.identificacao ?? "-"} ·{" "}
+                    {formatCurrency(getValorAtualizado(cobranca))}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+
+            {cobrancaSelecionada ? (
+              <div className="rounded-2xl border border-[#DDE5E2] bg-[#F6F8F7] p-4">
+                <p className="text-sm font-semibold text-slate-950">
+                  {cobrancaSelecionada.condominios?.nome ??
+                    "Condomínio não informado"}
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Unidade {cobrancaSelecionada.unidades?.identificacao ?? "-"} ·{" "}
+                  {cobrancaSelecionada.unidades?.responsavel_nome ??
+                    "Responsável não informado"}
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Competência {cobrancaSelecionada.competencia ?? "-"} ·
+                  vencimento {formatDateBR(cobrancaSelecionada.vencimento)} ·
+                  status {cobrancaSelecionada.status}
+                </p>
+              </div>
+            ) : null}
+          </>
+        )}
 
         <div className="grid gap-5 md:grid-cols-2">
           <FormField label="Tipo de acordo">
@@ -331,7 +409,9 @@ export function AcordoSimulatorForm({
 
           <div className="mt-5 grid gap-3">
             <div className="flex justify-between rounded-2xl bg-slate-50 p-4">
-              <span className="text-sm text-slate-500">Valor da cobrança</span>
+              <span className="text-sm text-slate-500">
+                Valor das cobranças
+              </span>
               <strong className="text-sm text-slate-950">
                 {formatCurrency(preview.valorOriginal)}
               </strong>

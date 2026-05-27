@@ -101,7 +101,7 @@ export function CobrancaWorkspaceActions({
 
         {canCreateAcordo ? (
           <ButtonLink
-            href={`/app/acordos/novo?cobranca_id=${cobranca.id}`}
+            href={`/app/acordos/selecionar?cobrancaId=${cobranca.id}`}
             className="w-full"
           >
             <Handshake size={15} />
