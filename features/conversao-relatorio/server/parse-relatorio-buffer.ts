@@ -891,23 +891,169 @@ function buildPreviewFromParcelas({
 
 async function extractPdfText(input: ParseInput) {
   try {
-    /**
-     * Mantemos o pdf-parse na API clássica (v1.x) porque a linha v2 usa
-     * pdf.js moderno e pode tentar acessar APIs de browser no runtime Node,
-     * como DOMMatrix. Isso quebra no servidor/Vercel antes da extração do texto.
-     */
-    const pdfParseModule = await import("pdf-parse/lib/pdf-parse.js")
-    const pdfParse = (pdfParseModule.default ?? pdfParseModule) as unknown as (
-      dataBuffer: Buffer
-    ) => Promise<{ text?: string }>
+    ensurePdfServerPolyfills()
 
-    const parsed = await pdfParse(input.buffer)
-    return normalizePdfText(parsed.text ?? "")
+    const text = await extractPdfTextWithPdfParse(input.buffer)
+    return normalizePdfText(text)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(
       `Não foi possível ler PDF no servidor. Verifique se a dependência pdf-parse está instalada na versão compatível de servidor ou envie XLSX/CSV. Detalhe: ${message}`
     )
+  }
+}
+
+type PdfParseClassicModule = {
+  default?: (dataBuffer: Buffer) => Promise<{ text?: string }>
+}
+
+type PdfParseModernModule = {
+  default?: unknown
+  PDFParse?: new (options: { data: Buffer }) => {
+    getText: () => Promise<{ text?: string }>
+    destroy?: () => Promise<void> | void
+  }
+}
+
+async function extractPdfTextWithPdfParse(buffer: Buffer) {
+  /**
+   * Caminho preferencial: pdf-parse 1.1.1, compatível com Node/Vercel.
+   * O import por subpath evita a entrada nova baseada em pdf.js/browser.
+   */
+  try {
+    const pdfParseModule = (await import(
+      "pdf-parse/lib/pdf-parse.js"
+    )) as PdfParseClassicModule | ((dataBuffer: Buffer) => Promise<{ text?: string }>)
+
+    const pdfParse =
+      typeof pdfParseModule === "function"
+        ? pdfParseModule
+        : pdfParseModule.default
+
+    if (typeof pdfParse === "function") {
+      const parsed = await pdfParse(buffer)
+      return parsed.text ?? ""
+    }
+  } catch {
+    // Em alguns ambientes o resolvedor ignora o subpath clássico.
+    // Nesses casos caímos para a API moderna abaixo, com polyfills server-side.
+  }
+
+  /**
+   * Fallback: pdf-parse 2.x. Essa linha usa pdf.js e pode tentar tocar APIs
+   * globais de browser no Node. Por isso ensurePdfServerPolyfills() roda antes.
+   */
+  const modernModule = (await import("pdf-parse")) as PdfParseModernModule
+
+  if (modernModule.PDFParse) {
+    const parser = new modernModule.PDFParse({ data: buffer })
+
+    try {
+      const parsed = await parser.getText()
+      return parsed.text ?? ""
+    } finally {
+      await parser.destroy?.()
+    }
+  }
+
+  if (typeof modernModule.default === "function") {
+    const parsed = await (modernModule.default as (dataBuffer: Buffer) => Promise<{ text?: string }>)(buffer)
+    return parsed.text ?? ""
+  }
+
+  throw new Error("A instalação atual de pdf-parse não expôs uma API compatível para extração de texto.")
+}
+
+function ensurePdfServerPolyfills() {
+  const globalScope = globalThis as Record<string, unknown>
+
+  if (!globalScope.DOMMatrix) {
+    globalScope.DOMMatrix = class DOMMatrix {
+      a = 1
+      b = 0
+      c = 0
+      d = 1
+      e = 0
+      f = 0
+      m11 = 1
+      m12 = 0
+      m13 = 0
+      m14 = 0
+      m21 = 0
+      m22 = 1
+      m23 = 0
+      m24 = 0
+      m31 = 0
+      m32 = 0
+      m33 = 1
+      m34 = 0
+      m41 = 0
+      m42 = 0
+      m43 = 0
+      m44 = 1
+
+      constructor(init?: string | number[]) {
+        if (Array.isArray(init) && init.length >= 6) {
+          this.a = Number(init[0]) || 1
+          this.b = Number(init[1]) || 0
+          this.c = Number(init[2]) || 0
+          this.d = Number(init[3]) || 1
+          this.e = Number(init[4]) || 0
+          this.f = Number(init[5]) || 0
+          this.m11 = this.a
+          this.m12 = this.b
+          this.m21 = this.c
+          this.m22 = this.d
+          this.m41 = this.e
+          this.m42 = this.f
+        }
+      }
+
+      multiply() {
+        return this
+      }
+
+      translate() {
+        return this
+      }
+
+      scale() {
+        return this
+      }
+
+      rotate() {
+        return this
+      }
+
+      inverse() {
+        return this
+      }
+
+      transformPoint(point: { x?: number; y?: number }) {
+        return { x: point.x ?? 0, y: point.y ?? 0 }
+      }
+    }
+  }
+
+  if (!globalScope.ImageData) {
+    globalScope.ImageData = class ImageData {
+      data: Uint8ClampedArray
+      width: number
+      height: number
+
+      constructor(data: Uint8ClampedArray, sw: number, sh = 0) {
+        this.data = data
+        this.width = sw
+        this.height = sh
+      }
+    }
+  }
+
+  if (!globalScope.Path2D) {
+    globalScope.Path2D = class Path2D {
+      constructor(_path?: string) {}
+      addPath() {}
+    }
   }
 }
 
