@@ -208,7 +208,7 @@ export async function createUsuario(formData: FormData) {
     userId = existingProfile?.id
 
     if (!userId) {
-      userId = await findAuthUserIdByEmail(email)
+      userId = (await findAuthUserIdByEmail(email)) ?? undefined
     }
 
     if (!userId) {

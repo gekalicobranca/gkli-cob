@@ -21,7 +21,7 @@ function tipoLabel(tipo?: string | null) {
 }
 
 export default async function SolicitacoesAdmPage() {
-  const [rows, administradoras] = await Promise.all([listSolicitacoesAdministradora(), listAdministradoras(undefined, {})])
+  const [rows, administradoras] = await Promise.all([listSolicitacoesAdministradora(), listAdministradoras()])
   const abertas = rows.filter((r) => !['resolvido', 'cancelado'].includes(String(r.status))).length
   const atrasadas = rows.filter((r) => r.prazo_resposta && !['resolvido', 'cancelado'].includes(String(r.status)) && new Date(r.prazo_resposta).getTime() < Date.now()).length
 

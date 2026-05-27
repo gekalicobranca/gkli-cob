@@ -891,12 +891,14 @@ function buildPreviewFromParcelas({
 
 async function extractPdfText(input: ParseInput) {
   try {
-    // pdf-parse deve estar instalado no projeto para conversão direta de PDF no servidor.
-    // @ts-ignore - dependência opcional em alguns pacotes incrementais.
-    const pdfParseModule = await import("pdf-parse")
-    const pdfParse = (pdfParseModule.default ?? pdfParseModule) as (buffer: Buffer) => Promise<{ text?: string }>
-    const parsed = await pdfParse(input.buffer)
-    return normalizePdfText(parsed.text ?? "")
+    const { PDFParse } = await import("pdf-parse")
+    const parser = new PDFParse({ data: input.buffer })
+    try {
+      const parsed = await parser.getText()
+      return normalizePdfText(parsed.text ?? "")
+    } finally {
+      await parser.destroy()
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(
