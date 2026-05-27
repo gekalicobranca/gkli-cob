@@ -1060,10 +1060,18 @@ function ensurePdfServerPolyfills() {
 function normalizePdfText(value: string) {
   return value
     .replace(/\r/g, "\n")
+    .replace(/\f/g, "\n")
     .replace(/\u00a0/g, " ")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
+}
+
+function normalizeForLooseMatch(value: string) {
+  return normalizePdfText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
 }
 
 function isPdfInput(input: ParseInput) {
@@ -1116,7 +1124,7 @@ function scorePessoaUnidade(pessoa: PessoaUnidadePdf) {
   return 0
 }
 
-function parsePessoaFromPdfChunk(chunk: string): PessoaUnidadePdf | null {
+function parsePessoaFromPdfChunk(chunk: string, condominioDetectado?: string | null): PessoaUnidadePdf | null {
   const text = normalizePdfText(chunk)
   const lines = text
     .split("\n")
@@ -1127,10 +1135,16 @@ function parsePessoaFromPdfChunk(chunk: string): PessoaUnidadePdf | null {
   const roleMatch = joined.match(/(.+?)\s+(PROPRIET[ÁA]RIO|CO-PROPRIET[ÁA]RIO|INQUILINO)\b/i)
   if (!roleMatch) return null
 
-  const rawNome = normalize(roleMatch[1])
+  const condominioPrefix = condominioDetectado ? normalize(condominioDetectado) : ""
+  let rawNome = normalize(roleMatch[1])
     .replace(/^#?[A-Z0-9]+\s+/, "")
     .replace(/^(CIPO|TORRE DO CIP[ÓO])\s+/i, "")
     .trim()
+
+  if (condominioPrefix) {
+    const escapedCondominio = condominioPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    rawNome = rawNome.replace(new RegExp(`^${escapedCondominio}\\s+`, "i"), "").trim()
+  }
 
   const nome = rawNome || "Responsável não identificado"
   const papel = normalizeRole(roleMatch[2])
@@ -1149,10 +1163,56 @@ function parsePessoaFromPdfChunk(chunk: string): PessoaUnidadePdf | null {
   }
 }
 
+function extractHflexCondominio(text: string) {
+  const normalized = normalizePdfText(text)
+  const lines = normalized
+    .split("\n")
+    .map((line) => normalize(line))
+    .filter(Boolean)
+
+  for (const line of lines) {
+    const match = line.match(/^(\d{3,8})\s+(.+)$/i)
+    if (!match) continue
+
+    const rest = normalize(match[2])
+    if (!rest || /^(CPF|CNPJ|RG|TELEFONE|E-MAIL|EMAIL|TIPO\s+PESSOA)\b/i.test(rest)) continue
+    if (/\b(PROPRIET[ÁA]RIO|CO-PROPRIET[ÁA]RIO|INQUILINO)\b/i.test(rest)) {
+      const beforeRole = normalize(rest.split(/\b(?:PROPRIET[ÁA]RIO|CO-PROPRIET[ÁA]RIO|INQUILINO)\b/i)[0])
+      // Quando a linha vem como "unidade condomínio nome papel", só usamos
+      // a parte antes do responsável se ela for curta o bastante para nome operacional.
+      const tokens = beforeRole.split(/\s+/).filter(Boolean)
+      if (tokens.length >= 1 && tokens.length <= 4) return beforeRole
+      continue
+    }
+
+    // No Hflex/LiveFacilities o início de cada unidade costuma vir como:
+    // "000101 NOME DO CONDOMÍNIO". Antes estava fixo para CIPO; agora fica genérico.
+    const tokens = rest.split(/\s+/).filter(Boolean)
+    if (tokens.length >= 1 && tokens.length <= 6 && /^[A-ZÀ-Ü0-9 .'-]+$/.test(rest.toUpperCase())) {
+      return rest
+    }
+  }
+
+  if (/TORRE\s+DO\s+CIP[ÓO]|\bCIPO\b/i.test(normalized)) return "Torre do Cipó"
+  return null
+}
+
 function splitUnitPdfBlocks(text: string) {
   const normalized = normalizePdfText(text)
-  const unitRegex = /(?:^|\n)(\d{5,6})\s+(?:CIPO|TORRE DO CIP[ÓO])\b/gi
-  const matches = [...normalized.matchAll(unitRegex)]
+  const unitRegex = /(?:^|\n)(\d{3,8})\s+([^\n]{2,120})(?=\n|$)/gi
+  const allMatches = [...normalized.matchAll(unitRegex)]
+  const matches = allMatches.filter((match) => {
+    const rest = normalize(match[2])
+    if (/^(CPF|CNPJ|RG|TELEFONE|E-MAIL|EMAIL|TIPO\s+PESSOA)\b/i.test(rest)) return false
+
+    const start = match.index ?? 0
+    const nextCandidate = allMatches.find((candidate) => (candidate.index ?? 0) > start)
+    const end = nextCandidate?.index ?? Math.min(normalized.length, start + 2500)
+    const block = normalized.slice(start, end)
+
+    return /\b(PROPRIET[ÁA]RIO|CO-PROPRIET[ÁA]RIO|INQUILINO)\b/i.test(block)
+      && /\b(TIPO\s+PESSOA|CPF|CNPJ|TELEFONE|E-MAIL|EMAIL)\b/i.test(block)
+  })
 
   return matches.map((match, index) => {
     const start = match.index ?? 0
@@ -1172,19 +1232,15 @@ function detectHflexLiveFacilitiesUnidades(text: string) {
     /TIPO\s+PESSOA/i,
     /PROPRIET[ÁA]RIO/i,
     /INQUILINO/i,
-    /TELEFONE\s+CELULAR/i,
+    /TELEFONE\s+(?:CELULAR|RESIDENCIAL|COMERCIAL)/i,
     /E-MAIL|EMAIL/i,
     /CPF|CNPJ/i,
-    /CIPO|TORRE\s+DO\s+CIP[ÓO]/i,
   ]
 
   const hits = sinais.reduce((total, regex) => total + (regex.test(normalized) ? 1 : 0), 0)
-  const unidadeMatches = [...normalized.matchAll(/(?:^|\n)(\d{5,6})\s+(?:CIPO|TORRE DO CIP[ÓO])\b/gi)].length
+  const unidadeMatches = splitUnitPdfBlocks(normalized).length
   const hasLiveFacilitiesShape = hits >= 5 && unidadeMatches > 0
-
-  const condominioDetectado = /TORRE\s+DO\s+CIP[ÓO]/i.test(normalized) || /\bCIPO\b/i.test(normalized)
-    ? "Torre do Cipó"
-    : null
+  const condominioDetectado = extractHflexCondominio(normalized)
 
   const confianca = hasLiveFacilitiesShape
     ? Math.min(99, 68 + hits * 3 + Math.min(15, unidadeMatches))
@@ -1200,28 +1256,29 @@ function detectHflexLiveFacilitiesUnidades(text: string) {
 
 
 function extractSuperlogicaCondominio(text: string) {
-  const match = normalizePdfText(text).match(/Condomínio:\s*\d+\s*-\s*([^\n]+)/i)
-  return match ? normalize(match[1]).replace(/\s+CNPJ:.*$/i, "") : null
+  const match = normalizePdfText(text).match(/Condom[íi]nio:\s*\d+\s*-\s*([^\n]+?)(?:\s{2,}CNPJ:|\s+CNPJ:|$)/i)
+  return match ? normalize(match[1]) : null
 }
 
 function detectSuperlogicaUnidades(text: string) {
   const normalized = normalizePdfText(text)
+  const loose = normalizeForLooseMatch(normalized)
+  const unidadeMatches = splitSuperlogicaUnitBlocks(normalized).length
   const sinais = [
-    /Emitido\s+em/i,
-    /Relat[óo]rio\s+de\s+Unidades\s*-\s*Completo/i,
-    /Condom[íi]nio:\s*\d+\s*-/i,
-    /CNPJ:\s*\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/i,
-    /Bloco:\s*\S+\s+Unidade:\s*\S+\s+-\s+.+?C[óo]digo\s+do\s+cliente:/i,
-    /Endere[çc]o\s+de\s+cobran[çc]a/i,
-    /Dados\s+pessoais/i,
-    /Telefone\/e-mail\s+do\s+cliente/i,
-    /Dados\s+gerais/i,
-    /Dados\s+do\s+pagador/i,
+    /RELATORIO\s+DE\s+UNIDADES\s*-\s*COMPLETO/,
+    /CONDOMINIO:\s*\d+\s*-/,
+    /CNPJ:\s*\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/,
+    /BLOCO:\s*\S+\s+UNIDADE:\s*.+?CODIGO\s+DO\s+CLIENTE:/,
+    /ENDERECO\s+DE\s+COBRANCA/,
+    /DADOS\s+PESSOAIS/,
+    /TELEFONE\/E-MAIL\s+DO\s+CLIENTE/,
+    /DADOS\s+GERAIS/,
+    /DADOS\s+DO\s+PAGADOR/,
+    /TIPO\s+DE\s+UNIDADE:/,
   ]
 
-  const hits = sinais.reduce((total, regex) => total + (regex.test(normalized) ? 1 : 0), 0)
-  const unidadeMatches = [...normalized.matchAll(/(?:^|\n)Bloco:\s*\S+\s+Unidade:\s*\S+\s+-\s+.+?C[óo]digo\s+do\s+cliente:/gi)].length
-  const hasSuperlogicaShape = hits >= 7 && unidadeMatches > 0
+  const hits = sinais.reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0)
+  const hasSuperlogicaShape = hits >= 6 && unidadeMatches > 0
   const condominioDetectado = extractSuperlogicaCondominio(normalized)
   const confianca = hasSuperlogicaShape
     ? Math.min(99, 70 + hits * 2 + Math.min(12, unidadeMatches))
@@ -1233,6 +1290,110 @@ function detectSuperlogicaUnidades(text: string) {
     confianca,
     detalhes: { hits, unidadeMatches },
   }
+}
+
+function extractSuperlogicaSection(block: string, startLabel: RegExp, endLabels: RegExp[]) {
+  const start = block.search(startLabel)
+  if (start < 0) return ""
+  const rest = block.slice(start)
+  const nextPositions = endLabels
+    .map((regex) => {
+      const index = rest.search(regex)
+      return index > 0 ? index : -1
+    })
+    .filter((index) => index > 0)
+
+  const end = nextPositions.length ? Math.min(...nextPositions) : rest.length
+  return rest.slice(0, end)
+}
+
+function splitSuperlogicaUnitBlocks(text: string) {
+  const normalized = normalizePdfText(text)
+  const unitRegex = /(?:^|\n)Bloco:\s*(\S+)\s+Unidade:\s*(.+?)\s+C[óo]digo\s+do\s+cliente:\s*([A-Z0-9.-]+)/gi
+  const matches = [...normalized.matchAll(unitRegex)]
+  const rawBlocks = matches.map((match, index) => {
+    const start = match.index ?? 0
+    const nextStart = index + 1 < matches.length ? matches[index + 1].index ?? normalized.length : normalized.length
+    const unidadeRaw = normalize(match[2])
+    const unidadeMatch = unidadeRaw.match(/^(.+?)\s+-\s+(.+)$/)
+
+    return {
+      bloco: normalize(match[1]),
+      identificacao: normalize(unidadeMatch?.[1] ?? unidadeRaw),
+      responsavel: normalize(unidadeMatch?.[2] ?? ""),
+      codigoCliente: normalize(match[3]),
+      text: normalized.slice(start, nextStart),
+    }
+  })
+
+  const merged = new Map<string, (typeof rawBlocks)[number]>()
+
+  for (const block of rawBlocks) {
+    const key = `${block.bloco}::${block.identificacao}::${block.codigoCliente}`.toUpperCase()
+    const current = merged.get(key)
+
+    if (!current) {
+      merged.set(key, block)
+      continue
+    }
+
+    current.text = `${current.text}\n${block.text}`
+    if (!current.responsavel && block.responsavel) current.responsavel = block.responsavel
+  }
+
+  return [...merged.values()]
+}
+
+function extractSuperlogicaTipoPessoa(value: string) {
+  const match = value.match(/Tipo\s+de\s+pessoa:\s*([^\n]+?)(?:\s{2,}|\s+(?:CPF|CNPJ|Data\s+de\s+nascimento|Tipo\s+de\s+identidade):|$)/i)
+  return match ? normalize(match[1]) : ""
+}
+
+function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
+  const blocks = splitSuperlogicaUnitBlocks(text)
+  const unidades: UnidadeConversaoPreview[] = []
+
+  for (const block of blocks) {
+    const dadosPessoais = extractSuperlogicaSection(block.text, /Dados\s+pessoais/i, [/Telefone\/e-mail/i, /Dados\s+gerais/i, /Rateio\/fra[çc][õo]es/i])
+    const dadosPagador = extractSuperlogicaSection(block.text, /Dados\s+do\s+pagador/i, [/Forma\s+de\s+envio/i, /Bloquear\s+reenvio/i, /Observa[çc][õo]es/i, /Rateio\/fra[çc][õo]es/i])
+    const contatoCliente = extractSuperlogicaSection(block.text, /Telefone\/e-mail\s+do\s+cliente/i, [/Dados\s+gerais/i, /Dados\s+do\s+pagador/i, /Unidade\s+alugada/i, /Rateio\/fra[çc][õo]es/i])
+    const contatoUnidade = extractSuperlogicaSection(block.text, /Telefone\/e-mail\s+da\s+unidade/i, [/Telefone\/e-mail\s+do\s+cliente/i, /Dados\s+gerais/i, /Unidade\s+alugada/i])
+
+    const documentoFonte = dadosPagador || dadosPessoais || block.text
+    const documentoMatch = documentoFonte.match(/\b(CPF|CNPJ):\s*([0-9.\/-]+)/i)
+    const tipoUnidadeMatch = block.text.match(/Tipo\s+de\s+unidade:\s*([^\n]+?)(?:\s{2,}|\s+Dias\s+de\s+prazo:|$)/i)
+    const tipoPessoa = extractSuperlogicaTipoPessoa(dadosPagador || dadosPessoais)
+    const hasLocatario = /Unidade\s+alugada|Locat[áa]rio|Telefone\/e-mail\s+de\s+locat[áa]rio/i.test(block.text)
+
+    const telefone = extractFirstPhone(contatoCliente) || extractFirstPhone(contatoUnidade)
+    const email = extractFirstEmail(contatoCliente) || extractFirstEmail(contatoUnidade)
+    const documento = documentoMatch ? cleanDocument(documentoMatch[2]) : ""
+    const tipo = normalize(tipoUnidadeMatch?.[1] ?? "Apartamento") || "Apartamento"
+    const observacoes = [
+      "Origem: Conversão de PDF de unidades",
+      "Sistema: Superlógica",
+      `Código do cliente: ${block.codigoCliente}`,
+      block.bloco ? `Bloco: ${block.bloco}` : "",
+      tipoPessoa ? `Tipo pessoa: ${tipoPessoa}` : "",
+      hasLocatario ? "Unidade com indicação de locatário no relatório" : "",
+    ]
+      .filter(Boolean)
+      .join(" | ")
+
+    unidades.push({
+      identificacao: block.identificacao,
+      bloco: block.bloco,
+      tipo,
+      responsavelNome: block.responsavel || "Responsável não identificado",
+      responsavelDocumento: documento,
+      telefone,
+      email,
+      status: "ativo",
+      observacoes,
+    })
+  }
+
+  return unidades
 }
 
 function extractFirstEmail(value: string) {
@@ -1324,7 +1485,7 @@ function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
   return unidades
 }
 
-function parseUnidadesPdf(text: string, condominioCnpj = ""): UnidadeConversaoPreview[] {
+function parseUnidadesPdf(text: string, condominioCnpj = "", condominioDetectado?: string | null): UnidadeConversaoPreview[] {
   const blocks = splitUnitPdfBlocks(text)
   const unidades: UnidadeConversaoPreview[] = []
 
@@ -1340,11 +1501,11 @@ function parseUnidadesPdf(text: string, condominioCnpj = ""): UnidadeConversaoPr
         const nextRoleIndex = index + 1 < roleMatches.length ? roleMatches[index + 1].index ?? block.text.length : block.text.length
         const chunkStart = Math.max(0, previousRoleIndex === 0 ? 0 : previousRoleIndex + 20)
         const chunk = block.text.slice(chunkStart, nextRoleIndex)
-        const pessoa = parsePessoaFromPdfChunk(chunk)
+        const pessoa = parsePessoaFromPdfChunk(chunk, condominioDetectado)
         if (pessoa) pessoas.push(pessoa)
       }
     } else {
-      const pessoa = parsePessoaFromPdfChunk(block.text)
+      const pessoa = parsePessoaFromPdfChunk(block.text, condominioDetectado)
       if (pessoa) pessoas.push(pessoa)
     }
 
@@ -1497,7 +1658,7 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
     }
 
     if (deteccaoHflex.ok) {
-      const unidades = parseUnidadesPdf(text, input.condominioCnpj)
+      const unidades = parseUnidadesPdf(text, input.condominioCnpj, deteccaoHflex.condominioDetectado)
       return buildPreviewFromUnidadesPdf({
         filename: input.filename,
         unidades,
