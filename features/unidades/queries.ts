@@ -16,7 +16,7 @@ const UNIDADE_SELECT = `
   status,
   observacoes,
   created_at,
-  condominios(nome),
+  condominios(nome, cnpj, administradora),
   carteiras(nome)
 `
 
@@ -35,6 +35,42 @@ function cleanFilter(value?: string | string[] | null) {
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
+}
+
+
+async function listCondominioIdsMatchingSearch(term: string, scope: CarteiraScope, carteiraId?: string) {
+  const supabase = await createClient()
+  const digits = onlyDigits(term)
+  const clauses = [
+    `nome.ilike.%${term}%`,
+    `administradora.ilike.%${term}%`,
+  ]
+
+  if (digits) {
+    clauses.push(`cnpj.ilike.%${digits}%`)
+  } else {
+    clauses.push(`cnpj.ilike.%${term}%`)
+  }
+
+  let query = supabase
+    .from('condominios')
+    .select('id, carteira_id')
+    .or(clauses.join(','))
+    .limit(500)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  if (carteiraId) {
+    query = query.eq('carteira_id', carteiraId)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error(`Erro ao buscar condomínios vinculados às unidades: ${error.message}`)
+  }
+
+  return (data ?? []).map((row: any) => String(row.id)).filter(Boolean)
 }
 
 export function normalizeUnidadeFilters(filters: UnidadeFilters = {}) {
@@ -90,6 +126,7 @@ export async function listUnidades(scope: CarteiraScope, filters: UnidadeFilters
   if (normalized.search) {
     const term = normalized.search.replace(/[%_]/g, '')
     const digits = onlyDigits(term)
+    const condominioIds = await listCondominioIdsMatchingSearch(term, scope, normalized.carteiraId)
     const clauses = [
       `identificacao.ilike.%${term}%`,
       `bloco.ilike.%${term}%`,
@@ -101,6 +138,10 @@ export async function listUnidades(scope: CarteiraScope, filters: UnidadeFilters
       clauses.push(`responsavel_documento.ilike.%${digits}%`, `telefone.ilike.%${digits}%`)
     } else {
       clauses.push(`responsavel_documento.ilike.%${term}%`, `telefone.ilike.%${term}%`)
+    }
+
+    if (condominioIds.length > 0) {
+      clauses.push(`condominio_id.in.(${condominioIds.join(',')})`)
     }
 
     query = query.or(clauses.join(','))

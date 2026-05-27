@@ -109,7 +109,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                 <Input
                   name="q"
                   className="pl-9"
-                  placeholder="Unidade, bloco, responsável, CPF/CNPJ, telefone ou e-mail"
+                  placeholder="Unidade, condomínio, bloco, responsável, CPF/CNPJ, telefone ou e-mail"
                   defaultValue={filters.search ?? ''}
                 />
               </div>
