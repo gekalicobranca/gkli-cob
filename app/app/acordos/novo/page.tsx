@@ -3,6 +3,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ButtonLink } from "@/components/ui/button";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import {
+  getPendenciaAprovacaoSindicoAberta,
+  getPendenciaPlanilhaDebitosAberta,
   listCobrancasElegiveisParaAcordo,
   listCobrancasSelecionadasParaAcordo,
 } from "@/features/acordos/queries";
@@ -13,6 +15,7 @@ type PageProps = {
     cobrancaId?: string;
     cobranca_id?: string;
     cobrancaIds?: string | string[];
+    sindico?: string;
   }>;
 };
 
@@ -43,6 +46,23 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
     selectedIds.length > 0
       ? await listCobrancasSelecionadasParaAcordo(scope, selectedIds)
       : await listCobrancasElegiveisParaAcordo(scope);
+  const cobrancaReferencia = (cobrancas as any[])[0];
+  const pendenciaPlanilha = cobrancaReferencia
+    ? await getPendenciaPlanilhaDebitosAberta({
+        scope,
+        carteiraId: cobrancaReferencia.carteira_id,
+        condominioId: cobrancaReferencia.condominio_id,
+        unidadeId: cobrancaReferencia.unidade_id,
+      })
+    : null;
+  const pendenciaAprovacaoSindico = cobrancaReferencia
+    ? await getPendenciaAprovacaoSindicoAberta({
+        scope,
+        carteiraId: cobrancaReferencia.carteira_id,
+        condominioId: cobrancaReferencia.condominio_id,
+        unidadeId: cobrancaReferencia.unidade_id,
+      })
+    : null;
 
   return (
     <div className="space-y-6">
@@ -70,6 +90,9 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
         cobrancas={cobrancas as any}
         initialCobrancaId={legacyCobrancaId ?? selectedIds[0]}
         selectedCobrancaIds={selectedIds}
+        bloqueadoPorPendenciaPlanilha={Boolean(pendenciaPlanilha)}
+        bloqueadoPorPendenciaAprovacaoSindico={Boolean(pendenciaAprovacaoSindico)}
+        aprovacaoSindicoSolicitada={query.sindico === "solicitada"}
       />
     </div>
   );

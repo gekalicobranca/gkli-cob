@@ -1173,6 +1173,18 @@ function normalizeForLooseMatch(value: string) {
     .toUpperCase();
 }
 
+function countRegexMatches(value: string, regex: RegExp) {
+  return [...value.matchAll(regex)].length;
+}
+
+function hasAnyRegexMatch(value: string, regexes: RegExp[]) {
+  return regexes.some((regex) => regex.test(value));
+}
+
+function getPdfTextSample(value: string) {
+  return normalizePdfText(value).slice(0, 240);
+}
+
 function isPdfInput(input: ParseInput) {
   const filename = input.filename.toLowerCase();
   const mime = String(input.mimeType ?? "").toLowerCase();
@@ -1377,7 +1389,7 @@ function splitUnitPdfBlocks(text: string) {
 
 function detectHflexLiveFacilitiesUnidades(text: string) {
   const normalized = normalizePdfText(text);
-  const normalizedUpper = normalized.toUpperCase();
+  const normalizedUpper = normalizeForLooseMatch(normalized);
   const sinais = [
     /PROCESSADO\s+EM/i,
     /TIPO\s+PESSOA/i,
@@ -1387,66 +1399,137 @@ function detectHflexLiveFacilitiesUnidades(text: string) {
     /E-MAIL|EMAIL/i,
     /CPF|CNPJ/i,
   ];
+  const sinaisLoose = [
+    /PROCESSADO\s+EM/,
+    /TIPO\s+PESSOA/,
+    /PROPRIETARIO/,
+    /INQUILINO/,
+    /TELEFONE\s+(?:CELULAR|RESIDENCIAL|COMERCIAL|RES|COM)/,
+    /E\s*-?\s*MAIL|EMAIL/,
+    /CPF|CNPJ/,
+  ];
 
   const hits = sinais.reduce(
     (total, regex) => total + (regex.test(normalized) ? 1 : 0),
     0,
   );
+  const looseHits = sinaisLoose.reduce(
+    (total, regex) => total + (regex.test(normalizedUpper) ? 1 : 0),
+    0,
+  );
   const unidadeMatches = splitUnitPdfBlocks(normalized).length;
-  const hasLiveFacilitiesShape = hits >= 5 && unidadeMatches > 0;
+  const unidadeLooseMatches = countRegexMatches(
+    normalizedUpper,
+    /(?:^|\n)\s*(?:UNIDADE\s*)?\d{3,8}\s+[^\n]{2,120}/g,
+  );
+  const pessoaSignals = countRegexMatches(
+    normalizedUpper,
+    /\b(?:PROPRIETARIO|CO-PROPRIETARIO|INQUILINO)\b/g,
+  );
+  const hasLiveFacilitiesShape =
+    (hits >= 5 && unidadeMatches > 0) ||
+    (looseHits >= 5 && (unidadeMatches > 0 || unidadeLooseMatches > 0) && pessoaSignals > 0);
   const condominioDetectado = extractHflexCondominio(normalized);
 
+  const baseHits = Math.max(hits, looseHits);
+  const baseUnidades = Math.max(unidadeMatches, unidadeLooseMatches);
   const confianca = hasLiveFacilitiesShape
-    ? Math.min(99, 68 + hits * 3 + Math.min(15, unidadeMatches))
-    : Math.min(55, hits * 8);
+    ? Math.min(99, 64 + baseHits * 3 + Math.min(15, baseUnidades))
+    : Math.min(58, baseHits * 8 + Math.min(10, unidadeLooseMatches));
 
   return {
     ok: hasLiveFacilitiesShape,
     condominioDetectado,
     confianca,
-    detalhes: { hits, unidadeMatches, sample: normalizedUpper.slice(0, 160) },
+    detalhes: {
+      hits,
+      looseHits,
+      unidadeMatches,
+      unidadeLooseMatches,
+      pessoaSignals,
+      sample: normalizedUpper.slice(0, 160),
+    },
   };
 }
 
 function extractSuperlogicaCondominio(text: string) {
-  const match = normalizePdfText(text).match(
+  const normalized = normalizePdfText(text);
+  const match = normalized.match(
     /Condom[íi]nio:\s*\d+\s*-\s*([^\n]+?)(?:\s{2,}CNPJ:|\s+CNPJ:|$)/i,
   );
-  return match ? normalize(match[1]) : null;
+  if (match) return normalize(match[1]);
+
+  const looseLine = normalized
+    .split("\n")
+    .map((line) => normalize(line))
+    .find((line) => /CONDOM[ÍI]NIO:\s*\d+\s*-/i.test(line));
+
+  return looseLine
+    ? normalize(
+        looseLine.replace(/.*Condom[íi]nio:\s*\d+\s*-\s*/i, ""),
+      ).replace(/\s*CNPJ:.*$/i, "")
+    : null;
 }
 
 function detectSuperlogicaUnidades(text: string) {
   const normalized = normalizePdfText(text);
   const loose = normalizeForLooseMatch(normalized);
   const unidadeMatches = splitSuperlogicaUnitBlocks(normalized).length;
+  const looseUnitHeaderMatches = countRegexMatches(
+    loose,
+    /BLOCO\s*:?\s*\S+\s+UNIDADE\s*:?\s*.+?(?:CODIGO|C[OÓ]DIGO)\s+DO\s+CLIENTE\s*:?/g,
+  );
+  const looseUnitLineMatches = countRegexMatches(
+    loose,
+    /(?:^|\n)\s*BLOCO\s*:?\s*\S+\s+UNIDADE\s*:?\s*[^\n]{1,120}/g,
+  );
   const sinais = [
-    /RELATORIO\s+DE\s+UNIDADES\s*-\s*COMPLETO/,
-    /CONDOMINIO:\s*\d+\s*-/,
-    /CNPJ:\s*\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/,
-    /BLOCO:\s*\S+\s+UNIDADE:\s*.+?CODIGO\s+DO\s+CLIENTE:/,
+    /RELATORIO\s+DE\s+UNIDADES\s*-?\s*COMPLETO/,
+    /CONDOMINIO\s*:\s*\d+\s*-/,
+    /CNPJ\s*:\s*\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/,
+    /BLOCO\s*:?\s*\S+\s+UNIDADE\s*:?\s*.+?(?:CODIGO|C[OÓ]DIGO)\s+DO\s+CLIENTE\s*:?/,
     /ENDERECO\s+DE\s+COBRANCA/,
     /DADOS\s+PESSOAIS/,
-    /TELEFONE\/E-MAIL\s+DO\s+CLIENTE/,
+    /TELEFONE\s*\/?\s*E\s*-?\s*MAIL\s+DO\s+CLIENTE|EMAIL\s+DO\s+CLIENTE/,
     /DADOS\s+GERAIS/,
     /DADOS\s+DO\s+PAGADOR/,
-    /TIPO\s+DE\s+UNIDADE:/,
+    /TIPO\s+DE\s+UNIDADE\s*:/,
+    /FORMA\s+DE\s+ENVIO/,
+    /CODIGO\s+DO\s+CLIENTE/,
   ];
 
   const hits = sinais.reduce(
     (total, regex) => total + (regex.test(loose) ? 1 : 0),
     0,
   );
-  const hasSuperlogicaShape = hits >= 6 && unidadeMatches > 0;
+  const hasCoreIdentity = hasAnyRegexMatch(loose, [
+    /RELATORIO\s+DE\s+UNIDADES\s*-?\s*COMPLETO/,
+    /CONDOMINIO\s*:\s*\d+\s*-/,
+  ]);
+  const hasUnitShape = unidadeMatches > 0 || looseUnitHeaderMatches > 0 || looseUnitLineMatches > 0;
+  const hasSuperlogicaShape =
+    (hits >= 6 && hasUnitShape) || (hasCoreIdentity && hits >= 5 && hasUnitShape);
   const condominioDetectado = extractSuperlogicaCondominio(normalized);
+  const unidadeSignal = Math.max(
+    unidadeMatches,
+    looseUnitHeaderMatches,
+    looseUnitLineMatches,
+  );
   const confianca = hasSuperlogicaShape
-    ? Math.min(99, 70 + hits * 2 + Math.min(12, unidadeMatches))
-    : Math.min(60, hits * 7);
+    ? Math.min(99, 68 + hits * 2 + Math.min(12, unidadeSignal))
+    : Math.min(62, hits * 7 + Math.min(10, unidadeSignal));
 
   return {
     ok: hasSuperlogicaShape,
     condominioDetectado,
     confianca,
-    detalhes: { hits, unidadeMatches },
+    detalhes: {
+      hits,
+      unidadeMatches,
+      looseUnitHeaderMatches,
+      looseUnitLineMatches,
+      sample: getPdfTextSample(normalized),
+    },
   };
 }
 

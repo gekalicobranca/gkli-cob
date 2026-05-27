@@ -370,6 +370,7 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
       condominios:condominio_id (
         id,
         nome,
+        administradora_id,
         inicio_cobranca_dias
       ),
       unidades:unidade_id (
@@ -459,4 +460,74 @@ export async function listCobrancasSelecionadasParaAcordo(
   }
 
   return data ?? [];
+}
+
+
+export async function getPendenciaPlanilhaDebitosAberta(params: {
+  scope: CarteiraScope;
+  carteiraId?: string | null;
+  condominioId?: string | null;
+  unidadeId?: string | null;
+}) {
+  if (!params.unidadeId) return null;
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("central_pendencias")
+    .select("id, titulo, status, prioridade, prazo_limite, created_at")
+    .eq("tipo", "planilha_debitos_administradora")
+    .eq("unidade_id", params.unidadeId)
+    .in("status", ["aberta", "em_tratamento"])
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  query = applyCarteiraScope(query, params.scope.carteiraIds);
+
+  if (params.carteiraId) query = query.eq("carteira_id", params.carteiraId);
+  if (params.condominioId) query = query.eq("condominio_id", params.condominioId);
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error && error.code !== "PGRST116") {
+    throw new Error(
+      `Erro ao verificar pendência de planilha de débitos: ${error.message}`,
+    );
+  }
+
+  return data ?? null;
+}
+
+
+export async function getPendenciaAprovacaoSindicoAberta(params: {
+  scope: CarteiraScope;
+  carteiraId?: string | null;
+  condominioId?: string | null;
+  unidadeId?: string | null;
+}) {
+  if (!params.unidadeId) return null;
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("central_pendencias")
+    .select("id, titulo, status, prioridade, prazo_limite, created_at")
+    .eq("tipo", "aprovacao_acordo_sindico")
+    .eq("unidade_id", params.unidadeId)
+    .in("status", ["aberta", "em_tratamento"])
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  query = applyCarteiraScope(query, params.scope.carteiraIds);
+
+  if (params.carteiraId) query = query.eq("carteira_id", params.carteiraId);
+  if (params.condominioId) query = query.eq("condominio_id", params.condominioId);
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error && error.code !== "PGRST116") {
+    throw new Error(
+      `Erro ao verificar pendência de aprovação do síndico: ${error.message}`,
+    );
+  }
+
+  return data ?? null;
 }

@@ -6,7 +6,11 @@ import { StatusBadge } from "@/components/data/status-badge";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
-import { listCobrancasDaUnidadeParaAcordo } from "@/features/acordos/queries";
+import {
+  getPendenciaPlanilhaDebitosAberta,
+  listCobrancasDaUnidadeParaAcordo,
+} from "@/features/acordos/queries";
+import { solicitarPlanilhaDebitosAdministradora } from "@/features/acordos/actions";
 import { COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO } from "@/lib/core/status";
 
 type PageProps = {
@@ -15,6 +19,7 @@ type PageProps = {
     cobranca_id?: string;
     unidadeId?: string;
     unidade_id?: string;
+    planilha?: string;
   }>;
 };
 
@@ -57,6 +62,15 @@ export default async function SelecionarCobrancasAcordoPage({
     cobrancas.find((item) => item.id === data.cobrancaOrigemId) ?? cobrancas[0];
   const unidade = origem?.unidades;
   const condominio = origem?.condominios;
+  const pendenciaPlanilha = origem
+    ? await getPendenciaPlanilhaDebitosAberta({
+        scope,
+        carteiraId: origem.carteira_id,
+        condominioId: origem.condominio_id,
+        unidadeId: origem.unidade_id,
+      })
+    : null;
+  const acordoBloqueadoPorPlanilha = Boolean(pendenciaPlanilha);
   const selecionaveis = cobrancas.filter((item) => !isBloqueada(item));
   const totalSelecionavel = selecionaveis.reduce(
     (total, item) => total + getValorAtualizado(item),
@@ -67,7 +81,7 @@ export default async function SelecionarCobrancasAcordoPage({
     <div className="space-y-6">
       <PageHeader
         eyebrow="Base Operacional"
-        title="Selecionar cobranças para acordo"
+        title="Agrupar cobranças para acordo"
         description="Agrupe manualmente os recibos/vencimentos da unidade antes de abrir a simulação do acordo. A régua orienta a cobrança, mas a seleção final é do operador."
         actions={
           <ButtonLink href="/app/acordos" variant="header">
@@ -91,6 +105,8 @@ export default async function SelecionarCobrancasAcordoPage({
           action="/app/acordos/novo"
           className="grid gap-6 xl:grid-cols-[1fr_360px]"
         >
+          <input type="hidden" name="cobranca_id_origem" value={origem?.id ?? ""} />
+          <input type="hidden" name="unidade_id" value={data.unidadeId ?? ""} />
           <Card className="space-y-4">
             <div className="rounded-2xl border border-[#DDE5E2] bg-[#F6F8F7] p-4">
               <p className="text-sm font-semibold text-slate-950">
@@ -172,6 +188,23 @@ export default async function SelecionarCobrancasAcordoPage({
                 da régua aparecem aqui também; cobranças já bloqueadas para novo
                 acordo ficam travadas.
               </p>
+              {query.planilha === "solicitada" ? (
+                <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  Pendência criada para solicitar a planilha de débitos à administradora.
+                </div>
+              ) : null}
+
+              {acordoBloqueadoPorPlanilha ? (
+                <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-semibold text-amber-950">
+                    Acordo bloqueado por conferência administrativa
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-amber-900">
+                    Existe uma pendência aberta de planilha de débitos para esta unidade. Resolva a pendência antes de efetivar o acordo.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="mt-5 rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Total selecionável
@@ -180,12 +213,25 @@ export default async function SelecionarCobrancasAcordoPage({
                   {formatCurrency(totalSelecionavel)}
                 </p>
               </div>
-              <button
-                type="submit"
-                className="mt-5 inline-flex h-10 w-full items-center justify-center rounded-xl border border-transparent bg-[var(--gkli-primary)] px-4 text-sm font-medium text-white shadow-sm transition hover:bg-[var(--gkli-primary-hover)]"
-              >
-                Simular acordo
-              </button>
+              <div className="mt-5 grid gap-2">
+                <button
+                  type="submit"
+                  disabled={acordoBloqueadoPorPlanilha}
+                  className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-transparent bg-[var(--gkli-primary)] px-4 text-sm font-medium text-white shadow-sm transition hover:bg-[var(--gkli-primary-hover)] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+                >
+                  Simular acordo
+                </button>
+                <button
+                  type="submit"
+                  formAction={solicitarPlanilhaDebitosAdministradora}
+                  className="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm font-medium text-amber-950 shadow-sm transition hover:bg-amber-100"
+                >
+                  Pedir planilha de débitos à administradora
+                </button>
+                <p className="text-xs leading-5 text-slate-500">
+                  Opcional. Ao acionar, o sistema gera uma pendência administrativa e bloqueia a efetivação do acordo até a resolução.
+                </p>
+              </div>
             </Card>
 
             {origem ? (

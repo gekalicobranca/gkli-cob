@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Activity, ArrowLeft, Building2, ClipboardList, FileClock, History, Home, Landmark, MessageCircle, PencilLine, Plus, Upload, Users } from 'lucide-react'
+import { Activity, ClipboardList, Download, FileClock, History, Home, Landmark, MessageCircle, PencilLine, Users } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -10,7 +10,6 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
 import { StatusBadge } from '@/components/data/status-badge'
-import { formatCurrency } from '@/utils/formatters/currency'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
 import { getCondominioIntegral, listEventosDoCondominio, listImportacoesDoCondominio, listUnidadesDoCondominio } from '@/features/condominios/queries'
@@ -43,41 +42,15 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
       <PageHeader
         eyebrow="Base Cadastral · Condomínio Integral"
         title={condominio.nome ?? 'Condomínio'}
-        description="Visão integral do cadastro, parâmetros de cobrança, unidades vinculadas, histórico e auditoria operacional."
+        description={`CNPJ ${condominio.cnpj || '-'} · Carteira ${condominio.carteiras?.nome || '-'} · Administradora ${condominio.administradora || '-'}`}
         actions={
           <>
-            <ButtonLink href="/app/condominios" variant="secondary"><ArrowLeft size={16} />Voltar</ButtonLink>
-            <ButtonLink href={`/app/importacoes/nova?tipo=unidades&condominio_id=${condominio.id}`} variant="secondary"><Upload size={16} />Importar unidades</ButtonLink>
-            <ButtonLink href="/app/cobrancas/nova"><Plus size={16} />Nova cobrança</ButtonLink>
+            <ButtonLink href={`/api/condominios/${condominio.id}/exportacoes/unidades`} variant="secondary"><Download size={16} />Exportar unidades</ButtonLink>
+            <ButtonLink href={`/api/condominios/${condominio.id}/exportacoes/cobrancas`} variant="secondary"><Download size={16} />Exportar cobranças</ButtonLink>
+            <ButtonLink href={`/api/condominios/${condominio.id}/exportacoes/acordos`} variant="secondary"><Download size={16} />Exportar acordos</ButtonLink>
           </>
         }
       />
-
-      <Card className="overflow-hidden p-0">
-        <div className="bg-[linear-gradient(135deg,var(--gkli-primary),#111827)] p-5 text-white">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/12 ring-1 ring-white/20">
-                <Building2 size={22} />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-xl font-medium tracking-tight">{condominio.nome}</h2>
-                  <StatusBadge status={condominio.status} />
-                </div>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-white/75">
-                  CNPJ {condominio.cnpj || '-'} · Carteira {condominio.carteiras?.nome || '-'} · Administradora {condominio.administradora || '-'}
-                </p>
-              </div>
-            </div>
-            <div className="grid gap-2 text-sm text-white/80 sm:grid-cols-3 lg:min-w-[480px]">
-              <HeaderMetric label="Valor da cota" value={formatCurrency(Number(condominio.valor_cota_condominial ?? 0))} />
-              <HeaderMetric label="Início da cobrança" value={`D+${condominio.inicio_cobranca_dias ?? 0}`} />
-              <HeaderMetric label="Última importação" value={ultimaImportacao ? formatDate(ultimaImportacao.created_at) : '-'} />
-            </div>
-          </div>
-        </div>
-      </Card>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Kpi icon={<Home size={18} />} label="Unidades" value={String(unidades.length)} detail={`${unidadesAtivas} ativas`} />
@@ -149,7 +122,7 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
         <Card className="overflow-hidden p-0">
           <div className="flex flex-col gap-3 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between">
             <div><Badge tone="primary">Unidades</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Unidades vinculadas</h2><p className="mt-1 text-sm text-slate-500">Primeira leitura para saneamento cadastral antes da régua.</p></div>
-            <ButtonLink href="/app/unidades/nova" variant="secondary"><Plus size={16} />Nova unidade</ButtonLink>
+            <ButtonLink href="/app/unidades/nova" variant="secondary">Nova unidade</ButtonLink>
           </div>
           {unidades.length === 0 ? <div className="p-5 text-sm text-slate-500">Nenhuma unidade vinculada a este condomínio.</div> : (
             <div className="divide-y divide-slate-100">{unidades.slice(0, 12).map((unidade: any) => (<Link key={unidade.id} href={`/app/unidades/${unidade.id}`} className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[1fr_1.2fr_1fr_1fr_90px] lg:items-center"><div><p className="text-sm font-medium text-slate-950">{unidade.identificacao}</p><p className="mt-1 text-xs text-slate-500">Bloco {unidade.bloco || '-'}</p></div><div><p className="text-sm text-slate-700">{unidade.responsavel_nome || 'Responsável não informado'}</p><p className="mt-1 text-xs text-slate-500">{unidade.responsavel_documento || '-'}</p></div><div className="text-sm text-slate-600">{unidade.telefone || '-'}</div><div className="truncate text-sm text-slate-600">{unidade.email || '-'}</div><StatusBadge status={unidade.status} /></Link>))}</div>
@@ -179,7 +152,6 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
   )
 }
 
-function HeaderMetric({ label, value }: { label: string; value: string }) { return <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/15"><p className="text-[11px] uppercase tracking-[0.16em] text-white/55">{label}</p><p className="mt-2 text-sm text-white">{value}</p></div> }
 function Kpi({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: string; detail: string }) { return <Card className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[0.16em] text-slate-400">{label}</p><p className="mt-3 text-3xl font-medium tracking-tight text-slate-950">{value}</p><p className="mt-1 text-sm text-slate-500">{detail}</p></div><div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">{icon}</div></div></Card> }
 function Tab({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) { return <a href={href} className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-950">{icon}{label}</a> }
 function AuditInfo({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-medium text-slate-900">{title}</p><p className="mt-2 text-sm text-slate-500">{text}</p></div> }

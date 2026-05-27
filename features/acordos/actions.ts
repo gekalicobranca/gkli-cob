@@ -47,14 +47,28 @@ function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+
+function addDays(date: Date, days: number) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function normalizeUuidList(values: FormDataEntryValue[]) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 export async function createAcordo(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();
 
-  const cobrancaIdsFromList = formData
-    .getAll("cobranca_ids")
-    .map((value) => String(value ?? "").trim())
-    .filter(Boolean);
+  const cobrancaIdsFromList = normalizeUuidList(formData.getAll("cobranca_ids"));
   const cobrancaIdLegado = String(formData.get("cobranca_id") ?? "").trim();
   const cobrancaIds = Array.from(
     new Set(
@@ -130,6 +144,50 @@ export async function createAcordo(formData: FormData) {
   if (!mesmaCarteira || !mesmoCondominio || !mesmaUnidade) {
     throw new Error(
       "O acordo só pode agrupar cobranças da mesma carteira, condomínio e unidade.",
+    );
+  }
+
+  const { data: pendenciaPlanilha, error: pendenciaPlanilhaError } = await supabase
+    .from("central_pendencias")
+    .select("id")
+    .eq("tipo", "planilha_debitos_administradora")
+    .eq("carteira_id", cobrancaPrincipal.carteira_id)
+    .eq("condominio_id", cobrancaPrincipal.condominio_id)
+    .eq("unidade_id", cobrancaPrincipal.unidade_id)
+    .in("status", ["aberta", "em_tratamento"])
+    .limit(1);
+
+  if (pendenciaPlanilhaError) {
+    throw new Error(
+      `Erro ao verificar pendência de planilha de débitos: ${pendenciaPlanilhaError.message}`,
+    );
+  }
+
+  if ((pendenciaPlanilha ?? []).length > 0) {
+    throw new Error(
+      "Existe uma pendência aberta de planilha de débitos da administradora. Resolva a pendência antes de efetivar o acordo.",
+    );
+  }
+
+  const { data: pendenciaAprovacaoSindico, error: pendenciaAprovacaoSindicoError } = await supabase
+    .from("central_pendencias")
+    .select("id")
+    .eq("tipo", "aprovacao_acordo_sindico")
+    .eq("carteira_id", cobrancaPrincipal.carteira_id)
+    .eq("condominio_id", cobrancaPrincipal.condominio_id)
+    .eq("unidade_id", cobrancaPrincipal.unidade_id)
+    .in("status", ["aberta", "em_tratamento"])
+    .limit(1);
+
+  if (pendenciaAprovacaoSindicoError) {
+    throw new Error(
+      `Erro ao verificar pendência de aprovação do síndico: ${pendenciaAprovacaoSindicoError.message}`,
+    );
+  }
+
+  if ((pendenciaAprovacaoSindico ?? []).length > 0) {
+    throw new Error(
+      "Existe uma pendência aberta de aprovação do síndico. Resolva a pendência antes de efetivar o acordo.",
     );
   }
 
@@ -342,6 +400,352 @@ export async function createAcordo(formData: FormData) {
   revalidatePath("/app");
   revalidatePath("/app/dashboard");
   redirect(`/app/acordos/${acordo.id}`);
+}
+
+export async function solicitarPlanilhaDebitosAdministradora(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const cobrancaIdsSelecionadas = normalizeUuidList(formData.getAll("cobrancaIds"));
+  const cobrancaIdOrigem = String(formData.get("cobranca_id_origem") ?? "").trim();
+  const unidadeIdInformada = String(formData.get("unidade_id") ?? "").trim();
+  const idsParaConsulta = cobrancaIdsSelecionadas.length > 0
+    ? cobrancaIdsSelecionadas
+    : [cobrancaIdOrigem].filter(Boolean);
+
+  let cobrancaReferencia: any = null;
+
+  if (idsParaConsulta.length > 0) {
+    const { data, error } = await supabase
+      .from("cobrancas")
+      .select(
+        `
+        id,
+        carteira_id,
+        condominio_id,
+        unidade_id,
+        vencimento,
+        competencia,
+        condominios:condominio_id (
+          id,
+          nome,
+          administradora_id
+        ),
+        unidades:unidade_id (
+          id,
+          identificacao,
+          bloco,
+          responsavel_nome
+        )
+      `,
+      )
+      .in("id", idsParaConsulta)
+      .limit(1);
+
+    if (error) {
+      throw new Error(`Erro ao carregar cobrança para solicitação: ${error.message}`);
+    }
+
+    cobrancaReferencia = data?.[0] ?? null;
+  }
+
+  if (!cobrancaReferencia && unidadeIdInformada) {
+    const { data, error } = await supabase
+      .from("cobrancas")
+      .select(
+        `
+        id,
+        carteira_id,
+        condominio_id,
+        unidade_id,
+        vencimento,
+        competencia,
+        condominios:condominio_id (
+          id,
+          nome,
+          administradora_id
+        ),
+        unidades:unidade_id (
+          id,
+          identificacao,
+          bloco,
+          responsavel_nome
+        )
+      `,
+      )
+      .eq("unidade_id", unidadeIdInformada)
+      .order("vencimento", { ascending: true })
+      .limit(1);
+
+    if (error) {
+      throw new Error(`Erro ao carregar unidade para solicitação: ${error.message}`);
+    }
+
+    cobrancaReferencia = data?.[0] ?? null;
+  }
+
+  if (!cobrancaReferencia) {
+    throw new Error("Não foi possível identificar a unidade para solicitar a planilha de débitos.");
+  }
+
+  const cobrancaReferenciaAny = cobrancaReferencia as any;
+  const carteiraId = cobrancaReferenciaAny.carteira_id;
+  const condominioId = cobrancaReferenciaAny.condominio_id;
+  const unidadeId = cobrancaReferenciaAny.unidade_id;
+  const condominioReferencia = Array.isArray(cobrancaReferenciaAny.condominios)
+    ? cobrancaReferenciaAny.condominios[0]
+    : cobrancaReferenciaAny.condominios;
+  const unidadeReferencia = Array.isArray(cobrancaReferenciaAny.unidades)
+    ? cobrancaReferenciaAny.unidades[0]
+    : cobrancaReferenciaAny.unidades;
+  const administradoraId = condominioReferencia?.administradora_id ?? null;
+
+  const { data: existente, error: existenteError } = await supabase
+    .from("central_pendencias")
+    .select("id")
+    .eq("tipo", "planilha_debitos_administradora")
+    .eq("carteira_id", carteiraId)
+    .eq("condominio_id", condominioId)
+    .eq("unidade_id", unidadeId)
+    .in("status", ["aberta", "em_tratamento"])
+    .limit(1);
+
+  if (existenteError) {
+    throw new Error(`Erro ao verificar pendência existente: ${existenteError.message}`);
+  }
+
+  if ((existente ?? []).length === 0) {
+    const unidadeLabel = [
+      unidadeReferencia?.bloco ? `Bloco ${unidadeReferencia.bloco}` : null,
+      unidadeReferencia?.identificacao ? `Unidade ${unidadeReferencia.identificacao}` : null,
+    ].filter(Boolean).join(" · ") || "Unidade não informada";
+
+    const { error: insertError } = await supabase.from("central_pendencias").insert({
+      carteira_id: carteiraId,
+      origem: "administradora",
+      tipo: "planilha_debitos_administradora",
+      status: "aberta",
+      prioridade: "alta",
+      titulo: "Solicitar planilha de débitos à administradora",
+      descricao: `Solicitação criada antes da efetivação do acordo. Encaminhar pedido de planilha atualizada de débitos para ${condominioReferencia?.nome ?? "o condomínio"}, ${unidadeLabel}. Enquanto esta pendência estiver aberta, o acordo da unidade ficará bloqueado para efetivação.`,
+      entidade_tipo: "unidade",
+      entidade_id: unidadeId,
+      condominio_id: condominioId,
+      unidade_id: unidadeId,
+      cobranca_id: cobrancaReferencia.id,
+      acordo_id: null,
+      administradora_id: administradoraId,
+      prazo_limite: toISODate(addDays(new Date(), 2)),
+    });
+
+    if (insertError) {
+      throw new Error(`Erro ao gerar pendência de planilha de débitos: ${insertError.message}`);
+    }
+
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId,
+      entidadeTipo: "unidade",
+      entidadeId: unidadeId,
+      eventoCodigo: "acordo.planilha_debitos_solicitada",
+      titulo: "Planilha de débitos solicitada",
+      descricao: "Pendência criada para solicitar planilha de débitos à administradora antes da efetivação do acordo.",
+      severidade: "alerta",
+      payload: {
+        cobranca_ids: cobrancaIdsSelecionadas,
+        cobranca_id: cobrancaReferencia.id,
+        condominio_id: condominioId,
+        unidade_id: unidadeId,
+        administradora_id: administradoraId,
+      },
+      userId: user?.id ?? null,
+    });
+  }
+
+  revalidatePath("/app/pendencias");
+  revalidatePath("/app/acordos/selecionar");
+  revalidatePath("/app/acordos/novo");
+
+  redirect(`/app/acordos/selecionar?cobrancaId=${cobrancaIdOrigem || cobrancaReferencia.id}&planilha=solicitada`);
+}
+
+
+export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const cobrancaIdsFromList = normalizeUuidList(formData.getAll("cobranca_ids"));
+  const cobrancaIdsFromSelecao = normalizeUuidList(formData.getAll("cobrancaIds"));
+  const cobrancaIdOrigem = String(formData.get("cobranca_id_origem") ?? "").trim();
+  const cobrancaIdLegado = String(formData.get("cobranca_id") ?? "").trim();
+  const cobrancaIds = Array.from(
+    new Set(
+      [
+        ...cobrancaIdsFromList,
+        ...cobrancaIdsFromSelecao,
+        cobrancaIdOrigem,
+        cobrancaIdLegado,
+      ].filter(Boolean),
+    ),
+  );
+
+  if (cobrancaIds.length === 0) {
+    throw new Error("Selecione ao menos uma cobrança para enviar a proposta ao síndico.");
+  }
+
+  const tipo = String(formData.get("tipo") ?? "extrajudicial");
+  const numeroProcesso = String(formData.get("numero_processo") ?? "").trim();
+  const despesaCobrancaPercentual = toNumber(formData.get("despesa_cobranca_percentual"));
+  const despesaCobrancaValor = toNumber(formData.get("despesa_cobranca_valor"));
+  const valorAcordado = toNumber(formData.get("valor_acordado"));
+  const entrada = toNumber(formData.get("entrada"));
+  const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
+  const primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
+  const documentoUrl = String(formData.get("documento_url") ?? "").trim();
+  const observacoes = String(formData.get("observacoes") ?? "").trim();
+
+  const { data: cobrancas, error: cobrancasError } = await supabase
+    .from("cobrancas")
+    .select(
+      `
+      id,
+      carteira_id,
+      condominio_id,
+      unidade_id,
+      valor_atualizado,
+      valor_original,
+      vencimento,
+      competencia,
+      condominios:condominio_id (
+        id,
+        nome,
+        administradora_id
+      ),
+      unidades:unidade_id (
+        id,
+        identificacao,
+        bloco,
+        responsavel_nome
+      )
+    `,
+    )
+    .in("id", cobrancaIds);
+
+  if (cobrancasError) {
+    throw new Error(`Erro ao carregar cobranças para aprovação do síndico: ${cobrancasError.message}`);
+  }
+
+  if (!cobrancas || cobrancas.length !== cobrancaIds.length) {
+    throw new Error("Uma ou mais cobranças selecionadas não foram encontradas.");
+  }
+
+  const cobrancaReferencia =
+    cobrancas.find((item) => item.id === (cobrancaIdOrigem || cobrancaIdLegado)) ?? cobrancas[0];
+
+  const mesmaCarteira = cobrancas.every((item) => item.carteira_id === cobrancaReferencia.carteira_id);
+  const mesmoCondominio = cobrancas.every((item) => item.condominio_id === cobrancaReferencia.condominio_id);
+  const mesmaUnidade = cobrancas.every((item) => item.unidade_id === cobrancaReferencia.unidade_id);
+
+  if (!mesmaCarteira || !mesmoCondominio || !mesmaUnidade) {
+    throw new Error("A proposta para aprovação do síndico só pode agrupar cobranças da mesma carteira, condomínio e unidade.");
+  }
+
+  const cobrancaReferenciaAny = cobrancaReferencia as any;
+  const carteiraId = cobrancaReferenciaAny.carteira_id;
+  const condominioId = cobrancaReferenciaAny.condominio_id;
+  const unidadeId = cobrancaReferenciaAny.unidade_id;
+  const condominioReferencia = Array.isArray(cobrancaReferenciaAny.condominios)
+    ? cobrancaReferenciaAny.condominios[0]
+    : cobrancaReferenciaAny.condominios;
+  const unidadeReferencia = Array.isArray(cobrancaReferenciaAny.unidades)
+    ? cobrancaReferenciaAny.unidades[0]
+    : cobrancaReferenciaAny.unidades;
+  const administradoraId = condominioReferencia?.administradora_id ?? null;
+
+  const { data: pendenciaPlanilha, error: pendenciaPlanilhaError } = await supabase
+    .from("central_pendencias")
+    .select("id")
+    .eq("tipo", "planilha_debitos_administradora")
+    .eq("carteira_id", carteiraId)
+    .eq("condominio_id", condominioId)
+    .eq("unidade_id", unidadeId)
+    .in("status", ["aberta", "em_tratamento"])
+    .limit(1);
+
+  if (pendenciaPlanilhaError) {
+    throw new Error(`Erro ao verificar pendência de planilha de débitos: ${pendenciaPlanilhaError.message}`);
+  }
+
+  if ((pendenciaPlanilha ?? []).length > 0) {
+    throw new Error("Existe uma pendência aberta de planilha de débitos. Resolva antes de enviar a proposta ao síndico.");
+  }
+
+  const { data: existente, error: existenteError } = await supabase
+    .from("central_pendencias")
+    .select("id")
+    .eq("tipo", "aprovacao_acordo_sindico")
+    .eq("carteira_id", carteiraId)
+    .eq("condominio_id", condominioId)
+    .eq("unidade_id", unidadeId)
+    .in("status", ["aberta", "em_tratamento"])
+    .limit(1);
+
+  if (existenteError) {
+    throw new Error(`Erro ao verificar pendência de aprovação existente: ${existenteError.message}`);
+  }
+
+  if ((existente ?? []).length === 0) {
+    const unidadeLabel = [
+      unidadeReferencia?.bloco ? `Bloco ${unidadeReferencia.bloco}` : null,
+      unidadeReferencia?.identificacao ? `Unidade ${unidadeReferencia.identificacao}` : null,
+    ].filter(Boolean).join(" · ") || "Unidade não informada";
+
+    const { error: insertError } = await supabase.from("central_pendencias").insert({
+      carteira_id: carteiraId,
+      origem: "acordo",
+      tipo: "aprovacao_acordo_sindico",
+      status: "aberta",
+      prioridade: "alta",
+      titulo: "Aprovar proposta de acordo com o síndico",
+      descricao: `Proposta de acordo enviada para aprovação do síndico antes da efetivação. Conferir condições para ${condominioReferencia?.nome ?? "o condomínio"}, ${unidadeLabel}. Valor proposto: R$ ${valorAcordado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}; entrada: R$ ${entrada.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}; parcelas: ${quantidadeParcelas}; primeiro vencimento: ${primeiroVencimento || "não informado"}; cobranças: ${cobrancaIds.length}. Enquanto esta pendência estiver aberta, o acordo não poderá ser criado nem gerar parcelas.`,
+      entidade_tipo: "unidade",
+      entidade_id: unidadeId,
+      condominio_id: condominioId,
+      unidade_id: unidadeId,
+      cobranca_id: cobrancaReferencia.id,
+      acordo_id: null,
+      administradora_id: administradoraId,
+      prazo_limite: toISODate(addDays(new Date(), 2)),
+    });
+
+    if (insertError) {
+      throw new Error(`Erro ao gerar pendência de aprovação do síndico: ${insertError.message}`);
+    }
+
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId,
+      entidadeTipo: "unidade",
+      entidadeId: unidadeId,
+      eventoCodigo: "acordo.aprovacao_sindico_solicitada",
+      titulo: "Aprovação do síndico solicitada",
+      descricao: "Pendência criada para aprovação do síndico antes da criação do acordo e geração de parcelas.",
+      severidade: "alerta",
+      payload: {
+        cobranca_ids: cobrancaIds,
+        cobranca_id: cobrancaReferencia.id,
+        condominio_id: condominioId,
+        unidade_id: unidadeId,
+        valor_acordado: valorAcordado,
+      },
+      userId: user?.id ?? null,
+    });
+  }
+
+  revalidatePath("/app/pendencias");
+  revalidatePath("/app/acordos/novo");
+
+  redirect(`/app/acordos/novo?cobrancaIds=${encodeURIComponent(cobrancaIds.join(","))}&sindico=solicitada`);
 }
 
 export async function marcarParcelaComoPaga(formData: FormData) {

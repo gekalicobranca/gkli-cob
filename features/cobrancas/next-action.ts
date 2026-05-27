@@ -66,7 +66,7 @@ export function calcularProximaAcaoCobranca(params: {
     score += 28
     titulo = 'Fechar negociação'
     descricao = 'Negociação aberta tem maior chance de conversão. Priorize proposta objetiva.'
-    acao = 'Criar acordo ou registrar retorno'
+    acao = 'Agrupar cobranças ou registrar retorno'
   } else if (status === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA) {
     score += 18
     titulo = 'Propor acordo'

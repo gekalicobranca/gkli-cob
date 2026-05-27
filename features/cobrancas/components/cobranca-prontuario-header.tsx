@@ -82,7 +82,7 @@ export function CobrancaProntuarioHeader({
               href={`/app/acordos/selecionar?cobrancaId=${cobranca.id}`}
               variant="header"
             >
-              Criar acordo
+              Agrupar cobranças
             </ButtonLink>
           ) : null}
           <ButtonLink href="/app/cobrancas" variant="header">

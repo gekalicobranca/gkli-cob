@@ -13,11 +13,9 @@ import {
 import {
   agendarRetornoCobranca,
   createInteracaoCobranca,
-  updateCobrancaFinanceiro,
   updateCobrancaStatus,
 } from '@/features/cobrancas/actions'
 import { calcularProximaAcaoCobranca } from '@/features/cobrancas/next-action'
-import { CobrancaFinanceiroCard } from '@/features/cobrancas/components/cobranca-financeiro-card'
 import { CobrancaMensageriaCard } from '@/features/cobrancas/components/cobranca-mensageria-card'
 import { CobrancaNextActionCard } from '@/features/cobrancas/components/cobranca-next-action-card'
 import { CobrancaQuickActions } from '@/features/cobrancas/components/cobranca-quick-actions'
@@ -132,18 +130,6 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
             agendarRetornoAction={agendarRetornoCobranca}
           />
           <CobrancaNextActionCard action={nextAction} />
-          <CobrancaFinanceiroCard
-            cobranca={cobranca}
-            principal={principal}
-            juros={juros}
-            multa={multa}
-            correcao={correcao}
-            desconto={desconto}
-            valorAtualizado={valorAtualizado}
-            despesaCobranca={despesaCobranca}
-            valorNegociacao={valorNegociacao}
-            updateAction={updateCobrancaFinanceiro}
-          />
           <CobrancaStatusActions
             cobranca={cobranca}
             statusOperacional={statusOperacional}

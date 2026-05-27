@@ -172,7 +172,7 @@ export function CobrancaResolutionDock({
                 className="w-full"
               >
                 <Handshake size={15} />
-                Criar acordo
+                Agrupar cobranças
               </ButtonLink>
             ) : null}
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { type ChangeEvent, useMemo, useState } from "react";
-import { createAcordo } from "@/features/acordos/actions";
+import { createAcordo, solicitarAprovacaoSindicoAcordo } from "@/features/acordos/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,9 @@ type AcordoSimulatorFormProps = {
   cobrancas: CobrancaOption[];
   initialCobrancaId?: string;
   selectedCobrancaIds?: string[];
+  bloqueadoPorPendenciaPlanilha?: boolean;
+  bloqueadoPorPendenciaAprovacaoSindico?: boolean;
+  aprovacaoSindicoSolicitada?: boolean;
 };
 
 function parseMoney(value: string) {
@@ -84,10 +87,17 @@ function toISODate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function safeMailtoPart(value: string) {
+  return encodeURIComponent(value).replace(/%20/g, "+");
+}
+
 export function AcordoSimulatorForm({
   cobrancas,
   initialCobrancaId,
   selectedCobrancaIds = [],
+  bloqueadoPorPendenciaPlanilha = false,
+  bloqueadoPorPendenciaAprovacaoSindico = false,
+  aprovacaoSindicoSolicitada = false,
 }: AcordoSimulatorFormProps) {
   const initial =
     cobrancas.find((item) => item.id === initialCobrancaId) ?? cobrancas[0];
@@ -103,6 +113,8 @@ export function AcordoSimulatorForm({
     date.setDate(date.getDate() + 7);
     return toISODate(date);
   });
+  const [documentoUrl, setDocumentoUrl] = useState("");
+  const [observacoes, setObservacoes] = useState("");
 
   const isSelecaoAgrupada = selectedCobrancaIds.length > 0;
   const cobrancasSelecionadas = isSelecaoAgrupada
@@ -185,6 +197,83 @@ export function AcordoSimulatorForm({
     setCobrancaId(value);
   }
 
+  function buildAprovacaoSindicoEmailHref() {
+    const condominioNome =
+      cobrancaSelecionada?.condominios?.nome ?? "Condomínio não informado";
+    const unidadeLabel = `Unidade ${cobrancaSelecionada?.unidades?.identificacao ?? "-"}`;
+    const responsavelNome =
+      cobrancaSelecionada?.unidades?.responsavel_nome ??
+      "Responsável não informado";
+
+    const cobrancasResumo = cobrancasSelecionadas
+      .map(
+        (cobranca, index) =>
+          `${index + 1}. Vencimento ${formatDateBR(cobranca.vencimento)} · Competência ${cobranca.competencia ?? "-"} · Valor ${formatCurrency(getValorAtualizado(cobranca))}`,
+      )
+      .join("\n");
+
+    const parcelasResumo = [
+      preview.entrada > 0
+        ? `Entrada: ${formatCurrency(preview.entrada)} · vencimento na formalização`
+        : null,
+      ...preview.parcelas.map(
+        (parcela) =>
+          `Parcela ${parcela.numero}: ${formatCurrency(parcela.valor)} · vencimento ${formatDateBR(parcela.vencimento)}`,
+      ),
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const subject = `Aprovação de acordo - ${condominioNome} - ${unidadeLabel}`;
+    const body = [
+      "Prezado(a) Síndico(a),",
+      "",
+      "Encaminhamos para análise e aprovação a simulação de acordo abaixo.",
+      "",
+      `Condomínio: ${condominioNome}`,
+      `Unidade: ${unidadeLabel}`,
+      `Responsável: ${responsavelNome}`,
+      `Tipo de acordo: ${tipo === "judicial" ? "Judicial" : "Extrajudicial"}`,
+      tipo === "judicial" && numeroProcesso
+        ? `Número do processo: ${numeroProcesso}`
+        : null,
+      "",
+      "Cobranças incluídas:",
+      cobrancasResumo || "-",
+      "",
+      "Resumo financeiro:",
+      `Valor das cobranças: ${formatCurrency(preview.valorOriginal)}`,
+      `Despesa de cobrança (${preview.percentualDespesa.toLocaleString("pt-BR")}%): ${formatCurrency(preview.despesaCobranca)}`,
+      `Valor total proposto: ${formatCurrency(preview.total)}`,
+      `Entrada: ${formatCurrency(preview.entrada)}`,
+      `Saldo parcelado: ${formatCurrency(preview.saldo)}`,
+      "",
+      "Parcelamento simulado:",
+      parcelasResumo || "-",
+      documentoUrl ? "" : null,
+      documentoUrl ? `Link de apoio/documentos: ${documentoUrl}` : null,
+      observacoes ? "" : null,
+      observacoes ? `Observações: ${observacoes}` : null,
+      "",
+      "Solicitamos, por gentileza, a aprovação das condições acima ou o retorno com ajustes necessários.",
+      "",
+      "Atenciosamente,",
+      "GKLI Cobrança",
+    ]
+      .filter((line): line is string => line !== null)
+      .join("\n");
+
+    return `mailto:?subject=${safeMailtoPart(subject)}&body=${safeMailtoPart(body)}`;
+  }
+
+  function handleOpenAprovacaoSindicoEmail() {
+    const href = buildAprovacaoSindicoEmailHref();
+    const opened = window.open(href, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      window.location.href = href;
+    }
+  }
+
   if (cobrancas.length === 0) {
     return (
       <Card>
@@ -209,6 +298,7 @@ export function AcordoSimulatorForm({
           value={cobranca.id}
         />
       ))}
+      <input type="hidden" name="cobranca_id_origem" value={cobrancaSelecionada?.id ?? cobrancaId} />
       <Card className="space-y-5">
         {isSelecaoAgrupada ? (
           <div className="space-y-3 rounded-2xl border border-[#DDE5E2] bg-[#F6F8F7] p-4">
@@ -383,19 +473,80 @@ export function AcordoSimulatorForm({
         </div>
 
         <FormField label="Link do documento/pasta">
-          <Input name="documento_url" placeholder="https://..." />
+          <Input
+            name="documento_url"
+            placeholder="https://..."
+            value={documentoUrl}
+            onChange={(
+              event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+            ) => setDocumentoUrl(event.target.value)}
+          />
         </FormField>
 
         <FormField label="Observações">
           <Textarea
             name="observacoes"
             placeholder="Condições negociadas, observações internas, histórico da tratativa..."
+            value={observacoes}
+            onChange={(
+              event: ChangeEvent<HTMLTextAreaElement>,
+            ) => setObservacoes(event.target.value)}
           />
         </FormField>
 
-        <div className="flex justify-end gap-2">
-          <Button type="submit">Criar acordo e gerar parcelas</Button>
+        {aprovacaoSindicoSolicitada ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <p className="text-sm font-semibold text-emerald-950">
+              Aprovação do síndico solicitada
+            </p>
+            <p className="mt-1 text-sm leading-6 text-emerald-900">
+              A proposta foi enviada para conferência/aprovação operacional. Enquanto a pendência estiver aberta, o acordo não pode ser efetivado.
+            </p>
+          </div>
+        ) : null}
+
+        {bloqueadoPorPendenciaPlanilha ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-950">
+              Efetivação bloqueada
+            </p>
+            <p className="mt-1 text-sm leading-6 text-amber-900">
+              Existe uma pendência aberta de planilha de débitos da administradora para esta unidade. Resolva a pendência antes de criar o acordo.
+            </p>
+          </div>
+        ) : null}
+
+        {bloqueadoPorPendenciaAprovacaoSindico ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-950">
+              Efetivação bloqueada por aprovação do síndico
+            </p>
+            <p className="mt-1 text-sm leading-6 text-amber-900">
+              Existe uma pendência aberta de aprovação do síndico para esta proposta. Resolva a pendência antes de criar o acordo e gerar parcelas.
+            </p>
+          </div>
+        ) : null}
+
+        <div className="flex flex-col justify-end gap-2 md:flex-row">
+          <Button
+            type="submit"
+            variant="secondary"
+            formAction={solicitarAprovacaoSindicoAcordo}
+            onClick={handleOpenAprovacaoSindicoEmail}
+            disabled={bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico}
+          >
+            Enviar acordo para aprovação do síndico
+          </Button>
+          <Button
+            type="submit"
+            disabled={bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico}
+          >
+            Criar acordo e gerar parcelas
+          </Button>
         </div>
+        <p className="text-right text-xs leading-5 text-slate-500">
+          A aprovação do síndico é opcional. Quando acionada, gera pendência e bloqueia a efetivação até a liberação.
+        </p>
       </Card>
 
       <div className="space-y-4">

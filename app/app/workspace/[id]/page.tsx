@@ -168,7 +168,7 @@ export default async function WorkspaceOperacionalPage({
                 href={`/app/acordos/selecionar?cobrancaId=${cobranca.id}`}
               >
                 <Handshake size={16} />
-                Criar acordo
+                Agrupar cobranças
               </ButtonLink>
             ) : acordoVigente ? (
               <ButtonLink href={`/app/acordos/${acordoVigente.id}`}>

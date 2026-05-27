@@ -69,7 +69,7 @@ export function CobrancaQuickActions({
           </h2>
           <p className="mt-1 text-sm leading-6 text-slate-500">
             Registre contato, avance status, agende retorno ou transforme a
-            cobrança em acordo.
+            cobranças da unidade em um acordo.
           </p>
         </div>
         {defaultAction ? (
@@ -134,7 +134,7 @@ export function CobrancaQuickActions({
             className="w-full"
           >
             <Handshake size={15} />
-            Criar acordo
+            Agrupar cobranças
           </ButtonLink>
         ) : (
           <ButtonLink
