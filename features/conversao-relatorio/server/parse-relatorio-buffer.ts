@@ -891,18 +891,22 @@ function buildPreviewFromParcelas({
 
 async function extractPdfText(input: ParseInput) {
   try {
-    const { PDFParse } = await import("pdf-parse")
-    const parser = new PDFParse({ data: input.buffer })
-    try {
-      const parsed = await parser.getText()
-      return normalizePdfText(parsed.text ?? "")
-    } finally {
-      await parser.destroy()
-    }
+    /**
+     * Mantemos o pdf-parse na API clássica (v1.x) porque a linha v2 usa
+     * pdf.js moderno e pode tentar acessar APIs de browser no runtime Node,
+     * como DOMMatrix. Isso quebra no servidor/Vercel antes da extração do texto.
+     */
+    const pdfParseModule = await import("pdf-parse/lib/pdf-parse.js")
+    const pdfParse = (pdfParseModule.default ?? pdfParseModule) as unknown as (
+      dataBuffer: Buffer
+    ) => Promise<{ text?: string }>
+
+    const parsed = await pdfParse(input.buffer)
+    return normalizePdfText(parsed.text ?? "")
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(
-      `Não foi possível ler PDF no servidor. Instale a dependência pdf-parse ou envie XLSX/CSV. Detalhe: ${message}`
+      `Não foi possível ler PDF no servidor. Verifique se a dependência pdf-parse está instalada na versão compatível de servidor ou envie XLSX/CSV. Detalhe: ${message}`
     )
   }
 }
