@@ -1,5 +1,4 @@
 import { ButtonLink } from "@/components/ui/button";
-import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 import type { CobrancaNextAction } from "../next-action";
 
@@ -15,9 +14,9 @@ function headerGradient(status: string) {
 export function CobrancaProntuarioHeader({
   cobranca,
   statusOperacional,
-  valorAtualizado,
-  atraso,
-  nextAction,
+  valorAtualizado: _valorAtualizado,
+  atraso: _atraso,
+  nextAction: _nextAction,
   acordoVigenteId,
   canCreateAcordo,
 }: {
@@ -48,24 +47,6 @@ export function CobrancaProntuarioHeader({
             {formatDateBR(cobranca.vencimento)}
           </p>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3">
-              <p className="text-xs text-white/60">Valor atualizado</p>
-              <p className="mt-1 text-xl font-semibold">
-                {formatCurrency(valorAtualizado)}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3">
-              <p className="text-xs text-white/60">Atraso</p>
-              <p className="mt-1 text-xl font-semibold">{atraso} dia(s)</p>
-            </div>
-            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3">
-              <p className="text-xs text-white/60">Próxima ação</p>
-              <p className="mt-1 truncate text-sm font-semibold">
-                {nextAction.acao}
-              </p>
-            </div>
-          </div>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-3">

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Activity, ClipboardList, Download, FileClock, History, Home, Landmark, MessageCircle, PencilLine, Users } from 'lucide-react'
+import { Activity, ClipboardList, Download, FileClock, History, Home, Landmark, PencilLine, Users } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -42,7 +42,7 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
       <PageHeader
         eyebrow="Base Cadastral · Condomínio Integral"
         title={condominio.nome ?? 'Condomínio'}
-        description={`CNPJ ${condominio.cnpj || '-'} · Carteira ${condominio.carteiras?.nome || '-'} · Administradora ${condominio.administradora || '-'}`}
+        description="Cadastro integral, exportações e parâmetros operacionais do condomínio."
         actions={
           <>
             <ButtonLink href={`/api/condominios/${condominio.id}/exportacoes/unidades`} variant="secondary"><Download size={16} />Exportar unidades</ButtonLink>
@@ -52,11 +52,10 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={<Home size={18} />} label="Unidades" value={String(unidades.length)} detail={`${unidadesAtivas} ativas`} />
         <Kpi icon={<Users size={18} />} label="Cobertura contatos" value={`${coberturaContato}%`} detail={`${contatosComTelefone} telefones · ${contatosComEmail} e-mails`} />
-        <Kpi icon={<Landmark size={18} />} label="Vencimento" value={`Dia ${condominio.vencimento_cota_dia ?? '-'}`} detail="referência da cota" />
-        <Kpi icon={<MessageCircle size={18} />} label="Régua" value={`D+${condominio.inicio_cobranca_dias ?? 0}`} detail="entrada na cobrança" />
+        <Kpi icon={<ClipboardList size={18} />} label="Importações" value={String(importacoes.length)} detail={ultimaImportacao ? `última em ${formatDateTime(ultimaImportacao.created_at)}` : 'sem importações'} />
         <Kpi icon={<Activity size={18} />} label="Eventos" value={String(eventos.length)} detail="auditoria operacional" />
       </section>
 

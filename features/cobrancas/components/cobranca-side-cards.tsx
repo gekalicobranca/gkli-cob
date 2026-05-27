@@ -29,14 +29,12 @@ export function CobrancaSideCards({ cobranca, acordoVigente, statusOperacional }
         <div className="mt-4 space-y-2 text-sm text-slate-600">
           <p>Etapa atual: {statusOperacional === 'novo' ? 'Entrada na régua' : statusOperacional}</p>
           <p>Próxima ação: revisar contato / disparo</p>
-          <p>Regra do condomínio: D+{cobranca.condominios?.inicio_cobranca_dias ?? '-'}</p>
         </div>
       </Card>
 
       <Card>
         <h2 className="text-lg font-semibold text-slate-950">Responsável</h2>
         <div className="mt-4 space-y-2 text-sm text-slate-600">
-          <p>Nome: {cobranca.unidades?.responsavel_nome ?? '-'}</p>
           <p>Documento: {cobranca.unidades?.responsavel_documento ?? '-'}</p>
           <p>Telefone: {cobranca.unidades?.telefone ?? '-'}</p>
           <p>E-mail: {cobranca.unidades?.email ?? '-'}</p>
@@ -46,10 +44,8 @@ export function CobrancaSideCards({ cobranca, acordoVigente, statusOperacional }
       <Card>
         <h2 className="text-lg font-semibold text-slate-950">Condomínio</h2>
         <div className="mt-4 space-y-2 text-sm text-slate-600">
-          <p>Nome: {cobranca.condominios?.nome ?? '-'}</p>
           <p>CNPJ: {cobranca.condominios?.cnpj ?? '-'}</p>
           <p>Administradora: {cobranca.condominios?.administradora ?? '-'}</p>
-          <p>Régua: D+{cobranca.condominios?.inicio_cobranca_dias ?? '-'}</p>
         </div>
       </Card>
 

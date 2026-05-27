@@ -50,7 +50,7 @@ export default async function AdministradoraDetalhePage({ params }: Props) {
       <PageHeader
         eyebrow="Administradoras"
         title={administradora.nome_operacional || administradora.nome}
-        description={`Razão social: ${administradora.nome}. Hub operacional da relação com a administradora: contatos, solicitações, SLA básico e pendências externas.`}
+        description="Hub operacional da relação com a administradora: contatos, solicitações, SLA básico e pendências externas."
         actions={<><ButtonLink href="/app/administradoras" variant="secondary">Voltar</ButtonLink><ButtonLink href="/app/administradoras/solicitacoes" variant="secondary">Solicitações ADM</ButtonLink></>}
       />
 
