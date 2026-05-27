@@ -8,6 +8,7 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getTemplateDetalhe } from '@/features/mensageria/queries'
 import { atualizarTemplateMensagem } from '@/features/mensageria/actions'
 import { TemplatePreview } from '@/features/mensageria/components/template-preview'
+import { TEMPLATE_CATEGORIES, categoryLabel } from '@/features/mensageria/render-template'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
 
 export default async function EditarTemplateMensageriaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,26 +45,23 @@ export default async function EditarTemplateMensageriaPage({ params }: { params:
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700" htmlFor="tipo">Tipo</label>
-              <Select id="tipo" name="tipo" defaultValue={template.tipo ?? 'cobranca'}>
+              <label className="text-sm font-medium text-slate-700" htmlFor="tipo_regua">Fluxo</label>
+              <Select id="tipo_regua" name="tipo_regua" defaultValue={template.tipo_regua ?? template.tipo ?? 'cobranca'}>
                 <option value="cobranca">Cobrança</option>
                 <option value="acordo">Acordo</option>
-                <option value="juridico">Jurídico</option>
-                <option value="manual">Manual</option>
               </Select>
+              <input type="hidden" name="tipo" value={template.tipo ?? 'cobranca'} />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700" htmlFor="canal">Canal</label>
-              <Select id="canal" name="canal" defaultValue={template.canal ?? 'whatsapp'}>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="email">E-mail</option>
-                <option value="sms">SMS</option>
+              <label className="text-sm font-medium text-slate-700" htmlFor="categoria">Situação</label>
+              <Select id="categoria" name="categoria" defaultValue={template.categoria ?? 'cobranca_inicial'}>
+                {TEMPLATE_CATEGORIES.map((categoria) => <option key={categoria} value={categoria}>{categoryLabel(categoria)}</option>)}
               </Select>
             </div>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.8fr)_minmax(320px,1fr)_160px] xl:items-end">
+          <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.8fr)_1fr_150px_140px_160px] xl:items-end">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700" htmlFor="carteira_id">Carteira autorizada</label>
               <Select id="carteira_id" name="carteira_id" defaultValue={template.carteira_id ?? ''} required={!scope.isAdmin}>
@@ -85,6 +83,10 @@ export default async function EditarTemplateMensageriaPage({ params }: { params:
               <label className="text-sm font-medium text-slate-700" htmlFor="assunto">Assunto</label>
               <Input id="assunto" name="assunto" defaultValue={template.assunto ?? ''} placeholder="Opcional para e-mail" />
             </div>
+
+            <div className="space-y-2"><label className="text-sm font-medium text-slate-700" htmlFor="intensidade">Intensidade</label><Select id="intensidade" name="intensidade" defaultValue={template.intensidade ?? 'medio'}><option value="leve">Leve</option><option value="medio">Médio</option><option value="agressivo">Agressivo</option></Select></div>
+            <div className="space-y-2"><label className="text-sm font-medium text-slate-700" htmlFor="canal">Canal</label><Select id="canal" name="canal" defaultValue={template.canal ?? 'whatsapp'}><option value="whatsapp">WhatsApp</option><option value="email">E-mail</option><option value="sms">SMS</option><option value="manual">Manual</option></Select></div>
+            <div className="space-y-2"><label className="text-sm font-medium text-slate-700" htmlFor="prioridade">Prioridade</label><Input id="prioridade" name="prioridade" type="number" defaultValue={String(template.prioridade ?? 0)} /></div>
 
             <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700">
               <input type="checkbox" name="ativo" defaultChecked={Boolean(template.ativo)} className="h-4 w-4 rounded border-slate-300" />

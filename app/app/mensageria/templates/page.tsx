@@ -5,7 +5,7 @@ import { ButtonLink } from '@/components/ui/button'
 import { EmptyState } from '@/components/data/empty-state'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { countReguaEtapasPorTemplate, listTemplates } from '@/features/mensageria/queries'
-import { renderTemplate, SAMPLE_TEMPLATE_VARIABLES } from '@/features/mensageria/render-template'
+import { categoryLabel, intensityLabel, renderTemplate, SAMPLE_TEMPLATE_VARIABLES } from '@/features/mensageria/render-template'
 
 function badge(label: string, tone = 'slate') {
   const tones: Record<string, string> = {
@@ -24,8 +24,8 @@ export default async function TemplatesMensageriaPage() {
   const usage = await countReguaEtapasPorTemplate(templates.map((template: any) => template.id))
 
   const ativos = templates.filter((template: any) => template.ativo).length
-  const cobranca = templates.filter((template: any) => template.tipo === 'cobranca').length
-  const acordo = templates.filter((template: any) => template.tipo === 'acordo').length
+  const cobranca = templates.filter((template: any) => (template.tipo_regua ?? template.tipo) === 'cobranca').length
+  const acordo = templates.filter((template: any) => (template.tipo_regua ?? template.tipo) === 'acordo').length
   const globais = templates.filter((template: any) => !template.carteira_id).length
 
   return (
@@ -81,17 +81,18 @@ export default async function TemplatesMensageriaPage() {
                 <Link
                   key={template.id}
                   href={`/app/mensageria/templates/${template.id}`}
-                  className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[1fr_150px_110px_110px_110px_120px] xl:items-center"
+                  className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[1fr_150px_150px_110px_110px_110px_90px] xl:items-center"
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-950">{template.nome}</p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{preview || template.conteudo}</p>
                   </div>
                   <div>{badge(template.carteira_id ? String(template.carteira_nome ?? 'Carteira específica') : 'Global', template.carteira_id ? 'blue' : 'green')}</div>
-                  <div>{badge(String(template.tipo ?? 'manual'), template.tipo === 'acordo' ? 'amber' : 'blue')}</div>
+                  <div>{badge(categoryLabel(template.categoria ?? template.tipo), (template.tipo_regua ?? template.tipo) === 'acordo' ? 'amber' : 'blue')}</div>
+                  <div>{badge(intensityLabel(template.intensidade), template.intensidade === 'agressivo' ? 'amber' : 'slate')}</div>
                   <div>{badge(String(template.canal ?? 'whatsapp'))}</div>
                   <div>{badge(template.ativo ? 'ativo' : 'inativo', template.ativo ? 'green' : 'slate')}</div>
-                  <div className="text-sm text-slate-500 xl:text-right">{usage.get(template.id) ?? 0} etapa(s)</div>
+                  <div className="text-sm text-slate-500 xl:text-right">P{template.prioridade ?? 0}</div>
                 </Link>
               )
             })}

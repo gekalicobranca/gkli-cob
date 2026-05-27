@@ -114,6 +114,24 @@ export async function getLoteDetalhe(id: string, scope: CarteiraScope) {
           )
         )
       ),
+      acordo:acordos(
+        id,
+        status,
+        status_financeiro,
+        valor_acordado,
+        data_acordo,
+        unidade:unidades(
+          id,
+          identificacao,
+          responsavel_nome,
+          telefone,
+          email,
+          condominio:condominios(
+            id,
+            nome
+          )
+        )
+      ),
       mensagem:mensagens!lote_itens_mensagem_id_fkey(
         id,
         canal,
@@ -159,7 +177,7 @@ export async function listTemplatesParaLote(scope: CarteiraScope, carteiraId?: s
 
   let query = supabase
     .from('mensagens_templates')
-    .select('id, nome, tipo, canal, assunto, ativo, carteira_id')
+    .select('id, nome, tipo, tipo_regua, categoria, intensidade, canal, assunto, ativo, carteira_id, prioridade')
     .eq('ativo', true)
     .order('nome', { ascending: true })
 

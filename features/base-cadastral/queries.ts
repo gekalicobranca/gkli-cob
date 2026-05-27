@@ -236,16 +236,32 @@ export async function listUnidadesCriticasDoCondominio(condominioId: string, sco
 
 export async function globalSearch(scope: CarteiraScope, term?: string) {
   const supabase = await createClient()
-  const q = String(term ?? '').trim().replace(/[%_]/g, '')
+  const q = String(term ?? '').trim().replace(/[%_,]/g, ' ')
   if (q.length < 2) return { condominios: [], unidades: [], cobrancas: [], acordos: [] }
 
+  const terms = q.split(/\s+/).filter(Boolean)
+  const primaryTerm = terms[0] ?? q
+  const lastTerm = terms.length > 1 ? terms[terms.length - 1] : q
   const digits = onlyDigits(q)
-  const condominioClauses = [`nome.ilike.%${q}%`, `administradora.ilike.%${q}%`, `cnpj.ilike.%${digits || q}%`]
-  const unidadeClauses = [`identificacao.ilike.%${q}%`, `bloco.ilike.%${q}%`, `responsavel_nome.ilike.%${q}%`, `email.ilike.%${q}%`, `telefone.ilike.%${digits || q}%`, `responsavel_documento.ilike.%${digits || q}%`]
+  const lastDigits = onlyDigits(lastTerm)
+  const condominioClauses = [`nome.ilike.%${q}%`, `nome_operacional.ilike.%${q}%`, `administradora.ilike.%${q}%`, `cnpj.ilike.%${digits || q}%`]
+  const unidadeClauses = [
+    `identificacao.ilike.%${q}%`,
+    `identificacao.ilike.%${lastTerm}%`,
+    `bloco.ilike.%${q}%`,
+    `bloco.ilike.%${lastTerm}%`,
+    `responsavel_nome.ilike.%${q}%`,
+    `responsavel_nome.ilike.%${primaryTerm}%`,
+    `email.ilike.%${q}%`,
+    `telefone.ilike.%${digits || q}%`,
+    `telefone.ilike.%${lastDigits || lastTerm}%`,
+    `responsavel_documento.ilike.%${digits || q}%`,
+    `responsavel_documento.ilike.%${lastDigits || lastTerm}%`,
+  ]
 
   let condominiosQuery = supabase
     .from('condominios')
-    .select('id, carteira_id, nome, cnpj, administradora, status, carteiras(nome)')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, administradora, status, carteiras(nome)')
     .or(condominioClauses.join(','))
     .order('nome', { ascending: true })
     .limit(8)
@@ -262,7 +278,7 @@ export async function globalSearch(scope: CarteiraScope, term?: string) {
   let cobrancasQuery = supabase
     .from('cobrancas')
     .select('id, carteira_id, competencia, vencimento, valor_atualizado, status_operacional, status_financeiro, condominios(nome), unidades(identificacao, responsavel_nome)')
-    .or(`competencia.ilike.%${q}%,status_operacional.ilike.%${q}%,status_financeiro.ilike.%${q}%`)
+    .or(`competencia.ilike.%${q}%,competencia.ilike.%${lastTerm}%,status_operacional.ilike.%${q}%,status_financeiro.ilike.%${q}%`)
     .order('vencimento', { ascending: false })
     .limit(8)
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)

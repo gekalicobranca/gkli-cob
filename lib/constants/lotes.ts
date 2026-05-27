@@ -29,6 +29,8 @@ export const LOTE_ITEM_STATUS = {
   ERRO: 'erro',
   APROVADO: 'aprovado',
   ENVIADO: 'enviado',
+  PAUSADO: 'pausado',
+  RETORNO_REGISTRADO: 'retorno_registrado',
   CANCELADO: 'cancelado',
 } as const
 
@@ -52,4 +54,6 @@ export const LOTE_STATUS_LABEL: Record<string, string> = {
   criado: 'Criado',
   pulada: 'Pulada',
   duplicada: 'Duplicada',
+  pausado: 'Pausado',
+  retorno_registrado: 'Retorno registrado',
 }

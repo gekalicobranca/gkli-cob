@@ -7,6 +7,8 @@ import { requireUser } from "@/utils/auth/require-user";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { sendSmtpEmail } from "@/features/mensageria/email-provider";
 import { registrarEventoOperacional } from "@/features/operacional/service";
+import { registrarRetornoComEfeitoRegua } from "@/features/regua/services/suspension";
+import { salvarScoreRegua } from "@/features/regua/services/intelligence";
 import { TEMPLATE_VARIABLES } from "@/features/mensageria/render-template";
 import {
   LOTE_ITEM_STATUS,
@@ -90,8 +92,12 @@ function getFormString(formData: FormData, key: string) {
 
 function templatePayloadFromForm(formData: FormData) {
   const nome = getFormString(formData, "nome");
-  const tipo = getFormString(formData, "tipo") || "cobranca";
+  const tipo_regua = getFormString(formData, "tipo_regua") || getFormString(formData, "tipo") || "cobranca";
+  const tipo = tipo_regua;
+  const categoria = getFormString(formData, "categoria") || (tipo_regua === "acordo" ? "lembrete_acordo" : "cobranca_inicial");
+  const intensidade = getFormString(formData, "intensidade") || "medio";
   const canal = getFormString(formData, "canal") || "whatsapp";
+  const prioridade = Number(getFormString(formData, "prioridade") || 0);
   const assunto = getFormString(formData, "assunto") || null;
   const conteudo = getFormString(formData, "conteudo");
   const ativo = formData.get("ativo") === "on";
@@ -104,7 +110,11 @@ function templatePayloadFromForm(formData: FormData) {
   return {
     nome,
     tipo,
+    tipo_regua,
+    categoria,
+    intensidade,
     canal,
+    prioridade: Number.isFinite(prioridade) ? prioridade : 0,
     assunto,
     conteudo,
     ativo,
@@ -513,7 +523,7 @@ async function getLoteResumo(supabase: SupabaseClient, loteId: string) {
 async function getLoteItemResumo(supabase: SupabaseClient, itemId: string) {
   const { data, error } = await supabase
     .from("lote_itens")
-    .select("id,lote_id,mensagem_id,status,cobranca_id,acordo_id")
+    .select("id,lote_id,mensagem_id,status,cobranca_id,acordo_id,unidade_id,condominio_id")
     .eq("id", itemId)
     .maybeSingle();
 
@@ -527,6 +537,8 @@ async function getLoteItemResumo(supabase: SupabaseClient, itemId: string) {
     status: string | null;
     cobranca_id: string | null;
     acordo_id: string | null;
+    unidade_id: string | null;
+    condominio_id: string | null;
   };
 }
 
@@ -584,6 +596,7 @@ export async function aprovarItemLote(itemId: string) {
     status_anterior: item.status,
     status_novo: LOTE_ITEM_STATUS.APROVADO,
   });
+
 
   await registrarEventoOperacional(supabase as any, {
     carteiraId: lote.carteira_id,
@@ -653,6 +666,7 @@ export async function cancelarItemLote(itemId: string, motivo = "Cancelado na re
     status_novo: LOTE_ITEM_STATUS.CANCELADO,
     descricao: motivo,
   });
+
 
   await registrarEventoOperacional(supabase as any, {
     carteiraId: lote.carteira_id,
@@ -975,6 +989,92 @@ export async function reprocessarFalhasLote(loteId: string) {
   });
 
   touchedPaths(loteId);
+}
+
+
+export async function registrarRetornoManualLoteItem(itemId: string, formData: FormData) {
+  const supabase = await createClient();
+  const user = await requireUser();
+  const retorno = getFormString(formData, "retorno_tipo") || "retorno_manual";
+  const observacao = getFormString(formData, "observacao") || null;
+  const pausarRegua = formData.get("pausar_regua") === "on";
+  const pausaDias = Number(getFormString(formData, "pausa_dias") || 0);
+  const now = new Date().toISOString();
+  const item = await getLoteItemResumo(supabase, itemId);
+  const lote = await getLoteResumo(supabase, item.lote_id);
+
+  const novoStatus = pausarRegua ? LOTE_ITEM_STATUS.PAUSADO : LOTE_ITEM_STATUS.RETORNO_REGISTRADO;
+
+  const { error: itemError } = await supabase
+    .from("lote_itens")
+    .update({
+      status: novoStatus,
+      operador_id: user.id,
+      retorno_tipo: retorno,
+      retorno_observacao: observacao,
+      retorno_origem: "manual",
+      retorno_registrado_em: now,
+      pausado_ate: pausarRegua && pausaDias > 0
+        ? new Date(Date.now() + pausaDias * 86400000).toISOString()
+        : null,
+    } as any)
+    .eq("id", itemId);
+
+  if (itemError) throw new Error(`Erro ao registrar retorno: ${itemError.message}`);
+
+  if (item.mensagem_id) {
+    await supabase
+      .from("mensagens")
+      .update({
+        status_operacional: "aguardando_retorno",
+        retorno_tipo: retorno,
+        retorno_observacao: observacao,
+        retorno_origem: "manual",
+        retorno_registrado_em: now,
+        updated_at: now,
+      } as any)
+      .eq("id", item.mensagem_id);
+  }
+
+  await logMensageria(supabase, {
+    carteira_id: lote.carteira_id,
+    lote_id: item.lote_id,
+    lote_item_id: item.id,
+    mensagem_id: item.mensagem_id,
+    evento: "retorno_manual_registrado",
+    status_anterior: item.status,
+    status_novo: novoStatus,
+    descricao: observacao,
+    payload: { retorno, pausar_regua: pausarRegua, pausa_dias: pausaDias },
+  });
+
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: lote.carteira_id,
+    entidadeTipo: item.cobranca_id ? "cobranca" : item.acordo_id ? "acordo" : "lote_mensagem",
+    entidadeId: item.cobranca_id ?? item.acordo_id ?? item.lote_id,
+    eventoCodigo: `retorno_manual.${retorno}`,
+    estadoAnterior: item.status ?? null,
+    estadoNovo: novoStatus,
+    titulo: "Retorno manual registrado",
+    descricao: observacao ?? `Retorno registrado: ${retorno.replaceAll("_", " ")}.`,
+    severidade: pausarRegua ? "alerta" : "info",
+    userId: user.id,
+    payload: {
+      origem: "manual",
+      lote_id: item.lote_id,
+      mensagem_id: item.mensagem_id ?? null,
+      cobranca_id: item.cobranca_id ?? null,
+      acordo_id: item.acordo_id ?? null,
+      retorno_tipo: retorno,
+      pausar_regua: pausarRegua,
+      pausa_dias: pausaDias,
+      preparado_para_webhook: true,
+    },
+  });
+
+  await recalcularStatusLote(item.lote_id);
+  touchedPaths(item.lote_id);
 }
 
 async function recalcularStatusLote(loteId: string) {

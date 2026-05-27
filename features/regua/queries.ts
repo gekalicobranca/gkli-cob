@@ -321,7 +321,7 @@ export async function carregarEtapasDeReguaAdmin(
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('regua_etapas')
-    .select('id, regua_id, ordem, delay_dias, canal, template, tom, ativo')
+    .select('id, regua_id, ordem, delay_dias, canal, template, template_id, categoria_template, tom, ativo')
     .eq('regua_id', reguaId)
     .eq('ativo', true)
     .order('ordem', { ascending: true })

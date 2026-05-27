@@ -21,6 +21,10 @@ import {
   selecionarEtapa,
 } from "../engine";
 import { carregarEtapasDeReguaAdmin } from "../queries";
+import { avaliarComplianceRegua } from "./compliance";
+import { verificarSuspensaoRegua } from "./suspension";
+import { salvarScoreRegua } from "./intelligence";
+import { resolveTemplateMensagem } from "@/features/mensageria/template-resolver";
 import type { ReguaTom } from "../types";
 import {
   cicloReferencia,
@@ -427,6 +431,33 @@ export async function processarReguaCobranca(
           cooldownDias,
         });
 
+        const suspensao = await verificarSuspensaoRegua({
+          carteiraId: row.carteira_id,
+          cobrancaId: row.id,
+          unidadeId: unidade?.id ?? null,
+          condominioId: condominio?.id ?? null,
+        });
+
+        if (suspensao.pausada) {
+          total.puladas += 1;
+          lote.contadores.puladas += 1;
+          itens.push({
+            cobrancaId: row.id,
+            status: LOTE_ITEM_STATUS.PULADA,
+            motivo: suspensao.motivo ?? "Régua pausada para esta cobrança/unidade/condomínio.",
+          });
+
+          await criarItemLote({
+            supabase,
+            loteId: lote.id,
+            row,
+            status: LOTE_ITEM_STATUS.PULADA,
+            motivo: suspensao.motivo ?? "Régua pausada para esta cobrança/unidade/condomínio.",
+            payload: { origem: "suspensao_inteligente", suspensao },
+          });
+          continue;
+        }
+
         if (!avaliacao.elegivel) {
           total.puladas += 1;
           lote.contadores.puladas += 1;
@@ -478,22 +509,77 @@ export async function processarReguaCobranca(
         });
 
         const contexto = {
+          carteira: row.carteira_id,
+          nome_carteira: row.carteira_id,
           responsavel: unidade?.responsavel_nome ?? "responsável",
           nome: unidade?.responsavel_nome ?? "responsável",
+          primeiro_nome: String(unidade?.responsavel_nome ?? "responsável").split(" ")[0],
           unidade: unidade?.identificacao ?? "unidade",
           condominio: condominio?.nome ?? "condomínio",
           competencia: row.competencia ?? "",
           vencimento: formatDateBR(row.vencimento),
           valor: formatMoneyBR(row.valor_atualizado ?? row.valor_original),
+          valor_total: formatMoneyBR(row.valor_atualizado ?? row.valor_original),
           dias_atraso: avaliacao.diasAtraso,
         };
 
-        const mensagem = montarMensagem({
+        const templateResolvido = await resolveTemplateMensagem({
+          carteiraId: row.carteira_id,
+          tipoRegua: "cobranca",
+          categoria: (etapa as any).categoria_template,
+          intensidade,
+          canal,
+          templateId: (etapa as any).template_id,
+          fallbackText: etapa.template,
+          variables: contexto,
+        });
+        const mensagem = templateResolvido.renderizado || montarMensagem({
           tipo: "cobranca",
           etapa,
           intensidade,
           contexto,
         });
+
+        const score = await salvarScoreRegua({
+          carteiraId: row.carteira_id,
+          cobrancaId: row.id,
+          unidadeId: unidade?.id ?? null,
+          condominioId: condominio?.id ?? null,
+          valor: row.valor_atualizado ?? row.valor_original,
+          diasAtraso: avaliacao.diasAtraso,
+          canal,
+        });
+
+        const compliance = await avaliarComplianceRegua({
+          carteiraId: row.carteira_id,
+          condominioId: condominio?.id ?? null,
+          unidadeId: unidade?.id ?? null,
+          cobrancaId: row.id,
+          destinatario,
+          canal,
+        });
+
+        if (!compliance.permitido) {
+          total.puladas += 1;
+          lote.contadores.puladas += 1;
+          itens.push({
+            cobrancaId: row.id,
+            status: LOTE_ITEM_STATUS.PULADA,
+            motivo: compliance.motivo ?? "Bloqueado por regra de compliance.",
+          });
+
+          await criarItemLote({
+            supabase,
+            loteId: lote.id,
+            row,
+            status: LOTE_ITEM_STATUS.PULADA,
+            motivo: compliance.motivo ?? "Bloqueado por regra de compliance.",
+            fingerprint,
+            reguaEtapaId,
+            payload: { mensagem, canal, destinatario, contexto, score, compliance, ciclo },
+          });
+          continue;
+        }
 
         if (!destinatario) {
           total.puladas += 1;
@@ -518,6 +604,9 @@ export async function processarReguaCobranca(
               destinatario,
               contexto,
               etapa_default_id: etapa.id,
+              template_resolvido: templateResolvido,
+              score,
+              compliance,
               ciclo,
             },
           });
@@ -554,6 +643,9 @@ export async function processarReguaCobranca(
               destinatario,
               contexto,
               etapa_default_id: etapa.id,
+              template_resolvido: templateResolvido,
+              score,
+              compliance,
               ciclo,
             },
           });
@@ -577,12 +669,16 @@ export async function processarReguaCobranca(
             lote_id: lote.id,
             regua_etapa_id: reguaEtapaId,
             fingerprint,
+            template_id: templateResolvido.templateId,
             payload: {
               origem: "regua_cobranca",
               ciclo,
               etapa_id: etapa.id,
+              template_resolvido: templateResolvido,
               dias_atraso: avaliacao.diasAtraso,
               inicio_cobranca_dias: avaliacao.inicio,
+              score,
+              compliance,
             },
           } as any)
           .select("id")
@@ -604,6 +700,7 @@ export async function processarReguaCobranca(
             destinatario,
             contexto,
             etapa_default_id: etapa.id,
+            template_resolvido: templateResolvido,
             ciclo,
           },
         });

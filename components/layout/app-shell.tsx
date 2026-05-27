@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { LogoutButton } from '@/components/auth/logout-button'
+import { GlobalOperationalSearch } from '@/components/search/global-operational-search'
 
 type SidebarItem = {
   label: string
@@ -436,15 +437,12 @@ export function AppShell({
 
       <main className="gkli-app-main min-w-0 flex-1">
         <div className="gkli-app-frame mx-auto max-w-[1480px] p-4 xl:p-5">
-          <header className="gkli-app-header z-30 mb-4 rounded-[1.35rem] border border-slate-200/75 bg-white/88 px-4 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/72">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <header className="gkli-app-header z-30 mb-4 rounded-[1.35rem] border border-slate-200/75 bg-white/88 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/72">
+            <div className="grid items-center gap-3 lg:grid-cols-[minmax(190px,260px)_minmax(320px,1fr)_auto]">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-[#d7eef5] bg-[#edf8fb] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#04799a]">
                     GKLI Cob
-                  </span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-500">
-                    Experiência Lite
                   </span>
                 </div>
                 <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950">
@@ -452,19 +450,13 @@ export function AppShell({
                 </h1>
               </div>
 
-              <div className="relative flex items-center gap-2">
-                <Link
-                  href="/app/busca"
-                  className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:text-[#04799a]"
-                >
-                  <span className="text-base">⌕</span>
-                  <span className="hidden sm:inline">Busca</span>
-                </Link>
+              <GlobalOperationalSearch />
 
+              <div className="relative flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setSettingsOpen((value) => !value)}
-                  className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800"
+                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800"
                   aria-expanded={settingsOpen}
                   aria-label="Abrir configurações"
                 >

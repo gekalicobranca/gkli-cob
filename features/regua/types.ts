@@ -10,6 +10,8 @@ export type ReguaEtapa = {
   delay_dias: number
   canal: ReguaCanal
   template: string
+  template_id?: string | null
+  categoria_template?: string | null
   tom: ReguaTom
   ativo?: boolean
 }

@@ -5,8 +5,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { ButtonLink } from '@/components/ui/button'
 import { EmptyState } from '@/components/data/empty-state'
 import { StatusBadge } from '@/components/data/status-badge'
-import { listTemplatesMensageria } from '@/features/mensageria/queries'
-import { listReguaEtapas } from '@/features/reguas/queries'
+import { countReguaEtapasPorTemplate, listTemplatesMensageria } from '@/features/mensageria/queries'
 
 function formatCanal(canal: string) {
   switch (canal) {
@@ -21,23 +20,10 @@ function formatCanal(canal: string) {
 }
 
 export default async function TemplatesMensageriaPage() {
-  const [templates, etapas] = await Promise.all([
-    listTemplatesMensageria(),
-    listReguaEtapas(),
-  ])
-
-  const usageByTemplateId = new Map<string, number>()
-
-  etapas.forEach((etapa: any) => {
-    const templateId = etapa.template_id
-
-    if (!templateId) return
-
-    usageByTemplateId.set(
-      templateId,
-      (usageByTemplateId.get(templateId) ?? 0) + 1
-    )
-  })
+  const templates = await listTemplatesMensageria()
+  const usageByTemplateId = await countReguaEtapasPorTemplate(
+    templates.map((template) => template.id)
+  )
 
   return (
     <div className="space-y-6">

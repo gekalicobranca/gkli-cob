@@ -55,6 +55,8 @@ export async function createCondominio(formData: FormData) {
   const valorCota = toNumber(formData.get('valor_cota_condominial'))
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
   const observacoes = String(formData.get('observacoes') ?? '').trim()
+  const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
+  const reguaAcordoId = String(formData.get('regua_acordo_id') ?? '').trim() || null
 
   if (!carteiraId) throw new Error('Carteira obrigatória.')
   if (nome.length < 2) throw new Error('Nome do condomínio obrigatório.')
@@ -68,6 +70,8 @@ export async function createCondominio(formData: FormData) {
     vencimento_cota_dia: vencimentoCotaDia,
     valor_cota_condominial: valorCota,
     inicio_cobranca_dias: inicioCobrancaDias,
+    regua_cobranca_id: reguaCobrancaId,
+    regua_acordo_id: reguaAcordoId,
     status: 'ativo',
     observacoes: observacoes || null,
   }
@@ -106,6 +110,8 @@ export async function updateCondominioIntegral(formData: FormData) {
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
   const status = String(formData.get('status') ?? 'ativo')
   const observacoes = String(formData.get('observacoes') ?? '').trim()
+  const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
+  const reguaAcordoId = String(formData.get('regua_acordo_id') ?? '').trim() || null
 
   if (!id) throw new Error('Condomínio obrigatório.')
   if (!carteiraId) throw new Error('Carteira obrigatória.')
@@ -116,7 +122,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const supabase = await createClient()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, cnpj, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, status, observacoes')
+    .select('id, carteira_id, nome, cnpj, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, regua_cobranca_id, regua_acordo_id, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -131,6 +137,8 @@ export async function updateCondominioIntegral(formData: FormData) {
     vencimento_cota_dia: vencimentoCotaDia,
     valor_cota_condominial: valorCota,
     inicio_cobranca_dias: inicioCobrancaDias,
+    regua_cobranca_id: reguaCobrancaId,
+    regua_acordo_id: reguaAcordoId,
     status,
     observacoes: observacoes || null,
   }

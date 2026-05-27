@@ -13,14 +13,17 @@ import { StatusBadge } from '@/components/data/status-badge'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
 import { getCondominioIntegral, listEventosDoCondominio, listImportacoesDoCondominio, listUnidadesDoCondominio } from '@/features/condominios/queries'
+import { listReguasForSelect } from '@/features/reguas/queries'
 import { updateCondominioIntegral } from '@/features/condominios/actions'
 
 export default async function CondominioIntegralPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const scope = await getPermittedCarteiras()
-  const [condominio, carteiras] = await Promise.all([
+  const [condominio, carteiras, reguasCobranca, reguasAcordo] = await Promise.all([
     getCondominioIntegral(id, scope),
     listCarteirasForSelect(scope),
+    listReguasForSelect(scope, 'cobranca'),
+    listReguasForSelect(scope, 'acordo'),
   ])
 
   if (!condominio) notFound()
@@ -62,6 +65,7 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
       <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         <Tab href="#cadastro" icon={<PencilLine size={15} />} label="Cadastro" />
         <Tab href="#cobranca" icon={<Landmark size={15} />} label="Cobrança" />
+        <Tab href="#reguas" icon={<Activity size={15} />} label="Réguas" />
         <Tab href="#unidades" icon={<Home size={15} />} label="Unidades" />
         <Tab href="#historico" icon={<History size={15} />} label="Histórico" />
         <Tab href="#auditoria" icon={<FileClock size={15} />} label="Auditoria" />
@@ -105,9 +109,23 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <FormField label="Início da cobrança após X dias"><Input name="inicio_cobranca_dias" type="number" min="0" max="365" defaultValue={condominio.inicio_cobranca_dias ?? 30} /></FormField>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            <p className="text-sm text-slate-800">Leitura operacional atual</p>
-            <p className="mt-2">A cobrança entra na régua <span className="text-slate-950">D+{condominio.inicio_cobranca_dias ?? 0}</span> após o vencimento da cota no dia <span className="text-slate-950">{condominio.vencimento_cota_dia ?? '-'}</span>.</p>
+          <div id="reguas" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            <p className="text-sm font-medium text-slate-800">Réguas vinculadas</p>
+            <p className="mt-2">Se nenhuma régua específica for selecionada, o motor usa a régua padrão da carteira ou o fallback do sistema.</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <FormField label="Régua de cobrança">
+                <Select name="regua_cobranca_id" defaultValue={condominio.regua_cobranca_id ?? ''}>
+                  <option value="">Usar padrão/fallback</option>
+                  {reguasCobranca.map((regua: any) => (<option key={regua.id} value={regua.id}>{regua.nome}{regua.carteiras?.nome ? ` · ${regua.carteiras.nome}` : ' · global'}</option>))}
+                </Select>
+              </FormField>
+              <FormField label="Régua de acordos">
+                <Select name="regua_acordo_id" defaultValue={condominio.regua_acordo_id ?? ''}>
+                  <option value="">Usar padrão/fallback</option>
+                  {reguasAcordo.map((regua: any) => (<option key={regua.id} value={regua.id}>{regua.nome}{regua.carteiras?.nome ? ` · ${regua.carteiras.nome}` : ' · global'}</option>))}
+                </Select>
+              </FormField>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">

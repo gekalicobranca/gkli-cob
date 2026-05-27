@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { Search, ArrowUpRight, Building2, Home, Handshake, WalletCards } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
@@ -75,7 +76,7 @@ export default async function BuscaGlobalPage({ searchParams }: BuscaPageProps) 
   )
 }
 
-function ResultGroup({ title, icon, empty, children }: { title: string; icon: React.ReactNode; empty: string; children: React.ReactNode }) {
+function ResultGroup({ title, icon, empty, children }: { title: string; icon: ReactNode; empty: string; children: ReactNode }) {
   const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children)
   return (
     <Card className="overflow-hidden p-0">

@@ -8,6 +8,10 @@ export type TemplateMensageria = {
   nome: string
   codigo: string | null
   tipo: string | null
+  tipo_regua?: string | null
+  categoria?: string | null
+  intensidade?: string | null
+  prioridade?: number | null
   canal: string
   assunto: string | null
   conteudo: string
@@ -75,7 +79,7 @@ export async function listTemplates(scope?: CarteiraScope): Promise<TemplateMens
 
   let query = supabase
     .from('mensagens_templates')
-    .select('id,nome,tipo,canal,assunto,conteudo,ativo,carteira_id,created_at,updated_at')
+    .select('id,nome,tipo,tipo_regua,categoria,intensidade,canal,assunto,conteudo,ativo,carteira_id,prioridade,created_at,updated_at')
     .order('nome', { ascending: true })
 
   query = applyCarteiraScopeWithGlobal(query, scope)
@@ -92,7 +96,7 @@ export async function listTemplates(scope?: CarteiraScope): Promise<TemplateMens
 
   return rows.map((row: any) => ({
     ...row,
-    codigo: row.tipo ?? null,
+    codigo: row.categoria ?? row.tipo ?? null,
     carteira_nome: row.carteira_id ? carteiraNome.get(row.carteira_id) ?? 'Carteira específica' : null,
   })) as TemplateMensageria[]
 }
@@ -107,7 +111,7 @@ export async function getTemplateById(id: string, scope?: CarteiraScope): Promis
 
   let query = supabase
     .from('mensagens_templates')
-    .select('id,nome,tipo,canal,assunto,conteudo,ativo,carteira_id,created_at,updated_at')
+    .select('id,nome,tipo,tipo_regua,categoria,intensidade,canal,assunto,conteudo,ativo,carteira_id,prioridade,created_at,updated_at')
     .eq('id', id)
 
   query = applyCarteiraScopeWithGlobal(query, scope)
@@ -125,7 +129,7 @@ export async function getTemplateById(id: string, scope?: CarteiraScope): Promis
   const carteiraNome = await getCarteiraNomeMap(row.carteira_id ? [row.carteira_id] : [])
   return {
     ...row,
-    codigo: row.tipo ?? null,
+    codigo: row.categoria ?? row.tipo ?? null,
     carteira_nome: row.carteira_id ? carteiraNome.get(row.carteira_id) ?? 'Carteira específica' : null,
   } as TemplateMensageria
 }

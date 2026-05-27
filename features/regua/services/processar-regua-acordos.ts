@@ -14,6 +14,10 @@ import {
 } from '@/lib/core/status'
 import { formatDateBR, formatMoneyBR, montarMensagem } from '../engine'
 import { carregarEtapasDeReguaAdmin, DEFAULT_ACORDO_ETAPAS } from '../queries'
+import { avaliarComplianceRegua } from './compliance'
+import { verificarSuspensaoRegua } from './suspension'
+import { salvarScoreRegua } from './intelligence'
+import { resolveTemplateMensagem } from '@/features/mensageria/template-resolver'
 import type { ReguaEtapa, ReguaTom } from '../types'
 import {
   cicloReferencia,
@@ -279,6 +283,23 @@ export async function processarReguaAcordos(
 
         try {
           const diasRelativos = diasRelativosAoVencimento(parcela.vencimento)
+          const condominio = acordo.condominios
+          const unidade = acordo.unidades
+
+          const suspensao = await verificarSuspensaoRegua({
+            carteiraId: acordo.carteira_id,
+            acordoId: acordo.id,
+            unidadeId: unidade?.id ?? acordo.unidade_id ?? null,
+            condominioId: condominio?.id ?? acordo.condominio_id ?? null,
+          })
+
+          if (suspensao.pausada) {
+            total.puladas += 1
+            lote.contadores.puladas += 1
+            itens.push({ acordoId: acordo.id, parcelaId: parcela.id, status: LOTE_ITEM_STATUS.PULADA, motivo: suspensao.motivo ?? 'Régua pausada para este acordo/unidade/condomínio.' })
+            await criarItemLote({ supabase, loteId: lote.id, acordo, parcela, status: LOTE_ITEM_STATUS.PULADA, motivo: suspensao.motivo ?? 'Régua pausada para este acordo/unidade/condomínio.', payload: { origem: 'suspensao_inteligente', suspensao, parcela_id: parcela.id } })
+            continue
+          }
 
           if (diasRelativos < -3) {
             total.puladas += 1
@@ -302,8 +323,6 @@ export async function processarReguaAcordos(
             continue
           }
 
-          const condominio = acordo.condominios
-          const unidade = acordo.unidades
           const etapas = await carregarEtapasDeReguaAdmin(condominio?.regua_acordo_id, 'acordo')
           const etapa = selecionarEtapaAcordo({ etapas, diasRelativos }) ?? etapas[0] ?? DEFAULT_ACORDO_ETAPAS[0]
           const canal = etapa?.canal ?? 'whatsapp'
@@ -320,7 +339,10 @@ export async function processarReguaAcordos(
           const tom = (etapa?.tom ?? (diasRelativos >= 2 ? 'agressivo' : diasRelativos >= 0 ? 'medio' : 'leve')) as ReguaTom
 
           const contexto = {
+            carteira: acordo.carteira_id,
+            nome_carteira: acordo.carteira_id,
             responsavel: unidade?.responsavel_nome ?? 'responsável',
+            nome: unidade?.responsavel_nome ?? 'responsável',
             primeiro_nome: String(unidade?.responsavel_nome ?? 'responsável').split(' ')[0],
             unidade: unidade?.identificacao ?? 'unidade',
             condominio: condominio?.nome ?? 'condomínio',
@@ -328,16 +350,54 @@ export async function processarReguaAcordos(
             valor: formatMoneyBR(parcela.valor),
             valor_parcela: formatMoneyBR(parcela.valor),
             valor_acordo: formatMoneyBR(acordo.valor_acordado),
+            parcela: parcela.numero ?? '',
             parcela_numero: parcela.numero ?? '',
             dias_atraso: Math.max(0, diasRelativos),
           }
 
-          const mensagem = montarMensagem({
+          const templateResolvido = await resolveTemplateMensagem({
+            carteiraId: acordo.carteira_id,
+            tipoRegua: 'acordo',
+            categoria: (etapa as any).categoria_template,
+            intensidade: tom,
+            canal,
+            templateId: (etapa as any).template_id,
+            fallbackText: etapa?.template,
+            variables: contexto,
+          })
+          const mensagem = templateResolvido.renderizado || montarMensagem({
             tipo: 'acordo',
             etapa,
             intensidade: tom,
             contexto,
           })
+
+          const score = await salvarScoreRegua({
+            carteiraId: acordo.carteira_id,
+            acordoId: acordo.id,
+            unidadeId: unidade?.id ?? acordo.unidade_id ?? null,
+            condominioId: condominio?.id ?? acordo.condominio_id ?? null,
+            valor: parcela.valor,
+            diasAtraso: Math.max(0, diasRelativos),
+            canal,
+          })
+
+          const compliance = await avaliarComplianceRegua({
+            carteiraId: acordo.carteira_id,
+            condominioId: condominio?.id ?? acordo.condominio_id ?? null,
+            unidadeId: unidade?.id ?? acordo.unidade_id ?? null,
+            acordoId: acordo.id,
+            destinatario,
+            canal,
+          })
+
+          if (!compliance.permitido) {
+            total.puladas += 1
+            lote.contadores.puladas += 1
+            itens.push({ acordoId: acordo.id, parcelaId: parcela.id, status: LOTE_ITEM_STATUS.PULADA, motivo: compliance.motivo ?? 'Bloqueado por regra de compliance.' })
+            await criarItemLote({ supabase, loteId: lote.id, acordo, parcela, status: LOTE_ITEM_STATUS.PULADA, motivo: compliance.motivo ?? 'Bloqueado por regra de compliance.', fingerprint, reguaEtapaId, payload: { canal, destinatario, contexto, template_resolvido: templateResolvido, parcela_id: parcela.id, score, compliance } })
+            continue
+          }
 
           if (!destinatario) {
             total.puladas += 1
@@ -358,7 +418,7 @@ export async function processarReguaAcordos(
               motivo: 'Responsável sem destinatário para o canal selecionado.',
               fingerprint,
               reguaEtapaId,
-              payload: { canal, destinatario, contexto, parcela_id: parcela.id },
+              payload: { canal, destinatario, contexto, template_resolvido: templateResolvido, parcela_id: parcela.id, score, compliance },
             })
             continue
           }
@@ -391,7 +451,7 @@ export async function processarReguaAcordos(
               fingerprint,
               reguaEtapaId,
               mensagemId: mensagemExistente.id,
-              payload: { canal, destinatario, contexto, parcela_id: parcela.id },
+              payload: { canal, destinatario, contexto, template_resolvido: templateResolvido, parcela_id: parcela.id, score, compliance },
             })
             continue
           }
@@ -413,7 +473,8 @@ export async function processarReguaAcordos(
               lote_id: lote.id,
               regua_etapa_id: reguaEtapaId,
               fingerprint,
-              payload: { contexto, parcela_id: parcela.id, dias_relativos_vencimento: diasRelativos },
+              template_id: templateResolvido.templateId,
+              payload: { contexto, template_resolvido: templateResolvido, parcela_id: parcela.id, dias_relativos_vencimento: diasRelativos, score, compliance },
             } as any)
             .select('id')
             .single()
@@ -430,7 +491,7 @@ export async function processarReguaAcordos(
             fingerprint,
             reguaEtapaId,
             mensagemId: mensagemCriada.id,
-            payload: { canal, destinatario, contexto, parcela_id: parcela.id },
+            payload: { canal, destinatario, contexto, template_resolvido: templateResolvido, parcela_id: parcela.id, score, compliance },
           })
 
           if (loteItemId) {

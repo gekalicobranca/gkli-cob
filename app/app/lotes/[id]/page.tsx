@@ -25,6 +25,10 @@ import {
   reprocessarFalhasLote,
   aprovarMensagem,
   cancelarMensagem,
+  aprovarItemLote,
+  cancelarItemLote,
+  atualizarMensagemDoLote,
+  registrarRetornoManualLoteItem,
   enviarMensagemEmail,
   marcarMensagemWhatsappEnviada,
 } from "@/features/mensageria/actions";
@@ -51,6 +55,10 @@ function statusClasses(status: string) {
     return "bg-slate-50 text-slate-600 border-slate-200";
   if (status === LOTE_ITEM_STATUS.ERRO)
     return "bg-red-50 text-red-700 border-red-200";
+  if (status === LOTE_ITEM_STATUS.PAUSADO)
+    return "bg-blue-50 text-blue-700 border-blue-200";
+  if (status === LOTE_ITEM_STATUS.RETORNO_REGISTRADO)
+    return "bg-indigo-50 text-indigo-700 border-indigo-200";
   return "bg-blue-50 text-blue-700 border-blue-200";
 }
 
@@ -307,7 +315,8 @@ export default async function LoteDetalhePage({ params }: PageProps) {
           <div className="divide-y divide-slate-100">
             {itens.map((item: any) => {
               const cobranca = item.cobranca;
-              const unidade = cobranca?.unidade;
+              const acordo = item.acordo;
+              const unidade = cobranca?.unidade || acordo?.unidade;
               const condominio = unidade?.condominio;
               const mensagem = item.mensagem;
               const conteudoFinal =
@@ -319,7 +328,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                   ? buildWhatsappWebUrl(destinatarioWhatsapp, conteudoFinal)
                   : "";
               const valor = numberValue(
-                cobranca?.valor_atualizado ?? cobranca?.valor_original,
+                cobranca?.valor_atualizado ?? cobranca?.valor_original ?? acordo?.valor_acordado,
               );
 
               return (
@@ -347,6 +356,9 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                     <p className="mt-3 text-sm text-slate-950">
                       {condominio?.nome || "Condomínio não identificado"}
                     </p>
+                    {acordo?.id ? (
+                      <p className="mt-1 text-xs text-blue-600">Item vinculado a acordo · status {acordo.status_financeiro || acordo.status}</p>
+                    ) : null}
                     <p className="mt-1 text-sm text-slate-500">
                       Unidade {unidade?.identificacao || "não identificada"}
                       {unidade?.responsavel_nome
@@ -373,14 +385,14 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                         ? `Venc. ${formatDateBR(cobranca.vencimento)}`
                         : "Sem vencimento"}
                     </p>
-                    {item.cobranca_id ? (
-                      <Link
-                        href={`/app/cobrancas/${item.cobranca_id}`}
-                        className="mt-2 inline-flex text-xs text-[var(--gkli-primary)] hover:underline"
-                      >
-                        Abrir cobrança
-                      </Link>
-                    ) : null}
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      {item.cobranca_id ? (
+                        <Link href={`/app/cobrancas/${item.cobranca_id}`} className="inline-flex text-xs text-[var(--gkli-primary)] hover:underline">Abrir cobrança</Link>
+                      ) : null}
+                      {item.acordo_id ? (
+                        <Link href={`/app/acordos/${item.acordo_id}`} className="inline-flex text-xs text-[var(--gkli-primary)] hover:underline">Abrir acordo</Link>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div>
@@ -479,6 +491,45 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
                       Controle
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <form action={aprovarItemLote.bind(null, item.id)}><ActionButton tone="secondary">Aprovar item</ActionButton></form>
+                      <form action={cancelarItemLote.bind(null, item.id, "Cancelado item a item na revisão operacional.")}><ActionButton tone="danger">Remover item</ActionButton></form>
+                    </div>
+                    {mensagem?.id ? (
+                      <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <summary className="cursor-pointer text-xs font-medium text-slate-700">Editar mensagem / canal</summary>
+                        <form action={atualizarMensagemDoLote.bind(null, mensagem.id)} className="mt-3 space-y-3">
+                          <select name="canal" defaultValue={mensagem.canal ?? "whatsapp"} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"><option value="whatsapp">WhatsApp</option><option value="email">E-mail</option></select>
+                          <input name="destinatario" defaultValue={mensagem.destinatario ?? ""} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs" placeholder="Destinatário" />
+                          <input type="hidden" name="template_id" value={mensagem.template_id ?? ""} />
+                          <textarea name="conteudo" defaultValue={conteudoFinal} className="min-h-24 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs" />
+                          <ActionButton tone="secondary">Salvar revisão</ActionButton>
+                        </form>
+                      </details>
+                    ) : null}
+                    <details className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-3">
+                      <summary className="cursor-pointer text-xs font-medium text-indigo-800">Registrar retorno manual</summary>
+                      <form action={registrarRetornoManualLoteItem.bind(null, item.id)} className="mt-3 space-y-3">
+                        <select name="retorno_tipo" defaultValue="sem_resposta" className="w-full rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs">
+                          <option value="prometeu_pagar">Prometeu pagar</option>
+                          <option value="pediu_boleto">Pediu boleto</option>
+                          <option value="aceitou_acordo">Aceitou acordo</option>
+                          <option value="quer_negociar">Quer negociar</option>
+                          <option value="contestou_divida">Contestou dívida</option>
+                          <option value="sem_resposta">Sem resposta</option>
+                          <option value="telefone_invalido">Telefone inválido</option>
+                          <option value="email_invalido">E-mail inválido</option>
+                          <option value="sindico_assumiu">Síndico assumiu</option>
+                          <option value="juridico">Jurídico</option>
+                        </select>
+                        <textarea name="observacao" className="min-h-20 w-full rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs" placeholder="Observação do operador" />
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <label className="inline-flex items-center gap-2 text-xs text-indigo-800"><input name="pausar_regua" type="checkbox" /> Pausar régua</label>
+                          <input name="pausa_dias" type="number" min="0" defaultValue="5" className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs" />
+                        </div>
+                        <ActionButton tone="secondary">Salvar retorno</ActionButton>
+                      </form>
+                    </details>
                     <p className="mt-1 break-all text-xs text-slate-500">
                       {item.fingerprint || "Sem fingerprint"}
                     </p>

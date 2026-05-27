@@ -12,6 +12,8 @@ const CONDOMINIO_SELECT = `
   vencimento_cota_dia,
   valor_cota_condominial,
   inicio_cobranca_dias,
+  regua_cobranca_id,
+  regua_acordo_id,
   status,
   observacoes,
   created_at,
