@@ -118,7 +118,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                 <Input
                   name="q"
                   className="pl-9"
-                  placeholder="Nome, CNPJ ou administradora"
+                  placeholder="Nome, nome operacional, CNPJ ou administradora"
                   defaultValue={filters.search ?? ''}
                 />
               </div>
@@ -181,10 +181,10 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
               >
                 <Link href={`/app/condominios/${row.id}`} className="group min-w-0">
                   <p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]">
-                    {row.nome || 'Nome não informado'}
+                    {row.nome_operacional || row.nome || 'Nome não informado'}
                   </p>
                   <p className="mt-1 truncate text-xs text-slate-500">
-                    {row.administradora ?? '-'} · CNPJ {row.cnpj ?? '-'} · {row.carteiras?.nome ?? '-'}
+                    {row.nome_operacional && row.nome_operacional !== row.nome ? `Oficial: ${row.nome} · ` : ''}{row.administradora ?? '-'} · CNPJ {row.cnpj ?? '-'} · {row.carteiras?.nome ?? '-'}
                   </p>
                 </Link>
 

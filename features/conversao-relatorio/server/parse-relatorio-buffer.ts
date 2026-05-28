@@ -75,6 +75,20 @@ type ParseResult =
   | { ok: true; preview: ConversaoPreview }
   | { ok: false; error: string };
 
+type PdfTextQualityReport = {
+  ok: boolean;
+  score: number;
+  motivo?: string;
+  detalhes: {
+    caracteres: number;
+    controles: number;
+    ratioControles: number;
+    palavrasLegiveis: number;
+    sinaisSuperlogica: number;
+    blocosSuperlogica: number;
+  };
+};
+
 type ReciboCondopro = {
   bloco: string;
   unidade: string;
@@ -1156,8 +1170,38 @@ function ensurePdfServerPolyfills() {
   }
 }
 
-function normalizePdfText(value: string) {
+function repairDuplicatedGlyphLine(line: string) {
+  // Alguns PDFs do Hflex/LiveFacilities chegam com glifos duplicados no texto
+  // extraído: "RREELLAATTÓÓRRIIOO", "CCPPFF", "PPRROOPPRRIIEETTÁÁRRIIOO".
+  // A correção é aplicada somente quando a linha tem forte padrão de caracteres
+  // adjacentes repetidos, evitando alterar nomes/endereços legítimos.
+  if (line.length < 8) return line;
+
+  let adjacentDuplicates = 0;
+  let comparable = 0;
+  for (let index = 0; index + 1 < line.length; index += 1) {
+    const current = line[index];
+    const next = line[index + 1];
+    if (/\s/.test(current) || /\s/.test(next)) continue;
+    comparable += 1;
+    if (current === next) adjacentDuplicates += 1;
+  }
+
+  const ratio = comparable > 0 ? adjacentDuplicates / comparable : 0;
+  if (ratio < 0.28) return line;
+
+  return line.replace(/([^\s])\1/g, "$1");
+}
+
+function repairDuplicatedGlyphText(value: string) {
   return value
+    .split("\n")
+    .map((line) => repairDuplicatedGlyphLine(line))
+    .join("\n");
+}
+
+function normalizePdfText(value: string) {
+  return repairDuplicatedGlyphText(value)
     .replace(/\r/g, "\n")
     .replace(/\f/g, "\n")
     .replace(/\u00a0/g, " ")
@@ -1183,6 +1227,153 @@ function hasAnyRegexMatch(value: string, regexes: RegExp[]) {
 
 function getPdfTextSample(value: string) {
   return normalizePdfText(value).slice(0, 240);
+}
+
+function analyzePdfTextQuality(text: string): PdfTextQualityReport {
+  const normalized = normalizePdfText(text);
+  const loose = normalizeForLooseMatch(normalized);
+  const caracteres = normalized.length;
+  const controles = countRegexMatches(
+    normalized,
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,
+  );
+  const ratioControles = caracteres > 0 ? controles / caracteres : 1;
+  const palavrasLegiveis = countRegexMatches(
+    loose,
+    /\b(?:RELATORIO|UNIDADES|CONDOMINIO|SUBCONDOMINIO|ENDERECO|CNPJ|BLOCO|UNIDADE|CODIGO|CLIENTE|DADOS|PESSOAIS|TELEFONE|EMAIL|PAGADOR|RATEIO|PROCESSADO|PROPRIETARIO|INQUILINO|TIPO|PESSOA)\b/g,
+  );
+  const sinaisSuperlogica = [
+    /RELATORIO\s+DE\s+UNIDADES/,
+    /CONDOMINIO\s*:\s*\d+\s*-/,
+    /CNPJ\s*:\s*\d{2}/,
+    /BLOCO\s*:?\s*\S+\s+UNIDADE\s*:?/,
+    /CODIGO\s+DO\s+CLIENTE/,
+    /ENDERECO\s+DE\s+COBRANCA/,
+    /DADOS\s+PESSOAIS/,
+    /TELEFONE\s*\/?\s*E\s*-?\s*MAIL/,
+    /DADOS\s+DO\s+PAGADOR/,
+    /TIPO\s+DE\s+UNIDADE/,
+  ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
+  const sinaisHflex = [
+    /RELATORIO\s+DE\s+UNIDADES/,
+    /PROCESSADO\s+EM/,
+    /(?:SUB)?CONDOMINIO|BLOCOS\s*:\s*\d+\s+UNIDADES\s*:\s*\d+/,
+    /TIPO\s+PESSOA/,
+    /PROPRIETARIO|INQUILINO|CO-PROPRIETARIO/,
+    /TELEFONE\s+(?:COMERCIAL|RESIDENCIAL|CELULAR)/,
+    /E\s*-?\s*MAIL\s+(?:COMERCIAL|PESSOAL)|EMAIL\s+(?:COMERCIAL|PESSOAL)/,
+    /CPF\s*:\s*\d|CNPJ\s*:\s*\d/,
+  ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
+  const blocosSuperlogica = countRegexMatches(
+    loose,
+    /(?:^|\n)\s*BLOCO\s*:?\s*\S+\s+UNIDADE\s*:?\s*[^\n]{1,140}?(?:CODIGO|C[OÓ]DIGO)\s+DO\s+CLIENTE/g,
+  );
+  const blocosHflex = countRegexMatches(
+    loose,
+    /(?:^|\n)\s*\d{3,8}\s+[A-Z0-9][A-Z0-9 .'-]{1,60}\s*(?:\n|$)/g,
+  );
+
+  const isSuperlogica = sinaisSuperlogica >= 5 && blocosSuperlogica > 0;
+  const isHflex = sinaisHflex >= 5 && blocosHflex > 0;
+
+  let score = 100;
+  if (caracteres < 1200) score -= 45;
+  if (ratioControles > 0.01) score -= 45;
+  if (ratioControles > 0.03) score -= 30;
+  if (palavrasLegiveis < 12) score -= 25;
+  if (!isSuperlogica && !isHflex) score -= 25;
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  const detalhes = {
+    caracteres,
+    controles,
+    ratioControles,
+    palavrasLegiveis,
+    sinaisSuperlogica: Math.max(sinaisSuperlogica, sinaisHflex),
+    blocosSuperlogica: Math.max(blocosSuperlogica, blocosHflex),
+  };
+
+  if (caracteres < 1200) {
+    return {
+      ok: false,
+      score,
+      motivo: "texto extraído curto demais para leitura segura",
+      detalhes,
+    };
+  }
+
+  if (ratioControles > 0.01 || palavrasLegiveis < 12) {
+    return {
+      ok: false,
+      score,
+      motivo:
+        "texto extraído com caracteres corrompidos/encoding inconsistente",
+      detalhes,
+    };
+  }
+
+  if (!isSuperlogica && !isHflex) {
+    return {
+      ok: false,
+      score,
+      motivo: "estrutura do relatório não foi reconhecida com segurança",
+      detalhes,
+    };
+  }
+
+  return {
+    ok: true,
+    score,
+    detalhes,
+  };
+}
+
+function buildPdfQualityError(report: PdfTextQualityReport) {
+  return [
+    "PDF descartado: a extração de texto não tem qualidade suficiente para gerar a importação de unidades com segurança.",
+    report.motivo ? `Motivo: ${report.motivo}.` : "",
+    `Score de leitura: ${report.score}/100.`,
+    "Envie um PDF gerado diretamente pelo sistema de origem com texto selecionável/legível. Nesta etapa não usamos OCR para evitar importação incorreta.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildUnidadesInconsistencias(unidades: UnidadeConversaoPreview[]) {
+  const inconsistencias: string[] = [];
+  const seen = new Set<string>();
+
+  unidades.forEach((unidade, index) => {
+    const linha = index + 2;
+    const key =
+      `${unidade.bloco || "0"}::${unidade.identificacao}`.toUpperCase();
+
+    if (seen.has(key)) {
+      inconsistencias.push(
+        `Linha ${linha}: unidade duplicada na prévia (${unidade.bloco || "0"}/${unidade.identificacao}).`,
+      );
+    }
+    seen.add(key);
+
+    if (!unidade.identificacao)
+      inconsistencias.push(`Linha ${linha}: identificação da unidade vazia.`);
+    if (
+      !unidade.responsavelNome ||
+      unidade.responsavelNome === "Responsável não identificado"
+    ) {
+      inconsistencias.push(`Linha ${linha}: responsável não identificado.`);
+    }
+    if (!unidade.responsavelDocumento) {
+      inconsistencias.push(
+        `Linha ${linha}: CPF/CNPJ do responsável não localizado.`,
+      );
+    }
+    if (!unidade.telefone && !unidade.email) {
+      inconsistencias.push(`Linha ${linha}: sem telefone e sem e-mail.`);
+    }
+  });
+
+  return inconsistencias;
 }
 
 function isPdfInput(input: ParseInput) {
@@ -1219,12 +1410,37 @@ function cleanDocument(value: string) {
 
 function cleanPhone(value: string) {
   const digits = onlyDigits(value);
+
+  if (digits.length === 11) {
+    return digits.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  }
+
+  if (digits.length === 10) {
+    return digits.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
+  }
+
+  if (digits.length > 11 && digits.startsWith("55")) {
+    const withoutCountry = digits.slice(2);
+    if (withoutCountry.length === 11) {
+      return withoutCountry.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+    }
+    if (withoutCountry.length === 10) {
+      return withoutCountry.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
+    }
+  }
+
   return digits || normalize(value);
 }
 
 function extractFirstPhone(value: string) {
-  const match = normalize(value).match(
-    /(?:\(?\d{2}\)?\s*)?(?:9\s*)?\d{4}[-\s]?\d{4}/,
+  const normalized = normalize(value);
+  const labeledMatch = normalized.match(
+    /(?:Celular|Telefone\s+(?:residencial|comercial)|Outros?)\s*-\s*((?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9[.\s-]*)?\d{4,5}[.\s-]?\d{4})/i,
+  );
+  if (labeledMatch) return cleanPhone(labeledMatch[1]);
+
+  const match = normalized.match(
+    /(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9[.\s-]*)?\d{4,5}[.\s-]?\d{4}/,
   );
   return match ? cleanPhone(match[0]) : "";
 }
@@ -1236,12 +1452,126 @@ function extractFirstEmail(value: string) {
   return match ? match[0].toLowerCase() : "";
 }
 
+function uniqueValues(values: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const normalized = normalize(value);
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) continue;
+    seen.add(key);
+    result.push(normalized);
+  }
+
+  return result;
+}
+
+function extractEmails(value: string) {
+  const matches =
+    normalize(value).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [];
+  return uniqueValues(matches.map((email) => email.toLowerCase()));
+}
+
+type PhoneCandidate = {
+  value: string;
+  label: "celular" | "comercial" | "residencial" | "outros";
+  index: number;
+};
+
+function extractPhoneCandidates(value: string) {
+  const normalized = normalize(value);
+  const candidates: PhoneCandidate[] = [];
+  const labeledRegex =
+    /(Celular|Telefone\s+comercial|Telefone\s+residencial|Outros?)\s*-?\s*:?\s*((?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9[.\s-]*)?\d{4,5}[.\s-]?\d{4})/gi;
+
+  for (const match of normalized.matchAll(labeledRegex)) {
+    const rawLabel = normalize(match[1]).toLowerCase();
+    const label = rawLabel.includes("celular")
+      ? "celular"
+      : rawLabel.includes("comercial")
+        ? "comercial"
+        : rawLabel.includes("residencial")
+          ? "residencial"
+          : "outros";
+    candidates.push({
+      value: cleanPhone(match[2]),
+      label,
+      index: match.index ?? 0,
+    });
+  }
+
+  if (!candidates.length) {
+    const looseRegex =
+      /(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9[.\s-]*)?\d{4,5}[.\s-]?\d{4}/g;
+    for (const match of normalized.matchAll(looseRegex)) {
+      const phone = cleanPhone(match[0]);
+      const digits = onlyDigits(phone);
+      candidates.push({
+        value: phone,
+        label:
+          digits.length >= 11 && digits.slice(-9).startsWith("9")
+            ? "celular"
+            : "outros",
+        index: match.index ?? 0,
+      });
+    }
+  }
+
+  return candidates.filter(
+    (candidate) => onlyDigits(candidate.value).length >= 8,
+  );
+}
+
+function extractContactSummary(value: string) {
+  const emails = extractEmails(value);
+  const phones = extractPhoneCandidates(value);
+  const labelPriority: Record<PhoneCandidate["label"], number> = {
+    celular: 0,
+    comercial: 1,
+    residencial: 2,
+    outros: 3,
+  };
+  const sortedPhones = [...phones].sort((a, b) => {
+    const priority = labelPriority[a.label] - labelPriority[b.label];
+    return priority !== 0 ? priority : a.index - b.index;
+  });
+  const uniquePhones = uniqueValues(sortedPhones.map((phone) => phone.value));
+  const telefone = uniquePhones[0] ?? "";
+  const email = emails[0] ?? "";
+
+  return {
+    telefone,
+    email,
+    telefonesAdicionais: uniquePhones.filter((phone) => phone !== telefone),
+    emailsAdicionais: emails.filter((item) => item !== email),
+  };
+}
+
+function formatAdditionalContactsObservacao(summary: {
+  telefonesAdicionais?: string[];
+  emailsAdicionais?: string[];
+}) {
+  const parts: string[] = [];
+  if (summary.telefonesAdicionais?.length) {
+    parts.push(
+      `Telefones adicionais: ${summary.telefonesAdicionais.join(", ")}`,
+    );
+  }
+  if (summary.emailsAdicionais?.length) {
+    parts.push(`E-mails adicionais: ${summary.emailsAdicionais.join(", ")}`);
+  }
+  return parts;
+}
+
 type PessoaUnidadePdf = {
   nome: string;
   papel: string;
   documento: string;
   telefone: string;
   email: string;
+  telefonesAdicionais: string[];
+  emailsAdicionais: string[];
   tipoPessoa: string;
 };
 
@@ -1272,8 +1602,10 @@ function parsePessoaFromPdfChunk(
     ? normalize(condominioDetectado)
     : "";
   let rawNome = normalize(roleMatch[1])
+    .replace(/^\d{3,8}\s+[A-Z0-9 .'-]{1,50}\s+/i, "")
+    .replace(/^#?\d{2,10}\s+/, "")
     .replace(/^#?[A-Z0-9]+\s+/, "")
-    .replace(/^(CIPO|TORRE DO CIP[ÓO])\s+/i, "")
+    .replace(/^(CIPO|TORRE DO CIP[ÓO]|OFFICE|EDIFICIO OFFICE TAMBORE)\s+/i, "")
     .trim();
 
   if (condominioPrefix) {
@@ -1291,18 +1623,17 @@ function parsePessoaFromPdfChunk(
   const tipoPessoa = /TIPO PESSOA\s*:\s*JUR[ÍI]DICA/i.test(joined)
     ? "Jurídica"
     : "Física";
-  const docMatch = joined.match(/\b(?:CPF|CNPJ)\s*:\s*([0-9.\/\-]+)/i);
-  const telefoneMatch = joined.match(
-    /TELEFONE\s+(?:CELULAR|RESIDENCIAL|COMERCIAL)(?:\s*\d)?\s*:\s*([()0-9\s+\-]+)/i,
-  );
-  const emailMatch = joined.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const docMatch = joined.match(/\b(?:CPF|CNPJ)\s*:\s*([0-9.\/\-]{5,24})/i);
+  const contacts = extractContactSummary(joined);
 
   return {
     nome,
     papel,
     documento: docMatch ? cleanDocument(docMatch[1]) : "",
-    telefone: telefoneMatch ? cleanPhone(telefoneMatch[1]) : "",
-    email: emailMatch ? emailMatch[0].toLowerCase() : "",
+    telefone: contacts.telefone,
+    email: contacts.email,
+    telefonesAdicionais: contacts.telefonesAdicionais,
+    emailsAdicionais: contacts.emailsAdicionais,
     tipoPessoa,
   };
 }
@@ -1353,35 +1684,62 @@ function extractHflexCondominio(text: string) {
 
 function splitUnitPdfBlocks(text: string) {
   const normalized = normalizePdfText(text);
-  const unitRegex = /(?:^|\n)(\d{3,8})\s+([^\n]{2,120})(?=\n|$)/gi;
-  const allMatches = [...normalized.matchAll(unitRegex)];
-  const matches = allMatches.filter((match) => {
-    const rest = normalize(match[2]);
-    if (/^(CPF|CNPJ|RG|TELEFONE|E-MAIL|EMAIL|TIPO\s+PESSOA)\b/i.test(rest))
-      return false;
+  const lines = normalized.split("\n");
+  const matches: Array<{
+    index: number;
+    identificacao: string;
+    tipo: string;
+  }> = [];
+  let offset = 0;
 
-    const start = match.index ?? 0;
-    const nextCandidate = allMatches.find(
-      (candidate) => (candidate.index ?? 0) > start,
+  for (const line of lines) {
+    const clean = normalize(line);
+    const match = clean.match(
+      /^(?:UNIDADE\s*)?(\d{3,8})\s+([A-ZÀ-Ü0-9][A-ZÀ-Ü0-9 .'-]{0,80})$/i,
     );
-    const end =
-      nextCandidate?.index ?? Math.min(normalized.length, start + 2500);
-    const block = normalized.slice(start, end);
+    if (match) {
+      const label = normalize(match[2]);
+      const upperLabel = normalizeForLooseMatch(label);
+      const isField =
+        /^(CPF|CNPJ|RG|TELEFONE|E-MAIL|EMAIL|TIPO\s+PESSOA|ENDERECO|PROCESSADO|POR\b)/i.test(
+          label,
+        );
+      const looksLikeUnitLabel =
+        !isField &&
+        !/\b(PROPRIETARIO|INQUILINO|CO-PROPRIETARIO)\b/.test(upperLabel) &&
+        label.length <= 80;
+      if (looksLikeUnitLabel) {
+        matches.push({
+          index: offset,
+          identificacao: match[1],
+          tipo: label,
+        });
+      }
+    }
+    offset += line.length + 1;
+  }
 
+  const filtered = matches.filter((match, index) => {
+    const nextIndex =
+      index + 1 < matches.length
+        ? matches[index + 1].index
+        : Math.min(normalized.length, match.index + 2600);
+    const block = normalized.slice(match.index, nextIndex);
     return (
       /\b(PROPRIET[ÁA]RIO|CO-PROPRIET[ÁA]RIO|INQUILINO)\b/i.test(block) &&
       /\b(TIPO\s+PESSOA|CPF|CNPJ|TELEFONE|E-MAIL|EMAIL)\b/i.test(block)
     );
   });
 
-  return matches.map((match, index) => {
-    const start = match.index ?? 0;
+  return filtered.map((match, index) => {
+    const start = match.index;
     const nextStart =
-      index + 1 < matches.length
-        ? (matches[index + 1].index ?? normalized.length)
+      index + 1 < filtered.length
+        ? filtered[index + 1].index
         : normalized.length;
     return {
-      identificacao: match[1],
+      identificacao: match.identificacao,
+      tipo: match.tipo,
       text: normalized.slice(start, nextStart),
     };
   });
@@ -1428,7 +1786,9 @@ function detectHflexLiveFacilitiesUnidades(text: string) {
   );
   const hasLiveFacilitiesShape =
     (hits >= 5 && unidadeMatches > 0) ||
-    (looseHits >= 5 && (unidadeMatches > 0 || unidadeLooseMatches > 0) && pessoaSignals > 0);
+    (looseHits >= 5 &&
+      (unidadeMatches > 0 || unidadeLooseMatches > 0) &&
+      pessoaSignals > 0);
   const condominioDetectado = extractHflexCondominio(normalized);
 
   const baseHits = Math.max(hits, looseHits);
@@ -1506,9 +1866,13 @@ function detectSuperlogicaUnidades(text: string) {
     /RELATORIO\s+DE\s+UNIDADES\s*-?\s*COMPLETO/,
     /CONDOMINIO\s*:\s*\d+\s*-/,
   ]);
-  const hasUnitShape = unidadeMatches > 0 || looseUnitHeaderMatches > 0 || looseUnitLineMatches > 0;
+  const hasUnitShape =
+    unidadeMatches > 0 ||
+    looseUnitHeaderMatches > 0 ||
+    looseUnitLineMatches > 0;
   const hasSuperlogicaShape =
-    (hits >= 6 && hasUnitShape) || (hasCoreIdentity && hits >= 5 && hasUnitShape);
+    (hits >= 6 && hasUnitShape) ||
+    (hasCoreIdentity && hits >= 5 && hasUnitShape);
   const condominioDetectado = extractSuperlogicaCondominio(normalized);
   const unidadeSignal = Math.max(
     unidadeMatches,
@@ -1657,10 +2021,11 @@ function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
         block.text,
       );
 
-    const telefone =
-      extractFirstPhone(contatoCliente) || extractFirstPhone(contatoUnidade);
-    const email =
-      extractFirstEmail(contatoCliente) || extractFirstEmail(contatoUnidade);
+    const contatos = extractContactSummary(
+      [contatoUnidade, contatoCliente].filter(Boolean).join("\n"),
+    );
+    const telefone = contatos.telefone;
+    const email = contatos.email;
     const documento = documentoMatch ? cleanDocument(documentoMatch[2]) : "";
     const tipo =
       normalize(tipoUnidadeMatch?.[1] ?? "Apartamento") || "Apartamento";
@@ -1671,6 +2036,7 @@ function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
       block.bloco ? `Bloco: ${block.bloco}` : "",
       tipoPessoa ? `Tipo pessoa: ${tipoPessoa}` : "",
       hasLocatario ? "Unidade com indicação de locatário no relatório" : "",
+      ...formatAdditionalContactsObservacao(contatos),
     ]
       .filter(Boolean)
       .join(" | ");
@@ -1739,6 +2105,7 @@ function parseUnidadesPdf(
       `Papel importado: ${principal.papel}`,
       pessoas.length > 1 ? `Outros vínculos no PDF: ${papeis}` : "",
       principal.tipoPessoa ? `Tipo pessoa: ${principal.tipoPessoa}` : "",
+      ...formatAdditionalContactsObservacao(principal),
     ]
       .filter(Boolean)
       .join(" | ");
@@ -1746,7 +2113,7 @@ function parseUnidadesPdf(
     unidades.push({
       identificacao: block.identificacao,
       bloco: "",
-      tipo: "Apartamento",
+      tipo: normalize(block.tipo) || "Unidade",
       responsavelNome: principal.nome,
       responsavelDocumento: principal.documento,
       telefone: principal.telefone,
@@ -1756,7 +2123,35 @@ function parseUnidadesPdf(
     });
   }
 
-  return unidades;
+  const deduped = new Map<string, UnidadeConversaoPreview>();
+  for (const unidade of unidades) {
+    const key = unidade.identificacao.toUpperCase();
+    const current = deduped.get(key);
+    if (!current) {
+      deduped.set(key, unidade);
+      continue;
+    }
+    deduped.set(key, {
+      ...current,
+      responsavelNome:
+        current.responsavelNome === "Responsável não identificado" &&
+        unidade.responsavelNome
+          ? unidade.responsavelNome
+          : current.responsavelNome,
+      responsavelDocumento:
+        current.responsavelDocumento || unidade.responsavelDocumento,
+      telefone: current.telefone || unidade.telefone,
+      email: current.email || unidade.email,
+      observacoes: [
+        current.observacoes,
+        "Registro duplicado no PDF consolidado pelo conversor",
+      ]
+        .filter(Boolean)
+        .join(" | "),
+    });
+  }
+
+  return [...deduped.values()];
 }
 
 function buildRowsUnidadesPadraoGkli(
@@ -1865,7 +2260,7 @@ function buildPreviewFromUnidadesPdf({
       padraoDetectado,
       cobrancas: [],
       unidades,
-      inconsistencias: [],
+      inconsistencias: buildUnidadesInconsistencias(unidades),
       csv: buildCsvUnidadesPadraoGkli(unidades, condominioCnpj),
       xlsxBase64: buildXlsxBase64UnidadesPadraoGkli(unidades, condominioCnpj),
     },
@@ -1873,16 +2268,16 @@ function buildPreviewFromUnidadesPdf({
 }
 
 async function parseUnidades(input: ParseInput): Promise<ParseResult> {
-  if (!input.condominioCnpj) {
-    return {
-      ok: false,
-      error:
-        "Selecione o condomínio para converter unidades. O arquivo de importação exige condominio_cnpj.",
-    };
-  }
-
   if (isPdfInput(input)) {
     const text = await extractPdfText(input);
+    const qualidadeTexto = analyzePdfTextQuality(text);
+    if (!qualidadeTexto.ok) {
+      return {
+        ok: false,
+        error: buildPdfQualityError(qualidadeTexto),
+      };
+    }
+
     const deteccaoSuperlogica = detectSuperlogicaUnidades(text);
     const deteccaoHflex = detectHflexLiveFacilitiesUnidades(text);
 

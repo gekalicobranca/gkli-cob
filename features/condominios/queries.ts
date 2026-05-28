@@ -7,6 +7,7 @@ const CONDOMINIO_SELECT = `
   id,
   carteira_id,
   nome,
+  nome_operacional,
   cnpj,
   administradora,
   vencimento_cota_dia,
@@ -78,6 +79,7 @@ export async function listCondominios(scope: CarteiraScope, filters: CondominioF
     const digits = onlyDigits(term)
     const clauses = [
       `nome.ilike.%${term}%`,
+      `nome_operacional.ilike.%${term}%`,
       `administradora.ilike.%${term}%`,
     ]
 

@@ -269,7 +269,7 @@ export async function globalSearch(scope: CarteiraScope, term?: string) {
 
   let unidadesQuery = supabase
     .from('unidades')
-    .select('id, carteira_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email, status, condominios(nome), carteiras(nome)')
+    .select('id, carteira_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email, status, condominios(nome, nome_operacional), carteiras(nome)')
     .or(unidadeClauses.join(','))
     .order('identificacao', { ascending: true })
     .limit(10)
@@ -277,7 +277,7 @@ export async function globalSearch(scope: CarteiraScope, term?: string) {
 
   let cobrancasQuery = supabase
     .from('cobrancas')
-    .select('id, carteira_id, competencia, vencimento, valor_atualizado, status_operacional, status_financeiro, condominios(nome), unidades(identificacao, responsavel_nome)')
+    .select('id, carteira_id, competencia, vencimento, valor_atualizado, status_operacional, status_financeiro, condominios(nome, nome_operacional), unidades(identificacao, responsavel_nome)')
     .or(`competencia.ilike.%${q}%,competencia.ilike.%${lastTerm}%,status_operacional.ilike.%${q}%,status_financeiro.ilike.%${q}%`)
     .order('vencimento', { ascending: false })
     .limit(8)
@@ -285,7 +285,7 @@ export async function globalSearch(scope: CarteiraScope, term?: string) {
 
   let acordosQuery = supabase
     .from('acordos')
-    .select('id, carteira_id, data_acordo, valor_acordado, status, status_financeiro, condominios(nome), unidades(identificacao, responsavel_nome)')
+    .select('id, carteira_id, data_acordo, valor_acordado, status, status_financeiro, condominios(nome, nome_operacional), unidades(identificacao, responsavel_nome)')
     .or(`status.ilike.%${q}%,status_financeiro.ilike.%${q}%`)
     .order('data_acordo', { ascending: false })
     .limit(8)

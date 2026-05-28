@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     id: row.id,
     type: 'unidade' as const,
     title: `Unidade ${normalizeText(row.identificacao)}${row.bloco ? ` · Bloco ${row.bloco}` : ''}`,
-    subtitle: `${normalizeText(row.condominios?.nome)} · ${normalizeText(row.responsavel_nome)} · ${normalizeText(row.telefone || row.email)}`,
+    subtitle: `${normalizeText(row.condominios?.nome_operacional || row.condominios?.nome)} · ${normalizeText(row.responsavel_nome)} · ${normalizeText(row.telefone || row.email)}`,
     href: `/app/unidades/${row.id}`,
     status: statusLabel(row.status),
   }))
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     id: row.id,
     type: 'cobranca' as const,
     title: `Cobrança ${normalizeText(row.competencia)}`,
-    subtitle: `${normalizeText(row.condominios?.nome)} · Unidade ${normalizeText(row.unidades?.identificacao)} · ${formatCurrency(row.valor_atualizado)}`,
+    subtitle: `${normalizeText(row.condominios?.nome_operacional || row.condominios?.nome)} · Unidade ${normalizeText(row.unidades?.identificacao)} · ${formatCurrency(row.valor_atualizado)}`,
     href: `/app/cobrancas/${row.id}`,
     status: statusLabel(row.status_financeiro || row.status_operacional),
   }))
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     id: row.id,
     type: 'acordo' as const,
     title: `Acordo ${formatDate(row.data_acordo)}`,
-    subtitle: `${normalizeText(row.condominios?.nome)} · Unidade ${normalizeText(row.unidades?.identificacao)} · ${formatCurrency(row.valor_acordado)}`,
+    subtitle: `${normalizeText(row.condominios?.nome_operacional || row.condominios?.nome)} · Unidade ${normalizeText(row.unidades?.identificacao)} · ${formatCurrency(row.valor_acordado)}`,
     href: `/app/acordos/${row.id}`,
     status: statusLabel(row.status_financeiro || row.status),
   }))

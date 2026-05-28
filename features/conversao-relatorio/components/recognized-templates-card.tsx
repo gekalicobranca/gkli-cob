@@ -2,12 +2,12 @@ const templates = [
   {
     nome: "Superlógica · Unidades",
     status: "Ativo",
-    descricao: "PDF de Relatório de Unidades - Completo. Detecta condomínio, bloco, unidade, responsável, CPF/CNPJ, telefone/e-mail e gera XLSX para Importações/Unidades.",
+    descricao: "PDF de Relatório de Unidades - Completo. Valida qualidade do texto, descarta PDF com encoding ruim e gera XLSX somente com as colunas oficiais de Importações/Unidades.",
   },
   {
     nome: "Hflex / LiveFacilities · Unidades",
     status: "Ativo",
-    descricao: "Parser de Relatório de Unidades em PDF. Detecta o fornecedor Hflex/LiveFacilities, identifica o condomínio no documento e gera XLSX para Importações/Unidades.",
+    descricao: "Parser de Relatório de Unidades em PDF. Corrige textos com glifos duplicados, valida qualidade, extrai unidade/titular/documento/contatos e gera XLSX para Importações/Unidades; PDFs com encoding inseguro são descartados.",
   },
   {
     nome: "Conectcon · Cobranças",

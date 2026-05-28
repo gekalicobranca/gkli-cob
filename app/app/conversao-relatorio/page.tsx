@@ -1,19 +1,20 @@
-import { PageHeader } from "@/components/ui/page-header"
-import { ConversionUploadCard } from "@/features/conversao-relatorio/components/conversion-upload-card"
-import { RecognizedTemplatesCard } from "@/features/conversao-relatorio/components/recognized-templates-card"
-import { listCondominios } from "@/features/condominios/queries"
-import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras"
+import { PageHeader } from "@/components/ui/page-header";
+import { ConversionUploadCard } from "@/features/conversao-relatorio/components/conversion-upload-card";
+import { RecognizedTemplatesCard } from "@/features/conversao-relatorio/components/recognized-templates-card";
+import { listCondominios } from "@/features/condominios/queries";
+import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 
 export default async function ConversaoRelatorioPage() {
-  const scope = await getPermittedCarteiras()
-  const condominios = await listCondominios(scope, { status: "ativo" })
+  const scope = await getPermittedCarteiras();
+  const condominios = await listCondominios(scope, { status: "ativo" });
   const condominioOptions = condominios
     .filter((condominio) => condominio.cnpj)
     .map((condominio) => ({
       id: String(condominio.id),
       nome: String(condominio.nome ?? ""),
+      nomeOperacional: String(condominio.nome_operacional ?? ""),
       cnpj: String(condominio.cnpj ?? ""),
-    }))
+    }));
 
   return (
     <div className="space-y-6">
@@ -34,24 +35,44 @@ export default async function ConversaoRelatorioPage() {
       </div>
 
       <section className="rounded-[28px] border border-dashed border-slate-300 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-950">Como a conversão funciona</h2>
+        <h2 className="text-lg font-semibold text-slate-950">
+          Como a conversão funciona
+        </h2>
         <div className="mt-4 grid gap-4 md:grid-cols-4">
           {[
-            ["1", "Tipo", "Escolha se o arquivo será convertido para Unidades ou Cobranças."],
-            ["2", "Padrão", "O motor detecta o fornecedor/layout ativo, como Hflex / LiveFacilities."],
-            ["3", "Condomínio", "Confirme o condomínio operacional usado no XLSX final."],
-            ["4", "Saída GKLI", "Baixe o XLSX padrão e importe no módulo oficial correspondente."],
+            [
+              "1",
+              "Tipo",
+              "Escolha se o arquivo será convertido para Unidades ou Cobranças.",
+            ],
+            [
+              "2",
+              "Padrão",
+              "O motor detecta o fornecedor/layout ativo, como Hflex / LiveFacilities.",
+            ],
+            [
+              "3",
+              "Condomínio",
+              "Confirme o condomínio operacional usado no XLSX final.",
+            ],
+            [
+              "4",
+              "Saída GKLI",
+              "Baixe o XLSX padrão e importe no módulo oficial correspondente.",
+            ],
           ].map(([step, title, text]) => (
             <div key={step} className="rounded-2xl bg-slate-50 p-4">
               <div className="grid h-8 w-8 place-items-center rounded-xl bg-slate-900 text-xs font-bold text-white">
                 {step}
               </div>
-              <h3 className="mt-3 text-sm font-semibold text-slate-950">{title}</h3>
+              <h3 className="mt-3 text-sm font-semibold text-slate-950">
+                {title}
+              </h3>
               <p className="mt-1 text-xs leading-5 text-slate-500">{text}</p>
             </div>
           ))}
         </div>
       </section>
     </div>
-  )
+  );
 }

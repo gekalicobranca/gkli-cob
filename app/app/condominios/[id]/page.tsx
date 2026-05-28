@@ -39,13 +39,14 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
   const contatosComEmail = unidades.filter((row: any) => row.email).length
   const coberturaContato = unidades.length ? Math.round(((contatosComTelefone + contatosComEmail) / (unidades.length * 2)) * 100) : 0
   const ultimaImportacao = importacoes[0]
+  const nomeExibicao = condominio.nome_operacional || condominio.nome || 'Condomínio'
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Base Cadastral · Condomínio Integral"
-        title={condominio.nome ?? 'Condomínio'}
-        description="Cadastro integral, exportações e parâmetros operacionais do condomínio."
+        title={nomeExibicao}
+        description={condominio.nome_operacional && condominio.nome_operacional !== condominio.nome ? `Razão/Nome oficial: ${condominio.nome}` : 'Cadastro integral, exportações e parâmetros operacionais do condomínio.'}
         actions={
           <>
             <ButtonLink href={`/api/condominios/${condominio.id}/exportacoes/unidades`} variant="secondary"><Download size={16} />Exportar unidades</ButtonLink>
@@ -84,9 +85,8 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Carteira"><Select name="carteira_id" defaultValue={condominio.carteira_id ?? ''} required><option value="">Selecione...</option>{carteiras.map((carteira: any) => (<option key={carteira.id} value={carteira.id}>{carteira.nome}</option>))}</Select></FormField>
             <FormField label="Status"><Select name="status" defaultValue={condominio.status ?? 'ativo'}><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="pausado">Pausado</option></Select></FormField>
-            <FormField label="Nome do condomínio">
-
-<Input name="nome" defaultValue={condominio.nome ?? ''} required /></FormField>
+            <FormField label="Nome oficial do condomínio"><Input name="nome" defaultValue={condominio.nome ?? ''} required /></FormField>
+            <FormField label="Nome operacional"><Input name="nome_operacional" defaultValue={condominio.nome_operacional ?? ''} placeholder="Como a operação identifica este condomínio" /></FormField>
             <FormField label="CNPJ"><Input name="cnpj" defaultValue={condominio.cnpj ?? ''} /></FormField>
             <FormField label="Administradora"><Input name="administradora" defaultValue={condominio.administradora ?? ''} /></FormField>
           </div>

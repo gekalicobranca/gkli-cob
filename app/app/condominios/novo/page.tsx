@@ -33,10 +33,12 @@ export default async function NovoCondominioPage() {
               </Select>
             </FormField>
 
-            <FormField label="Nome do condomínio">
-              
+            <FormField label="Nome oficial do condomínio">
+              <Input name="nome" required placeholder="Ex.: Condomínio Jardim das Águas" />
+            </FormField>
 
-<Input name="nome" required placeholder="Ex.: Condomínio Jardim das Águas" />
+            <FormField label="Nome operacional">
+              <Input name="nome_operacional" placeholder="Ex.: Jardim das Águas" />
             </FormField>
 
             <FormField label="CNPJ">

@@ -49,6 +49,7 @@ export async function createCondominio(formData: FormData) {
 
   const carteiraId = String(formData.get('carteira_id') ?? '')
   const nome = String(formData.get('nome') ?? '').trim()
+  const nomeOperacional = String(formData.get('nome_operacional') ?? '').trim()
   const cnpj = onlyDigits(String(formData.get('cnpj') ?? ''))
   const administradora = String(formData.get('administradora') ?? '').trim()
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
@@ -65,6 +66,7 @@ export async function createCondominio(formData: FormData) {
   const payload = {
     carteira_id: carteiraId,
     nome,
+    nome_operacional: nomeOperacional || nome,
     cnpj: cnpj || null,
     administradora: administradora || null,
     vencimento_cota_dia: vencimentoCotaDia,
@@ -103,6 +105,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const id = String(formData.get('id') ?? '')
   const carteiraId = String(formData.get('carteira_id') ?? '')
   const nome = String(formData.get('nome') ?? '').trim()
+  const nomeOperacional = String(formData.get('nome_operacional') ?? '').trim()
   const cnpj = onlyDigits(String(formData.get('cnpj') ?? ''))
   const administradora = String(formData.get('administradora') ?? '').trim()
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
@@ -122,7 +125,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const supabase = await createClient()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, cnpj, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, regua_cobranca_id, regua_acordo_id, status, observacoes')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, regua_cobranca_id, regua_acordo_id, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -132,6 +135,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const payload = {
     carteira_id: carteiraId,
     nome,
+    nome_operacional: nomeOperacional || nome,
     cnpj: cnpj || null,
     administradora: administradora || null,
     vencimento_cota_dia: vencimentoCotaDia,
