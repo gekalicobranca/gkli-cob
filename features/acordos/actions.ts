@@ -1163,7 +1163,11 @@ export async function marcarParcelaComoPaga(formData: FormData) {
 
     const { error: updateAcordoError } = await supabase
       .from("acordos")
-      .update({ status: ACORDO_STATUS.QUITADO })
+      .update({
+        status: ACORDO_STATUS.QUITADO,
+        status_financeiro: "quitado",
+        data_quitacao: toISODate(new Date()),
+      })
       .eq("id", acordoId);
 
     if (updateAcordoError) {
@@ -1185,6 +1189,12 @@ export async function marcarParcelaComoPaga(formData: FormData) {
         );
       }
     }
+  } else {
+    await supabase
+      .from("acordos")
+      .update({ status_financeiro: "parcial" })
+      .eq("id", acordoId)
+      .neq("status_financeiro", "quitado");
   }
 
   await registrarEventoOperacional(supabase as any, {
@@ -1246,7 +1256,10 @@ export async function marcarParcelaComoVencida(formData: FormData) {
 
   const { error: acordoError } = await supabase
     .from("acordos")
-    .update({ status: ACORDO_STATUS.EM_ATRASO })
+    .update({
+      status: ACORDO_STATUS.EM_ATRASO,
+      status_financeiro: "vencido",
+    })
     .eq("id", acordoId);
 
   if (acordoError) {

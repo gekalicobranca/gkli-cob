@@ -8,6 +8,7 @@ import { FormField } from '@/components/ui/form-field'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
 import { createCondominio } from '@/features/condominios/actions'
+import { ClassificacaoOperacionalField } from '@/features/condominios/components/classificacao-operacional'
 
 export default async function NovoCondominioPage() {
   const scope = await getPermittedCarteiras()
@@ -68,6 +69,10 @@ export default async function NovoCondominioPage() {
             <FormField label="Dias para reemissão de parcela de acordo em atraso" hint="0 não permite reemissão pelo acompanhamento de parcelas.">
               <Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" defaultValue="0" />
             </FormField>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <ClassificacaoOperacionalField defaultValue="prata" />
           </div>
 
           <FormField label="Observações">

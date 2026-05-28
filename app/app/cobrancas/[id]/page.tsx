@@ -61,12 +61,17 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
 
   if (!cobranca) notFound()
 
-  const statusOperacional = cobranca.status_operacional ?? cobranca.status ?? 'novo'
+  const statusOperacionalReal = cobranca.status_operacional ?? cobranca.status ?? 'novo'
   const statusFinanceiro = cobranca.status_financeiro ?? 'em_aberto'
+  const statusOperacional = acordoVigente
+    ? acordoVigente.status_financeiro === 'quitado' || acordoVigente.status === 'quitado'
+      ? 'acordo_efetivado'
+      : 'acordo_firmado'
+    : statusOperacionalReal
   const canCreateAcordo =
     !acordoVigente &&
-    (COBRANCA_STATUS_OPERACIONAL_LIST as string[]).includes(statusOperacional) &&
-    !(COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(statusOperacional)
+    (COBRANCA_STATUS_OPERACIONAL_LIST as string[]).includes(statusOperacionalReal) &&
+    !(COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(statusOperacionalReal)
 
   const principal = asNumber(cobranca.valor_original)
   const juros = asNumber(cobranca.juros)
@@ -78,6 +83,26 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
   const percentualDespesa = 10
   const despesaCobranca = valorAtualizado * (percentualDespesa / 100)
   const valorNegociacao = valorAtualizado + despesaCobranca
+  const acordoStatus = String(acordoVigente?.status ?? '')
+  const acordoStatusFinanceiro = String(acordoVigente?.status_financeiro ?? '')
+  const acordoComPendencia = ['em_atraso', 'vencido', 'quebrado'].includes(acordoStatus) || acordoStatusFinanceiro === 'vencido'
+  const valorKpi = acordoVigente
+    ? acordoComPendencia
+      ? asNumber(acordoVigente.saldo_aberto) || asNumber(acordoVigente.valor_acordado)
+      : asNumber(acordoVigente.valor_acordado)
+    : valorNegociacao
+  const labelKpi = acordoVigente
+    ? acordoStatus === 'quitado' || acordoStatusFinanceiro === 'quitado'
+      ? 'Valor quitado'
+      : acordoComPendencia
+        ? 'Saldo em aberto'
+        : 'Valor acordado'
+    : 'Valor em negociação'
+  const descricaoKpi = acordoVigente
+    ? acordoComPendencia
+      ? 'saldo de parcelas abertas/vencidas do acordo vigente'
+      : 'valor formalizado no acordo vigente'
+    : 'base + despesa de cobrança estimada'
   const atraso = diasDeAtraso(cobranca.vencimento)
   const nextAction = calcularProximaAcaoCobranca({
     statusOperacional,
@@ -114,8 +139,9 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
           <p className="mt-3 text-3xl font-semibold text-slate-950">{atraso}</p>
         </Card>
         <Card>
-          <p className="text-sm font-semibold text-slate-500">Valor em negociação</p>
-          <p className="mt-3 text-2xl font-semibold text-slate-950">{formatCurrency(valorNegociacao)}</p>
+          <p className="text-sm font-semibold text-slate-500">{labelKpi}</p>
+          <p className="mt-3 text-2xl font-semibold text-slate-950">{formatCurrency(valorKpi)}</p>
+          <p className="mt-1 text-xs text-slate-500">{descricaoKpi}</p>
         </Card>
       </section>
 

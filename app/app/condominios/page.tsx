@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/data/empty-state'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
+import { ClassificacaoOperacionalBadge } from '@/features/condominios/components/classificacao-operacional'
 import {
   hasCondominioFilters,
   listAdministradorasCondominios,
@@ -177,7 +178,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
             {rows.map((row: any) => (
               <div
                 key={row.id}
-                className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.5fr)_140px_130px_160px_170px] xl:items-center"
+                className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.5fr)_110px_140px_130px_160px_170px] xl:items-center"
               >
                 <Link href={`/app/condominios/${row.id}`} className="group min-w-0">
                   <p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]">
@@ -187,6 +188,8 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                     {row.nome_operacional && row.nome_operacional !== row.nome ? `Oficial: ${row.nome} · ` : ''}{row.administradora ?? '-'} · CNPJ {row.cnpj ?? '-'} · {row.carteiras?.nome ?? '-'}
                   </p>
                 </Link>
+
+                <ClassificacaoOperacionalBadge value={row.classificacao_operacional} />
 
                 <StatusBadge status={row.status} />
 

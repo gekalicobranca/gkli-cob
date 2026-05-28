@@ -53,8 +53,6 @@ export async function updateUnidade(formData: FormData) {
   await requireUser()
 
   const id = String(formData.get('id') ?? '').trim()
-  const carteiraId = String(formData.get('carteira_id') ?? '').trim()
-  const condominioId = String(formData.get('condominio_id') ?? '').trim()
   const identificacao = String(formData.get('identificacao') ?? '').trim()
   const bloco = String(formData.get('bloco') ?? '').trim()
   const responsavelNome = String(formData.get('responsavel_nome') ?? '').trim()
@@ -65,17 +63,38 @@ export async function updateUnidade(formData: FormData) {
   const observacoes = String(formData.get('observacoes') ?? '').trim()
 
   if (!id) throw new Error('Unidade obrigatória.')
-  if (!carteiraId) throw new Error('Carteira obrigatória.')
-  if (!condominioId) throw new Error('Condomínio obrigatório.')
   if (!identificacao) throw new Error('Identificação da unidade obrigatória.')
 
   const supabase = await createClient()
 
+  const { data: unidadeAtual, error: unidadeAtualError } = await supabase
+    .from('unidades')
+    .select('id, carteira_id, condominio_id')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (unidadeAtualError) {
+    throw new Error(`Erro ao carregar unidade atual: ${unidadeAtualError.message}`)
+  }
+
+  if (!unidadeAtual) {
+    throw new Error('Unidade não encontrada.')
+  }
+
+  const carteiraForcada = String(formData.get('carteira_id') ?? '').trim()
+  const condominioForcado = String(formData.get('condominio_id') ?? '').trim()
+
+  if (carteiraForcada && carteiraForcada !== unidadeAtual.carteira_id) {
+    throw new Error('A carteira da unidade não pode ser alterada pela edição do cadastro.')
+  }
+
+  if (condominioForcado && condominioForcado !== unidadeAtual.condominio_id) {
+    throw new Error('O condomínio da unidade não pode ser alterado pela edição do cadastro.')
+  }
+
   const { error } = await supabase
     .from('unidades')
     .update({
-      carteira_id: carteiraId,
-      condominio_id: condominioId,
       identificacao,
       bloco: bloco || null,
       responsavel_nome: responsavelNome || null,

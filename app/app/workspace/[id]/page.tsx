@@ -78,9 +78,14 @@ export default async function WorkspaceOperacionalPage({
 
   if (!cobranca) notFound();
 
-  const statusOperacional =
+  const statusOperacionalReal =
     cobranca.status_operacional ?? cobranca.status ?? "novo";
   const statusFinanceiro = cobranca.status_financeiro ?? "em_aberto";
+  const statusOperacional = acordoVigente
+    ? acordoVigente.status_financeiro === "quitado" || acordoVigente.status === "quitado"
+      ? "acordo_efetivado"
+      : "acordo_firmado"
+    : statusOperacionalReal;
   const principal = asNumber(cobranca.valor_original);
   const juros = asNumber(cobranca.juros);
   const multa = asNumber(cobranca.multa);
@@ -91,13 +96,35 @@ export default async function WorkspaceOperacionalPage({
     Math.max(0, principal + juros + multa + correcao - desconto);
   const despesaCobranca = valorAtualizado * 0.1;
   const valorNegociacao = valorAtualizado + despesaCobranca;
+  const acordoStatus = String(acordoVigente?.status ?? "");
+  const acordoStatusFinanceiro = String(acordoVigente?.status_financeiro ?? "");
+  const acordoComPendencia =
+    ["em_atraso", "vencido", "quebrado"].includes(acordoStatus) ||
+    acordoStatusFinanceiro === "vencido";
+  const valorKpi = acordoVigente
+    ? acordoComPendencia
+      ? asNumber(acordoVigente.saldo_aberto) || asNumber(acordoVigente.valor_acordado)
+      : asNumber(acordoVigente.valor_acordado)
+    : valorNegociacao;
+  const labelKpi = acordoVigente
+    ? acordoStatus === "quitado" || acordoStatusFinanceiro === "quitado"
+      ? "Valor quitado"
+      : acordoComPendencia
+        ? "Saldo em aberto"
+        : "Valor acordado"
+    : "Valor em negociação";
+  const descricaoKpi = acordoVigente
+    ? acordoComPendencia
+      ? "saldo de parcelas abertas/vencidas do acordo vigente"
+      : "valor formalizado no acordo vigente"
+    : "base + despesa de cobrança estimada";
   const canCreateAcordo =
     !acordoVigente &&
     (COBRANCA_STATUS_OPERACIONAL_LIST as string[]).includes(
-      statusOperacional,
+      statusOperacionalReal,
     ) &&
     !(COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(
-      statusOperacional,
+      statusOperacionalReal,
     );
   const nextAction = calcularProximaAcaoCobranca({
     statusOperacional,
@@ -112,7 +139,7 @@ export default async function WorkspaceOperacionalPage({
     statusFinanceiro,
     vencimento: cobranca.vencimento,
     valorAtualizado,
-    valorNegociacao,
+    valorNegociacao: valorKpi,
     temAcordoVigente: Boolean(acordoVigente),
     ultimaInteracaoAt: cobranca.ultima_interacao_at,
     totalInteracoes: interacoes.length,
@@ -201,13 +228,13 @@ export default async function WorkspaceOperacionalPage({
         </Card>
         <Card className="p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-            Valor em negociação
+            {labelKpi}
           </p>
           <p className="mt-3 text-2xl font-semibold text-slate-950">
-            {formatCurrency(valorNegociacao)}
+            {formatCurrency(valorKpi)}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            base + despesa de cobrança estimada
+            {descricaoKpi}
           </p>
         </Card>
         <Card className="p-4">

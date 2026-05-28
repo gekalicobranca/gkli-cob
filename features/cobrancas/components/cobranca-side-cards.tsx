@@ -16,8 +16,10 @@ export function CobrancaSideCards({ cobranca, acordoVigente, statusOperacional }
           <h2 className="text-lg font-semibold text-emerald-950">Acordo vigente</h2>
           <div className="mt-4 space-y-2 text-sm text-emerald-900">
             <p>Status: {acordoVigente.status}</p>
-            <p>Valor: {formatCurrency(asNumber(acordoVigente.valor_acordado))}</p>
+            <p>Valor acordado: {formatCurrency(asNumber(acordoVigente.valor_acordado))}</p>
             <p>Entrada: {formatCurrency(asNumber(acordoVigente.entrada))}</p>
+            <p>Pago: {formatCurrency(asNumber(acordoVigente.valor_pago))}</p>
+            <p>Saldo em aberto: {formatCurrency(asNumber(acordoVigente.saldo_aberto))}</p>
             <p>Próxima parcela: {acordoVigente.proxima_parcela ? `${formatCurrency(asNumber(acordoVigente.proxima_parcela.valor))} em ${formatDateBR(acordoVigente.proxima_parcela.vencimento)}` : '-'}</p>
           </div>
           <div className="mt-4"><ButtonLink href={`/app/acordos/${acordoVigente.id}`} size="sm">Abrir acordo</ButtonLink></div>
@@ -25,10 +27,10 @@ export function CobrancaSideCards({ cobranca, acordoVigente, statusOperacional }
       ) : null}
 
       <Card>
-        <h2 className="text-lg font-semibold text-slate-950">Régua de cobrança</h2>
+        <h2 className="text-lg font-semibold text-slate-950">{acordoVigente ? 'Régua de acordo' : 'Régua de cobrança'}</h2>
         <div className="mt-4 space-y-2 text-sm text-slate-600">
-          <p>Etapa atual: {statusOperacional === 'novo' ? 'Entrada na régua' : statusOperacional}</p>
-          <p>Próxima ação: revisar contato / disparo</p>
+          <p>Etapa atual: {acordoVigente ? 'Acompanhamento do acordo' : statusOperacional === 'novo' ? 'Entrada na régua' : statusOperacional}</p>
+          <p>Próxima ação: {acordoVigente ? 'monitorar vencimento das parcelas' : 'revisar contato / disparo'}</p>
         </div>
       </Card>
 

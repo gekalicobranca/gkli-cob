@@ -8,18 +8,13 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
 import { getUnidadeIntegral } from '@/features/unidades/queries'
 import { updateUnidade } from '@/features/unidades/actions'
 
 export default async function UnidadeDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const scope = await getPermittedCarteiras()
-  const [unidade, carteiras, condominios] = await Promise.all([
-    getUnidadeIntegral(id, scope),
-    listCarteirasForSelect(scope),
-    listCondominiosForSelect(scope),
-  ])
+  const unidade = await getUnidadeIntegral(id, scope)
 
   if (!unidade) {
     notFound()
@@ -49,25 +44,21 @@ export default async function UnidadeDetalhePage({ params }: { params: Promise<{
         <form action={updateUnidade} className="space-y-5">
           <input type="hidden" name="id" value={unidade.id} />
 
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Carteira</div>
+              <div className="mt-2 text-sm font-semibold text-slate-950">{unidade.carteiras?.nome ?? 'Carteira não informada'}</div>
+              <p className="mt-1 text-xs text-slate-500">Campo bloqueado na edição para preservar o vínculo operacional da unidade.</p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Condomínio</div>
+              <div className="mt-2 text-sm font-semibold text-slate-950">{unidade.condominios?.nome ?? 'Condomínio não informado'}</div>
+              <p className="mt-1 text-xs text-slate-500">Para trocar a unidade de condomínio, crie uma nova unidade ou faça ajuste técnico controlado.</p>
+            </div>
+          </div>
+
           <div className="grid gap-5 md:grid-cols-2">
-            <FormField label="Carteira">
-              <Select name="carteira_id" required defaultValue={unidade.carteira_id ?? ''}>
-                <option value="">Selecione...</option>
-                {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
-                ))}
-              </Select>
-            </FormField>
-
-            <FormField label="Condomínio">
-              <Select name="condominio_id" required defaultValue={unidade.condominio_id ?? ''}>
-                <option value="">Selecione...</option>
-                {condominios.map((condominio: any) => (
-                  <option key={condominio.id} value={condominio.id}>{condominio.nome}</option>
-                ))}
-              </Select>
-            </FormField>
-
             <FormField label="Identificação da unidade">
               <Input name="identificacao" required defaultValue={unidade.identificacao ?? ''} placeholder="Ex.: 101, 305, Casa 12" />
             </FormField>

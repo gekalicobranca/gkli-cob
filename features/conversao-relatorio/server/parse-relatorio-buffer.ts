@@ -1440,7 +1440,7 @@ function analyzePdfTextQuality(text: string): PdfTextQualityReport {
     /CONDOMINIO\s*:\s*\d+\s*-/,
     /CNPJ\s*:\s*\d{2}/,
     /BLOCO\s*:?\s*\S+\s+UNIDADE\s*:?/,
-    /(?:CODIGO|C.?DIGO)\s+DO\s+CLIENTE/,
+    /CODIGO\s+DO\s+CLIENTE/,
     /ENDERECO\s+DE\s+COBRANCA/,
     /DADOS\s+PESSOAIS/,
     /TELEFONE\s*\/?\s*E\s*-?\s*MAIL/,
@@ -1459,7 +1459,7 @@ function analyzePdfTextQuality(text: string): PdfTextQualityReport {
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
   const blocosSuperlogica = countRegexMatches(
     loose,
-    /(?:^|\n)\s*BLOCO\s*:?\s*\S+\s*UNIDADE\s*:?\s*[^\n]{0,160}?(?:CODIGO|C.?DIGO)\s+DO\s+CLIENTE/g,
+    /(?:^|\n)\s*BLOCO\s*:?\s*\S+\s*UNIDADE\s*:?\s*[^\n]{0,160}?(?:CODIGO|C[OÓ]DIGO)\s+DO\s+CLIENTE/g,
   );
   const blocosHflex = countRegexMatches(
     loose,
@@ -2035,7 +2035,7 @@ function detectSuperlogicaUnidades(text: string) {
   const unidadeMatches = splitSuperlogicaUnitBlocks(normalized).length;
   const looseUnitHeaderMatches = countRegexMatches(
     loose,
-    /BLOCO\s*:?\s*\S+\s*UNIDADE\s*:?\s*.*?(?:CODIGO|C.?DIGO)\s+DO\s+CLIENTE\s*:?/g,
+    /BLOCO\s*:?\s*\S+\s*UNIDADE\s*:?\s*.*?(?:CODIGO|C[OÓ]DIGO)\s+DO\s+CLIENTE\s*:?/g,
   );
   const looseUnitLineMatches = countRegexMatches(
     loose,
@@ -2045,7 +2045,7 @@ function detectSuperlogicaUnidades(text: string) {
     /RELATORIO\s+DE\s+UNIDADES\s*-?\s*COMPLETO/,
     /CONDOMINIO\s*:\s*\d+\s*-/,
     /CNPJ\s*:\s*\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/,
-    /BLOCO\s*:?\s*\S+\s*UNIDADE\s*:?\s*.*?(?:CODIGO|C.?DIGO)\s+DO\s+CLIENTE\s*:?/,
+    /BLOCO\s*:?\s*\S+\s*UNIDADE\s*:?\s*.*?(?:CODIGO|C[OÓ]DIGO)\s+DO\s+CLIENTE\s*:?/,
     /ENDERECO\s+DE\s+COBRANCA/,
     /DADOS\s+PESSOAIS/,
     /TELEFONE\s*\/?\s*E\s*-?\s*MAIL\s+DO\s+CLIENTE|EMAIL\s+DO\s+CLIENTE/,
@@ -2053,7 +2053,7 @@ function detectSuperlogicaUnidades(text: string) {
     /DADOS\s+DO\s+PAGADOR/,
     /TIPO\s+DE\s+UNIDADE\s*:/,
     /FORMA\s+DE\s+ENVIO/,
-    /(?:CODIGO|C.?DIGO)\s+DO\s+CLIENTE/,
+    /CODIGO\s+DO\s+CLIENTE/,
   ];
 
   const hits = sinais.reduce(
@@ -2121,7 +2121,7 @@ function splitSuperlogicaUnitBlocks(text: string) {
   // sem quebra de linha antes de "Bloco" ou com a unidade colada após o dois-pontos
   // (ex.: "Unidade:000011"). Por isso o split não pode depender de ^/\n.
   const unitRegex =
-    /\bBloco\s*:?\s*([^\s]+)\s*Unidade\s*:?\s*([\s\S]{1,260}?)\s+(?:C[óo]digo|Codigo|C.digo)\s+do\s+cliente\s*:?\s*([A-Z0-9.-]+)/gi;
+    /\bBloco:\s*([^\s]+)\s*Unidade:\s*([\s\S]{1,220}?)\s+C[óo]digo\s+do\s+cliente:\s*([A-Z0-9.-]+)/gi;
   const legacyMatches = [...normalized.matchAll(unitRegex)].map((match) => {
     const unidadeRaw = normalize(match[2]);
     const unidadeMatch = unidadeRaw.match(/^(.+?)\s+-\s+(.+)$/);
@@ -2135,7 +2135,7 @@ function splitSuperlogicaUnitBlocks(text: string) {
   });
 
   const gluedUnitRegex =
-    /\bBloco\s*:?\s*([^\s]+)\s*Unidade\s*:?\s*(?:C[óo]digo|Codigo|C.digo)\s+do\s+cliente\s*:?\s*([0-9]{6})([A-Z0-9]{1,12}\s*-\s*[^\n]+)/gi;
+    /\bBloco:\s*([^\s]+)\s*Unidade:\s*C[óo]digo\s+do\s+cliente:\s*([0-9]{6})([A-Z0-9]{1,12}\s*-\s*[^\n]+)/gi;
   const gluedMatches = [...normalized.matchAll(gluedUnitRegex)].map((match) => {
     const unidadeRaw = normalize(match[3]);
     const unidadeMatch = unidadeRaw.match(/^(.+?)\s+-\s+(.+)$/);

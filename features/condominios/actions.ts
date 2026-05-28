@@ -20,6 +20,13 @@ function toNumber(value: FormDataEntryValue | null) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+const CLASSIFICACOES_CONDOMINIO = ['ouro', 'prata', 'bronze'] as const
+
+function normalizeClassificacaoOperacional(value: FormDataEntryValue | null) {
+  const classificacao = String(value ?? 'prata').trim().toLowerCase()
+  return CLASSIFICACOES_CONDOMINIO.includes(classificacao as any) ? classificacao : 'prata'
+}
+
 function normalizeComparable(value: unknown) {
   if (value === undefined || value === '') return null
   if (typeof value === 'number' && Number.isNaN(value)) return null
@@ -62,6 +69,7 @@ export async function createCondominio(formData: FormData) {
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
   const parcelasAcordoSemAprovacaoSindico = toInteger(formData.get('parcelas_acordo_sem_aprovacao_sindico'), 0)
   const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
+  const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
   const reguaAcordoId = String(formData.get('regua_acordo_id') ?? '').trim() || null
@@ -81,6 +89,7 @@ export async function createCondominio(formData: FormData) {
     inicio_cobranca_dias: inicioCobrancaDias,
     parcelas_acordo_sem_aprovacao_sindico: parcelasAcordoSemAprovacaoSindico,
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
+    classificacao_operacional: classificacaoOperacional,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
     status: 'ativo',
@@ -122,6 +131,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
   const parcelasAcordoSemAprovacaoSindico = toInteger(formData.get('parcelas_acordo_sem_aprovacao_sindico'), 0)
   const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
+  const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
   const status = String(formData.get('status') ?? 'ativo')
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
@@ -136,7 +146,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const supabase = await createClient()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, nome_operacional, cnpj, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, regua_cobranca_id, regua_acordo_id, status, observacoes')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, regua_cobranca_id, regua_acordo_id, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -154,6 +164,7 @@ export async function updateCondominioIntegral(formData: FormData) {
     inicio_cobranca_dias: inicioCobrancaDias,
     parcelas_acordo_sem_aprovacao_sindico: parcelasAcordoSemAprovacaoSindico,
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
+    classificacao_operacional: classificacaoOperacional,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
     status,

@@ -137,17 +137,25 @@ export async function getAcordoVigenteDaCobranca(cobrancaId: string) {
     .from('parcelas_acordo')
     .select('id, numero, tipo_parcela, valor, vencimento, status')
     .eq('acordo_id', acordo.id)
-    .in('status', ['aberta', 'vencida'])
     .order('vencimento', { ascending: true })
-    .limit(1)
 
   if (parcelasError) {
-    throw new Error(`Erro ao carregar próxima parcela do acordo: ${parcelasError.message}`)
+    throw new Error(`Erro ao carregar parcelas do acordo: ${parcelasError.message}`)
   }
+
+  const parcelasNormalizadas = (parcelas ?? []) as any[]
+  const parcelasEmAberto = parcelasNormalizadas.filter((parcela) =>
+    ['aberta', 'vencida'].includes(String(parcela.status ?? '')),
+  )
+  const parcelasPagas = parcelasNormalizadas.filter((parcela) => String(parcela.status ?? '') === 'paga')
+  const sumValor = (rows: any[]) => rows.reduce((sum, row) => sum + Number(row.valor ?? 0), 0)
 
   return {
     ...(acordo as any),
-    proxima_parcela: (parcelas ?? [])[0] ?? null,
+    parcelas: parcelasNormalizadas,
+    proxima_parcela: parcelasEmAberto[0] ?? null,
+    saldo_aberto: sumValor(parcelasEmAberto),
+    valor_pago: sumValor(parcelasPagas),
   }
 }
 

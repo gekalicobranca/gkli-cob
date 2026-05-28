@@ -15,6 +15,7 @@ import { listCarteirasForSelect } from '@/features/cadastros/queries'
 import { getCondominioIntegral, listEventosDoCondominio, listImportacoesDoCondominio, listUnidadesDoCondominio } from '@/features/condominios/queries'
 import { listReguasForSelect } from '@/features/reguas/queries'
 import { updateCondominioIntegral } from '@/features/condominios/actions'
+import { ClassificacaoOperacionalBadge, ClassificacaoOperacionalField } from '@/features/condominios/components/classificacao-operacional'
 
 export default async function CondominioIntegralPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -56,6 +57,11 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
         }
       />
 
+      <div className="flex flex-wrap items-center gap-2">
+        <ClassificacaoOperacionalBadge value={condominio.classificacao_operacional} />
+        <span className="text-sm text-slate-500">Classificação usada para orientar tom, prioridade e cuidado operacional.</span>
+      </div>
+
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={<Home size={18} />} label="Unidades" value={String(unidades.length)} detail={`${unidadesAtivas} ativas`} />
         <Kpi icon={<Users size={18} />} label="Cobertura contatos" value={`${coberturaContato}%`} detail={`${contatosComTelefone} telefones · ${contatosComEmail} e-mails`} />
@@ -89,6 +95,10 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <FormField label="Nome operacional"><Input name="nome_operacional" defaultValue={condominio.nome_operacional ?? ''} placeholder="Como a operação identifica este condomínio" /></FormField>
             <FormField label="CNPJ"><Input name="cnpj" defaultValue={condominio.cnpj ?? ''} /></FormField>
             <FormField label="Administradora"><Input name="administradora" defaultValue={condominio.administradora ?? ''} /></FormField>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <ClassificacaoOperacionalField defaultValue={condominio.classificacao_operacional ?? 'prata'} />
           </div>
 
           <FormField label="Observações internas">
