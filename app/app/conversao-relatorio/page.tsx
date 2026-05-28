@@ -1,12 +1,12 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { ConversionUploadCard } from "@/features/conversao-relatorio/components/conversion-upload-card";
 import { RecognizedTemplatesCard } from "@/features/conversao-relatorio/components/recognized-templates-card";
-import { listCondominios } from "@/features/condominios/queries";
+import { listCondominiosParaConversao } from "@/features/condominios/queries";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 
 export default async function ConversaoRelatorioPage() {
   const scope = await getPermittedCarteiras();
-  const condominios = await listCondominios(scope, { status: "ativo" });
+  const condominios = await listCondominiosParaConversao(scope);
   const condominioOptions = condominios
     .filter((condominio) => condominio.cnpj)
     .map((condominio) => ({

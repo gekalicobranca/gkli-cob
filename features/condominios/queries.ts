@@ -104,6 +104,28 @@ export async function listCondominios(scope: CarteiraScope, filters: CondominioF
   return normalizeRelationsList((data ?? []) as any[], ['carteiras']) as any[]
 }
 
+
+export async function listCondominiosParaConversao(scope: CarteiraScope) {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('condominios')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, status')
+    .eq('status', 'ativo')
+    .not('cnpj', 'is', null)
+    .order('nome', { ascending: true })
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error(`Erro ao carregar condomínios para conversão: ${error.message}`)
+  }
+
+  return (data ?? []) as any[]
+}
+
 export async function listAdministradorasCondominios(scope: CarteiraScope) {
   const supabase = await createClient()
 
