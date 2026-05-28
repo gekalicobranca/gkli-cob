@@ -1,40 +1,22 @@
-# Conversão de relatórios — OCR fallback
+# Conversão de relatórios — política de OCR
 
-O conversor agora tenta OCR automaticamente quando a camada textual do PDF é rejeitada por baixa qualidade ou quando o texto parece legível, mas nenhum padrão ativo é reconhecido.
+O GKLI Cobrança não executa OCR dentro do app principal.
 
-## Quando o OCR entra
+## Motivo
 
-1. O parser tenta ler o texto nativo do PDF com `pdf-parse`.
-2. A qualidade é medida por volume de texto, caracteres de controle e presença de palavras esperadas.
-3. Se a leitura for ruim, o fallback OCR é acionado.
-4. O OCR renderiza páginas do PDF em PNG via `pdftoppm` e lê as imagens com `tesseract`.
-5. O texto OCR volta para os parsers existentes: Superlógica e HFlex/LiveFacilities.
+OCR no runtime da aplicação aumenta risco operacional, tempo de processamento e dependência de binários de sistema que não estão disponíveis de forma confiável na Vercel padrão.
 
-## Dependências de sistema
+## Regra atual
 
-O fallback OCR não adiciona dependência NPM. Ele usa binários instalados no servidor:
+1. O conversor tenta extrair texto nativo do PDF.
+2. Se o texto for legível e o padrão for reconhecido, a importação é gerada.
+3. Se o texto vier corrompido ou sem estrutura suficiente, o PDF é descartado com mensagem orientativa.
+4. O usuário deve tratar o PDF externamente e reenviar um PDF pesquisável, ou usar planilha gerada pelo sistema de origem.
 
-- `pdftoppm` — pacote Poppler
-- `tesseract` — mecanismo OCR
-- idiomas `por` e `eng` do Tesseract
+## Tratamento externo recomendado
 
-Em Linux/Debian/Ubuntu:
+- NAPS2, para operação manual no Windows.
+- OCRmyPDF, para automação local ou microserviço separado.
+- Adobe Acrobat Pro, quando disponível.
 
-```bash
-sudo apt-get update
-sudo apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-por tesseract-ocr-eng
-```
-
-Em Windows, instale Poppler e Tesseract, depois garanta que `pdftoppm.exe` e `tesseract.exe` estejam no PATH.
-
-## Variáveis de ambiente
-
-```env
-GKLI_OCR_FALLBACK=true
-GKLI_OCR_MAX_PAGES=80
-GKLI_OCR_DPI=120
-```
-
-## Observação para Vercel
-
-A Vercel padrão não costuma disponibilizar `pdftoppm` e `tesseract` no runtime. Nessa hospedagem, o fallback vai informar que o OCR de sistema está indisponível. Para OCR em produção na Vercel, o caminho mais seguro é mover OCR para uma rota/worker externo com esses binários instalados ou usar serviço OCR externo.
+O OCR externo deve gerar um PDF pesquisável, preservando a estrutura tabular sempre que possível.

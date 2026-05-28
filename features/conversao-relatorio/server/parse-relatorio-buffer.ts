@@ -89,10 +89,6 @@ type PdfTextQualityReport = {
   };
 };
 
-type OcrPdfTextResult =
-  | { ok: true; text: string; paginas: number; engine: string }
-  | { ok: false; motivo: string };
-
 type ReciboCondopro = {
   bloco: string;
   unidade: string;
@@ -1174,195 +1170,6 @@ function ensurePdfServerPolyfills() {
   }
 }
 
-async function commandExists(command: string, args: string[] = ["--version"]) {
-  try {
-    const { execFile } = await import("node:child_process");
-    await new Promise<void>((resolve, reject) => {
-      const child = execFile(
-        command,
-        args,
-        { timeout: 5000, maxBuffer: 1024 * 1024 },
-        (error) => {
-          if (error) reject(error);
-          else resolve();
-        },
-      );
-      child.on("error", reject);
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function execFileText(
-  command: string,
-  args: string[],
-  options: { cwd?: string; timeoutMs?: number; maxBufferMb?: number } = {},
-) {
-  const { execFile } = await import("node:child_process");
-
-  return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-    const child = execFile(
-      command,
-      args,
-      {
-        cwd: options.cwd,
-        timeout: options.timeoutMs ?? 120000,
-        maxBuffer: (options.maxBufferMb ?? 16) * 1024 * 1024,
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve({ stdout: String(stdout ?? ""), stderr: String(stderr ?? "") });
-      },
-    );
-    child.on("error", reject);
-  });
-}
-
-function naturalSortFiles(files: string[]) {
-  return [...files].sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
-  );
-}
-
-function getOcrMaxPages() {
-  const value = Number(process.env.GKLI_OCR_MAX_PAGES ?? "80");
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 80;
-}
-
-function getOcrDpi() {
-  const value = Number(process.env.GKLI_OCR_DPI ?? "120");
-  return Number.isFinite(value) && value >= 90 ? Math.floor(value) : 120;
-}
-
-function isOcrFallbackEnabled() {
-  const value = String(process.env.GKLI_OCR_FALLBACK ?? "true").toLowerCase();
-  return !["0", "false", "no", "off"].includes(value);
-}
-
-async function extractPdfTextWithSystemOcr(input: ParseInput): Promise<OcrPdfTextResult> {
-  if (!isOcrFallbackEnabled()) {
-    return { ok: false, motivo: "OCR desativado por GKLI_OCR_FALLBACK=false" };
-  }
-
-  const hasPdfToPpm = await commandExists("pdftoppm", ["-v"]);
-  const hasTesseract = await commandExists("tesseract", ["--version"]);
-
-  if (!hasPdfToPpm || !hasTesseract) {
-    return {
-      ok: false,
-      motivo:
-        "OCR de sistema indisponível. Instale Poppler/pdftoppm e Tesseract no servidor, ou configure execução em ambiente que possua esses binários.",
-    };
-  }
-
-  const { mkdtemp, rm, readdir, writeFile } = await import("node:fs/promises");
-  const { tmpdir } = await import("node:os");
-  const { join } = await import("node:path");
-
-  const dir = await mkdtemp(join(tmpdir(), "gkli-ocr-"));
-  const inputPath = join(dir, "input.pdf");
-  const outputPrefix = join(dir, "page");
-
-  try {
-    await writeFile(inputPath, input.buffer);
-
-    await execFileText(
-      "pdftoppm",
-      [
-        "-f",
-        "1",
-        "-l",
-        String(getOcrMaxPages()),
-        "-r",
-        String(getOcrDpi()),
-        "-gray",
-        "-png",
-        inputPath,
-        outputPrefix,
-      ],
-      { cwd: dir, timeoutMs: 180000, maxBufferMb: 24 },
-    );
-
-    const pngFiles = naturalSortFiles(
-      (await readdir(dir)).filter((file) => /^page-\d+\.png$/i.test(file)),
-    );
-
-    if (!pngFiles.length) {
-      return { ok: false, motivo: "OCR não conseguiu renderizar páginas do PDF." };
-    }
-
-    const chunks: string[] = [];
-    let failedPages = 0;
-    for (const file of pngFiles) {
-      const pagePath = join(dir, file);
-      try {
-        const { stdout } = await execFileText(
-          "tesseract",
-          [
-            pagePath,
-            "stdout",
-            "-l",
-            "por+eng",
-            "--psm",
-            "6",
-            "-c",
-            "preserve_interword_spaces=1",
-          ],
-          { cwd: dir, timeoutMs: 15000, maxBufferMb: 16 },
-        );
-        chunks.push(stdout);
-      } catch {
-        failedPages += 1;
-      }
-    }
-
-    const text = normalizePdfText(chunks.join("\n\n"));
-    if (text.length < 400) {
-      return { ok: false, motivo: "OCR retornou texto curto demais para importação segura." };
-    }
-
-    return {
-      ok: true,
-      text,
-      paginas: pngFiles.length,
-      engine: `pdftoppm+tesseract (${pngFiles.length - failedPages}/${pngFiles.length} páginas lidas)`,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, motivo: `Falha ao executar OCR: ${message}` };
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
-
-async function maybeApplyPdfOcrFallback(
-  input: ParseInput,
-  currentText: string,
-  motivo: string,
-): Promise<{ text: string; ocrApplied: boolean; ocrDiagnostic?: string }> {
-  const result = await extractPdfTextWithSystemOcr(input);
-
-  if (!result.ok) {
-    const detalhe = "motivo" in result ? result.motivo : "falha desconhecida";
-    return {
-      text: currentText,
-      ocrApplied: false,
-      ocrDiagnostic: `${motivo}. OCR não aplicado: ${detalhe}`,
-    };
-  }
-
-  return {
-    text: result.text,
-    ocrApplied: true,
-    ocrDiagnostic: `${motivo}. OCR aplicado via ${result.engine}.`,
-  };
-}
-
 function repairDuplicatedGlyphLine(line: string) {
   // Alguns PDFs do Hflex/LiveFacilities chegam com glifos duplicados no texto
   // extraído: "RREELLAATTÓÓRRIIOO", "CCPPFF", "PPRROOPPRRIIEETTÁÁRRIIOO".
@@ -1526,7 +1333,7 @@ function buildPdfQualityError(report: PdfTextQualityReport) {
     "PDF descartado: a extração de texto não tem qualidade suficiente para gerar a importação de unidades com segurança.",
     report.motivo ? `Motivo: ${report.motivo}.` : "",
     `Score de leitura: ${report.score}/100.`,
-    "O conversor tentou acionar OCR quando disponível. Para PDFs sem texto selecionável, instale/ative OCR no servidor ou envie um PDF gerado diretamente pelo sistema de origem.",
+    "OCR não é executado dentro do app GKLI Cobrança. Trate o PDF externamente para torná-lo pesquisável ou envie um PDF/planilha gerado diretamente pelo sistema de origem.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -2496,72 +2303,33 @@ function buildPreviewFromUnidadesPdf({
 
 async function parseUnidades(input: ParseInput): Promise<ParseResult> {
   if (isPdfInput(input)) {
-    let text = await extractPdfText(input);
-    let ocrApplied = false;
-    let ocrDiagnostic: string | undefined;
-
-    const qualidadeTextoInicial = analyzePdfTextQuality(text);
-    if (!qualidadeTextoInicial.ok) {
-      const fallback = await maybeApplyPdfOcrFallback(
-        input,
-        text,
-        `Texto nativo rejeitado: ${qualidadeTextoInicial.motivo ?? "baixa qualidade"}`,
-      );
-      text = fallback.text;
-      ocrApplied = fallback.ocrApplied;
-      ocrDiagnostic = fallback.ocrDiagnostic;
-    }
+    const text = await extractPdfText(input);
 
     const qualidadeTexto = analyzePdfTextQuality(text);
     if (!qualidadeTexto.ok) {
       return {
         ok: false,
-        error: [buildPdfQualityError(qualidadeTexto), ocrDiagnostic]
-          .filter(Boolean)
-          .join(" "),
+        error: buildPdfQualityError(qualidadeTexto),
       };
     }
 
-    let deteccaoSuperlogica = detectSuperlogicaUnidades(text);
-    let deteccaoHflex = detectHflexLiveFacilitiesUnidades(text);
-
-    if (!ocrApplied && !deteccaoSuperlogica.ok && !deteccaoHflex.ok) {
-      const fallback = await maybeApplyPdfOcrFallback(
-        input,
-        text,
-        "Texto nativo legível, mas sem padrão reconhecido",
-      );
-      if (fallback.ocrApplied) {
-        text = fallback.text;
-        ocrApplied = true;
-        ocrDiagnostic = fallback.ocrDiagnostic;
-        deteccaoSuperlogica = detectSuperlogicaUnidades(text);
-        deteccaoHflex = detectHflexLiveFacilitiesUnidades(text);
-      } else {
-        ocrDiagnostic = fallback.ocrDiagnostic;
-      }
-    }
+    const deteccaoSuperlogica = detectSuperlogicaUnidades(text);
+    const deteccaoHflex = detectHflexLiveFacilitiesUnidades(text);
 
     if (
       deteccaoSuperlogica.ok &&
       deteccaoSuperlogica.confianca >= deteccaoHflex.confianca
     ) {
       const unidades = parseSuperlogicaUnidadesPdf(text);
-      const result = buildPreviewFromUnidadesPdf({
+      return buildPreviewFromUnidadesPdf({
         filename: input.filename,
         unidades,
         condominioCnpj: input.condominioCnpj,
         padraoDetectado: buildPadraoDetectado(PADRAO_SUPERLOGICA_UNIDADES, {
           condominioDetectado: deteccaoSuperlogica.condominioDetectado,
-          confianca: ocrApplied
-            ? Math.min(deteccaoSuperlogica.confianca, 88)
-            : deteccaoSuperlogica.confianca,
+          confianca: deteccaoSuperlogica.confianca,
         }),
       });
-      if (result.ok && ocrDiagnostic) {
-        result.preview.inconsistencias.unshift(ocrDiagnostic);
-      }
-      return result;
     }
 
     if (deteccaoHflex.ok) {
@@ -2570,7 +2338,7 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
         input.condominioCnpj,
         deteccaoHflex.condominioDetectado,
       );
-      const result = buildPreviewFromUnidadesPdf({
+      return buildPreviewFromUnidadesPdf({
         filename: input.filename,
         unidades,
         condominioCnpj: input.condominioCnpj,
@@ -2578,26 +2346,16 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
           PADRAO_HFLEX_LIVEFACILITIES_UNIDADES,
           {
             condominioDetectado: deteccaoHflex.condominioDetectado,
-            confianca: ocrApplied
-              ? Math.min(deteccaoHflex.confianca, 88)
-              : deteccaoHflex.confianca,
+            confianca: deteccaoHflex.confianca,
           },
         ),
       });
-      if (result.ok && ocrDiagnostic) {
-        result.preview.inconsistencias.unshift(ocrDiagnostic);
-      }
-      return result;
     }
 
     return {
       ok: false,
-      error: [
-        "PDF lido, mas nenhum padrão ativo de Unidades foi reconhecido com segurança. Nesta versão, os parsers ativos são Superlógica - Relatório de Unidades - Completo e Hflex / LiveFacilities - Relatório de Unidades.",
-        ocrDiagnostic,
-      ]
-        .filter(Boolean)
-        .join(" "),
+      error:
+        "PDF lido, mas nenhum padrão ativo de Unidades foi reconhecido com segurança. Nesta versão, os parsers ativos são Superlógica - Relatório de Unidades - Completo e Hflex / LiveFacilities - Relatório de Unidades. Se o PDF foi tratado por OCR externo, confirme se ele ficou com texto selecionável e estrutura de tabela preservada.",
     };
   }
 
