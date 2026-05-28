@@ -1918,8 +1918,12 @@ function extractSuperlogicaSection(
 
 function splitSuperlogicaUnitBlocks(text: string) {
   const normalized = normalizePdfText(text);
+
+  // Alguns PDFs da Superlógica, especialmente L'Avance, saem do pdf-parse
+  // sem quebra de linha antes de "Bloco" ou com a unidade colada após o dois-pontos
+  // (ex.: "Unidade:000011"). Por isso o split não pode depender de ^/\n.
   const unitRegex =
-    /(?:^|\n)Bloco:\s*(\S+)\s+Unidade:\s*(.+?)\s+C[óo]digo\s+do\s+cliente:\s*([A-Z0-9.-]+)/gi;
+    /\bBloco:\s*([^\s]+)\s+Unidade:\s*([\s\S]{1,220}?)\s+C[óo]digo\s+do\s+cliente:\s*([A-Z0-9.-]+)/gi;
   const matches = [...normalized.matchAll(unitRegex)];
   const rawBlocks = matches.map((match, index) => {
     const start = match.index ?? 0;
