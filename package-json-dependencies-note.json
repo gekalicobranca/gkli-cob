@@ -1,5 +1,10 @@
 {
   "dependencies_to_add_if_missing": {
     "xlsx": "^0.18.5"
+  },
+  "system_dependencies_for_ocr": {
+    "pdftoppm": "Poppler utils, required to render PDF pages for OCR fallback",
+    "tesseract": "Tesseract OCR engine, required for OCR fallback",
+    "tesseract_languages": "por and eng"
   }
 }

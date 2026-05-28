@@ -9,6 +9,11 @@ function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
 }
 
+function toInteger(value: FormDataEntryValue | null, fallback = 0) {
+  const parsed = Number(value ?? fallback)
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : fallback
+}
+
 function toNumber(value: FormDataEntryValue | null) {
   const raw = String(value ?? '0').replace('.', '').replace(',', '.')
   const parsed = Number(raw)
@@ -55,6 +60,8 @@ export async function createCondominio(formData: FormData) {
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
   const valorCota = toNumber(formData.get('valor_cota_condominial'))
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
+  const parcelasAcordoSemAprovacaoSindico = toInteger(formData.get('parcelas_acordo_sem_aprovacao_sindico'), 0)
+  const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
   const reguaAcordoId = String(formData.get('regua_acordo_id') ?? '').trim() || null
@@ -72,6 +79,8 @@ export async function createCondominio(formData: FormData) {
     vencimento_cota_dia: vencimentoCotaDia,
     valor_cota_condominial: valorCota,
     inicio_cobranca_dias: inicioCobrancaDias,
+    parcelas_acordo_sem_aprovacao_sindico: parcelasAcordoSemAprovacaoSindico,
+    dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
     status: 'ativo',
@@ -111,6 +120,8 @@ export async function updateCondominioIntegral(formData: FormData) {
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
   const valorCota = toNumber(formData.get('valor_cota_condominial'))
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
+  const parcelasAcordoSemAprovacaoSindico = toInteger(formData.get('parcelas_acordo_sem_aprovacao_sindico'), 0)
+  const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
   const status = String(formData.get('status') ?? 'ativo')
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
@@ -125,7 +136,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const supabase = await createClient()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, nome_operacional, cnpj, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, regua_cobranca_id, regua_acordo_id, status, observacoes')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, regua_cobranca_id, regua_acordo_id, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -141,6 +152,8 @@ export async function updateCondominioIntegral(formData: FormData) {
     vencimento_cota_dia: vencimentoCotaDia,
     valor_cota_condominial: valorCota,
     inicio_cobranca_dias: inicioCobrancaDias,
+    parcelas_acordo_sem_aprovacao_sindico: parcelasAcordoSemAprovacaoSindico,
+    dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
     status,

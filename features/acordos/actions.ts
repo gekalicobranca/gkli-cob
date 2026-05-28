@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { randomUUID } from "crypto";
 import { createClient } from "@/utils/supabase/server";
 import { requireRole } from "@/utils/auth/require-role";
 import { requireUser } from "@/utils/auth/require-user";
@@ -47,6 +48,269 @@ function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+
+function getPublicBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}` ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+}
+
+function makeToken() {
+  return randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+}
+
+function formatBRL(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(String(value).includes("T") ? value : `${value}T00:00:00`));
+}
+
+async function inserirMensagemEmail(supabase: any, payload: Record<string, any>) {
+  const { error } = await supabase.from("mensagens").insert({
+    carteira_id: payload.carteira_id,
+    contexto: payload.contexto ?? "acordo",
+    acordo_id: payload.acordo_id ?? null,
+    cobranca_id: payload.cobranca_id ?? null,
+    canal: "email",
+    destinatario: payload.destinatario ?? null,
+    email_destinatario: payload.destinatario ?? null,
+    email_assunto: payload.assunto,
+    conteudo: payload.conteudo,
+    conteudo_renderizado: payload.conteudo,
+    status: "rascunho",
+    status_operacional: "rascunho",
+    origem_evento: payload.origem_evento ?? "acordo_fluxo",
+    payload: payload.payload ?? {},
+  });
+
+  if (error && error.code !== "42P01") {
+    throw new Error(`Erro ao criar e-mail de acordo: ${error.message}`);
+  }
+}
+
+async function criarTermoAcordo(supabase: any, params: {
+  acordoId: string;
+  carteiraId: string;
+  tipoAceite: "devedor" | "sindico";
+  destinatarioNome?: string | null;
+  destinatarioEmail?: string | null;
+  titulo: string;
+  corpo: string;
+  expiraEm?: string | null;
+}) {
+  const token = makeToken();
+  const { data, error } = await supabase
+    .from("acordos_termos")
+    .insert({
+      acordo_id: params.acordoId,
+      carteira_id: params.carteiraId,
+      tipo_aceite: params.tipoAceite,
+      status: "pendente",
+      token,
+      destinatario_nome: params.destinatarioNome ?? null,
+      destinatario_email: params.destinatarioEmail ?? null,
+      titulo: params.titulo,
+      corpo: params.corpo,
+      expira_em: params.expiraEm ?? null,
+    })
+    .select("id, token")
+    .single();
+
+  if (error) {
+    throw new Error(`Erro ao gerar termo de acordo: ${error.message}`);
+  }
+
+  return data as { id: string; token: string };
+}
+
+function montarResumoAcordo(params: {
+  acordoId: string;
+  condominioNome: string;
+  unidadeLabel: string;
+  responsavelNome: string;
+  valorBase: number;
+  despesa: number;
+  valorAcordado: number;
+  entrada: number;
+  quantidadeParcelas: number;
+  primeiroVencimento: string;
+  parcelas: Array<{ numero: number; valor: number; vencimento: string; tipo_parcela?: string }>;
+  tipo: string;
+  numeroProcesso?: string | null;
+}) {
+  const linhasParcelas = params.parcelas
+    .map((parcela) => {
+      const label = parcela.tipo_parcela === "entrada" ? "Entrada" : `Parcela ${parcela.numero}`;
+      return `${label}: ${formatBRL(Number(parcela.valor ?? 0))} · vencimento ${formatDate(parcela.vencimento)}`;
+    })
+    .join("\n");
+
+  return [
+    `Condomínio: ${params.condominioNome}`,
+    `Unidade: ${params.unidadeLabel}`,
+    `Responsável: ${params.responsavelNome}`,
+    `Tipo: ${params.tipo === "judicial" ? "Judicial" : "Extrajudicial"}`,
+    params.numeroProcesso ? `Processo: ${params.numeroProcesso}` : null,
+    "",
+    "Resumo financeiro:",
+    `Valor das cobranças: ${formatBRL(params.valorBase)}`,
+    `Despesa de cobrança: ${formatBRL(params.despesa)}`,
+    `Valor total do acordo: ${formatBRL(params.valorAcordado)}`,
+    `Entrada: ${formatBRL(params.entrada)}`,
+    `Quantidade de parcelas: ${params.quantidadeParcelas}`,
+    `Primeiro vencimento: ${formatDate(params.primeiroVencimento)}`,
+    "",
+    "Plano de pagamento:",
+    linhasParcelas || "-",
+    "",
+    `Referência interna do acordo: ${params.acordoId}`,
+  ].filter((line): line is string => line !== null).join("\n");
+}
+
+async function gerarTermoDevedorEEmail(supabase: any, params: {
+  acordoId: string;
+  carteiraId: string;
+  cobrancaId: string | null;
+  destinatarioNome?: string | null;
+  destinatarioEmail?: string | null;
+  resumo: string;
+}) {
+  const termo = await criarTermoAcordo(supabase, {
+    acordoId: params.acordoId,
+    carteiraId: params.carteiraId,
+    tipoAceite: "devedor",
+    destinatarioNome: params.destinatarioNome,
+    destinatarioEmail: params.destinatarioEmail,
+    titulo: "Termo de acordo para aceite digital",
+    corpo: params.resumo,
+  });
+
+  const link = `${getPublicBaseUrl()}/aceite-acordo/${termo.token}`;
+  await inserirMensagemEmail(supabase, {
+    carteira_id: params.carteiraId,
+    acordo_id: params.acordoId,
+    cobranca_id: params.cobrancaId,
+    destinatario: params.destinatarioEmail,
+    assunto: "Termo de acordo para aceite digital",
+    conteudo: [
+      "Prezado(a),",
+      "",
+      "Segue termo de acordo para conferência e aceite digital.",
+      "",
+      params.resumo,
+      "",
+      `Link público para aceite: ${link}`,
+      "",
+      "Atenciosamente,",
+      "GKLI Cobrança",
+    ].join("\n"),
+    payload: { termo_id: termo.id, link_aceite: link, tipo_aceite: "devedor" },
+  });
+
+  return termo;
+}
+
+async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
+  acordoId: string;
+  carteiraId: string;
+  cobrancaId: string | null;
+  condominioId: string;
+  unidadeId: string;
+  administradoraId?: string | null;
+  resumo: string;
+}) {
+  const { data: acordoAtual } = await supabase
+    .from("acordos")
+    .select("boletos_solicitados_em")
+    .eq("id", params.acordoId)
+    .maybeSingle();
+
+  if ((acordoAtual as any)?.boletos_solicitados_em) return;
+
+  let destinatario: string | null = null;
+  if (params.administradoraId) {
+    const { data: contatos } = await supabase
+      .from("administradora_contatos")
+      .select("email")
+      .eq("administradora_id", params.administradoraId)
+      .eq("ativo", true)
+      .or("recebe_boleto.eq.true,recebe_cobranca.eq.true,principal.eq.true")
+      .limit(1);
+    destinatario = (contatos as any[])?.[0]?.email ?? null;
+  }
+
+  const { data: aceites } = await supabase
+    .from("acordos_termos")
+    .select("tipo_aceite, aceito_em, aceite_ip, aceite_user_agent, destinatario_nome, destinatario_documento")
+    .eq("acordo_id", params.acordoId)
+    .eq("status", "aceito")
+    .order("aceito_em", { ascending: true });
+
+  const carimbos = ((aceites ?? []) as any[])
+    .map((aceite) => [
+      `${aceite.tipo_aceite === "sindico" ? "Síndico" : "Devedor"}: aceito em ${aceite.aceito_em ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(aceite.aceito_em)) : "-"}`,
+      aceite.destinatario_nome ? `Nome: ${aceite.destinatario_nome}` : null,
+      aceite.destinatario_documento ? `Documento: ${aceite.destinatario_documento}` : null,
+      aceite.aceite_ip ? `IP: ${aceite.aceite_ip}` : null,
+      aceite.aceite_user_agent ? `Dispositivo: ${String(aceite.aceite_user_agent).slice(0, 180)}` : null,
+    ].filter(Boolean).join("\n"))
+    .join("\n\n");
+
+  const conteudo = [
+    "Prezados,",
+    "",
+    "O acordo abaixo foi aprovado/aceito e está liberado para emissão dos boletos.",
+    "",
+    params.resumo,
+    "",
+    "Carimbos de aceite:",
+    carimbos || "Aceites registrados no sistema.",
+    "",
+    "Solicitamos, por gentileza, a emissão dos boletos conforme o plano de pagamento acima.",
+    "",
+    "Atenciosamente,",
+    "GKLI Cobrança",
+  ].join("\n");
+
+  await inserirMensagemEmail(supabase, {
+    carteira_id: params.carteiraId,
+    acordo_id: params.acordoId,
+    cobranca_id: params.cobrancaId,
+    destinatario,
+    assunto: "Solicitação de emissão de boletos - acordo aprovado",
+    conteudo,
+    origem_evento: "acordo_boletos_administradora",
+    payload: { administradora_id: params.administradoraId ?? null },
+  });
+
+  await supabase.from("central_pendencias").insert({
+    carteira_id: params.carteiraId,
+    origem: "acordo",
+    tipo: "emissao_boletos_acordo",
+    status: "aberta",
+    prioridade: "alta",
+    titulo: "Solicitar/acompanhar emissão dos boletos do acordo",
+    descricao: "Acordo aceito e liberado para emissão dos boletos pela administradora.",
+    entidade_tipo: "acordo",
+    entidade_id: params.acordoId,
+    condominio_id: params.condominioId,
+    unidade_id: params.unidadeId,
+    cobranca_id: params.cobrancaId,
+    acordo_id: params.acordoId,
+    administradora_id: params.administradoraId ?? null,
+  });
+
+  await supabase.from("acordos").update({
+    boletos_solicitados_em: new Date().toISOString(),
+    fluxo_status: "boletos_solicitados",
+  }).eq("id", params.acordoId);
+}
 
 function addDays(date: Date, days: number) {
   const copy = new Date(date);
@@ -114,7 +378,9 @@ export async function createAcordo(formData: FormData) {
   const { data: cobrancas, error: cobrancasError } = await supabase
     .from("cobrancas")
     .select(
-      "id, carteira_id, condominio_id, unidade_id, status, status_operacional, valor_atualizado, valor_original, juros, multa, correcao, desconto, vencimento",
+      `id, carteira_id, condominio_id, unidade_id, status, status_operacional, valor_atualizado, valor_original, juros, multa, correcao, desconto, vencimento, competencia,
+      condominios:condominio_id (id, nome, administradora_id, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada),
+      unidades:unidade_id (id, identificacao, bloco, responsavel_nome, responsavel_documento, email, telefone)`,
     )
     .in("id", cobrancaIds);
 
@@ -242,6 +508,21 @@ export async function createAcordo(formData: FormData) {
   if (entrada > valorAcordado)
     throw new Error("Entrada não pode ser maior que o valor acordado.");
 
+  const condominioPrincipal = Array.isArray((cobrancaPrincipal as any).condominios)
+    ? (cobrancaPrincipal as any).condominios[0]
+    : (cobrancaPrincipal as any).condominios;
+  const unidadePrincipal = Array.isArray((cobrancaPrincipal as any).unidades)
+    ? (cobrancaPrincipal as any).unidades[0]
+    : (cobrancaPrincipal as any).unidades;
+  const parcelasPermitidasSemSindico = Number(
+    condominioPrincipal?.parcelas_acordo_sem_aprovacao_sindico ?? 0,
+  );
+  const exigeAprovacaoSindico =
+    parcelasPermitidasSemSindico > 0 && quantidadeParcelas > parcelasPermitidasSemSindico;
+  const fluxoStatusInicial = exigeAprovacaoSindico
+    ? "aguardando_aprovacao_sindico"
+    : "aguardando_aceite_devedor";
+
   const { data: acordo, error: acordoError } = await supabase
     .from("acordos")
     .insert({
@@ -257,6 +538,8 @@ export async function createAcordo(formData: FormData) {
       despesa_cobranca_valor: despesaCobrancaValor,
       data_acordo: toISODate(new Date()),
       status: ACORDO_STATUS.ATIVO,
+      fluxo_status: fluxoStatusInicial,
+      exige_aprovacao_sindico: exigeAprovacaoSindico,
       documento_url: documentoUrl || null,
       observacoes: observacoes || null,
     })
@@ -342,6 +625,68 @@ export async function createAcordo(formData: FormData) {
     );
   }
 
+  const unidadeLabel = [
+    unidadePrincipal?.bloco ? `Bloco ${unidadePrincipal.bloco}` : null,
+    unidadePrincipal?.identificacao ? `Unidade ${unidadePrincipal.identificacao}` : null,
+  ].filter(Boolean).join(" · ") || "Unidade não informada";
+  const resumoAcordo = montarResumoAcordo({
+    acordoId: acordo.id,
+    condominioNome: condominioPrincipal?.nome ?? "Condomínio não informado",
+    unidadeLabel,
+    responsavelNome: unidadePrincipal?.responsavel_nome ?? "Responsável não informado",
+    valorBase: valorBaseCobranca,
+    despesa: despesaCobrancaValor,
+    valorAcordado,
+    entrada,
+    quantidadeParcelas,
+    primeiroVencimento,
+    parcelas,
+    tipo,
+    numeroProcesso,
+  });
+
+  if (exigeAprovacaoSindico) {
+    const termoSindico = await criarTermoAcordo(supabase as any, {
+      acordoId: acordo.id,
+      carteiraId: cobrancaPrincipal.carteira_id,
+      tipoAceite: "sindico",
+      titulo: "Aprovação do síndico para acordo acima do limite operacional",
+      corpo: resumoAcordo,
+    });
+    const linkSindico = `${getPublicBaseUrl()}/aceite-sindico/${termoSindico.token}`;
+    await inserirMensagemEmail(supabase as any, {
+      carteira_id: cobrancaPrincipal.carteira_id,
+      acordo_id: acordo.id,
+      cobranca_id: cobrancaPrincipal.id,
+      destinatario: null,
+      assunto: "Aprovação do síndico necessária - proposta de acordo",
+      conteudo: [
+        "Prezado(a) Síndico(a),",
+        "",
+        "O acordo abaixo ultrapassa o limite de parcelas permitido sem aprovação do condomínio.",
+        "",
+        resumoAcordo,
+        "",
+        `Link público para aprovação: ${linkSindico}`,
+        "",
+        "O termo do devedor só será enviado após sua aprovação.",
+        "",
+        "Atenciosamente,",
+        "GKLI Cobrança",
+      ].join("\n"),
+      payload: { termo_id: termoSindico.id, link_aceite: linkSindico, tipo_aceite: "sindico" },
+    });
+  } else {
+    await gerarTermoDevedorEEmail(supabase as any, {
+      acordoId: acordo.id,
+      carteiraId: cobrancaPrincipal.carteira_id,
+      cobrancaId: cobrancaPrincipal.id,
+      destinatarioNome: unidadePrincipal?.responsavel_nome ?? null,
+      destinatarioEmail: unidadePrincipal?.email ?? null,
+      resumo: resumoAcordo,
+    });
+  }
+
   const { error: cobrancaUpdateError } = await supabase
     .from("cobrancas")
     .update({
@@ -373,6 +718,8 @@ export async function createAcordo(formData: FormData) {
       entrada,
       quantidade_parcelas: quantidadeParcelas,
       despesa_cobranca_valor: despesaCobrancaValor,
+      exige_aprovacao_sindico: exigeAprovacaoSindico,
+      fluxo_status: fluxoStatusInicial,
     },
     userId: user?.id ?? null,
   });
@@ -923,4 +1270,129 @@ export async function marcarParcelaComoVencida(formData: FormData) {
   revalidatePath(`/app/acordos/${acordoId}`);
   revalidatePath("/app/acordos");
   revalidatePath("/app");
+}
+
+export async function registrarAceitePublicoTermo(formData: FormData) {
+  "use server";
+
+  const token = String(formData.get("token") ?? "").trim();
+  const nome = String(formData.get("nome") ?? "").trim();
+  const documento = String(formData.get("documento") ?? "").trim();
+  const tipoAceite = String(formData.get("tipo_aceite") ?? "devedor").trim();
+
+  if (!token) throw new Error("Token de aceite obrigatório.");
+  if (!nome) throw new Error("Nome obrigatório para formalizar o aceite.");
+
+  const supabase = await createClient();
+  const { headers } = await import("next/headers");
+  const headerStore = await headers();
+  const ip =
+    headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    headerStore.get("x-real-ip") ||
+    null;
+  const userAgent = headerStore.get("user-agent") || null;
+
+  const { data: termo, error: termoError } = await supabase
+    .from("acordos_termos")
+    .select(
+      `*, acordos:acordo_id (*, condominios:condominio_id (id, nome, administradora_id), unidades:unidade_id (id, identificacao, bloco, responsavel_nome, email))`,
+    )
+    .eq("token", token)
+    .maybeSingle();
+
+  if (termoError) throw new Error(`Erro ao localizar termo: ${termoError.message}`);
+  if (!termo) throw new Error("Termo não encontrado ou link inválido.");
+  if ((termo as any).status === "aceito") redirect(`/${tipoAceite === "sindico" ? "aceite-sindico" : "aceite-acordo"}/${token}?aceito=1`);
+
+  const now = new Date().toISOString();
+  const acordo = (termo as any).acordos;
+
+  const { error: updateTermoError } = await supabase
+    .from("acordos_termos")
+    .update({
+      status: "aceito",
+      aceito_em: now,
+      aceite_ip: ip,
+      aceite_user_agent: userAgent,
+      destinatario_nome: nome,
+      destinatario_documento: documento || null,
+    })
+    .eq("id", (termo as any).id);
+
+  if (updateTermoError) throw new Error(`Erro ao registrar aceite: ${updateTermoError.message}`);
+
+  await supabase.from("acordos_aceites").insert({
+    acordo_id: (termo as any).acordo_id,
+    termo_id: (termo as any).id,
+    tipo_aceite: tipoAceite,
+    nome,
+    documento: documento || null,
+    ip,
+    user_agent: userAgent,
+    payload: { token },
+  });
+
+  if (tipoAceite === "sindico") {
+    await supabase
+      .from("acordos")
+      .update({
+        sindico_aprovado_em: now,
+        fluxo_status: "aprovado_sindico_aguardando_aceite_devedor",
+      })
+      .eq("id", (termo as any).acordo_id);
+
+    await gerarTermoDevedorEEmail(supabase as any, {
+      acordoId: (termo as any).acordo_id,
+      carteiraId: (termo as any).carteira_id,
+      cobrancaId: acordo?.cobranca_id ?? null,
+      destinatarioNome: acordo?.unidades?.responsavel_nome ?? null,
+      destinatarioEmail: acordo?.unidades?.email ?? null,
+      resumo: (termo as any).corpo,
+    });
+
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: (termo as any).carteira_id,
+      entidadeTipo: "acordo",
+      entidadeId: (termo as any).acordo_id,
+      eventoCodigo: "acordo.sindico_aprovou",
+      titulo: "Síndico aprovou o acordo",
+      descricao: "Aprovação pública registrada. O termo do devedor foi gerado e enviado para aceite.",
+      severidade: "sucesso",
+      payload: { termo_id: (termo as any).id, ip, user_agent: userAgent },
+      userId: null,
+    });
+  } else {
+    await supabase
+      .from("acordos")
+      .update({
+        devedor_aceito_em: now,
+        fluxo_status: "aceito_aguardando_boletos",
+      })
+      .eq("id", (termo as any).acordo_id);
+
+    await gerarSolicitacaoBoletosAdministradora(supabase as any, {
+      acordoId: (termo as any).acordo_id,
+      carteiraId: (termo as any).carteira_id,
+      cobrancaId: acordo?.cobranca_id ?? null,
+      condominioId: acordo?.condominio_id,
+      unidadeId: acordo?.unidade_id,
+      administradoraId: acordo?.condominios?.administradora_id ?? null,
+      resumo: (termo as any).corpo,
+    });
+
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: (termo as any).carteira_id,
+      entidadeTipo: "acordo",
+      entidadeId: (termo as any).acordo_id,
+      eventoCodigo: "acordo.devedor_aceitou",
+      titulo: "Devedor aceitou o termo",
+      descricao: "Aceite público registrado. Solicitação de emissão dos boletos gerada para a administradora.",
+      severidade: "sucesso",
+      payload: { termo_id: (termo as any).id, ip, user_agent: userAgent },
+      userId: null,
+    });
+  }
+
+  revalidatePath(`/app/acordos/${(termo as any).acordo_id}`);
+  redirect(`/${tipoAceite === "sindico" ? "aceite-sindico" : "aceite-acordo"}/${token}?aceito=1`);
 }

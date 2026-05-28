@@ -234,10 +234,10 @@ async function exportAcordos(id: string) {
 
   if (acordoIds.length > 0) {
     const { data: parcelas, error: parcelasError } = await supabase
-      .from("acordos_parcelas")
-      .select("acordo_id, numero_parcela, vencimento")
+      .from("parcelas_acordo")
+      .select("acordo_id, numero, vencimento")
       .in("acordo_id", acordoIds)
-      .order("numero_parcela", { ascending: true });
+      .order("numero", { ascending: true });
 
     if (parcelasError) throw new Error(`Erro ao carregar parcelas dos acordos: ${parcelasError.message}`);
 

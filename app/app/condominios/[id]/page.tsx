@@ -107,6 +107,13 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <FormField label="Dia de vencimento da cota"><Input name="vencimento_cota_dia" type="number" min="1" max="31" defaultValue={condominio.vencimento_cota_dia ?? 10} /></FormField>
             <FormField label="Valor médio da cota"><Input name="valor_cota_condominial" defaultValue={String(condominio.valor_cota_condominial ?? 0).replace('.', ',')} /></FormField>
             <FormField label="Início da cobrança após X dias"><Input name="inicio_cobranca_dias" type="number" min="0" max="365" defaultValue={condominio.inicio_cobranca_dias ?? 30} /></FormField>
+            <FormField label="Parcelas permitidas sem aprovação do síndico"><Input name="parcelas_acordo_sem_aprovacao_sindico" type="number" min="0" max="120" defaultValue={condominio.parcelas_acordo_sem_aprovacao_sindico ?? 0} /></FormField>
+            <FormField label="Dias para reemissão de parcela de acordo em atraso"><Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" max="365" defaultValue={condominio.dias_reemissao_parcela_acordo_atrasada ?? 0} /></FormField>
+          </div>
+
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+            <p className="font-semibold">Regras operacionais de acordos</p>
+            <p className="mt-1">Acima do limite de parcelas, o sistema envia primeiro a aprovação pública ao síndico. Somente após esse aceite o termo é enviado ao devedor. Se os dias de reemissão forem 0, parcelas vencidas não poderão ser reemitidas pelo acompanhamento.</p>
           </div>
 
           <div id="reguas" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">

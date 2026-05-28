@@ -76,7 +76,7 @@ export async function getCockpitInteligente(scope: CarteiraScope) {
       data_acordo,
       condominios(nome),
       unidades(identificacao, responsavel_nome),
-      acordos_parcelas(vencimento, status)
+      parcelas_acordo(vencimento, status)
     `)
     .in('status', ACORDO_STATUS_ATIVOS)
     .order('data_acordo', { ascending: false })
@@ -124,7 +124,7 @@ export async function getCockpitInteligente(scope: CarteiraScope) {
   const cobrancasBase = normalizeRelationsList((cobrancas ?? []) as any[], ['condominios', 'unidades'])
 
   const acordosNormalizados = acordosBase.map((acordo: any) => {
-    const abertas = (acordo.acordos_parcelas ?? [])
+    const abertas = (acordo.parcelas_acordo ?? [])
       .filter((parcela: any) => parcela.status !== PARCELA_ACORDO_STATUS.PAGA)
       .sort((a: any, b: any) => String(a.vencimento).localeCompare(String(b.vencimento)))
 

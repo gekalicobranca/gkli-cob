@@ -177,8 +177,8 @@ async function carregarParcelasAbertas(
   if (!acordoIds.length) return new Map<string, any[]>()
 
   const { data, error } = await supabase
-    .from('acordos_parcelas')
-    .select('id, acordo_id, numero, tipo, valor, vencimento, status')
+    .from('parcelas_acordo')
+    .select('id, acordo_id, numero, tipo_parcela, valor, vencimento, status')
     .in('acordo_id', acordoIds)
     .in('status', [PARCELA_ACORDO_STATUS.PENDENTE, PARCELA_ACORDO_STATUS.VENCIDA])
     .order('vencimento', { ascending: true })

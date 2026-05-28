@@ -12,7 +12,9 @@ export async function listAcordos(scope?: CarteiraScope) {
       *,
       condominios:condominio_id (
         id,
-        nome
+        nome,
+        parcelas_acordo_sem_aprovacao_sindico,
+        dias_reemissao_parcela_acordo_atrasada
       ),
       unidades:unidade_id (
         id,
@@ -26,7 +28,8 @@ export async function listAcordos(scope?: CarteiraScope) {
         status,
         status_operacional,
         status_financeiro
-      )
+      ),
+      termos:acordos_termos (*)
     `,
     )
     .order("data_acordo", { ascending: false });
@@ -55,7 +58,10 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
       condominios:condominio_id (
         id,
         nome,
-        cnpj
+        cnpj,
+        administradora_id,
+        parcelas_acordo_sem_aprovacao_sindico,
+        dias_reemissao_parcela_acordo_atrasada
       ),
       unidades:unidade_id (
         id,
@@ -78,7 +84,8 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
         status_operacional,
         status_financeiro,
         vencimento
-      )
+      ),
+      termos:acordos_termos (*)
     `,
     )
     .eq("id", id);
@@ -96,7 +103,7 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
   }
 
   const { data: parcelas, error: parcelasError } = await supabase
-    .from("acordos_parcelas")
+    .from("parcelas_acordo")
     .select("*")
     .eq("acordo_id", id)
     .order("numero", { ascending: true });
@@ -153,10 +160,17 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
     );
   }
 
+  const parcelasNormalizadas = ((parcelas ?? []) as any[]).map((parcela) => ({
+    ...parcela,
+    tipo: parcela.tipo_parcela ?? parcela.tipo ?? "parcela",
+    criado_em: parcela.criado_em ?? parcela.created_at,
+    atualizado_em: parcela.atualizado_em ?? parcela.updated_at,
+  }));
+
   return {
     acordo,
     cobrancasVinculadas: cobrancasVinculadas ?? [],
-    parcelas: parcelas ?? [],
+    parcelas: parcelasNormalizadas,
     timeline: [
       ...eventosOperacionais.map((evento) => ({
         id: evento.id,
@@ -201,7 +215,9 @@ export async function listCobrancasElegiveisParaAcordo(scope?: CarteiraScope) {
       vencimento,
       condominios:condominio_id (
         id,
-        nome
+        nome,
+        parcelas_acordo_sem_aprovacao_sindico,
+        dias_reemissao_parcela_acordo_atrasada
       ),
       unidades:unidade_id (
         id,
@@ -433,7 +449,9 @@ export async function listCobrancasSelecionadasParaAcordo(
       status_financeiro,
       condominios:condominio_id (
         id,
-        nome
+        nome,
+        parcelas_acordo_sem_aprovacao_sindico,
+        dias_reemissao_parcela_acordo_atrasada
       ),
       unidades:unidade_id (
         id,
@@ -462,7 +480,6 @@ export async function listCobrancasSelecionadasParaAcordo(
   return data ?? [];
 }
 
-
 export async function getPendenciaPlanilhaDebitosAberta(params: {
   scope: CarteiraScope;
   carteiraId?: string | null;
@@ -484,7 +501,8 @@ export async function getPendenciaPlanilhaDebitosAberta(params: {
   query = applyCarteiraScope(query, params.scope.carteiraIds);
 
   if (params.carteiraId) query = query.eq("carteira_id", params.carteiraId);
-  if (params.condominioId) query = query.eq("condominio_id", params.condominioId);
+  if (params.condominioId)
+    query = query.eq("condominio_id", params.condominioId);
 
   const { data, error } = await query.maybeSingle();
 
@@ -496,7 +514,6 @@ export async function getPendenciaPlanilhaDebitosAberta(params: {
 
   return data ?? null;
 }
-
 
 export async function getPendenciaAprovacaoSindicoAberta(params: {
   scope: CarteiraScope;
@@ -519,7 +536,8 @@ export async function getPendenciaAprovacaoSindicoAberta(params: {
   query = applyCarteiraScope(query, params.scope.carteiraIds);
 
   if (params.carteiraId) query = query.eq("carteira_id", params.carteiraId);
-  if (params.condominioId) query = query.eq("condominio_id", params.condominioId);
+  if (params.condominioId)
+    query = query.eq("condominio_id", params.condominioId);
 
   const { data, error } = await query.maybeSingle();
 

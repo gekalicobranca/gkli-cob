@@ -89,6 +89,10 @@ type PdfTextQualityReport = {
   };
 };
 
+type OcrPdfTextResult =
+  | { ok: true; text: string; paginas: number; engine: string }
+  | { ok: false; motivo: string };
+
 type ReciboCondopro = {
   bloco: string;
   unidade: string;
@@ -1170,6 +1174,195 @@ function ensurePdfServerPolyfills() {
   }
 }
 
+async function commandExists(command: string, args: string[] = ["--version"]) {
+  try {
+    const { execFile } = await import("node:child_process");
+    await new Promise<void>((resolve, reject) => {
+      const child = execFile(
+        command,
+        args,
+        { timeout: 5000, maxBuffer: 1024 * 1024 },
+        (error) => {
+          if (error) reject(error);
+          else resolve();
+        },
+      );
+      child.on("error", reject);
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function execFileText(
+  command: string,
+  args: string[],
+  options: { cwd?: string; timeoutMs?: number; maxBufferMb?: number } = {},
+) {
+  const { execFile } = await import("node:child_process");
+
+  return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    const child = execFile(
+      command,
+      args,
+      {
+        cwd: options.cwd,
+        timeout: options.timeoutMs ?? 120000,
+        maxBuffer: (options.maxBufferMb ?? 16) * 1024 * 1024,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve({ stdout: String(stdout ?? ""), stderr: String(stderr ?? "") });
+      },
+    );
+    child.on("error", reject);
+  });
+}
+
+function naturalSortFiles(files: string[]) {
+  return [...files].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
+  );
+}
+
+function getOcrMaxPages() {
+  const value = Number(process.env.GKLI_OCR_MAX_PAGES ?? "80");
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 80;
+}
+
+function getOcrDpi() {
+  const value = Number(process.env.GKLI_OCR_DPI ?? "120");
+  return Number.isFinite(value) && value >= 90 ? Math.floor(value) : 120;
+}
+
+function isOcrFallbackEnabled() {
+  const value = String(process.env.GKLI_OCR_FALLBACK ?? "true").toLowerCase();
+  return !["0", "false", "no", "off"].includes(value);
+}
+
+async function extractPdfTextWithSystemOcr(input: ParseInput): Promise<OcrPdfTextResult> {
+  if (!isOcrFallbackEnabled()) {
+    return { ok: false, motivo: "OCR desativado por GKLI_OCR_FALLBACK=false" };
+  }
+
+  const hasPdfToPpm = await commandExists("pdftoppm", ["-v"]);
+  const hasTesseract = await commandExists("tesseract", ["--version"]);
+
+  if (!hasPdfToPpm || !hasTesseract) {
+    return {
+      ok: false,
+      motivo:
+        "OCR de sistema indisponível. Instale Poppler/pdftoppm e Tesseract no servidor, ou configure execução em ambiente que possua esses binários.",
+    };
+  }
+
+  const { mkdtemp, rm, readdir, writeFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+
+  const dir = await mkdtemp(join(tmpdir(), "gkli-ocr-"));
+  const inputPath = join(dir, "input.pdf");
+  const outputPrefix = join(dir, "page");
+
+  try {
+    await writeFile(inputPath, input.buffer);
+
+    await execFileText(
+      "pdftoppm",
+      [
+        "-f",
+        "1",
+        "-l",
+        String(getOcrMaxPages()),
+        "-r",
+        String(getOcrDpi()),
+        "-gray",
+        "-png",
+        inputPath,
+        outputPrefix,
+      ],
+      { cwd: dir, timeoutMs: 180000, maxBufferMb: 24 },
+    );
+
+    const pngFiles = naturalSortFiles(
+      (await readdir(dir)).filter((file) => /^page-\d+\.png$/i.test(file)),
+    );
+
+    if (!pngFiles.length) {
+      return { ok: false, motivo: "OCR não conseguiu renderizar páginas do PDF." };
+    }
+
+    const chunks: string[] = [];
+    let failedPages = 0;
+    for (const file of pngFiles) {
+      const pagePath = join(dir, file);
+      try {
+        const { stdout } = await execFileText(
+          "tesseract",
+          [
+            pagePath,
+            "stdout",
+            "-l",
+            "por+eng",
+            "--psm",
+            "6",
+            "-c",
+            "preserve_interword_spaces=1",
+          ],
+          { cwd: dir, timeoutMs: 15000, maxBufferMb: 16 },
+        );
+        chunks.push(stdout);
+      } catch {
+        failedPages += 1;
+      }
+    }
+
+    const text = normalizePdfText(chunks.join("\n\n"));
+    if (text.length < 400) {
+      return { ok: false, motivo: "OCR retornou texto curto demais para importação segura." };
+    }
+
+    return {
+      ok: true,
+      text,
+      paginas: pngFiles.length,
+      engine: `pdftoppm+tesseract (${pngFiles.length - failedPages}/${pngFiles.length} páginas lidas)`,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, motivo: `Falha ao executar OCR: ${message}` };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function maybeApplyPdfOcrFallback(
+  input: ParseInput,
+  currentText: string,
+  motivo: string,
+): Promise<{ text: string; ocrApplied: boolean; ocrDiagnostic?: string }> {
+  const result = await extractPdfTextWithSystemOcr(input);
+
+  if (!result.ok) {
+    const detalhe = "motivo" in result ? result.motivo : "falha desconhecida";
+    return {
+      text: currentText,
+      ocrApplied: false,
+      ocrDiagnostic: `${motivo}. OCR não aplicado: ${detalhe}`,
+    };
+  }
+
+  return {
+    text: result.text,
+    ocrApplied: true,
+    ocrDiagnostic: `${motivo}. OCR aplicado via ${result.engine}.`,
+  };
+}
+
 function repairDuplicatedGlyphLine(line: string) {
   // Alguns PDFs do Hflex/LiveFacilities chegam com glifos duplicados no texto
   // extraído: "RREELLAATTÓÓRRIIOO", "CCPPFF", "PPRROOPPRRIIEETTÁÁRRIIOO".
@@ -1247,7 +1440,7 @@ function analyzePdfTextQuality(text: string): PdfTextQualityReport {
     /CONDOMINIO\s*:\s*\d+\s*-/,
     /CNPJ\s*:\s*\d{2}/,
     /BLOCO\s*:?\s*\S+\s+UNIDADE\s*:?/,
-    /CODIGO\s+DO\s+CLIENTE/,
+    /(?:CODIGO|C.?DIGO)\s+DO\s+CLIENTE/,
     /ENDERECO\s+DE\s+COBRANCA/,
     /DADOS\s+PESSOAIS/,
     /TELEFONE\s*\/?\s*E\s*-?\s*MAIL/,
@@ -1266,7 +1459,7 @@ function analyzePdfTextQuality(text: string): PdfTextQualityReport {
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
   const blocosSuperlogica = countRegexMatches(
     loose,
-    /(?:^|\n)\s*BLOCO\s*:?\s*\S+\s+UNIDADE\s*:?\s*[^\n]{1,140}?(?:CODIGO|C[OÓ]DIGO)\s+DO\s+CLIENTE/g,
+    /(?:^|\n)\s*BLOCO\s*:?\s*\S+\s*UNIDADE\s*:?\s*[^\n]{0,160}?(?:CODIGO|C.?DIGO)\s+DO\s+CLIENTE/g,
   );
   const blocosHflex = countRegexMatches(
     loose,
@@ -1333,7 +1526,7 @@ function buildPdfQualityError(report: PdfTextQualityReport) {
     "PDF descartado: a extração de texto não tem qualidade suficiente para gerar a importação de unidades com segurança.",
     report.motivo ? `Motivo: ${report.motivo}.` : "",
     `Score de leitura: ${report.score}/100.`,
-    "Envie um PDF gerado diretamente pelo sistema de origem com texto selecionável/legível. Nesta etapa não usamos OCR para evitar importação incorreta.",
+    "O conversor tentou acionar OCR quando disponível. Para PDFs sem texto selecionável, instale/ative OCR no servidor ou envie um PDF gerado diretamente pelo sistema de origem.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -1694,9 +1887,14 @@ function splitUnitPdfBlocks(text: string) {
 
   for (const line of lines) {
     const clean = normalize(line);
-    const match = clean.match(
-      /^(?:UNIDADE\s*)?(\d{3,8})\s+([A-ZÀ-Ü0-9][A-ZÀ-Ü0-9 .'-]{0,80})$/i,
-    );
+    const match =
+      clean.match(
+        /^(?:UNIDADE\s*)?(\d{3,8})\s+([A-ZÀ-Ü0-9][A-ZÀ-Ü0-9 .'-]{0,80})$/i,
+      ) ??
+      clean.match(
+        // LiveFacilities às vezes vem do pdf-parse sem espaço entre unidade e tipo: "000301OFFICE".
+        /^(?:UNIDADE\s*)?(\d{3,8})([A-ZÀ-Ü][A-ZÀ-Ü0-9 .'-]{1,80})$/i,
+      );
     if (match) {
       const label = normalize(match[2]);
       const upperLabel = normalizeForLooseMatch(label);
@@ -1837,7 +2035,7 @@ function detectSuperlogicaUnidades(text: string) {
   const unidadeMatches = splitSuperlogicaUnitBlocks(normalized).length;
   const looseUnitHeaderMatches = countRegexMatches(
     loose,
-    /BLOCO\s*:?\s*\S+\s+UNIDADE\s*:?\s*.+?(?:CODIGO|C[OÓ]DIGO)\s+DO\s+CLIENTE\s*:?/g,
+    /BLOCO\s*:?\s*\S+\s*UNIDADE\s*:?\s*.*?(?:CODIGO|C.?DIGO)\s+DO\s+CLIENTE\s*:?/g,
   );
   const looseUnitLineMatches = countRegexMatches(
     loose,
@@ -1847,7 +2045,7 @@ function detectSuperlogicaUnidades(text: string) {
     /RELATORIO\s+DE\s+UNIDADES\s*-?\s*COMPLETO/,
     /CONDOMINIO\s*:\s*\d+\s*-/,
     /CNPJ\s*:\s*\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/,
-    /BLOCO\s*:?\s*\S+\s+UNIDADE\s*:?\s*.+?(?:CODIGO|C[OÓ]DIGO)\s+DO\s+CLIENTE\s*:?/,
+    /BLOCO\s*:?\s*\S+\s*UNIDADE\s*:?\s*.*?(?:CODIGO|C.?DIGO)\s+DO\s+CLIENTE\s*:?/,
     /ENDERECO\s+DE\s+COBRANCA/,
     /DADOS\s+PESSOAIS/,
     /TELEFONE\s*\/?\s*E\s*-?\s*MAIL\s+DO\s+CLIENTE|EMAIL\s+DO\s+CLIENTE/,
@@ -1855,7 +2053,7 @@ function detectSuperlogicaUnidades(text: string) {
     /DADOS\s+DO\s+PAGADOR/,
     /TIPO\s+DE\s+UNIDADE\s*:/,
     /FORMA\s+DE\s+ENVIO/,
-    /CODIGO\s+DO\s+CLIENTE/,
+    /(?:CODIGO|C.?DIGO)\s+DO\s+CLIENTE/,
   ];
 
   const hits = sinais.reduce(
@@ -1923,22 +2121,47 @@ function splitSuperlogicaUnitBlocks(text: string) {
   // sem quebra de linha antes de "Bloco" ou com a unidade colada após o dois-pontos
   // (ex.: "Unidade:000011"). Por isso o split não pode depender de ^/\n.
   const unitRegex =
-    /\bBloco:\s*([^\s]+)\s+Unidade:\s*([\s\S]{1,220}?)\s+C[óo]digo\s+do\s+cliente:\s*([A-Z0-9.-]+)/gi;
-  const matches = [...normalized.matchAll(unitRegex)];
-  const rawBlocks = matches.map((match, index) => {
-    const start = match.index ?? 0;
-    const nextStart =
-      index + 1 < matches.length
-        ? (matches[index + 1].index ?? normalized.length)
-        : normalized.length;
+    /\bBloco\s*:?\s*([^\s]+)\s*Unidade\s*:?\s*([\s\S]{1,260}?)\s+(?:C[óo]digo|Codigo|C.digo)\s+do\s+cliente\s*:?\s*([A-Z0-9.-]+)/gi;
+  const legacyMatches = [...normalized.matchAll(unitRegex)].map((match) => {
     const unidadeRaw = normalize(match[2]);
     const unidadeMatch = unidadeRaw.match(/^(.+?)\s+-\s+(.+)$/);
-
     return {
+      index: match.index ?? 0,
       bloco: normalize(match[1]),
       identificacao: normalize(unidadeMatch?.[1] ?? unidadeRaw),
       responsavel: normalize(unidadeMatch?.[2] ?? ""),
       codigoCliente: normalize(match[3]),
+    };
+  });
+
+  const gluedUnitRegex =
+    /\bBloco\s*:?\s*([^\s]+)\s*Unidade\s*:?\s*(?:C[óo]digo|Codigo|C.digo)\s+do\s+cliente\s*:?\s*([0-9]{6})([A-Z0-9]{1,12}\s*-\s*[^\n]+)/gi;
+  const gluedMatches = [...normalized.matchAll(gluedUnitRegex)].map((match) => {
+    const unidadeRaw = normalize(match[3]);
+    const unidadeMatch = unidadeRaw.match(/^(.+?)\s+-\s+(.+)$/);
+    return {
+      index: match.index ?? 0,
+      bloco: normalize(match[1]),
+      identificacao: normalize(unidadeMatch?.[1] ?? unidadeRaw),
+      responsavel: normalize(unidadeMatch?.[2] ?? ""),
+      codigoCliente: normalize(match[2]),
+    };
+  });
+
+  const matches = [...legacyMatches, ...gluedMatches].sort(
+    (a, b) => a.index - b.index,
+  );
+
+  const rawBlocks = matches.map((match, index) => {
+    const start = match.index;
+    const nextStart =
+      index + 1 < matches.length ? matches[index + 1].index : normalized.length;
+
+    return {
+      bloco: match.bloco,
+      identificacao: match.identificacao,
+      responsavel: match.responsavel,
+      codigoCliente: match.codigoCliente,
       text: normalized.slice(start, nextStart),
     };
   });
@@ -2010,9 +2233,9 @@ function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
       ],
     );
 
-    const documentoFonte = dadosPagador || dadosPessoais || block.text;
+    const documentoFonte = [dadosPagador, dadosPessoais, block.text].filter(Boolean).join("\n");
     const documentoMatch = documentoFonte.match(
-      /\b(CPF|CNPJ):\s*([0-9.\/-]+)/i,
+      /(?:^|[^A-Z0-9])(CPF|CNPJ)\s*:\s*([0-9.\/-]+)/i,
     );
     const tipoUnidadeMatch = block.text.match(
       /Tipo\s+de\s+unidade:\s*([^\n]+?)(?:\s{2,}|\s+Dias\s+de\s+prazo:|$)/i,
@@ -2273,32 +2496,72 @@ function buildPreviewFromUnidadesPdf({
 
 async function parseUnidades(input: ParseInput): Promise<ParseResult> {
   if (isPdfInput(input)) {
-    const text = await extractPdfText(input);
+    let text = await extractPdfText(input);
+    let ocrApplied = false;
+    let ocrDiagnostic: string | undefined;
+
+    const qualidadeTextoInicial = analyzePdfTextQuality(text);
+    if (!qualidadeTextoInicial.ok) {
+      const fallback = await maybeApplyPdfOcrFallback(
+        input,
+        text,
+        `Texto nativo rejeitado: ${qualidadeTextoInicial.motivo ?? "baixa qualidade"}`,
+      );
+      text = fallback.text;
+      ocrApplied = fallback.ocrApplied;
+      ocrDiagnostic = fallback.ocrDiagnostic;
+    }
+
     const qualidadeTexto = analyzePdfTextQuality(text);
     if (!qualidadeTexto.ok) {
       return {
         ok: false,
-        error: buildPdfQualityError(qualidadeTexto),
+        error: [buildPdfQualityError(qualidadeTexto), ocrDiagnostic]
+          .filter(Boolean)
+          .join(" "),
       };
     }
 
-    const deteccaoSuperlogica = detectSuperlogicaUnidades(text);
-    const deteccaoHflex = detectHflexLiveFacilitiesUnidades(text);
+    let deteccaoSuperlogica = detectSuperlogicaUnidades(text);
+    let deteccaoHflex = detectHflexLiveFacilitiesUnidades(text);
+
+    if (!ocrApplied && !deteccaoSuperlogica.ok && !deteccaoHflex.ok) {
+      const fallback = await maybeApplyPdfOcrFallback(
+        input,
+        text,
+        "Texto nativo legível, mas sem padrão reconhecido",
+      );
+      if (fallback.ocrApplied) {
+        text = fallback.text;
+        ocrApplied = true;
+        ocrDiagnostic = fallback.ocrDiagnostic;
+        deteccaoSuperlogica = detectSuperlogicaUnidades(text);
+        deteccaoHflex = detectHflexLiveFacilitiesUnidades(text);
+      } else {
+        ocrDiagnostic = fallback.ocrDiagnostic;
+      }
+    }
 
     if (
       deteccaoSuperlogica.ok &&
       deteccaoSuperlogica.confianca >= deteccaoHflex.confianca
     ) {
       const unidades = parseSuperlogicaUnidadesPdf(text);
-      return buildPreviewFromUnidadesPdf({
+      const result = buildPreviewFromUnidadesPdf({
         filename: input.filename,
         unidades,
         condominioCnpj: input.condominioCnpj,
         padraoDetectado: buildPadraoDetectado(PADRAO_SUPERLOGICA_UNIDADES, {
           condominioDetectado: deteccaoSuperlogica.condominioDetectado,
-          confianca: deteccaoSuperlogica.confianca,
+          confianca: ocrApplied
+            ? Math.min(deteccaoSuperlogica.confianca, 88)
+            : deteccaoSuperlogica.confianca,
         }),
       });
+      if (result.ok && ocrDiagnostic) {
+        result.preview.inconsistencias.unshift(ocrDiagnostic);
+      }
+      return result;
     }
 
     if (deteccaoHflex.ok) {
@@ -2307,7 +2570,7 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
         input.condominioCnpj,
         deteccaoHflex.condominioDetectado,
       );
-      return buildPreviewFromUnidadesPdf({
+      const result = buildPreviewFromUnidadesPdf({
         filename: input.filename,
         unidades,
         condominioCnpj: input.condominioCnpj,
@@ -2315,16 +2578,26 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
           PADRAO_HFLEX_LIVEFACILITIES_UNIDADES,
           {
             condominioDetectado: deteccaoHflex.condominioDetectado,
-            confianca: deteccaoHflex.confianca,
+            confianca: ocrApplied
+              ? Math.min(deteccaoHflex.confianca, 88)
+              : deteccaoHflex.confianca,
           },
         ),
       });
+      if (result.ok && ocrDiagnostic) {
+        result.preview.inconsistencias.unshift(ocrDiagnostic);
+      }
+      return result;
     }
 
     return {
       ok: false,
-      error:
+      error: [
         "PDF lido, mas nenhum padrão ativo de Unidades foi reconhecido com segurança. Nesta versão, os parsers ativos são Superlógica - Relatório de Unidades - Completo e Hflex / LiveFacilities - Relatório de Unidades.",
+        ocrDiagnostic,
+      ]
+        .filter(Boolean)
+        .join(" "),
     };
   }
 

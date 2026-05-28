@@ -27,7 +27,7 @@ type CobrancaOption = {
   status: string;
   status_operacional?: string | null;
   status_financeiro?: string | null;
-  condominios?: { nome: string } | null;
+  condominios?: { nome: string; parcelas_acordo_sem_aprovacao_sindico?: number | null; dias_reemissao_parcela_acordo_atrasada?: number | null } | null;
   unidades?: { identificacao: string; responsavel_nome: string | null } | null;
 };
 
@@ -123,6 +123,12 @@ export function AcordoSimulatorForm({
   const cobrancaSelecionada =
     cobrancasSelecionadas[0] ??
     cobrancas.find((item) => item.id === cobrancaId);
+  const limiteParcelasSemSindico = Number(
+    cobrancaSelecionada?.condominios?.parcelas_acordo_sem_aprovacao_sindico ?? 0,
+  );
+  const parcelasInformadas = Math.max(1, Number(quantidadeParcelas) || 1);
+  const exigeAprovacaoSindico =
+    limiteParcelasSemSindico > 0 && parcelasInformadas > limiteParcelasSemSindico;
 
   function getValorAtualizado(cobranca?: CobrancaOption) {
     if (!cobranca) return 0;
@@ -494,6 +500,17 @@ export function AcordoSimulatorForm({
           />
         </FormField>
 
+        {exigeAprovacaoSindico ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-950">
+              Aprovação do síndico obrigatória
+            </p>
+            <p className="mt-1 text-sm leading-6 text-amber-900">
+              Este condomínio permite até {limiteParcelasSemSindico} parcela(s) sem aprovação. Como a simulação tem {parcelasInformadas} parcela(s), o sistema criará o acordo em fluxo de aprovação e só enviará o termo ao devedor depois do aceite do síndico.
+            </p>
+          </div>
+        ) : null}
+
         {aprovacaoSindicoSolicitada ? (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
             <p className="text-sm font-semibold text-emerald-950">
@@ -528,24 +545,26 @@ export function AcordoSimulatorForm({
         ) : null}
 
         <div className="flex flex-col justify-end gap-2 md:flex-row">
+          {!exigeAprovacaoSindico ? (
+            <Button
+              type="submit"
+              variant="secondary"
+              formAction={solicitarAprovacaoSindicoAcordo}
+              onClick={handleOpenAprovacaoSindicoEmail}
+              disabled={bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico}
+            >
+              Enviar acordo para aprovação do síndico
+            </Button>
+          ) : null}
           <Button
             type="submit"
-            variant="secondary"
-            formAction={solicitarAprovacaoSindicoAcordo}
-            onClick={handleOpenAprovacaoSindicoEmail}
             disabled={bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico}
           >
-            Enviar acordo para aprovação do síndico
-          </Button>
-          <Button
-            type="submit"
-            disabled={bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico}
-          >
-            Criar acordo e gerar parcelas
+            Criar acordo e iniciar fluxo
           </Button>
         </div>
         <p className="text-right text-xs leading-5 text-slate-500">
-          A aprovação do síndico é opcional. Quando acionada, gera pendência e bloqueia a efetivação até a liberação.
+          Se o limite operacional do condomínio for ultrapassado, o síndico aprova primeiro; depois o termo público segue ao devedor e, com o aceite, a administradora recebe a solicitação de boletos.
         </p>
       </Card>
 

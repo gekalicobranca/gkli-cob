@@ -13,6 +13,8 @@ const CONDOMINIO_SELECT = `
   vencimento_cota_dia,
   valor_cota_condominial,
   inicio_cobranca_dias,
+  parcelas_acordo_sem_aprovacao_sindico,
+  dias_reemissao_parcela_acordo_atrasada,
   regua_cobranca_id,
   regua_acordo_id,
   status,

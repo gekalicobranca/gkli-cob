@@ -41,7 +41,7 @@ export const ACORDO_RISCO = {
 } as const
 
 export const PARCELA_ACORDO_STATUS = {
-  PENDENTE: 'pendente',
+  PENDENTE: 'aberta',
   PAGA: 'paga',
   VENCIDA: 'vencida',
   CANCELADA: 'cancelada',
@@ -69,6 +69,7 @@ export const ACORDO_STATUS_LABEL: Record<string, string> = {
   baixo: 'Baixo',
   medio: 'Médio',
   alto: 'Alto',
+  aberta: 'Aberta',
   pendente: 'Pendente',
   paga: 'Paga',
   vencida: 'Vencida',

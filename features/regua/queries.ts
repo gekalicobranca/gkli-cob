@@ -240,10 +240,10 @@ export async function listReguaAcordoPreview(scope: CarteiraScope) {
 
   const acordoIds = acordos.map((acordo) => acordo.id)
   const { data: parcelasData, error: parcelasError } = await supabase
-    .from('acordos_parcelas')
-    .select('id, acordo_id, numero, tipo, valor, vencimento, status')
+    .from('parcelas_acordo')
+    .select('id, acordo_id, numero, tipo_parcela, valor, vencimento, status')
     .in('acordo_id', acordoIds)
-    .in('status', ['pendente', 'vencida'])
+    .in('status', ['aberta', 'vencida'])
     .order('vencimento', { ascending: true })
 
   if (parcelasError) {

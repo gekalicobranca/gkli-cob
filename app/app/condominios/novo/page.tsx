@@ -60,6 +60,14 @@ export default async function NovoCondominioPage() {
             <FormField label="Início da cobrança após X dias">
               <Input name="inicio_cobranca_dias" type="number" min="0" defaultValue="30" />
             </FormField>
+
+            <FormField label="Parcelas permitidas sem aprovação do síndico" hint="0 deixa sempre livre; acima deste número o acordo fica bloqueado até aprovação pública do síndico.">
+              <Input name="parcelas_acordo_sem_aprovacao_sindico" type="number" min="0" defaultValue="0" />
+            </FormField>
+
+            <FormField label="Dias para reemissão de parcela de acordo em atraso" hint="0 não permite reemissão pelo acompanhamento de parcelas.">
+              <Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" defaultValue="0" />
+            </FormField>
           </div>
 
           <FormField label="Observações">

@@ -134,10 +134,10 @@ export async function getAcordoVigenteDaCobranca(cobrancaId: string) {
   if (!acordo) return null
 
   const { data: parcelas, error: parcelasError } = await supabase
-    .from('acordos_parcelas')
-    .select('id, numero, tipo, valor, vencimento, status')
+    .from('parcelas_acordo')
+    .select('id, numero, tipo_parcela, valor, vencimento, status')
     .eq('acordo_id', acordo.id)
-    .in('status', ['pendente', 'vencida'])
+    .in('status', ['aberta', 'vencida'])
     .order('vencimento', { ascending: true })
     .limit(1)
 
