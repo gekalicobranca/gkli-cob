@@ -22,6 +22,11 @@ type AcordoStatusRow = {
   status: string;
 };
 
+type AcordoCobrancaStatusRow = {
+  acordo_id: string;
+  cobranca_id: string;
+};
+
 function toISODate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -148,20 +153,44 @@ export async function checkAcordosStatus(
     if (acordoIds.length > 0) {
       const { error: rompidoError, count } = await supabase
         .from("acordos")
-        .update({ status: ACORDO_STATUS.VENCIDO }, { count: "exact" })
+        .update(
+          {
+            status: ACORDO_STATUS.QUEBRADO,
+            status_financeiro: "vencido",
+            data_quebra: hojeISO,
+          },
+          { count: "exact" },
+        )
         .in("id", acordoIds);
 
       if (rompidoError) {
-        throw new Error(`Erro ao romper acordos: ${rompidoError.message}`);
+        throw new Error(
+          `Erro ao marcar acordos quebrados: ${rompidoError.message}`,
+        );
       }
 
       acordosRompidos = count ?? 0;
     }
 
+    const { data: vinculosCobrancas, error: vinculosError } = await supabase
+      .from("acordo_cobrancas")
+      .select("acordo_id, cobranca_id")
+      .in("acordo_id", acordoIds);
+
+    if (vinculosError) {
+      throw new Error(
+        `Erro ao carregar cobranÃ§as vinculadas aos acordos: ${vinculosError.message}`,
+      );
+    }
+
     const cobrancaIds = [
       ...new Set(
-        acordos
-          .map((acordo) => acordo.cobranca_id)
+        [
+          ...((vinculosCobrancas ?? []) as AcordoCobrancaStatusRow[]).map(
+            (vinculo) => vinculo.cobranca_id,
+          ),
+          ...acordos.map((acordo) => acordo.cobranca_id),
+        ]
           .filter((id): id is string => Boolean(id)),
       ),
     ];

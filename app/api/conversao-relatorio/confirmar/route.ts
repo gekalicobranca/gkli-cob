@@ -10,9 +10,41 @@ function brDateToIso(value: string) {
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
 }
 
+async function isCarteiraPermitida(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+  carteiraId: string,
+) {
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle()
+
+  if (profileError) {
+    throw new Error(`Erro ao verificar perfil do usuÃ¡rio: ${profileError.message}`)
+  }
+
+  const perfil = String((profile as any)?.role ?? "")
+  if (perfil === "admin") return true
+
+  const { data, error } = await supabase
+    .from("usuarios_carteiras")
+    .select("carteira_id")
+    .eq("user_id", userId)
+    .eq("carteira_id", carteiraId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Erro ao verificar permissÃ£o da carteira: ${error.message}`)
+  }
+
+  return Boolean(data)
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { response } = await requireAuthenticatedApiUser()
+    const { user, response } = await requireAuthenticatedApiUser()
     if (response) return response
 
     const body = await request.json()
@@ -34,11 +66,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!carteiraId) {
+      return NextResponse.json(
+        { ok: false, error: "Carteira nÃ£o informada." },
+        { status: 400 }
+      )
+    }
+
     const supabase = createAdminClient()
+
+    const carteiraPermitida = await isCarteiraPermitida(supabase, user.id, carteiraId)
+    if (!carteiraPermitida) {
+      return NextResponse.json(
+        { ok: false, error: "VocÃª nÃ£o tem permissÃ£o para importar nesta carteira." },
+        { status: 403 }
+      )
+    }
 
     const { data: conversao, error: conversaoError } = await supabase
       .from("conversoes_relatorio")
-      .select("id, preview_json")
+      .select("id, status, preview_json")
       .eq("id", conversaoId)
       .single()
 
@@ -52,10 +99,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (["concluido", "concluido_com_alertas"].includes(String((conversao as any).status ?? ""))) {
+      return NextResponse.json({
+        ok: true,
+        jaConfirmada: true,
+        resumo: {
+          cobrancasCriadas: 0,
+          cobrancasIgnoradas: 0,
+          parcelasCriadas: 0,
+          inconsistencias: [],
+        },
+      })
+    }
+
     const preview = conversao.preview_json as any
     const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
 
     let cobrancasCriadas = 0
+    let cobrancasIgnoradas = 0
     let parcelasCriadas = 0
     const inconsistencias: string[] = []
 
@@ -72,7 +133,7 @@ export async function POST(request: NextRequest) {
         .from("unidades")
         .select("id")
         .eq("condominio_id", condominioId)
-        .or(`identificacao.eq.${unidadeLabel},unidade.eq.${unidadeLabel}`)
+        .eq("identificacao", unidadeLabel)
         .maybeSingle()
 
       let unidadeId = unidadeExistente?.id ?? null
@@ -81,11 +142,11 @@ export async function POST(request: NextRequest) {
         const { data: novaUnidade, error: unidadeError } = await supabase
           .from("unidades")
           .insert({
+            carteira_id: carteiraId ?? null,
             condominio_id: condominioId,
             identificacao: unidadeLabel,
-            unidade: unidadeLabel,
             responsavel_nome: responsavelNome || "Responsável não identificado",
-            ativo: true,
+            status: "ativa",
           } as any)
           .select("id")
           .single()
@@ -119,16 +180,34 @@ export async function POST(request: NextRequest) {
         ? `Conversão de relatório - recibo ${recibo}`
         : "Conversão de relatório"
 
+      const { data: cobrancaExistente, error: cobrancaExistenteError } = await supabase
+        .from("cobrancas")
+        .select("id")
+        .eq("conversao_relatorio_id", conversaoId)
+        .eq("unidade_id", unidadeId)
+        .eq("observacoes", observacoes)
+        .maybeSingle()
+
+      if (cobrancaExistenteError) {
+        inconsistencias.push(
+          `Unidade ${unidadeLabel}: ${cobrancaExistenteError.message}`
+        )
+        continue
+      }
+
+      if (cobrancaExistente) {
+        cobrancasIgnoradas += 1
+        continue
+      }
+
       const { data: cobranca, error: cobrancaError } = await supabase
         .from("cobrancas")
         .insert({
           carteira_id: carteiraId ?? null,
           condominio_id: condominioId,
           unidade_id: unidadeId,
-          responsavel_nome: responsavelNome || "Responsável não identificado",
           valor_original: valorPrincipal,
           valor_atualizado: valorTotal,
-          valor_total: valorTotal,
           multa,
           correcao,
           juros,
@@ -197,6 +276,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       resumo: {
         cobrancasCriadas,
+        cobrancasIgnoradas,
         parcelasCriadas,
         inconsistencias,
       },

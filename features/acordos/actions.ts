@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { createClient } from "@/utils/supabase/server";
 import { requireRole } from "@/utils/auth/require-role";
 import { requireUser } from "@/utils/auth/require-user";
+import { getPermittedCarteiras, type CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import { registrarEventoOperacional } from "@/features/operacional/service";
 import {
   ACORDO_STATUS,
@@ -72,7 +73,7 @@ function formatDate(value?: string | null) {
 }
 
 async function inserirMensagemEmail(supabase: any, payload: Record<string, any>) {
-  const { error } = await supabase.from("mensagens").insert({
+  const { data, error } = await supabase.from("mensagens").insert({
     carteira_id: payload.carteira_id,
     contexto: payload.contexto ?? "acordo",
     acordo_id: payload.acordo_id ?? null,
@@ -87,11 +88,53 @@ async function inserirMensagemEmail(supabase: any, payload: Record<string, any>)
     status_operacional: "rascunho",
     origem_evento: payload.origem_evento ?? "acordo_fluxo",
     payload: payload.payload ?? {},
-  });
+  }).select("id").maybeSingle();
 
   if (error && error.code !== "42P01") {
     throw new Error(`Erro ao criar e-mail de acordo: ${error.message}`);
   }
+
+  return (data as any)?.id as string | null;
+}
+
+function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
+  if (!carteiraId) throw new Error("Carteira obrigatória.");
+  if (scope.carteiraIds !== null && !scope.carteiraIds.includes(carteiraId)) {
+    throw new Error("Você não tem permissão para operar esta carteira.");
+  }
+}
+
+async function cleanupAcordoParcial(
+  supabase: any,
+  acordoId: string,
+  cobrancasParaRestaurar: Array<{
+    id: string;
+    status: string | null;
+    status_operacional: string | null;
+  }> = [],
+) {
+  await Promise.allSettled([
+    supabase.from("mensagens").delete().eq("acordo_id", acordoId),
+    supabase.from("acordos_aceites").delete().eq("acordo_id", acordoId),
+    supabase.from("acordos_termos").delete().eq("acordo_id", acordoId),
+    supabase.from("parcelas_acordo").delete().eq("acordo_id", acordoId),
+    supabase.from("acordo_cobrancas").delete().eq("acordo_id", acordoId),
+  ]);
+
+  await supabase.from("acordos").delete().eq("id", acordoId);
+
+  await Promise.allSettled(
+    cobrancasParaRestaurar.map((cobranca) =>
+      supabase
+        .from("cobrancas")
+        .update({
+          status: cobranca.status ?? COBRANCA_STATUS.NOVO,
+          status_operacional:
+            cobranca.status_operacional ?? cobranca.status ?? COBRANCA_STATUS.NOVO,
+        })
+        .eq("id", cobranca.id),
+    ),
+  );
 }
 
 async function criarTermoAcordo(supabase: any, params: {
@@ -413,6 +456,9 @@ export async function createAcordo(formData: FormData) {
     );
   }
 
+  const carteiraScope = await getPermittedCarteiras();
+  assertCarteiraPermitida(carteiraScope, cobrancaPrincipal.carteira_id);
+
   const { data: pendenciaPlanilha, error: pendenciaPlanilhaError } = await supabase
     .from("central_pendencias")
     .select("id")
@@ -523,40 +569,12 @@ export async function createAcordo(formData: FormData) {
     ? "aguardando_aprovacao_sindico"
     : "aguardando_aceite_devedor";
 
-  const { data: acordo, error: acordoError } = await supabase
-    .from("acordos")
-    .insert({
-      carteira_id: cobrancaPrincipal.carteira_id,
-      cobranca_id: cobrancaPrincipal.id,
-      condominio_id: cobrancaPrincipal.condominio_id,
-      unidade_id: cobrancaPrincipal.unidade_id,
-      tipo,
-      numero_processo: tipo === "judicial" ? numeroProcesso : null,
-      valor_acordado: valorAcordado,
-      entrada,
-      despesa_cobranca_percentual: despesaCobrancaPercentual,
-      despesa_cobranca_valor: despesaCobrancaValor,
-      data_acordo: toISODate(new Date()),
-      status: ACORDO_STATUS.ATIVO,
-      fluxo_status: fluxoStatusInicial,
-      exige_aprovacao_sindico: exigeAprovacaoSindico,
-      documento_url: documentoUrl || null,
-      observacoes: observacoes || null,
-    })
-    .select("id")
-    .single();
-
-  if (acordoError) {
-    throw new Error(`Erro ao criar acordo: ${acordoError.message}`);
-  }
-
   const itensAcordo = cobrancasComValores.map((item) => {
     const proporcao =
       valorBaseCobranca > 0 ? item.valor_base_acordo / valorBaseCobranca : 0;
     const despesaRateada = roundMoney(despesaCobrancaValor * proporcao);
 
     return {
-      acordo_id: acordo.id,
       cobranca_id: item.id,
       valor_original_no_acordo: Number(item.valor_original ?? 0),
       valor_atualizado_no_acordo: item.valor_base_acordo,
@@ -567,22 +585,11 @@ export async function createAcordo(formData: FormData) {
     };
   });
 
-  const { error: itensError } = await supabase
-    .from("acordo_cobrancas")
-    .insert(itensAcordo);
-
-  if (itensError) {
-    throw new Error(
-      `Acordo criado, mas houve erro ao vincular cobranças selecionadas. Rode a migração acordo_cobrancas. Detalhe: ${itensError.message}`,
-    );
-  }
-
   const saldoParcelado = roundMoney(valorAcordado - entrada);
   const parcelas = [];
 
   if (entrada > 0) {
     parcelas.push({
-      acordo_id: acordo.id,
       numero: 0,
       tipo_parcela: "entrada",
       valor: entrada,
@@ -604,7 +611,6 @@ export async function createAcordo(formData: FormData) {
     acumulado = roundMoney(acumulado + valor);
 
     parcelas.push({
-      acordo_id: acordo.id,
       numero: index,
       tipo_parcela: "parcela",
       valor,
@@ -615,15 +621,38 @@ export async function createAcordo(formData: FormData) {
     });
   }
 
-  const { error: parcelasError } = await supabase
-    .from("parcelas_acordo")
-    .insert(parcelas);
+  const { data: acordoIdData, error: acordoError } = await supabase.rpc(
+    "criar_acordo_financeiro",
+    {
+      p_carteira_id: cobrancaPrincipal.carteira_id,
+      p_cobranca_id: cobrancaPrincipal.id,
+      p_condominio_id: cobrancaPrincipal.condominio_id,
+      p_unidade_id: cobrancaPrincipal.unidade_id,
+      p_tipo: tipo,
+      p_numero_processo: tipo === "judicial" ? numeroProcesso : null,
+      p_valor_acordado: valorAcordado,
+      p_entrada: entrada,
+      p_despesa_cobranca_percentual: despesaCobrancaPercentual,
+      p_despesa_cobranca_valor: despesaCobrancaValor,
+      p_data_acordo: toISODate(new Date()),
+      p_status: ACORDO_STATUS.ATIVO,
+      p_fluxo_status: fluxoStatusInicial,
+      p_exige_aprovacao_sindico: exigeAprovacaoSindico,
+      p_documento_url: documentoUrl || null,
+      p_observacoes: observacoes || null,
+      p_itens: itensAcordo,
+      p_parcelas: parcelas,
+      p_cobranca_status: COBRANCA_STATUS.ACORDO_FIRMADO,
+    } as any,
+  );
 
-  if (parcelasError) {
+  if (acordoError || !acordoIdData) {
     throw new Error(
-      `Acordo criado, mas houve erro ao gerar parcelas: ${parcelasError.message}`,
+      `Erro ao criar acordo financeiro: ${acordoError?.message ?? "acordo não retornado pela transação"}`,
     );
   }
+
+  const acordo = { id: String(acordoIdData) };
 
   const unidadeLabel = [
     unidadePrincipal?.bloco ? `Bloco ${unidadePrincipal.bloco}` : null,
@@ -645,60 +674,51 @@ export async function createAcordo(formData: FormData) {
     numeroProcesso,
   });
 
-  if (exigeAprovacaoSindico) {
-    const termoSindico = await criarTermoAcordo(supabase as any, {
-      acordoId: acordo.id,
-      carteiraId: cobrancaPrincipal.carteira_id,
-      tipoAceite: "sindico",
-      titulo: "Aprovação do síndico para acordo acima do limite operacional",
-      corpo: resumoAcordo,
-    });
-    const linkSindico = `${getPublicBaseUrl()}/aceite-sindico/${termoSindico.token}`;
-    await inserirMensagemEmail(supabase as any, {
-      carteira_id: cobrancaPrincipal.carteira_id,
-      acordo_id: acordo.id,
-      cobranca_id: cobrancaPrincipal.id,
-      destinatario: null,
-      assunto: "Aprovação do síndico necessária - proposta de acordo",
-      conteudo: [
-        "Prezado(a) Síndico(a),",
-        "",
-        "O acordo abaixo ultrapassa o limite de parcelas permitido sem aprovação do condomínio.",
-        "",
-        resumoAcordo,
-        "",
-        `Link público para aprovação: ${linkSindico}`,
-        "",
-        "O termo do devedor só será enviado após sua aprovação.",
-        "",
-        "Atenciosamente,",
-        "GKLI Cobrança",
-      ].join("\n"),
-      payload: { termo_id: termoSindico.id, link_aceite: linkSindico, tipo_aceite: "sindico" },
-    });
-  } else {
-    await gerarTermoDevedorEEmail(supabase as any, {
-      acordoId: acordo.id,
-      carteiraId: cobrancaPrincipal.carteira_id,
-      cobrancaId: cobrancaPrincipal.id,
-      destinatarioNome: unidadePrincipal?.responsavel_nome ?? null,
-      destinatarioEmail: unidadePrincipal?.email ?? null,
-      resumo: resumoAcordo,
-    });
-  }
-
-  const { error: cobrancaUpdateError } = await supabase
-    .from("cobrancas")
-    .update({
-      status: COBRANCA_STATUS.ACORDO_FIRMADO,
-      status_operacional: COBRANCA_STATUS.ACORDO_FIRMADO,
-    })
-    .in("id", cobrancaIds);
-
-  if (cobrancaUpdateError) {
-    throw new Error(
-      `Acordo criado, mas houve erro ao atualizar cobranças: ${cobrancaUpdateError.message}`,
-    );
+  try {
+    if (exigeAprovacaoSindico) {
+      const termoSindico = await criarTermoAcordo(supabase as any, {
+        acordoId: acordo.id,
+        carteiraId: cobrancaPrincipal.carteira_id,
+        tipoAceite: "sindico",
+        titulo: "Aprovação do síndico para acordo acima do limite operacional",
+        corpo: resumoAcordo,
+      });
+      const linkSindico = `${getPublicBaseUrl()}/aceite-sindico/${termoSindico.token}`;
+      await inserirMensagemEmail(supabase as any, {
+        carteira_id: cobrancaPrincipal.carteira_id,
+        acordo_id: acordo.id,
+        cobranca_id: cobrancaPrincipal.id,
+        destinatario: null,
+        assunto: "Aprovação do síndico necessária - proposta de acordo",
+        conteudo: [
+          "Prezado(a) Síndico(a),",
+          "",
+          "O acordo abaixo ultrapassa o limite de parcelas permitido sem aprovação do condomínio.",
+          "",
+          resumoAcordo,
+          "",
+          `Link público para aprovação: ${linkSindico}`,
+          "",
+          "O termo do devedor só será enviado após sua aprovação.",
+          "",
+          "Atenciosamente,",
+          "GKLI Cobrança",
+        ].join("\n"),
+        payload: { termo_id: termoSindico.id, link_aceite: linkSindico, tipo_aceite: "sindico" },
+      });
+    } else {
+      await gerarTermoDevedorEEmail(supabase as any, {
+        acordoId: acordo.id,
+        carteiraId: cobrancaPrincipal.carteira_id,
+        cobrancaId: cobrancaPrincipal.id,
+        destinatarioNome: unidadePrincipal?.responsavel_nome ?? null,
+        destinatarioEmail: unidadePrincipal?.email ?? null,
+        resumo: resumoAcordo,
+      });
+    }
+  } catch (error) {
+    await cleanupAcordoParcial(supabase as any, acordo.id, cobrancas);
+    throw error;
   }
 
   await registrarEventoOperacional(supabase as any, {
@@ -840,6 +860,8 @@ export async function solicitarPlanilhaDebitosAdministradora(formData: FormData)
   const carteiraId = cobrancaReferenciaAny.carteira_id;
   const condominioId = cobrancaReferenciaAny.condominio_id;
   const unidadeId = cobrancaReferenciaAny.unidade_id;
+  const carteiraScope = await getPermittedCarteiras();
+  assertCarteiraPermitida(carteiraScope, carteiraId);
   const condominioReferencia = Array.isArray(cobrancaReferenciaAny.condominios)
     ? cobrancaReferenciaAny.condominios[0]
     : cobrancaReferenciaAny.condominios;
@@ -1002,6 +1024,8 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
   const carteiraId = cobrancaReferenciaAny.carteira_id;
   const condominioId = cobrancaReferenciaAny.condominio_id;
   const unidadeId = cobrancaReferenciaAny.unidade_id;
+  const carteiraScope = await getPermittedCarteiras();
+  assertCarteiraPermitida(carteiraScope, carteiraId);
   const condominioReferencia = Array.isArray(cobrancaReferenciaAny.condominios)
     ? cobrancaReferenciaAny.condominios[0]
     : cobrancaReferenciaAny.condominios;
@@ -1083,7 +1107,16 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
         cobranca_id: cobrancaReferencia.id,
         condominio_id: condominioId,
         unidade_id: unidadeId,
+        tipo,
+        numero_processo: tipo === "judicial" ? numeroProcesso : null,
         valor_acordado: valorAcordado,
+        entrada,
+        quantidade_parcelas: quantidadeParcelas,
+        primeiro_vencimento: primeiroVencimento || null,
+        despesa_cobranca_percentual: despesaCobrancaPercentual,
+        despesa_cobranca_valor: despesaCobrancaValor,
+        documento_url: documentoUrl || null,
+        observacoes: observacoes || null,
       },
       userId: user?.id ?? null,
     });
@@ -1113,6 +1146,10 @@ export async function marcarParcelaComoPaga(formData: FormData) {
     .select("id, carteira_id, status, status_financeiro, cobranca_id")
     .eq("id", acordoId)
     .maybeSingle();
+
+  if (!acordoEvento) throw new Error("Acordo nÃ£o encontrado.");
+  const carteiraScope = await getPermittedCarteiras();
+  assertCarteiraPermitida(carteiraScope, (acordoEvento as any).carteira_id);
 
   const { data: parcelaEvento } = await supabase
     .from("parcelas_acordo")
@@ -1236,6 +1273,10 @@ export async function marcarParcelaComoVencida(formData: FormData) {
     .select("id, carteira_id, status, status_financeiro, cobranca_id")
     .eq("id", acordoId)
     .maybeSingle();
+
+  if (!acordoEvento) throw new Error("Acordo nÃ£o encontrado.");
+  const carteiraScope = await getPermittedCarteiras();
+  assertCarteiraPermitida(carteiraScope, (acordoEvento as any).carteira_id);
 
   const { data: parcelaEvento } = await supabase
     .from("parcelas_acordo")

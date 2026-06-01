@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { requireRole } from '@/utils/auth/require-role'
 import { requireUser } from '@/utils/auth/require-user'
+import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { registrarEventoOperacional } from '@/features/operacional/service'
 import { COBRANCA_STATUS } from '@/lib/core/status'
 
@@ -12,6 +13,38 @@ function toNumber(value: FormDataEntryValue | null) {
   const raw = String(value ?? '0').replace(/\./g, '').replace(',', '.')
   const parsed = Number(raw)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
+  if (!carteiraId) throw new Error('Carteira obrigatória.')
+  if (scope.carteiraIds !== null && !scope.carteiraIds.includes(carteiraId)) {
+    throw new Error('Você não tem permissão para operar esta carteira.')
+  }
+}
+
+async function assertCobrancaPermitida(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  scope: CarteiraScope,
+  cobrancaId: string,
+  carteiraIdInformada?: string | null,
+) {
+  const { data, error } = await supabase
+    .from('cobrancas')
+    .select('id, carteira_id')
+    .eq('id', cobrancaId)
+    .maybeSingle()
+
+  if (error) throw new Error(`Erro ao validar cobrança: ${error.message}`)
+  if (!data) throw new Error('Cobrança não encontrada.')
+
+  const carteiraId = (data as any).carteira_id as string | null
+  assertCarteiraPermitida(scope, carteiraId)
+
+  if (carteiraIdInformada && carteiraIdInformada !== carteiraId) {
+    throw new Error('Carteira informada não pertence à cobrança.')
+  }
+
+  return data as { id: string; carteira_id: string }
 }
 
 export async function createCobranca(formData: FormData) {
@@ -32,6 +65,32 @@ export async function createCobranca(formData: FormData) {
   if (!vencimento) throw new Error('Vencimento obrigatório.')
 
   const supabase = await createClient()
+  const scope = await getPermittedCarteiras()
+  assertCarteiraPermitida(scope, carteiraId)
+
+  const { data: condominio, error: condominioError } = await supabase
+    .from('condominios')
+    .select('id, carteira_id')
+    .eq('id', condominioId)
+    .maybeSingle()
+
+  if (condominioError) throw new Error(`Erro ao validar condomínio: ${condominioError.message}`)
+  if (!condominio) throw new Error('Condomínio não encontrado.')
+  if ((condominio as any).carteira_id !== carteiraId) {
+    throw new Error('Condomínio não pertence à carteira informada.')
+  }
+
+  const { data: unidade, error: unidadeError } = await supabase
+    .from('unidades')
+    .select('id, carteira_id, condominio_id')
+    .eq('id', unidadeId)
+    .maybeSingle()
+
+  if (unidadeError) throw new Error(`Erro ao validar unidade: ${unidadeError.message}`)
+  if (!unidade) throw new Error('Unidade não encontrada.')
+  if ((unidade as any).carteira_id !== carteiraId || (unidade as any).condominio_id !== condominioId) {
+    throw new Error('Unidade não pertence ao condomínio/carteira informados.')
+  }
 
   const { data: cobrancaCriada, error } = await supabase
     .from('cobrancas')
@@ -106,6 +165,9 @@ export async function updateCobrancaStatus(formData: FormData) {
     .eq('id', cobrancaId)
     .maybeSingle()
 
+  const scope = await getPermittedCarteiras()
+  assertCarteiraPermitida(scope, (atual as any)?.carteira_id)
+
   const { error } = await supabase
     .from('cobrancas')
     .update({ status, status_operacional: status })
@@ -165,6 +227,9 @@ export async function updateCobrancaFinanceiro(formData: FormData) {
     .eq('id', cobrancaId)
     .maybeSingle()
 
+  const scope = await getPermittedCarteiras()
+  assertCarteiraPermitida(scope, (atualFinanceiro as any)?.carteira_id)
+
   const { error } = await supabase
     .from('cobrancas')
     .update({
@@ -221,6 +286,8 @@ export async function createInteracaoCobranca(formData: FormData) {
   if (conteudo.length < 2) throw new Error('Conteúdo da interação obrigatório.')
 
   const supabase = await createClient()
+  const scope = await getPermittedCarteiras()
+  await assertCobrancaPermitida(supabase, scope, cobrancaId, carteiraId)
 
   const { error } = await supabase.from('interacoes').insert({
     carteira_id: carteiraId,
@@ -279,6 +346,8 @@ export async function agendarRetornoCobranca(formData: FormData) {
   }
 
   const supabase = await createClient()
+  const scope = await getPermittedCarteiras()
+  await assertCobrancaPermitida(supabase, scope, cobrancaId, carteiraId)
   const isoDate = proximaAcaoEm.toISOString()
 
   const { error } = await supabase

@@ -59,8 +59,8 @@ Principais entidades tecnicas:
 - `cobrancas`
 - `cobranca_parcelas`
 - `acordos`
-- `acordos_parcelas`
 - `parcelas_acordo`
+- `acordos_parcelas` (legado/compatibilidade)
 - `acordos_timeline`
 - `central_pendencias`
 - `timeline_operacional`
@@ -76,7 +76,7 @@ Modulos relacionados:
 
 Observacao tecnica:
 
-Existem duas tabelas para parcelas de acordo, `acordos_parcelas` e `parcelas_acordo`. A fonte de verdade precisa ser confirmada antes de novas alteracoes de fluxo financeiro.
+`parcelas_acordo` e a fonte de verdade operacional para parcelas de acordo. `acordos_parcelas` deve ser tratado como legado/compatibilidade e nao deve receber novas regras financeiras sem migracao explicita.
 
 ### 2.3 Automacao, mensageria e auditoria
 
@@ -461,17 +461,15 @@ Transicoes esperadas:
 
 - `ativo` -> `em_dia`
 - `em_dia` -> `em_atraso`
-- `em_atraso` -> `vencido`
-- `vencido` -> `quebrado`
+- `em_atraso` -> `quebrado` quando o atraso ultrapassar o prazo operacional de quebra
 - `ativo`/`em_dia` -> `quitado`
 - qualquer status elegivel -> `cancelado`
 - qualquer status elegivel -> `renegociado`
 
 Regras pendentes de confirmacao:
 
-- prazo para considerar acordo quebrado;
 - se pagamento parcial mantem `em_atraso` ou cria outro estado operacional;
-- qual tabela de parcelas deve ser fonte de verdade.
+- prazo definitivo para quebra, hoje parametrizado no servico automatico.
 
 ## 7. Requisitos tecnicos
 
@@ -559,13 +557,13 @@ Mapa inicial entre dominio e codigo:
 
 ### 9.1 Modelo duplicado ou legado
 
-- `acordos_parcelas` e `parcelas_acordo` parecem cobrir conceitos muito proximos.
+- `parcelas_acordo` e a fonte operacional; `acordos_parcelas` permanece como legado/compatibilidade ate decisao de migracao ou remocao.
 - `audit_logs`, `auditoria_eventos`, `auditoria_operacional` e `timeline_operacional` podem se sobrepor.
 - `status`, `estado`, `status_operacional` e `status_financeiro` coexistem em `cobrancas`.
 
 Acao recomendada:
 
-Definir fonte de verdade por dominio antes de criar novas regras automaticas.
+Manter novas regras de parcelas de acordo somente em `parcelas_acordo`; para os demais dominios, definir fonte de verdade antes de criar novas regras automaticas.
 
 ### 9.2 Encoding e nomenclatura
 
@@ -620,4 +618,3 @@ Uma entrega funcional deve ser considerada pronta quando:
 - filtros por carteira e permissao foram considerados;
 - cenarios de erro e dados duplicados foram tratados;
 - existe validacao manual ou automatizada proporcional ao risco.
-

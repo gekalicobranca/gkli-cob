@@ -729,7 +729,6 @@ export async function atualizarMensagemDoLote(mensagemId: string, formData: Form
       status: statusNovo,
       status_operacional: statusNovo,
       updated_at: new Date().toISOString(),
-      atualizado_em: new Date().toISOString(),
       erro: null,
       erro_envio: null,
     } as any)

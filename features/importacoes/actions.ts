@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { requireRole } from "@/utils/auth/require-role";
+import { getPermittedCarteiras, type CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import {
   estimatePriority,
   getFirst,
@@ -63,6 +64,25 @@ type ImportExecutionResult = {
   ignorados: number;
   erros: string[];
 };
+
+function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
+  if (!carteiraId) throw new Error("Carteira obrigatória.");
+  if (scope.carteiraIds !== null && !scope.carteiraIds.includes(carteiraId)) {
+    throw new Error("Você não tem permissão para operar esta carteira.");
+  }
+}
+
+function assertPayloadsPermitidos(scope: CarteiraScope, payloads: Record<string, any>[]) {
+  const carteiraIds = Array.from(
+    new Set(
+      payloads
+        .map((payload) => String(payload.carteira_id ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  carteiraIds.forEach((carteiraId) => assertCarteiraPermitida(scope, carteiraId));
+}
 
 function emptyImportExecutionResult(): ImportExecutionResult {
   return { importados: 0, criados: 0, atualizados: 0, ignorados: 0, erros: [] };
@@ -503,6 +523,7 @@ function validateSimplePayload(tipo: string, payload: Record<string, any>) {
   const erros: string[] = [];
 
   if (tipo === "condominios") {
+    if (!payload.carteira_id) erros.push("Carteira vazia");
     if (!payload.nome) erros.push("Nome vazio");
     const cnpj = normalizeCnpj(payload.cnpj ?? "");
     if (!cnpj) erros.push("CNPJ vazio");
@@ -1062,10 +1083,16 @@ export async function createImportacaoPreview(formData: FormData) {
     throw new Error("Planilha XLSX vazia ou sem linhas válidas na aba de dados.");
 
   const supabase = await createClient();
+  const scope = await getPermittedCarteiras();
   const condominioPadrao =
     tipo === "unidades" || tipo === "cobrancas"
       ? await resolveCondominioById(supabase, condominioIdPadrao)
       : null;
+
+  if (condominioPadrao) {
+    assertCarteiraPermitida(scope, condominioPadrao.carteira_id);
+  }
+
   let itens: PreviewItem[];
 
   if (tipo === "cobrancas") {
@@ -1094,6 +1121,11 @@ export async function createImportacaoPreview(formData: FormData) {
       ? await enrichLegacyPreview(supabase, tipo, rows)
       : await enrichSimplePreview(supabase, tipo, rows, condominioPadrao);
   }
+
+  assertPayloadsPermitidos(
+    scope,
+    itens.map((item) => item.payload),
+  );
 
   const totalValidas = itens.filter((item) => item.valido).length;
   const totalInvalidas = itens.length - totalValidas;
@@ -1124,7 +1156,7 @@ export async function createImportacaoPreview(formData: FormData) {
   const { data: importacao, error } = await supabase
     .from("importacoes")
     .insert({
-      carteira_id: null,
+      carteira_id: condominioPadrao?.carteira_id ?? null,
       tipo,
       arquivo_nome: file.name,
       status: "preview",
@@ -1616,7 +1648,7 @@ export async function confirmarImportacao(formData: FormData) {
   const { data: importacao, error: importacaoError } = await supabase
     .from("importacoes")
     .select(
-      "id, tipo, status, total_linhas, total_validas, total_invalidas, resumo",
+      "id, carteira_id, tipo, status, total_linhas, total_validas, total_invalidas, resumo",
     )
     .eq("id", importacaoId)
     .maybeSingle();
@@ -1645,6 +1677,12 @@ export async function confirmarImportacao(formData: FormData) {
   }));
   if (payloads.length === 0)
     throw new Error("Não há itens válidos para importar.");
+
+  const scope = await getPermittedCarteiras();
+  if ((importacao as any).carteira_id) {
+    assertCarteiraPermitida(scope, (importacao as any).carteira_id);
+  }
+  assertPayloadsPermitidos(scope, payloads);
 
   let execucao = emptyImportExecutionResult();
 
