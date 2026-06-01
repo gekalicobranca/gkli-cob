@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 
-const CONDOMINIOS_HEADERS = ["Nome do condomínio", "CNPJ", "Carteira"];
+const CONDOMINIOS_HEADERS = ["condominio", "cnpj", "carteira"];
 
 function sanitizeFileName(value: string) {
   return String(value || "condominios")
@@ -18,15 +18,15 @@ function sanitizeFileName(value: string) {
 
 function createWorkbook(rows: Record<string, unknown>[]) {
   const workbook = XLSX.utils.book_new();
-  const worksheet = XLSX.utils.json_to_sheet(rows, { header: CONDOMINIOS_HEADERS });
+  const dados = XLSX.utils.json_to_sheet(rows, { header: CONDOMINIOS_HEADERS });
 
-  worksheet["!cols"] = [
-    { wch: 44 },
+  dados["!cols"] = [
+    { wch: 42 },
     { wch: 20 },
     { wch: 28 },
   ];
 
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Condominios");
+  XLSX.utils.book_append_sheet(workbook, dados, "DADOS");
   return workbook;
 }
 
@@ -71,9 +71,9 @@ export async function GET(request: Request) {
       if (carteiraNome) carteiraNames.add(carteiraNome);
 
       return {
-        "Nome do condomínio": row.nome ?? "",
-        CNPJ: row.cnpj ?? "",
-        Carteira: carteiraNome,
+        condominio: row.nome ?? "",
+        cnpj: row.cnpj ?? "",
+        carteira: carteiraNome,
       };
     });
 

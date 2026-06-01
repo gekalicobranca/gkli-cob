@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowUpRight, Edit3, Filter, Home, Plus, Search, Upload, X } from 'lucide-react'
+import { ArrowUpRight, Download, Edit3, Filter, Home, Plus, Search, X } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -38,6 +38,17 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   ])
 
   const filtrosAtivos = hasUnidadeFilters(filters)
+  const exportParams = new URLSearchParams()
+
+  if (filters.carteiraId) {
+    exportParams.set('carteira_id', filters.carteiraId)
+  }
+
+  if (filters.condominioId) {
+    exportParams.set('condominio_id', filters.condominioId)
+  }
+
+  const exportUnidadesHref = `/api/unidades/exportacoes/unidades${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
   const ativas = rows.filter((row: any) => row.status === 'ativa').length
   const semTelefone = rows.filter((row: any) => !row.telefone).length
   const semEmail = rows.filter((row: any) => !row.email).length
@@ -50,9 +61,9 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
         description="Unidades, responsáveis, contatos e filtros operacionais para cobrança."
         actions={
           <>
-            <ButtonLink href="/app/importacoes/nova?tipo=unidades" variant="secondary">
-              <Upload size={16} />
-              Importar
+            <ButtonLink href={exportUnidadesHref} variant="secondary">
+              <Download size={16} />
+              Exportar
             </ButtonLink>
             <ButtonLink href="/app/unidades/nova">
               <Plus size={16} />
