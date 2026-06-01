@@ -1,0 +1,8 @@
+{
+  "dependencies_to_add_if_missing": {
+    "xlsx": "^0.18.5"
+  },
+  "notes": {
+    "ocr": "OCR não roda dentro do app GKLI Cobrança. PDFs com texto corrompido devem ser tratados externamente antes do upload."
+  }
+}

@@ -1,0 +1,22 @@
+
+/* GKLI-Cob Lite */
+
+.lite-card {
+  @apply rounded-[2rem] border border-slate-200 bg-white shadow-sm;
+}
+
+.lite-hover {
+  @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md;
+}
+
+.lite-section {
+  @apply space-y-5;
+}
+
+.lite-title {
+  @apply text-3xl font-semibold tracking-tight text-slate-950;
+}
+
+.lite-subtitle {
+  @apply text-sm leading-6 text-slate-500;
+}

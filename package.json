@@ -1,0 +1,38 @@
+{
+  "name": "gkli-cobranca",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit --pretty false --incremental false"
+  },
+  "dependencies": {
+    "@supabase/ssr": "latest",
+    "@supabase/supabase-js": "latest",
+    "clsx": "latest",
+    "date-fns": "latest",
+    "lucide-react": "latest",
+    "next": "16.2.4",
+    "openai": "^6.37.0",
+    "pdf-parse": "1.1.1",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "tailwind-merge": "latest",
+    "xlsx": "^0.18.5",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.2.4",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "latest",
+    "eslint-config-next": "latest",
+    "tailwindcss": "4.2.4",
+    "typescript": "5.9.3"
+  },
+  "description": "GKLI Cobrança — plataforma operacional de cobrança extrajudicial condominial"
+}
