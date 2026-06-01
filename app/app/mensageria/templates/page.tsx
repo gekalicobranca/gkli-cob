@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card'
 import { ButtonLink } from '@/components/ui/button'
 import { EmptyState } from '@/components/data/empty-state'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { countReguaEtapasPorTemplate, listTemplates } from '@/features/mensageria/queries'
+import { listTemplates } from '@/features/mensageria/queries'
 import { categoryLabel, intensityLabel, renderTemplate, SAMPLE_TEMPLATE_VARIABLES } from '@/features/mensageria/render-template'
 
 function badge(label: string, tone = 'slate') {
@@ -21,7 +21,6 @@ function badge(label: string, tone = 'slate') {
 export default async function TemplatesMensageriaPage() {
   const scope = await getPermittedCarteiras()
   const templates = await listTemplates(scope)
-  const usage = await countReguaEtapasPorTemplate(templates.map((template: any) => template.id))
 
   const ativos = templates.filter((template: any) => template.ativo).length
   const cobranca = templates.filter((template: any) => (template.tipo_regua ?? template.tipo) === 'cobranca').length

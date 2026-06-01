@@ -4,9 +4,18 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { requireUser } from '@/utils/auth/require-user'
+import { requireRole } from '@/utils/auth/require-role'
+import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
+}
+
+function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
+  if (!carteiraId) throw new Error('Carteira obrigatória.')
+  if (scope.carteiraIds !== null && !scope.carteiraIds.includes(carteiraId)) {
+    throw new Error('Você não tem permissão para operar esta carteira.')
+  }
 }
 
 function toInteger(value: FormDataEntryValue | null, fallback = 0) {
@@ -57,6 +66,7 @@ async function registrarAuditoria(supabase: Awaited<ReturnType<typeof createClie
 }
 
 export async function createCondominio(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
 
   const carteiraId = String(formData.get('carteira_id') ?? '')
@@ -78,6 +88,8 @@ export async function createCondominio(formData: FormData) {
   if (nome.length < 2) throw new Error('Nome do condomínio obrigatório.')
 
   const supabase = await createClient()
+  const scope = await getPermittedCarteiras()
+  assertCarteiraPermitida(scope, carteiraId)
   const payload = {
     carteira_id: carteiraId,
     nome,
@@ -118,6 +130,7 @@ export async function createCondominio(formData: FormData) {
 }
 
 export async function updateCondominioIntegral(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
 
   const id = String(formData.get('id') ?? '')
@@ -144,6 +157,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   if (!Number.isFinite(inicioCobrancaDias) || inicioCobrancaDias < 0 || inicioCobrancaDias > 365) throw new Error('Início da cobrança deve ficar entre 0 e 365 dias.')
 
   const supabase = await createClient()
+  const scope = await getPermittedCarteiras()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
     .select('id, carteira_id, nome, nome_operacional, cnpj, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, regua_cobranca_id, regua_acordo_id, status, observacoes')
@@ -152,6 +166,12 @@ export async function updateCondominioIntegral(formData: FormData) {
 
   if (beforeError) throw new Error(`Erro ao carregar condomínio antes da alteração: ${beforeError.message}`)
   if (!before) throw new Error('Condomínio não encontrado.')
+  assertCarteiraPermitida(scope, (before as any).carteira_id)
+  assertCarteiraPermitida(scope, carteiraId)
+
+  if ((before as any).carteira_id !== carteiraId) {
+    throw new Error('A carteira do condomínio não pode ser alterada pela edição do cadastro.')
+  }
 
   const payload = {
     carteira_id: carteiraId,

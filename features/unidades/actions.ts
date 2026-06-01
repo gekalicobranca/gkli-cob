@@ -3,14 +3,22 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
-import { requireUser } from '@/utils/auth/require-user'
+import { requireRole } from '@/utils/auth/require-role'
+import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
 }
 
+function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
+  if (!carteiraId) throw new Error('Carteira obrigatória.')
+  if (scope.carteiraIds !== null && !scope.carteiraIds.includes(carteiraId)) {
+    throw new Error('Você não tem permissão para operar esta carteira.')
+  }
+}
+
 export async function createUnidade(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin', 'gestor', 'operador'])
 
   const carteiraId = String(formData.get('carteira_id') ?? '')
   const condominioId = String(formData.get('condominio_id') ?? '')
@@ -27,6 +35,20 @@ export async function createUnidade(formData: FormData) {
   if (!identificacao) throw new Error('Identificação da unidade obrigatória.')
 
   const supabase = await createClient()
+  const scope = await getPermittedCarteiras()
+  assertCarteiraPermitida(scope, carteiraId)
+
+  const { data: condominio, error: condominioError } = await supabase
+    .from('condominios')
+    .select('id, carteira_id')
+    .eq('id', condominioId)
+    .maybeSingle()
+
+  if (condominioError) throw new Error(`Erro ao validar condomínio: ${condominioError.message}`)
+  if (!condominio) throw new Error('Condomínio não encontrado.')
+  if ((condominio as any).carteira_id !== carteiraId) {
+    throw new Error('Condomínio não pertence à carteira informada.')
+  }
 
   const { error } = await supabase.from('unidades').insert({
     carteira_id: carteiraId,
@@ -50,7 +72,7 @@ export async function createUnidade(formData: FormData) {
 }
 
 export async function updateUnidade(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin', 'gestor', 'operador'])
 
   const id = String(formData.get('id') ?? '').trim()
   const identificacao = String(formData.get('identificacao') ?? '').trim()
@@ -66,6 +88,7 @@ export async function updateUnidade(formData: FormData) {
   if (!identificacao) throw new Error('Identificação da unidade obrigatória.')
 
   const supabase = await createClient()
+  const scope = await getPermittedCarteiras()
 
   const { data: unidadeAtual, error: unidadeAtualError } = await supabase
     .from('unidades')
@@ -80,6 +103,8 @@ export async function updateUnidade(formData: FormData) {
   if (!unidadeAtual) {
     throw new Error('Unidade não encontrada.')
   }
+
+  assertCarteiraPermitida(scope, (unidadeAtual as any).carteira_id)
 
   const carteiraForcada = String(formData.get('carteira_id') ?? '').trim()
   const condominioForcado = String(formData.get('condominio_id') ?? '').trim()

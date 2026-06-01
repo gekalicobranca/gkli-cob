@@ -128,7 +128,7 @@ export function GlobalOperationalSearch() {
         const payload = (await response.json()) as SearchResponse
         setResults(payload.results ?? [])
         setActiveIndex(0)
-      } catch (error) {
+      } catch {
         if (!controller.signal.aborted) setResults([])
       } finally {
         if (!controller.signal.aborted) setLoading(false)

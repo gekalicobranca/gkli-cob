@@ -4,7 +4,6 @@ import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import {
   ACORDO_STATUS,
   COBRANCA_STATUS,
-  COBRANCA_STATUS_OPERACIONAIS_ATIVOS,
 } from "@/lib/core/status";
 
 type TrafficStatus = "verde" | "amarelo" | "vermelho";
@@ -47,7 +46,6 @@ type DashboardAcordo = {
   }> | null;
 };
 
-const ACTIVE_COBRANCA_STATUSES = COBRANCA_STATUS_OPERACIONAIS_ATIVOS;
 const CLOSED_COBRANCA_STATUSES = [
   COBRANCA_STATUS.ACORDO_EFETIVADO,
   COBRANCA_STATUS.JUDICIALIZADO,

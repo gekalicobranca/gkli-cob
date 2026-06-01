@@ -63,6 +63,15 @@ function descricaoLinha(payload: Record<string, any>, tipo: string) {
   return `${payload.responsavel_nome || 'Responsável não informado'} · Unidade ${payload.unidade || '-'}`
 }
 
+function isDivergenciaConciliacao(mensagem: string) {
+  return mensagem.toLowerCase().includes('diverg')
+}
+
+function isJaExistenteConciliacao(mensagem: string) {
+  const normalizada = mensagem.toLowerCase()
+  return normalizada.includes('ja existia') || normalizada.includes('já existia')
+}
+
 export default async function ImportacaoDetalhePage({ params, searchParams }: PageProps) {
   const { id } = await params
   const query = searchParams ? await searchParams : {}
@@ -74,6 +83,10 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
 
   const resumo = importacao.resumo ?? {}
   const resultadoFinal = resumo.resultado ?? null
+  const resultadoMensagens = (resultadoFinal?.erros ?? []) as string[]
+  const mensagensDivergentes = resultadoMensagens.filter(isDivergenciaConciliacao)
+  const mensagensJaExistentes = resultadoMensagens.filter(isJaExistenteConciliacao)
+  const mensagensOutras = resultadoMensagens.filter((mensagem) => !isDivergenciaConciliacao(mensagem) && !isJaExistenteConciliacao(mensagem))
   const linhasComAlerta = itens.filter((item: any) => getAlertas(item.erros ?? []).length > 0).length
   const bloqueadas = itens.filter((item: any) => !item.valido).length
   const canConfirm = ['preview', 'erro'].includes(importacao.status) && importacao.total_validas > 0
@@ -124,7 +137,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <div className="rounded-2xl bg-white/80 p-4 shadow-sm">
               <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Importados</p>
               <p className="mt-2 text-2xl font-medium text-slate-950">{resultadoFinal.importados ?? 0}</p>
@@ -134,16 +147,47 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
               <p className="mt-2 text-2xl font-medium text-slate-950">{resultadoFinal.criados ?? 0}</p>
             </div>
             <div className="rounded-2xl bg-white/80 p-4 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Atualizados</p>
+              <p className="mt-2 text-2xl font-medium text-slate-950">{resultadoFinal.atualizados ?? 0}</p>
+            </div>
+            <div className="rounded-2xl bg-white/80 p-4 shadow-sm">
               <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ignorados</p>
               <p className="mt-2 text-2xl font-medium text-slate-950">{resultadoFinal.ignorados ?? 0}</p>
             </div>
             <div className="rounded-2xl bg-white/80 p-4 shadow-sm">
-              <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Alertas/erros</p>
-              <p className="mt-2 text-2xl font-medium text-slate-950">{(resultadoFinal.erros ?? []).length}</p>
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Divergentes</p>
+              <p className="mt-2 text-2xl font-medium text-slate-950">{resultadoFinal.divergentes ?? mensagensDivergentes.length}</p>
+            </div>
+            <div className="rounded-2xl bg-white/80 p-4 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Mensagens</p>
+              <p className="mt-2 text-2xl font-medium text-slate-950">{resultadoMensagens.length}</p>
             </div>
           </div>
 
-          {(resultadoFinal.erros ?? []).length > 0 ? (
+          {resultadoMensagens.length > 0 ? (
+            <div className="mt-4 space-y-3">
+              {mensagensJaExistentes.length > 0 ? (
+                <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-sm">
+                  <p className="font-medium text-slate-950">Ja existiam na base</p>
+                  <p className="mt-1">{mensagensJaExistentes.join(' Â· ')}</p>
+                </div>
+              ) : null}
+              {mensagensDivergentes.length > 0 ? (
+                <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+                  <p className="font-medium text-amber-950">Divergencias para revisar</p>
+                  <p className="mt-1">{mensagensDivergentes.join(' Â· ')}</p>
+                </div>
+              ) : null}
+              {mensagensOutras.length > 0 ? (
+                <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-rose-700 shadow-sm">
+                  <p className="font-medium text-rose-950">Outras ocorrencias</p>
+                  <p className="mt-1">{mensagensOutras.join(' Â· ')}</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {resultadoMensagens.length === -1 ? (
             <div className="mt-4 rounded-2xl bg-white/80 px-4 py-3 text-sm text-amber-800 shadow-sm">
               {(resultadoFinal.erros ?? []).join(' · ')}
             </div>

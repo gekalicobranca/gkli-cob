@@ -585,7 +585,6 @@ function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
 
     if (!unidadeAtual || !headerIndex) continue;
 
-    const primeiraColuna = normalize(row[0]);
     const isTotalRecibo = row.some((cell) =>
       /^total\s+do\s+recibo/i.test(normalize(cell)),
     );
@@ -1288,7 +1287,7 @@ function ensurePdfServerPolyfills() {
 
   if (!globalScope.Path2D) {
     globalScope.Path2D = class Path2D {
-      constructor(_path?: string) {}
+      constructor() {}
       addPath() {}
     };
   }
@@ -1554,26 +1553,6 @@ function cleanPhone(value: string) {
   }
 
   return digits || normalize(value);
-}
-
-function extractFirstPhone(value: string) {
-  const normalized = normalize(value);
-  const labeledMatch = normalized.match(
-    /(?:Celular|Telefone\s+(?:residencial|comercial)|Outros?)\s*-\s*((?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9[.\s-]*)?\d{4,5}[.\s-]?\d{4})/i,
-  );
-  if (labeledMatch) return cleanPhone(labeledMatch[1]);
-
-  const match = normalized.match(
-    /(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9[.\s-]*)?\d{4,5}[.\s-]?\d{4}/,
-  );
-  return match ? cleanPhone(match[0]) : "";
-}
-
-function extractFirstEmail(value: string) {
-  const match = normalize(value).match(
-    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
-  );
-  return match ? match[0].toLowerCase() : "";
 }
 
 function uniqueValues(values: string[]) {
@@ -2217,7 +2196,6 @@ function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
 
 function parseUnidadesPdf(
   text: string,
-  condominioCnpj = "",
   condominioDetectado?: string | null,
 ): UnidadeConversaoPreview[] {
   const blocks = splitUnitPdfBlocks(text);
@@ -2230,7 +2208,6 @@ function parseUnidadesPdf(
 
     if (roleMatches.length) {
       for (let index = 0; index < roleMatches.length; index += 1) {
-        const roleIndex = roleMatches[index].index ?? 0;
         const previousRoleIndex =
           index === 0 ? 0 : (roleMatches[index - 1].index ?? 0);
         const nextRoleIndex =
@@ -3239,7 +3216,6 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
     if (deteccaoHflex.ok) {
       const unidades = parseUnidadesPdf(
         text,
-        input.condominioCnpj,
         deteccaoHflex.condominioDetectado,
       );
       return buildPreviewFromUnidadesPdf({

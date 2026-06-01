@@ -213,8 +213,6 @@ export async function getCentralAnalitica(scope: CarteiraScope): Promise<Central
   const mensagens = (mensagensResult.data ?? []) as RawMensagem[]
   const eventos = (eventosResult.data ?? []) as RawEvento[]
 
-  const carteiraNome = new Map(carteiras.map((carteira) => [carteira.id, carteira.nome || 'Carteira sem nome']))
-
   const totalCobrancas = cobrancas.length
   const abertas = cobrancas.filter((cobranca) => status(cobranca.status_financeiro) === 'em_aberto')
   const contato = cobrancas.filter((cobranca) =>

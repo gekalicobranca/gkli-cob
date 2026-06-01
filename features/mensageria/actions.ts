@@ -7,8 +7,6 @@ import { requireUser } from "@/utils/auth/require-user";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { sendSmtpEmail } from "@/features/mensageria/email-provider";
 import { registrarEventoOperacional } from "@/features/operacional/service";
-import { registrarRetornoComEfeitoRegua } from "@/features/regua/services/suspension";
-import { salvarScoreRegua } from "@/features/regua/services/intelligence";
 import { TEMPLATE_VARIABLES } from "@/features/mensageria/render-template";
 import {
   LOTE_ITEM_STATUS,

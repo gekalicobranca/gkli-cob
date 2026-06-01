@@ -16,6 +16,7 @@ import {
 } from "./preview-rules";
 import { parseXlsx, type ParsedImportFile } from "./engine/xlsx-parser";
 import { isLegacyImportType, isValidImportType } from "./engine/types";
+import { conciliarCobrancaImportada } from "./cobrancas-conciliacao";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -61,6 +62,7 @@ type ImportExecutionResult = {
   importados: number;
   criados: number;
   atualizados: number;
+  divergentes: number;
   ignorados: number;
   erros: string[];
 };
@@ -85,7 +87,7 @@ function assertPayloadsPermitidos(scope: CarteiraScope, payloads: Record<string,
 }
 
 function emptyImportExecutionResult(): ImportExecutionResult {
-  return { importados: 0, criados: 0, atualizados: 0, ignorados: 0, erros: [] };
+  return { importados: 0, criados: 0, atualizados: 0, divergentes: 0, ignorados: 0, erros: [] };
 }
 
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
@@ -331,12 +333,6 @@ function normalizeUnidadePayload(
     status: normalizeUnidadeStatus(getFirst(payload, ["status", "situacao"])),
     observacoes: getFirst(payload, ["observacoes", "obs"]),
   };
-}
-
-function splitBlockingAndWarnings(messages: string[] = []) {
-  const alertas = messages.filter((message) => message.startsWith("ALERTA:"));
-  const erros = messages.filter((message) => !message.startsWith("ALERTA:"));
-  return { alertas, erros };
 }
 
 async function resolveCarteirasByNome(
@@ -1127,6 +1123,22 @@ export async function createImportacaoPreview(formData: FormData) {
     itens.map((item) => item.payload),
   );
 
+  const carteiraIdsPreview = Array.from(
+    new Set(
+      itens
+        .map((item) => String(item.payload.carteira_id ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+  const carteiraIdImportacao =
+    condominioPadrao?.carteira_id ?? carteiraIdsPreview[0] ?? null;
+
+  if (carteiraIdsPreview.length > 1 && scope.carteiraIds !== null) {
+    throw new Error(
+      "Importação com múltiplas carteiras deve ser separada em arquivos por carteira.",
+    );
+  }
+
   const totalValidas = itens.filter((item) => item.valido).length;
   const totalInvalidas = itens.length - totalValidas;
   const totalAlertas = itens.filter(
@@ -1156,7 +1168,7 @@ export async function createImportacaoPreview(formData: FormData) {
   const { data: importacao, error } = await supabase
     .from("importacoes")
     .insert({
-      carteira_id: condominioPadrao?.carteira_id ?? null,
+      carteira_id: carteiraIdsPreview.length <= 1 ? carteiraIdImportacao : null,
       tipo,
       arquivo_nome: file.name,
       status: "preview",
@@ -1309,29 +1321,6 @@ async function garantirUnidadeDaImportacao(
   throw new Error(unidadeError?.message ?? "Erro desconhecido ao criar unidade.");
 }
 
-async function cobrancaJaExiste(
-  supabase: SupabaseClient,
-  payload: Record<string, any>,
-) {
-  let query = supabase
-    .from("cobrancas")
-    .select("id")
-    .eq("unidade_id", payload.unidade_id)
-    .eq("vencimento", payload.vencimento)
-    .eq("valor_original", Number(payload.valor_original))
-    .limit(1);
-
-  if (payload.competencia) {
-    query = query.eq("competencia", payload.competencia);
-  } else {
-    query = query.is("competencia", null);
-  }
-
-  const { data, error } = await query.maybeSingle();
-  if (error) throw new Error(`Erro ao verificar cobrança duplicada: ${error.message}`);
-  return data?.id ? String(data.id) : null;
-}
-
 async function importarCobrancas(
   supabase: SupabaseClient,
   payloads: Record<string, any>[],
@@ -1346,11 +1335,31 @@ async function importarCobrancas(
       payload.unidade_id = unidade.id;
       if (unidade.criada) resultado.criados += 1;
 
-      const cobrancaExistenteId = await cobrancaJaExiste(supabase, payload);
-      if (cobrancaExistenteId) {
+      const conciliacao = await conciliarCobrancaImportada(supabase, {
+        condominio_id: payload.condominio_id,
+        unidade_id: payload.unidade_id,
+        competencia: payload.competencia || null,
+        vencimento: payload.vencimento || null,
+        valor_original: payload.valor_original,
+        valor_atualizado: payload.valor_atualizado,
+        recibo: payload.recibo || null,
+        referencia: payload.referencia || null,
+        observacoes: payload.observacoes || null,
+      });
+      const cobrancaExistenteId = conciliacao.cobrancaId;
+      if (conciliacao.status === "ja_existente") {
         resultado.ignorados += 1;
         resultado.erros.push(
           `Linha ${linha}: cobrança já existia e foi ignorada (${cobrancaExistenteId}).`,
+        );
+        continue;
+      }
+
+      if (conciliacao.status === "divergente") {
+        resultado.divergentes += 1;
+        resultado.ignorados += 1;
+        resultado.erros.push(
+          `Linha ${linha}: cobranca parecida encontrada com divergencia de valores (${conciliacao.cobrancaId}). Revise antes de importar.`,
         );
         continue;
       }
@@ -1708,6 +1717,7 @@ export async function confirmarImportacao(formData: FormData) {
       importados: resultadoLegado.importados,
       criados: resultadoLegado.criados,
       atualizados: 0,
+      divergentes: 0,
       ignorados: Math.max(0, payloads.length - resultadoLegado.importados),
       erros: resultadoLegado.erros,
     };
@@ -1726,6 +1736,7 @@ export async function confirmarImportacao(formData: FormData) {
   };
 
   (resultado as any).atualizados = execucao.atualizados;
+  (resultado as any).divergentes = execucao.divergentes;
 
   await finalizarImportacao({
     supabase,

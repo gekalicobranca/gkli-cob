@@ -87,11 +87,6 @@ function hasWhatsapp(message: MensagemBase) {
   return /\d{10,}/.test(String(phone ?? '').replace(/\D/g, ''))
 }
 
-function hasEmail(message: MensagemBase) {
-  const email = message.email_destinatario || message.destinatario
-  return /@/.test(String(email ?? ''))
-}
-
 function suggestedChannel(message: MensagemBase): 'whatsapp' | 'email' {
   if (hasWhatsapp(message)) return 'whatsapp'
   return 'email'
@@ -134,13 +129,6 @@ function engagementScore(message: MensagemBase) {
   if (message.enviada_manual) score += 8
   if (message.status === 'falha' || message.status_operacional === 'falha') score -= 20
   return Math.max(0, Math.min(100, score))
-}
-
-function priorityFromRisk(risk: number): MensageriaPrioridade {
-  if (risk >= 80) return 'critica'
-  if (risk >= 60) return 'alta'
-  if (risk >= 35) return 'media'
-  return 'baixa'
 }
 
 function avg(values: number[]) {

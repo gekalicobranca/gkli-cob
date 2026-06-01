@@ -5,7 +5,7 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { processarReguaCobranca } from './services/processar-regua-cobranca'
 import { processarReguaAcordos } from './services/processar-regua-acordos'
 
-export async function gerarLoteReguaCobranca(_formData: FormData): Promise<void> {
+export async function gerarLoteReguaCobranca(): Promise<void> {
   const scope = await getPermittedCarteiras()
   const resultado = await processarReguaCobranca({ scope, origem: 'manual' })
 
@@ -16,7 +16,7 @@ export async function gerarLoteReguaCobranca(_formData: FormData): Promise<void>
 }
 
 
-export async function gerarLoteReguaAcordos(_formData: FormData): Promise<void> {
+export async function gerarLoteReguaAcordos(): Promise<void> {
   const scope = await getPermittedCarteiras()
   const resultado = await processarReguaAcordos({ scope, origem: 'manual' })
 

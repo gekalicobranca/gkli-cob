@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowUpRight, Filter, Handshake, Plus, RefreshCcw, Search } from 'lucide-react'
+import { ArrowUpRight, Filter, Handshake, Plus, Search } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'

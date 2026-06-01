@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
-import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/normalize-relation'
+import { normalizeRelationsList } from '@/utils/supabase/normalize-relation'
 
 export async function listCarteiras(scope: CarteiraScope) {
   const supabase = await createClient()

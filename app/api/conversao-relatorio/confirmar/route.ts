@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
+import { conciliarCobrancaImportada } from "@/features/importacoes/cobrancas-conciliacao"
 
 export const runtime = "nodejs"
 
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
         resumo: {
           cobrancasCriadas: 0,
           cobrancasIgnoradas: 0,
+          cobrancasDivergentes: 0,
           parcelasCriadas: 0,
           inconsistencias: [],
         },
@@ -117,6 +119,7 @@ export async function POST(request: NextRequest) {
 
     let cobrancasCriadas = 0
     let cobrancasIgnoradas = 0
+    let cobrancasDivergentes = 0
     let parcelasCriadas = 0
     const inconsistencias: string[] = []
 
@@ -180,23 +183,27 @@ export async function POST(request: NextRequest) {
         ? `Conversão de relatório - recibo ${recibo}`
         : "Conversão de relatório"
 
-      const { data: cobrancaExistente, error: cobrancaExistenteError } = await supabase
-        .from("cobrancas")
-        .select("id")
-        .eq("conversao_relatorio_id", conversaoId)
-        .eq("unidade_id", unidadeId)
-        .eq("observacoes", observacoes)
-        .maybeSingle()
+      const conciliacao = await conciliarCobrancaImportada(supabase, {
+        condominio_id: condominioId,
+        unidade_id: unidadeId,
+        vencimento: vencimentoMaisAntigo,
+        valor_original: valorPrincipal,
+        valor_atualizado: valorTotal,
+        recibo,
+        referencia: recibo ? `Recibo ${recibo}` : null,
+        observacoes,
+      })
 
-      if (cobrancaExistenteError) {
-        inconsistencias.push(
-          `Unidade ${unidadeLabel}: ${cobrancaExistenteError.message}`
-        )
+      if (conciliacao.status === "ja_existente") {
+        cobrancasIgnoradas += 1
         continue
       }
 
-      if (cobrancaExistente) {
-        cobrancasIgnoradas += 1
+      if (conciliacao.status === "divergente") {
+        cobrancasDivergentes += 1
+        inconsistencias.push(
+          `Unidade ${unidadeLabel}: cobrança parecida encontrada com divergência de valores (${conciliacao.cobrancaId}).`
+        )
         continue
       }
 
@@ -277,6 +284,7 @@ export async function POST(request: NextRequest) {
       resumo: {
         cobrancasCriadas,
         cobrancasIgnoradas,
+        cobrancasDivergentes,
         parcelasCriadas,
         inconsistencias,
       },

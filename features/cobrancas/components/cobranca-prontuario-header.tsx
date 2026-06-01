@@ -14,9 +14,6 @@ function headerGradient(status: string) {
 export function CobrancaProntuarioHeader({
   cobranca,
   statusOperacional,
-  valorAtualizado: _valorAtualizado,
-  atraso: _atraso,
-  nextAction: _nextAction,
   acordoVigenteId,
   canCreateAcordo,
 }: {
