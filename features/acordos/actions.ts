@@ -1147,7 +1147,7 @@ export async function marcarParcelaComoPaga(formData: FormData) {
     .eq("id", acordoId)
     .maybeSingle();
 
-  if (!acordoEvento) throw new Error("Acordo nÃ£o encontrado.");
+  if (!acordoEvento) throw new Error("Acordo não encontrado.");
   const carteiraScope = await getPermittedCarteiras();
   assertCarteiraPermitida(carteiraScope, (acordoEvento as any).carteira_id);
 
@@ -1274,7 +1274,7 @@ export async function marcarParcelaComoVencida(formData: FormData) {
     .eq("id", acordoId)
     .maybeSingle();
 
-  if (!acordoEvento) throw new Error("Acordo nÃ£o encontrado.");
+  if (!acordoEvento) throw new Error("Acordo não encontrado.");
   const carteiraScope = await getPermittedCarteiras();
   assertCarteiraPermitida(carteiraScope, (acordoEvento as any).carteira_id);
 

@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
-import { AlertTriangle, CheckCircle2, FileCheck2, ShieldCheck, ShieldX, WalletCards } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FileCheck2, ShieldX, WalletCards } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { Button, ButtonLink } from '@/components/ui/button'
+import { ButtonLink } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/data/status-badge'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -11,6 +11,7 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getImportacaoDetalhe, listImportacaoItens } from '@/features/importacoes/queries'
 import { confirmarImportacao } from '@/features/importacoes/actions'
 import { priorityTone } from '@/features/importacoes/preview-rules'
+import { ConfirmarImportacaoButton } from './confirmar-importacao-button'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -104,10 +105,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
             {canConfirm ? (
               <form action={confirmarImportacao}>
                 <input type="hidden" name="importacao_id" value={importacao.id} />
-                <Button type="submit">
-                  <ShieldCheck size={16} />
-                  Confirmar importação
-                </Button>
+                <ConfirmarImportacaoButton />
               </form>
             ) : null}
           </>
@@ -168,28 +166,22 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
             <div className="mt-4 space-y-3">
               {mensagensJaExistentes.length > 0 ? (
                 <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-sm">
-                  <p className="font-medium text-slate-950">Ja existiam na base</p>
-                  <p className="mt-1">{mensagensJaExistentes.join(' Â· ')}</p>
+                  <p className="font-medium text-slate-950">Já existiam na base</p>
+                  <p className="mt-1">{mensagensJaExistentes.join(' · ')}</p>
                 </div>
               ) : null}
               {mensagensDivergentes.length > 0 ? (
                 <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
-                  <p className="font-medium text-amber-950">Divergencias para revisar</p>
-                  <p className="mt-1">{mensagensDivergentes.join(' Â· ')}</p>
+                  <p className="font-medium text-amber-950">Divergências para revisar</p>
+                  <p className="mt-1">{mensagensDivergentes.join(' · ')}</p>
                 </div>
               ) : null}
               {mensagensOutras.length > 0 ? (
                 <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-rose-700 shadow-sm">
-                  <p className="font-medium text-rose-950">Outras ocorrencias</p>
-                  <p className="mt-1">{mensagensOutras.join(' Â· ')}</p>
+                  <p className="font-medium text-rose-950">Outras ocorrências</p>
+                  <p className="mt-1">{mensagensOutras.join(' · ')}</p>
                 </div>
               ) : null}
-            </div>
-          ) : null}
-
-          {resultadoMensagens.length === -1 ? (
-            <div className="mt-4 rounded-2xl bg-white/80 px-4 py-3 text-sm text-amber-800 shadow-sm">
-              {(resultadoFinal.erros ?? []).join(' · ')}
             </div>
           ) : null}
         </Card>

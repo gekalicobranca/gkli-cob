@@ -454,7 +454,7 @@ async function resolveResponsaveisApoioByCondominioIds(
     .in("condominio_id", ids.length > 0 ? ids : [EMPTY_UUID]);
 
   if (error)
-    throw new Error(`Erro ao consultar responsÃ¡veis de apoio: ${error.message}`);
+    throw new Error(`Erro ao consultar responsáveis de apoio: ${error.message}`);
 
   return new Map<string, ResponsavelUnidadeApoioRow>(
     ((data ?? []) as ResponsavelUnidadeApoioRow[]).map((responsavel) => [

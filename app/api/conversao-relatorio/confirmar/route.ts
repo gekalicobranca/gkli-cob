@@ -23,7 +23,7 @@ async function isCarteiraPermitida(
     .maybeSingle()
 
   if (profileError) {
-    throw new Error(`Erro ao verificar perfil do usuÃ¡rio: ${profileError.message}`)
+    throw new Error(`Erro ao verificar perfil do usuário: ${profileError.message}`)
   }
 
   const perfil = String((profile as any)?.role ?? "")
@@ -37,7 +37,7 @@ async function isCarteiraPermitida(
     .maybeSingle()
 
   if (error) {
-    throw new Error(`Erro ao verificar permissÃ£o da carteira: ${error.message}`)
+    throw new Error(`Erro ao verificar permissão da carteira: ${error.message}`)
   }
 
   return Boolean(data)
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     if (!carteiraId) {
       return NextResponse.json(
-        { ok: false, error: "Carteira nÃ£o informada." },
+        { ok: false, error: "Carteira não informada." },
         { status: 400 }
       )
     }
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     const carteiraPermitida = await isCarteiraPermitida(supabase, user.id, carteiraId)
     if (!carteiraPermitida) {
       return NextResponse.json(
-        { ok: false, error: "VocÃª nÃ£o tem permissÃ£o para importar nesta carteira." },
+        { ok: false, error: "Você não tem permissão para importar nesta carteira." },
         { status: 403 }
       )
     }

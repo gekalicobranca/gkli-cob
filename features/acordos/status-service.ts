@@ -179,7 +179,7 @@ export async function checkAcordosStatus(
 
     if (vinculosError) {
       throw new Error(
-        `Erro ao carregar cobranÃ§as vinculadas aos acordos: ${vinculosError.message}`,
+        `Erro ao carregar cobranças vinculadas aos acordos: ${vinculosError.message}`,
       );
     }
 
