@@ -95,6 +95,16 @@ function rankedCondominios(
     .slice(0, 8);
 }
 
+function autoMatchCondominio(
+  condominios: CondominioOption[],
+  detected?: string | null,
+) {
+  const [best, second] = rankedCondominios(condominios, detected);
+  if (!best || best.score < 80) return null;
+  if (second && best.score - second.score < 12) return null;
+  return best.condominio;
+}
+
 type CondominioOption = {
   id: string;
   nome: string;
@@ -124,7 +134,7 @@ const tipoOptions: Array<{
     title: "Cobranças",
     description:
       "XLS, XLSX, CSV ou HTML de inadimplência → XLSX padrão Importações/Cobranças.",
-    accept: ".xls,.xlsx,.html,.htm,.csv",
+    accept: ".pdf,.xls,.xlsx,.html,.htm,.csv",
   },
 ];
 
@@ -155,8 +165,7 @@ export function ConversionUploadCard({
     [condominios, preview?.padraoDetectado?.condominioDetectado],
   );
   const precisaConfirmarCondominio =
-    tipoConversao === "unidades" &&
-    preview?.tipoConversao === "unidades" &&
+    Boolean(preview) &&
     !condominioCnpj;
 
   const topCobrancas = useMemo(() => {
@@ -197,7 +206,38 @@ export function ConversionUploadCard({
         return;
       }
 
-      setPreview(result.preview);
+      const parsedPreview = result.preview as ConversaoPreview;
+      const autoCondominio = condominioCnpj
+        ? null
+        : autoMatchCondominio(
+            condominios,
+            parsedPreview.padraoDetectado?.condominioDetectado,
+          );
+
+      if (autoCondominio) {
+        setCondominioCnpj(autoCondominio.cnpj);
+
+        const enrichedFormData = new FormData();
+        enrichedFormData.append("file", file);
+        enrichedFormData.append("tipo_conversao", tipoConversao);
+        enrichedFormData.append("condominio_cnpj", autoCondominio.cnpj);
+
+        const enrichedResponse = await fetch("/api/conversao-relatorio/parse", {
+          method: "POST",
+          body: enrichedFormData,
+        });
+        const enrichedResult = await enrichedResponse.json();
+
+        if (!enrichedResponse.ok || !enrichedResult.ok) {
+          setPreview(parsedPreview);
+          return;
+        }
+
+        setPreview(enrichedResult.preview);
+        return;
+      }
+
+      setPreview(parsedPreview);
     } catch (err) {
       setError(
         err instanceof Error
@@ -311,8 +351,7 @@ export function ConversionUploadCard({
           onChange={(event) => {
             const value = event.target.value;
             if (
-              tipoConversao === "unidades" &&
-              preview?.tipoConversao === "unidades" &&
+              preview &&
               selectedFile &&
               value
             ) {
@@ -326,7 +365,7 @@ export function ConversionUploadCard({
           <option value="">
             {tipoConversao === "unidades"
               ? "Converter primeiro e escolher após a sugestão"
-              : "Não preencher CNPJ no arquivo convertido"}
+              : "Escolha o condominio para preencher o CNPJ no XLSX"}
           </option>
           {condominios.map((condominio) => (
             <option key={condominio.id} value={condominio.cnpj}>
@@ -404,7 +443,7 @@ export function ConversionUploadCard({
             </div>
           ) : null}
 
-          {preview.tipoConversao === "unidades" ? (
+          {preview ? (
             <div
               className={`rounded-2xl border p-4 ${precisaConfirmarCondominio ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}
             >
