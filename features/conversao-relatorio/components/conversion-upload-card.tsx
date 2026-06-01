@@ -362,11 +362,7 @@ export function ConversionUploadCard({
           }}
           className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
         >
-          <option value="">
-            {tipoConversao === "unidades"
-              ? "Converter primeiro e escolher após a sugestão"
-              : "Escolha o condominio para preencher o CNPJ no XLSX"}
-          </option>
+          <option value="">Identificar automaticamente ou escolher condominio</option>
           {condominios.map((condominio) => (
             <option key={condominio.id} value={condominio.cnpj}>
               {condominio.nomeOperacional || condominio.nome} ·{" "}
@@ -375,8 +371,8 @@ export function ConversionUploadCard({
           ))}
         </select>
         <p className="mt-2 text-xs leading-5 text-slate-500">
-          Em Unidades, o conversor lê o nome do PDF, sugere os condomínios
-          cadastrados mais próximos e só então preenche o CNPJ no XLSX final.
+          O conversor tenta identificar o condominio pelo relatorio e preenche o
+          CNPJ automaticamente quando encontrar um match seguro.
         </p>
       </div>
 
