@@ -39,6 +39,18 @@ type UnidadeImportacaoRow = {
   email?: string | null;
 };
 
+type ResponsavelUnidadeApoioRow = {
+  id: string;
+  condominio_id: string;
+  carteira_id: string;
+  unidade: string;
+  bloco: string | null;
+  responsavel_nome?: string | null;
+  responsavel_documento?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+};
+
 type PreviewItem = {
   linha: number;
   payload: Record<string, any>;
@@ -427,6 +439,35 @@ async function resolveUnidadesByCondominioIds(
   );
 }
 
+async function resolveResponsaveisApoioByCondominioIds(
+  supabase: SupabaseClient,
+  condominioIds: string[],
+) {
+  const ids = [...new Set(condominioIds.filter(Boolean))];
+
+  const { data, error } = await supabase
+    .from("responsaveis_unidades")
+    .select(
+      "id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, responsavel_documento, telefone, email",
+    )
+    .eq("ativo", true)
+    .in("condominio_id", ids.length > 0 ? ids : [EMPTY_UUID]);
+
+  if (error)
+    throw new Error(`Erro ao consultar responsÃ¡veis de apoio: ${error.message}`);
+
+  return new Map<string, ResponsavelUnidadeApoioRow>(
+    ((data ?? []) as ResponsavelUnidadeApoioRow[]).map((responsavel) => [
+      unidadeKey({
+        condominio_id: responsavel.condominio_id,
+        identificacao: responsavel.unidade,
+        bloco: responsavel.bloco,
+      }),
+      responsavel,
+    ]),
+  );
+}
+
 function buildImportacaoPayload(
   tipo: string,
   raw: Record<string, string>,
@@ -754,6 +795,10 @@ async function enrichCobrancaPreview(
     supabase,
     condominioIds,
   );
+  const responsaveisApoioByKey = await resolveResponsaveisApoioByCondominioIds(
+    supabase,
+    condominioIds,
+  );
 
   return rows.map((row) => {
     const payload = row.payload;
@@ -784,23 +829,26 @@ async function enrichCobrancaPreview(
       erros.push("Valor original/total do recibo inválido");
 
     let unidade: UnidadeImportacaoRow | undefined;
+    let responsavelApoio: ResponsavelUnidadeApoioRow | undefined;
     let unidadeNova = false;
 
     if (condominio && payload.unidade) {
-      unidade = unidadesByKey.get(
-        unidadeKey({
-          condominio_id: condominio.id,
-          identificacao: payload.unidade,
-          bloco: payload.bloco,
-        }),
-      );
+      const chaveUnidade = unidadeKey({
+        condominio_id: condominio.id,
+        identificacao: payload.unidade,
+        bloco: payload.bloco,
+      });
+      unidade = unidadesByKey.get(chaveUnidade);
+      responsavelApoio = responsaveisApoioByKey.get(chaveUnidade);
       if (!unidade) {
         unidadeNova = true;
-        alertas.push("Unidade não encontrada: será criada na confirmação");
+        alertas.push("Unidade não encontrada: será criada pela inadimplência");
       }
     }
 
-    // Dados de contato vêm do cadastro da unidade; não bloqueia nem gera alerta no layout GKLI por recibo.
+    if (responsavelApoio) {
+      alertas.push("Contato encontrado no cadastro de apoio de responsaveis");
+    }
 
     const blocked = erros.length > 0;
     const priority = estimatePriority({
@@ -818,11 +866,18 @@ async function enrichCobrancaPreview(
         condominio_nome: condominio?.nome ?? null,
         unidade_id: unidade?.id ?? null,
         unidade_nova: unidadeNova,
-        responsavel_nome: payload.responsavel_nome || unidade?.responsavel_nome || null,
+        responsavel_nome:
+          responsavelApoio?.responsavel_nome ||
+          payload.responsavel_nome ||
+          unidade?.responsavel_nome ||
+          null,
         responsavel_documento:
-          payload.responsavel_documento || unidade?.responsavel_documento || null,
-        telefone: payload.telefone || unidade?.telefone || null,
-        email: payload.email || unidade?.email || null,
+          responsavelApoio?.responsavel_documento ||
+          payload.responsavel_documento ||
+          unidade?.responsavel_documento ||
+          null,
+        telefone: responsavelApoio?.telefone || payload.telefone || unidade?.telefone || null,
+        email: responsavelApoio?.email || payload.email || unidade?.email || null,
         prioridade_estimada: priority.prioridade,
         score_estimado: priority.score,
         acao_sugerida: priority.acao,
@@ -1249,19 +1304,62 @@ async function rollbackCreatedRows(
 
 async function buscarUnidadeExistente(
   supabase: SupabaseClient,
-  params: { condominioId: string; identificacao: string },
+  params: { condominioId: string; identificacao: string; bloco?: string | null },
 ) {
   if (!params.condominioId || !params.identificacao) return null;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("unidades")
-    .select("id, carteira_id, condominio_id, identificacao")
+    .select("id, carteira_id, condominio_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email")
     .eq("condominio_id", params.condominioId)
-    .eq("identificacao", params.identificacao)
-    .maybeSingle();
+    .eq("identificacao", params.identificacao);
+
+  const bloco = String(params.bloco ?? "").trim();
+  query = bloco ? query.eq("bloco", bloco) : query.is("bloco", null);
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) throw new Error(`Erro ao buscar unidade existente: ${error.message}`);
-  return data as { id: string; carteira_id: string; condominio_id: string; identificacao: string } | null;
+  return data as UnidadeImportacaoRow | null;
+}
+
+async function buscarResponsavelApoio(
+  supabase: SupabaseClient,
+  params: { condominioId: string; identificacao: string; bloco?: string | null },
+) {
+  if (!params.condominioId || !params.identificacao) return null;
+
+  let query = supabase
+    .from("responsaveis_unidades")
+    .select("id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, responsavel_documento, telefone, email")
+    .eq("condominio_id", params.condominioId)
+    .eq("unidade", params.identificacao)
+    .eq("ativo", true);
+
+  const bloco = String(params.bloco ?? "").trim();
+  query = bloco ? query.eq("bloco", bloco) : query.is("bloco", null);
+
+  const { data, error } = await query.maybeSingle();
+  if (error)
+    throw new Error(`Erro ao buscar responsavel de apoio: ${error.message}`);
+
+  return data as ResponsavelUnidadeApoioRow | null;
+}
+
+function dadosUnidadeComApoio(
+  payload: Record<string, any>,
+  responsavelApoio: ResponsavelUnidadeApoioRow | null,
+) {
+  return {
+    responsavel_nome:
+      responsavelApoio?.responsavel_nome || payload.responsavel_nome || null,
+    responsavel_documento:
+      responsavelApoio?.responsavel_documento ||
+      payload.responsavel_documento ||
+      null,
+    telefone: responsavelApoio?.telefone || payload.telefone || null,
+    email: responsavelApoio?.email || payload.email || null,
+  };
 }
 
 async function garantirUnidadeDaImportacao(
@@ -1280,9 +1378,35 @@ async function garantirUnidadeDaImportacao(
   const existente = await buscarUnidadeExistente(supabase, {
     condominioId: payload.condominio_id,
     identificacao,
+    bloco: payload.bloco,
   });
 
+  const responsavelApoio = await buscarResponsavelApoio(supabase, {
+    condominioId: payload.condominio_id,
+    identificacao,
+    bloco: payload.bloco,
+  });
+  const dadosContato = dadosUnidadeComApoio(payload, responsavelApoio);
+
   if (existente) {
+    const patch: Record<string, string> = {};
+    if (!existente.responsavel_nome && dadosContato.responsavel_nome) {
+      patch.responsavel_nome = dadosContato.responsavel_nome;
+    }
+    if (!existente.responsavel_documento && dadosContato.responsavel_documento) {
+      patch.responsavel_documento = dadosContato.responsavel_documento;
+    }
+    if (!existente.telefone && dadosContato.telefone) {
+      patch.telefone = dadosContato.telefone;
+    }
+    if (!existente.email && dadosContato.email) {
+      patch.email = dadosContato.email;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await supabase.from("unidades").update(patch).eq("id", existente.id);
+    }
+
     return { id: existente.id, criada: false, reutilizada: true };
   }
 
@@ -1293,10 +1417,10 @@ async function garantirUnidadeDaImportacao(
       condominio_id: payload.condominio_id,
       identificacao,
       bloco: payload.bloco || null,
-      responsavel_nome: payload.responsavel_nome || null,
-      responsavel_documento: payload.responsavel_documento || null,
-      telefone: payload.telefone || null,
-      email: payload.email || null,
+      responsavel_nome: dadosContato.responsavel_nome,
+      responsavel_documento: dadosContato.responsavel_documento,
+      telefone: dadosContato.telefone,
+      email: dadosContato.email,
       status: "ativa",
       observacoes: "Criada por importação de cobranças.",
     })
@@ -1312,6 +1436,7 @@ async function garantirUnidadeDaImportacao(
   const unidadeAposConflito = await buscarUnidadeExistente(supabase, {
     condominioId: payload.condominio_id,
     identificacao,
+    bloco: payload.bloco,
   });
 
   if (unidadeAposConflito) {
