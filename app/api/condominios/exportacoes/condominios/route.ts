@@ -4,20 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 
-const CONDOMINIOS_HEADERS = [
-  "carteira",
-  "nome",
-  "nome_operacional",
-  "cnpj",
-  "administradora",
-  "vencimento_cota_dia",
-  "valor_cota_condominial",
-  "inicio_cobranca_dias",
-  "classificacao_operacional",
-  "status",
-  "observacoes",
-  "created_at",
-];
+const CONDOMINIOS_HEADERS = ["Nome do condomínio", "CNPJ", "Carteira"];
 
 function sanitizeFileName(value: string) {
   return String(value || "condominios")
@@ -29,34 +16,17 @@ function sanitizeFileName(value: string) {
     .slice(0, 80) || "condominios";
 }
 
-function money(value: unknown) {
-  const parsed = Number(value ?? 0);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function toDate(value?: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date;
-}
-
-function createWorkbook(rows: Record<string, unknown>[], carteiraLabel: string) {
+function createWorkbook(rows: Record<string, unknown>[]) {
   const workbook = XLSX.utils.book_new();
-  const instrucoes = XLSX.utils.aoa_to_sheet([
-    ["GKLI Cobrança — Exportação de Condomínios"],
-    [],
-    [`Carteira: ${carteiraLabel}`],
-    ["Arquivo gerado em XLSX para conferência, saneamento cadastral ou reimportação controlada."],
-    ["A aba DADOS mantém as principais colunas cadastrais usadas pelo módulo de Condomínios."],
-  ]);
-  const dados = XLSX.utils.json_to_sheet(rows, { header: CONDOMINIOS_HEADERS });
+  const worksheet = XLSX.utils.json_to_sheet(rows, { header: CONDOMINIOS_HEADERS });
 
-  dados["!cols"] = CONDOMINIOS_HEADERS.map((header) => ({
-    wch: Math.max(18, Math.min(34, header.length + 8)),
-  }));
+  worksheet["!cols"] = [
+    { wch: 44 },
+    { wch: 20 },
+    { wch: 28 },
+  ];
 
-  XLSX.utils.book_append_sheet(workbook, instrucoes, "INSTRUCOES");
-  XLSX.utils.book_append_sheet(workbook, dados, "DADOS");
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Condominios");
   return workbook;
 }
 
@@ -74,16 +44,7 @@ export async function GET(request: Request) {
         id,
         carteira_id,
         nome,
-        nome_operacional,
         cnpj,
-        administradora,
-        vencimento_cota_dia,
-        valor_cota_condominial,
-        inicio_cobranca_dias,
-        classificacao_operacional,
-        status,
-        observacoes,
-        created_at,
         carteiras(nome)
       `)
       .order("nome", { ascending: true });
@@ -110,23 +71,14 @@ export async function GET(request: Request) {
       if (carteiraNome) carteiraNames.add(carteiraNome);
 
       return {
-        carteira: carteiraNome,
-        nome: row.nome ?? "",
-        nome_operacional: row.nome_operacional ?? "",
-        cnpj: row.cnpj ?? "",
-        administradora: row.administradora ?? "",
-        vencimento_cota_dia: row.vencimento_cota_dia ?? "",
-        valor_cota_condominial: money(row.valor_cota_condominial),
-        inicio_cobranca_dias: row.inicio_cobranca_dias ?? "",
-        classificacao_operacional: row.classificacao_operacional ?? "prata",
-        status: row.status ?? "ativo",
-        observacoes: row.observacoes ?? "",
-        created_at: toDate(row.created_at),
+        "Nome do condomínio": row.nome ?? "",
+        CNPJ: row.cnpj ?? "",
+        Carteira: carteiraNome,
       };
     });
 
     const carteiraLabel = carteiraNames.size === 1 ? Array.from(carteiraNames)[0] : "todas-as-carteiras-permitidas";
-    const workbook = createWorkbook(rows, carteiraLabel);
+    const workbook = createWorkbook(rows);
     const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
     const fileName = `gkli-condominios-${sanitizeFileName(carteiraLabel)}.xlsx`;
 

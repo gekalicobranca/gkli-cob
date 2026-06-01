@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowUpRight, Building2, Download, Edit3, Filter, Plus, Search, Upload, X } from 'lucide-react'
+import { ArrowUpRight, Building2, Download, Edit3, Filter, Plus, Search, X } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -69,11 +69,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
           <>
             <ButtonLink href={exportCondominiosHref} variant="secondary">
               <Download size={16} />
-              Exportar XLSX
-            </ButtonLink>
-            <ButtonLink href="/app/importacoes/nova" variant="secondary">
-              <Upload size={16} />
-              Importar
+              Exportar
             </ButtonLink>
             <ButtonLink href="/app/condominios/novo">
               <Plus size={16} />
