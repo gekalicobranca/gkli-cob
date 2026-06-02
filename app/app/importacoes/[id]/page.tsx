@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+﻿import { notFound } from 'next/navigation'
 import { AlertTriangle, CheckCircle2, FileCheck2, ShieldX, WalletCards } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
@@ -30,6 +30,15 @@ function isLegacy(tipo: string) {
   return tipo === 'acordos_extra' || tipo === 'acordos_judiciais'
 }
 
+function labelTipo(tipo: string) {
+  if (tipo === 'unidades') return 'ResponsÃ¡veis'
+  if (tipo === 'cobrancas') return 'CobranÃ§as'
+  if (tipo === 'condominios') return 'CondomÃ­nios'
+  if (tipo === 'acordos_extra') return 'Legado Â· Acordos extra'
+  if (tipo === 'acordos_judiciais') return 'Legado Â· Acordos judiciais'
+  return tipo
+}
+
 function valorPreview(payload: Record<string, any>) {
   return Number(payload.valor_atualizado ?? payload.valor_acordado ?? payload.valor_original ?? payload.valor_cota_condominial ?? 0)
 }
@@ -56,12 +65,12 @@ function previewMetaSecundaria(payload: Record<string, any>, tipo: string) {
 
 function descricaoLinha(payload: Record<string, any>, tipo: string) {
   if (isLegacy(tipo)) {
-    return `${payload.responsavel_nome || 'Responsável não informado'} · acordo ${payload.numero_processo ? `proc. ${payload.numero_processo}` : 'extrajudicial'}`
+    return `${payload.responsavel_nome || 'ResponsÃ¡vel nÃ£o informado'} Â· acordo ${payload.numero_processo ? `proc. ${payload.numero_processo}` : 'extrajudicial'}`
   }
 
-  if (tipo === 'condominios') return payload.nome || 'Condomínio sem nome'
-  if (tipo === 'unidades') return `${payload.identificacao || payload.unidade || '-'} · ${payload.responsavel_nome || 'Responsável não informado'}`
-  return `${payload.responsavel_nome || 'Responsável não informado'} · Unidade ${payload.unidade || '-'}`
+  if (tipo === 'condominios') return payload.nome || 'CondomÃ­nio sem nome'
+  if (tipo === 'unidades') return `${payload.identificacao || payload.unidade || '-'} Â· ${payload.responsavel_nome || 'ResponsÃ¡vel nÃ£o informado'}`
+  return `${payload.responsavel_nome || 'ResponsÃ¡vel nÃ£o informado'} Â· Unidade ${payload.unidade || '-'}`
 }
 
 function isDivergenciaConciliacao(mensagem: string) {
@@ -70,7 +79,7 @@ function isDivergenciaConciliacao(mensagem: string) {
 
 function isJaExistenteConciliacao(mensagem: string) {
   const normalizada = mensagem.toLowerCase()
-  return normalizada.includes('ja existia') || normalizada.includes('já existia')
+  return normalizada.includes('ja existia') || normalizada.includes('jÃ¡ existia')
 }
 
 export default async function ImportacaoDetalhePage({ params, searchParams }: PageProps) {
@@ -96,9 +105,9 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Preview de importação"
+        eyebrow="Preview de importaÃ§Ã£o"
         title={importacao.arquivo_nome ?? 'Arquivo sem nome'}
-        description={`${importacao.tipo} · criada em ${formatDateBR(importacao.created_at)} · preview antes de gravar dados definitivos.`}
+        description={`${labelTipo(importacao.tipo)} - criada em ${formatDateBR(importacao.created_at)} - preview antes de gravar dados definitivos.`}
         actions={
           <>
             <ButtonLink href="/app/importacoes" variant="secondary">Voltar</ButtonLink>
@@ -121,17 +130,17 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                 <FileCheck2 size={20} />
               </div>
               <div>
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-emerald-700">Importação efetivada</p>
-                <h2 className="mt-2 text-lg font-medium text-slate-950">{resultadoFinal.mensagem ?? 'Importação concluída com sucesso.'}</h2>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-emerald-700">ImportaÃ§Ã£o efetivada</p>
+                <h2 className="mt-2 text-lg font-medium text-slate-950">{resultadoFinal.mensagem ?? 'ImportaÃ§Ã£o concluÃ­da com sucesso.'}</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Resultado gravado em {formatDateBR(resumo.finalizada_em)}. O arquivo saiu do modo preview e os dados válidos já foram aplicados na base.
+                  Resultado gravado em {formatDateBR(resumo.finalizada_em)}. O arquivo saiu do modo preview e os dados vÃ¡lidos jÃ¡ foram aplicados na base.
                 </p>
               </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
               {resultadoFinal.destino ? <ButtonLink href={resultadoFinal.destino} variant="secondary">Ver registros</ButtonLink> : null}
-              <ButtonLink href="/app/importacoes/nova" variant="secondary">Nova importação</ButtonLink>
+              <ButtonLink href="/app/importacoes/nova" variant="secondary">Nova importaÃ§Ã£o</ButtonLink>
             </div>
           </div>
 
@@ -166,20 +175,20 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
             <div className="mt-4 space-y-3">
               {mensagensJaExistentes.length > 0 ? (
                 <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-sm">
-                  <p className="font-medium text-slate-950">Já existiam na base</p>
-                  <p className="mt-1">{mensagensJaExistentes.join(' · ')}</p>
+                  <p className="font-medium text-slate-950">JÃ¡ existiam na base</p>
+                  <p className="mt-1">{mensagensJaExistentes.join(' Â· ')}</p>
                 </div>
               ) : null}
               {mensagensDivergentes.length > 0 ? (
                 <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
-                  <p className="font-medium text-amber-950">Divergências para revisar</p>
-                  <p className="mt-1">{mensagensDivergentes.join(' · ')}</p>
+                  <p className="font-medium text-amber-950">DivergÃªncias para revisar</p>
+                  <p className="mt-1">{mensagensDivergentes.join(' Â· ')}</p>
                 </div>
               ) : null}
               {mensagensOutras.length > 0 ? (
                 <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-rose-700 shadow-sm">
-                  <p className="font-medium text-rose-950">Outras ocorrências</p>
-                  <p className="mt-1">{mensagensOutras.join(' · ')}</p>
+                  <p className="font-medium text-rose-950">Outras ocorrÃªncias</p>
+                  <p className="mt-1">{mensagensOutras.join(' Â· ')}</p>
                 </div>
               ) : null}
             </div>
@@ -190,9 +199,9 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
           <div className="flex items-start gap-3">
             <div className="rounded-2xl bg-white p-2 text-emerald-700 shadow-sm"><FileCheck2 size={20} /></div>
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-emerald-700">Importação efetivada</p>
-              <h2 className="mt-2 text-lg font-medium text-slate-950">Importação concluída.</h2>
-              <p className="mt-1 text-sm text-slate-600">Os dados válidos foram gravados. Recarregue a página caso o resumo detalhado ainda não apareça.</p>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-emerald-700">ImportaÃ§Ã£o efetivada</p>
+              <h2 className="mt-2 text-lg font-medium text-slate-950">ImportaÃ§Ã£o concluÃ­da.</h2>
+              <p className="mt-1 text-sm text-slate-600">Os dados vÃ¡lidos foram gravados. Recarregue a pÃ¡gina caso o resumo detalhado ainda nÃ£o apareÃ§a.</p>
             </div>
           </div>
         </Card>
@@ -201,9 +210,9 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
       <Card className="border-[var(--gkli-primary)]/20 bg-[var(--gkli-primary-light)]/40 p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--gkli-primary)]">Protocolo de segurança</p>
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--gkli-primary)]">Protocolo de seguranÃ§a</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Nenhuma linha bloqueada será gravada. Linhas com alerta entram somente se também estiverem válidas. {tipoLegado ? 'Legados criam acordo e parcelas apenas na confirmação.' : 'Cadastros e cobranças são aplicados somente após esta confirmação.'}
+              Nenhuma linha bloqueada serÃ¡ gravada. Linhas com alerta entram somente se tambÃ©m estiverem vÃ¡lidas. {tipoLegado ? 'Legados criam acordo e parcelas apenas na confirmaÃ§Ã£o.' : 'Cadastros e cobranÃ§as sÃ£o aplicados somente apÃ³s esta confirmaÃ§Ã£o.'}
             </p>
           </div>
           <StatusBadge status={importacao.status} />
@@ -213,7 +222,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Card className="relative overflow-hidden p-5">
           <div className="absolute right-4 top-4 rounded-2xl bg-emerald-50 p-2 text-emerald-700"><CheckCircle2 size={18} /></div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Válidas</p>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">VÃ¡lidas</p>
           <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{importacao.total_validas}</p>
           <p className="mt-1 text-sm text-slate-500">linhas prontas para importar</p>
         </Card>
@@ -222,19 +231,19 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
           <div className="absolute right-4 top-4 rounded-2xl bg-red-50 p-2 text-red-700"><ShieldX size={18} /></div>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Bloqueadas</p>
           <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{bloqueadas}</p>
-          <p className="mt-1 text-sm text-slate-500">não serão importadas</p>
+          <p className="mt-1 text-sm text-slate-500">nÃ£o serÃ£o importadas</p>
         </Card>
 
         <Card className="relative overflow-hidden p-5">
           <div className="absolute right-4 top-4 rounded-2xl bg-amber-50 p-2 text-amber-700"><AlertTriangle size={18} /></div>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Alertas</p>
           <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{linhasComAlerta}</p>
-          <p className="mt-1 text-sm text-slate-500">importam, mas pedem atenção</p>
+          <p className="mt-1 text-sm text-slate-500">importam, mas pedem atenÃ§Ã£o</p>
         </Card>
 
         <Card className="relative overflow-hidden p-5">
           <div className="absolute right-4 top-4 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><WalletCards size={18} /></div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor válido</p>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor vÃ¡lido</p>
           <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">{formatCurrency(Number(resumo.valor_total_valido ?? 0))}</p>
           <p className="mt-1 text-sm text-slate-500">impacto financeiro previsto</p>
         </Card>
@@ -244,7 +253,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
         <Card className="overflow-hidden p-0">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-base font-medium text-slate-950">Preview inteligente</h2>
-            <p className="mt-1 text-sm text-slate-500">Revise vínculos, erros bloqueantes, alertas e impacto antes de gravar.</p>
+            <p className="mt-1 text-sm text-slate-500">Revise vÃ­nculos, erros bloqueantes, alertas e impacto antes de gravar.</p>
           </div>
 
           <div className="divide-y divide-slate-100">
@@ -264,18 +273,18 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                   <div>
                     <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Status</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <StatusBadge status={item.valido ? 'válida' : 'bloqueada'} />
+                      <StatusBadge status={item.valido ? 'vÃ¡lida' : 'bloqueada'} />
                       <Badge tone={priorityTone(prioridade) as any}>{prioridade}</Badge>
                       {payload.unidade_nova ? <Badge tone="yellow">unidade nova</Badge> : null}
                     </div>
-                    {erros.length > 0 ? <div className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-xs text-red-700">{erros.join(' · ')}</div> : null}
-                    {alertas.length > 0 ? <div className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-700">{alertas.join(' · ')}</div> : null}
+                    {erros.length > 0 ? <div className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-xs text-red-700">{erros.join(' Â· ')}</div> : null}
+                    {alertas.length > 0 ? <div className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-700">{alertas.join(' Â· ')}</div> : null}
                   </div>
 
                   <div className="min-w-0">
-                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Descrição</p>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">DescriÃ§Ã£o</p>
                     <p className="mt-2 truncate text-sm font-medium text-slate-950">{descricaoLinha(payload, importacao.tipo)}</p>
-                    <p className="mt-1 truncate text-xs text-slate-500">{payload.condominio_nome || payload.nome || 'Condomínio não localizado'} · CNPJ {payload.condominio_cnpj || payload.cnpj || '-'}</p>
+                    <p className="mt-1 truncate text-xs text-slate-500">{payload.condominio_nome || payload.nome || 'CondomÃ­nio nÃ£o localizado'} Â· CNPJ {payload.condominio_cnpj || payload.cnpj || '-'}</p>
                   </div>
 
                   <div>
@@ -301,7 +310,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                   </div>
 
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ação sugerida</p>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">AÃ§Ã£o sugerida</p>
                     <p className="mt-2 text-sm text-slate-700">
                       {payload.acao_sugerida ?? (item.valido ? 'Pronta para importar' : 'Corrigir antes de importar')}
                     </p>

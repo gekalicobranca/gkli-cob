@@ -124,9 +124,9 @@ const tipoOptions: Array<{
 }> = [
   {
     value: "unidades",
-    title: "Unidades",
+    title: "Responsáveis",
     description:
-      "PDF de relatório de unidades → XLSX padrão Importações/Unidades.",
+      "PDF de relatório de unidades → XLSX padrão Importações/Responsáveis.",
     accept: ".pdf",
   },
   {
@@ -285,7 +285,7 @@ export function ConversionUploadCard({
     }
   }
 
-  const outputSuffix = tipoConversao === "unidades" ? "unidades" : "cobrancas";
+  const outputSuffix = tipoConversao === "unidades" ? "responsaveis" : "cobrancas";
   const outputBaseName =
     filename?.replace(/\.[^.]+$/, "")?.concat(`_gkli_${outputSuffix}`) ??
     `gkli_${outputSuffix}_convertidas`;
@@ -305,7 +305,7 @@ export function ConversionUploadCard({
         <p className="mt-2 text-sm leading-6 text-slate-600">
           Selecione o tipo de conversão antes do upload. O motor reconhece
           automaticamente o padrão ativo da administradora/sistema e gera o XLSX
-          no modelo oficial: Unidades ou Cobranças.
+          no modelo oficial: Responsáveis ou Cobranças.
         </p>
       </div>
 
@@ -519,7 +519,7 @@ export function ConversionUploadCard({
             <div className="rounded-2xl bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
                 {preview.tipoConversao === "unidades"
-                  ? "Unidades"
+                  ? "Responsáveis"
                   : "Cobranças"}
               </p>
               <p className="mt-2 text-lg font-semibold text-slate-950">
@@ -542,7 +542,7 @@ export function ConversionUploadCard({
               </p>
               <p className="mt-2 text-lg font-semibold text-slate-950">
                 {preview.tipoConversao === "unidades"
-                  ? "Importações/Unidades"
+                  ? "Importações/Responsáveis"
                   : formatCurrency(preview.valorTotal)}
               </p>
             </div>
@@ -576,7 +576,7 @@ export function ConversionUploadCard({
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   Baixe o XLSX e importe no módulo oficial de{" "}
                   {preview.tipoConversao === "unidades"
-                    ? "Importações/Unidades"
+                    ? "Importações/Responsáveis"
                     : "Importações/Cobranças"}
                   .
                 </p>
@@ -713,7 +713,7 @@ export function ConversionUploadCard({
 
           <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {preview.tipoConversao === "unidades"
-              ? "Conversão de unidades: o XLSX gera uma linha por unidade, usa o primeiro e-mail e o primeiro celular como principais, e envia e-mails/telefones adicionais para observações."
+              ? "Conversão de responsáveis: o XLSX gera uma linha por unidade de apoio, usa o primeiro e-mail e o primeiro celular como principais, e envia e-mails/telefones adicionais para observações."
               : "Conversão por recibo: no padrão Condopro/BBZ, 1 recibo = 1 vencimento = 1 cobrança. Itens como água, gás, fundo e condomínio ficam apenas na administradora."}
           </div>
         </div>

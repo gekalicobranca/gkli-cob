@@ -2956,7 +2956,7 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
 
 function extractLelloCondominio(text: string) {
   const normalized = normalizePdfText(text);
-  const match = normalized.match(/Refer[eê]ncia\s+\d+\s*-\s*([^\n]+)/i);
+  const match = normalized.match(/Refer[eê]ncia\s*\d+\s*-\s*([^\n]+)/i);
   return normalize(match?.[1] ?? "") || null;
 }
 
@@ -2966,16 +2966,16 @@ function detectLelloCobrancas(text: string): DeteccaoPdfCobrancas {
 
   const sinais = [
     /EMPRESA\s+LELLO\s+CONDOMINIOS\s+LTDA/,
-    /REFERENCIA\s+\d+\s*-\s+VN\s+CASA\s+TOPAZIO|REFERENCIA\s+\d+\s*-/,
-    /UNIDADE\s+\d{3,}\s*-/,
+    /REFERENCIA\s*\d+\s*-\s+VN\s+CASA\s+TOPAZIO|REFERENCIA\s*\d+\s*-/,
+    /UNIDADE\s*\d{3,}\s*-/,
     /MULTICONTAS\s+NAO|MULTICONTAS\s+NÃO/,
-    /CODIGO\s+VENCIMENTO\s+VALOR\s+ORIGINAL\s+VALOR\s+MULTA\s+CORRECAO\/JUROS\s+TOTAL/,
+    /CODIGO\s*VENCIMENTO\s*VALOR\s*ORIGINAL\s*VALOR\s*MULTA\s*CORRECAO\/JUROS\s*TOTAL/,
     /TOTAL\s+DE\s+DEBITOS/,
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
 
   const linhasDebito = countRegexMatches(
     normalized,
-    /(?:^|\n)\s*\d{7,}\s+\d{2}\/\d{2}\/\d{4}\s+(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s+(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s+(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s+(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g,
+    /(?:^|\n)\s*\d{7,}\s*\d{2}\/\d{2}\/\d{4}\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g,
   );
 
   return {
@@ -3009,8 +3009,19 @@ function parseLelloCobrancasPdf(text: string): ReciboCondopro[] {
     composicaoAtual = [];
   }
 
+  function parseLinhaDebitoLello(line: string) {
+    return (
+      line.match(
+        /^(\d{7,})\s+(\d{2}\/\d{2}\/\d{4})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/,
+      ) ??
+      line.match(
+        /^(\d{7,}?)(\d{2}\/\d{2}\/\d{4})((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/,
+      )
+    );
+  }
+
   for (const line of lines) {
-    const unidadeMatch = line.match(/^Unidade\s+(\d{3,})\s*-\s*(.+)$/i);
+    const unidadeMatch = line.match(/^Unidade\s*(\d{3,})\s*-\s*(.+)$/i);
     if (unidadeMatch) {
       flushRecibo();
       unidadeAtual = normalize(unidadeMatch[1]);
@@ -3020,12 +3031,12 @@ function parseLelloCobrancasPdf(text: string): ReciboCondopro[] {
 
     if (
       /^Empresa\s+/i.test(line) ||
-      /^Refer[eê]ncia\s+/i.test(line) ||
+      /^Refer[eê]ncia\s*/i.test(line) ||
       /^Multicontas\s+/i.test(line) ||
       /^Cota$/i.test(line) ||
       /^\*\s*pdf/i.test(line) ||
-      /^Código\s+Vencimento\s+Valor Original/i.test(line) ||
-      /^Conta\s+Hist[oó]rico\s+Valor/i.test(line) ||
+      /^Código\s*Vencimento\s*Valor Original/i.test(line) ||
+      /^Conta\s*Hist[oó]rico\s*Valor/i.test(line) ||
       /^voltar$/i.test(line)
     ) {
       continue;
@@ -3036,9 +3047,7 @@ function parseLelloCobrancasPdf(text: string): ReciboCondopro[] {
       continue;
     }
 
-    const rowMatch = line.match(
-      /^(\d{7,})\s+(\d{2}\/\d{2}\/\d{4})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/,
-    );
+    const rowMatch = parseLinhaDebitoLello(line);
 
     if (rowMatch && unidadeAtual) {
       flushRecibo();

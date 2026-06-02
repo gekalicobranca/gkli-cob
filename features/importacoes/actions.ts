@@ -684,13 +684,13 @@ async function enrichSimplePreview(
     tipo === "unidades"
       ? [...new Set([...condominiosByCnpj.values()].map((item) => item.id))]
       : [];
-  const unidadesExistentes =
+  const responsaveisExistentes =
     tipo === "unidades"
-      ? await resolveUnidadesByCondominioIds(
+      ? await resolveResponsaveisApoioByCondominioIds(
           supabase,
           condominioIdsParaUnidades,
         )
-      : new Map<string, UnidadeImportacaoRow>();
+      : new Map<string, ResponsavelUnidadeApoioRow>();
   const primeiraLinhaPorUnidade = new Map<string, number>();
 
   const enriched = rows.map((row) => {
@@ -753,8 +753,8 @@ async function enrichSimplePreview(
           primeiraLinhaPorUnidade.set(chave, row.linha);
         }
 
-        if (unidadesExistentes.has(chave)) {
-          erros.push("Unidade já cadastrada para este condomínio/bloco");
+        if (responsaveisExistentes.has(chave)) {
+          alertas.push("Responsável já cadastrado para este condomínio/unidade; a importação vai atualizar os dados de apoio");
         }
       }
     }
@@ -972,7 +972,7 @@ async function enrichLegacyPreview(
 
 function destinoPorTipo(tipo: string) {
   if (tipo === "condominios") return "/app/condominios";
-  if (tipo === "unidades") return "/app/unidades";
+  if (tipo === "unidades") return "/app/responsaveis";
   if (tipo === "cobrancas") return "/app/cobrancas";
   if (tipo === "acordos_extra" || tipo === "acordos_judiciais")
     return "/app/acordos";
@@ -985,7 +985,7 @@ function mensagemPorTipo(tipo: string, importados: number, criados = 0) {
   if (tipo === "condominios")
     return `Importação concluída: ${importados} condomínios importados.`;
   if (tipo === "unidades")
-    return `Importação concluída: ${importados} unidades importadas.`;
+    return `Importação concluída: ${importados} responsáveis importados.`;
   if (tipo === "acordos_extra" || tipo === "acordos_judiciais")
     return `Importação legada concluída: ${importados} acordos importados e ${criados} parcelas criadas.`;
   return `Importação concluída: ${importados} registros importados.`;
@@ -1050,6 +1050,7 @@ async function finalizarImportacao(params: {
   revalidatePath("/app/cobrancas");
   revalidatePath("/app/condominios");
   revalidatePath("/app/unidades");
+  revalidatePath("/app/responsaveis");
   revalidatePath("/app/acordos");
   revalidatePath("/app");
 
@@ -1595,7 +1596,7 @@ async function importarCondominios(
   return resultado;
 }
 
-async function importarUnidades(
+async function importarResponsaveisUnidades(
   supabase: SupabaseClient,
   payloads: Record<string, any>[],
 ): Promise<ImportExecutionResult> {
@@ -1610,15 +1611,16 @@ async function importarUnidades(
         throw new Error("condomínio/carteira ausente");
       if (!identificacao) throw new Error("identificação ausente");
 
-      const existente = await buscarUnidadeExistente(supabase, {
+      const existente = await buscarResponsavelApoio(supabase, {
         condominioId: payload.condominio_id,
         identificacao,
+        bloco: payload.bloco,
       });
 
       const values = {
         carteira_id: payload.carteira_id,
         condominio_id: payload.condominio_id,
-        identificacao,
+        unidade: identificacao,
         bloco: payload.bloco || null,
         responsavel_nome: payload.responsavel_nome || null,
         responsavel_documento: onlyDigits(
@@ -1626,18 +1628,20 @@ async function importarUnidades(
         ),
         telefone: onlyDigits(payload.telefone || payload.celular || payload.whatsapp || ""),
         email: normalizeEmail(payload.email),
-        status: normalizeUnidadeStatus(payload.status),
+        ativo: normalizeUnidadeStatus(payload.status) !== "inativa",
+        origem: "importacao_unidades",
         observacoes: payload.observacoes || null,
+        updated_at: new Date().toISOString(),
       };
 
       if (existente?.id) {
-        const { error } = await supabase.from("unidades").update(values).eq("id", existente.id);
+        const { error } = await supabase.from("responsaveis_unidades").update(values).eq("id", existente.id);
         if (error) throw error;
         resultado.atualizados += 1;
         continue;
       }
 
-      const { error } = await supabase.from("unidades").insert(values);
+      const { error } = await supabase.from("responsaveis_unidades").insert(values);
       if (error) throw error;
       resultado.importados += 1;
     } catch (error) {
@@ -1829,7 +1833,7 @@ export async function confirmarImportacao(formData: FormData) {
   }
 
   if (importacao.tipo === "unidades") {
-    execucao = await importarUnidades(supabase, payloads);
+    execucao = await importarResponsaveisUnidades(supabase, payloads);
   }
 
   if (isLegacyImportType(importacao.tipo)) {

@@ -1,7 +1,6 @@
 import {
   AlertTriangle,
   CheckCircle2,
-  FileSpreadsheet,
   Info,
   LockKeyhole,
   Table2,
@@ -9,11 +8,12 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { createImportacaoPreview } from "@/features/importacoes/actions";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { getCondominioIntegral } from "@/features/condominios/queries";
+import { GerarPreviewButton } from "./gerar-preview-button";
 
 type NovaImportacaoPageProps = {
   searchParams?: Promise<{ tipo?: string; condominio_id?: string }>;
@@ -38,11 +38,11 @@ const importTypes = [
   },
   {
     value: "unidades",
-    label: "Unidades",
+    label: "Respons·veis",
     templateHref: "/templates/importacao-unidades.xlsx",
     header:
       "condominio_cnpj;identificacao;bloco;tipo;responsavel_nome;responsavel_documento;telefone;email;observacoes",
-    rule: "Unidades s√£o vinculadas ao condom√≠nio pelo CNPJ. Linhas sem condom√≠nio existente ficam bloqueadas para evitar cadastro solto. Quando a importa√ß√£o for aberta pelo Condom√≠nio Integral, o CNPJ pode ser dispensado e o condom√≠nio da p√°gina ser√° usado como padr√£o.",
+    rule: "Respons·veis s„o vinculados ao condomÌnio pelo CNPJ e ‡ combinaÁ„o bloco/unidade. A importaÁ„o atualiza a base de apoio de contatos e n„o cria unidade operacional.",
   },
   {
     value: "acordos_extra",
@@ -172,10 +172,7 @@ export default async function NovaImportacaoPage({
               <ButtonLink href="/app/importacoes" variant="secondary">
                 Cancelar
               </ButtonLink>
-              <Button type="submit" className="!text-white [&_svg]:!text-white">
-                <FileSpreadsheet size={16} />
-                Gerar preview seguro
-              </Button>
+              <GerarPreviewButton />
             </div>
           </form>
         </Card>

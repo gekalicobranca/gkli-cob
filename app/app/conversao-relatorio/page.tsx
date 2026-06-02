@@ -43,7 +43,7 @@ export default async function ConversaoRelatorioPage() {
             [
               "1",
               "Tipo",
-              "Escolha se o arquivo será convertido para Unidades ou Cobranças.",
+              "Escolha se o arquivo será convertido para Responsáveis ou Cobranças.",
             ],
             [
               "2",
