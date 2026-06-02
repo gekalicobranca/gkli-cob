@@ -55,7 +55,6 @@ const sections: SidebarSection[] = [
       { label: 'Unidades', href: '/app/unidades', icon: 'unit' },
       { label: 'Responsáveis', href: '/app/responsaveis', icon: 'users' },
       { label: 'Administradoras', href: '/app/administradoras', icon: 'building' },
-      { label: 'Importações', href: '/app/importacoes', icon: 'upload' },
     ],
   },
   {
