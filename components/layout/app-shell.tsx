@@ -53,6 +53,7 @@ const sections: SidebarSection[] = [
     items: [
       { label: 'Condomínios', href: '/app/condominios', icon: 'building' },
       { label: 'Unidades', href: '/app/unidades', icon: 'unit' },
+      { label: 'Responsáveis', href: '/app/responsaveis', icon: 'users' },
       { label: 'Administradoras', href: '/app/administradoras', icon: 'building' },
       { label: 'Importações', href: '/app/importacoes', icon: 'upload' },
     ],
@@ -73,6 +74,7 @@ const sections: SidebarSection[] = [
     title: 'Gestão',
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
+      { label: 'Importações', href: '/app/importacoes', icon: 'upload' },
     ],
   },
 ]

@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { requireRole } from '@/utils/auth/require-role'
+import { requireUser } from '@/utils/auth/require-user'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
+import { registrarEventoOperacional } from '@/features/operacional/service'
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
@@ -138,4 +140,70 @@ export async function updateUnidade(formData: FormData) {
   revalidatePath('/app/unidades')
   revalidatePath(`/app/unidades/${id}`)
   redirect(`/app/unidades/${id}`)
+}
+
+export async function updateUnidadesStatusEmLote(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+
+  const ids = [...new Set(formData.getAll('unidade_ids').map((value) => String(value)).filter(Boolean))]
+  const status = String(formData.get('status') ?? '').trim()
+  const observacao = String(formData.get('observacao') ?? '').trim()
+  const allowed = ['ativa', 'inativa', 'suspensa']
+
+  if (ids.length === 0) throw new Error('Selecione ao menos uma unidade.')
+  if (!allowed.includes(status)) throw new Error('Status inválido para alteração em lote.')
+
+  const supabase = await createClient()
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+
+  const { data: unidades, error: consultaError } = await supabase
+    .from('unidades')
+    .select('id, carteira_id, status')
+    .in('id', ids)
+
+  if (consultaError) {
+    throw new Error(`Erro ao validar unidades selecionadas: ${consultaError.message}`)
+  }
+
+  if (!unidades?.length) {
+    throw new Error('Nenhuma unidade selecionada foi encontrada.')
+  }
+
+  for (const unidade of unidades as any[]) {
+    assertCarteiraPermitida(scope, unidade.carteira_id)
+  }
+
+  const idsPermitidos = (unidades as any[]).map((unidade) => unidade.id)
+
+  const { error } = await supabase
+    .from('unidades')
+    .update({ status })
+    .in('id', idsPermitidos)
+
+  if (error) {
+    throw new Error(`Erro ao atualizar unidades em lote: ${error.message}`)
+  }
+
+  await Promise.all(
+    (unidades as any[]).map((unidade) =>
+      registrarEventoOperacional(supabase as any, {
+        carteiraId: unidade.carteira_id ?? null,
+        entidadeTipo: 'unidade',
+        entidadeId: unidade.id,
+        eventoCodigo: 'unidade.status_alterado_lote',
+        estadoAnterior: unidade.status ?? null,
+        estadoNovo: status,
+        titulo: 'Status da unidade alterado em lote',
+        descricao: observacao || `Status alterado em lote para ${status}.`,
+        severidade: status === 'suspensa' ? 'alerta' : 'info',
+        userId: user?.id ?? null,
+        payload: { total_selecionadas: idsPermitidos.length },
+      }),
+    ),
+  )
+
+  revalidatePath('/app/unidades')
+  revalidatePath('/app')
+  revalidatePath('/app/dashboard')
 }

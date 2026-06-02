@@ -9,7 +9,9 @@ import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
+import { updateUnidadesStatusEmLote } from '@/features/unidades/actions'
 import { hasUnidadeFilters, listUnidades, normalizeUnidadeFilters } from '@/features/unidades/queries'
+import { UnidadesBulkControls } from './unidades-bulk-controls'
 
 type UnidadesPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
@@ -185,47 +187,60 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
             />
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
-            {rows.map((row: any) => (
-              <div
-                key={row.id}
-                className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(300px,1.35fr)_120px_170px_220px_170px] xl:items-center"
-              >
-                <Link href={`/app/unidades/${row.id}`} className="group min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]">
-                    Unidade {row.identificacao || '-'} {row.bloco ? `· Bloco ${row.bloco}` : ''}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-slate-500">
-                    {row.condominios?.nome ?? '-'} · {row.responsavel_nome ?? 'Responsável não informado'} ·{' '}
-                    {row.carteiras?.nome ?? '-'}
-                  </p>
-                </Link>
+          <form action={updateUnidadesStatusEmLote}>
+            <UnidadesBulkControls />
+            <div className="divide-y divide-slate-100">
+              {rows.map((row: any) => (
+                <div
+                  key={row.id}
+                  className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[40px_minmax(300px,1.35fr)_120px_170px_220px_170px] xl:items-center"
+                >
+                  <label className="flex items-center xl:justify-center">
+                    <input
+                      type="checkbox"
+                      name="unidade_ids"
+                      value={row.id}
+                      aria-label={`Selecionar unidade ${row.identificacao || ''}`}
+                      className="size-4 rounded border-slate-300"
+                    />
+                  </label>
 
-                <StatusBadge status={row.status} />
+                  <Link href={`/app/unidades/${row.id}`} className="group min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]">
+                      Unidade {row.identificacao || '-'} {row.bloco ? `· Bloco ${row.bloco}` : ''}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {row.condominios?.nome ?? '-'} · {row.responsavel_nome ?? 'Responsável não informado'} ·{' '}
+                      {row.carteiras?.nome ?? '-'}
+                    </p>
+                  </Link>
 
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Telefone</p>
-                  <p className="mt-1 text-sm text-slate-700">{row.telefone ?? '-'}</p>
+                  <StatusBadge status={row.status} />
+
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Telefone</p>
+                    <p className="mt-1 text-sm text-slate-700">{row.telefone ?? '-'}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">E-mail</p>
+                    <p className="mt-1 truncate text-sm text-slate-700">{row.email ?? '-'}</p>
+                  </div>
+
+                  <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
+                    <ButtonLink href={`/app/unidades/${row.id}`} variant="secondary" size="sm">
+                      <ArrowUpRight size={15} />
+                      Abrir
+                    </ButtonLink>
+                    <ButtonLink href={`/app/unidades/${row.id}#cadastro`} size="sm">
+                      <Edit3 size={15} />
+                      Editar
+                    </ButtonLink>
+                  </div>
                 </div>
-
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">E-mail</p>
-                  <p className="mt-1 truncate text-sm text-slate-700">{row.email ?? '-'}</p>
-                </div>
-
-                <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
-                  <ButtonLink href={`/app/unidades/${row.id}`} variant="secondary" size="sm">
-                    <ArrowUpRight size={15} />
-                    Abrir
-                  </ButtonLink>
-                  <ButtonLink href={`/app/unidades/${row.id}#cadastro`} size="sm">
-                    <Edit3 size={15} />
-                    Editar
-                  </ButtonLink>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </form>
         )}
       </Card>
     </div>
