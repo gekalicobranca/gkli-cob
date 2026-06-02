@@ -3,7 +3,14 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/normalize-relation'
 
-export async function listCobrancas(scope: CarteiraScope) {
+export type CobrancaListFilters = {
+  search?: string
+  status?: string
+  vencimentoDe?: string
+  vencimentoAte?: string
+}
+
+export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListFilters = {}) {
   const supabase = await createClient()
 
   let query = supabase
@@ -24,11 +31,23 @@ export async function listCobrancas(scope: CarteiraScope) {
       created_at,
       ultima_interacao_at,
       condominios(nome),
-      unidades(identificacao, responsavel_nome)
+      unidades(identificacao, bloco, responsavel_nome)
     `)
     .order('vencimento', { ascending: true })
 
   query = applyCarteiraScope(query, scope.carteiraIds)
+
+  if (filters.status) {
+    query = query.or(`status_operacional.eq.${filters.status},status.eq.${filters.status}`)
+  }
+
+  if (filters.vencimentoDe) {
+    query = query.gte('vencimento', filters.vencimentoDe)
+  }
+
+  if (filters.vencimentoAte) {
+    query = query.lte('vencimento', filters.vencimentoAte)
+  }
 
   const { data, error } = await query
 
@@ -36,7 +55,27 @@ export async function listCobrancas(scope: CarteiraScope) {
     throw new Error(`Erro ao carregar cobranças: ${error.message}`)
   }
 
-  return normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+  const rows = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+  const search = String(filters.search ?? '').trim().toLowerCase()
+
+  if (!search) return rows
+
+  return rows.filter((row: any) => {
+    const haystack = [
+      row.competencia,
+      row.status,
+      row.status_operacional,
+      row.condominios?.nome,
+      row.unidades?.identificacao,
+      row.unidades?.bloco,
+      row.unidades?.responsavel_nome,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    return haystack.includes(search)
+  })
 }
 
 export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {

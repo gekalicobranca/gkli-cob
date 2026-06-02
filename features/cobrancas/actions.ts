@@ -199,6 +199,82 @@ export async function updateCobrancaStatus(formData: FormData) {
   revalidatePath('/app/dashboard')
 }
 
+export async function updateCobrancasStatusEmLote(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+
+  const ids = [...new Set(formData.getAll('cobranca_ids').map((value) => String(value)).filter(Boolean))]
+  const status = String(formData.get('status') ?? '')
+  const observacao = String(formData.get('observacao') ?? '').trim()
+
+  const allowed = [
+    COBRANCA_STATUS.NOVO,
+    COBRANCA_STATUS.EM_COBRANCA_ATIVA,
+    COBRANCA_STATUS.EM_NEGOCIACAO,
+    COBRANCA_STATUS.JUDICIALIZADO,
+    COBRANCA_STATUS.SUSPENSO,
+  ]
+
+  if (ids.length === 0) throw new Error('Selecione ao menos uma cobrança.')
+  if (!allowed.includes(status as (typeof allowed)[number])) throw new Error('Status inválido para alteração em lote.')
+
+  const supabase = await createClient()
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+
+  const { data: cobrancas, error: consultaError } = await supabase
+    .from('cobrancas')
+    .select('id, carteira_id, status_operacional, status')
+    .in('id', ids)
+
+  if (consultaError) {
+    throw new Error(`Erro ao validar cobranças selecionadas: ${consultaError.message}`)
+  }
+
+  if (!cobrancas?.length) {
+    throw new Error('Nenhuma cobrança selecionada foi encontrada.')
+  }
+
+  for (const cobranca of cobrancas as any[]) {
+    assertCarteiraPermitida(scope, cobranca.carteira_id)
+  }
+
+  const idsPermitidos = (cobrancas as any[]).map((cobranca) => cobranca.id)
+
+  const { error } = await supabase
+    .from('cobrancas')
+    .update({ status, status_operacional: status })
+    .in('id', idsPermitidos)
+
+  if (error) {
+    throw new Error(`Erro ao atualizar cobranças em lote: ${error.message}`)
+  }
+
+  await Promise.all(
+    (cobrancas as any[]).map((cobranca) =>
+      registrarEventoOperacional(supabase as any, {
+        carteiraId: cobranca.carteira_id ?? null,
+        entidadeTipo: 'cobranca',
+        entidadeId: cobranca.id,
+        eventoCodigo: 'cobranca.status_alterado_lote',
+        estadoAnterior: cobranca.status_operacional ?? cobranca.status ?? null,
+        estadoNovo: status,
+        titulo: 'Status alterado em lote',
+        descricao: observacao || `Status alterado em lote para ${status}.`,
+        severidade:
+          status === COBRANCA_STATUS.JUDICIALIZADO || status === COBRANCA_STATUS.SUSPENSO
+            ? 'alerta'
+            : 'info',
+        userId: user?.id ?? null,
+        payload: { total_selecionadas: idsPermitidos.length },
+      }),
+    ),
+  )
+
+  revalidatePath('/app/cobrancas')
+  revalidatePath('/app')
+  revalidatePath('/app/dashboard')
+}
+
 export async function updateCobrancaFinanceiro(formData: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
 
