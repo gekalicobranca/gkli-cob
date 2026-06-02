@@ -195,8 +195,21 @@ export async function updateCobrancaStatus(formData: FormData) {
 
   revalidatePath(`/app/cobrancas/${cobrancaId}`)
   revalidatePath('/app/cobrancas')
+  revalidatePath('/app/gestao/saneamento-cobrancas')
   revalidatePath('/app')
   revalidatePath('/app/dashboard')
+}
+
+
+export async function updateCobrancaStatusRapido(formData: FormData) {
+  const [cobrancaId, status] = String(formData.get('quick_payload') ?? '').split('|')
+
+  const proxy = new FormData()
+  proxy.set('cobranca_id', cobrancaId ?? '')
+  proxy.set('status', status ?? '')
+
+  await updateCobrancaStatus(proxy)
+  revalidatePath('/app/gestao/saneamento-cobrancas')
 }
 
 export async function updateCobrancasStatusEmLote(formData: FormData) {
@@ -271,6 +284,7 @@ export async function updateCobrancasStatusEmLote(formData: FormData) {
   )
 
   revalidatePath('/app/cobrancas')
+  revalidatePath('/app/gestao/saneamento-cobrancas')
   revalidatePath('/app')
   revalidatePath('/app/dashboard')
 }

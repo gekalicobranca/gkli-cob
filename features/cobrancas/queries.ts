@@ -6,8 +6,12 @@ import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/nor
 export type CobrancaListFilters = {
   search?: string
   status?: string
+  carteiraId?: string
+  condominioId?: string
   vencimentoDe?: string
   vencimentoAte?: string
+  orderBy?: 'vencimento' | 'unidade' | 'responsavel'
+  orderDir?: 'asc' | 'desc'
 }
 
 export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListFilters = {}) {
@@ -28,17 +32,28 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
       status,
       status_operacional,
       status_financeiro,
+      carteira_id,
+      condominio_id,
+      unidade_id,
       created_at,
       ultima_interacao_at,
       condominios(nome),
       unidades(identificacao, bloco, responsavel_nome)
     `)
-    .order('vencimento', { ascending: true })
+    .order('vencimento', { ascending: filters.orderDir !== 'desc' })
 
   query = applyCarteiraScope(query, scope.carteiraIds)
 
   if (filters.status) {
     query = query.or(`status_operacional.eq.${filters.status},status.eq.${filters.status}`)
+  }
+
+  if (filters.carteiraId) {
+    query = query.eq('carteira_id', filters.carteiraId)
+  }
+
+  if (filters.condominioId) {
+    query = query.eq('condominio_id', filters.condominioId)
   }
 
   if (filters.vencimentoDe) {
@@ -58,9 +73,27 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
   const rows = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
   const search = String(filters.search ?? '').trim().toLowerCase()
 
-  if (!search) return rows
+  const sortRows = (items: any[]) => {
+    const orderBy = filters.orderBy || 'vencimento'
+    const direction = filters.orderDir === 'desc' ? -1 : 1
 
-  return rows.filter((row: any) => {
+    if (orderBy === 'vencimento') return items
+
+    return [...items].sort((a, b) => {
+      const aValue = orderBy === 'responsavel'
+        ? String(a.unidades?.responsavel_nome ?? '')
+        : [a.unidades?.bloco, a.unidades?.identificacao].filter(Boolean).join('/')
+      const bValue = orderBy === 'responsavel'
+        ? String(b.unidades?.responsavel_nome ?? '')
+        : [b.unidades?.bloco, b.unidades?.identificacao].filter(Boolean).join('/')
+
+      return aValue.localeCompare(bValue, 'pt-BR', { numeric: true, sensitivity: 'base' }) * direction
+    })
+  }
+
+  if (!search) return sortRows(rows)
+
+  return sortRows(rows.filter((row: any) => {
     const haystack = [
       row.competencia,
       row.status,
@@ -75,7 +108,7 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
       .toLowerCase()
 
     return haystack.includes(search)
-  })
+  }))
 }
 
 export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {
@@ -176,7 +209,7 @@ export async function getAcordoVigenteDaCobranca(cobrancaId: string) {
     .from('parcelas_acordo')
     .select('id, numero, tipo_parcela, valor, vencimento, status')
     .eq('acordo_id', acordo.id)
-    .order('vencimento', { ascending: true })
+    .order('vencimento', { ascending: filters.orderDir !== 'desc' })
 
   if (parcelasError) {
     throw new Error(`Erro ao carregar parcelas do acordo: ${parcelasError.message}`)
