@@ -2618,6 +2618,11 @@ function totaisFromMoneyList(values: number[]) {
 function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
   const lines = normalizePdfText(text)
+    // Reinsere quebras quando o extrator de PDF cola cabeçalhos de unidade ou
+    // linhas de recibo no trecho anterior. Isso evita falso negativo no Safira
+    // sem alterar a regra central do parser.
+    .replace(/\s+(?=\d+\s+\d{2,3}\s+-\s+[A-Za-zÀ-ÿ])/g, "\n")
+    .replace(/\s+(?=\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g, "\n")
     .split("\n")
     .map((line) => normalize(line))
     .filter(Boolean);
@@ -2925,6 +2930,11 @@ function detectCondoproBbzCobrancasPdf(text: string): DeteccaoPdfCobrancas {
 function parseCondoproBbzPdf(text: string): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
   const lines = normalizePdfText(text)
+    // Reinsere quebras quando o extrator de PDF cola cabeçalhos de unidade ou
+    // linhas de recibo no trecho anterior. Isso evita falso negativo no Safira
+    // sem alterar a regra central do parser.
+    .replace(/\s+(?=\d+\s+\d{2,3}\s+-\s+[A-Za-zÀ-ÿ])/g, "\n")
+    .replace(/\s+(?=\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g, "\n")
     .split("\n")
     .map((line) => normalize(line))
     .filter(Boolean);
@@ -3081,6 +3091,11 @@ function detectMoemaFlatSlavieroCobrancas(text: string): DeteccaoPdfCobrancas {
 function parseSlavieroCobrancasPdf(text: string): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
   const lines = normalizePdfText(text)
+    // Reinsere quebras quando o extrator de PDF cola cabeçalhos de unidade ou
+    // linhas de recibo no trecho anterior. Isso evita falso negativo no Safira
+    // sem alterar a regra central do parser.
+    .replace(/\s+(?=\d+\s+\d{2,3}\s+-\s+[A-Za-zÀ-ÿ])/g, "\n")
+    .replace(/\s+(?=\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g, "\n")
     .split("\n")
     .map((line) => normalize(line))
     .filter(Boolean);
@@ -3146,8 +3161,14 @@ function parseSlavieroCobrancasPdf(text: string): ReciboCondopro[] {
 
 function extractSafiraCondominio(text: string) {
   const normalized = normalizePdfText(text);
-  const match = normalized.match(/(?:^|\n)\s*\d+\s*-\s*([^\n]+?)\s*\n\s*\(relat[oó]rio\s+gerado/i);
-  return normalize(match?.[1] ?? "") || null;
+  const loose = normalizeForLooseMatch(normalized);
+  const lineMatch = normalized.match(/(?:^|\n)\s*\d+\s*-\s*([^\n]+?)\s*(?:\n|$)/i);
+  if (lineMatch?.[1] && /SAFIRA/i.test(lineMatch[1])) {
+    return normalize(lineMatch[1]);
+  }
+
+  const looseMatch = loose.match(/\b\d+\s*-\s*(SAFIRA)\b/);
+  return normalize(looseMatch?.[1] ?? "SAFIRA") || null;
 }
 
 
@@ -3315,10 +3336,10 @@ function detectSafiraCobrancas(text: string): DeteccaoPdfCobrancas {
   const normalized = normalizePdfText(text);
   const loose = normalizeForLooseMatch(normalized);
 
-  // O PDF do Safira pode variar entre pdf-parse, pdftotext e OCR: em alguns
-  // ambientes o símbolo "R$" some, em outros o cabeçalho quebra em várias linhas.
-  // Por isso a detecção precisa se apoiar nos termos estruturais do relatório,
-  // não em uma única linha rígida.
+  // O Safira é um PDF de tabela muito regular, mas a extração varia bastante:
+  // Vercel/pdf-parse pode remover NBSP, acentos, símbolo R$ e até juntar linhas.
+  // A detecção abaixo usa pontuação por assinatura e procura recibos em qualquer
+  // ponto do texto, sem depender de início de linha.
   const sinais = [
     /RELATORIOS?\s+DE\s+RECIBOS?\s+EM\s+ABERTO/,
     /RECIBOS?\s+EM\s+ABERTO/,
@@ -3328,28 +3349,32 @@ function detectSafiraCobrancas(text: string): DeteccaoPdfCobrancas {
     /MULTA\s+CALCULADA/,
     /VALOR\s+CORRECAO/,
     /JUROS\s+CALCULADO/,
-    /HONORARIOS\s+CUSTAS\s+PROCESSUAIS/,
+    /HONORARIOS/,
+    /CUSTAS\s+PROCESSUAIS/,
     /VALOR\s+TOTAL/,
     /SUBTOTAL/,
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
 
-  const linhasCobranca = countRegexMatches(
-    normalized,
-    /(?:^|\n)\s*\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g,
-  );
-  const subtotais = countRegexMatches(normalized, /(?:^|\n)\s*Subtotal\b/g);
+  const linhaRegex = /\b\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g;
+  const linhasCobranca = countRegexMatches(normalized, linhaRegex);
+  const subtotais = countRegexMatches(normalized, /\bSubtotal\b/g);
   const temCabecalhoSafira = /RELATORIOS?\s+DE\s+RECIBOS?\s+EM\s+ABERTO/.test(loose);
-  const temCondominioSafira = /\b\d+\s*-\s*SAFIRA\b/.test(loose);
+  const temCondominioSafira = /\b\d+\s*-\s*SAFIRA\b/.test(loose) || /\bSAFIRA\b/.test(loose);
+  const temAssinaturaForte =
+    (temCabecalhoSafira || temCondominioSafira) &&
+    /CODIGO\s+RECIBO/.test(loose) &&
+    /VALOR\s+DO\s+RECIBO/.test(loose);
 
   return {
-    ok: (temCabecalhoSafira || temCondominioSafira || sinais >= 5) && linhasCobranca > 0,
+    ok: (temAssinaturaForte || sinais >= 6) && (linhasCobranca > 0 || subtotais > 0),
     confianca: Math.min(
       99,
-      (temCabecalhoSafira ? 28 : 0) +
-        (temCondominioSafira ? 22 : 0) +
-        sinais * 8 +
-        Math.min(30, linhasCobranca) +
-        Math.min(10, subtotais),
+      (temCabecalhoSafira ? 30 : 0) +
+        (temCondominioSafira ? 25 : 0) +
+        (temAssinaturaForte ? 20 : 0) +
+        sinais * 5 +
+        Math.min(20, linhasCobranca) +
+        Math.min(8, subtotais),
     ),
     condominioDetectado: extractSafiraCondominio(normalized),
     semDevedores: false,
@@ -3372,6 +3397,11 @@ function normalizeSafiraUnidade(bloco: string, unidade: string) {
 function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
   const lines = normalizePdfText(text)
+    // Reinsere quebras quando o extrator de PDF cola cabeçalhos de unidade ou
+    // linhas de recibo no trecho anterior. Isso evita falso negativo no Safira
+    // sem alterar a regra central do parser.
+    .replace(/\s+(?=\d+\s+\d{2,3}\s+-\s+[A-Za-zÀ-ÿ])/g, "\n")
+    .replace(/\s+(?=\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g, "\n")
     .split("\n")
     .map((line) => normalize(line))
     .filter(Boolean);
@@ -3492,6 +3522,11 @@ function detectLelloCobrancas(text: string): DeteccaoPdfCobrancas {
 function parseLelloCobrancasPdf(text: string): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
   const lines = normalizePdfText(text)
+    // Reinsere quebras quando o extrator de PDF cola cabeçalhos de unidade ou
+    // linhas de recibo no trecho anterior. Isso evita falso negativo no Safira
+    // sem alterar a regra central do parser.
+    .replace(/\s+(?=\d+\s+\d{2,3}\s+-\s+[A-Za-zÀ-ÿ])/g, "\n")
+    .replace(/\s+(?=\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g, "\n")
     .split("\n")
     .map((line) => normalize(line))
     .filter(Boolean);
@@ -3592,6 +3627,11 @@ function parseLelloCobrancasPdf(text: string): ReciboCondopro[] {
 function parseHflexLiveFacilitiesCobrancasPdf(text: string): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
   const lines = normalizePdfText(text)
+    // Reinsere quebras quando o extrator de PDF cola cabeçalhos de unidade ou
+    // linhas de recibo no trecho anterior. Isso evita falso negativo no Safira
+    // sem alterar a regra central do parser.
+    .replace(/\s+(?=\d+\s+\d{2,3}\s+-\s+[A-Za-zÀ-ÿ])/g, "\n")
+    .replace(/\s+(?=\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g, "\n")
     .split("\n")
     .map((line) => normalize(line))
     .filter(Boolean);
@@ -3832,7 +3872,7 @@ export async function parseRelatorioBuffer(
     // Safira tem assinatura própria muito forte. Priorizar aqui evita que uma
     // leitura parcial caia no erro genérico de padrão não reconhecido quando
     // outros detectores ficam com confiança parecida.
-    if (deteccaoSafira.ok && deteccaoSafira.confianca >= 70) {
+    if (deteccaoSafira.ok && deteccaoSafira.confianca >= 55) {
       const recibos = parseSafiraCobrancasPdf(text);
       const padraoDetectado = buildPadraoDetectado(PADRAO_SAFIRA_COBRANCAS, {
         condominioDetectado: deteccaoSafira.condominioDetectado,
