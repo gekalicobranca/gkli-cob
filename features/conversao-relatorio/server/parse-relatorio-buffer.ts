@@ -2759,16 +2759,21 @@ function detectSlavieroCobrancas(text: string): DeteccaoPdfCobrancas {
     /SLAVIERO\s+CONDOMINIOS/,
     /INADIMPLENTES/,
     /VALORES\s+ATUALIZADOS\s+ATE/,
-    /VENCIMENTO\s+COMPET/,
-    /ATRASO\s+CODIGO\s+PRINCIPAL/,
-    /JUROS\s+MULTA\s+HONORARIOS\s+TOTAL/,
+    /VENCIMENTO\s*COMPET/,
+    /ATRASO\s*CODIGO\s*PRINCIPAL/,
+    /JUROS\s*MULTA\s*HONORARIOS\s*TOTAL/,
     /UNIDADES\s+INADIMPLENTES/,
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
 
-  const linhasCobranca = countRegexMatches(
+  const linhasCobrancaEspacadas = countRegexMatches(
     normalized,
     /(?:^|\n)\s*\d{2}\/\d{2}\/\d{2}\s+\d{2}\/\d{4}\s+\d+\s+\d+\s+/g,
   );
+  const linhasCobrancaCompactas = countRegexMatches(
+    normalized,
+    /(?:^|\n)\s*\d{2}\/\d{2}\/\d{2}\d{2}\/\d{4}\d{2,}\d{1,3}(?:\.\d{3})*,\d{2}/g,
+  );
+  const linhasCobranca = linhasCobrancaEspacadas + linhasCobrancaCompactas;
 
   return {
     ok: sinais >= 5 && linhasCobranca > 0,
@@ -2787,9 +2792,128 @@ function expandTwoDigitYearDate(value: string) {
   return `${match[1]}/${match[2]}/${century + year}`;
 }
 
+
+function parseSlavieroReportDate(text: string) {
+  const normalized = normalizePdfText(text);
+  const match = normalized.match(/Valores\s+atualizados\s+at[eé]\s+(\d{2}\/\d{2}\/\d{4})/i)
+    ?? normalized.match(/Emitido\s+em\s+(\d{2}\/\d{2}\/\d{4})/i);
+  return match?.[1] ?? null;
+}
+
+function brDateToUtc(value: string) {
+  const expanded = expandTwoDigitYearDate(value);
+  const match = expanded.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  return Date.UTC(year, month - 1, day);
+}
+
+function diffDaysBrDate(start: string, end: string | null) {
+  if (!end) return null;
+  const startUtc = brDateToUtc(start);
+  const endUtc = brDateToUtc(end);
+  if (startUtc === null || endUtc === null) return null;
+  return Math.round((endUtc - startUtc) / 86400000);
+}
+
+type SlavieroRowMatch = {
+  vencimento: string;
+  competencia: string;
+  atraso: string;
+  codigo: string;
+  principal: string;
+  juros: string;
+  multa: string;
+  honorarios: string;
+  total: string;
+};
+
+function parseSlavieroRowLine(line: string, reportDate: string | null): SlavieroRowMatch | null {
+  const moneyPattern = String.raw`((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})`;
+  const spaced = line.match(new RegExp(
+    String.raw`^(\d{2}\/\d{2}\/\d{2})\s+(\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+` +
+      moneyPattern + String.raw`\s+` + moneyPattern + String.raw`\s+` + moneyPattern +
+      String.raw`\s+` + moneyPattern + String.raw`\s+` + moneyPattern + String.raw`$`
+  ));
+
+  if (spaced) {
+    return {
+      vencimento: spaced[1],
+      competencia: spaced[2],
+      atraso: spaced[3],
+      codigo: spaced[4],
+      principal: spaced[5],
+      juros: spaced[6],
+      multa: spaced[7],
+      honorarios: spaced[8],
+      total: spaced[9],
+    };
+  }
+
+  const compactPrefix = line.match(/^(\d{2}\/\d{2}\/\d{2})(\d{2}\/\d{4})(.+)$/);
+  if (!compactPrefix) return null;
+
+  const vencimento = compactPrefix[1];
+  const competencia = compactPrefix[2];
+  const fullNumericAndMoney = compactPrefix[3];
+  const atrasoCalculado = diffDaysBrDate(vencimento, reportDate);
+  let atraso = "";
+  let codigoEMoedas = fullNumericAndMoney;
+
+  if (atrasoCalculado !== null && fullNumericAndMoney.startsWith(String(atrasoCalculado))) {
+    atraso = String(atrasoCalculado);
+    codigoEMoedas = fullNumericAndMoney.slice(atraso.length);
+  }
+
+  const moneySequenceRegex = new RegExp(
+    "^" + moneyPattern + moneyPattern + moneyPattern + moneyPattern + moneyPattern + "$"
+  );
+
+  let codigo = "";
+  let valores: RegExpMatchArray | null = null;
+
+  // O pdf-parse da Slaviero pode colar código e valores: 4707512.000,00...
+  // Testamos possíveis tamanhos do código e escolhemos o maior código que deixa
+  // exatamente 5 valores monetários válidos no restante da linha.
+  const codigoLengthCandidates = [5, 4, 3, 2, 1, 6].filter(
+    (length, index, self) => length < codigoEMoedas.length && self.indexOf(length) === index,
+  );
+
+  for (const codigoLength of codigoLengthCandidates) {
+    const candidatoCodigo = codigoEMoedas.slice(0, codigoLength);
+    if (!/^\d+$/.test(candidatoCodigo)) continue;
+
+    const candidatoValores = codigoEMoedas.slice(codigoLength);
+    const matchValores = candidatoValores.match(moneySequenceRegex);
+    if (matchValores) {
+      codigo = candidatoCodigo;
+      valores = matchValores;
+      break;
+    }
+  }
+
+  if (!valores || !codigo) return null;
+
+  if (!atraso) atraso = "0";
+
+  return {
+    vencimento,
+    competencia,
+    atraso,
+    codigo,
+    principal: valores[1],
+    juros: valores[2],
+    multa: valores[3],
+    honorarios: valores[4],
+    total: valores[5],
+  };
+}
+
 function cleanSlavieroResponsavel(value: string) {
   return normalize(value)
-    .replace(/\s+(?:Jur[ií]dico|\d+\s*[°º]?\s*Notifica[çc][ãa]o)\s*$/i, "")
+    .replace(/\s*(?:Jur[ií]dico|\d+\s*[°º]?\s*Notifica[çc][ãa]o)\s*$/i, "")
     .replace(/,$/, "")
     .trim();
 }
@@ -2822,6 +2946,7 @@ function detectMoemaFlatSlavieroCobrancas(text: string): DeteccaoPdfCobrancas {
 
 function parseSlavieroCobrancasPdf(text: string): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
+  const reportDate = parseSlavieroReportDate(text);
   const lines = normalizePdfText(text)
     .split("\n")
     .map((line) => normalize(line))
@@ -2858,9 +2983,7 @@ function parseSlavieroCobrancasPdf(text: string): ReciboCondopro[] {
       continue;
     }
 
-    const rowMatch = line.match(
-      /^(\d{2}\/\d{2}\/\d{2})\s+(\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/
-    );
+    const rowMatch = parseSlavieroRowLine(line, reportDate);
 
     if (!rowMatch || !unidadeAtual) continue;
 
@@ -2871,13 +2994,14 @@ function parseSlavieroCobrancasPdf(text: string): ReciboCondopro[] {
       bloco: "0",
       unidade: unidadeAtual,
       responsavel: responsavelAtual,
-      recibo: rowMatch[4],
-      vencimento: expandTwoDigitYearDate(rowMatch[1]),
-      valorPrincipal: parseMoney(rowMatch[5]),
-      juros: parseMoney(rowMatch[6]),
-      multa: parseMoney(rowMatch[7]),
+      recibo: rowMatch.codigo,
+      vencimento: expandTwoDigitYearDate(rowMatch.vencimento),
+      valorPrincipal: parseMoney(rowMatch.principal),
+      juros: parseMoney(rowMatch.juros),
+      multa: parseMoney(rowMatch.multa),
+      honorarios: parseMoney(rowMatch.honorarios),
       correcao: 0,
-      valorTotal: parseMoney(rowMatch[9]),
+      valorTotal: parseMoney(rowMatch.total),
       marcadorOrigem,
       situacaoOrigem,
     });
