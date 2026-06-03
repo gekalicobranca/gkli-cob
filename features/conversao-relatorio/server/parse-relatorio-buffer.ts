@@ -3688,19 +3688,22 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
       (match) => match[1],
     );
 
-    // Depois de data e código, o Safira traz 7 valores monetários:
-    // Valor do Recibo, Multa, Correção, Juros, Honorários, Custas e Valor Total.
-    if (valores.length < 7) continue;
+    // O Safira pode chegar do pdf-parse com as colunas monetárias completas na
+    // mesma linha ou com parte da tabela quebrada em múltiplas linhas, sobretudo
+    // em produção/Vercel. Para o GKLI, a informação obrigatória é o primeiro valor
+    // após data + recibo: "Valor do Recibo". Os demais valores de origem são
+    // apenas informativos e não podem bloquear a importação.
+    if (valores.length < 1) continue;
 
     const [valorReciboRaw, multaRaw, correcaoRaw, jurosRaw, honorariosRaw, custasRaw] = valores;
-    const valorTotalRaw = valores[valores.length - 1];
+    const valorTotalRaw = valores.length >= 7 ? valores[valores.length - 1] : valorReciboRaw;
 
     const valorDoRecibo = parseMoney(valorReciboRaw);
-    const multaCalculada = parseMoney(multaRaw);
-    const correcaoCalculada = parseMoney(correcaoRaw);
-    const jurosCalculado = parseMoney(jurosRaw);
-    const honorariosCalculados = parseMoney(honorariosRaw);
-    const custasProcessuais = parseMoney(custasRaw);
+    const multaCalculada = parseMoney(multaRaw ?? "0,00");
+    const correcaoCalculada = parseMoney(correcaoRaw ?? "0,00");
+    const jurosCalculado = parseMoney(jurosRaw ?? "0,00");
+    const honorariosCalculados = parseMoney(honorariosRaw ?? "0,00");
+    const custasProcessuais = parseMoney(custasRaw ?? "0,00");
     const valorTotalCalculado = parseMoney(valorTotalRaw);
 
     // Safira entrega o valor operacional correto na coluna "Valor do Recibo".
