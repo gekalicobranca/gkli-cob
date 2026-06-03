@@ -640,6 +640,29 @@ function normalizeOfficeTamboreXlsResponsavel(value: unknown) {
   return normalize(proprietario ?? inquilino ?? text) || "Responsável não identificado";
 }
 
+function extractOfficeTamboreXlsUnitHeader(row: string[]) {
+  const proprietarioIndex = row.findIndex((cell) => /PROPRIET[ÁA]RIO:/i.test(cell));
+
+  if (proprietarioIndex < 0) return null;
+
+  const candidatos = [
+    row[0],
+    ...row.slice(0, proprietarioIndex).reverse(),
+  ];
+
+  for (const candidato of candidatos) {
+    const digits = normalize(candidato).replace(/\D/g, "");
+    if (/^\d{1,6}$/.test(digits)) {
+      return {
+        unidade: normalizeOfficeTamboreOcrUnit(digits),
+        responsavel: normalizeOfficeTamboreXlsResponsavel(row[proprietarioIndex]),
+      };
+    }
+  }
+
+  return null;
+}
+
 function detectOfficeTamboreXlsRows(rows: unknown[][]) {
   const fullText = rows.map(rowToText).join("\n");
   const loose = normalizeForLooseMatch(fullText);
@@ -655,7 +678,7 @@ function detectOfficeTamboreXlsRows(rows: unknown[][]) {
     const firstCell = row[0] ?? "";
     const secondCell = row[1] ?? "";
 
-    if (/^\d{1,6}$/.test(firstCell.replace(/\D/g, "")) && /PROPRIET[ÁA]RIO:/i.test(secondCell)) {
+    if (extractOfficeTamboreXlsUnitHeader(row)) {
       unidadeHeaders += 1;
     }
 
@@ -702,9 +725,10 @@ function parseOfficeTamboreXlsRows(rows: unknown[][]): ReciboCondopro[] {
     const row = rawRow.map((cell) => normalize(cell));
     const firstCellDigits = row[0]?.replace(/\D/g, "") ?? "";
 
-    if (firstCellDigits && /PROPRIET[ÁA]RIO:/i.test(row[1] ?? "")) {
-      unidadeAtual = normalizeOfficeTamboreOcrUnit(firstCellDigits);
-      responsavelAtual = normalizeOfficeTamboreXlsResponsavel(row[1]);
+    const unidadeHeader = extractOfficeTamboreXlsUnitHeader(row);
+    if (unidadeHeader) {
+      unidadeAtual = unidadeHeader.unidade;
+      responsavelAtual = unidadeHeader.responsavel;
       continue;
     }
 
@@ -3545,18 +3569,39 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
   let unidadeAtual = "";
   let responsavelAtual = "Responsável não identificado";
 
-  const moneyRegex = /(?:R\$\s*)?((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g;
-  const moneyLineRegex = /^(?:R\$\s*)?((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/;
+  for (const line of lines) {
+    if (
+      /^Relat[oó]rios de recibos em aberto/i.test(line) ||
+      /^\d+\s*-\s*SAFIRA\b/i.test(line) ||
+      /^\(relat[oó]rio gerado/i.test(line) ||
+      /^Data Vencimento\s+C[oó]digo Recibo/i.test(line)
+    ) {
+      continue;
+    }
 
-  function addRecibo(args: {
-    vencimento: string;
-    recibo: string;
-    valores: string[];
-  }) {
-    if (!unidadeAtual || args.valores.length < 7) return;
+    const unidadeMatch = line.match(/^(\d+)\s+(\d{2,3})\s+-\s+(.+)$/i);
+    if (unidadeMatch) {
+      blocoAtual = unidadeMatch[1];
+      unidadeAtual = normalizeSafiraUnidade(unidadeMatch[1], unidadeMatch[2]);
+      responsavelAtual = normalize(unidadeMatch[3]) || "Responsável não identificado";
+      continue;
+    }
 
-    const [valorReciboRaw, multaRaw, correcaoRaw, jurosRaw, honorariosRaw, custasRaw] = args.valores;
-    const valorTotalRaw = args.valores[args.valores.length - 1];
+    if (/^Subtotal\b/i.test(line)) continue;
+
+    const rowStartMatch = line.match(/^(\d{2}\/\d{2}\/\d{4})\s+(\d{8,})\b/);
+    if (!rowStartMatch || !unidadeAtual) continue;
+
+    const valores = [...line.matchAll(/(?:R\$\s*)?((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g)].map(
+      (match) => match[1],
+    );
+
+    // Depois de data e código, o Safira traz 7 valores monetários:
+    // Valor do Recibo, Multa, Correção, Juros, Honorários, Custas e Valor Total.
+    if (valores.length < 7) continue;
+
+    const [valorReciboRaw, multaRaw, correcaoRaw, jurosRaw, honorariosRaw, custasRaw] = valores;
+    const valorTotalRaw = valores[valores.length - 1];
 
     const valorDoRecibo = parseMoney(valorReciboRaw);
     const multaCalculada = parseMoney(multaRaw);
@@ -3566,8 +3611,6 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
     const custasProcessuais = parseMoney(custasRaw);
     const valorTotalCalculado = parseMoney(valorTotalRaw);
 
-    if (!valorDoRecibo || valorDoRecibo <= 0) return;
-
     // Safira entrega o valor operacional correto na coluna "Valor do Recibo".
     // A coluna "Valor Total" já vem com multa/correção/juros calculados pela origem
     // e não deve entrar como valor importável no GKLI, porque o GKLI recalcula esses
@@ -3576,8 +3619,8 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
       bloco: blocoAtual || "0",
       unidade: unidadeAtual,
       responsavel: responsavelAtual,
-      recibo: args.recibo,
-      vencimento: args.vencimento,
+      recibo: rowStartMatch[2],
+      vencimento: rowStartMatch[1],
       valorPrincipal: valorDoRecibo,
       multa: 0,
       correcao: 0,
@@ -3597,90 +3640,6 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
         .filter(Boolean)
         .join(" | "),
     });
-  }
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-
-    if (
-      /^Relat[oó]rios de recibos em aberto/i.test(line) ||
-      /^\d+\s*-\s*SAFIRA\b/i.test(line) ||
-      /^\(relat[oó]rio gerado/i.test(line) ||
-      /^Data Vencimento/i.test(line) ||
-      /^C[oó]digo Recibo/i.test(line) ||
-      /^Valor do Recibo/i.test(line) ||
-      /^Multa Calculada/i.test(line) ||
-      /^Valor Corre[cç][aã]o/i.test(line) ||
-      /^Juros Calculado/i.test(line) ||
-      /^Honor[aá]rios/i.test(line) ||
-      /^Custas Processuais/i.test(line) ||
-      /^Valor Total/i.test(line)
-    ) {
-      continue;
-    }
-
-    const unidadeMatch = line.match(/^(\d+)\s+(\d{2,3})\s+-\s+(.+)$/i);
-    if (unidadeMatch) {
-      blocoAtual = unidadeMatch[1];
-      unidadeAtual = normalizeSafiraUnidade(unidadeMatch[1], unidadeMatch[2]);
-      responsavelAtual = normalize(unidadeMatch[3]) || "Responsável não identificado";
-      continue;
-    }
-
-    if (/^Subtotal\b/i.test(line)) continue;
-
-    // Caminho 1: pdf-parse costuma devolver a linha inteira em uma única string.
-    const rowStartMatch = line.match(/^(\d{2}\/\d{2}\/\d{4})\s+(\d{8,})\b/);
-    if (rowStartMatch && unidadeAtual) {
-      const valores = [...line.matchAll(moneyRegex)].map((match) => match[1]);
-      addRecibo({ vencimento: rowStartMatch[1], recibo: rowStartMatch[2], valores });
-      continue;
-    }
-
-    // Caminho 2: alguns extratores quebram a tabela em uma linha por célula:
-    // data, código, valor do recibo, multa, correção, juros, honorários, custas, total.
-    const dateOnlyMatch = line.match(/^(\d{2}\/\d{2}\/\d{4})$/);
-    const nextLine = lines[index + 1] ?? "";
-    const codeOnlyMatch = nextLine.match(/^(\d{8,})$/);
-    if (dateOnlyMatch && codeOnlyMatch && unidadeAtual) {
-      const valores: string[] = [];
-      let cursor = index + 2;
-
-      while (cursor < lines.length && valores.length < 7) {
-        const candidate = lines[cursor];
-        const moneyMatch = candidate.match(moneyLineRegex);
-        if (moneyMatch) {
-          valores.push(moneyMatch[1]);
-          cursor += 1;
-          continue;
-        }
-
-        // Alguns extratores colocam "Subtotal" ou repetem o cabeçalho entre o
-        // código do recibo e as células monetárias da mesma linha visual.
-        // Pulamos apenas esses marcadores conhecidos; se aparecer uma nova
-        // unidade ou uma nova data, interrompemos para não misturar registros.
-        if (
-          /^Subtotal/i.test(candidate) ||
-          /^Data Vencimento/i.test(candidate) ||
-          /^C[oó]digo Recibo/i.test(candidate) ||
-          /^Valor do Recibo/i.test(candidate) ||
-          /^Multa Calculada/i.test(candidate) ||
-          /^Valor Corre[cç][aã]o/i.test(candidate) ||
-          /^Juros Calculado/i.test(candidate) ||
-          /^Honor[aá]rios/i.test(candidate) ||
-          /^Custas Processuais/i.test(candidate) ||
-          /^Valor Total/i.test(candidate)
-        ) {
-          cursor += 1;
-          continue;
-        }
-
-        break;
-      }
-
-      addRecibo({ vencimento: dateOnlyMatch[1], recibo: codeOnlyMatch[1], valores });
-      if (valores.length >= 7) index = cursor - 1;
-    }
   }
 
   return recibos;
