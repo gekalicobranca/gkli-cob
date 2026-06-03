@@ -3245,6 +3245,7 @@ function detectOfficeTamboreOcrCobrancas(text: string): DeteccaoPdfCobrancas {
     ok: score >= 60,
     confianca: Math.min(99, score),
     condominioDetectado: score >= 40 ? "SUBCONDOMINIO EDIFICIO OFFICE TAMBORE" : null,
+    semDevedores: false,
   };
 }
 
