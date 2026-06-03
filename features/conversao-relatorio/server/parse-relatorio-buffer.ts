@@ -271,6 +271,19 @@ const PADRAO_CIPO_OCR_XLS_COBRANCAS: Omit<
   ativo: true,
 };
 
+const PADRAO_OFFICE_TAMBORE_OCR_COBRANCAS: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "office-tambore-ocr-cobrancas-v1",
+  nome: "Office Tamboré · Cobranças OCR",
+  tipoConversao: "cobrancas",
+  fornecedor: "HFlex / OCR",
+  sistema: "PDF digitalizado / OCR",
+  relatorio: "Devedores Detalhado - Office Tamboré",
+  ativo: true,
+};
+
 function buildPadraoDetectado(
   padrao: Omit<PadraoConversaoDetectado, "condominioDetectado" | "confianca">,
   options: { condominioDetectado?: string | null; confianca?: number } = {},
@@ -3137,6 +3150,167 @@ function extractSafiraCondominio(text: string) {
   return normalize(match?.[1] ?? "") || null;
 }
 
+
+function normalizeOfficeTamboreOcrUnit(value: string) {
+  const raw = normalize(value).toUpperCase().replace(/[^0-9A-Z?]/g, "");
+  if (/^0{2}\d{3,4}$/.test(raw)) return raw.replace(/^0+/, "") || raw;
+  // Algumas páginas do OCR confundem 0/8/B/S. Ex.: 802187, BABSO?Z.
+  const corrected = raw
+    .replace(/[OBD]/g, "0")
+    .replace(/S/g, "5")
+    .replace(/Z/g, "2")
+    .replace(/\?/g, "0");
+  if (/^0{0,2}\d{3,4}$/.test(corrected)) {
+    return corrected.replace(/^0+/, "") || corrected;
+  }
+  return raw || "SEM_UNIDADE";
+}
+
+function normalizeOfficeTamboreOcrDate(value: string) {
+  const match = normalize(value)
+    .toUpperCase()
+    .replace(/[DO]/g, "0")
+    .match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!match) return "";
+
+  let day = Number(match[1]);
+  let month = Number(match[2]);
+  let year = Number(match[3]);
+
+  if (month > 12 && String(month).startsWith("8")) month = Number(`0${String(month).slice(1)}`);
+  if (month > 12 && String(month).startsWith("6")) month = Number(`0${String(month).slice(1)}`);
+  if (month > 12 && String(month).startsWith("0")) month = Number(String(month).slice(-1));
+  if (year > 2029 && String(year).startsWith("28")) year = Number(`20${String(year).slice(2)}`);
+
+  // O OCR do Tamboré troca frequentemente 10 por 18/16/19 em vencimentos mensais.
+  if ([16, 18, 19].includes(day) && month >= 1 && month <= 12) day = 10;
+
+  if (!day || !month || month < 1 || month > 12) return "";
+  return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
+}
+
+function parseOfficeTamboreOcrMoney(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const raw = normalize(value)
+    .toUpperCase()
+    .replace(/[DO]/g, "0")
+    .replace(/[^0-9,.-]/g, "");
+  if (!raw) return 0;
+
+  if (raw.includes(",")) return parseMoney(raw);
+
+  // O OCR frequentemente remove separador decimal: 105688 => 1.056,88.
+  if (/^\d+$/.test(raw)) {
+    const cents = Number(raw);
+    return Number.isFinite(cents) ? cents / 100 : 0;
+  }
+
+  return parseMoney(raw);
+}
+
+function detectOfficeTamboreOcrCobrancas(text: string): DeteccaoPdfCobrancas {
+  const normalized = normalizePdfText(text);
+  const loose = normalizeForLooseMatch(normalized);
+
+  let score = 0;
+  if (/DEVEDORES\s+DETALHADO/i.test(normalized)) score += 25;
+  if (/SUBCONDOMINIO\s+EDIFICIO\s+OFFICE\s+TAMBORE/i.test(loose)) score += 35;
+  if (/5987\s*-\s*SUBCONDOMINIO/i.test(loose)) score += 10;
+  if (/RESUMO\s+EMPREENDIMENTO/i.test(loose)) score += 10;
+  if (/QTDE\.?\s+UNIDADES/i.test(loose) && /QTDE\.?\s+RECIBOS/i.test(loose)) score += 10;
+  if (/VALOR\s+RECIBO/i.test(loose) || /CORRIGIDO\s+RECIBO/i.test(loose)) score += 10;
+
+  return {
+    ok: score >= 60,
+    confianca: Math.min(99, score),
+    condominioDetectado: score >= 40 ? "SUBCONDOMINIO EDIFICIO OFFICE TAMBORE" : null,
+  };
+}
+
+function parseOfficeTamboreOcrCobrancasPdf(text: string): ReciboCondopro[] {
+  const normalized = normalizePdfText(text);
+  const lines = normalized.split("\n").map((line) => line.trim()).filter(Boolean);
+  const recibos: ReciboCondopro[] = [];
+
+  let currentUnit = "";
+  let fallbackUnitCounter = 0;
+
+  for (const line of lines) {
+    const unitCandidate = normalize(line).toUpperCase().replace(/\s+/g, "");
+    if (/^0{2}\d{3,4}$/.test(unitCandidate) || /^8?0?2\d{3}$/.test(unitCandidate)) {
+      currentUnit = normalizeOfficeTamboreOcrUnit(unitCandidate);
+      continue;
+    }
+
+    const receiptStart = line.match(/^\s*(\d{6,8})\b/);
+    const dateMatch = line.toUpperCase().replace(/[DO]/g, "0").match(/\d{1,2}\/\d{1,2}\/\d{4}/);
+    if (!receiptStart || !dateMatch) continue;
+
+    const upper = normalizeForLooseMatch(line);
+    const looksReceiptLine =
+      /COND|FUNDO|RESERVA|MAI|MAR|ABR|FEV|JAN|DEZ|NOV|OUT|SET|AGO|JUL|JUN/i.test(upper);
+    if (!looksReceiptLine) continue;
+
+    const receipt = receiptStart[1];
+    const vencimento = normalizeOfficeTamboreOcrDate(dateMatch[0]);
+    if (!vencimento) continue;
+
+    const afterDate = line.slice((line.toUpperCase().replace(/[DO]/g, "0").indexOf(dateMatch[0])) + dateMatch[0].length);
+    const numericMatches = Array.from(afterDate.matchAll(/(?<!\/)\b[\d.,DO]{2,}\b(?!\/)/gi))
+      .map((match) => parseOfficeTamboreOcrMoney(match[0]))
+      .filter((value) => Number.isFinite(value));
+
+    // Ordem esperada da linha principal: vl verba, multa, juros, correção, corrigido verba, valor recibo, corrigido recibo.
+    // O valor importável do GKLI é VALOR RECIBO, normalmente o penúltimo número da linha principal.
+    let valorRecibo = 0;
+    if (numericMatches.length >= 3) valorRecibo = numericMatches[numericMatches.length - 2];
+    if (!valorRecibo || valorRecibo < 10) {
+      const principal = numericMatches[0] ?? 0;
+      const reserva = /FUNDO\s+DE|RESERVA/i.test(line) ? 0 : 0;
+      valorRecibo = principal + reserva;
+    }
+    if (!valorRecibo || valorRecibo < 10) continue;
+
+    if (!currentUnit) {
+      fallbackUnitCounter += 1;
+      currentUnit = `SEM_UNIDADE_${String(fallbackUnitCounter).padStart(2, "0")}`;
+    }
+
+    const acordoMatch = line.match(/^\s*\d{6,8}\s+(\d{5,6})\s+\d{1,2}\/[0-9DO]{1,2}\/\d{4}/i);
+    const acordo = acordoMatch ? acordoMatch[1] : "";
+
+    recibos.push({
+      bloco: "OFFICE",
+      unidade: currentUnit,
+      responsavel: "Responsável não informado",
+      recibo: receipt,
+      vencimento,
+      valorPrincipal: valorRecibo,
+      multa: 0,
+      correcao: 0,
+      juros: 0,
+      valorTotal: valorRecibo,
+      marcadorOrigem: acordo ? `Acordo ${acordo}` : "Office Tamboré OCR",
+      situacaoOrigem: acordo ? "acordo" : "normal",
+      detalhesOrigem: acordo
+        ? `Office Tamboré · recibo ${receipt} · acordo ${acordo} · valor importável extraído da coluna VALOR RECIBO.`
+        : `Office Tamboré · recibo ${receipt} · valor importável extraído da coluna VALOR RECIBO.`,
+    });
+  }
+
+  const unique = new Map<string, ReciboCondopro>();
+  for (const recibo of recibos) {
+    const key = `${recibo.unidade}|${recibo.recibo}|${recibo.vencimento}`;
+    if (!unique.has(key)) unique.set(key, recibo);
+  }
+
+  return Array.from(unique.values()).sort((a, b) => {
+    const unitCompare = a.unidade.localeCompare(b.unidade, "pt-BR", { numeric: true });
+    if (unitCompare !== 0) return unitCompare;
+    return compareBrDates(a.vencimento, b.vencimento);
+  });
+}
+
 function detectSafiraCobrancas(text: string): DeteccaoPdfCobrancas {
   const normalized = normalizePdfText(text);
   const loose = normalizeForLooseMatch(normalized);
@@ -3634,7 +3808,26 @@ export async function parseRelatorioBuffer(
     const deteccaoMoemaFlat = detectMoemaFlatSlavieroCobrancas(text);
     const deteccaoSafira = detectSafiraCobrancas(text);
     const deteccaoLello = detectLelloCobrancas(text);
+    const deteccaoOfficeTamboreOcr = detectOfficeTamboreOcrCobrancas(text);
 
+    if (deteccaoOfficeTamboreOcr.ok && deteccaoOfficeTamboreOcr.confianca >= 60) {
+      const recibos = parseOfficeTamboreOcrCobrancasPdf(text);
+      const padraoDetectado = buildPadraoDetectado(PADRAO_OFFICE_TAMBORE_OCR_COBRANCAS, {
+        condominioDetectado: deteccaoOfficeTamboreOcr.condominioDetectado,
+        confianca: deteccaoOfficeTamboreOcr.confianca,
+      });
+
+      if (recibos.length) {
+        return buildPreviewFromRecibos({
+          origem: "Office Tamboré - Devedores Detalhado OCR",
+          filename: input.filename,
+          recibos,
+          condominioCnpj: input.condominioCnpj,
+          origemSistema: "Office Tamboré OCR",
+          padraoDetectado,
+        });
+      }
+    }
 
     // Safira tem assinatura própria muito forte. Priorizar aqui evita que uma
     // leitura parcial caia no erro genérico de padrão não reconhecido quando
@@ -3852,7 +4045,7 @@ export async function parseRelatorioBuffer(
     return {
       ok: false,
       error:
-        "PDF lido, mas nenhum padrão ativo de Cobranças foi reconhecido com segurança. Nesta versão, os parsers PDF ativos são Superlógica - Relação Analítica de Pendentes, Hflex / LiveFacilities - Devedores Detalhado, CondoPro/BBZ, Slaviero - Inadimplentes, Safira - Recibos em Aberto e Lello - Cota/Débitos. Para os demais padrões, envie XLS, XLSX, CSV ou HTML.",
+        "PDF lido, mas nenhum padrão ativo de Cobranças foi reconhecido com segurança. Nesta versão, os parsers PDF ativos são Superlógica - Relação Analítica de Pendentes, Hflex / LiveFacilities - Devedores Detalhado, Office Tamboré OCR, CondoPro/BBZ, Slaviero - Inadimplentes, Safira - Recibos em Aberto e Lello - Cota/Débitos. Para os demais padrões, envie XLS, XLSX, CSV ou HTML.",
     };
   }
 
