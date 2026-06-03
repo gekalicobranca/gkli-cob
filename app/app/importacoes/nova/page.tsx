@@ -38,11 +38,11 @@ const importTypes = [
   },
   {
     value: "unidades",
-    label: "Respons√°veis",
+    label: "Respons·veis",
     templateHref: "/templates/importacao-unidades.xlsx",
     header:
       "condominio_cnpj;identificacao;bloco;tipo;responsavel_nome;responsavel_documento;telefone;email;observacoes",
-    rule: "Respons√°veis s√£o vinculados ao condom√≠nio pelo CNPJ e √† combina√ß√£o bloco/unidade. A importa√ß√£o atualiza a base de apoio de contatos e n√£o cria unidade operacional.",
+    rule: "Respons·veis s„o vinculados ao condomÌnio pelo CNPJ e ‡ combinaÁ„o bloco/unidade. A importaÁ„o atualiza a base de apoio de contatos e n„o cria unidade operacional.",
   },
   {
     value: "acordos_extra",
