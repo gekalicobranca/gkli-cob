@@ -96,7 +96,7 @@ export async function listSaneamentoCobrancas(
       resolved_at,
       carteiras(nome),
       condominios(nome),
-      unidades(identificacao, bloco, responsavel_nome, responsavel_documento),
+      unidades:unidades!saneamento_cobrancas_unidade_id_fkey(identificacao, bloco, responsavel_nome, responsavel_documento),
       unidade_sugerida:unidades!saneamento_cobrancas_unidade_sugerida_id_fkey(identificacao, bloco, responsavel_nome)
     `)
 
