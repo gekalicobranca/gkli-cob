@@ -284,6 +284,19 @@ const PADRAO_OFFICE_TAMBORE_OCR_COBRANCAS: Omit<
   ativo: true,
 };
 
+const PADRAO_OFFICE_TAMBORE_XLS_COBRANCAS: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "office-tambore-xls-cobrancas-v1",
+  nome: "Office Tamboré · Cobranças XLS",
+  tipoConversao: "cobrancas",
+  fornecedor: "HFlex / LiveFacilities",
+  sistema: "Exportação XLS/XLSX",
+  relatorio: "Devedores Detalhado - Office Tamboré",
+  ativo: true,
+};
+
 function buildPadraoDetectado(
   padrao: Omit<PadraoConversaoDetectado, "condominioDetectado" | "confianca">,
   options: { condominioDetectado?: string | null; confianca?: number } = {},
@@ -615,6 +628,127 @@ function detectCipoOcrXlsRows(rows: unknown[][]) {
     confianca: Math.min(99, confianca),
     condominioDetectado: unidadeHeaders > 0 ? "Torre Cipó" : null,
   };
+}
+
+function normalizeOfficeTamboreXlsResponsavel(value: unknown) {
+  const text = normalize(value);
+  if (!text) return "Responsável não identificado";
+
+  const proprietario = text.match(/PROPRIET[ÁA]RIO:\s*([^|]+)/i)?.[1];
+  const inquilino = text.match(/INQUILINO:\s*([^|]+)/i)?.[1];
+
+  return normalize(proprietario ?? inquilino ?? text) || "Responsável não identificado";
+}
+
+function detectOfficeTamboreXlsRows(rows: unknown[][]) {
+  const fullText = rows.map(rowToText).join("\n");
+  const loose = normalizeForLooseMatch(fullText);
+
+  let unidadeHeaders = 0;
+  let reciboHeaders = 0;
+  let reciboRows = 0;
+  let resumoBloco = false;
+  let resumoGeral = false;
+
+  for (const rawRow of rows) {
+    const row = rawRow.map((cell) => normalize(cell));
+    const firstCell = row[0] ?? "";
+    const secondCell = row[1] ?? "";
+
+    if (/^\d{1,6}$/.test(firstCell.replace(/\D/g, "")) && /PROPRIET[ÁA]RIO:/i.test(secondCell)) {
+      unidadeHeaders += 1;
+    }
+
+    const rowText = rowToText(row);
+    const rowLoose = normalizeForLooseMatch(rowText);
+    if (/RECIBO/.test(rowLoose) && /COBRANCA/.test(rowLoose) && /VENCIMENTO/.test(rowLoose) && /VL\.?\s*RECIBO/.test(rowLoose)) {
+      reciboHeaders += 1;
+    }
+
+    if (/RESUMO\s+BLOCO/.test(rowLoose)) resumoBloco = true;
+    if (/RESUMO\s+GERAL|RESUMO\s+EMPREENDIMENTO/.test(rowLoose)) resumoGeral = true;
+
+    const recibo = normalize(row[0]);
+    const vencimento = normalizeDate(row[4]);
+    const valorRecibo = parseMoney(row[14]);
+    if (/^\d{6,8}$/.test(recibo.replace(/\D/g, "")) && vencimento && valorRecibo > 0) {
+      reciboRows += 1;
+    }
+  }
+
+  let confianca = 0;
+  if (/^OFFICE\b|\bOFFICE\b/.test(loose)) confianca += 15;
+  if (unidadeHeaders > 0) confianca += 25;
+  if (unidadeHeaders >= 5) confianca += 10;
+  if (reciboHeaders > 0) confianca += 25;
+  if (reciboRows > 0) confianca += 20;
+  if (reciboRows >= 20) confianca += 10;
+  if (resumoBloco) confianca += 10;
+  if (resumoGeral) confianca += 5;
+
+  return {
+    ok: confianca >= 65,
+    confianca: Math.min(99, confianca),
+    condominioDetectado: unidadeHeaders > 0 || resumoBloco ? "SUBCONDOMINIO EDIFICIO OFFICE TAMBORE" : null,
+  };
+}
+
+function parseOfficeTamboreXlsRows(rows: unknown[][]): ReciboCondopro[] {
+  const recibos: ReciboCondopro[] = [];
+  let unidadeAtual = "";
+  let responsavelAtual = "Responsável não identificado";
+
+  for (const rawRow of rows) {
+    const row = rawRow.map((cell) => normalize(cell));
+    const firstCellDigits = row[0]?.replace(/\D/g, "") ?? "";
+
+    if (firstCellDigits && /PROPRIET[ÁA]RIO:/i.test(row[1] ?? "")) {
+      unidadeAtual = normalizeOfficeTamboreOcrUnit(firstCellDigits);
+      responsavelAtual = normalizeOfficeTamboreXlsResponsavel(row[1]);
+      continue;
+    }
+
+    if (!unidadeAtual) continue;
+
+    const recibo = firstCellDigits;
+    if (!/^\d{6,8}$/.test(recibo)) continue;
+
+    const vencimento = normalizeDate(row[4]);
+    const valorRecibo = parseMoney(row[14]);
+    if (!vencimento || valorRecibo <= 0) continue;
+
+    const acordo = normalize(row[2]).replace(/\D/g, "");
+
+    recibos.push({
+      bloco: "OFFICE",
+      unidade: unidadeAtual,
+      responsavel: responsavelAtual,
+      recibo,
+      vencimento,
+      valorPrincipal: valorRecibo,
+      multa: 0,
+      correcao: 0,
+      juros: 0,
+      valorTotal: valorRecibo,
+      marcadorOrigem: acordo ? `Acordo ${acordo}` : "Office Tamboré XLS",
+      situacaoOrigem: acordo ? "acordo" : "normal",
+      detalhesOrigem: acordo
+        ? `Office Tamboré XLS · recibo ${recibo} · acordo ${acordo} · valor importável extraído da coluna Vl. Recibo.`
+        : `Office Tamboré XLS · recibo ${recibo} · valor importável extraído da coluna Vl. Recibo.`,
+    });
+  }
+
+  const unique = new Map<string, ReciboCondopro>();
+  for (const recibo of recibos) {
+    const key = `${recibo.unidade}|${recibo.recibo}|${recibo.vencimento}|${recibo.valorTotal}`;
+    if (!unique.has(key)) unique.set(key, recibo);
+  }
+
+  return Array.from(unique.values()).sort((a, b) => {
+    const unitCompare = a.unidade.localeCompare(b.unidade, "pt-BR", { numeric: true });
+    if (unitCompare !== 0) return unitCompare;
+    return compareBrDates(a.vencimento, b.vencimento);
+  });
 }
 
 function parseCipoOcrXls(rows: unknown[][]): ReciboCondopro[] {
@@ -4111,6 +4245,26 @@ export async function parseRelatorioBuffer(
 
   const fullText = allRows.map(rowToText).join("\n").toLowerCase();
 
+  const deteccaoOfficeTamboreXls = detectOfficeTamboreXlsRows(allRows);
+
+  if (deteccaoOfficeTamboreXls.ok) {
+    const recibos = parseOfficeTamboreXlsRows(allRows);
+
+    if (recibos.length) {
+      return buildPreviewFromRecibos({
+        origem: "Office Tamboré - XLS/XLSX Devedores Detalhado",
+        filename: input.filename,
+        recibos,
+        condominioCnpj: input.condominioCnpj,
+        origemSistema: "Office Tamboré XLS",
+        padraoDetectado: buildPadraoDetectado(PADRAO_OFFICE_TAMBORE_XLS_COBRANCAS, {
+          condominioDetectado: deteccaoOfficeTamboreXls.condominioDetectado,
+          confianca: deteccaoOfficeTamboreXls.confianca,
+        }),
+      });
+    }
+  }
+
   const deteccaoCipoOcrXls = detectCipoOcrXlsRows(allRows);
 
   if (deteccaoCipoOcrXls.ok) {
@@ -4161,7 +4315,7 @@ export async function parseRelatorioBuffer(
     return {
       ok: false,
       error:
-        "Ainda não reconheci esse layout. Nesta versão, o parser server-side suporta Conectcon, Condopro/BBZ e Cipó OCR XLSX para cobranças.",
+        "Ainda não reconheci esse layout. Nesta versão, o parser server-side suporta Office Tamboré XLS/XLSX, Conectcon, Condopro/BBZ e Cipó OCR XLSX para cobranças.",
     };
   }
 

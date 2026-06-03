@@ -99,12 +99,12 @@ const templates: RecognizedTemplate[] = [
       "Importa layouts tabulares com unidade, nome, vencimento, referência e valor, gerando a saída oficial de Importações/Cobranças.",
   },
   {
-    nome: "Office Tamboré · Cobranças OCR",
+    nome: "Office Tamboré · Cobranças",
     categoria: "Cobranças",
     status: "Homologado",
-    cobertura: "PDF · Devedores Detalhado digitalizado",
+    cobertura: "PDF OCR / XLS / XLSX · Devedores Detalhado",
     descricao:
-      "Reconhece o PDF OCR do Office Tamboré, reconstrói uma cobrança por recibo, usa VALOR RECIBO como valor importável e ignora as verbas de composição.",
+      "Reconhece o PDF OCR e também o XLS/XLSX exportado do Office Tamboré, gerando uma cobrança por recibo e usando Vl. Recibo como valor importável.",
     exemplos: "Subcondomínio Edifício Office Tamboré",
   },
   {
