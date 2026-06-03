@@ -22,43 +22,43 @@ type NovaImportacaoPageProps = {
 const importTypes = [
   {
     value: "cobrancas",
-    label: "Cobranças",
+    label: "CobranÃ§as",
     templateHref: "/templates/importacao-cobrancas.xlsx",
     header:
       "condominio_cnpj;unidade;bloco;responsavel_nome;responsavel_documento;telefone;email;competencia;vencimento;valor_original;valor_atualizado;observacoes",
-    rule: "Para cobranças, o condomínio será localizado exclusivamente pelo CNPJ. Se o CNPJ não existir na base, a linha será bloqueada.",
+    rule: "Para cobranÃ§as, o condomÃ­nio serÃ¡ localizado exclusivamente pelo CNPJ. Se o CNPJ nÃ£o existir na base, a linha serÃ¡ bloqueada.",
   },
   {
     value: "condominios",
-    label: "Condomínios",
+    label: "CondomÃ­nios",
     templateHref: "/templates/importacao-condominios.xlsx",
     header:
       "carteira;nome;cnpj;administradora;vencimento_cota_dia;valor_cota_condominial;inicio_cobranca_dias;observacoes",
-    rule: "Condomínios entram como cadastro base sempre vinculados à carteira informada no XLSX. O CNPJ é obrigatório; duplicidade no arquivo mantém a primeira linha e bloqueia as demais.",
+    rule: "CondomÃ­nios entram como cadastro base sempre vinculados Ã  carteira informada no XLSX. O CNPJ Ã© obrigatÃ³rio; duplicidade no arquivo mantÃ©m a primeira linha e bloqueia as demais.",
   },
   {
     value: "unidades",
-    label: "Respons�veis",
+    label: "Responsáveis",
     templateHref: "/templates/importacao-unidades.xlsx",
     header:
       "condominio_cnpj;identificacao;bloco;tipo;responsavel_nome;responsavel_documento;telefone;email;observacoes",
-    rule: "Respons�veis s�o vinculados ao condom�nio pelo CNPJ e � combina��o bloco/unidade. A importa��o atualiza a base de apoio de contatos e n�o cria unidade operacional.",
+    rule: "Responsáveis são vinculados ao condomínio pelo CNPJ e à combinação bloco/unidade. A importação atualiza a base de apoio de contatos e não cria unidade operacional.",
   },
   {
     value: "acordos_extra",
-    label: "Legado · Acordos extra",
+    label: "Legado Â· Acordos extra",
     templateHref: "/templates/importacao-acordos-extra.xlsx",
     header:
       "condominio_cnpj;unidade;bloco;responsavel_nome;data_acordo;valor_original;despesa_cobranca_percentual;entrada;quantidade_parcelas;primeiro_vencimento;status;documento_url;observacoes",
-    rule: "Legados extrajudiciais exigem condomínio e unidade já cadastrados. A confirmação cria acordos e parcelas somente depois do preview.",
+    rule: "Legados extrajudiciais exigem condomÃ­nio e unidade jÃ¡ cadastrados. A confirmaÃ§Ã£o cria acordos e parcelas somente depois do preview.",
   },
   {
     value: "acordos_judiciais",
-    label: "Legado · Acordos judiciais",
+    label: "Legado Â· Acordos judiciais",
     templateHref: "/templates/importacao-acordos-judiciais.xlsx",
     header:
       "condominio_cnpj;unidade;bloco;numero_processo;responsavel_nome;data_acordo;valor_original;despesa_cobranca_percentual;entrada;quantidade_parcelas;primeiro_vencimento;status;documento_url;observacoes",
-    rule: "Legados judiciais exigem número do processo, vínculo por CNPJ/unidade e só gravam acordos/parcelas após confirmação expressa.",
+    rule: "Legados judiciais exigem nÃºmero do processo, vÃ­nculo por CNPJ/unidade e sÃ³ gravam acordos/parcelas apÃ³s confirmaÃ§Ã£o expressa.",
   },
 ];
 
@@ -79,9 +79,9 @@ export default async function NovaImportacaoPage({
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Importações"
-        title={`Nova importação · ${selected.label}`}
-        description="Upload controlado em etapas: arquivo, validação, preview, impacto e confirmação. O tipo já vem definido pelo card escolhido."
+        eyebrow="ImportaÃ§Ãµes"
+        title={`Nova importaÃ§Ã£o Â· ${selected.label}`}
+        description="Upload controlado em etapas: arquivo, validaÃ§Ã£o, preview, impacto e confirmaÃ§Ã£o. O tipo jÃ¡ vem definido pelo card escolhido."
         actions={
           <ButtonLink href="/app/importacoes" variant="secondary">
             Voltar para central
@@ -96,9 +96,9 @@ export default async function NovaImportacaoPage({
               <span className="rounded-full bg-[var(--gkli-primary)] px-3 py-1 !text-white">
                 1. Upload
               </span>
-              <span>2. Validação</span>
+              <span>2. ValidaÃ§Ã£o</span>
               <span>3. Preview</span>
-              <span>4. Confirmação</span>
+              <span>4. ConfirmaÃ§Ã£o</span>
             </div>
           </div>
 
@@ -135,7 +135,7 @@ export default async function NovaImportacaoPage({
 
             <FormField
               label="Arquivo XLSX"
-              hint="Use o template oficial. Apenas .xlsx. O sistema lê a aba DADOS do template oficial."
+              hint="Use o template oficial. Apenas .xlsx. O sistema lÃª a aba DADOS do template oficial."
             >
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-5 py-6 text-center">
                 <UploadCloud
@@ -146,7 +146,7 @@ export default async function NovaImportacaoPage({
                   Selecionar arquivo XLSX
                 </p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Nada será gravado agora. Esta etapa gera apenas o preview.
+                  Nada serÃ¡ gravado agora. Esta etapa gera apenas o preview.
                 </p>
                 <input
                   name="arquivo"
@@ -163,7 +163,7 @@ export default async function NovaImportacaoPage({
                 <AlertTriangle size={16} className="mt-0.5 shrink-0" />
                 <p>
                   Confira o template e revise o preview antes de confirmar.
-                  Importação errada pode contaminar cobrança, acordo e régua.
+                  ImportaÃ§Ã£o errada pode contaminar cobranÃ§a, acordo e rÃ©gua.
                 </p>
               </div>
             </div>
@@ -192,7 +192,7 @@ export default async function NovaImportacaoPage({
                 </p>
                 {condominioPadrao ? (
                   <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-600 ring-1 ring-slate-200">
-                    Condomínio padrão desta importação:{" "}
+                    CondomÃ­nio padrÃ£o desta importaÃ§Ã£o:{" "}
                     <span className="text-slate-950">
                       {condominioPadrao.nome}
                     </span>
@@ -209,7 +209,7 @@ export default async function NovaImportacaoPage({
                   Template oficial
                 </p>
                 <h2 className="mt-1 text-base font-medium text-slate-950">
-                  Cabeçalho esperado
+                  CabeÃ§alho esperado
                 </h2>
               </div>
               <ButtonLink
@@ -237,8 +237,8 @@ export default async function NovaImportacaoPage({
                   O que acontece agora
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  O sistema cria apenas o preview, separa linhas válidas,
-                  alertas e bloqueios. A gravação definitiva fica para a tela
+                  O sistema cria apenas o preview, separa linhas vÃ¡lidas,
+                  alertas e bloqueios. A gravaÃ§Ã£o definitiva fica para a tela
                   seguinte.
                 </p>
               </div>
