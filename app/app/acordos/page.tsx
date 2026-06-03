@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { ArrowUpRight, Filter, Handshake, Plus, Search } from 'lucide-react'
+import { ArrowUpRight, Handshake, Plus, Search } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
 import { CheckAcordosStatusButton } from '@/components/acordos/check-status-button'
@@ -16,9 +17,33 @@ function sumBy(rows: any[], predicate: (row: any) => boolean) {
   return rows.filter(predicate).reduce((sum, row) => sum + Number(row.valor_acordado ?? 0), 0)
 }
 
-export default async function AcordosPage() {
+type PageProps = {
+  searchParams?: Promise<{
+    q?: string
+    status?: string
+    tipo?: string
+    order_by?: string
+    order_dir?: string
+  }>
+}
+
+function clean(value?: string) {
+  return String(value ?? '').trim()
+}
+
+export default async function AcordosPage({ searchParams }: PageProps) {
+  const params = searchParams ? await searchParams : {}
+  const filters = {
+    search: clean(params.q),
+    status: clean(params.status),
+    tipo: clean(params.tipo),
+    orderBy: clean(params.order_by) || 'data_acordo',
+    orderDir: clean(params.order_dir) || 'desc',
+  }
+  const hasFilters = Boolean(filters.search || filters.status || filters.tipo || filters.orderBy !== 'data_acordo' || filters.orderDir !== 'desc')
+
   const scope = await getPermittedCarteiras()
-  const rows = await listAcordos(scope)
+  const rows = await listAcordos(scope, filters)
 
   const ativos = rows.filter((row: any) => row.status === 'ativo').length
   const atraso = rows.filter((row: any) => row.status === 'em atraso').length
@@ -34,7 +59,7 @@ export default async function AcordosPage() {
         actions={
           <>
             <CheckAcordosStatusButton />
-            <Button variant="secondary"><Filter size={16} />Filtros</Button>
+
             <ButtonLink href="/app/acordos/novo"><Plus size={16} />Novo acordo</ButtonLink>
           </>
         }
@@ -70,12 +95,44 @@ export default async function AcordosPage() {
               <h2 className="text-base font-medium text-slate-950">Fila de acordos</h2>
               <p className="mt-1 text-sm text-slate-500">Clique para controlar parcelas, cancelamento ou quebra.</p>
             </div>
-            <div className="grid gap-2 md:grid-cols-[320px_160px_160px]">
-              <div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input className="pl-9" placeholder="Buscar responsável, unidade..." /></div>
-              <select className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none"><option>Status</option></select>
-              <select className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none"><option>Tipo</option></select>
-            </div>
+            <form className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_150px_150px_170px_140px_110px]">
+              <div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="q" defaultValue={filters.search} className="pl-9" placeholder="Buscar responsável, unidade..." /></div>
+              <Select name="status" defaultValue={filters.status}>
+                <option value="">Todos os status</option>
+                <option value="ativo">Ativo</option>
+                <option value="em atraso">Em atraso</option>
+                <option value="rompido">Rompido</option>
+                <option value="quitado">Quitado</option>
+                <option value="cancelado">Cancelado</option>
+              </Select>
+              <Select name="tipo" defaultValue={filters.tipo}>
+                <option value="">Todos os tipos</option>
+                <option value="extrajudicial">Extrajudicial</option>
+                <option value="judicial">Judicial</option>
+              </Select>
+              <Select name="order_by" defaultValue={filters.orderBy}>
+                <option value="data_acordo">Data do acordo</option>
+                <option value="operacional">Condomínio → Unidade</option>
+                <option value="condominio">Condomínio</option>
+                <option value="unidade">Unidade</option>
+                <option value="responsavel">Responsável</option>
+                <option value="valor_acordado">Valor acordado</option>
+                <option value="entrada">Entrada</option>
+                <option value="status">Status</option>
+                <option value="tipo">Tipo</option>
+              </Select>
+              <Select name="order_dir" defaultValue={filters.orderDir}>
+                <option value="asc">Crescente</option>
+                <option value="desc">Decrescente</option>
+              </Select>
+              <Button type="submit" variant="secondary">Filtrar</Button>
+            </form>
           </div>
+          {hasFilters ? (
+            <div className="mt-3">
+              <ButtonLink href="/app/acordos" variant="secondary">Limpar filtros</ButtonLink>
+            </div>
+          ) : null}
         </div>
 
         {rows.length === 0 ? (

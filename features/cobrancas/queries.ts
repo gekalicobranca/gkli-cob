@@ -3,11 +3,26 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/normalize-relation'
 
+export type CobrancaSortField =
+  | 'operacional'
+  | 'condominio'
+  | 'unidade'
+  | 'responsavel'
+  | 'vencimento'
+  | 'valor_original'
+  | 'valor_atualizado'
+  | 'status'
+  | 'created_at'
+
+export type SortDirection = 'asc' | 'desc'
+
 export type CobrancaListFilters = {
   search?: string
   status?: string
   vencimentoDe?: string
   vencimentoAte?: string
+  orderBy?: CobrancaSortField | string
+  orderDir?: SortDirection | string
 }
 
 function normalizeSortText(value: unknown) {
@@ -29,34 +44,81 @@ function normalizeUnitSort(value: unknown) {
   return normalizeSortText(raw)
 }
 
-function compareDates(a?: string | null, b?: string | null) {
-  const av = a ? new Date(`${a}T00:00:00`).getTime() : Number.MAX_SAFE_INTEGER
-  const bv = b ? new Date(`${b}T00:00:00`).getTime() : Number.MAX_SAFE_INTEGER
-  return av - bv
+function toDateValue(value?: string | null) {
+  if (!value) return Number.MAX_SAFE_INTEGER
+  const text = String(value)
+  const parsed = new Date(text.includes('T') ? text : `${text}T00:00:00`).getTime()
+  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed
 }
 
-function sortCobrancasOperacionalmente(rows: any[]) {
+function compareDates(a?: string | null, b?: string | null) {
+  return toDateValue(a) - toDateValue(b)
+}
+
+function compareNumbers(a: unknown, b: unknown) {
+  return Number(a ?? 0) - Number(b ?? 0)
+}
+
+function compareText(a: unknown, b: unknown) {
+  return normalizeSortText(a).localeCompare(normalizeSortText(b), 'pt-BR', { numeric: true })
+}
+
+function compareUnit(a: unknown, b: unknown) {
+  return normalizeUnitSort(a).localeCompare(normalizeUnitSort(b), 'pt-BR', { numeric: true })
+}
+
+function compareOperationalCobranca(a: any, b: any) {
+  const condominio = compareText(a.condominios?.nome, b.condominios?.nome)
+  if (condominio !== 0) return condominio
+
+  const bloco = compareText(a.unidades?.bloco, b.unidades?.bloco)
+  if (bloco !== 0) return bloco
+
+  const unidade = compareUnit(a.unidades?.identificacao, b.unidades?.identificacao)
+  if (unidade !== 0) return unidade
+
+  return compareDates(a.vencimento, b.vencimento)
+}
+
+function sortCobrancas(rows: any[], orderBy: string = 'operacional', orderDir: string = 'asc') {
+  const direction = orderDir === 'desc' ? -1 : 1
+
   return [...rows].sort((a, b) => {
-    const condominio = normalizeSortText(a.condominios?.nome).localeCompare(
-      normalizeSortText(b.condominios?.nome),
-      'pt-BR',
-    )
-    if (condominio !== 0) return condominio
+    let result = 0
 
-    const bloco = normalizeSortText(a.unidades?.bloco).localeCompare(
-      normalizeSortText(b.unidades?.bloco),
-      'pt-BR',
-    )
-    if (bloco !== 0) return bloco
+    switch (orderBy) {
+      case 'condominio':
+        result = compareText(a.condominios?.nome, b.condominios?.nome)
+        break
+      case 'unidade':
+        result = compareText(a.condominios?.nome, b.condominios?.nome) ||
+          compareText(a.unidades?.bloco, b.unidades?.bloco) ||
+          compareUnit(a.unidades?.identificacao, b.unidades?.identificacao)
+        break
+      case 'responsavel':
+        result = compareText(a.unidades?.responsavel_nome, b.unidades?.responsavel_nome)
+        break
+      case 'vencimento':
+        result = compareDates(a.vencimento, b.vencimento)
+        break
+      case 'valor_original':
+        result = compareNumbers(a.valor_original, b.valor_original)
+        break
+      case 'valor_atualizado':
+        result = compareNumbers(a.valor_atualizado, b.valor_atualizado)
+        break
+      case 'status':
+        result = compareText(a.status_operacional ?? a.status, b.status_operacional ?? b.status)
+        break
+      case 'created_at':
+        result = compareDates(a.created_at, b.created_at)
+        break
+      default:
+        result = compareOperationalCobranca(a, b)
+    }
 
-    const unidade = normalizeUnitSort(a.unidades?.identificacao).localeCompare(
-      normalizeUnitSort(b.unidades?.identificacao),
-      'pt-BR',
-      { numeric: true },
-    )
-    if (unidade !== 0) return unidade
-
-    return compareDates(a.vencimento, b.vencimento)
+    if (result !== 0) return result * direction
+    return compareOperationalCobranca(a, b)
   })
 }
 
@@ -108,7 +170,7 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
   const rows = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
   const search = String(filters.search ?? '').trim().toLowerCase()
 
-  if (!search) return sortCobrancasOperacionalmente(rows)
+  if (!search) return sortCobrancas(rows, filters.orderBy, filters.orderDir)
 
   const filteredRows = rows.filter((row: any) => {
     const haystack = [
@@ -127,7 +189,7 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
     return haystack.includes(search)
   })
 
-  return sortCobrancasOperacionalmente(filteredRows)
+  return sortCobrancas(filteredRows, filters.orderBy, filters.orderDir)
 }
 
 export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {

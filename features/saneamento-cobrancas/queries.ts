@@ -10,6 +10,7 @@ export type SaneamentoCobrancasFilters = {
   status?: string
   q?: string
   orderBy?: string
+  orderDir?: string
 }
 
 function normalizeSortText(value: unknown) {
@@ -31,36 +32,64 @@ function normalizeUnitSort(value: unknown) {
   return normalizeSortText(raw)
 }
 
-function sortSaneamentoOperacionalmente(rows: any[], orderBy = 'operacional') {
+function compareText(a: unknown, b: unknown) {
+  return normalizeSortText(a).localeCompare(normalizeSortText(b), 'pt-BR', { numeric: true })
+}
+
+function compareUnit(a: unknown, b: unknown) {
+  return normalizeUnitSort(a).localeCompare(normalizeUnitSort(b), 'pt-BR', { numeric: true })
+}
+
+function compareCreatedAt(a: any, b: any) {
+  return String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''))
+}
+
+function compareOperationalSaneamento(a: any, b: any) {
+  const condominio = compareText(a.condominios?.nome, b.condominios?.nome)
+  if (condominio !== 0) return condominio
+
+  const bloco = compareText(a.bloco_relatorio ?? a.bloco_cadastro ?? a.unidade?.bloco, b.bloco_relatorio ?? b.bloco_cadastro ?? b.unidade?.bloco)
+  if (bloco !== 0) return bloco
+
+  const unidade = compareUnit(a.unidade_relatorio ?? a.unidade_cadastro ?? a.unidade?.identificacao, b.unidade_relatorio ?? b.unidade_cadastro ?? b.unidade?.identificacao)
+  if (unidade !== 0) return unidade
+
+  return compareCreatedAt(b, a)
+}
+
+function sortSaneamentoOperacionalmente(rows: any[], orderBy = 'operacional', orderDir = 'asc') {
+  const direction = orderDir === 'desc' ? -1 : 1
+
   return [...rows].sort((a, b) => {
-    if (orderBy === 'responsavel') {
-      const responsavel = normalizeSortText(a.responsavel_relatorio ?? a.responsavel_cadastro).localeCompare(
-        normalizeSortText(b.responsavel_relatorio ?? b.responsavel_cadastro),
-        'pt-BR',
-      )
-      if (responsavel !== 0) return responsavel
+    let result = 0
+
+    switch (orderBy) {
+      case 'responsavel':
+        result = compareText(a.responsavel_relatorio ?? a.responsavel_cadastro, b.responsavel_relatorio ?? b.responsavel_cadastro)
+        break
+      case 'condominio':
+        result = compareText(a.condominios?.nome, b.condominios?.nome)
+        break
+      case 'unidade':
+        result = compareText(a.condominios?.nome, b.condominios?.nome) ||
+          compareText(a.bloco_relatorio ?? a.bloco_cadastro ?? a.unidade?.bloco, b.bloco_relatorio ?? b.bloco_cadastro ?? b.unidade?.bloco) ||
+          compareUnit(a.unidade_relatorio ?? a.unidade_cadastro ?? a.unidade?.identificacao, b.unidade_relatorio ?? b.unidade_cadastro ?? b.unidade?.identificacao)
+        break
+      case 'tipo':
+        result = compareText(a.tipo, b.tipo)
+        break
+      case 'status':
+        result = compareText(a.status, b.status)
+        break
+      case 'created_at':
+        result = compareCreatedAt(a, b)
+        break
+      default:
+        result = compareOperationalSaneamento(a, b)
     }
 
-    const condominio = normalizeSortText(a.condominios?.nome).localeCompare(
-      normalizeSortText(b.condominios?.nome),
-      'pt-BR',
-    )
-    if (condominio !== 0) return condominio
-
-    const bloco = normalizeSortText(a.bloco_relatorio ?? a.bloco_cadastro ?? a.unidade?.bloco).localeCompare(
-      normalizeSortText(b.bloco_relatorio ?? b.bloco_cadastro ?? b.unidade?.bloco),
-      'pt-BR',
-    )
-    if (bloco !== 0) return bloco
-
-    const unidade = normalizeUnitSort(a.unidade_relatorio ?? a.unidade_cadastro ?? a.unidade?.identificacao).localeCompare(
-      normalizeUnitSort(b.unidade_relatorio ?? b.unidade_cadastro ?? b.unidade?.identificacao),
-      'pt-BR',
-      { numeric: true },
-    )
-    if (unidade !== 0) return unidade
-
-    return String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))
+    if (result !== 0) return result * direction
+    return compareOperationalSaneamento(a, b)
   })
 }
 
@@ -125,7 +154,7 @@ export async function listSaneamentoCobrancas(
   ]) as any[]
 
   const search = String(filters.q ?? '').trim().toLowerCase()
-  if (!search) return sortSaneamentoOperacionalmente(rows, orderBy)
+  if (!search) return sortSaneamentoOperacionalmente(rows, orderBy, filters.orderDir)
 
   const filteredRows = rows.filter((row) => {
     const haystack = [
@@ -147,7 +176,7 @@ export async function listSaneamentoCobrancas(
     return haystack.includes(search)
   })
 
-  return sortSaneamentoOperacionalmente(filteredRows, orderBy)
+  return sortSaneamentoOperacionalmente(filteredRows, orderBy, filters.orderDir)
 }
 
 export async function getSaneamentoCobrancasResumo(scope: CarteiraScope) {

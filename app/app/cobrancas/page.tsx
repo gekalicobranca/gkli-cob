@@ -32,6 +32,8 @@ type PageProps = {
     status?: string;
     vencimento_de?: string;
     vencimento_ate?: string;
+    order_by?: string;
+    order_dir?: string;
   }>;
 };
 
@@ -101,9 +103,16 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     status: getParam(params.status),
     vencimentoDe: getParam(params.vencimento_de),
     vencimentoAte: getParam(params.vencimento_ate),
+    orderBy: getParam(params.order_by) || 'operacional',
+    orderDir: getParam(params.order_dir) || 'asc',
   };
   const hasFilters = Boolean(
-    filters.search || filters.status || filters.vencimentoDe || filters.vencimentoAte,
+    filters.search ||
+      filters.status ||
+      filters.vencimentoDe ||
+      filters.vencimentoAte ||
+      filters.orderBy !== 'operacional' ||
+      filters.orderDir !== 'asc',
   );
 
   const scope = await getPermittedCarteiras();
@@ -215,7 +224,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 ) : null}
               </div>
 
-              <form className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_180px_170px_170px_110px]">
+              <form className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_170px_150px_150px_180px_150px_110px]">
                 <div className="relative">
                   <Search
                     size={16}
@@ -248,6 +257,21 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                   defaultValue={filters.vencimentoAte}
                   aria-label="Vencimento até"
                 />
+                <Select name="order_by" defaultValue={filters.orderBy}>
+                  <option value="operacional">Condomínio → Unidade → Vencimento</option>
+                  <option value="condominio">Condomínio</option>
+                  <option value="unidade">Unidade</option>
+                  <option value="responsavel">Responsável</option>
+                  <option value="vencimento">Vencimento</option>
+                  <option value="valor_atualizado">Valor atualizado</option>
+                  <option value="valor_original">Valor original</option>
+                  <option value="status">Status</option>
+                  <option value="created_at">Data de criação</option>
+                </Select>
+                <Select name="order_dir" defaultValue={filters.orderDir}>
+                  <option value="asc">Crescente</option>
+                  <option value="desc">Decrescente</option>
+                </Select>
                 <Button type="submit" variant="secondary">
                   Filtrar
                 </Button>

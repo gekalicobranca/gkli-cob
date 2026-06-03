@@ -108,12 +108,12 @@ const templates: RecognizedTemplate[] = [
     exemplos: "Subcondomínio Edifício Office Tamboré",
   },
   {
-    nome: "Cipó · Cobranças",
+    nome: "Cipó · Cobranças OCR",
     categoria: "Cobranças",
     status: "Homologado",
-    cobertura: "PDF digital / XLSX OCR · Devedores Detalhado",
+    cobertura: "XLSX · PDF digitalizado convertido por OCR",
     descricao:
-      "Converte o PDF digital estruturado do HFlex/Cipó e mantém o XLSX OCR como fallback; identifica unidade, recibo, acordo, vencimento e valor, ignorando linhas de composição.",
+      "Reconstrói cobranças a partir das abas Table do OCR, identifica unidade Cipó, recibo, acordo, vencimento e valor do recibo, ignorando linhas de composição.",
     exemplos: "Torre Cipó",
   },
   {

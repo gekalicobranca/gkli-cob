@@ -37,6 +37,7 @@ type PageProps = {
     status?: string
     q?: string
     order_by?: string
+    order_dir?: string
   }>
 }
 
@@ -83,6 +84,7 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
     status: clean(params.status) || 'pendente',
     q: clean(params.q),
     orderBy: clean(params.order_by) || 'operacional',
+    orderDir: clean(params.order_dir) || 'asc',
   }
 
   const hasFilters = Boolean(
@@ -91,7 +93,8 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
       filters.tipo ||
       (filters.status && filters.status !== 'pendente') ||
       filters.q ||
-      (filters.orderBy && filters.orderBy !== 'operacional'),
+      (filters.orderBy && filters.orderBy !== 'operacional') ||
+      filters.orderDir !== 'asc',
   )
 
   const scope = await getPermittedCarteiras()
@@ -216,7 +219,7 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
                 ) : null}
               </div>
 
-              <form className="grid gap-2 xl:grid-cols-[minmax(200px,1fr)_180px_220px_210px_160px_170px_110px]">
+              <form className="grid gap-2 xl:grid-cols-[minmax(200px,1fr)_170px_200px_190px_150px_170px_140px_110px]">
                 <div className="relative">
                   <Search
                     size={16}
@@ -267,8 +270,17 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
 
                 <Select name="order_by" defaultValue={filters.orderBy}>
                   <option value="operacional">Condomínio → Unidade</option>
+                  <option value="condominio">Condomínio</option>
+                  <option value="unidade">Unidade</option>
                   <option value="responsavel">Responsável</option>
-                  <option value="created_at_desc">Mais recentes</option>
+                  <option value="tipo">Tipo</option>
+                  <option value="status">Status</option>
+                  <option value="created_at">Data de criação</option>
+                </Select>
+
+                <Select name="order_dir" defaultValue={filters.orderDir}>
+                  <option value="asc">Crescente</option>
+                  <option value="desc">Decrescente</option>
                 </Select>
 
                 <Button type="submit" variant="secondary">

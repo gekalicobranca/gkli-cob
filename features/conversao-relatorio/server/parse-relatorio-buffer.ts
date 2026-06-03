@@ -271,19 +271,6 @@ const PADRAO_CIPO_OCR_XLS_COBRANCAS: Omit<
   ativo: true,
 };
 
-const PADRAO_CIPO_PDF_COBRANCAS: Omit<
-  PadraoConversaoDetectado,
-  "condominioDetectado" | "confianca"
-> = {
-  id: "cipo-pdf-digital-cobrancas-v1",
-  nome: "Cipó · Cobranças PDF",
-  tipoConversao: "cobrancas",
-  fornecedor: "HFlex / LiveFacilities",
-  sistema: "PDF digital estruturado",
-  relatorio: "Devedores Detalhado - Torre Cipó",
-  ativo: true,
-};
-
 const PADRAO_OFFICE_TAMBORE_OCR_COBRANCAS: Omit<
   PadraoConversaoDetectado,
   "condominioDetectado" | "confianca"
@@ -3042,93 +3029,6 @@ function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondopro[] {
 }
 
 
-
-function detectCipoPdfDigitalCobrancas(text: string): DeteccaoPdfCobrancas {
-  const normalized = normalizePdfText(text);
-  const loose = normalizeForLooseMatch(normalized);
-
-  const recibosTexto = countRegexMatches(
-    normalized,
-    /(?:^|\n)\s*\d{6,}\s+(?:(?:\d{4,})\s+)?\d{2}\/\d{2}\/\d{4}\s+(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g,
-  );
-  const unidadesTexto = countRegexMatches(normalized, /(?:^|\n)\s*CIP[ÓO]\s+\d{3,}\b/gi);
-  const resumoFinal = normalized.match(/RESUMO\s+DO\s+BLOCO\s+CIP[ÓO][^\n]*UNIDADES\s*:\s*(\d+)[^\n]*RECIBOS\s*:\s*(\d+)[^\n]*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/i);
-
-  const sinais = [
-    /DEVEDORES\s+DETALHADO/,
-    /HFLEX|LIVE\s*FACILITIES/,
-    /TORRE\s+CIP[ÓO]|\bCIP[ÓO]\b/,
-    /RECIBO\s+COBRAN[ÇC]A\s+ACORDO\s+VENCIMENTO\s+VALOR/,
-    /RESUMO\s+DA\s+UNIDADE\s+\d{3,}/,
-    /RESUMO\s+DO\s+BLOCO\s+CIP[ÓO]/,
-  ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
-
-  return {
-    ok: sinais >= 4 && (recibosTexto > 0 || Boolean(resumoFinal)),
-    confianca: Math.min(99, sinais * 14 + Math.min(35, recibosTexto) + Math.min(15, unidadesTexto)),
-    condominioDetectado: "CONDOMINIO O PARQUE - TORRE CIPO",
-    semDevedores: false,
-  };
-}
-
-function normalizeCipoUnit(value: string) {
-  const normalized = normalize(value).replace(/\D/g, "");
-  return normalized.replace(/^0+/, "") || normalized || "0";
-}
-
-function parseCipoPdfDigitalCobrancas(text: string): ReciboCondopro[] {
-  const recibos: ReciboCondopro[] = [];
-  const lines = normalizePdfText(text)
-    .replace(/\s+(?=CIP[ÓO]\s+\d{3,}\b)/gi, "\n")
-    .replace(/\s+(?=RECIBO\s+COBRAN[ÇC]A\s+ACORDO\s+VENCIMENTO\s+VALOR)/gi, "\n")
-    .replace(/\s+(?=RESUMO\s+DA\s+UNIDADE\s+\d{3,})/gi, "\n")
-    .split("\n")
-    .map((line) => normalize(line))
-    .filter(Boolean);
-
-  let unidadeAtual = "";
-  const blocoAtual = "CIPÓ";
-
-  for (const line of lines) {
-    if (isHflexHeaderLine(line)) continue;
-
-    const unidadeMatch = line.match(/^CIP[ÓO]\s+(\d{3,})$/i);
-    if (unidadeMatch) {
-      unidadeAtual = normalizeCipoUnit(unidadeMatch[1]);
-      continue;
-    }
-
-    const resumoUnidade = parseHflexResumoUnidade(line);
-    if (resumoUnidade?.unidade) {
-      unidadeAtual = normalizeCipoUnit(resumoUnidade.unidade);
-      continue;
-    }
-
-    const recibo = parseHflexReceiptLine(line);
-    if (!recibo || !unidadeAtual) continue;
-
-    recibos.push({
-      bloco: blocoAtual,
-      unidade: unidadeAtual,
-      responsavel: "Responsável não identificado",
-      recibo: recibo.recibo,
-      vencimento: recibo.vencimento,
-      valorPrincipal: recibo.valorPrincipal,
-      multa: recibo.multa,
-      correcao: recibo.correcao,
-      juros: recibo.juros,
-      valorTotal: recibo.valorTotal,
-      marcadorOrigem: recibo.acordo ? "A" : undefined,
-      situacaoOrigem: recibo.acordo ? "acordo" : "normal",
-      detalhesOrigem: recibo.acordo
-        ? `PDF digital Cipó. Recibo ${recibo.recibo}. Acordo ${recibo.acordo}.`
-        : `PDF digital Cipó. Recibo ${recibo.recibo}.`,
-    });
-  }
-
-  return recibos;
-}
-
 function detectHflexLiveFacilitiesCobrancas(text: string): DeteccaoPdfCobrancas {
   const normalized = normalizePdfText(text);
   const loose = normalizeForLooseMatch(normalized);
@@ -4203,26 +4103,6 @@ export async function parseRelatorioBuffer(
     const deteccaoSafira = detectSafiraCobrancas(text);
     const deteccaoLello = detectLelloCobrancas(text);
     const deteccaoOfficeTamboreOcr = detectOfficeTamboreOcrCobrancas(text);
-    const deteccaoCipoPdf = detectCipoPdfDigitalCobrancas(text);
-
-    if (deteccaoCipoPdf.ok && deteccaoCipoPdf.confianca >= 60) {
-      const recibos = parseCipoPdfDigitalCobrancas(text);
-      const padraoDetectado = buildPadraoDetectado(PADRAO_CIPO_PDF_COBRANCAS, {
-        condominioDetectado: deteccaoCipoPdf.condominioDetectado,
-        confianca: deteccaoCipoPdf.confianca,
-      });
-
-      if (recibos.length) {
-        return buildPreviewFromRecibos({
-          origem: "Cipó - Devedores Detalhado PDF digital",
-          filename: input.filename,
-          recibos,
-          condominioCnpj: input.condominioCnpj,
-          origemSistema: "Hflex / LiveFacilities - Torre Cipó",
-          padraoDetectado,
-        });
-      }
-    }
 
     if (deteccaoOfficeTamboreOcr.ok && deteccaoOfficeTamboreOcr.confianca >= 60) {
       const recibos = parseOfficeTamboreOcrCobrancasPdf(text);
@@ -4459,7 +4339,7 @@ export async function parseRelatorioBuffer(
     return {
       ok: false,
       error:
-        "PDF lido, mas nenhum padrão ativo de Cobranças foi reconhecido com segurança. Nesta versão, os parsers PDF ativos são Superlógica - Relação Analítica de Pendentes, Hflex / LiveFacilities - Devedores Detalhado, Cipó - Devedores Detalhado PDF digital, Office Tamboré OCR, CondoPro/BBZ, Slaviero - Inadimplentes, Safira - Recibos em Aberto e Lello - Cota/Débitos. Para os demais padrões, envie XLS, XLSX, CSV ou HTML.",
+        "PDF lido, mas nenhum padrão ativo de Cobranças foi reconhecido com segurança. Nesta versão, os parsers PDF ativos são Superlógica - Relação Analítica de Pendentes, Hflex / LiveFacilities - Devedores Detalhado, Office Tamboré OCR, CondoPro/BBZ, Slaviero - Inadimplentes, Safira - Recibos em Aberto e Lello - Cota/Débitos. Para os demais padrões, envie XLS, XLSX, CSV ou HTML.",
     };
   }
 

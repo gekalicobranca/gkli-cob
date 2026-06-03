@@ -2,7 +2,107 @@ import { createClient } from "@/utils/supabase/server";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 
-export async function listAcordos(scope?: CarteiraScope) {
+export type AcordoListFilters = {
+  search?: string
+  status?: string
+  tipo?: string
+  orderBy?: string
+  orderDir?: string
+}
+
+function normalizeSortText(value: unknown) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function normalizeUnitSort(value: unknown) {
+  const raw = String(value ?? '').trim()
+  const onlyDigits = raw.replace(/\D/g, '')
+
+  if (onlyDigits && /^0*\d+$/.test(raw.replace(/\s/g, ''))) {
+    return onlyDigits.padStart(12, '0')
+  }
+
+  return normalizeSortText(raw)
+}
+
+function compareText(a: unknown, b: unknown) {
+  return normalizeSortText(a).localeCompare(normalizeSortText(b), 'pt-BR', { numeric: true })
+}
+
+function compareUnit(a: unknown, b: unknown) {
+  return normalizeUnitSort(a).localeCompare(normalizeUnitSort(b), 'pt-BR', { numeric: true })
+}
+
+function compareNumbers(a: unknown, b: unknown) {
+  return Number(a ?? 0) - Number(b ?? 0)
+}
+
+function toDateValue(value?: string | null) {
+  if (!value) return Number.MAX_SAFE_INTEGER
+  const text = String(value)
+  const parsed = new Date(text.includes('T') ? text : `${text}T00:00:00`).getTime()
+  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed
+}
+
+function compareDates(a?: string | null, b?: string | null) {
+  return toDateValue(a) - toDateValue(b)
+}
+
+function compareOperationalAcordo(a: any, b: any) {
+  return (
+    compareText(a.condominios?.nome, b.condominios?.nome) ||
+    compareText(a.unidades?.bloco, b.unidades?.bloco) ||
+    compareUnit(a.unidades?.identificacao, b.unidades?.identificacao) ||
+    compareDates(a.data_acordo, b.data_acordo)
+  )
+}
+
+function sortAcordos(rows: any[], orderBy = 'data_acordo', orderDir = 'desc') {
+  const direction = orderDir === 'desc' ? -1 : 1
+
+  return [...rows].sort((a, b) => {
+    let result = 0
+
+    switch (orderBy) {
+      case 'operacional':
+        result = compareOperationalAcordo(a, b)
+        break
+      case 'condominio':
+        result = compareText(a.condominios?.nome, b.condominios?.nome)
+        break
+      case 'unidade':
+        result = compareText(a.condominios?.nome, b.condominios?.nome) || compareText(a.unidades?.bloco, b.unidades?.bloco) || compareUnit(a.unidades?.identificacao, b.unidades?.identificacao)
+        break
+      case 'responsavel':
+        result = compareText(a.unidades?.responsavel_nome, b.unidades?.responsavel_nome)
+        break
+      case 'valor_acordado':
+        result = compareNumbers(a.valor_acordado, b.valor_acordado)
+        break
+      case 'entrada':
+        result = compareNumbers(a.entrada, b.entrada)
+        break
+      case 'status':
+        result = compareText(a.status, b.status)
+        break
+      case 'tipo':
+        result = compareText(a.tipo, b.tipo)
+        break
+      case 'data_acordo':
+      default:
+        result = compareDates(a.data_acordo, b.data_acordo)
+    }
+
+    if (result !== 0) return result * direction
+    return compareOperationalAcordo(a, b)
+  })
+}
+
+export async function listAcordos(scope?: CarteiraScope, filters: AcordoListFilters = {}) {
   const supabase = await createClient();
 
   let query = supabase
@@ -19,7 +119,8 @@ export async function listAcordos(scope?: CarteiraScope) {
       unidades:unidade_id (
         id,
         identificacao,
-        bloco
+        bloco,
+        responsavel_nome
       ),
       cobrancas:cobranca_id (
         id,
@@ -44,7 +145,37 @@ export async function listAcordos(scope?: CarteiraScope) {
     throw new Error(`Erro ao carregar acordos: ${error.message}`);
   }
 
-  return data ?? [];
+  let rows = (data ?? []) as any[];
+
+  if (filters.status) {
+    rows = rows.filter((row) => String(row.status ?? '') === filters.status);
+  }
+
+  if (filters.tipo) {
+    rows = rows.filter((row) => String(row.tipo ?? '') === filters.tipo);
+  }
+
+  const search = String(filters.search ?? '').trim().toLowerCase();
+  if (search) {
+    rows = rows.filter((row) => {
+      const haystack = [
+        row.status,
+        row.tipo,
+        row.numero_processo,
+        row.condominios?.nome,
+        row.unidades?.identificacao,
+        row.unidades?.bloco,
+        row.unidades?.responsavel_nome,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(search);
+    });
+  }
+
+  return sortAcordos(rows, filters.orderBy, filters.orderDir);
 }
 
 export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
