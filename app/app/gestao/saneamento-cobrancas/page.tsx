@@ -82,7 +82,7 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
     tipo: clean(params.tipo),
     status: clean(params.status) || 'pendente',
     q: clean(params.q),
-    orderBy: clean(params.order_by) || 'created_at_desc',
+    orderBy: clean(params.order_by) || 'operacional',
   }
 
   const hasFilters = Boolean(
@@ -91,7 +91,7 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
       filters.tipo ||
       (filters.status && filters.status !== 'pendente') ||
       filters.q ||
-      (filters.orderBy && filters.orderBy !== 'created_at_desc'),
+      (filters.orderBy && filters.orderBy !== 'operacional'),
   )
 
   const scope = await getPermittedCarteiras()
@@ -232,10 +232,9 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
                 </Select>
 
                 <Select name="order_by" defaultValue={filters.orderBy}>
-                  <option value="created_at_desc">Mais recentes</option>
-                  <option value="condominio">Condomínio</option>
-                  <option value="unidade">Unidade</option>
+                  <option value="operacional">Condomínio → Unidade</option>
                   <option value="responsavel">Responsável</option>
+                  <option value="created_at_desc">Mais recentes</option>
                 </Select>
 
                 <Button type="submit" variant="secondary">

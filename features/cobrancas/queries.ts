@@ -10,6 +10,56 @@ export type CobrancaListFilters = {
   vencimentoAte?: string
 }
 
+function normalizeSortText(value: unknown) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function normalizeUnitSort(value: unknown) {
+  const raw = String(value ?? '').trim()
+  const onlyDigits = raw.replace(/\D/g, '')
+
+  if (onlyDigits && /^0*\d+$/.test(raw.replace(/\s/g, ''))) {
+    return onlyDigits.padStart(12, '0')
+  }
+
+  return normalizeSortText(raw)
+}
+
+function compareDates(a?: string | null, b?: string | null) {
+  const av = a ? new Date(`${a}T00:00:00`).getTime() : Number.MAX_SAFE_INTEGER
+  const bv = b ? new Date(`${b}T00:00:00`).getTime() : Number.MAX_SAFE_INTEGER
+  return av - bv
+}
+
+function sortCobrancasOperacionalmente(rows: any[]) {
+  return [...rows].sort((a, b) => {
+    const condominio = normalizeSortText(a.condominios?.nome).localeCompare(
+      normalizeSortText(b.condominios?.nome),
+      'pt-BR',
+    )
+    if (condominio !== 0) return condominio
+
+    const bloco = normalizeSortText(a.unidades?.bloco).localeCompare(
+      normalizeSortText(b.unidades?.bloco),
+      'pt-BR',
+    )
+    if (bloco !== 0) return bloco
+
+    const unidade = normalizeUnitSort(a.unidades?.identificacao).localeCompare(
+      normalizeUnitSort(b.unidades?.identificacao),
+      'pt-BR',
+      { numeric: true },
+    )
+    if (unidade !== 0) return unidade
+
+    return compareDates(a.vencimento, b.vencimento)
+  })
+}
+
 export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListFilters = {}) {
   const supabase = await createClient()
 
@@ -58,9 +108,9 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
   const rows = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
   const search = String(filters.search ?? '').trim().toLowerCase()
 
-  if (!search) return rows
+  if (!search) return sortCobrancasOperacionalmente(rows)
 
-  return rows.filter((row: any) => {
+  const filteredRows = rows.filter((row: any) => {
     const haystack = [
       row.competencia,
       row.status,
@@ -76,6 +126,8 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
 
     return haystack.includes(search)
   })
+
+  return sortCobrancasOperacionalmente(filteredRows)
 }
 
 export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {

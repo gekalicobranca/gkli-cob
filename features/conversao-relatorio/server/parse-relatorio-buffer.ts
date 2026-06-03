@@ -204,6 +204,20 @@ const PADRAO_SLAVIERO_COBRANCAS: Omit<
 };
 
 
+
+const PADRAO_MOEMA_FLAT_SLAVIERO_COBRANCAS: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "moema-flat-slaviero-inadimplentes-cobrancas-v1",
+  nome: "Moema Flat · Cobranças",
+  tipoConversao: "cobrancas",
+  fornecedor: "Slaviero Condomínios",
+  sistema: "Slaviero Condomínios",
+  relatorio: "Inadimplentes - Edifício Moema Flat Service",
+  ativo: true,
+};
+
 const PADRAO_SAFIRA_COBRANCAS: Omit<
   PadraoConversaoDetectado,
   "condominioDetectado" | "confianca"
@@ -2784,6 +2798,28 @@ function situacaoSlavieroFromHeader(value: string): SituacaoOrigemCobranca {
   return /\bJur[ií]dico\b/i.test(value) ? "juridico" : "normal";
 }
 
+
+function detectMoemaFlatSlavieroCobrancas(text: string): DeteccaoPdfCobrancas {
+  const base = detectSlavieroCobrancas(text);
+  const normalized = normalizePdfText(text);
+  const loose = normalizeForLooseMatch(normalized);
+
+  const sinaisMoema = [
+    /W003A\s+EDIFICIO\s+MOEMA\s+FLAT\s+SERVICE/,
+    /EDIF[IÍ]CIO\s+MOEMA\s+FLAT\s+SERVICE/,
+    /MOEMA\s+FLAT/,
+    /SLAVIERO\s+CONDOMINIOS/,
+    /INADIMPLENTES/,
+  ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
+
+  return {
+    ok: base.ok && sinaisMoema >= 3,
+    confianca: base.ok ? Math.min(99, base.confianca + sinaisMoema * 4) : 0,
+    condominioDetectado: base.condominioDetectado ?? extractSlavieroCondominio(normalized),
+    semDevedores: false,
+  };
+}
+
 function parseSlavieroCobrancasPdf(text: string): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
   const lines = normalizePdfText(text)
@@ -3301,6 +3337,7 @@ export async function parseRelatorioBuffer(
     const deteccaoSuperlogica = detectSuperlogicaPendentesCobrancas(text);
     const deteccaoHflex = detectHflexLiveFacilitiesCobrancas(text);
     const deteccaoSlaviero = detectSlavieroCobrancas(text);
+    const deteccaoMoemaFlat = detectMoemaFlatSlavieroCobrancas(text);
     const deteccaoSafira = detectSafiraCobrancas(text);
     const deteccaoLello = detectLelloCobrancas(text);
 
@@ -3308,6 +3345,7 @@ export async function parseRelatorioBuffer(
       deteccaoLello.ok &&
       deteccaoLello.confianca >= deteccaoSafira.confianca &&
       deteccaoLello.confianca >= deteccaoSlaviero.confianca &&
+      deteccaoLello.confianca >= deteccaoMoemaFlat.confianca &&
       deteccaoLello.confianca >= deteccaoSuperlogica.confianca &&
       deteccaoLello.confianca >= deteccaoHflex.confianca
     ) {
@@ -3333,7 +3371,8 @@ export async function parseRelatorioBuffer(
       deteccaoSafira.ok &&
       deteccaoSafira.confianca >= deteccaoSuperlogica.confianca &&
       deteccaoSafira.confianca >= deteccaoHflex.confianca &&
-      deteccaoSafira.confianca >= deteccaoSlaviero.confianca
+      deteccaoSafira.confianca >= deteccaoSlaviero.confianca &&
+      deteccaoSafira.confianca >= deteccaoMoemaFlat.confianca
     ) {
       const recibos = parseSafiraCobrancasPdf(text);
       const padraoDetectado = buildPadraoDetectado(PADRAO_SAFIRA_COBRANCAS, {
@@ -3353,10 +3392,36 @@ export async function parseRelatorioBuffer(
       }
     }
 
+
+    if (
+      deteccaoMoemaFlat.ok &&
+      deteccaoMoemaFlat.confianca >= deteccaoSuperlogica.confianca &&
+      deteccaoMoemaFlat.confianca >= deteccaoHflex.confianca &&
+      deteccaoMoemaFlat.confianca >= deteccaoSlaviero.confianca
+    ) {
+      const recibos = parseSlavieroCobrancasPdf(text);
+      const padraoDetectado = buildPadraoDetectado(PADRAO_MOEMA_FLAT_SLAVIERO_COBRANCAS, {
+        condominioDetectado: deteccaoMoemaFlat.condominioDetectado,
+        confianca: deteccaoMoemaFlat.confianca,
+      });
+
+      if (recibos.length) {
+        return buildPreviewFromRecibos({
+          origem: "Slaviero Condomínios - Inadimplentes - Moema Flat",
+          filename: input.filename,
+          recibos,
+          condominioCnpj: input.condominioCnpj,
+          origemSistema: "Slaviero Condomínios",
+          padraoDetectado,
+        });
+      }
+    }
+
     if (
       deteccaoSlaviero.ok &&
       deteccaoSlaviero.confianca >= deteccaoSuperlogica.confianca &&
-      deteccaoSlaviero.confianca >= deteccaoHflex.confianca
+      deteccaoSlaviero.confianca >= deteccaoHflex.confianca &&
+      deteccaoSlaviero.confianca >= deteccaoMoemaFlat.confianca
     ) {
       const recibos = parseSlavieroCobrancasPdf(text);
       const padraoDetectado = buildPadraoDetectado(PADRAO_SLAVIERO_COBRANCAS, {

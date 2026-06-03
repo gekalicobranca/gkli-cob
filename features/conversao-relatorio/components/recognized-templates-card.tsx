@@ -61,7 +61,16 @@ const templates: RecognizedTemplate[] = [
     cobertura: "PDF · Inadimplentes",
     descricao:
       "Extrai unidade, responsável, vencimento, competência, código, principal, juros, multa, honorários e total; marca Jurídico como situação de origem.",
-    exemplos: "Moema Flat",
+    exemplos: "Moema Flat e demais relatórios Slaviero",
+  },
+  {
+    nome: "Moema Flat · Cobranças",
+    categoria: "Cobranças",
+    status: "Homologado",
+    cobertura: "PDF · Slaviero Inadimplentes",
+    descricao:
+      "Especialização do layout Slaviero para o Edifício Moema Flat Service, incluindo unidades numéricas, unidade REST-LEMON e marcador Jurídico quando presente no cabeçalho.",
+    exemplos: "W003A Edifício Moema Flat Service",
   },
   {
     nome: "Safira · Cobranças",
