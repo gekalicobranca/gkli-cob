@@ -663,6 +663,48 @@ function extractOfficeTamboreXlsUnitHeader(row: string[]) {
   return null;
 }
 
+function parseOfficeTamboreXlsMoney(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+
+  const raw = normalize(value);
+  if (!raw) return 0;
+
+  const cleaned = raw.replace(/[^\d,.-]/g, "");
+  if (!cleaned) return 0;
+
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  const decimalSeparator =
+    lastComma >= 0 && lastDot >= 0
+      ? lastComma > lastDot
+        ? ","
+        : "."
+      : lastComma >= 0
+        ? ","
+        : lastDot >= 0
+          ? "."
+          : "";
+
+  if (!decimalSeparator) {
+    const integer = Number(cleaned);
+    return Number.isFinite(integer) ? integer : 0;
+  }
+
+  const integerPart = cleaned.slice(0, cleaned.lastIndexOf(decimalSeparator)).replace(/[^\d-]/g, "");
+  const decimalPart = cleaned.slice(cleaned.lastIndexOf(decimalSeparator) + 1).replace(/\D/g, "");
+
+  const normalized = `${integerPart || "0"}.${decimalPart.padEnd(2, "0").slice(0, 2)}`;
+  const parsed = Number(normalized);
+
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isOfficeTamboreXlsReceiptStart(row: string[]) {
+  const recibo = row[0]?.replace(/\D/g, "") ?? "";
+  return /^\d{6,8}$/.test(recibo) && Boolean(normalizeDate(row[4]));
+}
+
+
 function detectOfficeTamboreXlsRows(rows: unknown[][]) {
   const fullText = rows.map(rowToText).join("\n");
   const loose = normalizeForLooseMatch(fullText);
@@ -675,8 +717,6 @@ function detectOfficeTamboreXlsRows(rows: unknown[][]) {
 
   for (const rawRow of rows) {
     const row = rawRow.map((cell) => normalize(cell));
-    const firstCell = row[0] ?? "";
-    const secondCell = row[1] ?? "";
 
     if (extractOfficeTamboreXlsUnitHeader(row)) {
       unidadeHeaders += 1;
@@ -691,10 +731,10 @@ function detectOfficeTamboreXlsRows(rows: unknown[][]) {
     if (/RESUMO\s+BLOCO/.test(rowLoose)) resumoBloco = true;
     if (/RESUMO\s+GERAL|RESUMO\s+EMPREENDIMENTO/.test(rowLoose)) resumoGeral = true;
 
-    const recibo = normalize(row[0]);
-    const vencimento = normalizeDate(row[4]);
-    const valorRecibo = parseMoney(row[14]);
-    if (/^\d{6,8}$/.test(recibo.replace(/\D/g, "")) && vencimento && valorRecibo > 0) {
+    const valorRecibo = parseOfficeTamboreXlsMoney(row[14]);
+    const valorVerba = parseOfficeTamboreXlsMoney(row[8]);
+
+    if (isOfficeTamboreXlsReceiptStart(row) && (valorRecibo > 0 || valorVerba > 0)) {
       reciboRows += 1;
     }
   }
@@ -720,6 +760,24 @@ function parseOfficeTamboreXlsRows(rows: unknown[][]): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
   let unidadeAtual = "";
   let responsavelAtual = "Responsável não identificado";
+  let reciboAtual: ReciboCondopro | null = null;
+  let reciboAtualTemTotalConsolidado = false;
+
+  const finalizarReciboAtual = () => {
+    if (!reciboAtual) return;
+
+    const valorTotal = Number(reciboAtual.valorTotal.toFixed(2));
+    if (valorTotal > 0) {
+      recibos.push({
+        ...reciboAtual,
+        valorPrincipal: valorTotal,
+        valorTotal,
+      });
+    }
+
+    reciboAtual = null;
+    reciboAtualTemTotalConsolidado = false;
+  };
 
   for (const rawRow of rows) {
     const row = rawRow.map((cell) => normalize(cell));
@@ -727,40 +785,74 @@ function parseOfficeTamboreXlsRows(rows: unknown[][]): ReciboCondopro[] {
 
     const unidadeHeader = extractOfficeTamboreXlsUnitHeader(row);
     if (unidadeHeader) {
+      finalizarReciboAtual();
       unidadeAtual = unidadeHeader.unidade;
       responsavelAtual = unidadeHeader.responsavel;
       continue;
     }
 
+    const rowLoose = normalizeForLooseMatch(rowToText(row));
+    if (/RESUMO\s+UNIDADE|RESUMO\s+BLOCO|RESUMO\s+GERAL|RESUMO\s+EMPREENDIMENTO/.test(rowLoose)) {
+      finalizarReciboAtual();
+      continue;
+    }
+
     if (!unidadeAtual) continue;
 
-    const recibo = firstCellDigits;
-    if (!/^\d{6,8}$/.test(recibo)) continue;
+    if (isOfficeTamboreXlsReceiptStart(row)) {
+      finalizarReciboAtual();
 
-    const vencimento = normalizeDate(row[4]);
-    const valorRecibo = parseMoney(row[14]);
-    if (!vencimento || valorRecibo <= 0) continue;
+      const recibo = firstCellDigits;
+      const vencimento = normalizeDate(row[4]);
+      const acordo = normalize(row[2]).replace(/\D/g, "");
+      const valorRecibo = parseOfficeTamboreXlsMoney(row[14]);
+      const valorVerba = parseOfficeTamboreXlsMoney(row[8]);
+      const valorInicial = valorRecibo > 0 ? valorRecibo : valorVerba;
 
-    const acordo = normalize(row[2]).replace(/\D/g, "");
+      if (!vencimento || valorInicial <= 0) continue;
 
-    recibos.push({
-      bloco: "OFFICE",
-      unidade: unidadeAtual,
-      responsavel: responsavelAtual,
-      recibo,
-      vencimento,
-      valorPrincipal: valorRecibo,
-      multa: 0,
-      correcao: 0,
-      juros: 0,
-      valorTotal: valorRecibo,
-      marcadorOrigem: acordo ? `Acordo ${acordo}` : "Office Tamboré XLS",
-      situacaoOrigem: acordo ? "acordo" : "normal",
-      detalhesOrigem: acordo
-        ? `Office Tamboré XLS · recibo ${recibo} · acordo ${acordo} · valor importável extraído da coluna Vl. Recibo.`
-        : `Office Tamboré XLS · recibo ${recibo} · valor importável extraído da coluna Vl. Recibo.`,
-    });
+      reciboAtualTemTotalConsolidado = valorRecibo > 0;
+
+      reciboAtual = {
+        bloco: "OFFICE",
+        unidade: unidadeAtual,
+        responsavel: responsavelAtual,
+        recibo,
+        vencimento,
+        valorPrincipal: valorInicial,
+        multa: 0,
+        correcao: 0,
+        juros: 0,
+        valorTotal: valorInicial,
+        marcadorOrigem: acordo ? `Acordo ${acordo}` : "Office Tamboré XLS",
+        situacaoOrigem: acordo ? "acordo" : "normal",
+        detalhesOrigem: acordo
+          ? `Office Tamboré XLS · recibo ${recibo} · acordo ${acordo} · valor importável extraído da coluna Vl. Recibo.`
+          : `Office Tamboré XLS · recibo ${recibo} · valor importável extraído da coluna Vl. Recibo.`,
+      };
+
+      continue;
+    }
+
+    if (reciboAtual && !firstCellDigits && row[6] && parseOfficeTamboreXlsMoney(row[14]) <= 0) {
+      const valorVerba = parseOfficeTamboreXlsMoney(row[8]);
+
+      // Quando a coluna Vl. Recibo vem vazia na linha complementar, somamos a verba.
+      // Isso cobre exportações onde o total do recibo não vem completo na primeira linha.
+      if (valorVerba > 0 && parseOfficeTamboreXlsMoney(row[14]) <= 0) {
+        const textoComplementar = normalizeForLooseMatch(row[6]);
+        if (/FUNDO|RESERVA|CONDOMINIO|CONDOMINIO|AGUA|GAS|ENERGIA|VERBA|RATEIO|OBRA|IPTU|MULTA|JUROS|CORRECAO/.test(textoComplementar)) {
+          // Se a primeira linha já trouxe Vl. Recibo, não duplicamos o complemento.
+          // Se a exportação veio com Vl. Recibo vazio/ilegível, reconstruímos pelo somatório das verbas.
+          if (!reciboAtualTemTotalConsolidado) {
+            reciboAtual.valorTotal += valorVerba;
+          }
+        }
+      }
+    }
   }
+
+  finalizarReciboAtual();
 
   const unique = new Map<string, ReciboCondopro>();
   for (const recibo of recibos) {
