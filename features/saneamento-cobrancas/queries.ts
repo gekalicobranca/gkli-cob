@@ -47,14 +47,14 @@ function sortSaneamentoOperacionalmente(rows: any[], orderBy = 'operacional') {
     )
     if (condominio !== 0) return condominio
 
-    const bloco = normalizeSortText(a.bloco_relatorio ?? a.bloco_cadastro ?? a.unidades?.bloco).localeCompare(
-      normalizeSortText(b.bloco_relatorio ?? b.bloco_cadastro ?? b.unidades?.bloco),
+    const bloco = normalizeSortText(a.bloco_relatorio ?? a.bloco_cadastro ?? a.unidade?.bloco).localeCompare(
+      normalizeSortText(b.bloco_relatorio ?? b.bloco_cadastro ?? b.unidade?.bloco),
       'pt-BR',
     )
     if (bloco !== 0) return bloco
 
-    const unidade = normalizeUnitSort(a.unidade_relatorio ?? a.unidade_cadastro ?? a.unidades?.identificacao).localeCompare(
-      normalizeUnitSort(b.unidade_relatorio ?? b.unidade_cadastro ?? b.unidades?.identificacao),
+    const unidade = normalizeUnitSort(a.unidade_relatorio ?? a.unidade_cadastro ?? a.unidade?.identificacao).localeCompare(
+      normalizeUnitSort(b.unidade_relatorio ?? b.unidade_cadastro ?? b.unidade?.identificacao),
       'pt-BR',
       { numeric: true },
     )
@@ -96,7 +96,7 @@ export async function listSaneamentoCobrancas(
       resolved_at,
       carteiras(nome),
       condominios(nome),
-      unidades(identificacao, bloco, responsavel_nome, responsavel_documento),
+      unidade:unidades!saneamento_cobrancas_unidade_id_fkey(identificacao, bloco, responsavel_nome, responsavel_documento),
       unidade_sugerida:unidades!saneamento_cobrancas_unidade_sugerida_id_fkey(identificacao, bloco, responsavel_nome)
     `)
 
@@ -120,7 +120,7 @@ export async function listSaneamentoCobrancas(
   const rows = normalizeRelationsList((data ?? []) as any[], [
     'carteiras',
     'condominios',
-    'unidades',
+    'unidade',
     'unidade_sugerida',
   ]) as any[]
 
@@ -137,8 +137,8 @@ export async function listSaneamentoCobrancas(
       row.responsavel_cadastro,
       row.condominios?.nome,
       row.carteiras?.nome,
-      row.unidades?.identificacao,
-      row.unidades?.responsavel_nome,
+      row.unidade?.identificacao,
+      row.unidade?.responsavel_nome,
     ]
       .filter(Boolean)
       .join(' ')

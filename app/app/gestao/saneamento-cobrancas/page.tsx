@@ -95,12 +95,40 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
   )
 
   const scope = await getPermittedCarteiras()
-  const [rows, resumo, carteiras, condominios] = await Promise.all([
-    listSaneamentoCobrancas(scope, filters),
-    getSaneamentoCobrancasResumo(scope),
-    listCarteirasParaSaneamento(scope),
-    listCondominiosParaSaneamento(scope, filters.carteiraId),
-  ])
+
+  let rows: any[] = []
+  let resumo = {
+    total: 0,
+    responsavelDivergente: 0,
+    responsavelAusente: 0,
+    unidadeNaoEncontrada: 0,
+    possivelCorrespondencia: 0,
+  }
+  let carteiras: Array<{ id: string; nome: string }> = []
+  let condominios: Array<{ id: string; nome: string; carteira_id: string }> = []
+  let loadError: string | null = null
+
+  try {
+    ;[rows, resumo, carteiras, condominios] = await Promise.all([
+      listSaneamentoCobrancas(scope, filters),
+      getSaneamentoCobrancasResumo(scope),
+      listCarteirasParaSaneamento(scope),
+      listCondominiosParaSaneamento(scope, filters.carteiraId),
+    ])
+  } catch (error) {
+    console.error('[saneamento-cobrancas] erro ao carregar página', error)
+    loadError = error instanceof Error ? error.message : 'Erro inesperado ao carregar saneamento de cobranças.'
+
+    try {
+      ;[carteiras, condominios] = await Promise.all([
+        listCarteirasParaSaneamento(scope).catch(() => []),
+        listCondominiosParaSaneamento(scope, filters.carteiraId).catch(() => []),
+      ])
+    } catch {
+      carteiras = []
+      condominios = []
+    }
+  }
 
   return (
     <LitePageShell>
@@ -160,6 +188,12 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
           </Card>
         ))}
       </LiteKpiStrip>
+
+      {loadError ? (
+        <Card className="border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          Não foi possível carregar os dados de saneamento. Detalhe técnico: {loadError}
+        </Card>
+      ) : null}
 
       <LiteWorkArea>
         <Card className="flex h-full min-h-0 flex-col overflow-hidden p-0">
@@ -269,7 +303,7 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
 
               <LiteScrollArea className="divide-y divide-slate-100">
                 {rows.map((row: any) => {
-                  const unidadeCadastro = displayUnidade(row.bloco_cadastro ?? row.unidades?.bloco, row.unidade_cadastro ?? row.unidades?.identificacao)
+                  const unidadeCadastro = displayUnidade(row.bloco_cadastro ?? row.unidade?.bloco, row.unidade_cadastro ?? row.unidade?.identificacao)
                   const unidadeRelatorio = displayUnidade(row.bloco_relatorio, row.unidade_relatorio)
                   const podeAtualizarResponsavel =
                     row.status === 'pendente' &&
@@ -332,7 +366,7 @@ export default async function SaneamentoCobrancasPage({ searchParams }: PageProp
                           Cadastro GKLI
                         </p>
                         <p className="mt-1 text-sm text-slate-800">
-                          {row.responsavel_cadastro || row.unidades?.responsavel_nome || 'Sem responsável'}
+                          {row.responsavel_cadastro || row.unidade?.responsavel_nome || 'Sem responsável'}
                         </p>
                         {row.responsavel_documento_cadastro ? (
                           <p className="mt-1 text-xs text-slate-500">Doc. {row.responsavel_documento_cadastro}</p>
