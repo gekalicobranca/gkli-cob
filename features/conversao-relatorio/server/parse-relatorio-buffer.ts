@@ -3015,24 +3015,42 @@ function detectSafiraCobrancas(text: string): DeteccaoPdfCobrancas {
   const normalized = normalizePdfText(text);
   const loose = normalizeForLooseMatch(normalized);
 
+  // O PDF do Safira pode variar entre pdf-parse, pdftotext e OCR: em alguns
+  // ambientes o símbolo "R$" some, em outros o cabeçalho quebra em várias linhas.
+  // Por isso a detecção precisa se apoiar nos termos estruturais do relatório,
+  // não em uma única linha rígida.
   const sinais = [
-    /RELATORIOS\s+DE\s+RECIBOS\s+EM\s+ABERTO/,
-    /DATA\s+VENCIMENTO\s+CODIGO\s+RECIBO/,
-    /VALOR\s+DO\s+RECIBO\s+MULTA\s+CALCULADA/,
-    /VALOR\s+CORRECAO\s+JUROS\s+CALCULADO/,
-    /HONORARIOS\s+CUSTAS\s+PROCESSUAIS\s+VALOR\s+TOTAL/,
-    /SUBTOTAL\s+R\$/,
+    /RELATORIOS?\s+DE\s+RECIBOS?\s+EM\s+ABERTO/,
+    /RECIBOS?\s+EM\s+ABERTO/,
+    /DATA\s+VENCIMENTO/,
+    /CODIGO\s+RECIBO/,
+    /VALOR\s+DO\s+RECIBO/,
+    /MULTA\s+CALCULADA/,
+    /VALOR\s+CORRECAO/,
+    /JUROS\s+CALCULADO/,
+    /HONORARIOS\s+CUSTAS\s+PROCESSUAIS/,
+    /VALOR\s+TOTAL/,
+    /SUBTOTAL/,
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
 
   const linhasCobranca = countRegexMatches(
     normalized,
-    /(?:^|\n)\s*\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+R\$\s*/g,
+    /(?:^|\n)\s*\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g,
   );
-  const subtotais = countRegexMatches(normalized, /(?:^|\n)\s*Subtotal\s+R\$\s*/g);
+  const subtotais = countRegexMatches(normalized, /(?:^|\n)\s*Subtotal\b/g);
+  const temCabecalhoSafira = /RELATORIOS?\s+DE\s+RECIBOS?\s+EM\s+ABERTO/.test(loose);
+  const temCondominioSafira = /\b\d+\s*-\s*SAFIRA\b/.test(loose);
 
   return {
-    ok: sinais >= 4 && linhasCobranca > 0,
-    confianca: Math.min(99, sinais * 14 + Math.min(35, linhasCobranca) + Math.min(12, subtotais)),
+    ok: (temCabecalhoSafira || temCondominioSafira || sinais >= 5) && linhasCobranca > 0,
+    confianca: Math.min(
+      99,
+      (temCabecalhoSafira ? 28 : 0) +
+        (temCondominioSafira ? 22 : 0) +
+        sinais * 8 +
+        Math.min(30, linhasCobranca) +
+        Math.min(10, subtotais),
+    ),
     condominioDetectado: extractSafiraCondominio(normalized),
     semDevedores: false,
   };
@@ -3082,19 +3100,27 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
 
     if (/^Subtotal\b/i.test(line)) continue;
 
-    const rowMatch = line.match(
-      /^(\d{2}\/\d{2}\/\d{4})\s+(\d{8,})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/,
+    const rowStartMatch = line.match(/^(\d{2}\/\d{2}\/\d{4})\s+(\d{8,})\b/);
+    if (!rowStartMatch || !unidadeAtual) continue;
+
+    const valores = [...line.matchAll(/(?:R\$\s*)?((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g)].map(
+      (match) => match[1],
     );
 
-    if (!rowMatch || !unidadeAtual) continue;
+    // Depois de data e código, o Safira traz 7 valores monetários:
+    // Valor do Recibo, Multa, Correção, Juros, Honorários, Custas e Valor Total.
+    if (valores.length < 7) continue;
 
-    const valorDoRecibo = parseMoney(rowMatch[3]);
-    const multaCalculada = parseMoney(rowMatch[4]);
-    const correcaoCalculada = parseMoney(rowMatch[5]);
-    const jurosCalculado = parseMoney(rowMatch[6]);
-    const honorariosCalculados = parseMoney(rowMatch[7]);
-    const custasProcessuais = parseMoney(rowMatch[8]);
-    const valorTotalCalculado = parseMoney(rowMatch[9]);
+    const [valorReciboRaw, multaRaw, correcaoRaw, jurosRaw, honorariosRaw, custasRaw] = valores;
+    const valorTotalRaw = valores[valores.length - 1];
+
+    const valorDoRecibo = parseMoney(valorReciboRaw);
+    const multaCalculada = parseMoney(multaRaw);
+    const correcaoCalculada = parseMoney(correcaoRaw);
+    const jurosCalculado = parseMoney(jurosRaw);
+    const honorariosCalculados = parseMoney(honorariosRaw);
+    const custasProcessuais = parseMoney(custasRaw);
+    const valorTotalCalculado = parseMoney(valorTotalRaw);
 
     // Safira entrega o valor operacional correto na coluna "Valor do Recibo".
     // A coluna "Valor Total" já vem com multa/correção/juros calculados pela origem
@@ -3104,8 +3130,8 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
       bloco: blocoAtual || "0",
       unidade: unidadeAtual,
       responsavel: responsavelAtual,
-      recibo: rowMatch[2],
-      vencimento: rowMatch[1],
+      recibo: rowStartMatch[2],
+      vencimento: rowStartMatch[1],
       valorPrincipal: valorDoRecibo,
       multa: 0,
       correcao: 0,
@@ -3482,6 +3508,29 @@ export async function parseRelatorioBuffer(
     const deteccaoMoemaFlat = detectMoemaFlatSlavieroCobrancas(text);
     const deteccaoSafira = detectSafiraCobrancas(text);
     const deteccaoLello = detectLelloCobrancas(text);
+
+
+    // Safira tem assinatura própria muito forte. Priorizar aqui evita que uma
+    // leitura parcial caia no erro genérico de padrão não reconhecido quando
+    // outros detectores ficam com confiança parecida.
+    if (deteccaoSafira.ok && deteccaoSafira.confianca >= 70) {
+      const recibos = parseSafiraCobrancasPdf(text);
+      const padraoDetectado = buildPadraoDetectado(PADRAO_SAFIRA_COBRANCAS, {
+        condominioDetectado: deteccaoSafira.condominioDetectado,
+        confianca: deteccaoSafira.confianca,
+      });
+
+      if (recibos.length) {
+        return buildPreviewFromRecibos({
+          origem: "Safira - Relatórios de Recibos em Aberto",
+          filename: input.filename,
+          recibos,
+          condominioCnpj: input.condominioCnpj,
+          origemSistema: "Safira",
+          padraoDetectado,
+        });
+      }
+    }
 
 
     if (
