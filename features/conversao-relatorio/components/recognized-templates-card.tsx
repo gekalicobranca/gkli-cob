@@ -78,7 +78,7 @@ const templates: RecognizedTemplate[] = [
     status: "Homologado",
     cobertura: "PDF · Relatórios de Recibos em Aberto",
     descricao:
-      "Converte cada linha de débito em uma cobrança GKLI, com valor do recibo como valor original e valor total como valor atualizado.",
+      "Converte cada linha de débito em uma cobrança GKLI usando somente Valor do Recibo como valor importável; multa, correção, juros e Valor Total ficam apenas nas observações.",
     exemplos: "Safira",
   },
   {
