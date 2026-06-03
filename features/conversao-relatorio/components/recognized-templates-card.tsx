@@ -99,6 +99,15 @@ const templates: RecognizedTemplate[] = [
       "Importa layouts tabulares com unidade, nome, vencimento, referência e valor, gerando a saída oficial de Importações/Cobranças.",
   },
   {
+    nome: "Cipó · Cobranças OCR",
+    categoria: "Cobranças",
+    status: "Homologado",
+    cobertura: "XLSX · PDF digitalizado convertido por OCR",
+    descricao:
+      "Reconstrói cobranças a partir das abas Table do OCR, identifica unidade Cipó, recibo, acordo, vencimento e valor do recibo, ignorando linhas de composição.",
+    exemplos: "Torre Cipó",
+  },
+  {
     nome: "Novos fornecedores",
     categoria: "Cobranças",
     status: "Próxima fase",

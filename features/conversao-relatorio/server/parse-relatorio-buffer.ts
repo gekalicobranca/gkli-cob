@@ -258,6 +258,19 @@ const PADRAO_CONECTCON_COBRANCAS: Omit<
   ativo: true,
 };
 
+const PADRAO_CIPO_OCR_XLS_COBRANCAS: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "cipo-ocr-xls-cobrancas-v1",
+  nome: "Cipó · Cobranças OCR",
+  tipoConversao: "cobrancas",
+  fornecedor: "OCR / Conversão externa",
+  sistema: "XLSX gerado de PDF digitalizado",
+  relatorio: "Recibos por unidade - Torre Cipó",
+  ativo: true,
+};
+
 function buildPadraoDetectado(
   padrao: Omit<PadraoConversaoDetectado, "condominioDetectado" | "confianca">,
   options: { condominioDetectado?: string | null; confianca?: number } = {},
@@ -554,6 +567,119 @@ function getHeaderIndex(row: unknown[]) {
       (cell) => cell === "total" || cell.endsWith(" total"),
     ),
   };
+}
+
+function normalizeUnidadeSemZeros(value: unknown) {
+  const raw = normalize(value);
+  const onlyDigits = raw.replace(/\D/g, "");
+
+  if (!onlyDigits) return raw;
+
+  return onlyDigits.replace(/^0+/, "") || "0";
+}
+
+function detectCipoOcrXlsRows(rows: unknown[][]) {
+  const fullText = rows.map(rowToText).join("\n");
+  const normalizedText = fullText
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  const unidadeHeaders = (normalizedText.match(/\bcipo\s+0{2,}\d{1,}/g) ?? []).length;
+  const resumoUnidade = (normalizedText.match(/resumo da unidade/g) ?? []).length;
+  const recibos = (normalizedText.match(/\brecibos?\s*:/g) ?? []).length;
+  const hasReciboHeader = normalizedText.includes("recibo") && normalizedText.includes("cobranca") && normalizedText.includes("acordo");
+
+  let confianca = 0;
+  if (unidadeHeaders > 0) confianca += 35;
+  if (resumoUnidade > 0) confianca += 25;
+  if (recibos > 0) confianca += 15;
+  if (hasReciboHeader) confianca += 20;
+  if (normalizedText.includes("resumo do bloco cipo")) confianca += 10;
+
+  return {
+    ok: confianca >= 60,
+    confianca: Math.min(99, confianca),
+    condominioDetectado: unidadeHeaders > 0 ? "Torre Cipó" : null,
+  };
+}
+
+function parseCipoOcrXls(rows: unknown[][]): ReciboCondopro[] {
+  const recibos: ReciboCondopro[] = [];
+  let unidadeAtual = "";
+  let blocoAtual = "CIPÓ";
+
+  for (const rawRow of rows) {
+    const row = rawRow.map((cell) => normalize(cell));
+    const text = rowToText(row);
+
+    if (!text) continue;
+
+    const unidadeMatch = text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .match(/\bCIPO\s+(0{2,}\d{1,})\b/i);
+
+    if (unidadeMatch) {
+      unidadeAtual = normalizeUnidadeSemZeros(unidadeMatch[1]);
+      blocoAtual = "CIPÓ";
+      continue;
+    }
+
+    if (!unidadeAtual) continue;
+
+    if (/resumo\s+(da\s+unidade|do\s+bloco)/i.test(text)) continue;
+    if (/^recibo\b/i.test(text) && /vencimento/i.test(text)) continue;
+
+    const dataIndex = row.findIndex((cell) => Boolean(normalizeDate(cell)));
+    if (dataIndex < 0) continue;
+
+    const vencimento = normalizeDate(row[dataIndex]);
+    const valorCell = row
+      .slice(dataIndex + 1)
+      .reverse()
+      .find((cell) => {
+        const value = parseMoney(cell);
+        return Number.isFinite(value) && value > 0;
+      });
+
+    const valor = parseMoney(valorCell);
+    if (!vencimento || valor <= 0) continue;
+
+    const cellsBeforeDate = row.slice(0, dataIndex);
+    const reciboText = cellsBeforeDate.map((cell) => normalize(cell)).join(" ");
+    const numeros = reciboText.match(/\b\d{5,10}\b/g) ?? [];
+    const recibo = numeros[0] ?? "";
+    const acordo = numeros.length > 1 ? numeros[numeros.length - 1] : "";
+
+    if (!recibo) continue;
+
+    recibos.push({
+      bloco: blocoAtual,
+      unidade: unidadeAtual,
+      responsavel: "Responsável não identificado",
+      recibo,
+      vencimento,
+      valorPrincipal: valor,
+      multa: 0,
+      correcao: 0,
+      juros: 0,
+      valorTotal: valor,
+      marcadorOrigem: acordo ? `Acordo ${acordo}` : undefined,
+      situacaoOrigem: acordo ? "acordo" : "normal",
+      detalhesOrigem: acordo
+        ? `XLSX OCR Cipó. Recibo ${recibo}. Acordo ${acordo}.`
+        : `XLSX OCR Cipó. Recibo ${recibo}.`,
+    });
+  }
+
+  const seen = new Set<string>();
+  return recibos.filter((recibo) => {
+    const key = `${recibo.unidade}|${recibo.recibo}|${recibo.vencimento}|${recibo.valorTotal}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
@@ -3751,6 +3877,26 @@ export async function parseRelatorioBuffer(
 
   const fullText = allRows.map(rowToText).join("\n").toLowerCase();
 
+  const deteccaoCipoOcrXls = detectCipoOcrXlsRows(allRows);
+
+  if (deteccaoCipoOcrXls.ok) {
+    const recibos = parseCipoOcrXls(allRows);
+
+    if (recibos.length) {
+      return buildPreviewFromRecibos({
+        origem: "Cipó - XLSX OCR de PDF digitalizado",
+        filename: input.filename,
+        recibos,
+        condominioCnpj: input.condominioCnpj,
+        origemSistema: "XLSX OCR - Torre Cipó",
+        padraoDetectado: buildPadraoDetectado(PADRAO_CIPO_OCR_XLS_COBRANCAS, {
+          condominioDetectado: deteccaoCipoOcrXls.condominioDetectado,
+          confianca: deteccaoCipoOcrXls.confianca,
+        }),
+      });
+    }
+  }
+
   const looksCondoproBbz =
     fullText.includes("condopro") ||
     (fullText.includes("total do recibo") &&
@@ -3781,7 +3927,7 @@ export async function parseRelatorioBuffer(
     return {
       ok: false,
       error:
-        "Ainda não reconheci esse layout. Nesta versão, o parser server-side suporta Conectcon e Condopro/BBZ para cobranças.",
+        "Ainda não reconheci esse layout. Nesta versão, o parser server-side suporta Conectcon, Condopro/BBZ e Cipó OCR XLSX para cobranças.",
     };
   }
 
