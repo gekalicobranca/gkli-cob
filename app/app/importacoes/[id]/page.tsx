@@ -1,4 +1,4 @@
-﻿import { notFound } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { AlertTriangle, CheckCircle2, FileCheck2, ShieldX, WalletCards } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
@@ -77,9 +77,9 @@ function isDivergenciaConciliacao(mensagem: string) {
   return mensagem.toLowerCase().includes('diverg')
 }
 
-function isJaExistenteConciliacao(mensagem: string) {
+function isDescarteConciliacao(mensagem: string) {
   const normalizada = mensagem.toLowerCase()
-  return normalizada.includes('ja existia') || normalizada.includes('já existia')
+  return normalizada.includes('descartada') || normalizada.includes('ja existia') || normalizada.includes('já existia')
 }
 
 export default async function ImportacaoDetalhePage({ params, searchParams }: PageProps) {
@@ -93,10 +93,17 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
 
   const resumo = importacao.resumo ?? {}
   const resultadoFinal = resumo.resultado ?? null
-  const resultadoMensagens = (resultadoFinal?.erros ?? []) as string[]
-  const mensagensDivergentes = resultadoMensagens.filter(isDivergenciaConciliacao)
-  const mensagensJaExistentes = resultadoMensagens.filter(isJaExistenteConciliacao)
-  const mensagensOutras = resultadoMensagens.filter((mensagem) => !isDivergenciaConciliacao(mensagem) && !isJaExistenteConciliacao(mensagem))
+  const mensagensErros = (resultadoFinal?.erros ?? []) as string[]
+  const mensagensDescartes = [
+    ...((resultadoFinal?.descartes ?? []) as string[]),
+    ...mensagensErros.filter(isDescarteConciliacao),
+  ]
+  const mensagensDivergentes = [
+    ...((resultadoFinal?.divergencias ?? []) as string[]),
+    ...mensagensErros.filter(isDivergenciaConciliacao),
+  ]
+  const resultadoMensagens = [...mensagensDescartes, ...mensagensDivergentes, ...mensagensErros.filter((mensagem) => !isDivergenciaConciliacao(mensagem) && !isDescarteConciliacao(mensagem))]
+  const mensagensOutras = mensagensErros.filter((mensagem) => !isDivergenciaConciliacao(mensagem) && !isDescarteConciliacao(mensagem))
   const linhasComAlerta = itens.filter((item: any) => getAlertas(item.erros ?? []).length > 0).length
   const bloqueadas = itens.filter((item: any) => !item.valido).length
   const canConfirm = ['preview', 'erro'].includes(importacao.status) && importacao.total_validas > 0
@@ -173,10 +180,10 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
 
           {resultadoMensagens.length > 0 ? (
             <div className="mt-4 space-y-3">
-              {mensagensJaExistentes.length > 0 ? (
-                <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-sm">
-                  <p className="font-medium text-slate-950">Já existiam na base</p>
-                  <p className="mt-1">{mensagensJaExistentes.join(' · ')}</p>
+              {mensagensDescartes.length > 0 ? (
+                <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm">
+                  <p className="font-medium text-slate-950">Descartes automáticos</p>
+                  <p className="mt-1">{mensagensDescartes.join(' · ')}</p>
                 </div>
               ) : null}
               {mensagensDivergentes.length > 0 ? (

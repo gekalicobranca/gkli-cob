@@ -82,6 +82,8 @@ type ImportExecutionResult = {
   divergentes: number;
   ignorados: number;
   erros: string[];
+  descartes: string[];
+  divergencias: string[];
 };
 
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
@@ -104,7 +106,16 @@ function assertPayloadsPermitidos(scope: CarteiraScope, payloads: Record<string,
 }
 
 function emptyImportExecutionResult(): ImportExecutionResult {
-  return { importados: 0, criados: 0, atualizados: 0, divergentes: 0, ignorados: 0, erros: [] };
+  return {
+    importados: 0,
+    criados: 0,
+    atualizados: 0,
+    divergentes: 0,
+    ignorados: 0,
+    erros: [],
+    descartes: [],
+    divergencias: [],
+  };
 }
 
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
@@ -1502,8 +1513,8 @@ async function importarCobrancas(
       const cobrancaExistenteId = conciliacao.cobrancaId;
       if (conciliacao.status === "ja_existente") {
         resultado.ignorados += 1;
-        resultado.erros.push(
-          `Linha ${linha}: cobrança já existia e foi ignorada (${cobrancaExistenteId}).`,
+        resultado.descartes.push(
+          `Linha ${linha} descartada: cobrança já registrada para esta unidade, vencimento, recibo/referência e valor.`,
         );
         continue;
       }
@@ -1511,8 +1522,8 @@ async function importarCobrancas(
       if (conciliacao.status === "divergente") {
         resultado.divergentes += 1;
         resultado.ignorados += 1;
-        resultado.erros.push(
-          `Linha ${linha}: cobranca parecida encontrada com divergencia de valores (${conciliacao.cobrancaId}). Revise antes de importar.`,
+        resultado.divergencias.push(
+          `Linha ${linha} não importada: existe cobrança semelhante, mas com valor diferente. Revisar antes de gravar.`,
         );
         continue;
       }
@@ -1889,6 +1900,8 @@ export async function confirmarImportacao(formData: FormData) {
       divergentes: 0,
       ignorados: Math.max(0, payloads.length - resultadoLegado.importados),
       erros: resultadoLegado.erros,
+      descartes: [],
+      divergencias: [],
     };
   }
 
@@ -1906,6 +1919,8 @@ export async function confirmarImportacao(formData: FormData) {
 
   (resultado as any).atualizados = execucao.atualizados;
   (resultado as any).divergentes = execucao.divergentes;
+  (resultado as any).descartes = execucao.descartes;
+  (resultado as any).divergencias = execucao.divergencias;
 
   await finalizarImportacao({
     supabase,
