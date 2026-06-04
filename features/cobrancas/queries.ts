@@ -3,123 +3,40 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/normalize-relation'
 
-export type CobrancaSortField =
-  | 'operacional'
-  | 'condominio'
-  | 'unidade'
-  | 'responsavel'
-  | 'vencimento'
-  | 'valor_original'
-  | 'valor_atualizado'
-  | 'status'
-  | 'created_at'
-
-export type SortDirection = 'asc' | 'desc'
-
 export type CobrancaListFilters = {
   search?: string
   status?: string
   vencimentoDe?: string
   vencimentoAte?: string
-  orderBy?: CobrancaSortField | string
-  orderDir?: SortDirection | string
+  judicializacaoUnidade?: string
 }
 
-function normalizeSortText(value: unknown) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
+function getStatusOperacional(row: any) {
+  return row.status_operacional ?? row.status
 }
 
-function normalizeUnitSort(value: unknown) {
-  const raw = String(value ?? '').trim()
-  const onlyDigits = raw.replace(/\D/g, '')
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.filter(Boolean) as string[]))
+}
 
-  if (onlyDigits && /^0*\d+$/.test(raw.replace(/\s/g, ''))) {
-    return onlyDigits.padStart(12, '0')
+async function getUnidadeIdsComJudicializacaoAtiva(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  unidadeIds: string[],
+) {
+  const ids = uniqueStrings(unidadeIds)
+  if (ids.length === 0) return new Set<string>()
+
+  const { data, error } = await supabase
+    .from('cobrancas')
+    .select('unidade_id, status, status_operacional')
+    .in('unidade_id', ids)
+    .or('status_operacional.eq.judicializado,status.eq.judicializado')
+
+  if (error) {
+    throw new Error(`Erro ao verificar judicialização por unidade: ${error.message}`)
   }
 
-  return normalizeSortText(raw)
-}
-
-function toDateValue(value?: string | null) {
-  if (!value) return Number.MAX_SAFE_INTEGER
-  const text = String(value)
-  const parsed = new Date(text.includes('T') ? text : `${text}T00:00:00`).getTime()
-  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed
-}
-
-function compareDates(a?: string | null, b?: string | null) {
-  return toDateValue(a) - toDateValue(b)
-}
-
-function compareNumbers(a: unknown, b: unknown) {
-  return Number(a ?? 0) - Number(b ?? 0)
-}
-
-function compareText(a: unknown, b: unknown) {
-  return normalizeSortText(a).localeCompare(normalizeSortText(b), 'pt-BR', { numeric: true })
-}
-
-function compareUnit(a: unknown, b: unknown) {
-  return normalizeUnitSort(a).localeCompare(normalizeUnitSort(b), 'pt-BR', { numeric: true })
-}
-
-function compareOperationalCobranca(a: any, b: any) {
-  const condominio = compareText(a.condominios?.nome, b.condominios?.nome)
-  if (condominio !== 0) return condominio
-
-  const bloco = compareText(a.unidades?.bloco, b.unidades?.bloco)
-  if (bloco !== 0) return bloco
-
-  const unidade = compareUnit(a.unidades?.identificacao, b.unidades?.identificacao)
-  if (unidade !== 0) return unidade
-
-  return compareDates(a.vencimento, b.vencimento)
-}
-
-function sortCobrancas(rows: any[], orderBy: string = 'operacional', orderDir: string = 'asc') {
-  const direction = orderDir === 'desc' ? -1 : 1
-
-  return [...rows].sort((a, b) => {
-    let result = 0
-
-    switch (orderBy) {
-      case 'condominio':
-        result = compareText(a.condominios?.nome, b.condominios?.nome)
-        break
-      case 'unidade':
-        result = compareText(a.condominios?.nome, b.condominios?.nome) ||
-          compareText(a.unidades?.bloco, b.unidades?.bloco) ||
-          compareUnit(a.unidades?.identificacao, b.unidades?.identificacao)
-        break
-      case 'responsavel':
-        result = compareText(a.unidades?.responsavel_nome, b.unidades?.responsavel_nome)
-        break
-      case 'vencimento':
-        result = compareDates(a.vencimento, b.vencimento)
-        break
-      case 'valor_original':
-        result = compareNumbers(a.valor_original, b.valor_original)
-        break
-      case 'valor_atualizado':
-        result = compareNumbers(a.valor_atualizado, b.valor_atualizado)
-        break
-      case 'status':
-        result = compareText(a.status_operacional ?? a.status, b.status_operacional ?? b.status)
-        break
-      case 'created_at':
-        result = compareDates(a.created_at, b.created_at)
-        break
-      default:
-        result = compareOperationalCobranca(a, b)
-    }
-
-    if (result !== 0) return result * direction
-    return compareOperationalCobranca(a, b)
-  })
+  return new Set((data ?? []).map((row: any) => row.unidade_id).filter(Boolean))
 }
 
 export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListFilters = {}) {
@@ -140,6 +57,9 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
       status,
       status_operacional,
       status_financeiro,
+      carteira_id,
+      condominio_id,
+      unidade_id,
       created_at,
       ultima_interacao_at,
       condominios(nome),
@@ -167,12 +87,27 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
     throw new Error(`Erro ao carregar cobranças: ${error.message}`)
   }
 
-  const rows = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+  const rowsBase = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+  const unidadesJudicializadas = await getUnidadeIdsComJudicializacaoAtiva(
+    supabase,
+    rowsBase.map((row: any) => row.unidade_id),
+  )
+  let rows = rowsBase.map((row: any) => ({
+    ...row,
+    unidade_bloqueada_por_judicializacao: Boolean(row.unidade_id && unidadesJudicializadas.has(row.unidade_id)),
+  }))
+
+  if (filters.judicializacaoUnidade === 'sim') {
+    rows = rows.filter((row: any) => row.unidade_bloqueada_por_judicializacao)
+  } else if (filters.judicializacaoUnidade === 'nao') {
+    rows = rows.filter((row: any) => !row.unidade_bloqueada_por_judicializacao)
+  }
+
   const search = String(filters.search ?? '').trim().toLowerCase()
 
-  if (!search) return sortCobrancas(rows, filters.orderBy, filters.orderDir)
+  if (!search) return rows
 
-  const filteredRows = rows.filter((row: any) => {
+  return rows.filter((row: any) => {
     const haystack = [
       row.competencia,
       row.status,
@@ -188,8 +123,6 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
 
     return haystack.includes(search)
   })
-
-  return sortCobrancas(filteredRows, filters.orderBy, filters.orderDir)
 }
 
 export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {

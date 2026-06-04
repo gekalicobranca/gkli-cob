@@ -42,7 +42,10 @@ function getValorAtualizado(cobranca: any) {
 
 function isBloqueada(cobranca: any) {
   const status = cobranca.status_operacional ?? cobranca.status;
-  return (COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(status);
+  return (
+    cobranca.unidade_bloqueada_por_judicializacao ||
+    (COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(status)
+  );
 }
 
 export default async function SelecionarCobrancasAcordoPage({
@@ -71,6 +74,7 @@ export default async function SelecionarCobrancasAcordoPage({
       })
     : null;
   const acordoBloqueadoPorPlanilha = Boolean(pendenciaPlanilha);
+  const acordoBloqueadoPorJudicializacao = Boolean((data as any).unidadeBloqueadaPorJudicializacao);
   const selecionaveis = cobrancas.filter((item) => !isBloqueada(item));
   const totalSelecionavel = selecionaveis.reduce(
     (total, item) => total + getValorAtualizado(item),
@@ -186,8 +190,19 @@ export default async function SelecionarCobrancasAcordoPage({
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 Marque apenas os recibos que farão parte do acordo. Débitos fora
                 da régua aparecem aqui também; cobranças já bloqueadas para novo
-                acordo ficam travadas.
+                acordo ficam travadas. Unidades com judicialização ativa também bloqueiam novas dívidas/vincendas para acordo.
               </p>
+              {acordoBloqueadoPorJudicializacao ? (
+                <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <p className="text-sm font-semibold text-red-950">
+                    Unidade bloqueada para acordo
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-red-900">
+                    Esta unidade possui cobrança judicializada. Novas dívidas e vincendas continuam visíveis para saneamento, mas não podem ser agrupadas em acordo até decisão do gestor da carteira.
+                  </p>
+                </div>
+              ) : null}
+
               {query.planilha === "solicitada" ? (
                 <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                   Pendência criada para solicitar a planilha de débitos à administradora.
@@ -216,7 +231,7 @@ export default async function SelecionarCobrancasAcordoPage({
               <div className="mt-5 grid gap-2">
                 <button
                   type="submit"
-                  disabled={acordoBloqueadoPorPlanilha}
+                  disabled={acordoBloqueadoPorPlanilha || acordoBloqueadoPorJudicializacao || selecionaveis.length === 0}
                   className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-transparent bg-[var(--gkli-primary)] px-4 text-sm font-medium text-white shadow-sm transition hover:bg-[var(--gkli-primary-hover)] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
                 >
                   Simular acordo

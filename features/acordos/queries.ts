@@ -1,108 +1,61 @@
 import { createClient } from "@/utils/supabase/server";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
+import { COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO } from "@/lib/constants/cobrancas";
 
-export type AcordoListFilters = {
-  search?: string
-  status?: string
-  tipo?: string
-  orderBy?: string
-  orderDir?: string
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.filter(Boolean) as string[]));
 }
 
-function normalizeSortText(value: unknown) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase()
+function statusOperacionalDaCobranca(cobranca: any) {
+  return cobranca.status_operacional ?? cobranca.status;
 }
 
-function normalizeUnitSort(value: unknown) {
-  const raw = String(value ?? '').trim()
-  const onlyDigits = raw.replace(/\D/g, '')
+async function getUnidadeIdsComJudicializacaoAtiva(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  unidadeIds: string[],
+) {
+  const ids = uniqueStrings(unidadeIds);
+  if (ids.length === 0) return new Set<string>();
 
-  if (onlyDigits && /^0*\d+$/.test(raw.replace(/\s/g, ''))) {
-    return onlyDigits.padStart(12, '0')
+  const { data, error } = await supabase
+    .from("cobrancas")
+    .select("unidade_id, status, status_operacional")
+    .in("unidade_id", ids)
+    .or("status_operacional.eq.judicializado,status.eq.judicializado");
+
+  if (error) {
+    throw new Error(`Erro ao verificar judicialização por unidade: ${error.message}`);
   }
 
-  return normalizeSortText(raw)
+  return new Set((data ?? []).map((row: any) => row.unidade_id).filter(Boolean));
 }
 
-function compareText(a: unknown, b: unknown) {
-  return normalizeSortText(a).localeCompare(normalizeSortText(b), 'pt-BR', { numeric: true })
+async function marcarBloqueioJudicializacaoUnidade(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cobrancas: any[],
+) {
+  const unidadesJudicializadas = await getUnidadeIdsComJudicializacaoAtiva(
+    supabase,
+    cobrancas.map((cobranca) => cobranca.unidade_id),
+  );
+
+  return cobrancas.map((cobranca) => ({
+    ...cobranca,
+    unidade_bloqueada_por_judicializacao: Boolean(
+      cobranca.unidade_id && unidadesJudicializadas.has(cobranca.unidade_id),
+    ),
+  }));
 }
 
-function compareUnit(a: unknown, b: unknown) {
-  return normalizeUnitSort(a).localeCompare(normalizeUnitSort(b), 'pt-BR', { numeric: true })
+function isBloqueadaParaAcordo(cobranca: any) {
+  return (COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(
+    statusOperacionalDaCobranca(cobranca),
+  );
 }
 
-function compareNumbers(a: unknown, b: unknown) {
-  return Number(a ?? 0) - Number(b ?? 0)
-}
-
-function toDateValue(value?: string | null) {
-  if (!value) return Number.MAX_SAFE_INTEGER
-  const text = String(value)
-  const parsed = new Date(text.includes('T') ? text : `${text}T00:00:00`).getTime()
-  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed
-}
-
-function compareDates(a?: string | null, b?: string | null) {
-  return toDateValue(a) - toDateValue(b)
-}
-
-function compareOperationalAcordo(a: any, b: any) {
-  return (
-    compareText(a.condominios?.nome, b.condominios?.nome) ||
-    compareText(a.unidades?.bloco, b.unidades?.bloco) ||
-    compareUnit(a.unidades?.identificacao, b.unidades?.identificacao) ||
-    compareDates(a.data_acordo, b.data_acordo)
-  )
-}
-
-function sortAcordos(rows: any[], orderBy = 'data_acordo', orderDir = 'desc') {
-  const direction = orderDir === 'desc' ? -1 : 1
-
-  return [...rows].sort((a, b) => {
-    let result = 0
-
-    switch (orderBy) {
-      case 'operacional':
-        result = compareOperationalAcordo(a, b)
-        break
-      case 'condominio':
-        result = compareText(a.condominios?.nome, b.condominios?.nome)
-        break
-      case 'unidade':
-        result = compareText(a.condominios?.nome, b.condominios?.nome) || compareText(a.unidades?.bloco, b.unidades?.bloco) || compareUnit(a.unidades?.identificacao, b.unidades?.identificacao)
-        break
-      case 'responsavel':
-        result = compareText(a.unidades?.responsavel_nome, b.unidades?.responsavel_nome)
-        break
-      case 'valor_acordado':
-        result = compareNumbers(a.valor_acordado, b.valor_acordado)
-        break
-      case 'entrada':
-        result = compareNumbers(a.entrada, b.entrada)
-        break
-      case 'status':
-        result = compareText(a.status, b.status)
-        break
-      case 'tipo':
-        result = compareText(a.tipo, b.tipo)
-        break
-      case 'data_acordo':
-      default:
-        result = compareDates(a.data_acordo, b.data_acordo)
-    }
-
-    if (result !== 0) return result * direction
-    return compareOperationalAcordo(a, b)
-  })
-}
-
-export async function listAcordos(scope?: CarteiraScope, filters: AcordoListFilters = {}) {
+export async function listAcordos(scope?: CarteiraScope) {
   const supabase = await createClient();
 
   let query = supabase
@@ -145,37 +98,7 @@ export async function listAcordos(scope?: CarteiraScope, filters: AcordoListFilt
     throw new Error(`Erro ao carregar acordos: ${error.message}`);
   }
 
-  let rows = (data ?? []) as any[];
-
-  if (filters.status) {
-    rows = rows.filter((row) => String(row.status ?? '') === filters.status);
-  }
-
-  if (filters.tipo) {
-    rows = rows.filter((row) => String(row.tipo ?? '') === filters.tipo);
-  }
-
-  const search = String(filters.search ?? '').trim().toLowerCase();
-  if (search) {
-    rows = rows.filter((row) => {
-      const haystack = [
-        row.status,
-        row.tipo,
-        row.numero_processo,
-        row.condominios?.nome,
-        row.unidades?.identificacao,
-        row.unidades?.bloco,
-        row.unidades?.responsavel_nome,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-
-      return haystack.includes(search);
-    });
-  }
-
-  return sortAcordos(rows, filters.orderBy, filters.orderDir);
+  return data ?? [];
 }
 
 export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
@@ -375,7 +298,12 @@ export async function listCobrancasElegiveisParaAcordo(scope?: CarteiraScope) {
     );
   }
 
-  return data ?? [];
+  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, (data ?? []) as any[]);
+
+  return cobrancas.filter((cobranca) =>
+    !isBloqueadaParaAcordo(cobranca) &&
+    !cobranca.unidade_bloqueada_por_judicializacao
+  );
 }
 export type TimelineOperacionalItem = {
   id: string;
@@ -542,10 +470,16 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
     throw new Error(`Erro ao carregar cobranças da unidade: ${error.message}`);
   }
 
+  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, (data ?? []) as any[]);
+  const unidadeBloqueadaPorJudicializacao = cobrancas.some((cobranca) =>
+    Boolean(cobranca.unidade_bloqueada_por_judicializacao),
+  );
+
   return {
     cobrancaOrigemId: cobrancaId ?? null,
     unidadeId,
-    cobrancas: data ?? [],
+    unidadeBloqueadaPorJudicializacao,
+    cobrancas,
   };
 }
 
@@ -608,7 +542,12 @@ export async function listCobrancasSelecionadasParaAcordo(
     );
   }
 
-  return data ?? [];
+  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, (data ?? []) as any[]);
+
+  return cobrancas.filter((cobranca) =>
+    !isBloqueadaParaAcordo(cobranca) &&
+    !cobranca.unidade_bloqueada_por_judicializacao
+  );
 }
 
 export async function getPendenciaPlanilhaDebitosAberta(params: {
@@ -679,4 +618,421 @@ export async function getPendenciaAprovacaoSindicoAberta(params: {
   }
 
   return data ?? null;
+}
+
+
+
+export type AgreementHealth = "saudavel" | "atencao" | "critico";
+
+function normalizeDateOnly(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(String(value).includes("T") ? value : `${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function todayDateOnly() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function diffDaysFromToday(value?: string | null) {
+  const date = normalizeDateOnly(value);
+  if (!date) return null;
+  return Math.round((date.getTime() - todayDateOnly().getTime()) / 86400000);
+}
+
+function isParcelaEncerrada(parcela: any) {
+  return ["paga", "pago", "quitada", "quitado", "cancelada", "cancelado"].includes(
+    String(parcela.status ?? "").toLowerCase(),
+  ) || Boolean(parcela.data_pagamento);
+}
+
+export function calculateAgreementHealth(parcelas: any[]): {
+  saude: AgreementHealth;
+  vencidas: number;
+  venceHoje: number;
+  proximos7Dias: number;
+} {
+  const abertas = (parcelas ?? []).filter((parcela) => !isParcelaEncerrada(parcela));
+  const vencidas = abertas.filter((parcela) => {
+    const diff = diffDaysFromToday(parcela.vencimento);
+    return diff !== null && diff < 0;
+  }).length;
+  const venceHoje = abertas.filter((parcela) => diffDaysFromToday(parcela.vencimento) === 0).length;
+  const proximos7Dias = abertas.filter((parcela) => {
+    const diff = diffDaysFromToday(parcela.vencimento);
+    return diff !== null && diff >= 1 && diff <= 7;
+  }).length;
+
+  return {
+    saude: vencidas >= 2 ? "critico" : vencidas === 1 ? "atencao" : "saudavel",
+    vencidas,
+    venceHoje,
+    proximos7Dias,
+  };
+}
+
+function attachAgreementHealth(acordos: any[], parcelas: any[]) {
+  const parcelasPorAcordo = new Map<string, any[]>();
+  for (const parcela of parcelas) {
+    const acordoId = parcela.acordo_id;
+    if (!acordoId) continue;
+    if (!parcelasPorAcordo.has(acordoId)) parcelasPorAcordo.set(acordoId, []);
+    parcelasPorAcordo.get(acordoId)!.push(parcela);
+  }
+
+  return acordos.map((acordo) => {
+    const parcelasDoAcordo = parcelasPorAcordo.get(acordo.id) ?? [];
+    const health = calculateAgreementHealth(parcelasDoAcordo);
+    return {
+      ...acordo,
+      parcelas_alertas: health,
+      saude_acordo: health.saude,
+    };
+  });
+}
+
+export async function listAcordosComSaude(scope?: CarteiraScope) {
+  const acordos = await listAcordos(scope);
+  const parcelas = await getParcelasDosAcordos(acordos.map((acordo: any) => acordo.id));
+  return attachAgreementHealth(acordos as any[], parcelas);
+}
+
+export async function listFilaParcelasOperadorAcordos(scope?: CarteiraScope) {
+  const acordos = await listAcordosComSaude(scope);
+  const parcelas = await getParcelasDosAcordos(acordos.map((acordo: any) => acordo.id));
+  const acordoPorId = new Map(acordos.map((acordo: any) => [acordo.id, acordo]));
+
+  return parcelas
+    .filter((parcela) => !isParcelaEncerrada(parcela))
+    .map((parcela) => {
+      const acordo = acordoPorId.get(parcela.acordo_id) as any;
+      const diff = diffDaysFromToday(parcela.vencimento);
+      let janela_operacional = "Futuras";
+      if (diff !== null && diff < 0) janela_operacional = "Em atraso";
+      else if (diff === 0) janela_operacional = "Hoje";
+      else if (diff !== null && diff <= 7) janela_operacional = "Próximos 7 dias";
+
+      return {
+        ...parcela,
+        acordo,
+        diff_dias: diff,
+        janela_operacional,
+        saude_acordo: acordo?.saude_acordo ?? "saudavel",
+      };
+    })
+    .filter((row) => ["Em atraso", "Hoje", "Próximos 7 dias"].includes(row.janela_operacional))
+    .sort((a, b) => {
+      const da = normalizeDateOnly(a.vencimento)?.getTime() ?? 0;
+      const db = normalizeDateOnly(b.vencimento)?.getTime() ?? 0;
+      return da - db;
+    });
+}
+
+export async function listFilaOperacionalAcordos(scope?: CarteiraScope) {
+  const acordos = await listAcordosComSaude(scope)
+  return acordos
+    .filter((acordo: any) => !['quitado', 'cancelado', 'renegociado'].includes(String(acordo.status ?? '')))
+    .map((acordo: any) => {
+      const fluxo = String(acordo.fluxo_status ?? '')
+      let etapa = 'Em acompanhamento'
+      if (fluxo.includes('sindico')) etapa = 'Aguardando síndico'
+      else if (fluxo.includes('aceite')) etapa = 'Aguardando aceite'
+      else if (fluxo.includes('boleto')) etapa = 'Aguardando boletos'
+      else if (['em_atraso', 'vencido', 'quebrado', 'rompido'].includes(String(acordo.status))) etapa = 'Atenção'
+      else if (acordo.saude_acordo === 'critico' || acordo.saude_acordo === 'atencao') etapa = 'Atenção'
+
+      return { ...acordo, etapa_operacional: etapa }
+    })
+}
+
+export async function listRompimentosAcordos(scope?: CarteiraScope) {
+  const acordos = await listAcordos(scope)
+  return acordos.filter((acordo: any) =>
+    ['quebrado', 'rompido', 'cancelado'].includes(String(acordo.status ?? '')) ||
+    ['vencido'].includes(String(acordo.status_financeiro ?? ''))
+  )
+}
+
+export type AgreementOperationalIntelligence = {
+  reincidencia: number;
+  rompimentos: number;
+};
+
+export async function getAgreementOperationalIntelligence(params: {
+  scope: CarteiraScope;
+  unidadeId?: string | null;
+}): Promise<AgreementOperationalIntelligence> {
+  if (!params.unidadeId) {
+    return { reincidencia: 0, rompimentos: 0 };
+  }
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("acordos")
+    .select("id,status,status_financeiro")
+    .eq("unidade_id", params.unidadeId);
+
+  query = applyCarteiraScope(query, params.scope.carteiraIds);
+
+  const { data, error } = await query;
+
+  if (error) {
+    // Mantém a simulação disponível mesmo se a base antiga ainda não tiver todos os campos.
+    return { reincidencia: 0, rompimentos: 0 };
+  }
+
+  const acordos = (data ?? []) as any[];
+  const rompimentos = acordos.filter((acordo) =>
+    ["rompido", "quebrado", "cancelado"].includes(String(acordo.status ?? "")) ||
+    ["vencido"].includes(String(acordo.status_financeiro ?? "")),
+  ).length;
+
+  return {
+    reincidencia: acordos.length,
+    rompimentos,
+  };
+}
+
+
+export type AgreementPerformanceSummary = {
+  acordosAtivos: number;
+  acordosEfetivados: number;
+  acordosRompidos: number;
+  valorAcordado: number;
+  valorRecuperado: number;
+  saldoAberto: number;
+  taxaEfetivacao: number;
+  taxaRecuperacao: number;
+  boletosPendentes: number;
+  aprovacoesPendentes: number;
+  aceitesPendentes: number;
+};
+
+function isStatusPago(status?: string | null) {
+  return ["pago", "paga", "quitado", "quitada", "efetivado", "efetivada"].includes(
+    String(status ?? "").toLowerCase(),
+  );
+}
+
+function isStatusRompido(acordo: any) {
+  return (
+    ["quebrado", "rompido", "cancelado"].includes(String(acordo.status ?? "")) ||
+    ["vencido"].includes(String(acordo.status_financeiro ?? ""))
+  );
+}
+
+function isStatusEfetivado(acordo: any) {
+  return ["efetivado", "quitado", "concluido", "concluído"].includes(
+    String(acordo.status ?? "").toLowerCase(),
+  );
+}
+
+async function getParcelasDosAcordos(acordoIds: string[]) {
+  const ids = uniqueStrings(acordoIds);
+  if (ids.length === 0) return [] as any[];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("parcelas_acordo")
+    .select("id,acordo_id,valor,status,data_pagamento,vencimento")
+    .in("acordo_id", ids);
+
+  if (error) {
+    return [] as any[];
+  }
+
+  return (data ?? []) as any[];
+}
+
+function calculateAgreementSummary(acordos: any[], parcelas: any[]): AgreementPerformanceSummary {
+  const valorAcordado = acordos.reduce(
+    (sum, acordo) => sum + Number(acordo.valor_acordado ?? 0),
+    0,
+  );
+  const valorRecuperado = parcelas
+    .filter((parcela) => isStatusPago(parcela.status) || Boolean(parcela.data_pagamento))
+    .reduce((sum, parcela) => sum + Number(parcela.valor ?? 0), 0);
+  const acordosRompidos = acordos.filter(isStatusRompido).length;
+  const acordosEfetivados = acordos.filter(isStatusEfetivado).length;
+  const acordosAtivos = acordos.filter(
+    (acordo) => !isStatusRompido(acordo) && !isStatusEfetivado(acordo),
+  ).length;
+  const boletosPendentes = acordos.filter((acordo) =>
+    String(acordo.fluxo_status ?? "").toLowerCase().includes("boleto"),
+  ).length;
+  const aprovacoesPendentes = acordos.filter((acordo) =>
+    String(acordo.fluxo_status ?? "").toLowerCase().includes("sindico"),
+  ).length;
+  const aceitesPendentes = acordos.filter((acordo) =>
+    String(acordo.fluxo_status ?? "").toLowerCase().includes("aceite"),
+  ).length;
+
+  return {
+    acordosAtivos,
+    acordosEfetivados,
+    acordosRompidos,
+    valorAcordado,
+    valorRecuperado,
+    saldoAberto: Math.max(0, valorAcordado - valorRecuperado),
+    taxaEfetivacao: acordos.length === 0 ? 0 : Math.round((acordosEfetivados / acordos.length) * 100),
+    taxaRecuperacao: valorAcordado === 0 ? 0 : Math.round((valorRecuperado / valorAcordado) * 100),
+    boletosPendentes,
+    aprovacoesPendentes,
+    aceitesPendentes,
+  };
+}
+
+export async function getAgreementPerformance(scope?: CarteiraScope) {
+  const acordos = await listAcordos(scope);
+  const parcelas = await getParcelasDosAcordos(acordos.map((acordo: any) => acordo.id));
+  return calculateAgreementSummary(acordos as any[], parcelas);
+}
+
+export async function listAgreementRecoveryByCarteira(scope?: CarteiraScope) {
+  const acordos = await listAcordos(scope);
+  const parcelas = await getParcelasDosAcordos(acordos.map((acordo: any) => acordo.id));
+  const supabase = await createClient();
+  const carteiraIds = uniqueStrings(acordos.map((acordo: any) => acordo.carteira_id));
+  let carteiraNames = new Map<string, string>();
+
+  if (carteiraIds.length > 0) {
+    const { data } = await supabase.from("carteiras").select("id,nome").in("id", carteiraIds);
+    carteiraNames = new Map(((data ?? []) as any[]).map((row) => [row.id, row.nome]));
+  }
+
+  return carteiraIds
+    .map((carteiraId) => {
+      const acordosCarteira = (acordos as any[]).filter((acordo) => acordo.carteira_id === carteiraId);
+      const acordoIds = new Set(acordosCarteira.map((acordo) => acordo.id));
+      const parcelasCarteira = parcelas.filter((parcela) => acordoIds.has(parcela.acordo_id));
+      const summary = calculateAgreementSummary(acordosCarteira, parcelasCarteira);
+      return {
+        id: carteiraId,
+        nome: carteiraNames.get(carteiraId) ?? "Carteira sem nome",
+        qtdAcordos: acordosCarteira.length,
+        ...summary,
+      };
+    })
+    .sort((a, b) => b.valorRecuperado - a.valorRecuperado);
+}
+
+export async function listAgreementRecoveryByCondominio(scope?: CarteiraScope) {
+  const acordos = await listAcordos(scope);
+  const parcelas = await getParcelasDosAcordos(acordos.map((acordo: any) => acordo.id));
+  const condominioIds = uniqueStrings(acordos.map((acordo: any) => acordo.condominio_id));
+
+  return condominioIds
+    .map((condominioId) => {
+      const acordosCondominio = (acordos as any[]).filter((acordo) => acordo.condominio_id === condominioId);
+      const acordoIds = new Set(acordosCondominio.map((acordo) => acordo.id));
+      const parcelasCondominio = parcelas.filter((parcela) => acordoIds.has(parcela.acordo_id));
+      const summary = calculateAgreementSummary(acordosCondominio, parcelasCondominio);
+      return {
+        id: condominioId,
+        nome: acordosCondominio[0]?.condominios?.nome ?? "Condomínio não informado",
+        qtdAcordos: acordosCondominio.length,
+        acordos: acordosCondominio,
+        ...summary,
+      };
+    })
+    .sort((a, b) => b.valorRecuperado - a.valorRecuperado);
+}
+
+export async function listAgreementBreakReport(scope?: CarteiraScope) {
+  const rompidos = await listRompimentosAcordos(scope);
+  const byCondominio = new Map<string, any>();
+
+  for (const acordo of rompidos as any[]) {
+    const condominioId = acordo.condominio_id ?? "sem-condominio";
+    const current = byCondominio.get(condominioId) ?? {
+      id: condominioId,
+      nome: acordo.condominios?.nome ?? "Condomínio não informado",
+      qtdRompimentos: 0,
+      valorRompido: 0,
+      acordos: [],
+    };
+    current.qtdRompimentos += 1;
+    current.valorRompido += Number(acordo.valor_acordado ?? 0);
+    current.acordos.push(acordo);
+    byCondominio.set(condominioId, current);
+  }
+
+  return Array.from(byCondominio.values()).sort((a, b) => b.valorRompido - a.valorRompido);
+}
+
+export async function listAgreementExceptionInbox(scope?: CarteiraScope) {
+  const [fila, rompidos] = await Promise.all([
+    listFilaOperacionalAcordos(scope),
+    listRompimentosAcordos(scope),
+  ]);
+
+  const items = [
+    ...(rompidos as any[]).map((acordo) => ({
+      id: `rompido-${acordo.id}`,
+      acordoId: acordo.id,
+      tipo: "Rompimento",
+      prioridade: "Alta",
+      titulo: `${acordo.condominios?.nome ?? "Condomínio"} · Unidade ${acordo.unidades?.identificacao ?? "-"}`,
+      descricao: acordo.unidades?.responsavel_nome ?? "Responsável não informado",
+      valor: Number(acordo.valor_acordado ?? 0),
+      data: acordo.data_acordo,
+    })),
+    ...(fila as any[])
+      .filter((acordo) => ["Aguardando síndico", "Aguardando boletos", "Atenção"].includes(acordo.etapa_operacional))
+      .map((acordo) => ({
+        id: `fila-${acordo.id}`,
+        acordoId: acordo.id,
+        tipo: acordo.etapa_operacional,
+        prioridade: acordo.etapa_operacional === "Atenção" ? "Alta" : "Média",
+        titulo: `${acordo.condominios?.nome ?? "Condomínio"} · Unidade ${acordo.unidades?.identificacao ?? "-"}`,
+        descricao: acordo.unidades?.responsavel_nome ?? "Responsável não informado",
+        valor: Number(acordo.valor_acordado ?? 0),
+        data: acordo.data_acordo,
+      })),
+  ];
+
+  return items.sort((a, b) => {
+    const prioridade = (value: string) => (value === "Alta" ? 0 : value === "Média" ? 1 : 2);
+    return prioridade(a.prioridade) - prioridade(b.prioridade);
+  });
+}
+
+export async function listAgreementApprovalInbox(scope?: CarteiraScope) {
+  const acordos = await listAcordosComSaude(scope);
+  return (acordos as any[])
+    .filter((acordo) => {
+      const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();
+      return Boolean(acordo.exige_aprovacao_sindico) && !acordo.sindico_aprovado_em && !["rompido", "cancelado", "quitado"].includes(String(acordo.status ?? "")) || fluxo.includes("sindico");
+    })
+    .map((acordo) => ({
+      ...acordo,
+      etapa_aprovacao: acordo.sindico_aprovado_em ? "Aprovado" : "Aguardando síndico",
+      prioridade: acordo.saude_acordo === "critico" ? "Alta" : "Média",
+    }))
+    .sort((a, b) => Number(b.valor_acordado ?? 0) - Number(a.valor_acordado ?? 0));
+}
+
+export async function listAgreementBoletoInbox(scope?: CarteiraScope) {
+  const acordos = await listAcordosComSaude(scope);
+  return (acordos as any[])
+    .filter((acordo) => {
+      const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();
+      return fluxo.includes("boleto") || Boolean(acordo.boletos_solicitados_em);
+    })
+    .map((acordo) => {
+      const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();
+      let etapa_boleto = "Aguardando boletos";
+      if (fluxo.includes("boletos_enviados")) etapa_boleto = "Boletos enviados";
+      else if (fluxo.includes("boletos_recebidos")) etapa_boleto = "Boletos recebidos";
+      else if (fluxo.includes("boleto")) etapa_boleto = "Aguardando boletos";
+      return { ...acordo, etapa_boleto };
+    })
+    .sort((a, b) => {
+      const ordem: Record<string, number> = { "Aguardando boletos": 0, "Boletos recebidos": 1, "Boletos enviados": 2 };
+      return (ordem[a.etapa_boleto] ?? 9) - (ordem[b.etapa_boleto] ?? 9);
+    });
 }

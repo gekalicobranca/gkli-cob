@@ -5,6 +5,7 @@ import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import {
   getPendenciaAprovacaoSindicoAberta,
   getPendenciaPlanilhaDebitosAberta,
+  getAgreementOperationalIntelligence,
   listCobrancasElegiveisParaAcordo,
   listCobrancasSelecionadasParaAcordo,
 } from "@/features/acordos/queries";
@@ -63,6 +64,12 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
         unidadeId: cobrancaReferencia.unidade_id,
       })
     : null;
+  const inteligenciaOperacional = cobrancaReferencia
+    ? await getAgreementOperationalIntelligence({
+        scope,
+        unidadeId: cobrancaReferencia.unidade_id,
+      })
+    : { reincidencia: 0, rompimentos: 0 };
 
   return (
     <div className="space-y-6">
@@ -93,6 +100,7 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
         bloqueadoPorPendenciaPlanilha={Boolean(pendenciaPlanilha)}
         bloqueadoPorPendenciaAprovacaoSindico={Boolean(pendenciaAprovacaoSindico)}
         aprovacaoSindicoSolicitada={query.sindico === "solicitada"}
+        inteligenciaOperacional={inteligenciaOperacional}
       />
     </div>
   );

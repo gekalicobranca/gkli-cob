@@ -61,16 +61,7 @@ const templates: RecognizedTemplate[] = [
     cobertura: "PDF · Inadimplentes",
     descricao:
       "Extrai unidade, responsável, vencimento, competência, código, principal, juros, multa, honorários e total; marca Jurídico como situação de origem.",
-    exemplos: "Moema Flat e demais relatórios Slaviero",
-  },
-  {
-    nome: "Moema Flat · Cobranças",
-    categoria: "Cobranças",
-    status: "Homologado",
-    cobertura: "PDF · Slaviero Inadimplentes",
-    descricao:
-      "Especialização do layout Slaviero para o Edifício Moema Flat Service, incluindo unidades numéricas, unidade REST-LEMON e marcador Jurídico quando presente no cabeçalho.",
-    exemplos: "W003A Edifício Moema Flat Service",
+    exemplos: "Moema Flat",
   },
   {
     nome: "Safira · Cobranças",
@@ -78,7 +69,7 @@ const templates: RecognizedTemplate[] = [
     status: "Homologado",
     cobertura: "PDF · Relatórios de Recibos em Aberto",
     descricao:
-      "Converte cada linha de débito em uma cobrança GKLI usando somente Valor do Recibo como valor importável; multa, correção, juros e Valor Total ficam apenas nas observações.",
+      "Converte cada linha de débito em uma cobrança GKLI, com valor do recibo como valor original e valor total como valor atualizado.",
     exemplos: "Safira",
   },
   {
@@ -99,24 +90,6 @@ const templates: RecognizedTemplate[] = [
       "Importa layouts tabulares com unidade, nome, vencimento, referência e valor, gerando a saída oficial de Importações/Cobranças.",
   },
   {
-    nome: "Office Tamboré · Cobranças",
-    categoria: "Cobranças",
-    status: "Homologado",
-    cobertura: "PDF OCR / XLS / XLSX · Devedores Detalhado",
-    descricao:
-      "Reconhece o PDF OCR e também o XLS/XLSX exportado do Office Tamboré, gerando uma cobrança por recibo e usando Vl. Recibo como valor importável.",
-    exemplos: "Subcondomínio Edifício Office Tamboré",
-  },
-  {
-    nome: "Cipó · Cobranças OCR",
-    categoria: "Cobranças",
-    status: "Homologado",
-    cobertura: "XLSX · PDF digitalizado convertido por OCR",
-    descricao:
-      "Reconstrói cobranças a partir das abas Table do OCR, identifica unidade Cipó, recibo, acordo, vencimento e valor do recibo, ignorando linhas de composição.",
-    exemplos: "Torre Cipó",
-  },
-  {
     nome: "Novos fornecedores",
     categoria: "Cobranças",
     status: "Próxima fase",
@@ -132,95 +105,94 @@ const statusTone: Record<TemplateStatus, string> = {
   "Próxima fase": "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
 }
 
-const cobrancasTemplates = templates.filter((template) => template.categoria === "Cobranças")
-const unidadesTemplates = templates.filter((template) => template.categoria === "Unidades")
-const homologadosCobrancas = cobrancasTemplates.filter(
-  (template) => template.status === "Homologado",
-).length
-
-function StatusPill({ status }: { status: TemplateStatus }) {
-  return (
-    <span
-      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusTone[status]}`}
-    >
-      {status}
-    </span>
-  )
-}
-
-function CompactTemplateRow({ template }: { template: RecognizedTemplate }) {
-  return (
-    <li className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-slate-950">{template.nome}</p>
-        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
-          {template.cobertura}
-          {template.exemplos ? ` · ${template.exemplos}` : ""}
-        </p>
-      </div>
-      <StatusPill status={template.status} />
-    </li>
-  )
-}
+const groupedTemplates = templates.reduce<Record<TemplateCategory, RecognizedTemplate[]>>(
+  (acc, template) => {
+    acc[template.categoria].push(template)
+    return acc
+  },
+  { Unidades: [], Cobranças: [] },
+)
 
 export function RecognizedTemplatesCard() {
+  const homologados = templates.filter((template) => template.status === "Homologado").length
+  const ativos = templates.filter((template) => template.status === "Ativo").length
+
   return (
-    <aside className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <aside className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
-            Padrões homologados
+            Padrões ativos
           </p>
-          <h2 className="mt-2 text-lg font-semibold text-slate-950">
-            Cobranças em primeiro plano
+          <h2 className="mt-2 text-xl font-semibold text-slate-950">
+            Layouts reconhecidos
           </h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-            Lista compacta dos parsers disponíveis. A operação principal desta tela é converter inadimplência para o XLSX oficial de Importações/Cobranças.
-          </p>
         </div>
-
-        <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
-          <div className="rounded-2xl bg-slate-950 px-3 py-2 text-white">
-            <p className="text-lg font-semibold leading-none">{homologadosCobrancas}</p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">
-              homologados
-            </p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 px-3 py-2">
-            <p className="text-lg font-semibold leading-none text-slate-950">
-              {cobrancasTemplates.length}
-            </p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-              cobranças
-            </p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 px-3 py-2">
-            <p className="text-lg font-semibold leading-none text-slate-950">
-              {unidadesTemplates.length}
-            </p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-              secundários
-            </p>
-          </div>
+        <div className="rounded-2xl bg-slate-950 px-3 py-2 text-right text-white shadow-sm">
+          <p className="text-lg font-semibold leading-none">{homologados}</p>
+          <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">
+            homologados
+          </p>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
-        {cobrancasTemplates.map((template) => (
-          <CompactTemplateRow key={template.nome} template={template} />
+      <p className="mt-3 text-sm leading-6 text-slate-500">
+        O conversor sempre transforma o arquivo externo na planilha oficial de Importações GKLI. O layout identifica o sistema de origem; o condomínio é confirmado na etapa operacional.
+      </p>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="rounded-2xl bg-slate-50 p-3">
+          <p className="text-lg font-semibold text-slate-950">{ativos}</p>
+          <p className="text-[11px] font-medium text-slate-500">ativos em validação</p>
+        </div>
+        <div className="rounded-2xl bg-slate-50 p-3">
+          <p className="text-lg font-semibold text-slate-950">
+            {groupedTemplates.Cobranças.length}
+          </p>
+          <p className="text-[11px] font-medium text-slate-500">modelos de cobranças</p>
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-6">
+        {(Object.keys(groupedTemplates) as TemplateCategory[]).map((categoria) => (
+          <section key={categoria}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+                {categoria}
+              </h3>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                {groupedTemplates[categoria].length}
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {groupedTemplates[categoria].map((template) => (
+                <div key={template.nome} className="rounded-2xl border border-slate-200 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-950">{template.nome}</h4>
+                      <p className="mt-1 text-[11px] font-medium text-slate-400">
+                        {template.cobertura}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusTone[template.status]}`}
+                    >
+                      {template.status}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">{template.descricao}</p>
+                  {template.exemplos ? (
+                    <p className="mt-2 text-[11px] leading-5 text-slate-400">
+                      Homologado com: <span className="font-medium text-slate-500">{template.exemplos}</span>
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
-
-      <details className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-          Ver padrões secundários de unidades/responsáveis
-        </summary>
-        <div className="mt-3 grid gap-2 md:grid-cols-2">
-          {unidadesTemplates.map((template) => (
-            <CompactTemplateRow key={template.nome} template={template} />
-          ))}
-        </div>
-      </details>
     </aside>
   )
 }

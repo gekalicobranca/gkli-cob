@@ -123,18 +123,18 @@ const tipoOptions: Array<{
   accept: string;
 }> = [
   {
+    value: "unidades",
+    title: "Responsáveis",
+    description:
+      "PDF de relatório de unidades → XLSX padrão Importações/Responsáveis.",
+    accept: ".pdf",
+  },
+  {
     value: "cobrancas",
     title: "Cobranças",
     description:
-      "Fluxo principal: PDF, XLS, XLSX, CSV ou HTML de inadimplência → XLSX padrão Importações/Cobranças.",
+      "XLS, XLSX, CSV ou HTML de inadimplência → XLSX padrão Importações/Cobranças.",
     accept: ".pdf,.xls,.xlsx,.html,.htm,.csv",
-  },
-  {
-    value: "unidades",
-    title: "Responsáveis / Unidades",
-    description:
-      "Fluxo secundário: PDF de relatório de unidades → XLSX padrão Importações/Responsáveis.",
-    accept: ".pdf",
   },
 ];
 
@@ -148,7 +148,7 @@ export function ConversionUploadCard({
   const [loading, setLoading] = useState(false);
   const [condominioCnpj, setCondominioCnpj] = useState("");
   const [tipoConversao, setTipoConversao] =
-    useState<TipoConversaoRelatorio>("cobrancas");
+    useState<TipoConversaoRelatorio>("unidades");
 
   const selectedTipo =
     tipoOptions.find((option) => option.value === tipoConversao) ??
@@ -303,7 +303,9 @@ export function ConversionUploadCard({
           Subir relatório
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-A prioridade operacional é converter relatórios de inadimplência em XLSX padrão de Cobranças. Responsáveis/Unidades continuam disponíveis como fluxo secundário.
+          Selecione o tipo de conversão antes do upload. O motor reconhece
+          automaticamente o padrão ativo da administradora/sistema e gera o XLSX
+          no modelo oficial: Responsáveis ou Cobranças.
         </p>
       </div>
 
@@ -325,9 +327,7 @@ A prioridade operacional é converter relatórios de inadimplência em XLSX padr
               }}
               className={`rounded-2xl border p-4 text-left transition ${
                 active
-                  ? option.value === "cobrancas"
-                    ? "border-cyan-950 bg-cyan-950 text-white shadow-sm"
-                    : "border-slate-950 bg-slate-950 text-white shadow-sm"
+                  ? "border-slate-950 bg-slate-950 text-white shadow-sm"
                   : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-white"
               }`}
             >
@@ -386,9 +386,7 @@ A prioridade operacional é converter relatórios de inadimplência em XLSX padr
         <span className="text-sm font-semibold text-slate-950">
           {loading
             ? "Processando relatório..."
-            : tipoConversao === "cobrancas"
-              ? "Clique para selecionar o relatório de cobranças"
-              : `Clique para selecionar o arquivo de ${selectedTipo.title.toLowerCase()}`}
+            : `Clique para selecionar o arquivo de ${selectedTipo.title.toLowerCase()}`}
         </span>
         <span className="mt-1 text-xs text-slate-500">
           {selectedTipo.description}

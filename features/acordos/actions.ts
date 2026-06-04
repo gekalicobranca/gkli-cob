@@ -515,6 +515,25 @@ export async function createAcordo(formData: FormData) {
     );
   }
 
+  const { data: judicializacaoUnidade, error: judicializacaoUnidadeError } = await supabase
+    .from("cobrancas")
+    .select("id")
+    .eq("unidade_id", cobrancaPrincipal.unidade_id)
+    .or("status_operacional.eq.judicializado,status.eq.judicializado")
+    .limit(1);
+
+  if (judicializacaoUnidadeError) {
+    throw new Error(
+      `Erro ao verificar judicialização da unidade: ${judicializacaoUnidadeError.message}`,
+    );
+  }
+
+  if ((judicializacaoUnidade ?? []).length > 0) {
+    throw new Error(
+      "Esta unidade possui cobrança judicializada. Novas dívidas/vincendas não podem ser agrupadas em acordo; use o saneamento para decisão do gestor da carteira.",
+    );
+  }
+
   const cobrancasComValores = cobrancas.map((item) => {
     const valorCalculado = Math.max(
       0,
@@ -1449,4 +1468,154 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
 
   revalidatePath(`/app/acordos/${(termo as any).acordo_id}`);
   redirect(`/${tipoAceite === "sindico" ? "aceite-sindico" : "aceite-acordo"}/${token}?aceito=1`);
+}
+
+export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+  const decisao = String(formData.get("decisao") ?? "").trim();
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  const observacao = String(formData.get("observacao") ?? "").trim();
+
+  if (!acordoId) throw new Error("Acordo obrigatório.");
+  if (!["aprovar", "rejeitar"].includes(decisao)) throw new Error("Decisão inválida.");
+
+  const { data: acordo, error } = await supabase
+    .from("acordos")
+    .select("id, carteira_id, condominio_id, unidade_id, cobranca_id, fluxo_status")
+    .eq("id", acordoId)
+    .maybeSingle();
+
+  if (error) throw new Error(`Erro ao carregar acordo: ${error.message}`);
+  if (!acordo) throw new Error("Acordo não encontrado.");
+
+  const now = new Date().toISOString();
+  const update = decisao === "aprovar"
+    ? { sindico_aprovado_em: now, fluxo_status: "aprovado_sindico_aguardando_aceite_devedor" }
+    : { fluxo_status: "reprovado_sindico", status: "cancelado", status_financeiro: "cancelado" };
+
+  const { error: updateError } = await supabase.from("acordos").update(update).eq("id", acordoId);
+  if (updateError) throw new Error(`Erro ao atualizar aprovação: ${updateError.message}`);
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (acordo as any).carteira_id,
+    entidadeTipo: "acordo",
+    entidadeId: acordoId,
+    eventoCodigo: decisao === "aprovar" ? "acordo.sindico_aprovado_manual" : "acordo.sindico_rejeitou",
+    titulo: decisao === "aprovar" ? "Acordo aprovado pelo síndico" : "Acordo rejeitado pelo síndico",
+    descricao: [motivo || null, observacao || null].filter(Boolean).join(" · ") || "Decisão registrada pelo operador.",
+    severidade: decisao === "aprovar" ? "sucesso" : "alerta",
+    payload: { decisao, motivo, observacao },
+    userId: user.id,
+  });
+
+  revalidatePath("/app/acordos/aprovacoes");
+  revalidatePath(`/app/acordos/${acordoId}`);
+}
+
+export async function atualizarStatusBoletosAcordo(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+  const status = String(formData.get("status_boletos") ?? "").trim();
+
+  if (!acordoId) throw new Error("Acordo obrigatório.");
+  if (!["boletos_recebidos", "boletos_enviados"].includes(status)) throw new Error("Status de boletos inválido.");
+
+  const { data: acordo, error } = await supabase
+    .from("acordos")
+    .select("id, carteira_id")
+    .eq("id", acordoId)
+    .maybeSingle();
+  if (error) throw new Error(`Erro ao carregar acordo: ${error.message}`);
+  if (!acordo) throw new Error("Acordo não encontrado.");
+
+  const { error: updateError } = await supabase
+    .from("acordos")
+    .update({ fluxo_status: status })
+    .eq("id", acordoId);
+  if (updateError) throw new Error(`Erro ao atualizar boletos: ${updateError.message}`);
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (acordo as any).carteira_id,
+    entidadeTipo: "acordo",
+    entidadeId: acordoId,
+    eventoCodigo: status === "boletos_recebidos" ? "acordo.boletos_recebidos" : "acordo.boletos_enviados",
+    titulo: status === "boletos_recebidos" ? "Boletos recebidos" : "Boletos enviados ao devedor",
+    descricao: "Status de boletos atualizado no controle operacional do acordo.",
+    severidade: "info",
+    payload: { status_boletos: status },
+    userId: user.id,
+  });
+
+  revalidatePath("/app/acordos/boletos");
+  revalidatePath(`/app/acordos/${acordoId}`);
+}
+
+export async function romperAcordoAssistido(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  const destino = String(formData.get("destino") ?? "retomar_cobranca").trim();
+  const observacao = String(formData.get("observacao") ?? "").trim();
+
+  if (!acordoId) throw new Error("Acordo obrigatório.");
+  if (!["retomar_cobranca", "suspender", "judicializar"].includes(destino)) throw new Error("Destino inválido.");
+
+  const { data: acordo, error } = await supabase
+    .from("acordos")
+    .select("id, carteira_id, cobranca_id")
+    .eq("id", acordoId)
+    .maybeSingle();
+  if (error) throw new Error(`Erro ao carregar acordo: ${error.message}`);
+  if (!acordo) throw new Error("Acordo não encontrado.");
+
+  const { data: vinculadas } = await supabase
+    .from("acordo_cobrancas")
+    .select("cobranca_id")
+    .eq("acordo_id", acordoId);
+
+  const cobrancaIds = Array.from(new Set([
+    ...(((vinculadas ?? []) as any[]).map((item) => item.cobranca_id).filter(Boolean)),
+    (acordo as any).cobranca_id,
+  ].filter(Boolean)));
+
+  const statusCobranca = destino === "judicializar" ? "judicializado" : destino === "suspender" ? "suspenso" : COBRANCA_STATUS.EM_COBRANCA_ATIVA;
+
+  const { error: updateError } = await supabase
+    .from("acordos")
+    .update({ status: "rompido", status_financeiro: "vencido", fluxo_status: `rompido_${destino}` })
+    .eq("id", acordoId);
+  if (updateError) throw new Error(`Erro ao romper acordo: ${updateError.message}`);
+
+  if (cobrancaIds.length > 0) {
+    await supabase
+      .from("cobrancas")
+      .update({ status: statusCobranca, status_operacional: statusCobranca })
+      .in("id", cobrancaIds);
+  }
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (acordo as any).carteira_id,
+    entidadeTipo: "acordo",
+    entidadeId: acordoId,
+    eventoCodigo: "acordo.rompimento_assistido",
+    titulo: "Acordo rompido",
+    descricao: [motivo || "Motivo não informado", `Destino: ${destino.replace(/_/g, " ")}`, observacao || null].filter(Boolean).join(" · "),
+    severidade: "alerta",
+    payload: { motivo, destino, observacao, cobranca_ids: cobrancaIds },
+    userId: user.id,
+  });
+
+  revalidatePath("/app/acordos");
+  revalidatePath("/app/acordos/rompimentos");
+  revalidatePath(`/app/acordos/${acordoId}`);
 }

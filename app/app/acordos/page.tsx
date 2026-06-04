@@ -1,49 +1,25 @@
 import Link from 'next/link'
-import { ArrowUpRight, Handshake, Plus, Search } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, Filter, Handshake, Inbox, Plus, Search, BarChart3 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
 import { CheckAcordosStatusButton } from '@/components/acordos/check-status-button'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { listAcordos } from '@/features/acordos/queries'
+import { listAcordosComSaude } from '@/features/acordos/queries'
+import { AgreementHealthBadge } from '@/features/acordos/components/agreement-health-badge'
 
 function sumBy(rows: any[], predicate: (row: any) => boolean) {
   return rows.filter(predicate).reduce((sum, row) => sum + Number(row.valor_acordado ?? 0), 0)
 }
 
-type PageProps = {
-  searchParams?: Promise<{
-    q?: string
-    status?: string
-    tipo?: string
-    order_by?: string
-    order_dir?: string
-  }>
-}
-
-function clean(value?: string) {
-  return String(value ?? '').trim()
-}
-
-export default async function AcordosPage({ searchParams }: PageProps) {
-  const params = searchParams ? await searchParams : {}
-  const filters = {
-    search: clean(params.q),
-    status: clean(params.status),
-    tipo: clean(params.tipo),
-    orderBy: clean(params.order_by) || 'data_acordo',
-    orderDir: clean(params.order_dir) || 'desc',
-  }
-  const hasFilters = Boolean(filters.search || filters.status || filters.tipo || filters.orderBy !== 'data_acordo' || filters.orderDir !== 'desc')
-
+export default async function AcordosPage() {
   const scope = await getPermittedCarteiras()
-  const rows = await listAcordos(scope, filters)
+  const rows = await listAcordosComSaude(scope)
 
   const ativos = rows.filter((row: any) => row.status === 'ativo').length
   const atraso = rows.filter((row: any) => row.status === 'em atraso').length
@@ -59,7 +35,10 @@ export default async function AcordosPage({ searchParams }: PageProps) {
         actions={
           <>
             <CheckAcordosStatusButton />
-
+            <ButtonLink href="/app/acordos/fila" variant="secondary"><Inbox size={16} />Fila</ButtonLink>
+            <ButtonLink href="/app/acordos/rompimentos" variant="secondary"><AlertTriangle size={16} />Rompimentos</ButtonLink>
+            <ButtonLink href="/app/acordos/gestao" variant="secondary"><BarChart3 size={16} />Gestão</ButtonLink>
+            <Button variant="secondary"><Filter size={16} />Filtros</Button>
             <ButtonLink href="/app/acordos/novo"><Plus size={16} />Novo acordo</ButtonLink>
           </>
         }
@@ -88,6 +67,13 @@ export default async function AcordosPage({ searchParams }: PageProps) {
         ))}
       </section>
 
+
+      <section className="grid gap-3 md:grid-cols-2">
+        <ButtonLink href="/app/acordos/fila" variant="secondary" className="justify-start rounded-2xl px-4 py-4"><Inbox size={17} />Fila operacional de acordos</ButtonLink>
+        <ButtonLink href="/app/acordos/rompimentos" variant="secondary" className="justify-start rounded-2xl px-4 py-4"><AlertTriangle size={17} />Painel de rompimentos</ButtonLink>
+        <ButtonLink href="/app/acordos/gestao" variant="secondary" className="justify-start rounded-2xl px-4 py-4 md:col-span-2"><BarChart3 size={17} />Gestão e performance</ButtonLink>
+      </section>
+
       <Card className="overflow-hidden p-0">
         <div className="border-b border-slate-100 bg-white/80 px-5 py-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -95,44 +81,12 @@ export default async function AcordosPage({ searchParams }: PageProps) {
               <h2 className="text-base font-medium text-slate-950">Fila de acordos</h2>
               <p className="mt-1 text-sm text-slate-500">Clique para controlar parcelas, cancelamento ou quebra.</p>
             </div>
-            <form className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_150px_150px_170px_140px_110px]">
-              <div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="q" defaultValue={filters.search} className="pl-9" placeholder="Buscar responsável, unidade..." /></div>
-              <Select name="status" defaultValue={filters.status}>
-                <option value="">Todos os status</option>
-                <option value="ativo">Ativo</option>
-                <option value="em atraso">Em atraso</option>
-                <option value="rompido">Rompido</option>
-                <option value="quitado">Quitado</option>
-                <option value="cancelado">Cancelado</option>
-              </Select>
-              <Select name="tipo" defaultValue={filters.tipo}>
-                <option value="">Todos os tipos</option>
-                <option value="extrajudicial">Extrajudicial</option>
-                <option value="judicial">Judicial</option>
-              </Select>
-              <Select name="order_by" defaultValue={filters.orderBy}>
-                <option value="data_acordo">Data do acordo</option>
-                <option value="operacional">Condomínio → Unidade</option>
-                <option value="condominio">Condomínio</option>
-                <option value="unidade">Unidade</option>
-                <option value="responsavel">Responsável</option>
-                <option value="valor_acordado">Valor acordado</option>
-                <option value="entrada">Entrada</option>
-                <option value="status">Status</option>
-                <option value="tipo">Tipo</option>
-              </Select>
-              <Select name="order_dir" defaultValue={filters.orderDir}>
-                <option value="asc">Crescente</option>
-                <option value="desc">Decrescente</option>
-              </Select>
-              <Button type="submit" variant="secondary">Filtrar</Button>
-            </form>
-          </div>
-          {hasFilters ? (
-            <div className="mt-3">
-              <ButtonLink href="/app/acordos" variant="secondary">Limpar filtros</ButtonLink>
+            <div className="grid gap-2 md:grid-cols-[320px_160px_160px]">
+              <div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input className="pl-9" placeholder="Buscar responsável, unidade..." /></div>
+              <select className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none"><option>Status</option></select>
+              <select className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none"><option>Tipo</option></select>
             </div>
-          ) : null}
+          </div>
         </div>
 
         {rows.length === 0 ? (
@@ -140,14 +94,14 @@ export default async function AcordosPage({ searchParams }: PageProps) {
         ) : (
           <div className="divide-y divide-slate-100">
             {rows.map((row: any) => (
-              <Link key={row.id} href={`/app/acordos/${row.id}`} className="group grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.4fr)_140px_160px_150px_90px] xl:items-center">
+              <Link key={row.id} href={`/app/acordos/${row.id}`} className="group grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.4fr)_120px_140px_150px_90px] xl:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2"><StatusBadge status={row.status} /><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.tipo}</span></div>
                   <p className="mt-2 truncate text-sm font-medium text-slate-950">{row.unidades?.responsavel_nome ?? 'Responsável não informado'}</p>
                   <p className="mt-1 truncate text-xs text-slate-500">{row.condominios?.nome ?? '-'} · Unidade {row.unidades?.identificacao ?? '-'} {row.numero_processo ? `· proc. ${row.numero_processo}` : ''}</p>
                 </div>
                 <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor</p><p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado))}</p></div>
-                <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Entrada</p><p className="mt-1 text-sm text-slate-700">{formatCurrency(Number(row.entrada))}</p></div>
+                <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Saúde</p><div className="mt-1"><AgreementHealthBadge health={row.saude_acordo} /></div></div>
                 <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Data</p><p className="mt-1 text-sm text-slate-700">{formatDateBR(row.data_acordo)}</p></div>
                 <div className="flex justify-end"><ArrowUpRight size={16} className="text-slate-400 group-hover:text-[var(--gkli-primary)]" /></div>
               </Link>

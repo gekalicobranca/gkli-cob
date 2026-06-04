@@ -17,53 +17,48 @@ export default async function ConversaoRelatorioPage() {
     }));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
         eyebrow="Base Cadastral"
-        title="Conversão de Cobranças"
-        description="Converta relatórios de inadimplência para o XLSX oficial de Importações/Cobranças. Responsáveis e unidades continuam disponíveis, mas agora ficam como fluxo secundário."
+        title="Motor de Conversão"
+        description="Converta arquivos externos para o modelo oficial de Importações. O motor identifica o padrão ativo da administradora/sistema e separa isso do condomínio operacional."
         actions={
           <span className="inline-flex min-h-10 items-center rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white/90 shadow-sm">
-            Prioridade: Cobranças
+            Conversão por categoria
           </span>
         }
       />
 
-      <ConversionUploadCard condominios={condominioOptions} />
+      <div className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
+        <ConversionUploadCard condominios={condominioOptions} />
+        <RecognizedTemplatesCard />
+      </div>
 
-      <RecognizedTemplatesCard />
-
-      <section className="rounded-[28px] border border-dashed border-slate-300 bg-white p-5">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-              Fluxo operacional
-            </p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-950">
-              Como a conversão de cobranças funciona
-            </h2>
-          </div>
-          <p className="max-w-2xl text-sm leading-6 text-slate-500">
-            O motor identifica o padrão ativo, confirma o condomínio cadastrado e entrega o arquivo pronto para o importador oficial.
-          </p>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <section className="rounded-[28px] border border-dashed border-slate-300 bg-white p-6">
+        <h2 className="text-lg font-semibold text-slate-950">
+          Como a conversão funciona
+        </h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-4">
           {[
             [
               "1",
-              "Subir inadimplência",
-              "Envie PDF, XLS, XLSX, CSV ou HTML de cobranças. O modo Cobranças já vem selecionado por padrão.",
+              "Tipo",
+              "Escolha se o arquivo será convertido para Responsáveis ou Cobranças.",
             ],
             [
               "2",
-              "Confirmar condomínio",
-              "O sistema tenta detectar o condomínio e aplica o CNPJ cadastrado quando houver match seguro.",
+              "Padrão",
+              "O motor detecta o fornecedor/layout ativo, como Hflex / LiveFacilities.",
             ],
             [
               "3",
-              "Baixar XLSX GKLI",
-              "O resultado sai no modelo de Importações/Cobranças, com 1 cobrança por recibo/parcela conforme o parser.",
+              "Condomínio",
+              "Confirme o condomínio operacional usado no XLSX final.",
+            ],
+            [
+              "4",
+              "Saída GKLI",
+              "Baixe o XLSX padrão e importe no módulo oficial correspondente.",
             ],
           ].map(([step, title, text]) => (
             <div key={step} className="rounded-2xl bg-slate-50 p-4">

@@ -32,8 +32,7 @@ type PageProps = {
     status?: string;
     vencimento_de?: string;
     vencimento_ate?: string;
-    order_by?: string;
-    order_dir?: string;
+    judicializacao_unidade?: string;
   }>;
 };
 
@@ -103,16 +102,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     status: getParam(params.status),
     vencimentoDe: getParam(params.vencimento_de),
     vencimentoAte: getParam(params.vencimento_ate),
-    orderBy: getParam(params.order_by) || 'operacional',
-    orderDir: getParam(params.order_dir) || 'asc',
+    judicializacaoUnidade: getParam(params.judicializacao_unidade),
   };
   const hasFilters = Boolean(
-    filters.search ||
-      filters.status ||
-      filters.vencimentoDe ||
-      filters.vencimentoAte ||
-      filters.orderBy !== 'operacional' ||
-      filters.orderDir !== 'asc',
+    filters.search || filters.status || filters.vencimentoDe || filters.vencimentoAte || filters.judicializacaoUnidade,
   );
 
   const scope = await getPermittedCarteiras();
@@ -224,7 +217,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 ) : null}
               </div>
 
-              <form className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_170px_150px_150px_180px_150px_110px]">
+              <form className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_180px_170px_170px_210px_110px]">
                 <div className="relative">
                   <Search
                     size={16}
@@ -257,20 +250,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                   defaultValue={filters.vencimentoAte}
                   aria-label="Vencimento até"
                 />
-                <Select name="order_by" defaultValue={filters.orderBy}>
-                  <option value="operacional">Condomínio → Unidade → Vencimento</option>
-                  <option value="condominio">Condomínio</option>
-                  <option value="unidade">Unidade</option>
-                  <option value="responsavel">Responsável</option>
-                  <option value="vencimento">Vencimento</option>
-                  <option value="valor_atualizado">Valor atualizado</option>
-                  <option value="valor_original">Valor original</option>
-                  <option value="status">Status</option>
-                  <option value="created_at">Data de criação</option>
-                </Select>
-                <Select name="order_dir" defaultValue={filters.orderDir}>
-                  <option value="asc">Crescente</option>
-                  <option value="desc">Decrescente</option>
+                <Select name="judicializacao_unidade" defaultValue={filters.judicializacaoUnidade}>
+                  <option value="">Judicialização da unidade</option>
+                  <option value="sim">Com judicialização na unidade</option>
+                  <option value="nao">Sem judicialização na unidade</option>
                 </Select>
                 <Button type="submit" variant="secondary">
                   Filtrar
@@ -323,6 +306,11 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                             {priority.label}
                           </span>
                           <StatusBadge status={status} />
+                          {row.unidade_bloqueada_por_judicializacao ? (
+                            <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                              Unidade judicializada
+                            </span>
+                          ) : null}
                         </div>
                         <p className="mt-2 truncate text-sm font-medium text-slate-950">
                           {row.unidades?.responsavel_nome ??
@@ -333,6 +321,11 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                           {unidadeLabel || "-"} · Competência{" "}
                           {row.competencia ?? "-"}
                         </p>
+                        {row.unidade_bloqueada_por_judicializacao ? (
+                          <p className="mt-1 text-xs font-medium text-red-700">
+                            Bloquear acordos para esta unidade: há cobrança judicializada ativa.
+                          </p>
+                        ) : null}
                       </div>
 
                       <div>

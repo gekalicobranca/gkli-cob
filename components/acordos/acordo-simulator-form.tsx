@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
+import { calculateAgreementInsight } from "@/features/acordos/insights";
 
 type CobrancaOption = {
   id: string;
@@ -38,6 +39,10 @@ type AcordoSimulatorFormProps = {
   bloqueadoPorPendenciaPlanilha?: boolean;
   bloqueadoPorPendenciaAprovacaoSindico?: boolean;
   aprovacaoSindicoSolicitada?: boolean;
+  inteligenciaOperacional?: {
+    reincidencia: number;
+    rompimentos: number;
+  };
 };
 
 function parseMoney(value: string) {
@@ -98,6 +103,7 @@ export function AcordoSimulatorForm({
   bloqueadoPorPendenciaPlanilha = false,
   bloqueadoPorPendenciaAprovacaoSindico = false,
   aprovacaoSindicoSolicitada = false,
+  inteligenciaOperacional = { reincidencia: 0, rompimentos: 0 },
 }: AcordoSimulatorFormProps) {
   const initial =
     cobrancas.find((item) => item.id === initialCobrancaId) ?? cobrancas[0];
@@ -129,6 +135,13 @@ export function AcordoSimulatorForm({
   const parcelasInformadas = Math.max(1, Number(quantidadeParcelas) || 1);
   const exigeAprovacaoSindico =
     limiteParcelasSemSindico > 0 && parcelasInformadas > limiteParcelasSemSindico;
+
+  const vencimentosSelecionados = cobrancasSelecionadas
+    .map((cobranca) => cobranca.vencimento)
+    .filter(Boolean)
+    .sort();
+  const primeiroVencimentoSelecionado = vencimentosSelecionados[0] ?? null;
+  const ultimoVencimentoSelecionado = vencimentosSelecionados[vencimentosSelecionados.length - 1] ?? null;
 
   function getValorAtualizado(cobranca?: CobrancaOption) {
     if (!cobranca) return 0;
@@ -198,6 +211,27 @@ export function AcordoSimulatorForm({
     quantidadeParcelas,
     primeiroVencimento,
   ]);
+
+  const insight = calculateAgreementInsight({
+    valorTotal: preview.valorOriginal,
+    quantidadeCobrancas: cobrancasSelecionadas.length,
+    primeiroVencimento: primeiroVencimentoSelecionado,
+    ultimoVencimento: ultimoVencimentoSelecionado,
+    reincidencia: inteligenciaOperacional.reincidencia,
+    rompimentos: inteligenciaOperacional.rompimentos,
+    unidadeBloqueadaPorJudicializacao: false,
+  });
+
+  const sugestoesParcelamento = useMemo(() => {
+    const limites = [3, 6, 12, 18, 24].filter((parcelas) =>
+      limiteParcelasSemSindico > 0 ? parcelas <= Math.max(limiteParcelasSemSindico, parcelasInformadas) : true,
+    );
+    return Array.from(new Set(limites)).slice(0, 4).map((parcelas) => ({
+      parcelas,
+      valor: parcelas > 0 ? roundMoney(preview.saldo / parcelas) : preview.saldo,
+      exigeSindico: limiteParcelasSemSindico > 0 && parcelas > limiteParcelasSemSindico,
+    }));
+  }, [preview.saldo, limiteParcelasSemSindico, parcelasInformadas]);
 
   function handleCobrancaChange(value: string) {
     setCobrancaId(value);
@@ -384,6 +418,40 @@ export function AcordoSimulatorForm({
             ) : null}
           </>
         )}
+
+        <div className="grid gap-3 md:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Elegibilidade</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{insight.elegibilidadeLabel}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{insight.elegibilidadeMotivo}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Recuperação</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{insight.score}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{insight.scoreLabel}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Reincidência</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{insight.reincidenciaLabel}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{inteligenciaOperacional.rompimentos} rompimento(s)</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Restrição</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{insight.restricaoPrincipal}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{exigeAprovacaoSindico ? "Síndico aprova antes" : "Fluxo padrão"}</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[#DDE5E2] bg-[#F6F8F7] p-4">
+          <p className="text-sm font-semibold text-slate-950">Pré-análise</p>
+          <div className="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-5">
+            <span>{cobrancasSelecionadas.length} cobrança(s)</span>
+            <span>Saldo {formatCurrency(preview.valorOriginal)}</span>
+            <span>Maior atraso {insight.maiorAtrasoDias} dia(s)</span>
+            <span>De {formatDateBR(primeiroVencimentoSelecionado)}</span>
+            <span>Até {formatDateBR(ultimoVencimentoSelecionado)}</span>
+          </div>
+        </div>
 
         <div className="grid gap-5 md:grid-cols-2">
           <FormField label="Tipo de acordo">
@@ -615,6 +683,20 @@ export function AcordoSimulatorForm({
                 {formatCurrency(preview.saldo)}
               </strong>
             </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {sugestoesParcelamento.map((item) => (
+              <button
+                key={item.parcelas}
+                type="button"
+                onClick={() => setQuantidadeParcelas(String(item.parcelas))}
+                className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-[var(--gkli-primary)]"
+              >
+                <p className="text-sm font-semibold text-slate-950">{item.parcelas}x {formatCurrency(item.valor)}</p>
+                <p className="mt-1 text-xs text-slate-500">{item.exigeSindico ? "Exige aprovação" : "Dentro da regra"}</p>
+              </button>
+            ))}
           </div>
         </Card>
 

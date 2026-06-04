@@ -196,16 +196,13 @@ export async function POST(request: NextRequest) {
 
       if (conciliacao.status === "ja_existente") {
         cobrancasIgnoradas += 1
-        inconsistencias.push(
-          `Unidade ${unidadeLabel}: cobrança já registrada. Item descartado automaticamente.`
-        )
         continue
       }
 
       if (conciliacao.status === "divergente") {
         cobrancasDivergentes += 1
         inconsistencias.push(
-          `Unidade ${unidadeLabel}: existe cobrança semelhante, mas com valor diferente. Revisar antes de gravar.`
+          `Unidade ${unidadeLabel}: cobrança parecida encontrada com divergência de valores (${conciliacao.cobrancaId}).`
         )
         continue
       }

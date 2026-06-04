@@ -175,3 +175,133 @@ export async function getUnidadeIntegral(id: string, scope: CarteiraScope) {
 
   return data ? (normalizeRelations(data as any, ['condominios', 'carteiras']) as any) : null
 }
+
+
+export async function getHistoricoOperacionalDaUnidade(id: string, scope: CarteiraScope) {
+  const supabase = await createClient()
+
+  let unidadeQuery = supabase
+    .from('unidades')
+    .select('id, carteira_id, condominio_id')
+    .eq('id', id)
+    .maybeSingle()
+
+  unidadeQuery = applyCarteiraScope(unidadeQuery, scope.carteiraIds)
+
+  const { data: unidade, error: unidadeError } = await unidadeQuery
+
+  if (unidadeError) {
+    throw new Error(`Erro ao validar unidade para histórico: ${unidadeError.message}`)
+  }
+
+  if (!unidade) {
+    return {
+      cobrancas: [],
+      acordos: [],
+      eventos: [],
+      resumo: {
+        totalCobrancas: 0,
+        valorEmAberto: 0,
+        acordosTotal: 0,
+        acordosRompidos: 0,
+        possuiJudicializacao: false,
+      },
+    }
+  }
+
+  let cobrancasQuery = supabase
+    .from('cobrancas')
+    .select(`
+      id,
+      carteira_id,
+      condominio_id,
+      unidade_id,
+      competencia,
+      vencimento,
+      valor_original,
+      valor_atualizado,
+      status,
+      status_operacional,
+      status_financeiro,
+      created_at
+    `)
+    .eq('unidade_id', id)
+    .order('vencimento', { ascending: false })
+    .limit(60)
+
+  cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
+
+  let acordosQuery = supabase
+    .from('acordos')
+    .select(`
+      id,
+      carteira_id,
+      condominio_id,
+      unidade_id,
+      cobranca_id,
+      data_acordo,
+      valor_acordado,
+      entrada,
+      parcelas,
+      status,
+      status_financeiro,
+      fluxo_status,
+      created_at
+    `)
+    .eq('unidade_id', id)
+    .order('data_acordo', { ascending: false })
+    .limit(40)
+
+  acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
+
+  const [cobrancasResult, acordosResult] = await Promise.all([
+    cobrancasQuery,
+    acordosQuery,
+  ])
+
+  if (cobrancasResult.error) {
+    throw new Error(`Erro ao carregar cobranças da unidade: ${cobrancasResult.error.message}`)
+  }
+
+  if (acordosResult.error) {
+    throw new Error(`Erro ao carregar acordos da unidade: ${acordosResult.error.message}`)
+  }
+
+  const cobrancas = (cobrancasResult.data ?? []) as any[]
+  const acordos = (acordosResult.data ?? []) as any[]
+  const acordoIds = acordos.map((acordo) => acordo.id).filter(Boolean)
+
+  let eventos: any[] = []
+  if (acordoIds.length > 0) {
+    const { data: eventosData, error: eventosError } = await supabase
+      .from('eventos_operacionais')
+      .select('id, acordo_id, cobranca_id, tipo, descricao, estado_anterior, estado_novo, payload, created_at')
+      .in('acordo_id', acordoIds)
+      .order('created_at', { ascending: false })
+      .limit(40)
+
+    if (!eventosError) {
+      eventos = eventosData ?? []
+    }
+  }
+
+  const valorEmAberto = cobrancas
+    .filter((cobranca) => !['acordo_efetivado', 'quitado', 'pago'].includes(String(cobranca.status_operacional ?? cobranca.status ?? '')))
+    .reduce((sum, cobranca) => sum + Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0), 0)
+
+  const acordosRompidos = acordos.filter((acordo) => ['quebrado', 'rompido', 'cancelado'].includes(String(acordo.status))).length
+  const possuiJudicializacao = cobrancas.some((cobranca) => ['judicializado'].includes(String(cobranca.status_operacional ?? cobranca.status ?? '')))
+
+  return {
+    cobrancas,
+    acordos,
+    eventos,
+    resumo: {
+      totalCobrancas: cobrancas.length,
+      valorEmAberto,
+      acordosTotal: acordos.length,
+      acordosRompidos,
+      possuiJudicializacao,
+    },
+  }
+}

@@ -381,6 +381,10 @@ export default async function DashboardPage() {
                 <ArrowUpRight size={16} />
                 Base de cobranças
               </ButtonLink>
+              <ButtonLink href="/app/acordos/gestao" variant="secondary">
+                <Handshake size={16} />
+                Gestão de acordos
+              </ButtonLink>
             </>
           }
         >

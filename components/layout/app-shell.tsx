@@ -73,7 +73,6 @@ const sections: SidebarSection[] = [
     title: 'Gestão',
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
-      { label: 'Relatórios', href: '/app/gestao/relatorios', icon: 'chart' },
       { label: 'Saneamento cobranças', href: '/app/gestao/saneamento-cobrancas', icon: 'shield' },
       { label: 'Importações', href: '/app/importacoes', icon: 'upload' },
     ],

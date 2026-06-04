@@ -17,11 +17,6 @@ import {
 import { parseXlsx, type ParsedImportFile } from "./engine/xlsx-parser";
 import { isLegacyImportType, isValidImportType } from "./engine/types";
 import { conciliarCobrancaImportada } from "./cobrancas-conciliacao";
-import {
-  buscarPossivelUnidadePorNormalizacao,
-  registrarSaneamentosDaCobrancaImportada,
-  type UnidadeSaneamentoRow,
-} from "@/features/saneamento-cobrancas/service";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -82,8 +77,6 @@ type ImportExecutionResult = {
   divergentes: number;
   ignorados: number;
   erros: string[];
-  descartes: string[];
-  divergencias: string[];
 };
 
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
@@ -106,16 +99,7 @@ function assertPayloadsPermitidos(scope: CarteiraScope, payloads: Record<string,
 }
 
 function emptyImportExecutionResult(): ImportExecutionResult {
-  return {
-    importados: 0,
-    criados: 0,
-    atualizados: 0,
-    divergentes: 0,
-    ignorados: 0,
-    erros: [],
-    descartes: [],
-    divergencias: [],
-  };
+  return { importados: 0, criados: 0, atualizados: 0, divergentes: 0, ignorados: 0, erros: [] };
 }
 
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
@@ -1064,7 +1048,6 @@ async function finalizarImportacao(params: {
   revalidatePath("/app/importacoes");
   revalidatePath(`/app/importacoes/${importacaoId}`);
   revalidatePath("/app/cobrancas");
-  revalidatePath("/app/gestao/saneamento-cobrancas");
   revalidatePath("/app/condominios");
   revalidatePath("/app/unidades");
   revalidatePath("/app/responsaveis");
@@ -1380,34 +1363,12 @@ function dadosUnidadeComApoio(
   };
 }
 
-async function carregarUnidadePorId(supabase: SupabaseClient, unidadeId: string) {
-  if (!unidadeId) return null;
-
-  const { data, error } = await supabase
-    .from("unidades")
-    .select("id, carteira_id, condominio_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email")
-    .eq("id", unidadeId)
-    .maybeSingle();
-
-  if (error) throw new Error(`Erro ao carregar unidade: ${error.message}`);
-  return data as UnidadeSaneamentoRow | null;
-}
-
-type UnidadeGarantidaImportacao = {
-  id: string;
-  criada: boolean;
-  reutilizada: boolean;
-  unidade: UnidadeSaneamentoRow | null;
-  unidadeSugerida?: UnidadeSaneamentoRow | null;
-}
-
 async function garantirUnidadeDaImportacao(
   supabase: SupabaseClient,
   payload: Record<string, any>,
-): Promise<UnidadeGarantidaImportacao> {
+) {
   if (payload.unidade_id) {
-    const unidade = await carregarUnidadePorId(supabase, String(payload.unidade_id));
-    return { id: String(payload.unidade_id), criada: false, reutilizada: true, unidade };
+    return { id: String(payload.unidade_id), criada: false, reutilizada: true };
   }
 
   const identificacao = String(payload.identificacao || payload.unidade || "").trim();
@@ -1429,23 +1390,25 @@ async function garantirUnidadeDaImportacao(
   const dadosContato = dadosUnidadeComApoio(payload, responsavelApoio);
 
   if (existente) {
-    return { id: existente.id, criada: false, reutilizada: true, unidade: existente as UnidadeSaneamentoRow };
-  }
+    const patch: Record<string, string> = {};
+    if (!existente.responsavel_nome && dadosContato.responsavel_nome) {
+      patch.responsavel_nome = dadosContato.responsavel_nome;
+    }
+    if (!existente.responsavel_documento && dadosContato.responsavel_documento) {
+      patch.responsavel_documento = dadosContato.responsavel_documento;
+    }
+    if (!existente.telefone && dadosContato.telefone) {
+      patch.telefone = dadosContato.telefone;
+    }
+    if (!existente.email && dadosContato.email) {
+      patch.email = dadosContato.email;
+    }
 
-  const unidadeSugerida = await buscarPossivelUnidadePorNormalizacao(supabase, {
-    condominioId: payload.condominio_id,
-    identificacao,
-    bloco: payload.bloco,
-  });
+    if (Object.keys(patch).length > 0) {
+      await supabase.from("unidades").update(patch).eq("id", existente.id);
+    }
 
-  if (unidadeSugerida) {
-    return {
-      id: unidadeSugerida.id,
-      criada: false,
-      reutilizada: true,
-      unidade: unidadeSugerida,
-      unidadeSugerida,
-    };
+    return { id: existente.id, criada: false, reutilizada: true };
   }
 
   const { data: novaUnidade, error: unidadeError } = await supabase
@@ -1466,8 +1429,7 @@ async function garantirUnidadeDaImportacao(
     .single();
 
   if (!unidadeError && novaUnidade?.id) {
-    const unidadeCriada = await carregarUnidadePorId(supabase, novaUnidade.id as string);
-    return { id: novaUnidade.id as string, criada: true, reutilizada: false, unidade: unidadeCriada };
+    return { id: novaUnidade.id as string, criada: true, reutilizada: false };
   }
 
   // Defesa final para corrida/preview desatualizado: se o banco recusou por duplicidade,
@@ -1479,7 +1441,7 @@ async function garantirUnidadeDaImportacao(
   });
 
   if (unidadeAposConflito) {
-    return { id: unidadeAposConflito.id, criada: false, reutilizada: true, unidade: unidadeAposConflito as UnidadeSaneamentoRow };
+    return { id: unidadeAposConflito.id, criada: false, reutilizada: true };
   }
 
   throw new Error(unidadeError?.message ?? "Erro desconhecido ao criar unidade.");
@@ -1513,8 +1475,8 @@ async function importarCobrancas(
       const cobrancaExistenteId = conciliacao.cobrancaId;
       if (conciliacao.status === "ja_existente") {
         resultado.ignorados += 1;
-        resultado.descartes.push(
-          `Linha ${linha} descartada: cobrança já registrada para esta unidade, vencimento, recibo/referência e valor.`,
+        resultado.erros.push(
+          `Linha ${linha}: cobrança já existia e foi ignorada (${cobrancaExistenteId}).`,
         );
         continue;
       }
@@ -1522,48 +1484,35 @@ async function importarCobrancas(
       if (conciliacao.status === "divergente") {
         resultado.divergentes += 1;
         resultado.ignorados += 1;
-        resultado.divergencias.push(
-          `Linha ${linha} não importada: existe cobrança semelhante, mas com valor diferente. Revisar antes de gravar.`,
+        resultado.erros.push(
+          `Linha ${linha}: cobranca parecida encontrada com divergencia de valores (${conciliacao.cobrancaId}). Revise antes de importar.`,
         );
         continue;
       }
 
-      const { data: cobrancaInserida, error } = await supabase
-        .from("cobrancas")
-        .insert({
-          carteira_id: payload.carteira_id,
-          condominio_id: payload.condominio_id,
-          unidade_id: payload.unidade_id,
-          competencia: payload.competencia || null,
-          vencimento: payload.vencimento,
-          valor_original: Number(payload.valor_original),
-          valor_atualizado: Number(payload.valor_atualizado || payload.valor_original),
-          multa: Number(payload.multa || 0),
-          correcao: Number(payload.correcao || 0),
-          juros: Number(payload.juros || 0),
-          status: "novo",
-          status_operacional: "novo",
-          status_financeiro: "em_aberto",
-          observacoes: payload.observacoes || null,
-          importacao_id: payload.importacao_id || null,
-        })
-        .select("id")
-        .single();
+      const { error } = await supabase.from("cobrancas").insert({
+        carteira_id: payload.carteira_id,
+        condominio_id: payload.condominio_id,
+        unidade_id: payload.unidade_id,
+        competencia: payload.competencia || null,
+        vencimento: payload.vencimento,
+        valor_original: Number(payload.valor_original),
+        valor_atualizado: Number(payload.valor_atualizado || payload.valor_original),
+        multa: Number(payload.multa || 0),
+        correcao: Number(payload.correcao || 0),
+        juros: Number(payload.juros || 0),
+        status: "novo",
+        status_operacional: "novo",
+        status_financeiro: "em_aberto",
+        observacoes: payload.observacoes || null,
+        importacao_id: payload.importacao_id || null,
+      });
 
       if (error) {
         resultado.erros.push(`Linha ${linha}: ${error.message}`);
         resultado.ignorados += 1;
         continue;
       }
-
-      await registrarSaneamentosDaCobrancaImportada(supabase, {
-        payload,
-        unidade: unidade.unidade,
-        unidadeCriada: unidade.criada,
-        unidadeSugerida: unidade.unidadeSugerida ?? null,
-        cobrancaId: (cobrancaInserida as any)?.id ?? null,
-        importacaoId: payload.importacao_id || null,
-      });
 
       resultado.importados += 1;
     } catch (error) {
@@ -1900,8 +1849,6 @@ export async function confirmarImportacao(formData: FormData) {
       divergentes: 0,
       ignorados: Math.max(0, payloads.length - resultadoLegado.importados),
       erros: resultadoLegado.erros,
-      descartes: [],
-      divergencias: [],
     };
   }
 
@@ -1919,8 +1866,6 @@ export async function confirmarImportacao(formData: FormData) {
 
   (resultado as any).atualizados = execucao.atualizados;
   (resultado as any).divergentes = execucao.divergentes;
-  (resultado as any).descartes = execucao.descartes;
-  (resultado as any).divergencias = execucao.divergencias;
 
   await finalizarImportacao({
     supabase,
