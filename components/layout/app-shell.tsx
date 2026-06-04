@@ -12,6 +12,7 @@ type SidebarItem = {
   href: string
   icon?: string
   description?: string
+  gestorOnly?: boolean
 }
 
 type SidebarSection = {
@@ -74,6 +75,7 @@ const sections: SidebarSection[] = [
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
       { label: 'Saneamento cobranças', href: '/app/gestao/saneamento-cobrancas', icon: 'shield' },
+      { label: 'Fechamento mensal', href: '/app/gestao/fechamento', icon: 'calendar', gestorOnly: true },
       { label: 'Importações', href: '/app/importacoes', icon: 'upload' },
     ],
   },
@@ -141,6 +143,7 @@ function getIcon(icon?: string) {
     case 'shield': return '◇'
     case 'funnel': return '▽'
     case 'clipboard': return '☰'
+    case 'calendar': return '◷'
     case 'timeline': return '◫'
     case 'alert': return '⚠'
     case 'beaker': return '⚗'
@@ -171,6 +174,16 @@ function isItemActive(pathname: string, href: string) {
 function findCurrentItem(pathname: string) {
   const allItems = [featuredItem, ...sections.flatMap((section) => section.items), ...settingsGroups.flatMap((section) => section.items)]
   return allItems.find((item) => isItemActive(pathname, item.href))
+}
+
+function isGestorUser(user?: AppShellUser) {
+  const perfil = String(user?.perfil ?? '').toLowerCase()
+  return ['admin', 'gestor', 'manager', 'owner'].includes(perfil)
+}
+
+function filterItemsForUser(items: SidebarItem[], user?: AppShellUser) {
+  if (isGestorUser(user)) return items
+  return items.filter((item) => !item.gestorOnly)
 }
 
 export function AppShell({
@@ -366,8 +379,10 @@ export function AppShell({
               {renderItem(featuredItem, { featured: true })}
 
               {sections.map((section) => {
+                const visibleItems = filterItemsForUser(section.items, user)
+                if (visibleItems.length === 0) return null
                 const groupCollapsed = collapsedGroups.includes(section.id)
-                const groupActive = section.items.some((item) =>
+                const groupActive = visibleItems.some((item) =>
                   isItemActive(pathname, item.href),
                 )
 
@@ -401,7 +416,7 @@ export function AppShell({
 
                     {(!groupCollapsed || collapsed) && (
                       <div className="space-y-1">
-                        {section.items.map((item) => renderItem(item))}
+                        {visibleItems.map((item) => renderItem(item))}
                       </div>
                     )}
                   </section>

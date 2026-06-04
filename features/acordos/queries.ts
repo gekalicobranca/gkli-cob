@@ -702,8 +702,11 @@ export async function listAcordosComSaude(scope?: CarteiraScope) {
 }
 
 export async function listFilaParcelasOperadorAcordos(scope?: CarteiraScope) {
-  const acordos = await listAcordosComSaude(scope);
-  const parcelas = await getParcelasDosAcordos(acordos.map((acordo: any) => acordo.id));
+  // Hardening 5.6: evita carregar parcelas duas vezes.
+  // Antes, listAcordosComSaude() já buscava parcelas e esta função buscava novamente.
+  const acordosBase = await listAcordos(scope);
+  const parcelas = await getParcelasDosAcordos(acordosBase.map((acordo: any) => acordo.id));
+  const acordos = attachAgreementHealth(acordosBase as any[], parcelas);
   const acordoPorId = new Map(acordos.map((acordo: any) => [acordo.id, acordo]));
 
   return parcelas

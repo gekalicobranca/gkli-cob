@@ -249,25 +249,60 @@ export default async function AcordoDetalhePage({ params }: Props) {
       <PageHeader
         eyebrow="GKLI Cobrança"
         title="Acordo operacional"
-        description="Gestão completa do acordo, entrada, parcelas e acompanhamento operacional."
+        description="Status, parcelas e formalização em uma visão enxuta."
         actions={
-          <div className="flex gap-2">
-            <Link
-              href={`/app/cobrancas/${acordo.cobranca_id}`}
-              className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
-            >
-              Ver cobrança
-            </Link>
-
+          <div className="flex flex-wrap gap-2">
             <Link
               href="/app/acordos"
               className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
             >
               Voltar
             </Link>
+            {acordo.condominio_id ? (
+              <Link
+                href={`/app/condominios/${acordo.condominio_id}`}
+                className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+              >
+                Condomínio
+              </Link>
+            ) : null}
+            {acordo.unidade_id ? (
+              <Link
+                href={`/app/unidades/${acordo.unidade_id}`}
+                className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+              >
+                Unidade
+              </Link>
+            ) : null}
+            {acordo.cobranca_id ? (
+              <Link
+                href={`/app/cobrancas/${acordo.cobranca_id}`}
+                className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+              >
+                Cobrança
+              </Link>
+            ) : null}
           </div>
         }
       />
+
+      <Card className="border-slate-200 shadow-sm">
+        <CardContent className="grid gap-4 p-5 md:grid-cols-[1.2fr_0.8fr_auto] md:items-center">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Contexto operacional</p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-950">{acordo.condominios?.nome || "Condomínio não informado"}</h2>
+            <p className="mt-1 text-sm text-slate-500">Unidade {acordo.unidades?.identificacao || "-"}{acordo.unidades?.bloco ? ` · Bloco ${acordo.unidades.bloco}` : ""}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Responsável</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{acordo.unidades?.responsavel_nome || "Não informado"}</p>
+          </div>
+          <div className="flex flex-wrap gap-2 md:justify-end">
+            <Badge value={acordo.status} />
+            <AgreementHealthBadge health={health.saude} />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-4">
         <MetricCard
@@ -353,22 +388,9 @@ export default async function AcordoDetalhePage({ params }: Props) {
         <Card className="xl:col-span-3">
           <CardContent className="space-y-5 p-6">
             <SectionTitle
-              title="Origem do acordo"
-              description="Unidade e cobranças agrupadas neste acordo."
+              title="Cobranças agrupadas"
+              description="Origem financeira do acordo."
             />
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
-              <div className="text-lg font-semibold text-slate-950">
-                {acordo.condominios?.nome || "Condomínio não informado"}
-              </div>
-
-              <div className="mt-1 text-sm text-slate-500">
-                Unidade {acordo.unidades?.identificacao || "-"}
-                {acordo.unidades?.bloco
-                  ? ` • Bloco ${acordo.unidades.bloco}`
-                  : ""}
-              </div>
-            </div>
 
             {cobrancasVinculadas?.length ? (
               <div className="space-y-3">
