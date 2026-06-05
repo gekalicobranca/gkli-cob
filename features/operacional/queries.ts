@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
+import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 async function loadEstadosOperacionais(supabase: Awaited<ReturnType<typeof createClient>>, scope: CarteiraScope) {
   let cobrancasQuery = supabase
@@ -33,8 +34,8 @@ async function loadEstadosOperacionais(supabase: Awaited<ReturnType<typeof creat
     entidade_tipo: 'cobranca',
     entidade_id: cobranca.id,
     carteira_id: cobranca.carteira_id,
-    estado_codigo: cobranca.status_operacional ?? cobranca.status ?? 'novo',
-    estado_nome: cobranca.status_operacional ?? cobranca.status ?? 'novo',
+    estado_codigo: getCobrancaStatusOperacional(cobranca),
+    estado_nome: getCobrancaStatusOperacional(cobranca),
     score_prioridade: Number(cobranca.score_prioridade ?? cobranca.dias_atraso ?? 0),
     proxima_acao: cobranca.proxima_acao_em ? 'Ação operacional programada' : 'Avaliar próxima cobrança',
     motivo_prioridade: cobranca.dias_atraso ? `${cobranca.dias_atraso} dias de atraso` : null,

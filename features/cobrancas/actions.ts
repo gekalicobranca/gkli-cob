@@ -8,6 +8,7 @@ import { requireUser } from '@/utils/auth/require-user'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { registrarEventoOperacional } from '@/features/operacional/service'
 import { COBRANCA_STATUS } from '@/lib/core/status'
+import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 function toNumber(value: FormDataEntryValue | null) {
   const raw = String(value ?? '0').replace(/\./g, '').replace(',', '.')
@@ -129,6 +130,17 @@ export async function createCobranca(formData: FormData) {
       valor_original: valorOriginal,
       valor_atualizado: valorAtualizado,
     },
+    depois: {
+      status: COBRANCA_STATUS.NOVO,
+      status_operacional: COBRANCA_STATUS.NOVO,
+      status_financeiro: 'em_aberto',
+      competencia: competencia || null,
+      vencimento,
+      valor_original: valorOriginal,
+      valor_atualizado: valorAtualizado,
+    },
+    origem: 'manual',
+    auditavel: true,
   })
 
   revalidatePath('/app/cobrancas')
@@ -182,7 +194,7 @@ export async function updateCobrancaStatus(formData: FormData) {
     entidadeTipo: 'cobranca',
     entidadeId: cobrancaId,
     eventoCodigo: 'cobranca.status_alterado',
-    estadoAnterior: (atual as any)?.status_operacional ?? (atual as any)?.status ?? null,
+    estadoAnterior: getCobrancaStatusOperacional(atual as any),
     estadoNovo: status,
     titulo: 'Status da cobrança alterado',
     descricao: `Status alterado para ${status}.`,
@@ -190,6 +202,10 @@ export async function updateCobrancaStatus(formData: FormData) {
       status === COBRANCA_STATUS.JUDICIALIZADO || status === COBRANCA_STATUS.SUSPENSO
         ? 'alerta'
         : 'info',
+    antes: { status_operacional: getCobrancaStatusOperacional(atual as any) },
+    depois: { status_operacional: status },
+    origem: 'manual',
+    auditavel: true,
     userId: user?.id ?? null,
   })
 
@@ -256,7 +272,7 @@ export async function updateCobrancasStatusEmLote(formData: FormData) {
         entidadeTipo: 'cobranca',
         entidadeId: cobranca.id,
         eventoCodigo: 'cobranca.status_alterado_lote',
-        estadoAnterior: cobranca.status_operacional ?? cobranca.status ?? null,
+        estadoAnterior: getCobrancaStatusOperacional(cobranca),
         estadoNovo: status,
         titulo: 'Status alterado em lote',
         descricao: observacao || `Status alterado em lote para ${status}.`,
@@ -264,6 +280,10 @@ export async function updateCobrancasStatusEmLote(formData: FormData) {
           status === COBRANCA_STATUS.JUDICIALIZADO || status === COBRANCA_STATUS.SUSPENSO
             ? 'alerta'
             : 'info',
+        antes: { status_operacional: getCobrancaStatusOperacional(cobranca) },
+        depois: { status_operacional: status },
+        origem: 'manual',
+        auditavel: true,
         userId: user?.id ?? null,
         payload: { total_selecionadas: idsPermitidos.length },
       }),
@@ -332,9 +352,12 @@ export async function updateCobrancaFinanceiro(formData: FormData) {
     descricao: observacaoFinanceira || 'Composição financeira atualizada.',
     severidade: 'info',
     payload: {
-      antes: atualFinanceiro ?? null,
-      depois: { valor_original: valorOriginal, juros, multa, correcao, desconto, valor_atualizado: valorAtualizado },
+      observacao_financeira: observacaoFinanceira || null,
     },
+    antes: atualFinanceiro ?? null,
+    depois: { valor_original: valorOriginal, juros, multa, correcao, desconto, valor_atualizado: valorAtualizado },
+    origem: 'manual',
+    auditavel: true,
   })
 
   revalidatePath(`/app/cobrancas/${cobrancaId}`)

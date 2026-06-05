@@ -16,6 +16,15 @@ export type EntidadeOperacional =
 
 export type SeveridadeEvento = 'info' | 'sucesso' | 'alerta' | 'critico'
 
+export type OrigemEventoOperacional =
+  | 'app'
+  | 'manual'
+  | 'cron'
+  | 'api'
+  | 'importacao'
+  | 'webhook'
+  | 'sistema'
+
 export type RegistrarEventoInput = {
   carteiraId?: string | null
   entidadeTipo: EntidadeOperacional
@@ -27,6 +36,10 @@ export type RegistrarEventoInput = {
   descricao?: string | null
   severidade?: SeveridadeEvento
   payload?: Record<string, unknown>
+  antes?: Record<string, unknown> | null
+  depois?: Record<string, unknown> | null
+  origem?: OrigemEventoOperacional
+  auditavel?: boolean
   userId?: string | null
   required?: boolean
 }

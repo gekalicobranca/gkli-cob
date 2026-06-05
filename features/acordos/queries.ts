@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import { COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO } from "@/lib/constants/cobrancas";
+import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 
 function uniqueStrings(values: Array<string | null | undefined>) {
@@ -9,7 +10,7 @@ function uniqueStrings(values: Array<string | null | undefined>) {
 }
 
 function statusOperacionalDaCobranca(cobranca: any) {
-  return cobranca.status_operacional ?? cobranca.status;
+  return getCobrancaStatusOperacional(cobranca);
 }
 
 async function getUnidadeIdsComJudicializacaoAtiva(

@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/normalize-relation'
+import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 const UNIDADE_SELECT = `
   id,
@@ -286,11 +287,11 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
   }
 
   const valorEmAberto = cobrancas
-    .filter((cobranca) => !['acordo_efetivado', 'quitado', 'pago'].includes(String(cobranca.status_operacional ?? cobranca.status ?? '')))
+    .filter((cobranca) => !['acordo_efetivado', 'quitado', 'pago'].includes(getCobrancaStatusOperacional(cobranca)))
     .reduce((sum, cobranca) => sum + Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0), 0)
 
   const acordosRompidos = acordos.filter((acordo) => ['quebrado', 'rompido', 'cancelado'].includes(String(acordo.status))).length
-  const possuiJudicializacao = cobrancas.some((cobranca) => ['judicializado'].includes(String(cobranca.status_operacional ?? cobranca.status ?? '')))
+  const possuiJudicializacao = cobrancas.some((cobranca) => getCobrancaStatusOperacional(cobranca) === 'judicializado')
 
   return {
     cobrancas,

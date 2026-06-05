@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
+import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 import type { RelatorioFilters, RelatorioLinha, RelatorioResumo, RelatorioTipo } from './types'
 
 type RowMap = Map<string, RelatorioLinha>
@@ -289,7 +290,8 @@ export async function getRelatorioCondominiosCobrancas(scope: CarteiraScope, fil
     row.valorOriginal += money(cobranca.valor_original)
     row.valorAtualizado += money(cobranca.valor_atualizado)
 
-    const bucket = statusBucket(cobranca.status_operacional ?? cobranca.status)
+    const statusOperacional = getCobrancaStatusOperacional(cobranca)
+    const bucket = statusBucket(statusOperacional)
     if (bucket === 'suspenso') row.statusSuspenso += 1
     else if (bucket === 'acordo') row.statusAcordo += 1
     else if (bucket === 'negociacao') row.statusNegociacao += 1
@@ -301,7 +303,7 @@ export async function getRelatorioCondominiosCobrancas(scope: CarteiraScope, fil
       subtitulo: safeText(unidade?.responsavel_nome, 'Responsável não informado'),
       carteira: row.carteira,
       administradora: row.administradora,
-      status: cobranca.status_operacional ?? cobranca.status,
+      status: statusOperacional,
       vencimento: cobranca.vencimento,
       valor: money(cobranca.valor_original),
       valorAtualizado: money(cobranca.valor_atualizado),

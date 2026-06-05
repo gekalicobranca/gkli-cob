@@ -11,10 +11,6 @@ export type CobrancaListFilters = {
   judicializacaoUnidade?: string
 }
 
-function getStatusOperacional(row: any) {
-  return row.status_operacional ?? row.status
-}
-
 function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean) as string[]))
 }

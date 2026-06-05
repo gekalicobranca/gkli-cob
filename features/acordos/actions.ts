@@ -14,6 +14,7 @@ import {
   COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO,
   PARCELA_ACORDO_STATUS,
 } from "@/lib/core/status";
+import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 function toNumber(value: FormDataEntryValue | null) {
   const raw = String(value ?? "0")
@@ -129,8 +130,7 @@ async function cleanupAcordoParcial(
         .from("cobrancas")
         .update({
           status: cobranca.status ?? COBRANCA_STATUS.NOVO,
-          status_operacional:
-            cobranca.status_operacional ?? cobranca.status ?? COBRANCA_STATUS.NOVO,
+          status_operacional: getCobrancaStatusOperacional(cobranca),
         })
         .eq("id", cobranca.id),
     ),
@@ -504,8 +504,8 @@ export async function createAcordo(formData: FormData) {
   }
 
   const bloqueada = cobrancas.find((item) =>
-    [...COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO].includes(
-      item.status_operacional ?? item.status,
+    (COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(
+      getCobrancaStatusOperacional(item),
     ),
   );
 
@@ -760,6 +760,17 @@ export async function createAcordo(formData: FormData) {
       exige_aprovacao_sindico: exigeAprovacaoSindico,
       fluxo_status: fluxoStatusInicial,
     },
+    depois: {
+      status: ACORDO_STATUS.ATIVO,
+      status_financeiro: "em_aberto",
+      fluxo_status: fluxoStatusInicial,
+      valor_acordado: valorAcordado,
+      entrada,
+      quantidade_parcelas: quantidadeParcelas,
+      cobranca_ids: cobrancaIds,
+    },
+    origem: "manual",
+    auditavel: true,
     userId: user?.id ?? null,
   });
 
@@ -770,12 +781,16 @@ export async function createAcordo(formData: FormData) {
         entidadeTipo: "cobranca",
         entidadeId: cobranca.id,
         eventoCodigo: "cobranca.acordo_firmado",
-        estadoAnterior: cobranca.status ?? null,
+        estadoAnterior: getCobrancaStatusOperacional(cobranca),
         estadoNovo: COBRANCA_STATUS.ACORDO_FIRMADO,
         titulo: "Cobrança vinculada a acordo",
         descricao: `Cobrança vinculada ao acordo ${acordo.id}.`,
         severidade: "sucesso",
         payload: { acordo_id: acordo.id, valor_acordado: valorAcordado },
+        antes: { status_operacional: getCobrancaStatusOperacional(cobranca) },
+        depois: { status_operacional: COBRANCA_STATUS.ACORDO_FIRMADO, acordo_id: acordo.id },
+        origem: "manual",
+        auditavel: true,
         userId: user?.id ?? null,
       }),
     ),
@@ -1264,6 +1279,10 @@ export async function marcarParcelaComoPaga(formData: FormData) {
     descricao: `Parcela ${(parcelaEvento as any)?.numero ?? ""} marcada como paga.`,
     severidade: "sucesso",
     payload: { parcela_id: parcelaId, parcela: parcelaEvento ?? null },
+    antes: { parcela_id: parcelaId, status: (parcelaEvento as any)?.status ?? null },
+    depois: { parcela_id: parcelaId, status: PARCELA_ACORDO_STATUS.PAGA },
+    origem: "manual",
+    auditavel: true,
     userId: user?.id ?? null,
   });
 
@@ -1337,6 +1356,20 @@ export async function marcarParcelaComoVencida(formData: FormData) {
     descricao: `Parcela ${(parcelaEvento as any)?.numero ?? ""} marcada como vencida.`,
     severidade: "alerta",
     payload: { parcela_id: parcelaId, parcela: parcelaEvento ?? null },
+    antes: {
+      parcela_id: parcelaId,
+      parcela_status: (parcelaEvento as any)?.status ?? null,
+      acordo_status: (acordoEvento as any)?.status ?? null,
+      acordo_status_financeiro: (acordoEvento as any)?.status_financeiro ?? null,
+    },
+    depois: {
+      parcela_id: parcelaId,
+      parcela_status: PARCELA_ACORDO_STATUS.VENCIDA,
+      acordo_status: ACORDO_STATUS.EM_ATRASO,
+      acordo_status_financeiro: "vencido",
+    },
+    origem: "manual",
+    auditavel: true,
     userId: user?.id ?? null,
   });
 
@@ -1509,6 +1542,10 @@ export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
     descricao: [motivo || null, observacao || null].filter(Boolean).join(" · ") || "Decisão registrada pelo operador.",
     severidade: decisao === "aprovar" ? "sucesso" : "alerta",
     payload: { decisao, motivo, observacao },
+    antes: { fluxo_status: (acordo as any).fluxo_status ?? null },
+    depois: update,
+    origem: "manual",
+    auditavel: true,
     userId: user.id,
   });
 
@@ -1550,6 +1587,9 @@ export async function atualizarStatusBoletosAcordo(formData: FormData) {
     descricao: "Status de boletos atualizado no controle operacional do acordo.",
     severidade: "info",
     payload: { status_boletos: status },
+    depois: { fluxo_status: status },
+    origem: "manual",
+    auditavel: true,
     userId: user.id,
   });
 
@@ -1572,7 +1612,7 @@ export async function romperAcordoAssistido(formData: FormData) {
 
   const { data: acordo, error } = await supabase
     .from("acordos")
-    .select("id, carteira_id, cobranca_id")
+    .select("id, carteira_id, cobranca_id, status, status_financeiro")
     .eq("id", acordoId)
     .maybeSingle();
   if (error) throw new Error(`Erro ao carregar acordo: ${error.message}`);
@@ -1612,6 +1652,10 @@ export async function romperAcordoAssistido(formData: FormData) {
     descricao: [motivo || "Motivo não informado", `Destino: ${destino.replace(/_/g, " ")}`, observacao || null].filter(Boolean).join(" · "),
     severidade: "alerta",
     payload: { motivo, destino, observacao, cobranca_ids: cobrancaIds },
+    antes: { status: (acordo as any).status ?? null, status_financeiro: (acordo as any).status_financeiro ?? null },
+    depois: { status: "rompido", status_financeiro: "vencido", fluxo_status: `rompido_${destino}`, status_cobranca: statusCobranca },
+    origem: "manual",
+    auditavel: true,
     userId: user.id,
   });
 

@@ -4,6 +4,7 @@ import {
   COBRANCA_STATUS,
   COBRANCA_STATUS_SEM_ACAO,
 } from "@/lib/core/status";
+import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 export type CockpitItem = {
   id: string;
@@ -126,7 +127,7 @@ export function buildAcordoItem(acordo: any): CockpitItem {
 
 export function buildCobrancaItem(cobranca: any): CockpitItem {
   const valor = Number(cobranca.valor_atualizado ?? 0);
-  const status = String(cobranca.status_operacional ?? cobranca.status ?? "");
+  const status = getCobrancaStatusOperacional(cobranca);
   const daysOverdue = safeDaysFromToday(cobranca.vencimento);
 
   let score = moneyScore(valor);

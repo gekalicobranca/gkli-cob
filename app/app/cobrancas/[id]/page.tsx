@@ -27,6 +27,10 @@ import {
   COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO,
   COBRANCA_STATUS_OPERACIONAL_LIST,
 } from '@/lib/core/status'
+import {
+  getCobrancaStatusFinanceiro,
+  getCobrancaStatusOperacional,
+} from '@/lib/core/cobranca-status'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -61,8 +65,8 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
 
   if (!cobranca) notFound()
 
-  const statusOperacionalReal = cobranca.status_operacional ?? cobranca.status ?? 'novo'
-  const statusFinanceiro = cobranca.status_financeiro ?? 'em_aberto'
+  const statusOperacionalReal = getCobrancaStatusOperacional(cobranca)
+  const statusFinanceiro = getCobrancaStatusFinanceiro(cobranca)
   const statusOperacional = acordoVigente
     ? acordoVigente.status_financeiro === 'quitado' || acordoVigente.status === 'quitado'
       ? 'acordo_efetivado'

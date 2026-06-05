@@ -23,6 +23,7 @@ import {
   COBRANCA_STATUS_OPERACIONAL,
   normalizeStatus,
 } from "@/lib/core/status";
+import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 import { COBRANCA_STATUS_LABEL } from "@/lib/constants/cobrancas";
 import { CobrancasBulkControls } from "./cobrancas-bulk-controls";
 
@@ -45,6 +46,12 @@ const STATUS_FILTERS = [
   COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
   COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
 ];
+
+const STATUS_SEM_VALOR_EM_ABERTO = new Set<string>([
+  COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
+  COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
+  COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
+]);
 
 function getParam(value?: string) {
   return String(value ?? "").trim();
@@ -91,10 +98,6 @@ function sumBy(rows: any[], predicate: (row: any) => boolean) {
     .reduce((sum, row) => sum + Number(row.valor_atualizado ?? 0), 0);
 }
 
-function statusOperacional(row: any) {
-  return row.status_operacional ?? row.status;
-}
-
 export default async function CobrancasPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : {};
   const filters = {
@@ -113,23 +116,18 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
 
   const totalEmAberto = sumBy(
     rows,
-    (row: any) =>
-      ![
-        COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
-        COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
-        COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
-      ].includes(statusOperacional(row)),
+    (row: any) => !STATUS_SEM_VALOR_EM_ABERTO.has(getCobrancaStatusOperacional(row)),
   );
   const totalNegociacao = sumBy(
     rows,
-    (row: any) => statusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
+    (row: any) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
   );
-  const novas = rows.filter((row: any) => statusOperacional(row) === "novo").length;
+  const novas = rows.filter((row: any) => getCobrancaStatusOperacional(row) === "novo").length;
   const ativas = rows.filter(
-    (row: any) => statusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
+    (row: any) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
   ).length;
   const emNegociacao = rows.filter(
-    (row: any) => statusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
+    (row: any) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
   ).length;
 
   return (
@@ -274,7 +272,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
               <CobrancasBulkControls />
               <LiteScrollArea className="divide-y divide-slate-100">
                 {rows.map((row: any) => {
-                  const status = statusOperacional(row);
+                  const status = getCobrancaStatusOperacional(row);
                   const priority = getPriority(status, row.vencimento);
                   const unidadeLabel = [
                     row.unidades?.bloco,

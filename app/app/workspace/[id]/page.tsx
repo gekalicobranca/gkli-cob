@@ -40,6 +40,10 @@ import {
   COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO,
   COBRANCA_STATUS_OPERACIONAL_LIST,
 } from "@/lib/core/status";
+import {
+  getCobrancaStatusFinanceiro,
+  getCobrancaStatusOperacional,
+} from "@/lib/core/cobranca-status";
 import { CobrancaCompactTimeline } from "@/features/cobrancas/components/cobranca-compact-timeline";
 import { CobrancaConversationPanel } from "@/features/cobrancas/components/cobranca-conversation-panel";
 import { CobrancaResolutionDock } from "@/features/cobrancas/components/cobranca-resolution-dock";
@@ -78,9 +82,8 @@ export default async function WorkspaceOperacionalPage({
 
   if (!cobranca) notFound();
 
-  const statusOperacionalReal =
-    cobranca.status_operacional ?? cobranca.status ?? "novo";
-  const statusFinanceiro = cobranca.status_financeiro ?? "em_aberto";
+  const statusOperacionalReal = getCobrancaStatusOperacional(cobranca);
+  const statusFinanceiro = getCobrancaStatusFinanceiro(cobranca);
   const statusOperacional = acordoVigente
     ? acordoVigente.status_financeiro === "quitado" || acordoVigente.status === "quitado"
       ? "acordo_efetivado"

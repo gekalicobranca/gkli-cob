@@ -19,6 +19,7 @@ import { calculateAgreementHealth, getAcordoDetalhe } from "@/features/acordos/q
 import { AgreementHealthBadge } from "@/features/acordos/components/agreement-health-badge";
 import { AgreementFormalizationCard } from "@/features/acordos/components/agreement-formalization-card";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
+import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 type Props = {
   params: Promise<{
@@ -405,12 +406,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
                         {item.cobrancas?.competencia || "Sem competência"}
                       </div>
                       <div className="mt-1 text-sm text-slate-500">
-                        <Badge
-                          value={
-                            item.cobrancas?.status_operacional ??
-                            item.cobrancas?.status
-                          }
-                        />
+                        <Badge value={getCobrancaStatusOperacional(item.cobrancas)} />
                       </div>
                     </div>
                     <div className="text-right">

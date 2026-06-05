@@ -12,6 +12,7 @@ import {
 } from "@/features/acordos/queries";
 import { solicitarPlanilhaDebitosAdministradora } from "@/features/acordos/actions";
 import { COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO } from "@/lib/core/status";
+import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 type PageProps = {
   searchParams: Promise<{
@@ -41,7 +42,7 @@ function getValorAtualizado(cobranca: any) {
 }
 
 function isBloqueada(cobranca: any) {
-  const status = cobranca.status_operacional ?? cobranca.status;
+  const status = getCobrancaStatusOperacional(cobranca);
   return (
     cobranca.unidade_bloqueada_por_judicializacao ||
     (COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(status)
@@ -162,11 +163,7 @@ export default async function SelecionarCobrancasAcordoPage({
                           {cobranca.competencia ?? "-"}
                         </td>
                         <td className="px-4 py-3 align-top">
-                          <StatusBadge
-                            status={
-                              cobranca.status_operacional ?? cobranca.status
-                            }
-                          />
+                          <StatusBadge status={getCobrancaStatusOperacional(cobranca)} />
                         </td>
                         <td className="px-4 py-3 align-top text-right font-semibold text-slate-950">
                           {formatCurrency(getValorAtualizado(cobranca))}

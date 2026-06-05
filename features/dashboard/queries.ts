@@ -5,6 +5,10 @@ import {
   ACORDO_STATUS,
   COBRANCA_STATUS,
 } from "@/lib/core/status";
+import {
+  getCobrancaStatusFinanceiro,
+  getCobrancaStatusOperacional,
+} from "@/lib/core/cobranca-status";
 
 type TrafficStatus = "verde" | "amarelo" | "vermelho";
 
@@ -66,11 +70,11 @@ function normalizeStatus(status?: string | null) {
 }
 
 function getCobrancaOperationalStatus(item: DashboardCobranca) {
-  return normalizeStatus(item.status_operacional ?? item.status);
+  return getCobrancaStatusOperacional(item);
 }
 
 function getCobrancaFinancialStatus(item: DashboardCobranca) {
-  return normalizeStatus(item.status_financeiro);
+  return getCobrancaStatusFinanceiro(item);
 }
 
 function safeDate(value?: string | null) {
@@ -333,7 +337,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
 
   const statusDistribution: StatusSlice[] = buildStatusDistribution(
     cobrancasList.map((item) => ({
-      status: item.status_operacional ?? item.status,
+      status: getCobrancaOperationalStatus(item),
       value: money(item.valor_atualizado),
     })),
   );

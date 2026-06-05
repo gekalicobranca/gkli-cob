@@ -9,10 +9,7 @@ import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { listCobrancas } from "@/features/cobrancas/queries";
-
-function statusOperacional(row: any) {
-  return row.status_operacional ?? row.status;
-}
+import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 function unidadeLabel(row: any) {
   const bloco = row.unidades?.bloco ? `${row.unidades.bloco} ` : "";
@@ -71,7 +68,7 @@ export default async function SaneamentoCobrancasJudicializadasPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">Unidade judicializada</span>
-                    <StatusBadge status={statusOperacional(row)} />
+                    <StatusBadge status={getCobrancaStatusOperacional(row)} />
                   </div>
                   <p className="mt-2 truncate text-sm font-semibold text-slate-950">{row.condominios?.nome ?? "Condomínio não informado"}</p>
                   <p className="mt-1 truncate text-xs text-slate-500">Unidade {unidadeLabel(row)} · {row.unidades?.responsavel_nome ?? "Responsável não informado"}</p>

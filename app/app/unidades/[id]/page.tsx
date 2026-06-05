@@ -14,6 +14,7 @@ import { updateUnidade } from '@/features/unidades/actions'
 import { StatusBadge } from '@/components/data/status-badge'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
+import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 export default async function UnidadeDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -77,7 +78,7 @@ export default async function UnidadeDetalhePage({ params }: { params: Promise<{
               {historico.cobrancas.slice(0, 6).map((cobranca: any) => (
                 <Link key={cobranca.id} href={`/app/cobrancas/${cobranca.id}`} className="group flex items-center justify-between gap-3 rounded-2xl border border-slate-100 px-4 py-3 transition hover:bg-slate-50">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2"><StatusBadge status={cobranca.status_operacional ?? cobranca.status} /><span className="text-xs text-slate-500">{formatDateBR(cobranca.vencimento)}</span></div>
+                    <div className="flex flex-wrap items-center gap-2"><StatusBadge status={getCobrancaStatusOperacional(cobranca)} /><span className="text-xs text-slate-500">{formatDateBR(cobranca.vencimento)}</span></div>
                     <p className="mt-1 text-sm font-medium text-slate-950">{formatCurrency(Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0))}</p>
                   </div>
                   <ArrowUpRight size={15} className="shrink-0 text-slate-400 group-hover:text-[var(--gkli-primary)]" />
