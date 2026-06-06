@@ -46,3 +46,9 @@ body { overflow: hidden; }
   .gkli-app-main, .gkli-app-frame, .gkli-viewport-page { height: auto; min-height: 100vh; }
   .gkli-app-main, .gkli-app-content, .gkli-viewport-workarea { overflow: visible; }
 }
+
+@keyframes gkli-progress {
+  0% { transform: translateX(-100%) scaleX(.32); }
+  45% { transform: translateX(-12%) scaleX(.62); }
+  100% { transform: translateX(100%) scaleX(.35); }
+}

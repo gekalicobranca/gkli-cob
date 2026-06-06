@@ -15,7 +15,9 @@ type PageProps = {
   searchParams: Promise<{
     cobrancaId?: string;
     cobranca_id?: string;
+    cobranca_id_origem?: string;
     cobrancaIds?: string | string[];
+    unidade_id?: string;
     sindico?: string;
   }>;
 };
@@ -35,7 +37,7 @@ function normalizeIds(value?: string | string[] | null) {
 
 export default async function NovoAcordoPage({ searchParams }: PageProps) {
   const query = await searchParams;
-  const legacyCobrancaId = query.cobrancaId ?? query.cobranca_id;
+  const legacyCobrancaId = query.cobrancaId ?? query.cobranca_id ?? query.cobranca_id_origem;
   const selectedIds = normalizeIds(query.cobrancaIds);
   const scope = await getPermittedCarteiras();
 

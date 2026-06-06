@@ -371,6 +371,35 @@ function normalizeUuidList(values: FormDataEntryValue[]) {
   );
 }
 
+export type AcordoActionState = {
+  error: string | null;
+};
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  return "Nao foi possivel criar o acordo. Revise os dados e tente novamente.";
+}
+
+function rethrowNextNavigationError(error: unknown) {
+  const digest = (error as { digest?: unknown })?.digest;
+  if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) {
+    throw error;
+  }
+}
+
+export async function createAcordoComEstado(
+  _state: AcordoActionState,
+  formData: FormData,
+): Promise<AcordoActionState> {
+  try {
+    await createAcordo(formData);
+    return { error: null };
+  } catch (error) {
+    rethrowNextNavigationError(error);
+    return { error: getErrorMessage(error) };
+  }
+}
+
 export async function createAcordo(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();

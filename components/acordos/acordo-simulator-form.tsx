@@ -1,7 +1,8 @@
 "use client";
 
-import { type ChangeEvent, useMemo, useState } from "react";
-import { createAcordo, solicitarAprovacaoSindicoAcordo } from "@/features/acordos/actions";
+import { type ChangeEvent, useActionState, useMemo, useState } from "react";
+import { AlertTriangle } from "lucide-react";
+import { createAcordoComEstado, solicitarAprovacaoSindicoAcordo } from "@/features/acordos/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -105,6 +106,10 @@ export function AcordoSimulatorForm({
   aprovacaoSindicoSolicitada = false,
   inteligenciaOperacional = { reincidencia: 0, rompimentos: 0 },
 }: AcordoSimulatorFormProps) {
+  const [actionState, createAcordoAction, isCreatingAcordo] = useActionState(
+    createAcordoComEstado,
+    { error: null },
+  );
   const initial =
     cobrancas.find((item) => item.id === initialCobrancaId) ?? cobrancas[0];
   const [cobrancaId, setCobrancaId] = useState(initial?.id ?? "");
@@ -329,7 +334,7 @@ export function AcordoSimulatorForm({
   }
 
   return (
-    <form action={createAcordo} className="grid gap-6 xl:grid-cols-[1fr_420px]">
+    <form action={createAcordoAction} className="grid gap-6 xl:grid-cols-[1fr_420px]">
       {cobrancasSelecionadas.map((cobranca) => (
         <input
           key={cobranca.id}
@@ -612,6 +617,22 @@ export function AcordoSimulatorForm({
           </div>
         ) : null}
 
+        {actionState.error ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+            <div className="flex gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-semibold text-rose-950">
+                  Nao foi possivel criar o acordo
+                </p>
+                <p className="mt-1 text-sm leading-6 text-rose-900">
+                  {actionState.error}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex flex-col justify-end gap-2 md:flex-row">
           {!exigeAprovacaoSindico ? (
             <Button
@@ -619,7 +640,7 @@ export function AcordoSimulatorForm({
               variant="secondary"
               formAction={solicitarAprovacaoSindicoAcordo}
               onClick={handleOpenAprovacaoSindicoEmail}
-              disabled={bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico}
+              disabled={isCreatingAcordo || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico}
             >
               Enviar acordo para aprovação do síndico
             </Button>
@@ -627,6 +648,8 @@ export function AcordoSimulatorForm({
           <Button
             type="submit"
             disabled={bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico}
+            loading={isCreatingAcordo}
+            loadingLabel="Criando acordo..."
           >
             Criar acordo e iniciar fluxo
           </Button>

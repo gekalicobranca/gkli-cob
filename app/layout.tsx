@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { AppInteractionIndicator } from '@/components/feedback/app-interaction-indicator'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -22,7 +23,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <AppInteractionIndicator />
+        {children}
+      </body>
     </html>
   )
 }
