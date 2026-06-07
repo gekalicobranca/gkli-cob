@@ -1541,6 +1541,10 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
   const acordoId = String(formData.get("acordo_id") ?? "").trim();
   const mensagemId = String(formData.get("mensagem_id") ?? "").trim();
   const canal = String(formData.get("canal") ?? "email").trim() || "email";
+  const returnTo = String(formData.get("return_to") ?? "/app/gestao/acionamentos-acordos").trim();
+  const safeReturnTo = returnTo.startsWith("/app/gestao/acionamentos-acordos")
+    ? returnTo
+    : "/app/gestao/acionamentos-acordos";
 
   if (!termoId) throw new Error("Termo obrigatorio para registrar acionamento.");
   if (!acordoId) throw new Error("Acordo obrigatorio para registrar acionamento.");
@@ -1563,7 +1567,7 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
   let mensagemRegistradaId = mensagemId || null;
 
   if (mensagemId) {
-    const { error: mensagemError } = await supabase
+    const { data: mensagemAtualizada, error: mensagemError } = await supabase
       .from("mensagens")
       .update({
         status: "enviada",
@@ -1574,10 +1578,16 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
         ultima_tentativa_em: now,
       })
       .eq("id", mensagemId)
-      .eq("acordo_id", acordoId);
+      .eq("acordo_id", acordoId)
+      .select("id")
+      .maybeSingle();
 
     if (mensagemError) {
       throw new Error(`Erro ao marcar mensagem como acionada: ${mensagemError.message}`);
+    }
+
+    if (!mensagemAtualizada) {
+      throw new Error("Mensagem de acionamento nao encontrada para este acordo.");
     }
   } else {
     const aceitePath = (termo as any).tipo_aceite === "sindico" ? "aceite-sindico" : "aceite-acordo";
@@ -1626,12 +1636,16 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
     mensagemRegistradaId = (mensagemCriada as any)?.id ?? null;
   }
 
+  const tipoAceiteLabel = (termo as any).tipo_aceite === "sindico" ? "Sindico" : "Devedor";
+
   await registrarEventoOperacional(supabase as any, {
     carteiraId: (termo as any).carteira_id,
     entidadeTipo: "acordo",
     entidadeId: acordoId,
-    eventoCodigo: "acordo.acionamento_manual_devedor",
-    titulo: "Devedor acionado manualmente",
+    eventoCodigo: (termo as any).tipo_aceite === "sindico"
+      ? "acordo.acionamento_manual_sindico"
+      : "acordo.acionamento_manual_devedor",
+    titulo: `${tipoAceiteLabel} acionado manualmente`,
     descricao: `Acionamento manual registrado por ${canal}. O aceite digital continua aguardando retorno do devedor.`,
     severidade: "info",
     payload: {
@@ -1646,6 +1660,7 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
   revalidatePath("/app/gestao/acionamentos-acordos");
   revalidatePath(`/app/acordos/${acordoId}`);
   revalidatePath("/app/acordos/gestao");
+  redirect(safeReturnTo);
 }
 
 export async function decidirAprovacaoSindicoAcordo(formData: FormData) {

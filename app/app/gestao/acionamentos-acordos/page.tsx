@@ -36,6 +36,25 @@ import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 
+type SearchParams = Promise<{ tipo?: string }>;
+
+const activationFilters = [
+  { key: "todos", label: "Todos" },
+  { key: "sindico", label: "Sindico" },
+  { key: "devedor", label: "Devedor" },
+  { key: "boletos", label: "Boletos" },
+  { key: "pendencias", label: "Pendencias" },
+] as const;
+
+function normalizeTipoFiltro(value?: string | null) {
+  const tipo = String(value ?? "todos").toLowerCase();
+  return activationFilters.some((filter) => filter.key === tipo) ? tipo : "todos";
+}
+
+function shouldShowSection(active: string, section: string) {
+  return active === "todos" || active === section;
+}
+
 function onlyDigits(value?: string | null) {
   return String(value ?? "").replace(/\D/g, "");
 }
@@ -64,7 +83,7 @@ function activationBody(row: AgreementManualActivationRow) {
   ].join("\n");
 }
 
-function ActivationButtons({ row, canal }: { row: AgreementManualActivationRow; canal: string }) {
+function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActivationRow; canal: string; returnTo: string }) {
   const body = activationBody(row);
   const whatsapp = whatsappHref(row.destinatarioTelefone, body);
   const mailto = mailtoHref(row.destinatarioEmail, row.mensagemAssunto ?? "Termo de acordo para aceite digital", body);
@@ -92,6 +111,7 @@ function ActivationButtons({ row, canal }: { row: AgreementManualActivationRow; 
         <input type="hidden" name="acordo_id" value={row.acordoId} />
         <input type="hidden" name="mensagem_id" value={row.mensagemId ?? ""} />
         <input type="hidden" name="canal" value={canal} />
+        <input type="hidden" name="return_to" value={returnTo} />
         <Button type="submit" size="sm">
           <Send size={14} />
           Marcar acionado
@@ -101,13 +121,18 @@ function ActivationButtons({ row, canal }: { row: AgreementManualActivationRow; 
   );
 }
 
-function ActivationRow({ row, canal }: { row: AgreementManualActivationRow; canal: string }) {
+function isManuallyTriggered(row: AgreementManualActivationRow) {
+  return row.mensagemAcionadaManual || row.mensagemStatus === "enviada";
+}
+
+function ActivationRow({ row, canal, returnTo }: { row: AgreementManualActivationRow; canal: string; returnTo: string }) {
+  const acionado = isManuallyTriggered(row);
   return (
     <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_170px_320px] xl:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={row.mensagemAcionadaManual ? "green" : "yellow"}>
-            {row.mensagemAcionadaManual ? "Acionado manualmente" : "Aguardando acionamento"}
+          <Badge tone={acionado ? "green" : "yellow"}>
+            {acionado ? "Acionado manualmente" : "Aguardando acionamento"}
           </Badge>
           <Badge tone="slate">{row.termoStatus ?? "pendente"}</Badge>
         </div>
@@ -127,7 +152,7 @@ function ActivationRow({ row, canal }: { row: AgreementManualActivationRow; cana
         <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(row.valorAcordado)}</p>
         <p className="mt-1 text-xs text-slate-500">{formatDateBR(row.dataAcordo)}</p>
       </div>
-      <ActivationButtons row={row} canal={canal} />
+      <ActivationButtons row={row} canal={canal} returnTo={returnTo} />
     </div>
   );
 }
@@ -171,7 +196,7 @@ function SectionShell({
   );
 }
 
-function SindicoDecisionRow({ row, term }: { row: any; term?: AgreementManualActivationRow }) {
+function SindicoDecisionRow({ row, term, returnTo }: { row: any; term?: AgreementManualActivationRow; returnTo: string }) {
   return (
     <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_150px_300px] xl:items-start">
       <div className="min-w-0">
@@ -185,7 +210,7 @@ function SindicoDecisionRow({ row, term }: { row: any; term?: AgreementManualAct
         <p className="mt-1 truncate text-xs text-slate-500">
           {row.unidades?.responsavel_nome ?? "Responsavel nao informado"} - {formatDateBR(row.data_acordo)}
         </p>
-        {term ? <div className="mt-3"><ActivationButtons row={term} canal="sindico" /></div> : null}
+        {term ? <div className="mt-3"><ActivationButtons row={term} canal="sindico" returnTo={returnTo} /></div> : null}
       </div>
       <div>
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordo</p>
@@ -204,14 +229,14 @@ function SindicoDecisionRow({ row, term }: { row: any; term?: AgreementManualAct
         </Select>
         <Textarea name="observacao" placeholder="Observacao opcional" className="min-h-[72px]" />
         <div className="grid gap-2 sm:grid-cols-2">
-          <button name="decisao" value="aprovar" className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+          <Button name="decisao" value="aprovar" size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700">
             <CheckCircle2 size={14} />
             Aprovar
-          </button>
-          <button name="decisao" value="rejeitar" className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+          </Button>
+          <Button name="decisao" value="rejeitar" variant="secondary" size="sm" className="w-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">
             <XCircle size={14} />
             Rejeitar
-          </button>
+          </Button>
         </div>
       </form>
     </div>
@@ -238,14 +263,14 @@ function BoletoRow({ row }: { row: any }) {
       </div>
       <form action={atualizarStatusBoletosAcordo} className="flex flex-wrap justify-end gap-2">
         <input type="hidden" name="acordo_id" value={row.id} />
-        <button name="status_boletos" value="boletos_recebidos" className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100">
+        <Button name="status_boletos" value="boletos_recebidos" variant="secondary" size="sm" className="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100">
           <CheckCircle2 size={14} />
           Recebidos
-        </button>
-        <button name="status_boletos" value="boletos_enviados" className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+        </Button>
+        <Button name="status_boletos" value="boletos_enviados" size="sm" className="bg-emerald-600 hover:bg-emerald-700">
           <Mail size={14} />
           Enviados
-        </button>
+        </Button>
       </form>
     </div>
   );
@@ -298,7 +323,12 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
   );
 }
 
-export default async function AcionamentosAcordosPage() {
+export default async function AcionamentosAcordosPage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  const tipoFiltro = normalizeTipoFiltro(params.tipo);
+  const currentPath = tipoFiltro === "todos"
+    ? "/app/gestao/acionamentos-acordos"
+    : `/app/gestao/acionamentos-acordos?tipo=${tipoFiltro}`;
   const scope = await getPermittedCarteiras();
   const [sindicoTerms, devedorTerms, aprovacoes, boletos, pendencias] = await Promise.all([
     listAgreementManualActivationInbox(scope, "sindico"),
@@ -341,51 +371,74 @@ export default async function AcionamentosAcordosPage() {
         <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acionados</p><p className="mt-2 text-3xl font-semibold text-slate-950">{sindicoTerms.filter((row) => row.mensagemAcionadaManual).length + devedorTerms.filter((row) => row.mensagemAcionadaManual).length}</p></Card>
       </section>
 
-      <SectionShell
-        title="Aprovacao do sindico"
-        description="Acordos que dependem de decisao do sindico e, quando houver termo, permitem acionamento manual."
-        icon={ShieldCheck}
-        emptyTitle="Sem aprovacao de sindico pendente"
-        emptyDescription="Nenhum acordo depende desta etapa agora."
-        hasRows={aprovacoes.length > 0}
-      >
-        {aprovacoes.map((row: any) => (
-          <SindicoDecisionRow key={row.id} row={row} term={sindicoTermByAcordo.get(row.id)} />
-        ))}
-      </SectionShell>
+      <Card className="p-4">
+        <div className="flex flex-wrap gap-2">
+          {activationFilters.map((filter) => (
+            <ButtonLink
+              key={filter.key}
+              href={filter.key === "todos" ? "/app/gestao/acionamentos-acordos" : `/app/gestao/acionamentos-acordos?tipo=${filter.key}`}
+              variant={tipoFiltro === filter.key ? "primary" : "secondary"}
+              size="sm"
+            >
+              {filter.label}
+            </ButtonLink>
+          ))}
+        </div>
+      </Card>
 
-      <SectionShell
-        title="Aceite do devedor"
-        description="Termos de devedor pendentes, com link publico, e-mail, WhatsApp e registro manual de contato."
-        icon={Send}
-        emptyTitle="Sem aceite de devedor pendente"
-        emptyDescription="Todos os termos de devedor foram aceitos ou ainda nao foram gerados."
-        hasRows={devedorTerms.length > 0}
-      >
-        {devedorTerms.map((row) => <ActivationRow key={row.termoId} row={row} canal="devedor" />)}
-      </SectionShell>
+      {shouldShowSection(tipoFiltro, "sindico") ? (
+        <SectionShell
+          title="Aprovacao do sindico"
+          description="Acordos que dependem de decisao do sindico e, quando houver termo, permitem acionamento manual."
+          icon={ShieldCheck}
+          emptyTitle="Sem aprovacao de sindico pendente"
+          emptyDescription="Nenhum acordo depende desta etapa agora."
+          hasRows={aprovacoes.length > 0}
+        >
+          {aprovacoes.map((row: any) => (
+            <SindicoDecisionRow key={row.id} row={row} term={sindicoTermByAcordo.get(row.id)} returnTo={currentPath} />
+          ))}
+        </SectionShell>
+      ) : null}
 
-      <SectionShell
-        title="Administradora e boletos"
-        description="Acordos aceitos que estao aguardando emissao, recebimento ou envio dos boletos."
-        icon={ReceiptText}
-        emptyTitle="Sem boletos em acompanhamento"
-        emptyDescription="Nenhum acordo esta parado nesta etapa agora."
-        hasRows={boletos.length > 0}
-      >
-        {boletos.map((row: any) => <BoletoRow key={row.id} row={row} />)}
-      </SectionShell>
+      {shouldShowSection(tipoFiltro, "devedor") ? (
+        <SectionShell
+          title="Aceite do devedor"
+          description="Termos de devedor pendentes, com link publico, e-mail, WhatsApp e registro manual de contato."
+          icon={Send}
+          emptyTitle="Sem aceite de devedor pendente"
+          emptyDescription="Todos os termos de devedor foram aceitos ou ainda nao foram gerados."
+          hasRows={devedorTerms.length > 0}
+        >
+          {devedorTerms.map((row) => <ActivationRow key={row.termoId} row={row} canal="devedor" returnTo={currentPath} />)}
+        </SectionShell>
+      ) : null}
 
-      <SectionShell
-        title="Pendencias bloqueantes"
-        description="Travas administrativas e financeiras que podem impedir a continuidade do acordo."
-        icon={PlayCircle}
-        emptyTitle="Sem pendencias bloqueantes"
-        emptyDescription="Nenhuma pendencia de implantacao aberta para acordos ou administradoras."
-        hasRows={pendenciasImplantacao.length > 0}
-      >
-        {pendenciasImplantacao.map((pendencia) => <PendenciaRow key={pendencia.id} pendencia={pendencia} />)}
-      </SectionShell>
+      {shouldShowSection(tipoFiltro, "boletos") ? (
+        <SectionShell
+          title="Administradora e boletos"
+          description="Acordos aceitos que estao aguardando emissao, recebimento ou envio dos boletos."
+          icon={ReceiptText}
+          emptyTitle="Sem boletos em acompanhamento"
+          emptyDescription="Nenhum acordo esta parado nesta etapa agora."
+          hasRows={boletos.length > 0}
+        >
+          {boletos.map((row: any) => <BoletoRow key={row.id} row={row} />)}
+        </SectionShell>
+      ) : null}
+
+      {shouldShowSection(tipoFiltro, "pendencias") ? (
+        <SectionShell
+          title="Pendencias bloqueantes"
+          description="Travas administrativas e financeiras que podem impedir a continuidade do acordo."
+          icon={PlayCircle}
+          emptyTitle="Sem pendencias bloqueantes"
+          emptyDescription="Nenhuma pendencia de implantacao aberta para acordos ou administradoras."
+          hasRows={pendenciasImplantacao.length > 0}
+        >
+          {pendenciasImplantacao.map((pendencia) => <PendenciaRow key={pendencia.id} pendencia={pendencia} />)}
+        </SectionShell>
+      ) : null}
     </div>
   );
 }
