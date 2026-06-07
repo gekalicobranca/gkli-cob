@@ -1,13 +1,37 @@
 import Link from "next/link";
-import { ExternalLink, Mail, MessageCircle, Send, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  Mail,
+  MessageCircle,
+  PlayCircle,
+  ReceiptText,
+  Send,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 
 import { EmptyState } from "@/components/data/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { registrarAcionamentoManualAcordo } from "@/features/acordos/actions";
-import { listAgreementManualActivationInbox } from "@/features/acordos/queries";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  atualizarStatusBoletosAcordo,
+  decidirAprovacaoSindicoAcordo,
+  registrarAcionamentoManualAcordo,
+} from "@/features/acordos/actions";
+import {
+  listAgreementApprovalInbox,
+  listAgreementBoletoInbox,
+  listAgreementManualActivationInbox,
+  type AgreementManualActivationRow,
+} from "@/features/acordos/queries";
+import { iniciarTratamentoPendencia, resolverPendencia } from "@/features/pendencias/actions";
+import { listPendenciasOperacionais } from "@/features/pendencias/queries";
+import type { PendenciaOperacional } from "@/features/pendencias/types";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
@@ -28,147 +52,340 @@ function mailtoHref(email: string | null, subject: string, body: string) {
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-function statusTone(row: { mensagemAcionadaManual: boolean; mensagemStatus: string | null }) {
-  if (row.mensagemAcionadaManual) return "green";
-  if (row.mensagemStatus === "enviada") return "blue";
-  return "yellow";
+function activationBody(row: AgreementManualActivationRow) {
+  return row.mensagemConteudo || [
+    "Prezado(a),",
+    "",
+    "Segue o link para conferencia e aceite digital:",
+    row.linkAceite,
+    "",
+    "Atenciosamente,",
+    "GKLI Cobranca",
+  ].join("\n");
 }
 
-function statusLabel(row: { mensagemAcionadaManual: boolean; mensagemStatus: string | null }) {
-  if (row.mensagemAcionadaManual) return "Acionado manualmente";
-  if (row.mensagemStatus === "enviada") return "Mensagem enviada";
-  return "Aguardando acionamento";
+function ActivationButtons({ row, canal }: { row: AgreementManualActivationRow; canal: string }) {
+  const body = activationBody(row);
+  const whatsapp = whatsappHref(row.destinatarioTelefone, body);
+  const mailto = mailtoHref(row.destinatarioEmail, row.mensagemAssunto ?? "Termo de acordo para aceite digital", body);
+
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      <ButtonLink href={row.linkAceite} target="_blank" rel="noreferrer" variant="secondary" size="sm">
+        <ExternalLink size={14} />
+        Termo
+      </ButtonLink>
+      {mailto ? (
+        <ButtonLink href={mailto} variant="secondary" size="sm">
+          <Mail size={14} />
+          E-mail
+        </ButtonLink>
+      ) : null}
+      {whatsapp ? (
+        <ButtonLink href={whatsapp} target="_blank" rel="noreferrer" variant="secondary" size="sm">
+          <MessageCircle size={14} />
+          WhatsApp
+        </ButtonLink>
+      ) : null}
+      <form action={registrarAcionamentoManualAcordo}>
+        <input type="hidden" name="termo_id" value={row.termoId} />
+        <input type="hidden" name="acordo_id" value={row.acordoId} />
+        <input type="hidden" name="mensagem_id" value={row.mensagemId ?? ""} />
+        <input type="hidden" name="canal" value={canal} />
+        <Button type="submit" size="sm">
+          <Send size={14} />
+          Marcar acionado
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+function ActivationRow({ row, canal }: { row: AgreementManualActivationRow; canal: string }) {
+  return (
+    <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_170px_320px] xl:items-center">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={row.mensagemAcionadaManual ? "green" : "yellow"}>
+            {row.mensagemAcionadaManual ? "Acionado manualmente" : "Aguardando acionamento"}
+          </Badge>
+          <Badge tone="slate">{row.termoStatus ?? "pendente"}</Badge>
+        </div>
+        <Link href={`/app/acordos/${row.acordoId}`} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
+          {row.condominioNome ?? "Condominio nao informado"} - {row.unidadeLabel}
+        </Link>
+        <p className="mt-1 truncate text-xs text-slate-500">
+          {row.destinatarioNome ?? "Responsavel nao informado"} - termo criado em {formatDateBR(row.termoCriadoEm)}
+        </p>
+        <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2">
+          <span className="truncate">E-mail: {row.destinatarioEmail ?? "-"}</span>
+          <span className="truncate">Telefone: {row.destinatarioTelefone ?? "-"}</span>
+        </div>
+      </div>
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordo</p>
+        <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(row.valorAcordado)}</p>
+        <p className="mt-1 text-xs text-slate-500">{formatDateBR(row.dataAcordo)}</p>
+      </div>
+      <ActivationButtons row={row} canal={canal} />
+    </div>
+  );
+}
+
+function SectionShell({
+  title,
+  description,
+  icon: Icon,
+  emptyTitle,
+  emptyDescription,
+  children,
+  hasRows,
+}: {
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  emptyTitle: string;
+  emptyDescription: string;
+  children: React.ReactNode;
+  hasRows: boolean;
+}) {
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+            <Icon size={18} />
+          </div>
+          <div>
+            <h2 className="text-base font-medium text-slate-950">{title}</h2>
+            <p className="mt-1 text-sm text-slate-500">{description}</p>
+          </div>
+        </div>
+      </div>
+      {hasRows ? <div className="divide-y divide-slate-100">{children}</div> : (
+        <div className="p-5">
+          <EmptyState title={emptyTitle} description={emptyDescription} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function SindicoDecisionRow({ row, term }: { row: any; term?: AgreementManualActivationRow }) {
+  return (
+    <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_150px_300px] xl:items-start">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="yellow">{row.etapa_aprovacao}</Badge>
+          {term?.mensagemAcionadaManual ? <Badge tone="green">Sindico acionado</Badge> : null}
+        </div>
+        <Link href={`/app/acordos/${row.id}`} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
+          {row.condominios?.nome ?? "Condominio nao informado"} - Unidade {row.unidades?.identificacao ?? "-"}
+        </Link>
+        <p className="mt-1 truncate text-xs text-slate-500">
+          {row.unidades?.responsavel_nome ?? "Responsavel nao informado"} - {formatDateBR(row.data_acordo)}
+        </p>
+        {term ? <div className="mt-3"><ActivationButtons row={term} canal="sindico" /></div> : null}
+      </div>
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordo</p>
+        <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado ?? 0))}</p>
+        <p className="mt-1 text-xs text-slate-500">{row.quantidade_parcelas ?? "-"} parcelas</p>
+      </div>
+      <form action={decidirAprovacaoSindicoAcordo} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+        <input type="hidden" name="acordo_id" value={row.id} />
+        <Select name="motivo" defaultValue="">
+          <option value="">Motivo, se rejeitar</option>
+          <option value="Quantidade de parcelas">Quantidade de parcelas</option>
+          <option value="Entrada insuficiente">Entrada insuficiente</option>
+          <option value="Pendencia documental">Pendencia documental</option>
+          <option value="Unidade judicializada">Unidade judicializada</option>
+          <option value="Outro">Outro</option>
+        </Select>
+        <Textarea name="observacao" placeholder="Observacao opcional" className="min-h-[72px]" />
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button name="decisao" value="aprovar" className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+            <CheckCircle2 size={14} />
+            Aprovar
+          </button>
+          <button name="decisao" value="rejeitar" className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+            <XCircle size={14} />
+            Rejeitar
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function BoletoRow({ row }: { row: any }) {
+  return (
+    <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_150px_240px] xl:items-center">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={row.etapa_boleto === "Boletos enviados" ? "green" : "blue"}>{row.etapa_boleto}</Badge>
+        </div>
+        <Link href={`/app/acordos/${row.id}`} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
+          {row.condominios?.nome ?? "Condominio nao informado"} - Unidade {row.unidades?.identificacao ?? "-"}
+        </Link>
+        <p className="mt-1 truncate text-xs text-slate-500">
+          {row.unidades?.responsavel_nome ?? "Responsavel nao informado"} - solicitado em {formatDateBR(row.boletos_solicitados_em)}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordo</p>
+        <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado ?? 0))}</p>
+      </div>
+      <form action={atualizarStatusBoletosAcordo} className="flex flex-wrap justify-end gap-2">
+        <input type="hidden" name="acordo_id" value={row.id} />
+        <button name="status_boletos" value="boletos_recebidos" className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100">
+          <CheckCircle2 size={14} />
+          Recebidos
+        </button>
+        <button name="status_boletos" value="boletos_enviados" className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+          <Mail size={14} />
+          Enviados
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
+  return (
+    <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_170px_220px] xl:items-center">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={pendencia.prioridade === "critica" ? "red" : pendencia.prioridade === "alta" ? "yellow" : "slate"}>{pendencia.prioridade}</Badge>
+          <Badge tone="slate">{pendencia.status}</Badge>
+          <Badge tone="blue">{pendencia.origem}</Badge>
+        </div>
+        <Link href={pendencia.acordo_id ? `/app/acordos/${pendencia.acordo_id}` : "/app/pendencias"} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
+          {pendencia.titulo}
+        </Link>
+        <p className="mt-1 line-clamp-2 text-xs text-slate-500">{pendencia.descricao ?? "Sem descricao."}</p>
+      </div>
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Prazo</p>
+        <p className="mt-1 text-sm font-semibold text-slate-950">{formatDateBR(pendencia.prazo_limite)}</p>
+        <p className="mt-1 text-xs text-slate-500">{pendencia.tipo}</p>
+      </div>
+      <div className="flex flex-wrap justify-end gap-2">
+        {pendencia.status === "aberta" ? (
+          <form action={async (formData) => {
+            "use server";
+            await iniciarTratamentoPendencia(null, formData);
+          }}>
+            <input type="hidden" name="id" value={pendencia.id} />
+            <Button type="submit" variant="secondary" size="sm">
+              <PlayCircle size={14} />
+              Tratar
+            </Button>
+          </form>
+        ) : null}
+        <form action={async (formData) => {
+          "use server";
+          await resolverPendencia(null, formData);
+        }}>
+          <input type="hidden" name="id" value={pendencia.id} />
+          <Button type="submit" size="sm">
+            <CheckCircle2 size={14} />
+            Resolver
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 export default async function AcionamentosAcordosPage() {
   const scope = await getPermittedCarteiras();
-  const rows = await listAgreementManualActivationInbox(scope);
-  const acionados = rows.filter((row) => row.mensagemAcionadaManual).length;
-  const pendentes = rows.length - acionados;
+  const [sindicoTerms, devedorTerms, aprovacoes, boletos, pendencias] = await Promise.all([
+    listAgreementManualActivationInbox(scope, "sindico"),
+    listAgreementManualActivationInbox(scope, "devedor"),
+    listAgreementApprovalInbox(scope),
+    listAgreementBoletoInbox(scope),
+    listPendenciasOperacionais(scope, { status: "aberta" }),
+  ]);
+
+  const sindicoTermByAcordo = new Map(sindicoTerms.map((term) => [term.acordoId, term]));
+  const pendenciasImplantacao = pendencias
+    .filter((pendencia) => ["acordo", "administradora"].includes(pendencia.origem))
+    .filter((pendencia) => [
+      "planilha_debitos_administradora",
+      "aprovacao_acordo_sindico",
+      "emissao_boletos_acordo",
+    ].includes(pendencia.tipo))
+    .slice(0, 20);
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Gestao"
-        title="Acionamentos de acordos"
-        description="Fila temporaria para acionar devedores manualmente durante a implantacao."
+        title="Acionamentos de implantacao"
+        description="Central temporaria para aprovacoes, aceites, boletos e pendencias enquanto a automacao esta sendo implantada."
         actions={
           <>
             <ButtonLink href="/app/dashboard" variant="secondary">Voltar</ButtonLink>
             <ButtonLink href="/app/acordos/gestao" variant="secondary">Gestao de acordos</ButtonLink>
+            <ButtonLink href="/app/pendencias" variant="secondary">Pendencias</ButtonLink>
           </>
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-3">
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Pendentes</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-950">{pendentes}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acionados</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-950">{acionados}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Em aceite</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-950">{rows.length}</p>
-        </Card>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sindico</p><p className="mt-2 text-3xl font-semibold text-slate-950">{aprovacoes.length}</p></Card>
+        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Devedor</p><p className="mt-2 text-3xl font-semibold text-slate-950">{devedorTerms.length}</p></Card>
+        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Boletos</p><p className="mt-2 text-3xl font-semibold text-slate-950">{boletos.length}</p></Card>
+        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Pendencias</p><p className="mt-2 text-3xl font-semibold text-slate-950">{pendenciasImplantacao.length}</p></Card>
+        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acionados</p><p className="mt-2 text-3xl font-semibold text-slate-950">{sindicoTerms.filter((row) => row.mensagemAcionadaManual).length + devedorTerms.filter((row) => row.mensagemAcionadaManual).length}</p></Card>
       </section>
 
-      <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
-              <ShieldCheck size={18} />
-            </div>
-            <div>
-              <h2 className="text-base font-medium text-slate-950">Aceites do devedor</h2>
-              <p className="mt-1 text-sm text-slate-500">Acordos com termo gerado e aceite ainda pendente.</p>
-            </div>
-          </div>
-        </div>
+      <SectionShell
+        title="Aprovacao do sindico"
+        description="Acordos que dependem de decisao do sindico e, quando houver termo, permitem acionamento manual."
+        icon={ShieldCheck}
+        emptyTitle="Sem aprovacao de sindico pendente"
+        emptyDescription="Nenhum acordo depende desta etapa agora."
+        hasRows={aprovacoes.length > 0}
+      >
+        {aprovacoes.map((row: any) => (
+          <SindicoDecisionRow key={row.id} row={row} term={sindicoTermByAcordo.get(row.id)} />
+        ))}
+      </SectionShell>
 
-        {rows.length === 0 ? (
-          <div className="p-5">
-            <EmptyState title="Sem acionamentos pendentes" description="Todos os termos de devedor foram aceitos ou ainda nao foram gerados." />
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {rows.map((row) => {
-              const body = row.mensagemConteudo || [
-                "Prezado(a),",
-                "",
-                "Segue o link para conferencia e aceite digital do acordo:",
-                row.linkAceite,
-                "",
-                "Atenciosamente,",
-                "GKLI Cobranca",
-              ].join("\n");
-              const whatsapp = whatsappHref(row.destinatarioTelefone, body);
-              const mailto = mailtoHref(row.destinatarioEmail, row.mensagemAssunto ?? "Termo de acordo para aceite digital", body);
+      <SectionShell
+        title="Aceite do devedor"
+        description="Termos de devedor pendentes, com link publico, e-mail, WhatsApp e registro manual de contato."
+        icon={Send}
+        emptyTitle="Sem aceite de devedor pendente"
+        emptyDescription="Todos os termos de devedor foram aceitos ou ainda nao foram gerados."
+        hasRows={devedorTerms.length > 0}
+      >
+        {devedorTerms.map((row) => <ActivationRow key={row.termoId} row={row} canal="devedor" />)}
+      </SectionShell>
 
-              return (
-                <div key={row.termoId} className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(320px,1fr)_180px_320px] xl:items-center">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={statusTone(row)}>{statusLabel(row)}</Badge>
-                      <Badge tone="slate">{row.termoStatus ?? "pendente"}</Badge>
-                    </div>
-                    <Link href={`/app/acordos/${row.acordoId}`} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
-                      {row.condominioNome ?? "Condominio nao informado"} - {row.unidadeLabel}
-                    </Link>
-                    <p className="mt-1 truncate text-xs text-slate-500">
-                      {row.destinatarioNome ?? "Responsavel nao informado"} - termo criado em {formatDateBR(row.termoCriadoEm)}
-                    </p>
-                    <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2">
-                      <span className="truncate">E-mail: {row.destinatarioEmail ?? "-"}</span>
-                      <span className="truncate">Telefone: {row.destinatarioTelefone ?? "-"}</span>
-                    </div>
-                  </div>
+      <SectionShell
+        title="Administradora e boletos"
+        description="Acordos aceitos que estao aguardando emissao, recebimento ou envio dos boletos."
+        icon={ReceiptText}
+        emptyTitle="Sem boletos em acompanhamento"
+        emptyDescription="Nenhum acordo esta parado nesta etapa agora."
+        hasRows={boletos.length > 0}
+      >
+        {boletos.map((row: any) => <BoletoRow key={row.id} row={row} />)}
+      </SectionShell>
 
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordo</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(row.valorAcordado)}</p>
-                    <p className="mt-1 text-xs text-slate-500">{formatDateBR(row.dataAcordo)}</p>
-                    {row.mensagemAcionadaEm ? (
-                      <p className="mt-2 text-xs text-emerald-700">Ultimo acionamento {formatDateBR(row.mensagemAcionadaEm)}</p>
-                    ) : null}
-                  </div>
-
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <ButtonLink href={row.linkAceite} target="_blank" rel="noreferrer" variant="secondary" size="sm">
-                      <ExternalLink size={14} />
-                      Termo
-                    </ButtonLink>
-                    {mailto ? (
-                      <ButtonLink href={mailto} variant="secondary" size="sm">
-                        <Mail size={14} />
-                        E-mail
-                      </ButtonLink>
-                    ) : null}
-                    {whatsapp ? (
-                      <ButtonLink href={whatsapp} target="_blank" rel="noreferrer" variant="secondary" size="sm">
-                        <MessageCircle size={14} />
-                        WhatsApp
-                      </ButtonLink>
-                    ) : null}
-                    <form action={registrarAcionamentoManualAcordo}>
-                      <input type="hidden" name="termo_id" value={row.termoId} />
-                      <input type="hidden" name="acordo_id" value={row.acordoId} />
-                      <input type="hidden" name="mensagem_id" value={row.mensagemId ?? ""} />
-                      <input type="hidden" name="canal" value={row.destinatarioTelefone ? "whatsapp/email" : "email"} />
-                      <Button type="submit" size="sm">
-                        <Send size={14} />
-                        Marcar acionado
-                      </Button>
-                    </form>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+      <SectionShell
+        title="Pendencias bloqueantes"
+        description="Travas administrativas e financeiras que podem impedir a continuidade do acordo."
+        icon={PlayCircle}
+        emptyTitle="Sem pendencias bloqueantes"
+        emptyDescription="Nenhuma pendencia de implantacao aberta para acordos ou administradoras."
+        hasRows={pendenciasImplantacao.length > 0}
+      >
+        {pendenciasImplantacao.map((pendencia) => <PendenciaRow key={pendencia.id} pendencia={pendencia} />)}
+      </SectionShell>
     </div>
   );
 }

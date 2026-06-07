@@ -1055,6 +1055,7 @@ export type AgreementManualActivationRow = {
 
 export async function listAgreementManualActivationInbox(
   scope: CarteiraScope,
+  tipoAceite: "devedor" | "sindico" = "devedor",
 ): Promise<AgreementManualActivationRow[]> {
   const supabase = await createClient();
 
@@ -1081,7 +1082,7 @@ export async function listAgreementManualActivationInbox(
       )
     `,
     )
-    .eq("tipo_aceite", "devedor")
+    .eq("tipo_aceite", tipoAceite)
     .in("status", ["pendente", "visualizado"])
     .order("created_at", { ascending: true })
     .limit(80);
@@ -1123,6 +1124,7 @@ export async function listAgreementManualActivationInbox(
   }
 
   const baseUrl = getPublicBaseUrl();
+  const aceitePath = tipoAceite === "sindico" ? "aceite-sindico" : "aceite-acordo";
 
   return ((termos ?? []) as any[]).map((termo) => {
     const acordo = Array.isArray(termo.acordos) ? termo.acordos[0] : termo.acordos;
@@ -1142,7 +1144,7 @@ export async function listAgreementManualActivationInbox(
       fluxoStatus: acordo?.fluxo_status ?? null,
       termoStatus: termo.status ?? null,
       token: termo.token,
-      linkAceite: `${baseUrl}/aceite-acordo/${termo.token}`,
+      linkAceite: `${baseUrl}/${aceitePath}/${termo.token}`,
       destinatarioNome: termo.destinatario_nome ?? unidade?.responsavel_nome ?? null,
       destinatarioEmail: termo.destinatario_email ?? unidade?.email ?? mensagem?.email_destinatario ?? mensagem?.destinatario ?? null,
       destinatarioTelefone: unidade?.telefone ?? null,

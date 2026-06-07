@@ -1580,7 +1580,8 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
       throw new Error(`Erro ao marcar mensagem como acionada: ${mensagemError.message}`);
     }
   } else {
-    const link = `${getPublicBaseUrl()}/aceite-acordo/${(termo as any).token}`;
+    const aceitePath = (termo as any).tipo_aceite === "sindico" ? "aceite-sindico" : "aceite-acordo";
+    const link = `${getPublicBaseUrl()}/${aceitePath}/${(termo as any).token}`;
     const conteudo = [
       "Prezado(a),",
       "",
