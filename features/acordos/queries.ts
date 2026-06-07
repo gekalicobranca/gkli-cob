@@ -643,6 +643,7 @@ function getPublicBaseUrl() {
   return (
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null) ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
     "http://localhost:3000"
   ).replace(/\/$/, "");
@@ -1070,6 +1071,7 @@ export async function listAgreementManualActivationInbox(
       token,
       destinatario_nome,
       destinatario_email,
+      visualizado_em,
       created_at,
       acordos:acordo_id (
         id,
@@ -1154,8 +1156,10 @@ export async function listAgreementManualActivationInbox(
       dataAcordo: acordo?.data_acordo ?? null,
       termoCriadoEm: termo.created_at ?? null,
       mensagemStatus: mensagem?.status_operacional ?? mensagem?.status ?? null,
-      mensagemAcionadaManual: Boolean(mensagem?.enviada_manual),
-      mensagemAcionadaEm: mensagem?.enviada_manual_em ?? mensagem?.ultima_tentativa_em ?? null,
+      mensagemAcionadaManual: Boolean(mensagem?.enviada_manual)
+        || ["visualizado"].includes(String(termo.status ?? ""))
+        || ["enviada"].includes(String(mensagem?.status_operacional ?? mensagem?.status ?? "")),
+      mensagemAcionadaEm: termo.visualizado_em ?? mensagem?.enviada_manual_em ?? mensagem?.ultima_tentativa_em ?? null,
       mensagemAssunto: mensagem?.email_assunto ?? "Termo de acordo para aceite digital",
       mensagemConteudo: mensagem?.conteudo_renderizado ?? mensagem?.conteudo ?? null,
     };

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { requireRole } from "@/utils/auth/require-role";
 import { requireUser } from "@/utils/auth/require-user";
 import { getPermittedCarteiras, type CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
@@ -55,6 +56,7 @@ function getPublicBaseUrl() {
   return (
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` ||
     process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}` ||
     "http://localhost:3000"
   ).replace(/\/$/, "");
@@ -1418,7 +1420,7 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
   if (!token) throw new Error("Token de aceite obrigatório.");
   if (!nome) throw new Error("Nome obrigatório para formalizar o aceite.");
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { headers } = await import("next/headers");
   const headerStore = await headers();
   const ip =
@@ -1551,7 +1553,7 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
 
   const { data: termo, error: termoError } = await supabase
     .from("acordos_termos")
-    .select("id, acordo_id, carteira_id, tipo_aceite, status, token, titulo, corpo, destinatario_nome, destinatario_email")
+    .select("id, acordo_id, carteira_id, tipo_aceite, status, token, titulo, corpo, destinatario_nome, destinatario_email, visualizado_em")
     .eq("id", termoId)
     .eq("acordo_id", acordoId)
     .maybeSingle();
@@ -1565,6 +1567,21 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
   const now = new Date().toISOString();
 
   let mensagemRegistradaId = mensagemId || null;
+
+  const { error: termoAcionadoError } = await supabase
+    .from("acordos_termos")
+    .update({
+      status: (termo as any).status === "aceito" ? "aceito" : "visualizado",
+      visualizado_em: (termo as any).status === "aceito" ? (termo as any).visualizado_em ?? now : now,
+      updated_at: now,
+    })
+    .eq("id", termoId)
+    .eq("acordo_id", acordoId)
+    .neq("status", "aceito");
+
+  if (termoAcionadoError) {
+    throw new Error(`Erro ao atualizar status do termo: ${termoAcionadoError.message}`);
+  }
 
   if (mensagemId) {
     const { data: mensagemAtualizada, error: mensagemError } = await supabase

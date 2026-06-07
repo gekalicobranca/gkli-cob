@@ -1,8 +1,9 @@
+import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
-import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { registrarAceitePublicoTermo } from "@/features/acordos/actions";
 
 type PageProps = {
@@ -11,7 +12,7 @@ type PageProps = {
 };
 
 async function getTermo(token: string, tipo: "devedor" | "sindico") {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("acordos_termos")
     .select("*, acordos:acordo_id (id, fluxo_status, condominios:condominio_id (nome), unidades:unidade_id (identificacao, bloco, responsavel_nome))")
@@ -23,6 +24,17 @@ async function getTermo(token: string, tipo: "devedor" | "sindico") {
   return data as any;
 }
 
+async function getTipoTermo(token: string) {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("acordos_termos")
+    .select("tipo_aceite")
+    .eq("token", token)
+    .maybeSingle();
+
+  return (data as any)?.tipo_aceite as string | null;
+}
+
 export default async function AceiteAcordoPage({ params, searchParams }: PageProps) {
   const { token } = await params;
   const query = await searchParams;
@@ -30,6 +42,8 @@ export default async function AceiteAcordoPage({ params, searchParams }: PagePro
   const aceito = query.aceito === "1" || termo?.status === "aceito";
 
   if (!termo) {
+    const tipoTermo = await getTipoTermo(token);
+    if (tipoTermo === "sindico") redirect(`/aceite-sindico/${token}`);
     return <PublicShell title="Link inválido" description="Não encontramos este termo de acordo." />;
   }
 
