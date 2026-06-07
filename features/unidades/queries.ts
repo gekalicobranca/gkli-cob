@@ -243,7 +243,6 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
       data_acordo,
       valor_acordado,
       entrada,
-      parcelas,
       status,
       status_financeiro,
       fluxo_status,
