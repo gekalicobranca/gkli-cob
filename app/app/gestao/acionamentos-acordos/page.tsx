@@ -280,14 +280,27 @@ function BoletoRow({ row }: { row: any }) {
       </div>
       <form action={atualizarStatusBoletosAcordo} className="flex flex-wrap justify-end gap-2">
         <input type="hidden" name="acordo_id" value={row.id} />
-        <Button name="status_boletos" value="boletos_recebidos" variant="secondary" size="sm" className="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100">
-          <CheckCircle2 size={14} />
+        <PendingSubmitButton
+          name="status_boletos"
+          value="boletos_recebidos"
+          variant="secondary"
+          size="sm"
+          className="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100"
+          icon={<CheckCircle2 size={14} />}
+          pendingLabel="Confirmando..."
+        >
           Recebidos
-        </Button>
-        <Button name="status_boletos" value="boletos_enviados" size="sm" className="bg-emerald-600 hover:bg-emerald-700">
-          <Mail size={14} />
+        </PendingSubmitButton>
+        <PendingSubmitButton
+          name="status_boletos"
+          value="boletos_enviados"
+          size="sm"
+          className="bg-emerald-600 hover:bg-emerald-700"
+          icon={<Mail size={14} />}
+          pendingLabel="Confirmando..."
+        >
           Enviados
-        </Button>
+        </PendingSubmitButton>
       </form>
     </div>
   );

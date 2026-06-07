@@ -1791,6 +1791,7 @@ export async function atualizarStatusBoletosAcordo(formData: FormData) {
   });
 
   revalidatePath("/app/acordos/boletos");
+  revalidatePath("/app/gestao/acionamentos-acordos");
   revalidatePath(`/app/acordos/${acordoId}`);
 }
 
