@@ -16,10 +16,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   atualizarStatusBoletosAcordo,
+  cancelarFormalizacaoAcordo,
   decidirAprovacaoSindicoAcordo,
   registrarAcionamentoManualAcordo,
 } from "@/features/acordos/actions";
@@ -112,11 +114,26 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
         <input type="hidden" name="mensagem_id" value={row.mensagemId ?? ""} />
         <input type="hidden" name="canal" value={canal} />
         <input type="hidden" name="return_to" value={returnTo} />
-        <Button type="submit" size="sm">
-          <Send size={14} />
+        <PendingSubmitButton size="sm" icon={<Send size={14} />} pendingLabel="Marcando...">
           Marcar acionado
-        </Button>
+        </PendingSubmitButton>
       </form>
+      {canal === "devedor" ? (
+        <form action={cancelarFormalizacaoAcordo}>
+          <input type="hidden" name="acordo_id" value={row.acordoId} />
+          <input type="hidden" name="motivo" value="Devedor nao confirmou o aceite" />
+          <input type="hidden" name="observacao" value="Cancelado pela central de acionamentos durante a implantacao." />
+          <PendingSubmitButton
+            size="sm"
+            variant="secondary"
+            className="border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+            icon={<XCircle size={14} />}
+            pendingLabel="Cancelando..."
+          >
+            Cancelar formalizacao
+          </PendingSubmitButton>
+        </form>
+      ) : null}
     </div>
   );
 }
@@ -128,7 +145,7 @@ function isManuallyTriggered(row: AgreementManualActivationRow) {
 function ActivationRow({ row, canal, returnTo }: { row: AgreementManualActivationRow; canal: string; returnTo: string }) {
   const acionado = isManuallyTriggered(row);
   return (
-    <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_170px_320px] xl:items-center">
+    <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_170px_420px] xl:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={acionado ? "green" : "yellow"}>

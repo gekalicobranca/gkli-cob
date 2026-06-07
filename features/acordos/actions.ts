@@ -1441,6 +1441,10 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
   if (!termo) throw new Error("Termo não encontrado ou link inválido.");
   if ((termo as any).status === "aceito") redirect(`/${tipoAceite === "sindico" ? "aceite-sindico" : "aceite-acordo"}/${token}?aceito=1`);
 
+  if (!["pendente", "visualizado"].includes(String((termo as any).status ?? ""))) {
+    throw new Error("Este termo nao esta mais disponivel para aceite.");
+  }
+
   const now = new Date().toISOString();
   const acordo = (termo as any).acordos;
 
@@ -1771,6 +1775,140 @@ export async function atualizarStatusBoletosAcordo(formData: FormData) {
   });
 
   revalidatePath("/app/acordos/boletos");
+  revalidatePath(`/app/acordos/${acordoId}`);
+}
+
+export async function cancelarFormalizacaoAcordo(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const scope = await getPermittedCarteiras();
+  const supabase = await createClient();
+
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+  const motivo = String(formData.get("motivo") ?? "Devedor nao confirmou o aceite").trim();
+  const observacao = String(formData.get("observacao") ?? "").trim();
+
+  if (!acordoId) throw new Error("Acordo obrigatorio.");
+
+  const { data: acordo, error: acordoError } = await supabase
+    .from("acordos")
+    .select("id, carteira_id, cobranca_id, status, status_financeiro, fluxo_status, devedor_aceito_em")
+    .eq("id", acordoId)
+    .maybeSingle();
+
+  if (acordoError) throw new Error(`Erro ao carregar acordo: ${acordoError.message}`);
+  if (!acordo) throw new Error("Acordo nao encontrado.");
+
+  assertCarteiraPermitida(scope, (acordo as any).carteira_id);
+
+  const statusAtual = String((acordo as any).status ?? "");
+  if (["cancelado", "quitado", "rompido", "quebrado"].includes(statusAtual)) {
+    throw new Error("Este acordo nao permite cancelamento da formalizacao.");
+  }
+
+  if ((acordo as any).devedor_aceito_em) {
+    throw new Error("O acordo ja possui aceite do devedor. Use o fluxo de rompimento, se necessario.");
+  }
+
+  const { data: termos, error: termosError } = await supabase
+    .from("acordos_termos")
+    .select("id, tipo_aceite, status")
+    .eq("acordo_id", acordoId);
+
+  if (termosError) throw new Error(`Erro ao carregar termos: ${termosError.message}`);
+
+  const termoDevedorAceito = ((termos ?? []) as any[]).some(
+    (termo) => termo.tipo_aceite === "devedor" && termo.status === "aceito",
+  );
+  if (termoDevedorAceito) {
+    throw new Error("O acordo ja possui termo aceito pelo devedor. Use o fluxo de rompimento, se necessario.");
+  }
+
+  const { data: parcelas, error: parcelasError } = await supabase
+    .from("parcelas_acordo")
+    .select("id, status, data_pagamento")
+    .eq("acordo_id", acordoId);
+
+  if (parcelasError) throw new Error(`Erro ao carregar parcelas: ${parcelasError.message}`);
+
+  const possuiPagamento = ((parcelas ?? []) as any[]).some(
+    (parcela) => parcela.data_pagamento || ["paga", "pago", "quitada", "quitado"].includes(String(parcela.status ?? "").toLowerCase()),
+  );
+  if (possuiPagamento) {
+    throw new Error("Este acordo ja possui pagamento registrado. Use o fluxo de rompimento, se necessario.");
+  }
+
+  const { data: vinculadas } = await supabase
+    .from("acordo_cobrancas")
+    .select("cobranca_id")
+    .eq("acordo_id", acordoId);
+
+  const cobrancaIds = Array.from(new Set([
+    ...(((vinculadas ?? []) as any[]).map((item) => item.cobranca_id).filter(Boolean)),
+    (acordo as any).cobranca_id,
+  ].filter(Boolean)));
+
+  const agora = new Date().toISOString();
+  const statusCobranca = COBRANCA_STATUS.EM_COBRANCA_ATIVA;
+
+  const { error: acordoUpdateError } = await supabase
+    .from("acordos")
+    .update({
+      status: ACORDO_STATUS.CANCELADO,
+      status_financeiro: "cancelado",
+      fluxo_status: "cancelado",
+    })
+    .eq("id", acordoId);
+
+  if (acordoUpdateError) throw new Error(`Erro ao cancelar acordo: ${acordoUpdateError.message}`);
+
+  await supabase
+    .from("acordos_termos")
+    .update({ status: "expirado", updated_at: agora })
+    .eq("acordo_id", acordoId)
+    .neq("status", "aceito");
+
+  await supabase
+    .from("parcelas_acordo")
+    .update({ status: PARCELA_ACORDO_STATUS.CANCELADA })
+    .eq("acordo_id", acordoId)
+    .in("status", [PARCELA_ACORDO_STATUS.PENDENTE, PARCELA_ACORDO_STATUS.VENCIDA]);
+
+  if (cobrancaIds.length > 0) {
+    await supabase
+      .from("cobrancas")
+      .update({ status: statusCobranca, status_operacional: statusCobranca })
+      .in("id", cobrancaIds);
+  }
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (acordo as any).carteira_id,
+    entidadeTipo: "acordo",
+    entidadeId: acordoId,
+    eventoCodigo: "acordo.formalizacao_cancelada",
+    titulo: "Formalizacao cancelada",
+    descricao: [motivo || "Devedor nao confirmou o aceite", observacao || null].filter(Boolean).join(" - "),
+    severidade: "alerta",
+    payload: { motivo, observacao, cobranca_ids: cobrancaIds },
+    antes: {
+      status: (acordo as any).status ?? null,
+      status_financeiro: (acordo as any).status_financeiro ?? null,
+      fluxo_status: (acordo as any).fluxo_status ?? null,
+    },
+    depois: {
+      status: ACORDO_STATUS.CANCELADO,
+      status_financeiro: "cancelado",
+      fluxo_status: "cancelado",
+      status_cobranca: statusCobranca,
+    },
+    origem: "manual",
+    auditavel: true,
+    userId: user.id,
+  });
+
+  revalidatePath("/app/acordos");
+  revalidatePath("/app/acordos/gestao");
+  revalidatePath("/app/gestao/acionamentos-acordos");
   revalidatePath(`/app/acordos/${acordoId}`);
 }
 

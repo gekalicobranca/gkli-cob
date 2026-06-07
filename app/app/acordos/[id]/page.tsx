@@ -5,12 +5,15 @@ import {
   FileText,
   Flag,
   WalletCards,
+  XCircle,
 } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import {
+  cancelarFormalizacaoAcordo,
   marcarParcelaComoPaga,
   marcarParcelaComoVencida,
   romperAcordoAssistido,
@@ -244,6 +247,18 @@ export default async function AcordoDetalhePage({ params }: Props) {
     totalParcelas > 0 ? Math.round((totalPago / totalParcelas) * 100) : 0;
   const diasReemissao = Number(acordo.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0);
   const health = calculateAgreementHealth(parcelas);
+  const termos = Array.isArray(acordo.termos) ? acordo.termos : [];
+  const devedorAceito = Boolean(acordo.devedor_aceito_em) || termos.some((termo: any) =>
+    termo.tipo_aceite === "devedor" && termo.status === "aceito",
+  );
+  const possuiPagamentoRegistrado = parcelas.some((parcela: any) =>
+    parcela.data_pagamento || ["paga", "pago", "quitada", "quitado"].includes(String(parcela.status ?? "").toLowerCase()),
+  );
+  const statusFechado = ["cancelado", "quitado", "rompido", "quebrado"].includes(String(acordo.status ?? ""));
+  const possuiFormalizacaoPendente = termos.some((termo: any) =>
+    ["pendente", "visualizado"].includes(String(termo.status ?? "")),
+  ) || ["aguardando_aprovacao_sindico", "aprovado_sindico_aguardando_aceite_devedor", "aguardando_aceite_devedor"].includes(String(acordo.fluxo_status ?? ""));
+  const podeCancelarFormalizacao = possuiFormalizacaoPendente && !devedorAceito && !possuiPagamentoRegistrado && !statusFechado;
 
   return (
     <div className="space-y-6">
@@ -536,6 +551,42 @@ export default async function AcordoDetalhePage({ params }: Props) {
         </Card>
 
         <div className="space-y-5">
+          {podeCancelarFormalizacao ? (
+            <Card>
+              <CardContent className="space-y-4 p-6">
+                <SectionTitle
+                  title="Cancelar formalizacao"
+                  description="Use quando o devedor nao confirmou o aceite e a cobranca deve voltar para o fluxo extrajudicial."
+                />
+                <form action={cancelarFormalizacaoAcordo} className="space-y-3">
+                  <input type="hidden" name="acordo_id" value={acordo.id} />
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Motivo</span>
+                    <select name="motivo" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" defaultValue="Devedor nao confirmou o aceite">
+                      <option value="Devedor nao confirmou o aceite">Devedor nao confirmou o aceite</option>
+                      <option value="Devedor desistiu da negociacao">Devedor desistiu da negociacao</option>
+                      <option value="Prazo interno expirado">Prazo interno expirado</option>
+                      <option value="Nova negociacao necessaria">Nova negociacao necessaria</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Observacao</span>
+                    <textarea name="observacao" className="min-h-[84px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" placeholder="Opcional" />
+                  </label>
+                  <PendingSubmitButton
+                    variant="secondary"
+                    className="w-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                    icon={<XCircle size={16} />}
+                    pendingLabel="Cancelando formalizacao..."
+                  >
+                    Cancelar formalizacao
+                  </PendingSubmitButton>
+                </form>
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card>
             <CardContent className="space-y-4 p-6">
               <SectionTitle

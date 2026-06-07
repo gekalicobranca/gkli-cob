@@ -47,6 +47,10 @@ export default async function AceiteSindicoPage({ params, searchParams }: PagePr
     return <PublicShell title="Link inválido" description="Não encontramos este termo de acordo." />;
   }
 
+  if (!["pendente", "visualizado", "aceito"].includes(String(termo.status ?? ""))) {
+    return <PublicShell title="Termo indisponivel" description="Este termo foi encerrado e nao permite novo aceite." />;
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-3xl space-y-6">
