@@ -179,6 +179,8 @@ function montarResumoAcordo(params: {
   condominioNome: string;
   unidadeLabel: string;
   responsavelNome: string;
+  responsavelEmail?: string | null;
+  responsavelTelefone?: string | null;
   valorBase: number;
   despesa: number;
   valorAcordado: number;
@@ -200,6 +202,8 @@ function montarResumoAcordo(params: {
     `Condomínio: ${params.condominioNome}`,
     `Unidade: ${params.unidadeLabel}`,
     `Responsável: ${params.responsavelNome}`,
+    params.responsavelEmail ? `E-mail do responsavel: ${params.responsavelEmail}` : null,
+    params.responsavelTelefone ? `Celular do responsavel: ${params.responsavelTelefone}` : null,
     `Tipo: ${params.tipo === "judicial" ? "Judicial" : "Extrajudicial"}`,
     params.numeroProcesso ? `Processo: ${params.numeroProcesso}` : null,
     "",
@@ -272,7 +276,7 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
 }) {
   const { data: acordoAtual } = await supabase
     .from("acordos")
-    .select("boletos_solicitados_em")
+    .select("boletos_solicitados_em, carteiras:carteira_id (nome), unidades:unidade_id (responsavel_nome, email, telefone)")
     .eq("id", params.acordoId)
     .maybeSingle();
 
@@ -307,20 +311,30 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
     ].filter(Boolean).join("\n"))
     .join("\n\n");
 
+  const carteiraNome = (acordoAtual as any)?.carteiras?.nome ?? "GKLI Cobranca";
+  const unidade = (acordoAtual as any)?.unidades;
+  const contatoResponsavel = [
+    unidade?.email ? `E-mail do responsavel: ${unidade.email}` : null,
+    unidade?.telefone ? `Celular do responsavel: ${unidade.telefone}` : null,
+  ].filter(Boolean).join("\n");
+  const resumoComContato = params.resumo.includes("E-mail do responsavel")
+    || params.resumo.includes("Celular do responsavel")
+    || !contatoResponsavel
+      ? params.resumo
+      : [params.resumo, "", "Contato do responsavel:", contatoResponsavel].join("\n");
+
   const conteudo = [
     "Prezados,",
     "",
-    "O acordo abaixo foi aprovado/aceito e está liberado para emissão dos boletos.",
+    "Solicitamos a emissao dos boletos do acordo abaixo, conforme plano formalizado e aceites registrados:",
     "",
-    params.resumo,
+    resumoComContato,
     "",
     "Carimbos de aceite:",
     carimbos || "Aceites registrados no sistema.",
     "",
-    "Solicitamos, por gentileza, a emissão dos boletos conforme o plano de pagamento acima.",
-    "",
     "Atenciosamente,",
-    "GKLI Cobrança",
+    carteiraNome,
   ].join("\n");
 
   await inserirMensagemEmail(supabase, {
@@ -713,6 +727,8 @@ export async function createAcordo(formData: FormData) {
     condominioNome: condominioPrincipal?.nome ?? "Condomínio não informado",
     unidadeLabel,
     responsavelNome: unidadePrincipal?.responsavel_nome ?? "Responsável não informado",
+    responsavelEmail: unidadePrincipal?.email ?? null,
+    responsavelTelefone: unidadePrincipal?.telefone ?? null,
     valorBase: valorBaseCobranca,
     despesa: despesaCobrancaValor,
     valorAcordado,

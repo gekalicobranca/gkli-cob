@@ -140,6 +140,10 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
         status_financeiro,
         vencimento
       ),
+      carteiras:carteira_id (
+        id,
+        nome
+      ),
       termos:acordos_termos (*)
     `,
     )

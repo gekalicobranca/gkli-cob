@@ -79,15 +79,26 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
   const boletosEnviados = String(acordo?.fluxo_status) === "boletos_enviados";
 
   const termoPrincipal = termoDevedor ?? termoSindico;
+  const carteiraNome = acordo?.carteiras?.nome ?? "GKLI Cobranca";
+  const contatoResponsavel = [
+    acordo?.unidades?.email ? `E-mail do responsavel: ${acordo.unidades.email}` : null,
+    acordo?.unidades?.telefone ? `Celular do responsavel: ${acordo.unidades.telefone}` : null,
+  ].filter(Boolean).join("\n");
+  const resumoSolicitacao = (() => {
+    const resumo = termoPrincipal?.corpo ?? "Resumo do acordo indisponivel na base local.";
+    if (!contatoResponsavel) return resumo;
+    if (resumo.includes("E-mail do responsavel") || resumo.includes("Celular do responsavel")) return resumo;
+    return [resumo, "", "Contato do responsavel:", contatoResponsavel].join("\n");
+  })();
   const textoSolicitacao = [
     "Prezados,",
     "",
-    "Solicitamos a emissão dos boletos do acordo abaixo, conforme plano formalizado e aceites registrados no GKLI Cobrança.",
+    "Solicitamos a emissao dos boletos do acordo abaixo, conforme plano formalizado e aceites registrados:",
     "",
-    termoPrincipal?.corpo ?? "Resumo do acordo indisponível na base local.",
+    resumoSolicitacao,
     "",
     "Atenciosamente,",
-    "GKLI Cobrança",
+    carteiraNome,
   ].join("\n");
 
   return (
