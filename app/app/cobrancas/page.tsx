@@ -57,6 +57,23 @@ function getParam(value?: string) {
   return String(value ?? "").trim();
 }
 
+function getJudicializacaoFilter(params: Awaited<NonNullable<PageProps["searchParams"]>>) {
+  const requested = getParam(params.judicializacao_unidade);
+  if (requested) return requested;
+  return getParam(params.status) === COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO ? "sim" : "nao";
+}
+
+function cobrancasHref(params: Record<string, string>, overrides: Record<string, string | null>) {
+  const query = new URLSearchParams();
+
+  for (const [key, value] of Object.entries({ ...params, ...overrides })) {
+    if (value) query.set(key, value);
+  }
+
+  const qs = query.toString();
+  return qs ? `/app/cobrancas?${qs}` : "/app/cobrancas";
+}
+
 function getPriority(status: string, vencimento?: string | null) {
   const normalized = normalizeStatus(status);
 
@@ -105,11 +122,27 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     status: getParam(params.status),
     vencimentoDe: getParam(params.vencimento_de),
     vencimentoAte: getParam(params.vencimento_ate),
-    judicializacaoUnidade: getParam(params.judicializacao_unidade),
+    judicializacaoUnidade: getJudicializacaoFilter(params),
+  };
+  const queryParams = {
+    q: filters.search,
+    status: filters.status,
+    vencimento_de: filters.vencimentoDe,
+    vencimento_ate: filters.vencimentoAte,
+    judicializacao_unidade: filters.judicializacaoUnidade,
   };
   const hasFilters = Boolean(
-    filters.search || filters.status || filters.vencimentoDe || filters.vencimentoAte || filters.judicializacaoUnidade,
+    filters.search ||
+    filters.status ||
+    filters.vencimentoDe ||
+    filters.vencimentoAte ||
+    filters.judicializacaoUnidade !== "nao",
   );
+  const showingJudicializadas = filters.judicializacaoUnidade !== "nao";
+  const hideJudicializadasHref = cobrancasHref(queryParams, {
+    judicializacao_unidade: "nao",
+    status: filters.status === COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO ? null : filters.status,
+  });
 
   const scope = await getPermittedCarteiras();
   const rows = await listCobrancas(scope, filters);
@@ -208,11 +241,22 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                   </p>
                 </div>
 
-                {hasFilters ? (
-                  <ButtonLink href="/app/cobrancas" variant="secondary">
-                    Limpar filtros
-                  </ButtonLink>
-                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {showingJudicializadas ? (
+                    <ButtonLink href={hideJudicializadasHref} variant="secondary">
+                      Ocultar judicializadas
+                    </ButtonLink>
+                  ) : (
+                    <ButtonLink href={cobrancasHref(queryParams, { judicializacao_unidade: "todos" })} variant="secondary">
+                      Incluir judicializadas
+                    </ButtonLink>
+                  )}
+                  {hasFilters ? (
+                    <ButtonLink href="/app/cobrancas" variant="secondary">
+                      Limpar filtros
+                    </ButtonLink>
+                  ) : null}
+                </div>
               </div>
 
               <form className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_180px_170px_170px_210px_110px]">
@@ -249,9 +293,9 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                   aria-label="Vencimento até"
                 />
                 <Select name="judicializacao_unidade" defaultValue={filters.judicializacaoUnidade}>
-                  <option value="">Judicialização da unidade</option>
-                  <option value="sim">Com judicialização na unidade</option>
-                  <option value="nao">Sem judicialização na unidade</option>
+                  <option value="nao">Extrajudicial</option>
+                  <option value="todos">Incluir judicializadas</option>
+                  <option value="sim">Somente judicializadas</option>
                 </Select>
                 <Button type="submit" variant="secondary">
                   Filtrar

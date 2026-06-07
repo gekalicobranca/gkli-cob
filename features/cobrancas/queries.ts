@@ -93,9 +93,11 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
     unidade_bloqueada_por_judicializacao: Boolean(row.unidade_id && unidadesJudicializadas.has(row.unidade_id)),
   }))
 
-  if (filters.judicializacaoUnidade === 'sim') {
+  const judicializacaoUnidade = filters.judicializacaoUnidade || 'nao'
+
+  if (judicializacaoUnidade === 'sim') {
     rows = rows.filter((row: any) => row.unidade_bloqueada_por_judicializacao)
-  } else if (filters.judicializacaoUnidade === 'nao') {
+  } else if (judicializacaoUnidade !== 'todos') {
     rows = rows.filter((row: any) => !row.unidade_bloqueada_por_judicializacao)
   }
 
