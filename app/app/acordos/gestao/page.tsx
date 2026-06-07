@@ -43,6 +43,7 @@ export default async function GestaoAcordosPage() {
             <ButtonLink href="/app/acordos/excecoes" variant="secondary"><Inbox size={16} />Exceções</ButtonLink>
             <ButtonLink href="/app/acordos/aprovacoes" variant="secondary">Aprovações</ButtonLink>
             <ButtonLink href="/app/acordos/boletos" variant="secondary">Boletos</ButtonLink>
+            <ButtonLink href="/app/gestao/acionamentos-acordos" variant="secondary">Acionamentos</ButtonLink>
           </>
         }
       />
@@ -105,6 +106,7 @@ export default async function GestaoAcordosPage() {
             <ButtonLink href="/app/relatorios/acordos-rompimentos" variant="secondary" className="w-full justify-start"><AlertTriangle size={16} />Rompimentos</ButtonLink>
             <ButtonLink href="/app/acordos/aprovacoes" variant="secondary" className="w-full justify-start"><FileText size={16} />Aprovações</ButtonLink>
             <ButtonLink href="/app/acordos/boletos" variant="secondary" className="w-full justify-start"><ReceiptText size={16} />Boletos</ButtonLink>
+            <ButtonLink href="/app/gestao/acionamentos-acordos" variant="secondary" className="w-full justify-start"><FileText size={16} />Acionamentos</ButtonLink>
           </div>
         </Card>
       </section>

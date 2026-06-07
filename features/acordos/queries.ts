@@ -639,6 +639,15 @@ function todayDateOnly() {
   return date;
 }
 
+function getPublicBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+}
+
 function diffDaysFromToday(value?: string | null) {
   const date = normalizeDateOnly(value);
   if (!date) return null;
@@ -1018,6 +1027,137 @@ export async function listAgreementApprovalInbox(scope?: CarteiraScope) {
       prioridade: acordo.saude_acordo === "critico" ? "Alta" : "Média",
     }))
     .sort((a, b) => Number(b.valor_acordado ?? 0) - Number(a.valor_acordado ?? 0));
+}
+
+export type AgreementManualActivationRow = {
+  termoId: string;
+  acordoId: string;
+  mensagemId: string | null;
+  carteiraId: string | null;
+  fluxoStatus: string | null;
+  termoStatus: string | null;
+  token: string;
+  linkAceite: string;
+  destinatarioNome: string | null;
+  destinatarioEmail: string | null;
+  destinatarioTelefone: string | null;
+  condominioNome: string | null;
+  unidadeLabel: string;
+  valorAcordado: number;
+  dataAcordo: string | null;
+  termoCriadoEm: string | null;
+  mensagemStatus: string | null;
+  mensagemAcionadaManual: boolean;
+  mensagemAcionadaEm: string | null;
+  mensagemAssunto: string | null;
+  mensagemConteudo: string | null;
+};
+
+export async function listAgreementManualActivationInbox(
+  scope: CarteiraScope,
+): Promise<AgreementManualActivationRow[]> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from("acordos_termos")
+    .select(
+      `
+      id,
+      acordo_id,
+      carteira_id,
+      status,
+      token,
+      destinatario_nome,
+      destinatario_email,
+      created_at,
+      acordos:acordo_id (
+        id,
+        carteira_id,
+        fluxo_status,
+        valor_acordado,
+        data_acordo,
+        condominios:condominio_id (nome),
+        unidades:unidade_id (identificacao, bloco, responsavel_nome, telefone, email)
+      )
+    `,
+    )
+    .eq("tipo_aceite", "devedor")
+    .in("status", ["pendente", "visualizado"])
+    .order("created_at", { ascending: true })
+    .limit(80);
+
+  query = applyCarteiraScope(query, scope.carteiraIds, "carteira_id");
+
+  const { data: termos, error } = await query;
+
+  if (error) {
+    throw new Error(`Erro ao carregar acionamentos de acordos: ${error.message}`);
+  }
+
+  const acordoIds = uniqueStrings((termos ?? []).map((termo: any) => termo.acordo_id));
+  const mensagensPorAcordo = new Map<string, any>();
+
+  if (acordoIds.length > 0) {
+    let mensagensQuery = supabase
+      .from("mensagens")
+      .select("id, acordo_id, carteira_id, status, status_operacional, destinatario, email_destinatario, email_assunto, conteudo, conteudo_renderizado, enviada_manual, enviada_manual_em, ultima_tentativa_em, created_at")
+      .in("acordo_id", acordoIds)
+      .eq("contexto", "acordo")
+      .eq("canal", "email")
+      .order("created_at", { ascending: false });
+
+    mensagensQuery = applyCarteiraScope(mensagensQuery, scope.carteiraIds, "carteira_id");
+
+    const { data: mensagens, error: mensagensError } = await mensagensQuery;
+
+    if (mensagensError) {
+      throw new Error(`Erro ao carregar mensagens de acordo: ${mensagensError.message}`);
+    }
+
+    for (const mensagem of mensagens ?? []) {
+      const acordoId = (mensagem as any).acordo_id;
+      if (acordoId && !mensagensPorAcordo.has(acordoId)) {
+        mensagensPorAcordo.set(acordoId, mensagem);
+      }
+    }
+  }
+
+  const baseUrl = getPublicBaseUrl();
+
+  return ((termos ?? []) as any[]).map((termo) => {
+    const acordo = Array.isArray(termo.acordos) ? termo.acordos[0] : termo.acordos;
+    const condominio = Array.isArray(acordo?.condominios) ? acordo?.condominios[0] : acordo?.condominios;
+    const unidade = Array.isArray(acordo?.unidades) ? acordo?.unidades[0] : acordo?.unidades;
+    const mensagem = mensagensPorAcordo.get(termo.acordo_id) ?? null;
+    const unidadeLabel = [
+      unidade?.bloco ? `Bloco ${unidade.bloco}` : null,
+      unidade?.identificacao ? `Unidade ${unidade.identificacao}` : null,
+    ].filter(Boolean).join(" - ") || "Unidade nao informada";
+
+    return {
+      termoId: termo.id,
+      acordoId: termo.acordo_id,
+      mensagemId: mensagem?.id ?? null,
+      carteiraId: termo.carteira_id ?? acordo?.carteira_id ?? null,
+      fluxoStatus: acordo?.fluxo_status ?? null,
+      termoStatus: termo.status ?? null,
+      token: termo.token,
+      linkAceite: `${baseUrl}/aceite-acordo/${termo.token}`,
+      destinatarioNome: termo.destinatario_nome ?? unidade?.responsavel_nome ?? null,
+      destinatarioEmail: termo.destinatario_email ?? unidade?.email ?? mensagem?.email_destinatario ?? mensagem?.destinatario ?? null,
+      destinatarioTelefone: unidade?.telefone ?? null,
+      condominioNome: condominio?.nome ?? null,
+      unidadeLabel,
+      valorAcordado: Number(acordo?.valor_acordado ?? 0),
+      dataAcordo: acordo?.data_acordo ?? null,
+      termoCriadoEm: termo.created_at ?? null,
+      mensagemStatus: mensagem?.status_operacional ?? mensagem?.status ?? null,
+      mensagemAcionadaManual: Boolean(mensagem?.enviada_manual),
+      mensagemAcionadaEm: mensagem?.enviada_manual_em ?? mensagem?.ultima_tentativa_em ?? null,
+      mensagemAssunto: mensagem?.email_assunto ?? "Termo de acordo para aceite digital",
+      mensagemConteudo: mensagem?.conteudo_renderizado ?? mensagem?.conteudo ?? null,
+    };
+  });
 }
 
 export async function listAgreementBoletoInbox(scope?: CarteiraScope) {

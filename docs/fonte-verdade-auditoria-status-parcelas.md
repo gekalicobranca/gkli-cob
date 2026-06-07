@@ -71,6 +71,7 @@ Regra:
 - telas, filtros, dashboards e automacoes devem ler `status_operacional` para fluxo de trabalho;
 - telas financeiras e relatorios de pagamento devem ler `status_financeiro`;
 - `status` pode ser mantido sincronizado por compatibilidade, mas nao deve orientar regra nova.
+- quando constraint legada de `cobrancas.status` exigir valores antigos com espaco, a RPC deve adaptar somente `status`; `status_operacional` permanece em snake_case.
 
 Valores canonicos de `status_operacional`:
 

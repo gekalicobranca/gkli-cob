@@ -76,6 +76,32 @@ P1: ainda falta confirmar o schema live de `auditoria_eventos` e decidir se vale
 
 P0: telas e regras podem divergir se `status` e `status_operacional` tiverem valores diferentes. O fallback deve existir apenas em helper canonico, com preferencia clara por `status_operacional`.
 
+### Ajuste live identificado em 2026-06-06
+
+Ao criar acordo, o banco recusou `cobrancas.status = 'acordo_firmado'` pela constraint `cobrancas_status_check`. A causa e que algumas bases ainda aceitam valores legados com espaco em `cobrancas.status`, enquanto `status_operacional` usa snake_case.
+
+Foi criada a migration `supabase/sql/2026-06-06_criar_acordo_financeiro_status_compat.sql` para separar os campos dentro da RPC:
+
+- `cobrancas.status_operacional`: recebe o valor canonico, como `acordo_firmado`;
+- `cobrancas.status`: recebe o formato aceito pela constraint legada, como `acordo firmado`, quando necessario.
+
+Tambem foi criada a migration `supabase/sql/2026-06-06_cobrancas_status_check_compat.sql` para ampliar a constraint legada e aceitar ambos os formatos em `cobrancas.status`. Essa segunda protecao evita quebra caso alguma rotina antiga ainda grave o valor canonico diretamente no campo legado.
+
+Outro erro live apareceu na etapa seguinte da criacao do acordo: insert bloqueado por RLS em `acordos_termos`. Foi criada a migration `supabase/sql/2026-06-06_rls_acordos_termos_aceites.sql` para liberar:
+
+- operador autenticado gerenciar `acordos_termos` e `acordos_aceites`;
+- pagina publica de aceite ler/atualizar termo;
+- pagina publica registrar aceite.
+
+Na revisao geral do fluxo de criacao de acordo, apareceu a proxima trava:
+`mensagens_contexto_check_v1` rejeitava o e-mail interno do acordo. O codigo
+usa `mensagens.contexto = 'acordo'` ao criar termo/e-mail de acordo e tambem
+nas reguas de acordo; a regua de cobranca usa `cobranca`.
+
+Foi criada a migration `supabase/sql/2026-06-06_revisao_fluxo_criar_acordo_mensagens.sql`
+para alinhar a constraint de `mensagens.contexto` aos contextos usados pelo app
+e criar uma policy `mensagens_authenticated_all` quando a tabela existir.
+
 ## 4. Status de acordo
 
 ### Direcao canonica

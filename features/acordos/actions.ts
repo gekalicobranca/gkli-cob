@@ -1532,6 +1532,121 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
   redirect(`/${tipoAceite === "sindico" ? "aceite-sindico" : "aceite-acordo"}/${token}?aceito=1`);
 }
 
+export async function registrarAcionamentoManualAcordo(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const termoId = String(formData.get("termo_id") ?? "").trim();
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+  const mensagemId = String(formData.get("mensagem_id") ?? "").trim();
+  const canal = String(formData.get("canal") ?? "email").trim() || "email";
+
+  if (!termoId) throw new Error("Termo obrigatorio para registrar acionamento.");
+  if (!acordoId) throw new Error("Acordo obrigatorio para registrar acionamento.");
+
+  const { data: termo, error: termoError } = await supabase
+    .from("acordos_termos")
+    .select("id, acordo_id, carteira_id, tipo_aceite, status, token, titulo, corpo, destinatario_nome, destinatario_email")
+    .eq("id", termoId)
+    .eq("acordo_id", acordoId)
+    .maybeSingle();
+
+  if (termoError) throw new Error(`Erro ao carregar termo: ${termoError.message}`);
+  if (!termo) throw new Error("Termo nao encontrado.");
+
+  const carteiraScope = await getPermittedCarteiras();
+  assertCarteiraPermitida(carteiraScope, (termo as any).carteira_id);
+
+  const now = new Date().toISOString();
+
+  let mensagemRegistradaId = mensagemId || null;
+
+  if (mensagemId) {
+    const { error: mensagemError } = await supabase
+      .from("mensagens")
+      .update({
+        status: "enviada",
+        status_operacional: "enviada",
+        enviada_manual: true,
+        enviada_manual_em: now,
+        enviada_manual_por: user?.id ?? null,
+        ultima_tentativa_em: now,
+      })
+      .eq("id", mensagemId)
+      .eq("acordo_id", acordoId);
+
+    if (mensagemError) {
+      throw new Error(`Erro ao marcar mensagem como acionada: ${mensagemError.message}`);
+    }
+  } else {
+    const link = `${getPublicBaseUrl()}/aceite-acordo/${(termo as any).token}`;
+    const conteudo = [
+      "Prezado(a),",
+      "",
+      "Segue termo de acordo para conferencia e aceite digital.",
+      "",
+      (termo as any).corpo,
+      "",
+      `Link publico para aceite: ${link}`,
+      "",
+      "Atenciosamente,",
+      "GKLI Cobranca",
+    ].join("\n");
+
+    const { data: mensagemCriada, error: insertMensagemError } = await supabase
+      .from("mensagens")
+      .insert({
+        carteira_id: (termo as any).carteira_id,
+        contexto: "acordo",
+        acordo_id: acordoId,
+        canal: "email",
+        destinatario: (termo as any).destinatario_email ?? null,
+        email_destinatario: (termo as any).destinatario_email ?? null,
+        email_assunto: (termo as any).titulo ?? "Termo de acordo para aceite digital",
+        conteudo,
+        conteudo_renderizado: conteudo,
+        status: "enviada",
+        status_operacional: "enviada",
+        origem_evento: "acordo_acionamento_manual",
+        enviada_manual: true,
+        enviada_manual_em: now,
+        enviada_manual_por: user?.id ?? null,
+        ultima_tentativa_em: now,
+        payload: { termo_id: termoId, link_aceite: link, tipo_aceite: (termo as any).tipo_aceite },
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (insertMensagemError) {
+      throw new Error(`Erro ao criar mensagem de acionamento manual: ${insertMensagemError.message}`);
+    }
+
+    mensagemRegistradaId = (mensagemCriada as any)?.id ?? null;
+  }
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (termo as any).carteira_id,
+    entidadeTipo: "acordo",
+    entidadeId: acordoId,
+    eventoCodigo: "acordo.acionamento_manual_devedor",
+    titulo: "Devedor acionado manualmente",
+    descricao: `Acionamento manual registrado por ${canal}. O aceite digital continua aguardando retorno do devedor.`,
+    severidade: "info",
+    payload: {
+      termo_id: termoId,
+      mensagem_id: mensagemRegistradaId,
+      canal,
+      tipo_aceite: (termo as any).tipo_aceite,
+    },
+    userId: user?.id ?? null,
+  });
+
+  revalidatePath("/app/gestao/acionamentos-acordos");
+  revalidatePath(`/app/acordos/${acordoId}`);
+  revalidatePath("/app/acordos/gestao");
+}
+
 export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();
