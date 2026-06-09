@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, ArrowUpRight, Filter, Handshake, Inbox, Plus, Search, BarChart3 } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, Filter, Handshake, Inbox, Plus, Search } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -68,7 +68,6 @@ export default async function AcordosPage() {
           <>
             <ButtonLink href="/app/acordos/fila" variant="secondary"><Inbox size={16} />Fila</ButtonLink>
             <ButtonLink href="/app/acordos/rompimentos" variant="secondary"><AlertTriangle size={16} />Rompimentos</ButtonLink>
-            <ButtonLink href="/app/acordos/gestao" variant="secondary"><BarChart3 size={16} />Gestão</ButtonLink>
             <Button variant="secondary"><Filter size={16} />Filtros</Button>
             <ButtonLink href="/app/acordos/novo"><Plus size={16} />Novo acordo</ButtonLink>
           </>

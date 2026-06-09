@@ -74,6 +74,7 @@ const sections: SidebarSection[] = [
     title: 'Gestão',
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
+      { label: 'Gestão acordos', href: '/app/acordos/gestao', icon: 'chart' },
       { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
       { label: 'Saneamento cobranças', href: '/app/gestao/saneamento-cobrancas', icon: 'shield' },
       { label: 'Fechamento mensal', href: '/app/gestao/fechamento', icon: 'calendar', gestorOnly: true },
