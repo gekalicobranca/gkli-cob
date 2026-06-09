@@ -74,6 +74,7 @@ const sections: SidebarSection[] = [
     title: 'Gestão',
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
+      { label: 'Saúde sistema', href: '/app/gestao/saude-sistema', icon: 'alert' },
       { label: 'Gestão acordos', href: '/app/acordos/gestao', icon: 'chart' },
       { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
       { label: 'Saneamento cobranças', href: '/app/gestao/saneamento-cobrancas', icon: 'shield' },
