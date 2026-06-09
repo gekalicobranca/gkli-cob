@@ -37,10 +37,16 @@ async function marcarBloqueioJudicializacaoUnidade(
   supabase: Awaited<ReturnType<typeof createClient>>,
   cobrancas: any[],
 ) {
-  const unidadesJudicializadas = await getUnidadeIdsComJudicializacaoAtiva(
-    supabase,
-    cobrancas.map((cobranca) => cobranca.unidade_id),
-  );
+  let unidadesJudicializadas = new Set<string>();
+
+  try {
+    unidadesJudicializadas = await getUnidadeIdsComJudicializacaoAtiva(
+      supabase,
+      cobrancas.map((cobranca) => cobranca.unidade_id),
+    );
+  } catch (error) {
+    console.error("Erro ao verificar judicializacao por unidade:", error);
+  }
 
   return cobrancas.map((cobranca) => ({
     ...cobranca,

@@ -13,6 +13,7 @@ import {
 import { solicitarPlanilhaDebitosAdministradora } from "@/features/acordos/actions";
 import { COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO } from "@/lib/core/status";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
+import { SelectAllCobrancas } from "./select-all-cobrancas";
 
 type PageProps = {
   searchParams: Promise<{
@@ -55,25 +56,71 @@ export default async function SelecionarCobrancasAcordoPage({
   const query = await searchParams;
   const cobrancaId = query.cobrancaId ?? query.cobranca_id;
   const unidadeId = query.unidadeId ?? query.unidade_id;
+  const header = (
+    <PageHeader
+      eyebrow="Base Operacional"
+      title="Agrupar cobrancas para acordo"
+      description="Agrupe manualmente os recibos/vencimentos da unidade antes de abrir a simulacao do acordo. A regua orienta a cobranca, mas a selecao final e do operador."
+      actions={
+        <ButtonLink href="/app/acordos" variant="header">
+          Voltar
+        </ButtonLink>
+      }
+    />
+  );
   const scope = await getPermittedCarteiras();
-  const data = await listCobrancasDaUnidadeParaAcordo({
-    scope,
-    cobrancaId,
-    unidadeId,
-  });
+  let data;
+
+  try {
+    data = await listCobrancasDaUnidadeParaAcordo({
+      scope,
+      cobrancaId,
+      unidadeId,
+    });
+  } catch (error) {
+    console.error("Erro ao carregar cobrancas para agrupamento:", error);
+
+    return (
+      <div className="space-y-6">
+        {header}
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Nao foi possivel carregar as cobrancas
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            A tela encontrou uma falha ao buscar os debitos desta unidade.
+            Tente novamente; se o problema continuar, acione o suporte com a
+            cobranca de origem informada na URL.
+          </p>
+          <div className="mt-5">
+            <ButtonLink href="/app/acordos" variant="secondary">
+              Voltar para acordos
+            </ButtonLink>
+          </div>
+        </Card>
+      </div>
+    );
+  }
   const cobrancas = data.cobrancas as any[];
   const origem =
     cobrancas.find((item) => item.id === data.cobrancaOrigemId) ?? cobrancas[0];
   const unidade = origem?.unidades;
   const condominio = origem?.condominios;
-  const pendenciaPlanilha = origem
-    ? await getPendenciaPlanilhaDebitosAberta({
+  let pendenciaPlanilha = null;
+
+  if (origem) {
+    try {
+      pendenciaPlanilha = await getPendenciaPlanilhaDebitosAberta({
         scope,
         carteiraId: origem.carteira_id,
         condominioId: origem.condominio_id,
         unidadeId: origem.unidade_id,
-      })
-    : null;
+      });
+    } catch (error) {
+      console.error("Erro ao verificar pendencia de planilha:", error);
+    }
+  }
+
   const acordoBloqueadoPorPlanilha = Boolean(pendenciaPlanilha);
   const acordoBloqueadoPorJudicializacao = Boolean((data as any).unidadeBloqueadaPorJudicializacao);
   const selecionaveis = cobrancas.filter((item) => !isBloqueada(item));
@@ -122,6 +169,13 @@ export default async function SelecionarCobrancasAcordoPage({
                 {unidade?.bloco ? ` · Bloco ${unidade.bloco}` : ""} ·{" "}
                 {unidade?.responsavel_nome ?? "Responsável não informado"}
               </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <SelectAllCobrancas total={selecionaveis.length} />
+              <span className="text-xs font-medium text-slate-500">
+                Itens bloqueados permanecem travados.
+              </span>
             </div>
 
             <div className="overflow-hidden rounded-2xl border border-slate-200">
