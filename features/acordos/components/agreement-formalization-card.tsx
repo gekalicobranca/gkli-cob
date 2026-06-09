@@ -85,7 +85,7 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
     acordo?.unidades?.telefone ? `Celular do responsavel: ${acordo.unidades.telefone}` : null,
   ].filter(Boolean).join("\n");
   const resumoSolicitacao = (() => {
-    const resumo = termoPrincipal?.corpo ?? "Resumo do acordo indisponivel na base local.";
+    const resumo = termoPrincipal?.corpo ?? "Resumo do acordo indisponível na base local.";
     if (!contatoResponsavel) return resumo;
     if (resumo.includes("E-mail do responsavel") || resumo.includes("Celular do responsavel")) return resumo;
     return [resumo, "", "Contato do responsavel:", contatoResponsavel].join("\n");

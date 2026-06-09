@@ -85,10 +85,10 @@ export default async function SelecionarCobrancasAcordoPage({
         {header}
         <Card>
           <h2 className="text-lg font-semibold text-slate-950">
-            Nao foi possivel carregar as cobrancas
+            Não foi possível carregar as cobranças
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            A tela encontrou uma falha ao buscar os debitos desta unidade.
+            A tela encontrou uma falha ao buscar os débitos desta unidade.
             Tente novamente; se o problema continuar, acione o suporte com a
             cobranca de origem informada na URL.
           </p>
@@ -117,7 +117,7 @@ export default async function SelecionarCobrancasAcordoPage({
         unidadeId: origem.unidade_id,
       });
     } catch (error) {
-      console.error("Erro ao verificar pendencia de planilha:", error);
+      console.error("Erro ao verificar pendência de planilha:", error);
     }
   }
 

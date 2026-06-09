@@ -9,9 +9,9 @@ export default function AppNotFound() {
           <Search className="h-6 w-6" aria-hidden="true" />
         </div>
 
-        <h1 className="mt-5 text-xl font-semibold text-slate-950 md:text-2xl">Pagina nao encontrada</h1>
+        <h1 className="mt-5 text-xl font-semibold text-slate-950 md:text-2xl">Página não encontrada</h1>
         <p className="mx-auto mt-3 max-w-[560px] text-sm leading-6 text-slate-600">
-          O endereco acessado nao corresponde a nenhum modulo disponivel. Volte ao painel para continuar a operacao.
+          O endereço acessado não corresponde a nenhum módulo disponível. Volte ao painel para continuar a operação.
         </p>
 
         <div className="mt-6 flex justify-center">

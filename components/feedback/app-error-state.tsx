@@ -14,8 +14,8 @@ type AppErrorStateProps = {
 }
 
 export function AppErrorState({
-  title = 'Nao foi possivel carregar esta pagina',
-  description = 'Encontramos uma falha temporaria ao buscar as informacoes. Tente novamente; se continuar, acione o suporte com o codigo abaixo.',
+  title = 'Não foi possível carregar esta página',
+  description = 'Encontramos uma falha temporária ao buscar as informações. Tente novamente; se continuar, acione o suporte com o código abaixo.',
   error,
   reset,
   homeHref = '/app',
@@ -36,7 +36,7 @@ export function AppErrorState({
 
         {supportCode ? (
           <div className="mx-auto mt-5 w-fit rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-            Codigo para suporte: <span className="font-mono text-slate-700">{supportCode}</span>
+            Código para suporte: <span className="font-mono text-slate-700">{supportCode}</span>
           </div>
         ) : null}
 

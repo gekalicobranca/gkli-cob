@@ -48,7 +48,7 @@ export default async function AceiteAcordoPage({ params, searchParams }: PagePro
   }
 
   if (!["pendente", "visualizado", "aceito"].includes(String(termo.status ?? ""))) {
-    return <PublicShell title="Termo indisponivel" description="Este termo foi encerrado e nao permite novo aceite." />;
+    return <PublicShell title="Termo indisponível" description="Este termo foi encerrado e não permite novo aceite." />;
   }
 
   return (

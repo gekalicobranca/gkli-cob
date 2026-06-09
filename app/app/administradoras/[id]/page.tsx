@@ -78,7 +78,7 @@ export default async function AdministradoraDetalhePage({ params }: Props) {
               <input type="checkbox" name="acesso_gerar_acordo" defaultChecked={Boolean(administradora.acesso_gerar_acordo)} className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" />
               <span>
                 <span className="block text-sm font-medium text-slate-950">Acesso para gerar acordo</span>
-                <span className="mt-1 block text-xs leading-5 text-slate-500">Marque quando esta administradora puder operar ou receber fluxo de geracao de acordo.</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">Marque quando esta administradora puder operar ou receber fluxo de geração de acordo.</span>
               </span>
             </label>
             <label className="space-y-1.5 md:col-span-2"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Observações</span><Textarea name="observacoes" defaultValue={administradora.observacoes ?? ''} rows={4} /></label>

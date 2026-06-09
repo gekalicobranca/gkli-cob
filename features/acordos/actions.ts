@@ -410,7 +410,7 @@ export type AcordoActionState = {
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) return error.message;
-  return "Nao foi possivel criar o acordo. Revise os dados e tente novamente.";
+  return "Não foi possível criar o acordo. Revise os dados e tente novamente.";
 }
 
 function rethrowNextNavigationError(error: unknown) {
@@ -1830,7 +1830,7 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
     mensagemRegistradaId = (mensagemCriada as any)?.id ?? null;
   }
 
-  const tipoAceiteLabel = (termo as any).tipo_aceite === "sindico" ? "Sindico" : "Devedor";
+  const tipoAceiteLabel = (termo as any).tipo_aceite === "sindico" ? "Síndico" : "Devedor";
 
   await registrarEventoOperacional(supabase as any, {
     carteiraId: (termo as any).carteira_id,

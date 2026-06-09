@@ -623,7 +623,7 @@ export function AcordoSimulatorForm({
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-rose-950">
-                  Nao foi possivel criar o acordo
+                  Não foi possível criar o acordo
                 </p>
                 <p className="mt-1 text-sm leading-6 text-rose-900">
                   {actionState.error}

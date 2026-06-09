@@ -23,8 +23,8 @@ export default function GlobalError({
           reset={reset}
           homeHref="/app"
           showBackAction={false}
-          title="O sistema nao conseguiu carregar"
-          description="Ocorreu uma falha geral na aplicacao. Tente novamente; se persistir, informe o codigo exibido ao suporte."
+          title="O sistema não conseguiu carregar"
+          description="Ocorreu uma falha geral na aplicação. Tente novamente; se persistir, informe o código exibido ao suporte."
         />
       </body>
     </html>

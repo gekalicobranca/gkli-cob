@@ -11,7 +11,7 @@ export default function RootError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Erro ao carregar pagina:', error)
+    console.error('Erro ao carregar página:', error)
   }, [error])
 
   return (
@@ -19,8 +19,8 @@ export default function RootError({
       error={error}
       reset={reset}
       homeHref="/app"
-      title="Nao foi possivel carregar a pagina"
-      description="A pagina encontrou uma falha inesperada. Tente novamente ou volte para o painel para continuar a operacao."
+      title="Não foi possível carregar a página"
+      description="A página encontrou uma falha inesperada. Tente novamente ou volte para o painel para continuar a operação."
     />
   )
 }

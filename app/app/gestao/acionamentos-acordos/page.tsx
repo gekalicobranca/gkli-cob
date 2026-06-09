@@ -77,11 +77,11 @@ function activationBody(row: AgreementManualActivationRow) {
   return row.mensagemConteudo || [
     "Prezado(a),",
     "",
-    "Segue o link para conferencia e aceite digital:",
+    "Segue o link para conferência e aceite digital:",
     row.linkAceite,
     "",
     "Atenciosamente,",
-    "GKLI Cobranca",
+    "GKLI Cobrança",
   ].join("\n");
 }
 
@@ -121,8 +121,8 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
       {canal === "devedor" ? (
         <form action={cancelarFormalizacaoAcordo}>
           <input type="hidden" name="acordo_id" value={row.acordoId} />
-          <input type="hidden" name="motivo" value="Devedor nao confirmou o aceite" />
-          <input type="hidden" name="observacao" value="Cancelado pela central de acionamentos durante a implantacao." />
+          <input type="hidden" name="motivo" value="Devedor não confirmou o aceite" />
+          <input type="hidden" name="observacao" value="Cancelado pela central de acionamentos durante a implantação." />
           <PendingSubmitButton
             size="sm"
             variant="secondary"
@@ -130,7 +130,7 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
             icon={<XCircle size={14} />}
             pendingLabel="Cancelando..."
           >
-            Cancelar formalizacao
+            Cancelar formalização
           </PendingSubmitButton>
         </form>
       ) : null}
@@ -154,10 +154,10 @@ function ActivationRow({ row, canal, returnTo }: { row: AgreementManualActivatio
           <Badge tone="slate">{row.termoStatus ?? "pendente"}</Badge>
         </div>
         <Link href={`/app/acordos/${row.acordoId}`} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
-          {row.condominioNome ?? "Condominio nao informado"} - {row.unidadeLabel}
+          {row.condominioNome ?? "Condomínio não informado"} - {row.unidadeLabel}
         </Link>
         <p className="mt-1 truncate text-xs text-slate-500">
-          {row.destinatarioNome ?? "Responsavel nao informado"} - termo criado em {formatDateBR(row.termoCriadoEm)}
+          {row.destinatarioNome ?? "Responsável não informado"} - termo criado em {formatDateBR(row.termoCriadoEm)}
         </p>
         <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2">
           <span className="truncate">E-mail: {row.destinatarioEmail ?? "-"}</span>
@@ -219,13 +219,13 @@ function SindicoDecisionRow({ row, term, returnTo }: { row: any; term?: Agreemen
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="yellow">{row.etapa_aprovacao}</Badge>
-          {term?.mensagemAcionadaManual ? <Badge tone="green">Sindico acionado</Badge> : null}
+          {term?.mensagemAcionadaManual ? <Badge tone="green">Síndico acionado</Badge> : null}
         </div>
         <Link href={`/app/acordos/${row.id}`} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
-          {row.condominios?.nome ?? "Condominio nao informado"} - Unidade {row.unidades?.identificacao ?? "-"}
+          {row.condominios?.nome ?? "Condomínio não informado"} - Unidade {row.unidades?.identificacao ?? "-"}
         </Link>
         <p className="mt-1 truncate text-xs text-slate-500">
-          {row.unidades?.responsavel_nome ?? "Responsavel nao informado"} - {formatDateBR(row.data_acordo)}
+          {row.unidades?.responsavel_nome ?? "Responsável não informado"} - {formatDateBR(row.data_acordo)}
         </p>
         {term ? <div className="mt-3"><ActivationButtons row={term} canal="sindico" returnTo={returnTo} /></div> : null}
       </div>
@@ -266,10 +266,10 @@ function BoletoRow({ row }: { row: any }) {
           <Badge tone={row.etapa_boleto === "Boletos enviados" ? "green" : "blue"}>{row.etapa_boleto}</Badge>
         </div>
         <Link href={`/app/acordos/${row.id}`} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
-          {row.condominios?.nome ?? "Condominio nao informado"} - Unidade {row.unidades?.identificacao ?? "-"}
+          {row.condominios?.nome ?? "Condomínio não informado"} - Unidade {row.unidades?.identificacao ?? "-"}
         </Link>
         <p className="mt-1 truncate text-xs text-slate-500">
-          {row.unidades?.responsavel_nome ?? "Responsavel nao informado"} - solicitado em {formatDateBR(row.boletos_solicitados_em)}
+          {row.unidades?.responsavel_nome ?? "Responsável não informado"} - solicitado em {formatDateBR(row.boletos_solicitados_em)}
         </p>
       </div>
       <div>
@@ -316,7 +316,7 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
         <Link href={pendencia.acordo_id ? `/app/acordos/${pendencia.acordo_id}` : "/app/pendencias"} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
           {pendencia.titulo}
         </Link>
-        <p className="mt-1 line-clamp-2 text-xs text-slate-500">{pendencia.descricao ?? "Sem descricao."}</p>
+        <p className="mt-1 line-clamp-2 text-xs text-slate-500">{pendencia.descricao ?? "Sem descrição."}</p>
       </div>
       <div>
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Prazo</p>
@@ -377,23 +377,23 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Gestao"
-        title="Acionamentos de implantacao"
-        description="Central temporaria para aprovacoes, aceites, boletos e pendencias enquanto a automacao esta sendo implantada."
+        eyebrow="Gest?o"
+        title="Acionamentos de implantação"
+        description="Central tempor?ria para aprova??es, aceites, boletos e pend?ncias enquanto a automa??o est? sendo implantada."
         actions={
           <>
             <ButtonLink href="/app/dashboard" variant="secondary">Voltar</ButtonLink>
-            <ButtonLink href="/app/acordos/gestao" variant="secondary">Gestao de acordos</ButtonLink>
-            <ButtonLink href="/app/pendencias" variant="secondary">Pendencias</ButtonLink>
+            <ButtonLink href="/app/acordos/gestao" variant="secondary">Gest?o de acordos</ButtonLink>
+            <ButtonLink href="/app/pendencias" variant="secondary">Pend?ncias</ButtonLink>
           </>
         }
       />
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sindico</p><p className="mt-2 text-3xl font-semibold text-slate-950">{aprovacoes.length}</p></Card>
+        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Síndico</p><p className="mt-2 text-3xl font-semibold text-slate-950">{aprovacoes.length}</p></Card>
         <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Devedor</p><p className="mt-2 text-3xl font-semibold text-slate-950">{devedorTerms.length}</p></Card>
         <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Boletos</p><p className="mt-2 text-3xl font-semibold text-slate-950">{boletos.length}</p></Card>
-        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Pendencias</p><p className="mt-2 text-3xl font-semibold text-slate-950">{pendenciasImplantacao.length}</p></Card>
+        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Pend?ncias</p><p className="mt-2 text-3xl font-semibold text-slate-950">{pendenciasImplantacao.length}</p></Card>
         <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acionados</p><p className="mt-2 text-3xl font-semibold text-slate-950">{sindicoTerms.filter((row) => row.mensagemAcionadaManual).length + devedorTerms.filter((row) => row.mensagemAcionadaManual).length}</p></Card>
       </section>
 
@@ -414,10 +414,10 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
 
       {shouldShowSection(tipoFiltro, "sindico") ? (
         <SectionShell
-          title="Aprovacao do sindico"
-          description="Acordos que dependem de decisao do sindico e, quando houver termo, permitem acionamento manual."
+          title="Aprova??o do s?ndico"
+          description="Acordos que dependem de decis?o do s?ndico e, quando houver termo, permitem acionamento manual."
           icon={ShieldCheck}
-          emptyTitle="Sem aprovacao de sindico pendente"
+          emptyTitle="Sem aprova??o de s?ndico pendente"
           emptyDescription="Nenhum acordo depende desta etapa agora."
           hasRows={aprovacoes.length > 0}
         >
@@ -430,10 +430,10 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
       {shouldShowSection(tipoFiltro, "devedor") ? (
         <SectionShell
           title="Aceite do devedor"
-          description="Termos de devedor pendentes, com link publico, e-mail, WhatsApp e registro manual de contato."
+          description="Termos de devedor pendentes, com link p?blico, e-mail, WhatsApp e registro manual de contato."
           icon={Send}
           emptyTitle="Sem aceite de devedor pendente"
-          emptyDescription="Todos os termos de devedor foram aceitos ou ainda nao foram gerados."
+          emptyDescription="Todos os termos de devedor foram aceitos ou ainda não foram gerados."
           hasRows={devedorTerms.length > 0}
         >
           {devedorTerms.map((row) => <ActivationRow key={row.termoId} row={row} canal="devedor" returnTo={currentPath} />)}
@@ -443,10 +443,10 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
       {shouldShowSection(tipoFiltro, "boletos") ? (
         <SectionShell
           title="Administradora e boletos"
-          description="Acordos aceitos que estao aguardando emissao, recebimento ou envio dos boletos."
+          description="Acordos aceitos que estão aguardando emissão, recebimento ou envio dos boletos."
           icon={ReceiptText}
           emptyTitle="Sem boletos em acompanhamento"
-          emptyDescription="Nenhum acordo esta parado nesta etapa agora."
+          emptyDescription="Nenhum acordo est? parado nesta etapa agora."
           hasRows={boletos.length > 0}
         >
           {boletos.map((row: any) => <BoletoRow key={row.id} row={row} />)}
@@ -455,11 +455,11 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
 
       {shouldShowSection(tipoFiltro, "pendencias") ? (
         <SectionShell
-          title="Pendencias bloqueantes"
+          title="Pend?ncias bloqueantes"
           description="Travas administrativas e financeiras que podem impedir a continuidade do acordo."
           icon={PlayCircle}
-          emptyTitle="Sem pendencias bloqueantes"
-          emptyDescription="Nenhuma pendencia de implantacao aberta para acordos ou administradoras."
+          emptyTitle="Sem pend?ncias bloqueantes"
+          emptyDescription="Nenhuma pendência de implantação aberta para acordos ou administradoras."
           hasRows={pendenciasImplantacao.length > 0}
         >
           {pendenciasImplantacao.map((pendencia) => <PendenciaRow key={pendencia.id} pendencia={pendencia} />)}

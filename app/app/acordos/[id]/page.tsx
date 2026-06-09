@@ -153,7 +153,7 @@ function ParcelaActions({
           type="button"
           disabled={!podeReemitir}
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          title={diasReemissao === 0 ? "Este condominio nao permite reemissao de parcela vencida." : "Reemissao dentro da janela operacional do condominio."}
+          title={diasReemissao === 0 ? "Este condomínio não permite reemissão de parcela vencida." : "Reemissão dentro da janela operacional do condomínio."}
         >
           Reemitir boleto
         </button>

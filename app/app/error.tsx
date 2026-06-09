@@ -11,15 +11,15 @@ export default function AppError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Erro ao carregar modulo do app:', error)
+    console.error('Erro ao carregar módulo do app:', error)
   }, [error])
 
   return (
     <AppErrorState
       error={error}
       reset={reset}
-      title="Nao foi possivel abrir este modulo"
-      description="O modulo encontrou uma falha ao carregar os dados. Tente novamente; se o problema continuar, envie o codigo exibido para o suporte."
+      title="Não foi possível abrir este módulo"
+      description="O módulo encontrou uma falha ao carregar os dados. Tente novamente; se o problema continuar, envie o código exibido para o suporte."
     />
   )
 }
