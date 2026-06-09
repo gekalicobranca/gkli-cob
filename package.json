@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit --pretty false --incremental false"
   },
   "dependencies": {
-    "@supabase/ssr": "latest",
-    "@supabase/supabase-js": "latest",
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.108.1",
     "clsx": "latest",
     "date-fns": "latest",
     "lucide-react": "latest",

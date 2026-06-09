@@ -20,6 +20,13 @@ export default function NovaAdministradoraPage() {
           <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Telefone</span><Input name="telefone" /></label>
           <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Site</span><Input name="site" /></label>
           <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Responsável interno</span><Input name="responsavel_interno" /></label>
+          <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+            <input type="checkbox" name="acesso_gerar_acordo" className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" />
+            <span>
+              <span className="block text-sm font-medium text-slate-950">Acesso para gerar acordo</span>
+              <span className="mt-1 block text-xs leading-5 text-slate-500">Marque quando esta administradora puder operar ou receber fluxo de geracao de acordo.</span>
+            </span>
+          </label>
           <label className="space-y-1.5 md:col-span-2"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Observações</span><Textarea name="observacoes" rows={4} /></label>
           <div className="md:col-span-2"><Button type="submit">Salvar administradora</Button></div>
         </form>

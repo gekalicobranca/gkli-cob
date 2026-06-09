@@ -33,6 +33,7 @@ export async function createAdministradora(formData: FormData) {
     email: str(formData, 'email'),
     site: str(formData, 'site'),
     status: str(formData, 'status') ?? 'ativo',
+    acesso_gerar_acordo: bool(formData, 'acesso_gerar_acordo'),
     responsavel_interno: str(formData, 'responsavel_interno'),
     observacoes: str(formData, 'observacoes'),
   }
@@ -61,6 +62,7 @@ export async function updateAdministradora(formData: FormData) {
     email: str(formData, 'email'),
     site: str(formData, 'site'),
     status: str(formData, 'status') ?? 'ativo',
+    acesso_gerar_acordo: bool(formData, 'acesso_gerar_acordo'),
     responsavel_interno: str(formData, 'responsavel_interno'),
     observacoes: str(formData, 'observacoes'),
   }

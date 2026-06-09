@@ -8,6 +8,7 @@ export type Administradora = {
   email?: string | null
   site?: string | null
   status?: string | null
+  acesso_gerar_acordo?: boolean | null
   responsavel_interno?: string | null
   observacoes?: string | null
   created_at?: string | null

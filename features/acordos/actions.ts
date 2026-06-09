@@ -283,15 +283,27 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
   if ((acordoAtual as any)?.boletos_solicitados_em) return;
 
   let destinatario: string | null = null;
+  let administradoraAcessoGerarAcordo: boolean | null = null;
+
   if (params.administradoraId) {
-    const { data: contatos } = await supabase
+    const [{ data: contatos }, { data: administradora }] = await Promise.all([
+      supabase
       .from("administradora_contatos")
       .select("email")
       .eq("administradora_id", params.administradoraId)
       .eq("ativo", true)
       .or("recebe_boleto.eq.true,recebe_cobranca.eq.true,principal.eq.true")
-      .limit(1);
-    destinatario = (contatos as any[])?.[0]?.email ?? null;
+        .limit(1),
+      supabase
+        .from("administradoras")
+        .select("email, acesso_gerar_acordo")
+        .eq("id", params.administradoraId)
+        .maybeSingle(),
+    ]);
+    destinatario = (contatos as any[])?.find((contato) => contato?.email)?.email
+      ?? (administradora as any)?.email
+      ?? null;
+    administradoraAcessoGerarAcordo = Boolean((administradora as any)?.acesso_gerar_acordo);
   }
 
   const { data: aceites } = await supabase
@@ -345,7 +357,11 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
     assunto: "Solicitação de emissão de boletos - acordo aprovado",
     conteudo,
     origem_evento: "acordo_boletos_administradora",
-    payload: { administradora_id: params.administradoraId ?? null },
+    payload: {
+      administradora_id: params.administradoraId ?? null,
+      administradora_acesso_gerar_acordo: administradoraAcessoGerarAcordo,
+      destinatario_obrigatorio: false,
+    },
   });
 
   await supabase.from("central_pendencias").insert({

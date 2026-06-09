@@ -50,9 +50,10 @@ export default async function AdministradorasPage({ searchParams }: Props) {
         {rows.length === 0 ? <div className="p-5"><EmptyState title="Nenhuma administradora encontrada" description="Cadastre a primeira administradora para começar a controlar contatos, planilhas e boletos." /></div> : (
           <div className="divide-y divide-slate-100">
             {rows.map((row) => (
-              <div key={row.id} className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(260px,1.4fr)_150px_minmax(220px,1fr)_150px] xl:items-center">
+              <div key={row.id} className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(260px,1.4fr)_150px_minmax(180px,.8fr)_minmax(220px,1fr)_150px] xl:items-center">
                 <Link href={`/app/administradoras/${row.id}`} className="group min-w-0"><p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]"><Building2 size={16} className="mr-2 inline text-slate-400" />{row.nome_operacional || row.nome}</p><p className="mt-1 truncate text-xs text-slate-500">Razão: {row.nome} · CNPJ {row.cnpj ?? '-'} · Resp. {row.responsavel_interno ?? '-'}</p></Link>
                 <StatusBadge status={row.status ?? 'ativo'} />
+                <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordos</p><p className={row.acesso_gerar_acordo ? "mt-1 text-sm font-medium text-emerald-700" : "mt-1 text-sm text-slate-500"}>{row.acesso_gerar_acordo ? "Acesso liberado" : "Sem acesso"}</p></div>
                 <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Contato geral</p><p className="mt-1 truncate text-sm text-slate-700">{row.email ?? row.telefone ?? '-'}</p></div>
                 <div className="flex justify-start xl:justify-end"><ButtonLink href={`/app/administradoras/${row.id}`} size="sm" variant="secondary"><ArrowUpRight size={15} />Abrir</ButtonLink></div>
               </div>
