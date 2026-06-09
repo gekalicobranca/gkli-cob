@@ -8,7 +8,7 @@ type LitePageShellProps = {
 
 export function LitePageShell({ children, className }: LitePageShellProps) {
   return (
-    <div className={cn('gkli-viewport-page flex h-full min-h-0 flex-col gap-4 overflow-hidden', className)}>
+    <div className={cn('gkli-viewport-page flex h-full min-h-0 flex-col gap-3 overflow-hidden', className)}>
       {children}
     </div>
   )

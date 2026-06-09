@@ -455,8 +455,8 @@ export function AppShell({
       </aside>
 
       <main className="gkli-app-main min-w-0 flex-1">
-        <div className="gkli-app-frame mx-auto max-w-[1480px] p-4 xl:p-5">
-          <header className="gkli-app-header z-30 mb-4 rounded-[1.35rem] border border-slate-200/75 bg-white/88 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/72">
+        <div className="gkli-app-frame mx-auto max-w-[1480px] p-3 xl:p-4">
+          <header className="gkli-app-header z-30 mb-3 rounded-[1rem] border border-slate-200/75 bg-white/88 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/72">
             <div className="grid items-center gap-3 lg:grid-cols-[minmax(190px,260px)_minmax(320px,1fr)_auto]">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -464,7 +464,7 @@ export function AppShell({
                     GKLI Cob
                   </span>
                 </div>
-                <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-slate-950">
+                <h1 className="mt-0.5 truncate text-base font-semibold tracking-tight text-slate-950">
                   {currentItem?.label || 'Área operacional'}
                 </h1>
               </div>
@@ -475,7 +475,7 @@ export function AppShell({
                 <button
                   type="button"
                   onClick={() => setSettingsOpen((value) => !value)}
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-950 px-3 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800"
                   aria-expanded={settingsOpen}
                   aria-label="Abrir configurações"
                 >

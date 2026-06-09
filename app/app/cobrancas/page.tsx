@@ -34,6 +34,7 @@ type PageProps = {
     vencimento_de?: string;
     vencimento_ate?: string;
     judicializacao_unidade?: string;
+    ordenar?: string;
   }>;
 };
 
@@ -114,6 +115,26 @@ function sumBy(rows: any[], predicate: (row: any) => boolean) {
     .reduce((sum, row) => sum + Number(row.valor_atualizado ?? 0), 0);
 }
 
+function comparableCobranca(row: any, field: string) {
+  if (field === "vencimento_asc" || field === "vencimento_desc") return new Date(`${row.vencimento ?? "1900-01-01"}T00:00:00`).getTime();
+  if (field === "valor_asc" || field === "valor_desc") return Number(row.valor_atualizado ?? 0);
+  if (field === "condominio") return normalizeStatus(row.condominios?.nome);
+  if (field === "unidade") return normalizeStatus(row.unidades?.identificacao);
+  if (field === "responsavel") return normalizeStatus(row.unidades?.responsavel_nome);
+  if (field === "status") return normalizeStatus(getCobrancaStatusOperacional(row));
+  return new Date(`${row.vencimento ?? "1900-01-01"}T00:00:00`).getTime();
+}
+
+function sortCobrancas(rows: any[], ordenar: string) {
+  const field = ordenar || "vencimento_asc";
+  return [...rows].sort((a, b) => {
+    const av = comparableCobranca(a, field);
+    const bv = comparableCobranca(b, field);
+    if (typeof av === "number" && typeof bv === "number") return field.endsWith("_desc") ? bv - av : av - bv;
+    return String(av).localeCompare(String(bv), "pt-BR", { numeric: true });
+  });
+}
+
 export default async function CobrancasPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : {};
   const filters = {
@@ -122,6 +143,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     vencimentoDe: getParam(params.vencimento_de),
     vencimentoAte: getParam(params.vencimento_ate),
     judicializacaoUnidade: getJudicializacaoFilter(params),
+    ordenar: getParam(params.ordenar) || "vencimento_asc",
   };
   const queryParams = {
     q: filters.search,
@@ -129,12 +151,14 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     vencimento_de: filters.vencimentoDe,
     vencimento_ate: filters.vencimentoAte,
     judicializacao_unidade: filters.judicializacaoUnidade,
+    ordenar: filters.ordenar,
   };
   const hasFilters = Boolean(
     filters.search ||
     filters.status ||
     filters.vencimentoDe ||
     filters.vencimentoAte ||
+    filters.ordenar !== "vencimento_asc" ||
     filters.judicializacaoUnidade !== "nao",
   );
   const showingJudicializadas = filters.judicializacaoUnidade !== "nao";
@@ -144,7 +168,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   });
 
   const scope = await getPermittedCarteiras();
-  const rows = await listCobrancas(scope, filters);
+  const rows = sortCobrancas(await listCobrancas(scope, filters), filters.ordenar);
 
   const totalEmAberto = sumBy(
     rows,
@@ -178,18 +202,17 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
         />
       </LitePageHeader>
 
-      <LiteKpiStrip className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="relative overflow-hidden p-5">
-          <div className="absolute right-4 top-4 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+      <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="relative overflow-hidden p-3">
+          <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <WalletCards size={18} />
           </div>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
             Em aberto
           </p>
-          <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">
             {formatCurrency(totalEmAberto)}
           </p>
-          <p className="mt-1 text-sm text-slate-500">valor ainda em fluxo</p>
         </Card>
 
         {[
@@ -207,12 +230,12 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
             "bg-amber-50 text-amber-700",
           ],
         ].map(([title, value, tag, tagClass]) => (
-          <Card key={title} className="p-5">
+          <Card key={title} className="p-3">
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
               {title}
             </p>
-            <div className="mt-3 flex items-end justify-between gap-3">
-              <p className="text-3xl font-semibold tracking-tight text-slate-950">
+            <div className="mt-1.5 flex items-end justify-between gap-3">
+              <p className="text-2xl font-semibold tracking-tight text-slate-950">
                 {value}
               </p>
               <span
@@ -221,15 +244,14 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 {tag}
               </span>
             </div>
-            <p className="mt-1 text-sm text-slate-500">status operacional</p>
-          </Card>
+        </Card>
         ))}
       </LiteKpiStrip>
 
       <LiteWorkArea>
         <Card className="flex h-full min-h-0 flex-col overflow-hidden p-0">
-          <div className="border-b border-slate-100 bg-white/80 px-5 py-4">
-            <div className="flex flex-col gap-4">
+          <div className="border-b border-slate-100 bg-white/80 px-4 py-3">
+            <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div>
                   <h2 className="text-base font-medium text-slate-950">
@@ -258,7 +280,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 </div>
               </div>
 
-              <form className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_180px_170px_170px_210px_110px]">
+              <form className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_180px_170px_170px_210px_190px_110px]">
                 <div className="relative">
                   <Search
                     size={16}
@@ -296,6 +318,16 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                   <option value="todos">Incluir judicializadas</option>
                   <option value="sim">Somente judicializadas</option>
                 </Select>
+                <Select name="ordenar" defaultValue={filters.ordenar}>
+                  <option value="vencimento_asc">Vencimento antigo</option>
+                  <option value="vencimento_desc">Vencimento recente</option>
+                  <option value="valor_desc">Maior valor</option>
+                  <option value="valor_asc">Menor valor</option>
+                  <option value="condominio">Condomínio</option>
+                  <option value="unidade">Unidade</option>
+                  <option value="responsavel">Responsável</option>
+                  <option value="status">Status</option>
+                </Select>
                 <Button type="submit" variant="secondary">
                   Filtrar
                 </Button>
@@ -304,7 +336,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
           </div>
 
           {rows.length === 0 ? (
-            <div className="p-5">
+            <div className="p-3">
               <EmptyState
                 title="Nenhuma cobrança encontrada"
                 description="Ajuste os filtros ou importe/cadastre cobranças para iniciar a operação."
@@ -327,7 +359,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                   return (
                     <div
                       key={row.id}
-                      className="group grid gkli-compact-row gap-4 px-5 py-3 transition hover:bg-slate-50 xl:grid-cols-[40px_minmax(320px,1.4fr)_150px_150px_170px_120px] xl:items-center"
+                      className="group grid gkli-compact-row gap-3 px-4 py-2.5 transition hover:bg-slate-50 xl:grid-cols-[40px_minmax(320px,1.4fr)_150px_150px_170px_120px] xl:items-center"
                     >
                       <div className="flex items-center">
                         <input

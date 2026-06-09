@@ -21,6 +21,27 @@ function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
 }
 
+function normalizeText(value: unknown) {
+  return String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function sortUnidades(rows: any[], ordenar: string) {
+  const field = ordenar || 'condominio'
+  return [...rows].sort((a, b) => {
+    const getValue = (row: any) => {
+      if (field === 'unidade') return normalizeText(row.identificacao)
+      if (field === 'responsavel') return normalizeText(row.responsavel_nome)
+      if (field === 'status') return normalizeText(row.status)
+      if (field === 'carteira') return normalizeText(row.carteiras?.nome)
+      return normalizeText(row.condominios?.nome)
+    }
+    return getValue(a).localeCompare(getValue(b), 'pt-BR', { numeric: true })
+  })
+}
+
 export default async function UnidadesPage({ searchParams }: UnidadesPageProps) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
@@ -33,13 +54,15 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
     contato: getParam(params?.contato),
   })
 
-  const [rows, carteiras, condominios] = await Promise.all([
+  const [rowsBase, carteiras, condominios] = await Promise.all([
     listUnidades(scope, filters),
     listCarteirasForSelect(scope),
     listCondominiosForSelect(scope),
   ])
+  const ordenar = getParam(params?.ordenar) ?? 'condominio'
+  const rows = sortUnidades(rowsBase, ordenar)
 
-  const filtrosAtivos = hasUnidadeFilters(filters)
+  const filtrosAtivos = hasUnidadeFilters(filters) || ordenar !== 'condominio'
   const exportParams = new URLSearchParams()
 
   if (filters.carteiraId) {
@@ -56,7 +79,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   const semEmail = rows.filter((row: any) => !row.email).length
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <PageHeader
         eyebrow="Base Cadastral"
         title="Unidades"
@@ -75,36 +98,30 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-3">
-        <Card className="relative overflow-hidden p-5">
-          <div className="absolute right-4 top-4 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+      <section className="grid gap-2 md:grid-cols-3">
+        <Card className="relative overflow-hidden p-3">
+          <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <Home size={18} />
           </div>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativas</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{ativas}</p>
-          <p className="mt-1 text-sm text-slate-500">unidades no resultado</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{ativas}</p>
         </Card>
 
-        <Card className="p-5">
+        <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sem telefone</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{semTelefone}</p>
-          <p className="mt-1 text-sm text-slate-500">exigem saneamento</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{semTelefone}</p>
         </Card>
 
-        <Card className="p-5">
+        <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sem e-mail</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{semEmail}</p>
-          <p className="mt-1 text-sm text-slate-500">cadastro incompleto</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{semEmail}</p>
         </Card>
       </section>
 
       <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 px-5 py-4">
+        <div className="border-b border-slate-100 px-4 py-3">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <h2 className="text-base font-medium text-slate-950">Base de unidades</h2>
-              <p className="mt-1 text-sm text-slate-500">Filtre, consulte e edite o cadastro real da unidade.</p>
-            </div>
+            <h2 className="text-base font-medium text-slate-950">Base de unidades</h2>
 
             {filtrosAtivos ? (
               <ButtonLink href="/app/unidades" variant="secondary" size="sm">
@@ -114,7 +131,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
             ) : null}
           </div>
 
-          <form className="mt-4 grid gap-3 xl:grid-cols-[minmax(220px,1.3fr)_minmax(180px,.85fr)_minmax(220px,1fr)_140px_170px_auto] xl:items-end">
+          <form className="mt-3 grid gap-3 xl:grid-cols-[minmax(220px,1.3fr)_minmax(180px,.85fr)_minmax(220px,1fr)_140px_170px_180px_auto] xl:items-end">
             <label className="space-y-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>
               <div className="relative">
@@ -172,6 +189,17 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
               </Select>
             </label>
 
+            <label className="space-y-1.5">
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ordenar por</span>
+              <Select name="ordenar" defaultValue={ordenar}>
+                <option value="condominio">Condomínio</option>
+                <option value="unidade">Unidade</option>
+                <option value="responsavel">Responsável</option>
+                <option value="status">Status</option>
+                <option value="carteira">Carteira</option>
+              </Select>
+            </label>
+
             <Button type="submit" className="xl:w-auto">
               <Filter size={16} />
               Filtrar
@@ -180,7 +208,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
         </div>
 
         {rows.length === 0 ? (
-          <div className="p-5">
+          <div className="p-3">
             <EmptyState
               title="Nenhuma unidade encontrada"
               description="Ajuste os filtros ou cadastre/importe unidades para iniciar a operação."
@@ -193,7 +221,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
               {rows.map((row: any) => (
                 <div
                   key={row.id}
-                  className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[40px_minmax(300px,1.35fr)_120px_170px_220px_170px] xl:items-center"
+                  className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[40px_minmax(300px,1.35fr)_120px_170px_220px_170px] xl:items-center"
                 >
                   <label className="flex items-center xl:justify-center">
                     <input

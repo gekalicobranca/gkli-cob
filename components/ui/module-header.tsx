@@ -33,11 +33,11 @@ export function ModuleHeader({
   return (
     <section
       className={cn(
-        'gkli-page-header relative overflow-hidden rounded-[30px] border shadow-[0_22px_60px_-42px_rgba(15,23,42,.55)]',
+        'gkli-page-header relative overflow-hidden rounded-[22px] border shadow-[0_16px_42px_-34px_rgba(15,23,42,.50)]',
         isSubtle
           ? 'border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50 text-slate-950'
           : 'border-white/10 bg-[linear-gradient(135deg,#03658C_0%,#025170_56%,#073044_100%)] text-white',
-        resolvedCompact ? 'p-5' : 'p-6 md:p-7',
+        resolvedCompact ? 'p-4' : 'p-4 md:p-5',
         className,
       )}
     >
@@ -48,7 +48,7 @@ export function ModuleHeader({
         </>
       ) : null}
 
-      <div className="relative z-10 flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+      <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="max-w-3xl">
           <p
             className={cn(
@@ -61,7 +61,7 @@ export function ModuleHeader({
 
           <h1
             className={cn(
-              'mt-3 text-2xl font-semibold leading-tight tracking-[-0.035em] md:text-[28px]',
+              'mt-2 text-xl font-semibold leading-tight tracking-[-0.025em] md:text-2xl',
               isSubtle ? 'text-slate-950' : 'text-white',
             )}
           >
@@ -71,7 +71,7 @@ export function ModuleHeader({
           {description ? (
             <p
               className={cn(
-                'mt-2 max-w-2xl text-sm leading-6',
+                'mt-1 max-w-2xl text-[13px] leading-5',
                 isSubtle ? 'text-slate-500' : 'text-white/78',
               )}
             >
@@ -87,7 +87,7 @@ export function ModuleHeader({
         ) : null}
       </div>
 
-      {children ? <div className="relative z-10 mt-6">{children}</div> : null}
+      {children ? <div className="relative z-10 mt-4">{children}</div> : null}
     </section>
   )
 }

@@ -12,15 +12,39 @@ import { listAdministradoras, normalizeAdmFilters } from '@/features/administrad
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> }
 function getParam(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value }
 
+function normalizeText(value: unknown) {
+  return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function filterAdministradoras(rows: Awaited<ReturnType<typeof listAdministradoras>>, params: Record<string, string | string[] | undefined> | undefined) {
+  const acessoAcordo = getParam(params?.acesso_acordo)
+  if (!acessoAcordo) return rows
+  return rows.filter((row) => acessoAcordo === 'sim' ? row.acesso_gerar_acordo : !row.acesso_gerar_acordo)
+}
+
+function sortAdministradoras(rows: Awaited<ReturnType<typeof listAdministradoras>>, ordenar: string) {
+  const field = ordenar || 'nome'
+  return [...rows].sort((a, b) => {
+    const getValue = (row: any) => {
+      if (field === 'status') return normalizeText(row.status)
+      if (field === 'acesso_acordo') return row.acesso_gerar_acordo ? '0' : '1'
+      if (field === 'contato') return normalizeText(row.email ?? row.telefone)
+      return normalizeText(row.nome_operacional || row.nome)
+    }
+    return getValue(a).localeCompare(getValue(b), 'pt-BR', { numeric: true })
+  })
+}
+
 export default async function AdministradorasPage({ searchParams }: Props) {
   const params = await searchParams
   const filters = normalizeAdmFilters({ search: getParam(params?.q), status: getParam(params?.status) })
-  const rows = await listAdministradoras(filters)
+  const ordenar = getParam(params?.ordenar) ?? 'nome'
+  const rows = sortAdministradoras(filterAdministradoras(await listAdministradoras(filters), params), ordenar)
   const ativas = rows.filter((row) => row.status !== 'inativo').length
-  const filtrosAtivos = Boolean(filters.search || filters.status)
+  const filtrosAtivos = Boolean(filters.search || filters.status || getParam(params?.acesso_acordo) || ordenar !== 'nome')
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <PageHeader
         eyebrow="Administradoras"
         title="Cadastro de administradoras"
@@ -28,29 +52,31 @@ export default async function AdministradorasPage({ searchParams }: Props) {
         actions={<ButtonLink href="/app/administradoras/nova"><Plus size={16} />Nova administradora</ButtonLink>}
       />
 
-      <section className="grid gap-3 md:grid-cols-3">
-        <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Total</p><p className="mt-3 text-3xl font-semibold text-slate-950">{rows.length}</p><p className="mt-1 text-sm text-slate-500">administradoras cadastradas</p></Card>
-        <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativas</p><p className="mt-3 text-3xl font-semibold text-slate-950">{ativas}</p><p className="mt-1 text-sm text-slate-500">aptas para operação</p></Card>
-        <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Hub externo</p><p className="mt-3 text-3xl font-semibold text-slate-950">ADM</p><p className="mt-1 text-sm text-slate-500">planilhas, boletos e retornos</p></Card>
+      <section className="grid gap-2 md:grid-cols-3">
+        <Card className="p-3"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Total</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">{rows.length}</p></Card>
+        <Card className="p-3"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativas</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">{ativas}</p></Card>
+        <Card className="p-3"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Hub externo</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">ADM</p></Card>
       </section>
 
       <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 px-5 py-4">
+        <div className="border-b border-slate-100 px-4 py-3">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div><h2 className="text-base font-medium text-slate-950">Base de administradoras</h2><p className="mt-1 text-sm text-slate-500">Busque por nome, CNPJ ou e-mail. Este cadastro é global e não depende de carteira.</p></div>
             {filtrosAtivos ? <ButtonLink href="/app/administradoras" variant="secondary" size="sm"><X size={15} />Limpar filtros</ButtonLink> : null}
           </div>
-          <form className="mt-4 grid gap-3 md:grid-cols-[minmax(220px,1fr)_180px_auto] md:items-end">
+          <form className="mt-3 grid gap-3 md:grid-cols-[minmax(220px,1fr)_160px_180px_190px_auto] md:items-end">
             <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span><div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="q" className="pl-9" defaultValue={filters.search ?? ''} placeholder="Nome, CNPJ ou e-mail" /></div></label>
             <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Status</span><Select name="status" defaultValue={filters.status ?? ''}><option value="">Todos</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option></Select></label>
+            <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Acesso acordos</span><Select name="acesso_acordo" defaultValue={getParam(params?.acesso_acordo) ?? ''}><option value="">Todos</option><option value="sim">Liberado</option><option value="nao">Sem acesso</option></Select></label>
+            <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ordenar por</span><Select name="ordenar" defaultValue={ordenar}><option value="nome">Nome</option><option value="status">Status</option><option value="acesso_acordo">Acesso acordos</option><option value="contato">Contato</option></Select></label>
             <Button type="submit"><Filter size={16} />Filtrar</Button>
           </form>
         </div>
 
-        {rows.length === 0 ? <div className="p-5"><EmptyState title="Nenhuma administradora encontrada" description="Cadastre a primeira administradora para começar a controlar contatos, planilhas e boletos." /></div> : (
+        {rows.length === 0 ? <div className="p-3"><EmptyState title="Nenhuma administradora encontrada" description="Cadastre a primeira administradora para começar a controlar contatos, planilhas e boletos." /></div> : (
           <div className="divide-y divide-slate-100">
             {rows.map((row) => (
-              <div key={row.id} className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(260px,1.4fr)_150px_minmax(180px,.8fr)_minmax(220px,1fr)_150px] xl:items-center">
+              <div key={row.id} className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(260px,1.4fr)_150px_minmax(180px,.8fr)_minmax(220px,1fr)_150px] xl:items-center">
                 <Link href={`/app/administradoras/${row.id}`} className="group min-w-0"><p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]"><Building2 size={16} className="mr-2 inline text-slate-400" />{row.nome_operacional || row.nome}</p><p className="mt-1 truncate text-xs text-slate-500">Razão: {row.nome} · CNPJ {row.cnpj ?? '-'} · Resp. {row.responsavel_interno ?? '-'}</p></Link>
                 <StatusBadge status={row.status ?? 'ativo'} />
                 <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordos</p><p className={row.acesso_gerar_acordo ? "mt-1 text-sm font-medium text-emerald-700" : "mt-1 text-sm text-slate-500"}>{row.acesso_gerar_acordo ? "Acesso liberado" : "Sem acesso"}</p></div>
@@ -60,7 +86,7 @@ export default async function AdministradorasPage({ searchParams }: Props) {
             ))}
           </div>
         )}
-      </Card>
+        </Card>
     </div>
   )
 }

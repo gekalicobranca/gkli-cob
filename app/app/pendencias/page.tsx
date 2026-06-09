@@ -9,10 +9,15 @@ import {
   MessageSquareWarning,
   PlayCircle,
   RotateCcw,
+  Search,
   SearchCheck,
+  X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { Button, ButtonLink } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listPendenciasOperacionais, getPendenciasResumo } from '@/features/pendencias/queries'
@@ -21,9 +26,14 @@ import type { PendenciaOperacional, PendenciaPrioridade, PendenciaStatus } from 
 import { cn } from '@/lib/utils'
 
 type SearchParams = Promise<{
+  q?: string
   status?: string
   prioridade?: string
   origem?: string
+  tipo?: string
+  data_de?: string
+  data_ate?: string
+  ordenar?: string
 }>
 
 const prioridadeLabel: Record<PendenciaPrioridade, string> = {
@@ -63,6 +73,19 @@ const statusClasses: Record<PendenciaStatus, string> = {
   cancelada: 'border-slate-200 bg-slate-100 text-slate-500',
 }
 
+function clean(value: unknown) {
+  return String(value ?? '').trim()
+}
+
+function normalizeText(value: unknown) {
+  return clean(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function dateValue(value: unknown) {
+  const text = clean(value)
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
+}
+
 function isAtrasada(pendencia: PendenciaOperacional) {
   if (!pendencia.prazo_limite) return false
   if (pendencia.status === 'resolvida' || pendencia.status === 'cancelada') return false
@@ -85,6 +108,54 @@ function origemIcon(origem: string) {
   if (origem === 'acordo') return <Handshake size={16} />
   if (origem === 'mensageria' || origem === 'regua') return <MessageSquareWarning size={16} />
   return <SearchCheck size={16} />
+}
+
+function filterPendencias(rows: PendenciaOperacional[], params: Awaited<SearchParams>) {
+  const termo = normalizeText(params.q)
+  const tipo = clean(params.tipo)
+  const dataDe = dateValue(params.data_de)
+  const dataAte = dateValue(params.data_ate)
+
+  return rows.filter((pendencia) => {
+    const data = clean(pendencia.created_at).slice(0, 10)
+    if (tipo && pendencia.tipo !== tipo) return false
+    if (dataDe && data < dataDe) return false
+    if (dataAte && data > dataAte) return false
+
+    if (termo) {
+      const haystack = normalizeText([
+        pendencia.titulo,
+        pendencia.descricao,
+        pendencia.tipo,
+        pendencia.origem,
+        pendencia.responsavel_nome,
+        pendencia.status,
+        pendencia.prioridade,
+      ].filter(Boolean).join(' '))
+      if (!haystack.includes(termo)) return false
+    }
+
+    return true
+  })
+}
+
+function sortPendencias(rows: PendenciaOperacional[], ordenar: string) {
+  const field = ordenar || 'prazo_asc'
+  return [...rows].sort((a, b) => {
+    const getValue = (row: PendenciaOperacional) => {
+      if (field === 'prazo_asc' || field === 'prazo_desc') return row.prazo_limite ? new Date(row.prazo_limite).getTime() : Number.MAX_SAFE_INTEGER
+      if (field === 'created_desc' || field === 'created_asc') return new Date(row.created_at).getTime()
+      if (field === 'prioridade') return { critica: 0, alta: 1, normal: 2, baixa: 3 }[row.prioridade] ?? 9
+      if (field === 'status') return normalizeText(row.status)
+      if (field === 'origem') return normalizeText(row.origem)
+      if (field === 'tipo') return normalizeText(row.tipo)
+      return row.prazo_limite ? new Date(row.prazo_limite).getTime() : Number.MAX_SAFE_INTEGER
+    }
+    const av = getValue(a)
+    const bv = getValue(b)
+    if (typeof av === 'number' && typeof bv === 'number') return field.endsWith('_desc') ? bv - av : av - bv
+    return String(av).localeCompare(String(bv), 'pt-BR', { numeric: true })
+  })
 }
 
 function FilterLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
@@ -149,7 +220,7 @@ function PendenciaCard({ pendencia }: { pendencia: PendenciaOperacional }) {
 
   return (
     <Card className="p-0">
-      <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium', prioridadeClasses[pendencia.prioridade])}>
@@ -171,14 +242,10 @@ function PendenciaCard({ pendencia }: { pendencia: PendenciaOperacional }) {
             </span>
           </div>
 
-          <h2 className="mt-3 text-base font-semibold tracking-[-0.02em] text-slate-950">
-            {pendencia.titulo}
-          </h2>
-          {pendencia.descricao ? (
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{pendencia.descricao}</p>
-          ) : null}
+          <h2 className="mt-1.5 text-base font-semibold tracking-[-0.02em] text-slate-950">{pendencia.titulo}</h2>
+          {pendencia.descricao ? <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{pendencia.descricao}</p> : null}
 
-          <div className="mt-4 grid gap-2 text-[12px] text-slate-500 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-3 grid gap-2 text-[12px] text-slate-500 sm:grid-cols-2 lg:grid-cols-4">
             <span>Tipo: <strong className="text-slate-700">{pendencia.tipo}</strong></span>
             <span>Prazo: <strong className={cn(atrasada ? 'text-rose-700' : 'text-slate-700')}>{formatDateTime(pendencia.prazo_limite)}</strong></span>
             <span>Responsável: <strong className="text-slate-700">{pendencia.responsavel_nome ?? 'Não definido'}</strong></span>
@@ -188,54 +255,65 @@ function PendenciaCard({ pendencia }: { pendencia: PendenciaOperacional }) {
 
         <PendenciaActions pendencia={pendencia} />
       </div>
-    </Card>
+        </Card>
   )
 }
 
 export default async function CentralPendenciasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
-  const pendencias = await listPendenciasOperacionais(scope, params)
+  const basePendencias = await listPendenciasOperacionais(scope, params)
+  const pendencias = sortPendencias(filterPendencias(basePendencias, params), clean(params.ordenar) || 'prazo_asc')
   const resumo = getPendenciasResumo(pendencias)
-
   const statusAtual = params.status ?? 'todos'
   const origemAtual = params.origem ?? 'todos'
+  const tipos = Array.from(new Set(basePendencias.map((pendencia) => pendencia.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const hasFilters = Boolean(params.q || params.status || params.prioridade || params.origem || params.tipo || params.data_de || params.data_ate || params.ordenar)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <PageHeader
         title="Central de Pendências"
         description="Fila única para acompanhar travas operacionais, solicitações externas, acordos críticos e pontos que exigem ação do time."
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Abertas</p>
-          <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950">{resumo.totalAbertas}</p>
-          <p className="mt-1 text-sm text-slate-500">pendências ainda em operação</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-slate-950">{resumo.totalAbertas}</p>
         </Card>
         <Card>
           <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Críticas</p>
-          <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-rose-700">{resumo.criticas}</p>
-          <p className="mt-1 text-sm text-slate-500">alto impacto ou risco imediato</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-rose-700">{resumo.criticas}</p>
         </Card>
         <Card>
           <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Atrasadas</p>
-          <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-amber-700">{resumo.atrasadas}</p>
-          <p className="mt-1 text-sm text-slate-500">prazo operacional vencido</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-amber-700">{resumo.atrasadas}</p>
         </Card>
         <Card>
           <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">ADM / Acordos</p>
-          <p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950">{resumo.administrativas + resumo.acordos}</p>
-          <p className="mt-1 text-sm text-slate-500">dependências externas e financeiras</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-slate-950">{resumo.administrativas + resumo.acordos}</p>
         </Card>
       </div>
 
       <Card className="space-y-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-          <Filter size={16} />
-          Filtros rápidos
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-950"><Filter size={16} />Filtros</div>
+          {hasFilters ? <ButtonLink href="/app/pendencias" variant="secondary" size="sm"><X size={15} />Limpar filtros</ButtonLink> : null}
         </div>
+
+        <form className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_150px_150px_170px_180px_155px_155px_190px_auto] xl:items-end">
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span><div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="q" defaultValue={clean(params.q)} className="pl-9" placeholder="Título, tipo, responsável..." /></div></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Status</span><Select name="status" defaultValue={clean(params.status)}><option value="">Todos</option><option value="aberta">Aberta</option><option value="em_tratamento">Em tratamento</option><option value="resolvida">Resolvida</option><option value="cancelada">Cancelada</option></Select></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Prioridade</span><Select name="prioridade" defaultValue={clean(params.prioridade)}><option value="">Todas</option><option value="critica">Crítica</option><option value="alta">Alta</option><option value="normal">Normal</option><option value="baixa">Baixa</option></Select></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Origem</span><Select name="origem" defaultValue={clean(params.origem)}><option value="">Todas</option>{Object.entries(origemLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Tipo</span><Select name="tipo" defaultValue={clean(params.tipo)}><option value="">Todos</option>{tipos.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}</Select></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Data início</span><Input name="data_de" type="date" defaultValue={dateValue(params.data_de)} /></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Data fim</span><Input name="data_ate" type="date" defaultValue={dateValue(params.data_ate)} /></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ordenar por</span><Select name="ordenar" defaultValue={clean(params.ordenar) || 'prazo_asc'}><option value="prazo_asc">Prazo mais próximo</option><option value="prazo_desc">Prazo mais distante</option><option value="created_desc">Mais recentes</option><option value="created_asc">Mais antigas</option><option value="prioridade">Prioridade</option><option value="status">Status</option><option value="origem">Origem</option><option value="tipo">Tipo</option></Select></label>
+          <Button type="submit"><Filter size={16} />Filtrar</Button>
+        </form>
+
         <div className="flex flex-wrap gap-2">
           <FilterLink href="/app/pendencias" active={statusAtual === 'todos' && origemAtual === 'todos'}>Todas</FilterLink>
           <FilterLink href="/app/pendencias?status=aberta" active={statusAtual === 'aberta'}>Abertas</FilterLink>
@@ -253,10 +331,8 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
         ) : (
           <Card className="py-12 text-center">
             <SearchCheck className="mx-auto text-slate-400" size={34} />
-            <h2 className="mt-4 text-lg font-semibold text-slate-950">Nenhuma pendência encontrada</h2>
-            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-              Quando solicitações ADM, acordos, mensagens ou réguas gerarem travas operacionais, elas aparecerão aqui como fila única de trabalho.
-            </p>
+            <h2 className="mt-3 text-lg font-semibold text-slate-950">Nenhuma pendência encontrada</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">Quando solicitações ADM, acordos, mensagens ou réguas gerarem travas operacionais, elas aparecerão aqui como fila única de trabalho.</p>
           </Card>
         )}
       </div>

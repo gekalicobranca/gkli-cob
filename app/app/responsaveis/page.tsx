@@ -24,6 +24,28 @@ function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
 }
 
+function normalizeText(value: unknown) {
+  return String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function sortResponsaveis(rows: any[], ordenar: string) {
+  const field = ordenar || 'condominio'
+  return [...rows].sort((a, b) => {
+    const getValue = (row: any) => {
+      if (field === 'unidade') return normalizeText(row.unidade)
+      if (field === 'responsavel') return normalizeText(row.responsavel_nome)
+      if (field === 'tipo') return normalizeText(row.tipo_responsavel)
+      if (field === 'status') return row.ativo === false ? '1' : '0'
+      if (field === 'carteira') return normalizeText(row.carteiras?.nome)
+      return normalizeText(row.condominios?.nome)
+    }
+    return getValue(a).localeCompare(getValue(b), 'pt-BR', { numeric: true })
+  })
+}
+
 export default async function ResponsaveisPage({ searchParams }: ResponsaveisPageProps) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
@@ -37,20 +59,22 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
     tipoResponsavel: getParam(params?.tipo_responsavel),
   })
 
-  const [rows, carteiras, condominios] = await Promise.all([
+  const [rowsBase, carteiras, condominios] = await Promise.all([
     listResponsaveisUnidades(scope, filters),
     listCarteirasForSelect(scope),
     listCondominiosForSelect(scope),
   ])
 
-  const filtrosAtivos = hasResponsavelUnidadeFilters(filters)
+  const ordenar = getParam(params?.ordenar) ?? 'condominio'
+  const rows = sortResponsaveis(rowsBase, ordenar)
+  const filtrosAtivos = hasResponsavelUnidadeFilters(filters) || ordenar !== 'condominio'
   const ativos = rows.filter((row: any) => row.ativo !== false).length
   const proprietarios = rows.filter((row: any) => row.tipo_responsavel === 'proprietario').length
   const inquilinos = rows.filter((row: any) => row.tipo_responsavel === 'inquilino').length
   const semTelefone = rows.filter((row: any) => !row.telefone).length
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <PageHeader
         eyebrow="Base Cadastral"
         title="Responsáveis"
@@ -58,41 +82,37 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
         actions={<ButtonLink href="/app/responsaveis/novo"><Plus size={16} />Novo responsável</ButtonLink>}
       />
 
-      <section className="grid gap-3 md:grid-cols-4">
-        <Card className="relative overflow-hidden p-5">
-          <div className="absolute right-4 top-4 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+      <section className="grid gap-2 md:grid-cols-4">
+        <Card className="relative overflow-hidden p-3">
+          <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <UsersRound size={18} />
           </div>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativos</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{ativos}</p>
-          <p className="mt-1 text-sm text-slate-500">responsáveis no resultado</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{ativos}</p>
         </Card>
 
-        <Card className="p-5">
+        <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Proprietários</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{proprietarios}</p>
-          <p className="mt-1 text-sm text-slate-500">no resultado filtrado</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{proprietarios}</p>
         </Card>
 
-        <Card className="p-5">
+        <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Inquilinos</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{inquilinos}</p>
-          <p className="mt-1 text-sm text-slate-500">no resultado filtrado</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{inquilinos}</p>
         </Card>
 
-        <Card className="p-5">
+        <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sem telefone</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{semTelefone}</p>
-          <p className="mt-1 text-sm text-slate-500">precisam de saneamento</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{semTelefone}</p>
         </Card>
       </section>
 
       <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 px-5 py-4">
+        <div className="border-b border-slate-100 px-4 py-3">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <h2 className="text-base font-medium text-slate-950">Base de responsáveis</h2>
-              <p className="mt-1 text-sm text-slate-500">Edite contatos de apoio sem alterar diretamente a unidade operacional.</p>
+              
             </div>
 
             {filtrosAtivos ? (
@@ -103,7 +123,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
             ) : null}
           </div>
 
-          <form className="mt-4 grid gap-3 xl:grid-cols-[minmax(220px,1.2fr)_minmax(170px,.8fr)_minmax(210px,1fr)_150px_160px_170px_auto] xl:items-end">
+          <form className="mt-3 grid gap-3 xl:grid-cols-[minmax(220px,1.2fr)_minmax(170px,.8fr)_minmax(210px,1fr)_150px_160px_170px_180px_auto] xl:items-end">
             <label className="space-y-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>
               <div className="relative">
@@ -170,12 +190,24 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
               </Select>
             </label>
 
+            <label className="space-y-1.5">
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ordenar por</span>
+              <Select name="ordenar" defaultValue={ordenar}>
+                <option value="condominio">Condomínio</option>
+                <option value="unidade">Unidade</option>
+                <option value="responsavel">Responsável</option>
+                <option value="tipo">Tipo</option>
+                <option value="status">Status</option>
+                <option value="carteira">Carteira</option>
+              </Select>
+            </label>
+
             <Button type="submit">Filtrar</Button>
           </form>
         </div>
 
         {rows.length === 0 ? (
-          <div className="p-5">
+          <div className="p-3">
             <EmptyState
               title="Nenhum responsável encontrado"
               description="Ajuste os filtros ou cadastre um responsável de apoio para enriquecer futuras importações."
@@ -187,7 +219,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
               <form
                 key={row.id}
                 action={updateResponsavelUnidade}
-                className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(220px,1fr)_90px_90px_minmax(170px,1fr)_140px_140px_150px_minmax(170px,1fr)_120px_150px] xl:items-end"
+                className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(220px,1fr)_90px_90px_minmax(170px,1fr)_140px_140px_150px_minmax(170px,1fr)_120px_150px] xl:items-end"
               >
                 <input type="hidden" name="id" value={row.id} />
 
@@ -266,7 +298,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
             ))}
           </div>
         )}
-      </Card>
+        </Card>
     </div>
   )
 }

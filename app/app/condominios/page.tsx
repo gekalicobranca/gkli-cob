@@ -26,6 +26,31 @@ function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
 }
 
+function normalizeText(value: unknown) {
+  return String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function sortCondominios(rows: any[], ordenar: string) {
+  const field = ordenar || 'nome'
+  return [...rows].sort((a, b) => {
+    const getValue = (row: any) => {
+      if (field === 'administradora') return normalizeText(row.administradora)
+      if (field === 'status') return normalizeText(row.status)
+      if (field === 'carteira') return normalizeText(row.carteiras?.nome)
+      if (field === 'regua_asc' || field === 'regua_desc') return Number(row.inicio_cobranca_dias ?? 0)
+      if (field === 'cota_asc' || field === 'cota_desc') return Number(row.valor_cota_condominial ?? 0)
+      return normalizeText(row.nome_operacional || row.nome)
+    }
+    const av = getValue(a)
+    const bv = getValue(b)
+    if (typeof av === 'number' && typeof bv === 'number') return field.endsWith('_desc') ? bv - av : av - bv
+    return String(av).localeCompare(String(bv), 'pt-BR', { numeric: true })
+  })
+}
+
 export default async function CondominiosPage({ searchParams }: CondominiosPageProps) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
@@ -37,13 +62,15 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
     status: getParam(params?.status),
   })
 
-  const [rows, carteiras, administradoras] = await Promise.all([
+  const [rowsBase, carteiras, administradoras] = await Promise.all([
     listCondominios(scope, filters),
     listCarteirasForSelect(scope),
     listAdministradorasCondominios(scope),
   ])
 
-  const filtrosAtivos = hasCondominioFilters(filters)
+  const ordenar = getParam(params?.ordenar) ?? 'nome'
+  const rows = sortCondominios(rowsBase, ordenar)
+  const filtrosAtivos = hasCondominioFilters(filters) || ordenar !== 'nome'
   const exportParams = new URLSearchParams()
 
   if (filters.carteiraId) {
@@ -60,7 +87,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
     : 0
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <PageHeader
         eyebrow="Base Cadastral"
         title="Condomínios"
@@ -79,35 +106,32 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-3">
-        <Card className="relative overflow-hidden p-5">
-          <div className="absolute right-4 top-4 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+      <section className="grid gap-2 md:grid-cols-3">
+        <Card className="relative overflow-hidden p-3">
+          <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <Building2 size={18} />
           </div>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativos</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{ativos}</p>
-          <p className="mt-1 text-sm text-slate-500">condomínios no resultado</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{ativos}</p>
         </Card>
 
-        <Card className="p-5">
+        <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Régua média</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">D+{mediaRegua}</p>
-          <p className="mt-1 text-sm text-slate-500">dias para iniciar cobrança</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">D+{mediaRegua}</p>
         </Card>
 
-        <Card className="p-5">
+        <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Cota média</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{formatCurrency(ticketMedio)}</p>
-          <p className="mt-1 text-sm text-slate-500">referência cadastral filtrada</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{formatCurrency(ticketMedio)}</p>
         </Card>
       </section>
 
       <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 px-5 py-4">
+        <div className="border-b border-slate-100 px-4 py-3">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <h2 className="text-base font-medium text-slate-950">Base cadastral</h2>
-              <p className="mt-1 text-sm text-slate-500">Filtre, consulte e edite o cadastro real do condomínio.</p>
+              
             </div>
 
             {filtrosAtivos ? (
@@ -118,7 +142,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
             ) : null}
           </div>
 
-          <form className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1.4fr)_minmax(180px,.9fr)_minmax(180px,.9fr)_150px_auto] lg:items-end">
+          <form className="mt-3 grid gap-3 lg:grid-cols-[minmax(220px,1.4fr)_minmax(180px,.9fr)_minmax(180px,.9fr)_150px_190px_auto] lg:items-end">
             <label className="space-y-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>
               <div className="relative">
@@ -166,6 +190,20 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
               </Select>
             </label>
 
+            <label className="space-y-1.5">
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ordenar por</span>
+              <Select name="ordenar" defaultValue={ordenar}>
+                <option value="nome">Nome</option>
+                <option value="administradora">Administradora</option>
+                <option value="status">Status</option>
+                <option value="carteira">Carteira</option>
+                <option value="regua_asc">Régua menor</option>
+                <option value="regua_desc">Régua maior</option>
+                <option value="cota_desc">Maior cota</option>
+                <option value="cota_asc">Menor cota</option>
+              </Select>
+            </label>
+
             <Button type="submit" className="lg:w-auto">
               <Filter size={16} />
               Filtrar
@@ -174,7 +212,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
         </div>
 
         {rows.length === 0 ? (
-          <div className="p-5">
+          <div className="p-3">
             <EmptyState
               title="Nenhum condomínio encontrado"
               description="Ajuste os filtros ou cadastre/importe condomínios para compor a base cadastral."
@@ -185,7 +223,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
             {rows.map((row: any) => (
               <div
                 key={row.id}
-                className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.5fr)_110px_140px_130px_160px_170px] xl:items-center"
+                className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.5fr)_110px_140px_130px_160px_170px] xl:items-center"
               >
                 <Link href={`/app/condominios/${row.id}`} className="group min-w-0">
                   <p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]">
@@ -226,7 +264,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
             ))}
           </div>
         )}
-      </Card>
+        </Card>
     </div>
   )
 }
