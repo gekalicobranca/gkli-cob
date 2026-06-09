@@ -781,6 +781,36 @@ export async function listFilaParcelasOperadorAcordos(scope?: CarteiraScope) {
     });
 }
 
+export async function listParcelasAcordosOperacionais(scope?: CarteiraScope) {
+  const acordosBase = await listAcordos(scope);
+  const parcelas = await getParcelasDosAcordos(acordosBase.map((acordo: any) => acordo.id));
+  const acordos = attachAgreementHealth(acordosBase as any[], parcelas);
+  const acordoPorId = new Map(acordos.map((acordo: any) => [acordo.id, acordo]));
+
+  return parcelas
+    .map((parcela) => {
+      const acordo = acordoPorId.get(parcela.acordo_id) as any;
+      const diff = diffDaysFromToday(parcela.vencimento);
+      let janela_operacional = "Futuras";
+      if (diff !== null && diff < 0) janela_operacional = "Em atraso";
+      else if (diff === 0) janela_operacional = "Hoje";
+      else if (diff !== null && diff <= 7) janela_operacional = "Próximos 7 dias";
+
+      return {
+        ...parcela,
+        acordo,
+        diff_dias: diff,
+        janela_operacional,
+        saude_acordo: acordo?.saude_acordo ?? "saudavel",
+      };
+    })
+    .sort((a, b) => {
+      const da = normalizeDateOnly(a.vencimento)?.getTime() ?? 0;
+      const db = normalizeDateOnly(b.vencimento)?.getTime() ?? 0;
+      return da - db;
+    });
+}
+
 export async function listFilaOperacionalAcordos(scope?: CarteiraScope) {
   const acordos = await listAcordosComSaude(scope)
   return acordos
@@ -887,7 +917,7 @@ async function getParcelasDosAcordos(acordoIds: string[]) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("parcelas_acordo")
-    .select("id,acordo_id,valor,status,data_pagamento,vencimento")
+    .select("id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento")
     .in("acordo_id", ids);
 
   if (error) {

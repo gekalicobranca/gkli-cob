@@ -1352,9 +1352,149 @@ export async function marcarParcelaComoPaga(formData: FormData) {
 
   revalidatePath(`/app/acordos/${acordoId}`);
   revalidatePath("/app/acordos");
+  revalidatePath("/app/acordos/fila");
   revalidatePath("/app/cobrancas");
   revalidatePath("/app");
   revalidatePath("/app/dashboard");
+}
+
+export async function solicitarReemissaoParcelaAcordo(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+
+  const parcelaId = String(formData.get("parcela_id") ?? "").trim();
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+
+  if (!parcelaId || !acordoId) {
+    throw new Error("Parcela e acordo são obrigatórios.");
+  }
+
+  const supabase = await createClient();
+
+  const { data: parcela, error: parcelaError } = await supabase
+    .from("parcelas_acordo")
+    .select("id, acordo_id, numero, valor, vencimento, status")
+    .eq("id", parcelaId)
+    .eq("acordo_id", acordoId)
+    .maybeSingle();
+
+  if (parcelaError) throw new Error(`Erro ao carregar parcela: ${parcelaError.message}`);
+  if (!parcela) throw new Error("Parcela não encontrada.");
+
+  const { data: acordo, error: acordoError } = await supabase
+    .from("acordos")
+    .select(`
+      id,
+      carteira_id,
+      condominio_id,
+      unidade_id,
+      cobranca_id,
+      status,
+      condominios:condominio_id (
+        id,
+        nome,
+        administradora_id,
+        dias_reemissao_parcela_acordo_atrasada
+      ),
+      unidades:unidade_id (
+        id,
+        identificacao,
+        bloco,
+        responsavel_nome
+      )
+    `)
+    .eq("id", acordoId)
+    .maybeSingle();
+
+  if (acordoError) throw new Error(`Erro ao carregar acordo: ${acordoError.message}`);
+  if (!acordo) throw new Error("Acordo não encontrado.");
+
+  const carteiraScope = await getPermittedCarteiras();
+  assertCarteiraPermitida(carteiraScope, (acordo as any).carteira_id);
+
+  const status = String((parcela as any).status ?? "").toLowerCase();
+  if (status !== PARCELA_ACORDO_STATUS.VENCIDA) {
+    throw new Error("A reemissão só pode ser solicitada para parcela vencida.");
+  }
+
+  const diasReemissao = Number((acordo as any).condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0);
+  if (diasReemissao <= 0) {
+    throw new Error("Este condomínio não permite reemissão de parcela de acordo em atraso.");
+  }
+
+  const vencimento = (parcela as any).vencimento ? new Date(`${(parcela as any).vencimento}T00:00:00`) : null;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const diasAtraso = vencimento ? Math.floor((hoje.getTime() - vencimento.getTime()) / 86400000) : 0;
+  if (!vencimento || diasAtraso < 0 || diasAtraso > diasReemissao) {
+    throw new Error("A parcela está fora da janela de reemissão permitida para este condomínio.");
+  }
+
+  const { data: pendenciaAberta, error: pendenciaAbertaError } = await supabase
+    .from("central_pendencias")
+    .select("id")
+    .eq("tipo", "reemissao_boleto_parcela_acordo")
+    .eq("entidade_tipo", "parcela_acordo")
+    .eq("entidade_id", parcelaId)
+    .in("status", ["aberta", "em_tratamento"])
+    .limit(1);
+
+  if (pendenciaAbertaError) {
+    throw new Error(`Erro ao verificar pendência de reemissão: ${pendenciaAbertaError.message}`);
+  }
+
+  if ((pendenciaAberta ?? []).length === 0) {
+    const unidade = (acordo as any).unidades;
+    const condominio = (acordo as any).condominios;
+    const unidadeLabel = [unidade?.bloco ? `Bloco ${unidade.bloco}` : null, unidade?.identificacao ? `Unidade ${unidade.identificacao}` : null]
+      .filter(Boolean)
+      .join(" · ") || "Unidade não informada";
+
+    const { error: insertError } = await supabase.from("central_pendencias").insert({
+      carteira_id: (acordo as any).carteira_id,
+      origem: "acordo",
+      tipo: "reemissao_boleto_parcela_acordo",
+      status: "aberta",
+      prioridade: "normal",
+      titulo: "Solicitar reemissão de boleto de acordo",
+      descricao: [
+        `Solicitar reemissão do boleto da parcela ${(parcela as any).numero ?? ""} do acordo.`,
+        `Condomínio: ${condominio?.nome ?? "não informado"}.`,
+        `Unidade: ${unidadeLabel}.`,
+        `Vencimento original: ${(parcela as any).vencimento ?? "não informado"}.`,
+        `Valor: R$ ${Number((parcela as any).valor ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`,
+      ].join(" "),
+      entidade_tipo: "parcela_acordo",
+      entidade_id: parcelaId,
+      condominio_id: (acordo as any).condominio_id,
+      unidade_id: (acordo as any).unidade_id,
+      cobranca_id: (acordo as any).cobranca_id,
+      acordo_id: acordoId,
+      administradora_id: condominio?.administradora_id ?? null,
+      responsavel_nome: unidade?.responsavel_nome ?? null,
+    });
+
+    if (insertError) throw new Error(`Erro ao criar pendência de reemissão: ${insertError.message}`);
+  }
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (acordo as any).carteira_id ?? null,
+    entidadeTipo: "acordo",
+    entidadeId: acordoId,
+    eventoCodigo: "acordo.parcela_reemissao_solicitada",
+    titulo: "Reemissão de parcela solicitada",
+    descricao: `Pendência criada para reemissão da parcela ${(parcela as any).numero ?? ""}.`,
+    severidade: "info",
+    payload: { parcela_id: parcelaId, parcela, dias_reemissao: diasReemissao, dias_atraso: diasAtraso },
+    origem: "manual",
+    auditavel: true,
+    userId: user?.id ?? null,
+  });
+
+  revalidatePath("/app/acordos/fila");
+  revalidatePath("/app/pendencias");
+  revalidatePath("/app/gestao/acionamentos-acordos");
+  revalidatePath(`/app/acordos/${acordoId}`);
 }
 
 export async function marcarParcelaComoVencida(formData: FormData) {
