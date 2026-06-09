@@ -1,7 +1,7 @@
 import { CheckCircle2, ClipboardList, FileText, MailCheck, Send } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import { atualizarStatusBoletosAcordo } from "@/features/acordos/actions";
 
 function formatDateTime(value?: string | null) {
@@ -188,17 +188,29 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
               <form action={atualizarStatusBoletosAcordo}>
                 <input type="hidden" name="acordo_id" value={acordo.id} />
                 <input type="hidden" name="status_boletos" value="boletos_recebidos" />
-                <Button type="submit" variant="secondary" size="sm" className="w-full" disabled={!boletosSolicitados}>
+                <PendingSubmitButton
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  disabled={!boletosSolicitados}
+                  icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                  pendingLabel="Confirmando..."
+                >
                   Boletos recebidos
-                </Button>
+                </PendingSubmitButton>
               </form>
               <form action={atualizarStatusBoletosAcordo}>
                 <input type="hidden" name="acordo_id" value={acordo.id} />
                 <input type="hidden" name="status_boletos" value="boletos_enviados" />
-                <Button type="submit" size="sm" className="w-full" disabled={!boletosRecebidos}>
-                  <Send className="h-3.5 w-3.5" />
+                <PendingSubmitButton
+                  size="sm"
+                  className="w-full"
+                  disabled={!boletosRecebidos}
+                  icon={<Send className="h-3.5 w-3.5" />}
+                  pendingLabel="Confirmando..."
+                >
                   Boletos enviados
-                </Button>
+                </PendingSubmitButton>
               </form>
             </div>
           </div>

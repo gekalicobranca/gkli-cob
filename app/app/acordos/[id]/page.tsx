@@ -118,25 +118,28 @@ function ParcelaActions({
       <form action={marcarParcelaComoPaga}>
         <input type="hidden" name="parcela_id" value={parcela.id} />
         <input type="hidden" name="acordo_id" value={acordoId} />
-        <button
-          type="submit"
-          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+        <PendingSubmitButton
+          size="sm"
+          className="bg-emerald-600 hover:bg-emerald-700"
+          icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+          pendingLabel="Baixando..."
         >
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          Marcar paga
-        </button>
+          Marcar como paga
+        </PendingSubmitButton>
       </form>
 
       <form action={marcarParcelaComoVencida}>
         <input type="hidden" name="parcela_id" value={parcela.id} />
         <input type="hidden" name="acordo_id" value={acordoId} />
-        <button
-          type="submit"
+        <PendingSubmitButton
+          variant="secondary"
+          size="sm"
           className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+          icon={<Flag className="h-3.5 w-3.5" />}
+          pendingLabel="Marcando..."
         >
-          <Flag className="h-3.5 w-3.5" />
-          Vencida
-        </button>
+          Marcar como vencida
+        </PendingSubmitButton>
       </form>
 
       {status === "vencida" ? (
@@ -144,7 +147,7 @@ function ParcelaActions({
           type="button"
           disabled={!podeReemitir}
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          title={diasReemissao === 0 ? "Este condomínio não permite reemissão de parcela vencida." : "Reemissão dentro da janela operacional do condomínio."}
+          title={diasReemissao === 0 ? "Este condominio nao permite reemissao de parcela vencida." : "Reemissao dentro da janela operacional do condominio."}
         >
           Reemitir boleto
         </button>
@@ -555,18 +558,18 @@ export default async function AcordoDetalhePage({ params }: Props) {
             <Card>
               <CardContent className="space-y-4 p-6">
                 <SectionTitle
-                  title="Cancelar formalizacao"
-                  description="Use quando o devedor nao confirmou o aceite e a cobranca deve voltar para o fluxo extrajudicial."
+                  title="Cancelar formalização"
+                  description="Use quando o devedor não confirmou o aceite e a cobrança deve voltar para o fluxo extrajudicial."
                 />
                 <form action={cancelarFormalizacaoAcordo} className="space-y-3">
                   <input type="hidden" name="acordo_id" value={acordo.id} />
                   <label className="block space-y-1.5">
                     <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Motivo</span>
-                    <select name="motivo" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" defaultValue="Devedor nao confirmou o aceite">
-                      <option value="Devedor nao confirmou o aceite">Devedor nao confirmou o aceite</option>
-                      <option value="Devedor desistiu da negociacao">Devedor desistiu da negociacao</option>
+                    <select name="motivo" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" defaultValue="Devedor não confirmou o aceite">
+                      <option value="Devedor não confirmou o aceite">Devedor não confirmou o aceite</option>
+                      <option value="Devedor desistiu da negociação">Devedor desistiu da negociação</option>
                       <option value="Prazo interno expirado">Prazo interno expirado</option>
-                      <option value="Nova negociacao necessaria">Nova negociacao necessaria</option>
+                      <option value="Nova negociação necessária">Nova negociação necessária</option>
                       <option value="Outro">Outro</option>
                     </select>
                   </label>
@@ -578,9 +581,9 @@ export default async function AcordoDetalhePage({ params }: Props) {
                     variant="secondary"
                     className="w-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
                     icon={<XCircle size={16} />}
-                    pendingLabel="Cancelando formalizacao..."
+                    pendingLabel="Cancelando formalização..."
                   >
-                    Cancelar formalizacao
+                    Cancelar formalização
                   </PendingSubmitButton>
                 </form>
               </CardContent>
@@ -618,7 +621,14 @@ export default async function AcordoDetalhePage({ params }: Props) {
                   <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Observação</span>
                   <textarea name="observacao" className="min-h-[84px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" placeholder="Opcional" />
                 </label>
-                <button type="submit" className="inline-flex w-full items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">Registrar rompimento</button>
+                <PendingSubmitButton
+                  variant="secondary"
+                  className="w-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  icon={<XCircle size={16} />}
+                  pendingLabel="Registrando rompimento..."
+                >
+                  Registrar rompimento
+                </PendingSubmitButton>
               </form>
             </CardContent>
           </Card>

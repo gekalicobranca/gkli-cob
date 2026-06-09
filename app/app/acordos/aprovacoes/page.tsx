@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle, Search, ShieldCheck } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { ButtonLink } from '@/components/ui/button'
+import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -89,8 +90,12 @@ export default async function AprovacoesAcordosPage() {
                   </Select>
                   <Textarea name="observacao" placeholder="Observação opcional" className="min-h-[72px]" />
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <button name="decisao" value="aprovar" className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"><CheckCircle2 size={14} />Aprovar</button>
-                    <button name="decisao" value="rejeitar" className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100"><XCircle size={14} />Rejeitar</button>
+                    <PendingSubmitButton name="decisao" value="aprovar" size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700" icon={<CheckCircle2 size={14} />} pendingLabel="Aprovando...">
+                      Aprovar
+                    </PendingSubmitButton>
+                    <PendingSubmitButton name="decisao" value="rejeitar" variant="secondary" size="sm" className="w-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" icon={<XCircle size={14} />} pendingLabel="Rejeitando...">
+                      Rejeitar
+                    </PendingSubmitButton>
                   </div>
                 </form>
               </div>

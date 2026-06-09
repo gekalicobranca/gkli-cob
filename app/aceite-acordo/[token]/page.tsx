@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { createAdminClient } from "@/utils/supabase/admin";
@@ -87,7 +87,9 @@ export default async function AceiteAcordoPage({ params, searchParams }: PagePro
                 <input type="checkbox" required className="mt-1" />
                 <span>Declaro que li, reconheço o débito e concordo com as condições do acordo acima.</span>
               </label>
-              <Button type="submit" className="w-full">Aceitar termo digitalmente</Button>
+              <PendingSubmitButton className="w-full" pendingLabel="Registrando aceite...">
+                Aceitar termo digitalmente
+              </PendingSubmitButton>
             </form>
           ) : null}
         </Card>

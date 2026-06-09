@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listPendenciasOperacionais, getPendenciasResumo } from '@/features/pendencias/queries'
 import { iniciarTratamentoPendencia, reabrirPendencia, resolverPendencia } from '@/features/pendencias/actions'
@@ -111,10 +111,9 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
         await reabrirPendencia(null, formData)
       }}>
         <input type="hidden" name="id" value={pendencia.id} />
-        <Button variant="secondary" size="sm" className="w-full sm:w-auto">
-          <RotateCcw size={14} />
+        <PendingSubmitButton variant="secondary" size="sm" className="w-full sm:w-auto" icon={<RotateCcw size={14} />} pendingLabel="Reabrindo...">
           Reabrir
-        </Button>
+        </PendingSubmitButton>
       </form>
     )
   }
@@ -127,10 +126,9 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
           await iniciarTratamentoPendencia(null, formData)
         }}>
           <input type="hidden" name="id" value={pendencia.id} />
-          <Button variant="secondary" size="sm" className="w-full sm:w-auto">
-            <PlayCircle size={14} />
+          <PendingSubmitButton variant="secondary" size="sm" className="w-full sm:w-auto" icon={<PlayCircle size={14} />} pendingLabel="Iniciando...">
             Tratar
-          </Button>
+          </PendingSubmitButton>
         </form>
       ) : null}
       <form action={async (formData) => {
@@ -138,10 +136,9 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
         await resolverPendencia(null, formData)
       }}>
         <input type="hidden" name="id" value={pendencia.id} />
-        <Button variant="primary" size="sm" className="w-full sm:w-auto">
-          <CheckCircle2 size={14} />
+        <PendingSubmitButton variant="primary" size="sm" className="w-full sm:w-auto" icon={<CheckCircle2 size={14} />} pendingLabel="Resolvendo...">
           Resolver
-        </Button>
+        </PendingSubmitButton>
       </form>
     </div>
   )

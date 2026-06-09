@@ -13,7 +13,7 @@ import {
 
 import { EmptyState } from "@/components/data/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
@@ -42,10 +42,10 @@ type SearchParams = Promise<{ tipo?: string }>;
 
 const activationFilters = [
   { key: "todos", label: "Todos" },
-  { key: "sindico", label: "Sindico" },
+  { key: "sindico", label: "Síndico" },
   { key: "devedor", label: "Devedor" },
   { key: "boletos", label: "Boletos" },
-  { key: "pendencias", label: "Pendencias" },
+  { key: "pendencias", label: "Pendências" },
 ] as const;
 
 function normalizeTipoFiltro(value?: string | null) {
@@ -240,20 +240,18 @@ function SindicoDecisionRow({ row, term, returnTo }: { row: any; term?: Agreemen
           <option value="">Motivo, se rejeitar</option>
           <option value="Quantidade de parcelas">Quantidade de parcelas</option>
           <option value="Entrada insuficiente">Entrada insuficiente</option>
-          <option value="Pendencia documental">Pendencia documental</option>
+          <option value="Pendência documental">Pendência documental</option>
           <option value="Unidade judicializada">Unidade judicializada</option>
           <option value="Outro">Outro</option>
         </Select>
-        <Textarea name="observacao" placeholder="Observacao opcional" className="min-h-[72px]" />
+        <Textarea name="observacao" placeholder="Observação opcional" className="min-h-[72px]" />
         <div className="grid gap-2 sm:grid-cols-2">
-          <Button name="decisao" value="aprovar" size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700">
-            <CheckCircle2 size={14} />
+          <PendingSubmitButton name="decisao" value="aprovar" size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700" icon={<CheckCircle2 size={14} />} pendingLabel="Aprovando...">
             Aprovar
-          </Button>
-          <Button name="decisao" value="rejeitar" variant="secondary" size="sm" className="w-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">
-            <XCircle size={14} />
+          </PendingSubmitButton>
+          <PendingSubmitButton name="decisao" value="rejeitar" variant="secondary" size="sm" className="w-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" icon={<XCircle size={14} />} pendingLabel="Rejeitando...">
             Rejeitar
-          </Button>
+          </PendingSubmitButton>
         </div>
       </form>
     </div>
@@ -332,10 +330,9 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
             await iniciarTratamentoPendencia(null, formData);
           }}>
             <input type="hidden" name="id" value={pendencia.id} />
-            <Button type="submit" variant="secondary" size="sm">
-              <PlayCircle size={14} />
+            <PendingSubmitButton variant="secondary" size="sm" icon={<PlayCircle size={14} />} pendingLabel="Iniciando...">
               Tratar
-            </Button>
+            </PendingSubmitButton>
           </form>
         ) : null}
         <form action={async (formData) => {
@@ -343,10 +340,9 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
           await resolverPendencia(null, formData);
         }}>
           <input type="hidden" name="id" value={pendencia.id} />
-          <Button type="submit" size="sm">
-            <CheckCircle2 size={14} />
+          <PendingSubmitButton size="sm" icon={<CheckCircle2 size={14} />} pendingLabel="Resolvendo...">
             Resolver
-          </Button>
+          </PendingSubmitButton>
         </form>
       </div>
     </div>

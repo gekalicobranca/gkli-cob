@@ -3,6 +3,7 @@ import { CheckCircle2, MailCheck, ReceiptText, Search } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { ButtonLink } from '@/components/ui/button'
+import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/data/empty-state'
 import { AgreementHealthBadge } from '@/features/acordos/components/agreement-health-badge'
@@ -77,8 +78,12 @@ export default async function BoletosAcordosPage() {
                 <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Data</p><p className="mt-1 text-sm text-slate-700">{formatDateBR(row.data_acordo)}</p></div>
                 <form action={atualizarStatusBoletosAcordo} className="flex flex-wrap justify-end gap-2">
                   <input type="hidden" name="acordo_id" value={row.id} />
-                  <button name="status_boletos" value="boletos_recebidos" className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100"><CheckCircle2 size={14} />Recebidos</button>
-                  <button name="status_boletos" value="boletos_enviados" className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"><MailCheck size={14} />Enviados</button>
+                  <PendingSubmitButton name="status_boletos" value="boletos_recebidos" variant="secondary" size="sm" className="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100" icon={<CheckCircle2 size={14} />} pendingLabel="Confirmando...">
+                    Recebidos
+                  </PendingSubmitButton>
+                  <PendingSubmitButton name="status_boletos" value="boletos_enviados" size="sm" className="bg-emerald-600 hover:bg-emerald-700" icon={<MailCheck size={14} />} pendingLabel="Confirmando...">
+                    Enviados
+                  </PendingSubmitButton>
                 </form>
               </div>
             ))}
