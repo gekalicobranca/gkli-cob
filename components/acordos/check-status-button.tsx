@@ -1,47 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useTransition, useState } from 'react'
 import { RefreshCcw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { atualizarAtrasosERompimentosAcordos } from '@/features/acordos/actions'
 
 export function CheckAcordosStatusButton() {
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
+  const [isPending, startTransition] = useTransition()
   const [message, setMessage] = useState<string | null>(null)
 
-  async function handleCheck() {
-    setLoading(true)
+  function handleCheck() {
     setMessage(null)
 
-    try {
-      const response = await fetch('/api/jobs/acordos/check-status', {
-        method: 'POST',
-      })
+    startTransition(async () => {
+      try {
+        const result = await atualizarAtrasosERompimentosAcordos()
 
-      const result = await response.json()
+        if (!result.ok) {
+          throw new Error('Erro ao atualizar status.')
+        }
 
-      if (!response.ok || !result.ok) {
-        throw new Error(result.error ?? 'Erro ao atualizar status.')
+        setMessage(
+          `Atualizado: ${result.parcelasMarcadasVencidas} parcelas vencidas, ${result.acordosMarcadosEmAtraso} acordos em atraso, ${result.acordosRompidos} rompidos.`
+        )
+
+        router.refresh()
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Erro desconhecido.')
       }
-
-      setMessage(
-        `Atualizado: ${result.parcelasMarcadasVencidas} parcelas vencidas, ${result.acordosRompidos} acordos rompidos.`
-      )
-
-      router.refresh()
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Erro desconhecido.')
-    } finally {
-      setLoading(false)
-    }
+    })
   }
 
   return (
     <div className="flex flex-col items-end gap-2">
-      <Button type="button" variant="secondary" onClick={handleCheck} disabled={loading}>
-        <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
-        {loading ? 'Verificando...' : 'Verificar acordos'}
+      <Button type="button" variant="secondary" onClick={handleCheck} disabled={isPending}>
+        <RefreshCcw size={16} className={isPending ? 'animate-spin' : ''} />
+        {isPending ? 'Atualizando...' : 'Atualizar atrasos e rompimentos'}
       </Button>
 
       {message ? (

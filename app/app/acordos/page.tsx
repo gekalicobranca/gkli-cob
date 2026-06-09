@@ -6,7 +6,6 @@ import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
-import { CheckAcordosStatusButton } from '@/components/acordos/check-status-button'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
@@ -67,7 +66,6 @@ export default async function AcordosPage() {
         description="Controle acordos, parcelas, atrasos e quebras operacionais."
         actions={
           <>
-            <CheckAcordosStatusButton />
             <ButtonLink href="/app/acordos/fila" variant="secondary"><Inbox size={16} />Fila</ButtonLink>
             <ButtonLink href="/app/acordos/rompimentos" variant="secondary"><AlertTriangle size={16} />Rompimentos</ButtonLink>
             <ButtonLink href="/app/acordos/gestao" variant="secondary"><BarChart3 size={16} />Gestão</ButtonLink>

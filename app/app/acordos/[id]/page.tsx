@@ -48,6 +48,12 @@ function normalizeLabel(value?: string | null) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function tipoResponsavelLabel(value?: string | null) {
+  if (value === "proprietario") return "Proprietário";
+  if (value === "inquilino") return "Inquilino";
+  return "Tipo não informado";
+}
+
 function badgeTone(value?: string | null) {
   const v = String(value || "").toLowerCase();
 
@@ -229,7 +235,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
 
   if (!data?.acordo) notFound();
 
-  const { acordo, parcelas, timeline, cobrancasVinculadas } = data;
+  const { acordo, parcelas, timeline, cobrancasVinculadas, responsavelApoio } = data;
 
   const entrada = parcelas.find((parcela: any) => parcela.tipo === "entrada");
   const parcelasNormais = parcelas.filter(
@@ -313,8 +319,9 @@ export default async function AcordoDetalhePage({ params }: Props) {
             <p className="mt-1 text-sm text-slate-500">Unidade {acordo.unidades?.identificacao || "-"}{acordo.unidades?.bloco ? ` · Bloco ${acordo.unidades.bloco}` : ""}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Responsável</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{acordo.unidades?.responsavel_nome || "Não informado"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Responsável pelo acordo</p>
+            <p className="mt-1 text-sm font-medium text-slate-950">{responsavelApoio?.responsavel_nome || acordo.unidades?.responsavel_nome || "Não informado"}</p>
+            <p className="mt-1 text-xs text-slate-500">{tipoResponsavelLabel(responsavelApoio?.tipo_responsavel)}</p>
           </div>
           <div className="flex flex-wrap gap-2 md:justify-end">
             <Badge value={acordo.status} />

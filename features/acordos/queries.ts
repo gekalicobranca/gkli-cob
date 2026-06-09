@@ -167,6 +167,30 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
     return null;
   }
 
+  let responsavelApoio: any = null;
+  const unidade = (acordo as any).unidades;
+  const unidadeIdentificacao = String(unidade?.identificacao ?? "").trim();
+  const blocoUnidade = String(unidade?.bloco ?? "").trim().toLowerCase();
+
+  if ((acordo as any).condominio_id && unidadeIdentificacao) {
+    let responsavelQuery = supabase
+      .from("responsaveis_unidades")
+      .select("id, carteira_id, condominio_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, email, ativo")
+      .eq("condominio_id", (acordo as any).condominio_id)
+      .eq("unidade", unidadeIdentificacao)
+      .eq("ativo", true)
+      .limit(20);
+
+    responsavelQuery = applyCarteiraScope(responsavelQuery, scope.carteiraIds);
+
+    const { data: responsaveis, error: responsavelError } = await responsavelQuery;
+    if (!responsavelError) {
+      responsavelApoio = ((responsaveis ?? []) as any[]).find((item) =>
+        String(item.bloco ?? "").trim().toLowerCase() === blocoUnidade,
+      ) ?? (responsaveis ?? [])[0] ?? null;
+    }
+  }
+
   const { data: parcelas, error: parcelasError } = await supabase
     .from("parcelas_acordo")
     .select("*")
@@ -234,6 +258,7 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
 
   return {
     acordo,
+    responsavelApoio,
     cobrancasVinculadas: cobrancasVinculadas ?? [],
     parcelas: parcelasNormalizadas,
     timeline: [

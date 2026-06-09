@@ -9,6 +9,7 @@ import { requireRole } from "@/utils/auth/require-role";
 import { requireUser } from "@/utils/auth/require-user";
 import { getPermittedCarteiras, type CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import { registrarEventoOperacional } from "@/features/operacional/service";
+import { checkAcordosStatus } from "@/features/acordos/status-service";
 import {
   ACORDO_STATUS,
   COBRANCA_STATUS,
@@ -2010,4 +2011,18 @@ export async function romperAcordoAssistido(formData: FormData) {
   revalidatePath("/app/acordos");
   revalidatePath("/app/acordos/rompimentos");
   revalidatePath(`/app/acordos/${acordoId}`);
+}
+
+export async function atualizarAtrasosERompimentosAcordos() {
+  await requireRole(["admin", "gestor"]);
+
+  const result = await checkAcordosStatus({
+    diasParaRomper: 15,
+  });
+
+  revalidatePath("/app/acordos");
+  revalidatePath("/app/acordos/gestao");
+  revalidatePath("/app/acordos/rompimentos");
+
+  return result;
 }

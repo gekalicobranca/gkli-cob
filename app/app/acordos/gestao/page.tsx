@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowUpRight, Banknote, FileText, Handshake, Inbox, Rece
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { ButtonLink } from '@/components/ui/button'
+import { CheckAcordosStatusButton } from '@/components/acordos/check-status-button'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getAgreementPerformance, listAgreementExceptionInbox } from '@/features/acordos/queries'
@@ -71,6 +72,18 @@ export default async function GestaoAcordosPage() {
           <p className="mt-2 text-2xl font-semibold text-slate-950">{metrics.aceitesPendentes}</p>
         </Card>
       </section>
+
+      <Card className="border-amber-200 bg-amber-50 p-4">
+        <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-center">
+          <div>
+            <h2 className="text-base font-medium text-amber-950">Atualização operacional de status</h2>
+            <p className="mt-1 text-sm leading-6 text-amber-900">
+              Esta rotina marca parcelas vencidas, coloca acordos ativos em atraso e rompe acordos com mais de 15 dias de atraso, reativando as cobranças vinculadas.
+            </p>
+          </div>
+          <CheckAcordosStatusButton />
+        </div>
+      </Card>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <Card className="overflow-hidden p-0">

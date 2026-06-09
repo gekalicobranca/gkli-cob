@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { requireRole } from '@/utils/auth/require-role'
 import { requireUser } from '@/utils/auth/require-user'
@@ -13,6 +14,11 @@ function onlyDigits(value: string) {
 
 function boolFromForm(value: FormDataEntryValue | null) {
   return String(value ?? '') === 'on' || String(value ?? '') === 'true'
+}
+
+function tipoResponsavelFromForm(value: FormDataEntryValue | null) {
+  const tipo = String(value ?? '').trim()
+  return ['proprietario', 'inquilino', 'nao_informado'].includes(tipo) ? tipo : 'nao_informado'
 }
 
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
@@ -51,6 +57,7 @@ export async function createResponsavelUnidade(formData: FormData) {
   const unidade = String(formData.get('unidade') ?? '').trim()
   const bloco = String(formData.get('bloco') ?? '').trim()
   const responsavelNome = String(formData.get('responsavel_nome') ?? '').trim()
+  const tipoResponsavel = tipoResponsavelFromForm(formData.get('tipo_responsavel'))
   const responsavelDocumento = onlyDigits(String(formData.get('responsavel_documento') ?? ''))
   const telefone = onlyDigits(String(formData.get('telefone') ?? ''))
   const email = String(formData.get('email') ?? '').trim()
@@ -74,6 +81,7 @@ export async function createResponsavelUnidade(formData: FormData) {
       unidade,
       bloco: bloco || null,
       responsavel_nome: responsavelNome || null,
+      tipo_responsavel: tipoResponsavel,
       responsavel_documento: responsavelDocumento || null,
       telefone: telefone || null,
       email: email || null,
@@ -97,10 +105,11 @@ export async function createResponsavelUnidade(formData: FormData) {
     descricao: responsavelNome || `Cadastro de apoio da unidade ${unidade}.`,
     severidade: 'info',
     userId: user?.id ?? null,
-    payload: { condominio_id: condominioId, unidade, bloco: bloco || null },
+    payload: { condominio_id: condominioId, unidade, bloco: bloco || null, tipo_responsavel: tipoResponsavel },
   })
 
   revalidatePath('/app/responsaveis')
+  redirect('/app/responsaveis')
 }
 
 export async function updateResponsavelUnidade(formData: FormData) {
@@ -110,6 +119,7 @@ export async function updateResponsavelUnidade(formData: FormData) {
   const unidade = String(formData.get('unidade') ?? '').trim()
   const bloco = String(formData.get('bloco') ?? '').trim()
   const responsavelNome = String(formData.get('responsavel_nome') ?? '').trim()
+  const tipoResponsavel = tipoResponsavelFromForm(formData.get('tipo_responsavel'))
   const responsavelDocumento = onlyDigits(String(formData.get('responsavel_documento') ?? ''))
   const telefone = onlyDigits(String(formData.get('telefone') ?? ''))
   const email = String(formData.get('email') ?? '').trim()
@@ -125,7 +135,7 @@ export async function updateResponsavelUnidade(formData: FormData) {
 
   const { data: atual, error: atualError } = await supabase
     .from('responsaveis_unidades')
-    .select('id, carteira_id, condominio_id, unidade, bloco, responsavel_nome, responsavel_documento, telefone, email, ativo')
+    .select('id, carteira_id, condominio_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, email, ativo')
     .eq('id', id)
     .maybeSingle()
 
@@ -138,6 +148,7 @@ export async function updateResponsavelUnidade(formData: FormData) {
     unidade,
     bloco: bloco || null,
     responsavel_nome: responsavelNome || null,
+    tipo_responsavel: tipoResponsavel,
     responsavel_documento: responsavelDocumento || null,
     telefone: telefone || null,
     email: email || null,

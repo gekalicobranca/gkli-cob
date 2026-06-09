@@ -10,6 +10,7 @@ const RESPONSAVEL_SELECT = `
   unidade,
   bloco,
   responsavel_nome,
+  tipo_responsavel,
   responsavel_documento,
   telefone,
   email,
@@ -28,6 +29,7 @@ export type ResponsavelUnidadeFilters = {
   condominioId?: string
   contato?: string
   ativo?: string
+  tipoResponsavel?: string
 }
 
 function cleanFilter(value?: string | string[] | null) {
@@ -46,12 +48,13 @@ export function normalizeResponsavelUnidadeFilters(filters: ResponsavelUnidadeFi
     condominioId: cleanFilter(filters.condominioId),
     contato: cleanFilter(filters.contato),
     ativo: cleanFilter(filters.ativo),
+    tipoResponsavel: cleanFilter(filters.tipoResponsavel),
   }
 }
 
 export function hasResponsavelUnidadeFilters(filters: ResponsavelUnidadeFilters = {}) {
   const normalized = normalizeResponsavelUnidadeFilters(filters)
-  return Boolean(normalized.search || normalized.carteiraId || normalized.condominioId || normalized.contato || normalized.ativo)
+  return Boolean(normalized.search || normalized.carteiraId || normalized.condominioId || normalized.contato || normalized.ativo || normalized.tipoResponsavel)
 }
 
 export async function listResponsaveisUnidades(scope: CarteiraScope, filters: ResponsavelUnidadeFilters = {}) {
@@ -79,6 +82,10 @@ export async function listResponsaveisUnidades(scope: CarteiraScope, filters: Re
 
   if (normalized.ativo === 'inativo') {
     query = query.eq('ativo', false)
+  }
+
+  if (normalized.tipoResponsavel) {
+    query = query.eq('tipo_responsavel', normalized.tipoResponsavel)
   }
 
   if (normalized.contato === 'sem_telefone') {

@@ -1,4 +1,4 @@
-import { Save, Search, UserRound, UsersRound, X } from 'lucide-react'
+import { Plus, Save, Search, UsersRound, X } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/data/empty-state'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
-import { createResponsavelUnidade, updateResponsavelUnidade } from '@/features/responsaveis-unidades/actions'
+import { updateResponsavelUnidade } from '@/features/responsaveis-unidades/actions'
 import {
   hasResponsavelUnidadeFilters,
   listResponsaveisUnidades,
@@ -34,6 +34,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
     condominioId: getParam(params?.condominio_id),
     contato: getParam(params?.contato),
     ativo: getParam(params?.ativo),
+    tipoResponsavel: getParam(params?.tipo_responsavel),
   })
 
   const [rows, carteiras, condominios] = await Promise.all([
@@ -44,8 +45,9 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
 
   const filtrosAtivos = hasResponsavelUnidadeFilters(filters)
   const ativos = rows.filter((row: any) => row.ativo !== false).length
+  const proprietarios = rows.filter((row: any) => row.tipo_responsavel === 'proprietario').length
+  const inquilinos = rows.filter((row: any) => row.tipo_responsavel === 'inquilino').length
   const semTelefone = rows.filter((row: any) => !row.telefone).length
-  const semEmail = rows.filter((row: any) => !row.email).length
 
   return (
     <div className="space-y-5">
@@ -53,9 +55,10 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
         eyebrow="Base Cadastral"
         title="Responsáveis"
         description="Cadastro de apoio usado para preencher responsável, documento, telefone e e-mail nas importações de inadimplência."
+        actions={<ButtonLink href="/app/responsaveis/novo"><Plus size={16} />Novo responsável</ButtonLink>}
       />
 
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className="grid gap-3 md:grid-cols-4">
         <Card className="relative overflow-hidden p-5">
           <div className="absolute right-4 top-4 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <UsersRound size={18} />
@@ -66,90 +69,23 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
         </Card>
 
         <Card className="p-5">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Proprietários</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{proprietarios}</p>
+          <p className="mt-1 text-sm text-slate-500">no resultado filtrado</p>
+        </Card>
+
+        <Card className="p-5">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Inquilinos</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{inquilinos}</p>
+          <p className="mt-1 text-sm text-slate-500">no resultado filtrado</p>
+        </Card>
+
+        <Card className="p-5">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sem telefone</p>
           <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{semTelefone}</p>
           <p className="mt-1 text-sm text-slate-500">precisam de saneamento</p>
         </Card>
-
-        <Card className="p-5">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sem e-mail</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{semEmail}</p>
-          <p className="mt-1 text-sm text-slate-500">cadastro incompleto</p>
-        </Card>
       </section>
-
-      <Card className="p-5">
-        <div className="mb-4 flex items-start gap-3">
-          <div className="rounded-2xl bg-slate-100 p-2 text-slate-500">
-            <UserRound size={18} />
-          </div>
-          <div>
-            <h2 className="text-base font-medium text-slate-950">Novo responsável de apoio</h2>
-            <p className="mt-1 text-sm text-slate-500">Informe condomínio, unidade e contatos que devem ser reutilizados nas próximas importações.</p>
-          </div>
-        </div>
-
-        <form action={createResponsavelUnidade} className="grid gap-3 xl:grid-cols-[minmax(180px,.75fr)_minmax(220px,1fr)_110px_110px_minmax(190px,1fr)_140px_150px_minmax(180px,1fr)_auto] xl:items-end">
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Carteira</span>
-            <Select name="carteira_id" required defaultValue={filters.carteiraId ?? ''}>
-              <option value="">Selecione</option>
-              {carteiras.map((carteira: any) => (
-                <option key={carteira.id} value={carteira.id}>
-                  {carteira.nome}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Condomínio</span>
-            <Select name="condominio_id" required defaultValue={filters.condominioId ?? ''}>
-              <option value="">Selecione</option>
-              {condominios.map((condominio: any) => (
-                <option key={condominio.id} value={condominio.id}>
-                  {condominio.nome}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Bloco</span>
-            <Input name="bloco" />
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Unidade</span>
-            <Input name="unidade" required />
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Responsável</span>
-            <Input name="responsavel_nome" />
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Documento</span>
-            <Input name="responsavel_documento" />
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Telefone</span>
-            <Input name="telefone" />
-          </label>
-
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">E-mail</span>
-            <Input name="email" type="email" />
-          </label>
-
-          <Button type="submit">
-            <Save size={16} />
-            Salvar
-          </Button>
-        </form>
-      </Card>
 
       <Card className="overflow-hidden p-0">
         <div className="border-b border-slate-100 px-5 py-4">
@@ -167,7 +103,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
             ) : null}
           </div>
 
-          <form className="mt-4 grid gap-3 xl:grid-cols-[minmax(240px,1.3fr)_minmax(180px,.85fr)_minmax(220px,1fr)_150px_170px_auto] xl:items-end">
+          <form className="mt-4 grid gap-3 xl:grid-cols-[minmax(220px,1.2fr)_minmax(170px,.8fr)_minmax(210px,1fr)_150px_160px_170px_auto] xl:items-end">
             <label className="space-y-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>
               <div className="relative">
@@ -224,6 +160,16 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
               </Select>
             </label>
 
+            <label className="space-y-1.5">
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Tipo</span>
+              <Select name="tipo_responsavel" defaultValue={filters.tipoResponsavel ?? ''}>
+                <option value="">Todos</option>
+                <option value="proprietario">Proprietário</option>
+                <option value="inquilino">Inquilino</option>
+                <option value="nao_informado">Não informado</option>
+              </Select>
+            </label>
+
             <Button type="submit">Filtrar</Button>
           </form>
         </div>
@@ -241,7 +187,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
               <form
                 key={row.id}
                 action={updateResponsavelUnidade}
-                className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(230px,1.1fr)_90px_90px_minmax(180px,1fr)_140px_150px_minmax(180px,1fr)_120px_150px] xl:items-end"
+                className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(220px,1fr)_90px_90px_minmax(170px,1fr)_140px_140px_150px_minmax(170px,1fr)_120px_150px] xl:items-end"
               >
                 <input type="hidden" name="id" value={row.id} />
 
@@ -265,6 +211,15 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                 <label className="space-y-1.5">
                   <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Responsável</span>
                   <Input name="responsavel_nome" defaultValue={row.responsavel_nome ?? ''} />
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Tipo</span>
+                  <Select name="tipo_responsavel" defaultValue={row.tipo_responsavel ?? 'nao_informado'}>
+                    <option value="nao_informado">Não informado</option>
+                    <option value="proprietario">Proprietário</option>
+                    <option value="inquilino">Inquilino</option>
+                  </Select>
                 </label>
 
                 <label className="space-y-1.5">
