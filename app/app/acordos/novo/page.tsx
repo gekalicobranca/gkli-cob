@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import {
   getPendenciaAprovacaoSindicoAberta,
   getPendenciaPlanilhaDebitosAberta,
   getAgreementOperationalIntelligence,
-  listCobrancasElegiveisParaAcordo,
   listCobrancasSelecionadasParaAcordo,
 } from "@/features/acordos/queries";
 import { AcordoSimulatorForm } from "@/components/acordos/acordo-simulator-form";
@@ -45,10 +45,31 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
     redirect(`/app/acordos/selecionar?cobrancaId=${legacyCobrancaId}`);
   }
 
-  const cobrancas =
-    selectedIds.length > 0
-      ? await listCobrancasSelecionadasParaAcordo(scope, selectedIds)
-      : await listCobrancasElegiveisParaAcordo(scope);
+  if (selectedIds.length === 0) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Base Operacional"
+          title="Novo acordo"
+          description="A criação de acordo deve começar por uma cobrança, para manter a unidade e os débitos corretamente contextualizados."
+          actions={<ButtonLink href="/app/cobrancas" variant="header">Abrir cobranças</ButtonLink>}
+        />
+
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-950">Selecione uma cobrança para iniciar</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            Para evitar uma lista extensa de débitos e reduzir risco operacional, o acordo agora é criado a partir da cobrança de origem. Abra a cobrança desejada e use a ação de acordo.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <ButtonLink href="/app/cobrancas">Ir para cobranças</ButtonLink>
+            <ButtonLink href="/app/acordos" variant="secondary">Voltar para acordos</ButtonLink>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const cobrancas = await listCobrancasSelecionadasParaAcordo(scope, selectedIds);
   const cobrancaReferencia = (cobrancas as any[])[0];
   const pendenciaPlanilha = cobrancaReferencia
     ? await getPendenciaPlanilhaDebitosAberta({
@@ -78,20 +99,14 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
       <PageHeader
         eyebrow="Base Operacional"
         title="Novo acordo"
-        description={
-          selectedIds.length > 0
-            ? "Simule o acordo com as cobranças previamente agrupadas para a unidade."
-            : "Crie um acordo a partir de uma cobrança elegível, simule parcelas e grave o plano financeiro."
-        }
+        description="Simule o acordo com as cobranças previamente agrupadas para a unidade."
         actions={
-          selectedIds.length > 0 ? (
-            <ButtonLink
-              href={`/app/acordos/selecionar?cobrancaId=${selectedIds[0]}`}
-              variant="header"
-            >
-              Alterar seleção
-            </ButtonLink>
-          ) : undefined
+          <ButtonLink
+            href={`/app/acordos/selecionar?cobrancaId=${selectedIds[0]}`}
+            variant="header"
+          >
+            Alterar seleção
+          </ButtonLink>
         }
       />
 

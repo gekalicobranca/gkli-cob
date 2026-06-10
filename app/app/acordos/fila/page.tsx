@@ -195,7 +195,6 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
         actions={
           <>
             <ButtonLink href="/app/acordos" variant="secondary">Voltar</ButtonLink>
-            <ButtonLink href="/app/acordos/novo">Novo acordo</ButtonLink>
           </>
         }
       />
