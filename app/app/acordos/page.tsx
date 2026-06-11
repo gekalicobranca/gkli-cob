@@ -1,12 +1,25 @@
 import Link from 'next/link'
-import { AlertTriangle, ArrowUpRight, Handshake, Inbox, Search } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, Handshake, Inbox } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
-import { EmptyState } from '@/components/data/empty-state'
+import {
+  ClearFiltersLink,
+  ListEmptyState,
+  ListFilterField,
+  ListFiltersForm,
+  ListKpiGrid,
+  ListPage,
+  ListPanel,
+  ListPanelHeader,
+  ListRows,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from '@/components/layout/list-page'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
@@ -140,7 +153,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
   const valorAtivo = sumBy(rows, (row: any) => ['ativo', 'em atraso'].includes(row.status))
 
   return (
-    <div className="space-y-3">
+    <ListPage>
       <PageHeader
         eyebrow="Base Operacional"
         title="Acordos"
@@ -153,7 +166,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
         }
       />
 
-      <section className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+      <ListKpiGrid>
         <Card className="relative overflow-hidden p-3">
           <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><Handshake size={18} /></div>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor ativo</p>
@@ -172,25 +185,18 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
             </div>
           </Card>
         ))}
-      </section>
+      </ListKpiGrid>
 
-      <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 bg-white/80 px-4 py-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <h2 className="text-base font-medium text-slate-950">Fila de acordos</h2>
-          </div>
+      <ListPanel>
+        <ListPanelHeader className="bg-white/80">
+          <ListTitleBar className="xl:items-center">
+            <ListTitle title="Fila de acordos" />
+            <ClearFiltersLink href="/app/acordos" show={hasFilters} />
+          </ListTitleBar>
 
-          <form className="mt-3 grid gap-3 xl:grid-cols-[minmax(220px,1.2fr)_150px_150px_155px_155px_210px_auto_auto] xl:items-end">
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>
-              <div className="relative">
-                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input name="q" className="pl-9" defaultValue={clean(params.q)} placeholder="Condomínio, unidade, responsável..." />
-              </div>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Status</span>
+          <ListFiltersForm className="xl:grid-cols-[minmax(220px,1.2fr)_150px_150px_155px_155px_210px_auto]">
+            <ListSearchField defaultValue={clean(params.q)} placeholder="Condomínio, unidade, responsável..." />
+            <ListFilterField label="Status">
               <Select name="status" defaultValue={clean(params.status)}>
                 <option value="">Todos</option>
                 <option value="ativo">Ativo</option>
@@ -200,29 +206,21 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                 <option value="quitado">Quitado</option>
                 <option value="cancelado">Cancelado</option>
               </Select>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Tipo</span>
+            </ListFilterField>
+            <ListFilterField label="Tipo">
               <Select name="tipo" defaultValue={clean(params.tipo)}>
                 <option value="">Todos</option>
                 <option value="extrajudicial">Extrajudicial</option>
                 <option value="judicial">Judicial</option>
               </Select>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Data início</span>
+            </ListFilterField>
+            <ListFilterField label="Data início">
               <Input name="data_de" type="date" defaultValue={dateFilter(params.data_de)} />
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Data fim</span>
+            </ListFilterField>
+            <ListFilterField label="Data fim">
               <Input name="data_ate" type="date" defaultValue={dateFilter(params.data_ate)} />
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ordenar por</span>
+            </ListFilterField>
+            <ListFilterField label="Ordenar por">
               <Select name="ordenar" defaultValue={clean(params.ordenar) || 'condominio'}>
                 <option value="condominio">Condomínio</option>
                 <option value="unidade">Unidade</option>
@@ -233,17 +231,15 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                 <option value="valor_desc">Maior valor</option>
                 <option value="valor_asc">Menor valor</option>
               </Select>
-            </label>
-
+            </ListFilterField>
             <Button type="submit">Filtrar</Button>
-            {hasFilters ? <ButtonLink href="/app/acordos" variant="secondary">Limpar</ButtonLink> : null}
-          </form>
-        </div>
+          </ListFiltersForm>
+        </ListPanelHeader>
 
         {rows.length === 0 ? (
-          <div className="p-3"><EmptyState title="Nenhum acordo encontrado" description="Crie acordos a partir das cobranças negociadas." /></div>
+          <ListEmptyState title="Nenhum acordo encontrado" description="Crie acordos a partir das cobranças negociadas." />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <ListRows>
             {groups.map((group) => (
               <section key={group.condominioId} className="bg-white">
                 <div className="flex items-center justify-between gap-3 bg-slate-50/70 px-4 py-2.5">
@@ -254,24 +250,42 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                 </div>
                 <div className="divide-y divide-slate-100">
                   {group.acordos.map((row: any) => (
-                    <Link key={row.id} href={`/app/acordos/${row.id}`} className="group grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.4fr)_120px_140px_150px_90px] xl:items-center">
+                    <Link
+                      key={row.id}
+                      href={`/app/acordos/${row.id}`}
+                      className="group grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.4fr)_120px_140px_150px_90px] xl:items-center"
+                    >
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2"><StatusBadge status={row.status} /><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.tipo}</span></div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge status={row.status} />
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.tipo}</span>
+                        </div>
                         <p className="mt-2 truncate text-sm font-medium text-slate-950">{getUnitLabel(row.unidades)}</p>
-                        <p className="mt-1 truncate text-xs text-slate-500">{row.unidades?.responsavel_nome ?? 'Responsável não informado'} {row.numero_processo ? `· proc. ${row.numero_processo}` : ''}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {row.unidades?.responsavel_nome ?? 'Responsável não informado'} {row.numero_processo ? `· proc. ${row.numero_processo}` : ''}
+                        </p>
                       </div>
-                      <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor</p><p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado))}</p></div>
-                      <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Saúde</p><div className="mt-1"><AgreementHealthBadge health={row.saude_acordo} /></div></div>
-                      <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Data</p><p className="mt-1 text-sm text-slate-700">{formatDateBR(row.data_acordo)}</p></div>
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado))}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Saúde</p>
+                        <div className="mt-1"><AgreementHealthBadge health={row.saude_acordo} /></div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Data</p>
+                        <p className="mt-1 text-sm text-slate-700">{formatDateBR(row.data_acordo)}</p>
+                      </div>
                       <div className="flex justify-end"><ArrowUpRight size={16} className="text-slate-400 group-hover:text-[var(--gkli-primary)]" /></div>
                     </Link>
                   ))}
                 </div>
               </section>
             ))}
-          </div>
+          </ListRows>
         )}
-      </Card>
-    </div>
+      </ListPanel>
+    </ListPage>
   )
 }

@@ -1,12 +1,25 @@
 import Link from 'next/link'
-import { ArrowUpRight, Building2, Download, Edit3, Filter, Plus, Search, X } from 'lucide-react'
+import { ArrowUpRight, Building2, Download, Edit3, Filter, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
-import { EmptyState } from '@/components/data/empty-state'
+import {
+  ClearFiltersLink,
+  ListEmptyState,
+  ListFilterField,
+  ListFiltersForm,
+  ListKpiGrid,
+  ListPage,
+  ListPanel,
+  ListPanelHeader,
+  ListRow,
+  ListRows,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from '@/components/layout/list-page'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
@@ -73,9 +86,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
   const filtrosAtivos = hasCondominioFilters(filters) || ordenar !== 'nome'
   const exportParams = new URLSearchParams()
 
-  if (filters.carteiraId) {
-    exportParams.set('carteira_id', filters.carteiraId)
-  }
+  if (filters.carteiraId) exportParams.set('carteira_id', filters.carteiraId)
 
   const exportCondominiosHref = `/api/condominios/exportacoes/condominios${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
   const ativos = rows.filter((row: any) => row.status === 'ativo').length
@@ -87,7 +98,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
     : 0
 
   return (
-    <div className="space-y-3">
+    <ListPage>
       <PageHeader
         eyebrow="Base Cadastral"
         title="Condomínios"
@@ -106,7 +117,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
         }
       />
 
-      <section className="grid gap-2 md:grid-cols-3">
+      <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
         <Card className="relative overflow-hidden p-3">
           <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <Building2 size={18} />
@@ -114,84 +125,53 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativos</p>
           <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{ativos}</p>
         </Card>
-
         <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Régua média</p>
           <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">D+{mediaRegua}</p>
         </Card>
-
         <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Cota média</p>
           <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{formatCurrency(ticketMedio)}</p>
         </Card>
-      </section>
+      </ListKpiGrid>
 
-      <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 px-4 py-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <h2 className="text-base font-medium text-slate-950">Base cadastral</h2>
-              
-            </div>
+      <ListPanel>
+        <ListPanelHeader>
+          <ListTitleBar>
+            <ListTitle title="Base cadastral" />
+            <ClearFiltersLink href="/app/condominios" show={filtrosAtivos} />
+          </ListTitleBar>
 
-            {filtrosAtivos ? (
-              <ButtonLink href="/app/condominios" variant="secondary" size="sm">
-                <X size={15} />
-                Limpar filtros
-              </ButtonLink>
-            ) : null}
-          </div>
-
-          <form className="mt-3 grid gap-3 lg:grid-cols-[minmax(220px,1.4fr)_minmax(180px,.9fr)_minmax(180px,.9fr)_150px_190px_auto] lg:items-end">
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>
-              <div className="relative">
-                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input
-                  name="q"
-                  className="pl-9"
-                  placeholder="Nome, nome operacional, CNPJ ou administradora"
-                  defaultValue={filters.search ?? ''}
-                />
-              </div>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Carteira</span>
+          <ListFiltersForm className="lg:grid-cols-[minmax(220px,1.4fr)_minmax(180px,.9fr)_minmax(180px,.9fr)_150px_190px_auto] lg:items-end">
+            <ListSearchField
+              placeholder="Nome, nome operacional, CNPJ ou administradora"
+              defaultValue={filters.search ?? ''}
+            />
+            <ListFilterField label="Carteira">
               <Select name="carteira_id" defaultValue={filters.carteiraId ?? ''}>
                 <option value="">Todas</option>
                 {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>
-                    {carteira.nome}
-                  </option>
+                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
                 ))}
               </Select>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Administradora</span>
+            </ListFilterField>
+            <ListFilterField label="Administradora">
               <Select name="administradora" defaultValue={filters.administradora ?? ''}>
                 <option value="">Todas</option>
                 {administradoras.map((administradora) => (
-                  <option key={administradora} value={administradora}>
-                    {administradora}
-                  </option>
+                  <option key={administradora} value={administradora}>{administradora}</option>
                 ))}
               </Select>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Status</span>
+            </ListFilterField>
+            <ListFilterField label="Status">
               <Select name="status" defaultValue={filters.status ?? ''}>
                 <option value="">Todos</option>
                 <option value="ativo">Ativo</option>
                 <option value="inativo">Inativo</option>
                 <option value="suspenso">Suspenso</option>
               </Select>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ordenar por</span>
+            </ListFilterField>
+            <ListFilterField label="Ordenar por">
               <Select name="ordenar" defaultValue={ordenar}>
                 <option value="nome">Nome</option>
                 <option value="administradora">Administradora</option>
@@ -202,40 +182,37 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                 <option value="cota_desc">Maior cota</option>
                 <option value="cota_asc">Menor cota</option>
               </Select>
-            </label>
-
+            </ListFilterField>
             <Button type="submit" className="lg:w-auto">
               <Filter size={16} />
               Filtrar
             </Button>
-          </form>
-        </div>
+          </ListFiltersForm>
+        </ListPanelHeader>
 
         {rows.length === 0 ? (
-          <div className="p-3">
-            <EmptyState
-              title="Nenhum condomínio encontrado"
-              description="Ajuste os filtros ou cadastre/importe condomínios para compor a base cadastral."
-            />
-          </div>
+          <ListEmptyState
+            title="Nenhum condomínio encontrado"
+            description="Ajuste os filtros ou cadastre/importe condomínios para compor a base cadastral."
+          />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <ListRows>
             {rows.map((row: any) => (
-              <div
+              <ListRow
                 key={row.id}
-                className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.5fr)_110px_140px_130px_160px_170px] xl:items-center"
+                className="xl:grid-cols-[minmax(320px,1.5fr)_110px_140px_130px_160px_170px]"
               >
                 <Link href={`/app/condominios/${row.id}`} className="group min-w-0">
                   <p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]">
                     {row.nome_operacional || row.nome || 'Nome não informado'}
                   </p>
                   <p className="mt-1 truncate text-xs text-slate-500">
-                    {row.nome_operacional && row.nome_operacional !== row.nome ? `Oficial: ${row.nome} · ` : ''}{row.administradora ?? '-'} · CNPJ {row.cnpj ?? '-'} · {row.carteiras?.nome ?? '-'}
+                    {row.nome_operacional && row.nome_operacional !== row.nome ? `Oficial: ${row.nome} · ` : ''}
+                    {row.administradora ?? '-'} · CNPJ {row.cnpj ?? '-'} · {row.carteiras?.nome ?? '-'}
                   </p>
                 </Link>
 
                 <ClassificacaoOperacionalBadge value={row.classificacao_operacional} />
-
                 <StatusBadge status={row.status} />
 
                 <div>
@@ -260,11 +237,11 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                     Editar
                   </ButtonLink>
                 </div>
-              </div>
+              </ListRow>
             ))}
-          </div>
+          </ListRows>
         )}
-        </Card>
-    </div>
+      </ListPanel>
+    </ListPage>
   )
 }

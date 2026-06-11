@@ -9,18 +9,31 @@ import {
   MessageSquareWarning,
   PlayCircle,
   RotateCcw,
-  Search,
   SearchCheck,
-  X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { Button, ButtonLink } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
+import {
+  ClearFiltersLink,
+  ListEmptyState,
+  ListFilterField,
+  ListFiltersForm,
+  ListKpiGrid,
+  ListPage,
+  ListPanel,
+  ListPanelHeader,
+  ListRow,
+  ListRows,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from '@/components/layout/list-page'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { listPendenciasOperacionais, getPendenciasResumo } from '@/features/pendencias/queries'
+import { getPendenciasResumo, listPendenciasOperacionais } from '@/features/pendencias/queries'
 import { iniciarTratamentoPendencia, reabrirPendencia, resolverPendencia } from '@/features/pendencias/actions'
 import type { PendenciaOperacional, PendenciaPrioridade, PendenciaStatus } from '@/features/pendencias/types'
 import { cn } from '@/lib/utils'
@@ -190,7 +203,7 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row">
+    <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
       {pendencia.status === 'aberta' ? (
         <form action={async (formData) => {
           'use server'
@@ -215,47 +228,53 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
   )
 }
 
-function PendenciaCard({ pendencia }: { pendencia: PendenciaOperacional }) {
+function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
   const atrasada = isAtrasada(pendencia)
 
   return (
-    <Card className="p-0">
-      <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium', prioridadeClasses[pendencia.prioridade])}>
-              {pendencia.prioridade === 'critica' ? <AlertTriangle size={13} /> : null}
-              {prioridadeLabel[pendencia.prioridade] ?? pendencia.prioridade}
+    <ListRow className="xl:grid-cols-[minmax(320px,1.4fr)_150px_170px_190px_180px] xl:items-center">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium', prioridadeClasses[pendencia.prioridade])}>
+            {pendencia.prioridade === 'critica' ? <AlertTriangle size={13} /> : null}
+            {prioridadeLabel[pendencia.prioridade] ?? pendencia.prioridade}
+          </span>
+          <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium', statusClasses[pendencia.status])}>
+            {statusLabel[pendencia.status] ?? pendencia.status}
+          </span>
+          {atrasada ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700">
+              <Clock3 size={13} />
+              Atrasada
             </span>
-            <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium', statusClasses[pendencia.status])}>
-              {statusLabel[pendencia.status] ?? pendencia.status}
-            </span>
-            {atrasada ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700">
-                <Clock3 size={13} />
-                Atrasada
-              </span>
-            ) : null}
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-              {origemIcon(pendencia.origem)}
-              {origemLabel[pendencia.origem] ?? pendencia.origem}
-            </span>
-          </div>
-
-          <h2 className="mt-1.5 text-base font-semibold tracking-[-0.02em] text-slate-950">{pendencia.titulo}</h2>
-          {pendencia.descricao ? <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{pendencia.descricao}</p> : null}
-
-          <div className="mt-3 grid gap-2 text-[12px] text-slate-500 sm:grid-cols-2 lg:grid-cols-4">
-            <span>Tipo: <strong className="text-slate-700">{pendencia.tipo}</strong></span>
-            <span>Prazo: <strong className={cn(atrasada ? 'text-rose-700' : 'text-slate-700')}>{formatDateTime(pendencia.prazo_limite)}</strong></span>
-            <span>Responsável: <strong className="text-slate-700">{pendencia.responsavel_nome ?? 'Não definido'}</strong></span>
-            <span>Criada em: <strong className="text-slate-700">{formatDateTime(pendencia.created_at)}</strong></span>
-          </div>
+          ) : null}
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+            {origemIcon(pendencia.origem)}
+            {origemLabel[pendencia.origem] ?? pendencia.origem}
+          </span>
         </div>
-
-        <PendenciaActions pendencia={pendencia} />
+        <h2 className="mt-1.5 truncate text-base font-semibold tracking-[-0.02em] text-slate-950">{pendencia.titulo}</h2>
+        {pendencia.descricao ? <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{pendencia.descricao}</p> : null}
       </div>
-        </Card>
+
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Tipo</p>
+        <p className="mt-1 truncate text-sm text-slate-700">{pendencia.tipo}</p>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Prazo</p>
+        <p className={cn('mt-1 text-sm', atrasada ? 'font-semibold text-rose-700' : 'text-slate-700')}>{formatDateTime(pendencia.prazo_limite)}</p>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Responsável</p>
+        <p className="mt-1 truncate text-sm text-slate-700">{pendencia.responsavel_nome ?? 'Não definido'}</p>
+        <p className="mt-1 text-xs text-slate-500">Criada em {formatDateTime(pendencia.created_at)}</p>
+      </div>
+
+      <PendenciaActions pendencia={pendencia} />
+    </ListRow>
   )
 }
 
@@ -271,71 +290,113 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
   const hasFilters = Boolean(params.q || params.status || params.prioridade || params.origem || params.tipo || params.data_de || params.data_ate || params.ordenar)
 
   return (
-    <div className="space-y-3">
+    <ListPage>
       <PageHeader
         title="Central de Pendências"
         description="Fila única para acompanhar travas operacionais, solicitações externas, acordos críticos e pontos que exigem ação do time."
       />
 
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Abertas</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-slate-950">{resumo.totalAbertas}</p>
+      <ListKpiGrid>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Abertas</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{resumo.totalAbertas}</p>
         </Card>
-        <Card>
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Críticas</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-rose-700">{resumo.criticas}</p>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Críticas</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-rose-700">{resumo.criticas}</p>
         </Card>
-        <Card>
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Atrasadas</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-amber-700">{resumo.atrasadas}</p>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Atrasadas</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-amber-700">{resumo.atrasadas}</p>
         </Card>
-        <Card>
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">ADM / Acordos</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-[-0.04em] text-slate-950">{resumo.administrativas + resumo.acordos}</p>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">ADM / Acordos</p>
+          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{resumo.administrativas + resumo.acordos}</p>
         </Card>
-      </div>
+      </ListKpiGrid>
 
-      <Card className="space-y-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-950"><Filter size={16} />Filtros</div>
-          {hasFilters ? <ButtonLink href="/app/pendencias" variant="secondary" size="sm"><X size={15} />Limpar filtros</ButtonLink> : null}
-        </div>
+      <ListPanel>
+        <ListPanelHeader>
+          <ListTitleBar>
+            <ListTitle title="Fila de pendências" />
+            <ClearFiltersLink href="/app/pendencias" show={hasFilters} />
+          </ListTitleBar>
 
-        <form className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_150px_150px_170px_180px_155px_155px_190px_auto] xl:items-end">
-          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span><div className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="q" defaultValue={clean(params.q)} className="pl-9" placeholder="Título, tipo, responsável..." /></div></label>
-          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Status</span><Select name="status" defaultValue={clean(params.status)}><option value="">Todos</option><option value="aberta">Aberta</option><option value="em_tratamento">Em tratamento</option><option value="resolvida">Resolvida</option><option value="cancelada">Cancelada</option></Select></label>
-          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Prioridade</span><Select name="prioridade" defaultValue={clean(params.prioridade)}><option value="">Todas</option><option value="critica">Crítica</option><option value="alta">Alta</option><option value="normal">Normal</option><option value="baixa">Baixa</option></Select></label>
-          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Origem</span><Select name="origem" defaultValue={clean(params.origem)}><option value="">Todas</option>{Object.entries(origemLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
-          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Tipo</span><Select name="tipo" defaultValue={clean(params.tipo)}><option value="">Todos</option>{tipos.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}</Select></label>
-          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Data início</span><Input name="data_de" type="date" defaultValue={dateValue(params.data_de)} /></label>
-          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Data fim</span><Input name="data_ate" type="date" defaultValue={dateValue(params.data_ate)} /></label>
-          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ordenar por</span><Select name="ordenar" defaultValue={clean(params.ordenar) || 'prazo_asc'}><option value="prazo_asc">Prazo mais próximo</option><option value="prazo_desc">Prazo mais distante</option><option value="created_desc">Mais recentes</option><option value="created_asc">Mais antigas</option><option value="prioridade">Prioridade</option><option value="status">Status</option><option value="origem">Origem</option><option value="tipo">Tipo</option></Select></label>
-          <Button type="submit"><Filter size={16} />Filtrar</Button>
-        </form>
+          <ListFiltersForm className="xl:grid-cols-[minmax(220px,1fr)_150px_150px_170px_180px_155px_155px_190px_auto]">
+            <ListSearchField defaultValue={clean(params.q)} placeholder="Título, tipo, responsável..." />
+            <ListFilterField label="Status">
+              <Select name="status" defaultValue={clean(params.status)}>
+                <option value="">Todos</option>
+                <option value="aberta">Aberta</option>
+                <option value="em_tratamento">Em tratamento</option>
+                <option value="resolvida">Resolvida</option>
+                <option value="cancelada">Cancelada</option>
+              </Select>
+            </ListFilterField>
+            <ListFilterField label="Prioridade">
+              <Select name="prioridade" defaultValue={clean(params.prioridade)}>
+                <option value="">Todas</option>
+                <option value="critica">Crítica</option>
+                <option value="alta">Alta</option>
+                <option value="normal">Normal</option>
+                <option value="baixa">Baixa</option>
+              </Select>
+            </ListFilterField>
+            <ListFilterField label="Origem">
+              <Select name="origem" defaultValue={clean(params.origem)}>
+                <option value="">Todas</option>
+                {Object.entries(origemLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </Select>
+            </ListFilterField>
+            <ListFilterField label="Tipo">
+              <Select name="tipo" defaultValue={clean(params.tipo)}>
+                <option value="">Todos</option>
+                {tipos.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}
+              </Select>
+            </ListFilterField>
+            <ListFilterField label="Data início">
+              <Input name="data_de" type="date" defaultValue={dateValue(params.data_de)} />
+            </ListFilterField>
+            <ListFilterField label="Data fim">
+              <Input name="data_ate" type="date" defaultValue={dateValue(params.data_ate)} />
+            </ListFilterField>
+            <ListFilterField label="Ordenar por">
+              <Select name="ordenar" defaultValue={clean(params.ordenar) || 'prazo_asc'}>
+                <option value="prazo_asc">Prazo mais próximo</option>
+                <option value="prazo_desc">Prazo mais distante</option>
+                <option value="created_desc">Mais recentes</option>
+                <option value="created_asc">Mais antigas</option>
+                <option value="prioridade">Prioridade</option>
+                <option value="status">Status</option>
+                <option value="origem">Origem</option>
+                <option value="tipo">Tipo</option>
+              </Select>
+            </ListFilterField>
+            <Button type="submit"><Filter size={16} />Filtrar</Button>
+          </ListFiltersForm>
 
-        <div className="flex flex-wrap gap-2">
-          <FilterLink href="/app/pendencias" active={statusAtual === 'todos' && origemAtual === 'todos'}>Todas</FilterLink>
-          <FilterLink href="/app/pendencias?status=aberta" active={statusAtual === 'aberta'}>Abertas</FilterLink>
-          <FilterLink href="/app/pendencias?status=em_tratamento" active={statusAtual === 'em_tratamento'}>Em tratamento</FilterLink>
-          <FilterLink href="/app/pendencias?prioridade=critica" active={params.prioridade === 'critica'}>Críticas</FilterLink>
-          <FilterLink href="/app/pendencias?origem=administradora" active={origemAtual === 'administradora'}>Administradoras</FilterLink>
-          <FilterLink href="/app/pendencias?origem=acordo" active={origemAtual === 'acordo'}>Acordos</FilterLink>
-          <FilterLink href="/app/pendencias?origem=mensageria" active={origemAtual === 'mensageria'}>Mensageria</FilterLink>
-        </div>
-      </Card>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <FilterLink href="/app/pendencias" active={statusAtual === 'todos' && origemAtual === 'todos'}>Todas</FilterLink>
+            <FilterLink href="/app/pendencias?status=aberta" active={statusAtual === 'aberta'}>Abertas</FilterLink>
+            <FilterLink href="/app/pendencias?status=em_tratamento" active={statusAtual === 'em_tratamento'}>Em tratamento</FilterLink>
+            <FilterLink href="/app/pendencias?prioridade=critica" active={params.prioridade === 'critica'}>Críticas</FilterLink>
+            <FilterLink href="/app/pendencias?origem=administradora" active={origemAtual === 'administradora'}>Administradoras</FilterLink>
+            <FilterLink href="/app/pendencias?origem=acordo" active={origemAtual === 'acordo'}>Acordos</FilterLink>
+            <FilterLink href="/app/pendencias?origem=mensageria" active={origemAtual === 'mensageria'}>Mensageria</FilterLink>
+          </div>
+        </ListPanelHeader>
 
-      <div className="space-y-3">
         {pendencias.length > 0 ? (
-          pendencias.map((pendencia) => <PendenciaCard key={pendencia.id} pendencia={pendencia} />)
+          <ListRows>
+            {pendencias.map((pendencia) => <PendenciaRow key={pendencia.id} pendencia={pendencia} />)}
+          </ListRows>
         ) : (
-          <Card className="py-12 text-center">
-            <SearchCheck className="mx-auto text-slate-400" size={34} />
-            <h2 className="mt-3 text-lg font-semibold text-slate-950">Nenhuma pendência encontrada</h2>
-            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">Quando solicitações ADM, acordos, mensagens ou réguas gerarem travas operacionais, elas aparecerão aqui como fila única de trabalho.</p>
-          </Card>
+          <ListEmptyState
+            title="Nenhuma pendência encontrada"
+            description="Quando solicitações ADM, acordos, mensagens ou réguas gerarem travas operacionais, elas aparecerão aqui como fila única de trabalho."
+          />
         )}
-      </div>
-    </div>
+      </ListPanel>
+    </ListPage>
   )
 }

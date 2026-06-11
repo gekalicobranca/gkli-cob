@@ -17,6 +17,7 @@ import {
   marcarParcelaComoPaga,
   marcarParcelaComoVencida,
   romperAcordoAssistido,
+  solicitarReemissaoParcelaAcordo,
 } from "@/features/acordos/actions";
 import { calculateAgreementHealth, getAcordoDetalhe } from "@/features/acordos/queries";
 import { AgreementHealthBadge } from "@/features/acordos/components/agreement-health-badge";
@@ -149,14 +150,19 @@ function ParcelaActions({
       </form>
 
       {status === "vencida" ? (
-        <button
-          type="button"
+        <form action={solicitarReemissaoParcelaAcordo}>
+          <input type="hidden" name="parcela_id" value={parcela.id} />
+          <input type="hidden" name="acordo_id" value={acordoId} />
+          <PendingSubmitButton
+          variant="secondary"
+          size="sm"
           disabled={!podeReemitir}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition enabled:hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          pendingLabel="Solicitando..."
           title={diasReemissao === 0 ? "Este condomínio não permite reemissão de parcela vencida." : "Reemissão dentro da janela operacional do condomínio."}
         >
           Reemitir boleto
-        </button>
+          </PendingSubmitButton>
+        </form>
       ) : null}
     </div>
   );
@@ -235,7 +241,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
 
   if (!data?.acordo) notFound();
 
-  const { acordo, parcelas, timeline, cobrancasVinculadas, responsavelApoio } = data;
+  const { acordo, parcelas, timeline, cobrancasVinculadas, responsavelApoio, revisoes } = data;
 
   const entrada = parcelas.find((parcela: any) => parcela.tipo === "entrada");
   const parcelasNormais = parcelas.filter(
@@ -367,6 +373,41 @@ export default async function AcordoDetalhePage({ params }: Props) {
       </div>
 
       <AgreementFormalizationCard acordo={acordo} />
+
+      {Array.isArray(revisoes) && revisoes.length > 0 ? (
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="space-y-4 p-5">
+            <SectionTitle
+              title="RevisÃµes do acordo"
+              description="HistÃ³rico de ajustes formais por reemissÃ£o de parcela."
+              count={revisoes.length}
+            />
+            <div className="grid gap-3 md:grid-cols-2">
+              {revisoes.map((revisao: any) => (
+                <div key={revisao.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Badge value={revisao.status} />
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      {formatDate(revisao.created_at)}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Valor</p>
+                      <p className="mt-1 font-semibold text-slate-950">{formatCurrency(revisao.valor_anterior)} {"->"} {formatCurrency(revisao.valor_novo ?? revisao.valor_anterior)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Vencimento</p>
+                      <p className="mt-1 font-semibold text-slate-950">{formatDate(revisao.vencimento_anterior)} {"->"} {formatDate(revisao.vencimento_novo)}</p>
+                    </div>
+                  </div>
+                  {revisao.motivo ? <p className="mt-3 text-sm text-slate-500">{revisao.motivo}</p> : null}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-5">
         <Card className="xl:col-span-2">

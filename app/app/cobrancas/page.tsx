@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, Plus, Search, WalletCards } from "lucide-react";
+import { ArrowUpRight, CalendarDays, Plus, WalletCards } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import {
@@ -9,11 +9,21 @@ import {
   LiteScrollArea,
   LiteWorkArea,
 } from "@/components/layout/lite-page-shell";
+import {
+  ClearFiltersLink,
+  ListEmptyState,
+  ListFilterField,
+  ListFiltersForm,
+  ListPanel,
+  ListPanelHeader,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from "@/components/layout/list-page";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/data/status-badge";
-import { EmptyState } from "@/components/data/empty-state";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
@@ -249,19 +259,14 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
       </LiteKpiStrip>
 
       <LiteWorkArea>
-        <Card className="flex h-full min-h-0 flex-col overflow-hidden p-0">
-          <div className="border-b border-slate-100 bg-white/80 px-4 py-3">
+        <ListPanel className="flex h-full min-h-0 flex-col">
+          <ListPanelHeader className="bg-white/80">
             <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                <div>
-                  <h2 className="text-base font-medium text-slate-950">
-                    Fila operacional
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Filtre, selecione cobranças e aplique mudanças operacionais em lote.
-                  </p>
-                </div>
-
+              <ListTitleBar className="xl:items-center">
+                <ListTitle
+                  title="Fila operacional"
+                  description="Filtre, selecione cobranças e aplique mudanças operacionais em lote."
+                />
                 <div className="flex flex-wrap gap-2">
                   {showingJudicializadas ? (
                     <ButtonLink href={hideJudicializadasHref} variant="secondary">
@@ -272,76 +277,57 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                       Incluir judicializadas
                     </ButtonLink>
                   )}
-                  {hasFilters ? (
-                    <ButtonLink href="/app/cobrancas" variant="secondary">
-                      Limpar filtros
-                    </ButtonLink>
-                  ) : null}
+                  <ClearFiltersLink href="/app/cobrancas" show={hasFilters} />
                 </div>
-              </div>
+              </ListTitleBar>
 
-              <form className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_180px_170px_170px_210px_190px_110px]">
-                <div className="relative">
-                  <Search
-                    size={16}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
-                  <Input
-                    name="q"
-                    defaultValue={filters.search}
-                    className="pl-9"
-                    placeholder="Buscar responsável, unidade, bloco..."
-                  />
-                </div>
-                <Select name="status" defaultValue={filters.status}>
-                  <option value="">Todos os status</option>
-                  {STATUS_FILTERS.map((status) => (
-                    <option key={status} value={status}>
-                      {COBRANCA_STATUS_LABEL[status]}
-                    </option>
-                  ))}
-                </Select>
-                <Input
-                  name="vencimento_de"
-                  type="date"
-                  defaultValue={filters.vencimentoDe}
-                  aria-label="Vencimento de"
-                />
-                <Input
-                  name="vencimento_ate"
-                  type="date"
-                  defaultValue={filters.vencimentoAte}
-                  aria-label="Vencimento até"
-                />
-                <Select name="judicializacao_unidade" defaultValue={filters.judicializacaoUnidade}>
-                  <option value="nao">Extrajudicial</option>
-                  <option value="todos">Incluir judicializadas</option>
-                  <option value="sim">Somente judicializadas</option>
-                </Select>
-                <Select name="ordenar" defaultValue={filters.ordenar}>
-                  <option value="vencimento_asc">Vencimento antigo</option>
-                  <option value="vencimento_desc">Vencimento recente</option>
-                  <option value="valor_desc">Maior valor</option>
-                  <option value="valor_asc">Menor valor</option>
-                  <option value="condominio">Condomínio</option>
-                  <option value="unidade">Unidade</option>
-                  <option value="responsavel">Responsável</option>
-                  <option value="status">Status</option>
-                </Select>
-                <Button type="submit" variant="secondary">
-                  Filtrar
-                </Button>
-              </form>
+              <ListFiltersForm className="mt-0 xl:grid-cols-[minmax(220px,1fr)_180px_170px_170px_210px_190px_110px]">
+                <ListSearchField defaultValue={filters.search} placeholder="Buscar responsável, unidade, bloco..." />
+                <ListFilterField label="Status">
+                  <Select name="status" defaultValue={filters.status}>
+                    <option value="">Todos os status</option>
+                    {STATUS_FILTERS.map((status) => (
+                      <option key={status} value={status}>
+                        {COBRANCA_STATUS_LABEL[status]}
+                      </option>
+                    ))}
+                  </Select>
+                </ListFilterField>
+                <ListFilterField label="Vencimento de">
+                  <Input name="vencimento_de" type="date" defaultValue={filters.vencimentoDe} />
+                </ListFilterField>
+                <ListFilterField label="Vencimento até">
+                  <Input name="vencimento_ate" type="date" defaultValue={filters.vencimentoAte} />
+                </ListFilterField>
+                <ListFilterField label="Judicialização">
+                  <Select name="judicializacao_unidade" defaultValue={filters.judicializacaoUnidade}>
+                    <option value="nao">Extrajudicial</option>
+                    <option value="todos">Incluir judicializadas</option>
+                    <option value="sim">Somente judicializadas</option>
+                  </Select>
+                </ListFilterField>
+                <ListFilterField label="Ordenar por">
+                  <Select name="ordenar" defaultValue={filters.ordenar}>
+                    <option value="vencimento_asc">Vencimento antigo</option>
+                    <option value="vencimento_desc">Vencimento recente</option>
+                    <option value="valor_desc">Maior valor</option>
+                    <option value="valor_asc">Menor valor</option>
+                    <option value="condominio">Condomínio</option>
+                    <option value="unidade">Unidade</option>
+                    <option value="responsavel">Responsável</option>
+                    <option value="status">Status</option>
+                  </Select>
+                </ListFilterField>
+                <Button type="submit" variant="secondary">Filtrar</Button>
+              </ListFiltersForm>
             </div>
-          </div>
+          </ListPanelHeader>
 
           {rows.length === 0 ? (
-            <div className="p-3">
-              <EmptyState
-                title="Nenhuma cobrança encontrada"
-                description="Ajuste os filtros ou importe/cadastre cobranças para iniciar a operação."
-              />
-            </div>
+            <ListEmptyState
+              title="Nenhuma cobrança encontrada"
+              description="Ajuste os filtros ou importe/cadastre cobranças para iniciar a operação."
+            />
           ) : (
             <form action={updateCobrancasStatusEmLote} className="flex min-h-0 flex-1 flex-col">
               <CobrancasBulkControls />
@@ -444,7 +430,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
               </LiteScrollArea>
             </form>
           )}
-        </Card>
+        </ListPanel>
       </LiteWorkArea>
     </LitePageShell>
   );

@@ -28,6 +28,7 @@ export type PendenciaOperacional = {
   responsavel_id: string | null
   responsavel_nome: string | null
   prazo_limite: string | null
+  payload?: Record<string, unknown> | null
   resolvido_em: string | null
   created_at: string
   updated_at: string

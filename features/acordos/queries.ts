@@ -249,6 +249,16 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
     );
   }
 
+  const { data: revisoes, error: revisoesError } = await supabase
+    .from("acordos_revisoes")
+    .select("*")
+    .eq("acordo_id", id)
+    .order("created_at", { ascending: false });
+
+  if (revisoesError && revisoesError.code !== "42P01") {
+    throw new Error(`Erro ao carregar revisÃµes do acordo: ${revisoesError.message}`);
+  }
+
   const parcelasNormalizadas = ((parcelas ?? []) as any[]).map((parcela) => ({
     ...parcela,
     tipo: parcela.tipo_parcela ?? parcela.tipo ?? "parcela",
@@ -259,6 +269,7 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
   return {
     acordo,
     responsavelApoio,
+    revisoes: revisoes ?? [],
     cobrancasVinculadas: cobrancasVinculadas ?? [],
     parcelas: parcelasNormalizadas,
     timeline: [

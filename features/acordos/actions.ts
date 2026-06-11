@@ -76,6 +76,44 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(String(value).includes("T") ? value : `${value}T00:00:00`));
 }
 
+function buildResumoReemissaoParcela(params: {
+  condominioNome?: string | null;
+  unidadeLabel: string;
+  responsavelNome?: string | null;
+  parcelaNumero?: number | string | null;
+  valorAnterior: number;
+  valorNovo: number;
+  vencimentoAnterior?: string | null;
+  vencimentoNovo?: string | null;
+  motivo?: string | null;
+}) {
+  const diferenca = roundMoney(params.valorNovo - params.valorAnterior);
+  const linhas = [
+    "Prezado(a),",
+    "",
+    "Registramos uma atualização na parcela do acordo em razão de reemissão de boleto.",
+    "",
+    `Condomínio: ${params.condominioNome ?? "não informado"}`,
+    `Unidade: ${params.unidadeLabel}`,
+    `Responsável: ${params.responsavelNome ?? "não informado"}`,
+    `Parcela: ${params.parcelaNumero ?? "-"}`,
+    "",
+    "Resumo da alteração:",
+    `Valor anterior: ${formatBRL(params.valorAnterior)}`,
+    `Novo valor: ${formatBRL(params.valorNovo)}`,
+    `Diferença: ${formatBRL(diferenca)}`,
+    `Vencimento anterior: ${formatDate(params.vencimentoAnterior)}`,
+    `Novo vencimento: ${formatDate(params.vencimentoNovo)}`,
+  ];
+
+  if (params.motivo) {
+    linhas.push(`Motivo: ${params.motivo}`);
+  }
+
+  linhas.push("", "A nova via do boleto será encaminhada assim que estiver disponível.", "", "Atenciosamente,", "GKLI Cobrança");
+  return linhas.join("\n");
+}
+
 async function inserirMensagemEmail(supabase: any, payload: Record<string, any>) {
   const { data, error } = await supabase.from("mensagens").insert({
     carteira_id: payload.carteira_id,
@@ -1450,7 +1488,44 @@ export async function solicitarReemissaoParcelaAcordo(formData: FormData) {
       .filter(Boolean)
       .join(" · ") || "Unidade não informada";
 
-    const { error: insertError } = await supabase.from("central_pendencias").insert({
+    const { data: revisao, error: revisaoError } = await supabase
+      .from("acordos_revisoes")
+      .insert({
+        carteira_id: (acordo as any).carteira_id,
+        acordo_id: acordoId,
+        parcela_id: parcelaId,
+        tipo: "reemissao_parcela",
+        status: "pendente_ajuste",
+        valor_anterior: Number((parcela as any).valor ?? 0),
+        vencimento_anterior: (parcela as any).vencimento ?? null,
+        criado_por: user?.id ?? null,
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (revisaoError && revisaoError.code !== "23505") {
+      throw new Error(`Erro ao criar revisão de reemissão: ${revisaoError.message}`);
+    }
+
+    let revisaoId = (revisao as any)?.id ?? null;
+    if (!revisaoId) {
+      const { data: revisaoExistente, error: revisaoExistenteError } = await supabase
+        .from("acordos_revisoes")
+        .select("id")
+        .eq("tipo", "reemissao_parcela")
+        .eq("parcela_id", parcelaId)
+        .in("status", ["pendente_ajuste", "ajuste_registrado", "boleto_solicitado", "boleto_enviado"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (revisaoExistenteError && revisaoExistenteError.code !== "PGRST116") {
+        throw new Error(`Erro ao localizar revisão de reemissão: ${revisaoExistenteError.message}`);
+      }
+      revisaoId = (revisaoExistente as any)?.id ?? null;
+    }
+
+    const { data: pendenciaCriada, error: insertError } = await supabase.from("central_pendencias").insert({
       carteira_id: (acordo as any).carteira_id,
       origem: "acordo",
       tipo: "reemissao_boleto_parcela_acordo",
@@ -1471,11 +1546,30 @@ export async function solicitarReemissaoParcelaAcordo(formData: FormData) {
       cobranca_id: (acordo as any).cobranca_id,
       acordo_id: acordoId,
       administradora_id: condominio?.administradora_id ?? null,
-      responsavel_nome: unidade?.responsavel_nome ?? null,
-    });
+      payload: {
+        revisao_id: revisaoId,
+        parcela_id: parcelaId,
+        parcela_numero: (parcela as any).numero ?? null,
+        valor_anterior: Number((parcela as any).valor ?? 0),
+        vencimento_anterior: (parcela as any).vencimento ?? null,
+        etapa: "pendente_ajuste",
+      },
+    }).select("id").maybeSingle();
 
     if (insertError) throw new Error(`Erro ao criar pendência de reemissão: ${insertError.message}`);
+
+    if (revisaoId && (pendenciaCriada as any)?.id) {
+      await supabase
+        .from("acordos_revisoes")
+        .update({ pendencia_id: (pendenciaCriada as any).id, updated_at: new Date().toISOString() })
+        .eq("id", revisaoId);
+    }
   }
+
+  await supabase
+    .from("acordos")
+    .update({ fluxo_status: "reaberto_reemissao" })
+    .eq("id", acordoId);
 
   await registrarEventoOperacional(supabase as any, {
     carteiraId: (acordo as any).carteira_id ?? null,
@@ -1494,6 +1588,324 @@ export async function solicitarReemissaoParcelaAcordo(formData: FormData) {
   revalidatePath("/app/acordos/fila");
   revalidatePath("/app/pendencias");
   revalidatePath("/app/gestao/acionamentos-acordos");
+  revalidatePath(`/app/acordos/${acordoId}`);
+}
+
+export async function registrarAjusteReemissaoParcelaAcordo(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+
+  const pendenciaId = String(formData.get("pendencia_id") ?? "").trim();
+  const revisaoId = String(formData.get("revisao_id") ?? "").trim();
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+  const parcelaId = String(formData.get("parcela_id") ?? "").trim();
+  const valorNovo = toNumber(formData.get("valor_novo"));
+  const vencimentoNovo = String(formData.get("vencimento_novo") ?? "").trim();
+  const motivo = String(formData.get("motivo") ?? "").trim();
+
+  if (!pendenciaId || !revisaoId || !acordoId || !parcelaId) {
+    throw new Error("Pendência, revisão, acordo e parcela são obrigatórios.");
+  }
+  if (valorNovo <= 0) throw new Error("Informe o novo valor da parcela.");
+  if (!vencimentoNovo) throw new Error("Informe o novo vencimento da parcela.");
+
+  const supabase = await createClient();
+  const scope = await getPermittedCarteiras();
+
+  const { data: acordo, error: acordoError } = await supabase
+    .from("acordos")
+    .select(`
+      id,
+      carteira_id,
+      condominio_id,
+      unidade_id,
+      cobranca_id,
+      valor_acordado,
+      condominios:condominio_id (id, nome),
+      unidades:unidade_id (id, identificacao, bloco, responsavel_nome, email)
+    `)
+    .eq("id", acordoId)
+    .maybeSingle();
+
+  if (acordoError) throw new Error(`Erro ao carregar acordo: ${acordoError.message}`);
+  if (!acordo) throw new Error("Acordo não encontrado.");
+  assertCarteiraPermitida(scope, (acordo as any).carteira_id);
+
+  const { data: parcela, error: parcelaError } = await supabase
+    .from("parcelas_acordo")
+    .select("id, acordo_id, numero, valor, vencimento, status")
+    .eq("id", parcelaId)
+    .eq("acordo_id", acordoId)
+    .maybeSingle();
+
+  if (parcelaError) throw new Error(`Erro ao carregar parcela: ${parcelaError.message}`);
+  if (!parcela) throw new Error("Parcela não encontrada.");
+
+  const { data: revisao, error: revisaoError } = await supabase
+    .from("acordos_revisoes")
+    .select("*")
+    .eq("id", revisaoId)
+    .eq("acordo_id", acordoId)
+    .eq("parcela_id", parcelaId)
+    .maybeSingle();
+
+  if (revisaoError) throw new Error(`Erro ao carregar revisão: ${revisaoError.message}`);
+  if (!revisao) throw new Error("Revisão de reemissão não encontrada.");
+
+  const unidade = (acordo as any).unidades;
+  const condominio = (acordo as any).condominios;
+  const unidadeLabel = [unidade?.bloco ? `Bloco ${unidade.bloco}` : null, unidade?.identificacao ? `Unidade ${unidade.identificacao}` : null]
+    .filter(Boolean)
+    .join(" · ") || "Unidade não informada";
+  const valorAtualParcela = Number((parcela as any).valor ?? 0);
+  const valorAcordadoAtual = Number((acordo as any).valor_acordado ?? 0);
+  const novoValorAcordado = Math.max(0, roundMoney(valorAcordadoAtual + (valorNovo - valorAtualParcela)));
+  const resumo = buildResumoReemissaoParcela({
+    condominioNome: condominio?.nome ?? null,
+    unidadeLabel,
+    responsavelNome: unidade?.responsavel_nome ?? null,
+    parcelaNumero: (parcela as any).numero ?? null,
+    valorAnterior: Number((revisao as any).valor_anterior ?? valorAtualParcela),
+    valorNovo,
+    vencimentoAnterior: (revisao as any).vencimento_anterior ?? (parcela as any).vencimento,
+    vencimentoNovo,
+    motivo,
+  });
+
+  const mensagemId = await inserirMensagemEmail(supabase, {
+    carteira_id: (acordo as any).carteira_id,
+    contexto: "acordo",
+    acordo_id: acordoId,
+    cobranca_id: (acordo as any).cobranca_id ?? null,
+    destinatario: unidade?.email ?? null,
+    assunto: "Resumo de atualização do acordo",
+    conteudo: resumo,
+    origem_evento: "acordo_reemissao_resumo_devedor",
+    payload: { revisao_id: revisaoId, parcela_id: parcelaId, pendencia_id: pendenciaId },
+  });
+
+  const now = new Date().toISOString();
+  const { error: parcelaUpdateError } = await supabase
+    .from("parcelas_acordo")
+    .update({
+      valor: valorNovo,
+      vencimento: vencimentoNovo,
+      valor_original_reemissao: (revisao as any).valor_anterior ?? valorAtualParcela,
+      vencimento_original_reemissao: (revisao as any).vencimento_anterior ?? (parcela as any).vencimento,
+      reemissao_revisao_id: revisaoId,
+      updated_at: now,
+    })
+    .eq("id", parcelaId);
+
+  if (parcelaUpdateError) throw new Error(`Erro ao atualizar parcela reemitida: ${parcelaUpdateError.message}`);
+
+  const { error: acordoUpdateError } = await supabase
+    .from("acordos")
+    .update({ valor_acordado: novoValorAcordado, fluxo_status: "reemissao_ajuste_registrado" })
+    .eq("id", acordoId);
+
+  if (acordoUpdateError) throw new Error(`Erro ao reabrir acordo para ajuste: ${acordoUpdateError.message}`);
+
+  const { error: revisaoUpdateError } = await supabase
+    .from("acordos_revisoes")
+    .update({
+      status: "ajuste_registrado",
+      valor_novo: valorNovo,
+      vencimento_novo: vencimentoNovo,
+      motivo: motivo || null,
+      resumo_devedor: resumo,
+      mensagem_resumo_id: mensagemId,
+      updated_at: now,
+    })
+    .eq("id", revisaoId);
+
+  if (revisaoUpdateError) throw new Error(`Erro ao registrar revisão do acordo: ${revisaoUpdateError.message}`);
+
+  const { error: pendenciaUpdateError } = await supabase
+    .from("central_pendencias")
+    .update({
+      status: "em_tratamento",
+      titulo: "Reemissão de parcela ajustada",
+      descricao: `Ajuste registrado para a parcela ${(parcela as any).numero ?? ""}. Envie o resumo ao devedor e solicite a nova via do boleto.`,
+      payload: {
+        revisao_id: revisaoId,
+        parcela_id: parcelaId,
+        parcela_numero: (parcela as any).numero ?? null,
+        valor_anterior: Number((revisao as any).valor_anterior ?? valorAtualParcela),
+        valor_novo: valorNovo,
+        vencimento_anterior: (revisao as any).vencimento_anterior ?? (parcela as any).vencimento,
+        vencimento_novo: vencimentoNovo,
+        mensagem_resumo_id: mensagemId,
+        etapa: "ajuste_registrado",
+      },
+      updated_at: now,
+    })
+    .eq("id", pendenciaId);
+
+  if (pendenciaUpdateError) throw new Error(`Erro ao atualizar pendência de reemissão: ${pendenciaUpdateError.message}`);
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (acordo as any).carteira_id ?? null,
+    entidadeTipo: "acordo",
+    entidadeId: acordoId,
+    eventoCodigo: "acordo.reemissao_ajuste_registrado",
+    titulo: "Ajuste de reemissão registrado",
+    descricao: `Parcela ${(parcela as any).numero ?? ""} ajustada para ${formatBRL(valorNovo)} com vencimento em ${formatDate(vencimentoNovo)}.`,
+    severidade: "info",
+    payload: { revisao_id: revisaoId, parcela_id: parcelaId, valor_novo: valorNovo, vencimento_novo: vencimentoNovo },
+    origem: "manual",
+    auditavel: true,
+    userId: user?.id ?? null,
+  });
+
+  revalidatePath("/app/gestao/acionamentos-acordos");
+  revalidatePath("/app/acordos/fila");
+  revalidatePath(`/app/acordos/${acordoId}`);
+}
+
+export async function solicitarBoletoReemissaoAcordo(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+
+  const pendenciaId = String(formData.get("pendencia_id") ?? "").trim();
+  const revisaoId = String(formData.get("revisao_id") ?? "").trim();
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+  if (!pendenciaId || !revisaoId || !acordoId) throw new Error("Pendência, revisão e acordo são obrigatórios.");
+
+  const supabase = await createClient();
+  const scope = await getPermittedCarteiras();
+  const { data: revisao, error: revisaoError } = await supabase
+    .from("acordos_revisoes")
+    .select("id, carteira_id, acordo_id, parcela_id")
+    .eq("id", revisaoId)
+    .eq("acordo_id", acordoId)
+    .maybeSingle();
+
+  if (revisaoError) throw new Error(`Erro ao carregar revisão: ${revisaoError.message}`);
+  if (!revisao) throw new Error("Revisão de reemissão não encontrada.");
+  assertCarteiraPermitida(scope, (revisao as any).carteira_id);
+
+  const { data: pendenciaAtual } = await supabase
+    .from("central_pendencias")
+    .select("payload")
+    .eq("id", pendenciaId)
+    .maybeSingle();
+
+  const now = new Date().toISOString();
+  const { error: revisaoUpdateError } = await supabase
+    .from("acordos_revisoes")
+    .update({ status: "boleto_solicitado", updated_at: now })
+    .eq("id", revisaoId);
+  if (revisaoUpdateError) throw new Error(`Erro ao registrar pedido de boleto: ${revisaoUpdateError.message}`);
+
+  await supabase.from("acordos").update({ fluxo_status: "reemissao_boleto_solicitado" }).eq("id", acordoId);
+  await supabase
+    .from("central_pendencias")
+    .update({
+      status: "em_tratamento",
+      payload: { ...((pendenciaAtual as any)?.payload ?? {}), revisao_id: revisaoId, etapa: "boleto_solicitado" },
+      updated_at: now,
+    })
+    .eq("id", pendenciaId);
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (revisao as any).carteira_id ?? null,
+    entidadeTipo: "acordo",
+    entidadeId: acordoId,
+    eventoCodigo: "acordo.reemissao_boleto_solicitado",
+    titulo: "Boleto de reemissão solicitado",
+    descricao: "Operador registrou o pedido da nova via do boleto.",
+    severidade: "info",
+    payload: { revisao_id: revisaoId, parcela_id: (revisao as any).parcela_id ?? null },
+    origem: "manual",
+    auditavel: true,
+    userId: user?.id ?? null,
+  });
+
+  revalidatePath("/app/gestao/acionamentos-acordos");
+  revalidatePath(`/app/acordos/${acordoId}`);
+}
+
+export async function marcarBoletoReemissaoEnviado(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+
+  const pendenciaId = String(formData.get("pendencia_id") ?? "").trim();
+  const revisaoId = String(formData.get("revisao_id") ?? "").trim();
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+  const boletoUrl = String(formData.get("boleto_url") ?? "").trim();
+  if (!pendenciaId || !revisaoId || !acordoId) throw new Error("Pendência, revisão e acordo são obrigatórios.");
+
+  const supabase = await createClient();
+  const scope = await getPermittedCarteiras();
+  const { data: revisao, error: revisaoError } = await supabase
+    .from("acordos_revisoes")
+    .select("id, carteira_id, acordo_id, parcela_id, vencimento_novo")
+    .eq("id", revisaoId)
+    .eq("acordo_id", acordoId)
+    .maybeSingle();
+
+  if (revisaoError) throw new Error(`Erro ao carregar revisão: ${revisaoError.message}`);
+  if (!revisao) throw new Error("Revisão de reemissão não encontrada.");
+  assertCarteiraPermitida(scope, (revisao as any).carteira_id);
+
+  const { data: pendenciaAtual } = await supabase
+    .from("central_pendencias")
+    .select("payload")
+    .eq("id", pendenciaId)
+    .maybeSingle();
+
+  const vencimentoNovo = (revisao as any).vencimento_novo ? new Date(`${(revisao as any).vencimento_novo}T00:00:00`) : null;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const statusParcela = vencimentoNovo && vencimentoNovo.getTime() < hoje.getTime()
+    ? PARCELA_ACORDO_STATUS.VENCIDA
+    : PARCELA_ACORDO_STATUS.PENDENTE;
+  const now = new Date().toISOString();
+
+  await supabase
+    .from("parcelas_acordo")
+    .update({ status: statusParcela, reemitida_em: now, updated_at: now })
+    .eq("id", (revisao as any).parcela_id);
+
+  const { error: revisaoUpdateError } = await supabase
+    .from("acordos_revisoes")
+    .update({
+      status: "concluida",
+      boleto_url: boletoUrl || null,
+      concluido_em: now,
+      updated_at: now,
+    })
+    .eq("id", revisaoId);
+  if (revisaoUpdateError) throw new Error(`Erro ao concluir reemissão: ${revisaoUpdateError.message}`);
+
+  await supabase.from("acordos").update({ fluxo_status: "reemissao_boleto_enviado" }).eq("id", acordoId);
+  await supabase
+    .from("central_pendencias")
+    .update({
+      status: "resolvida",
+      resolvido_em: now,
+      payload: { ...((pendenciaAtual as any)?.payload ?? {}), revisao_id: revisaoId, etapa: "boleto_enviado", boleto_url: boletoUrl || null },
+      updated_at: now,
+    })
+    .eq("id", pendenciaId);
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (revisao as any).carteira_id ?? null,
+    entidadeTipo: "acordo",
+    entidadeId: acordoId,
+    eventoCodigo: "acordo.reemissao_boleto_enviado",
+    titulo: "Boleto reemitido enviado",
+    descricao: "Nova via do boleto registrada como enviada ao devedor.",
+    severidade: "sucesso",
+    payload: { revisao_id: revisaoId, parcela_id: (revisao as any).parcela_id ?? null, boleto_url: boletoUrl || null },
+    origem: "manual",
+    auditavel: true,
+    userId: user?.id ?? null,
+  });
+
+  revalidatePath("/app/gestao/acionamentos-acordos");
+  revalidatePath("/app/acordos/fila");
   revalidatePath(`/app/acordos/${acordoId}`);
 }
 

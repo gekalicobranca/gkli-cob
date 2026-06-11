@@ -116,6 +116,7 @@ export async function updateResponsavelUnidade(formData: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
 
   const id = String(formData.get('id') ?? '').trim()
+  const returnTo = String(formData.get('return_to') ?? '').trim()
   const unidade = String(formData.get('unidade') ?? '').trim()
   const bloco = String(formData.get('bloco') ?? '').trim()
   const responsavelNome = String(formData.get('responsavel_nome') ?? '').trim()
@@ -179,4 +180,9 @@ export async function updateResponsavelUnidade(formData: FormData) {
   })
 
   revalidatePath('/app/responsaveis')
+  revalidatePath(`/app/responsaveis/${id}`)
+
+  if (returnTo.startsWith('/app/responsaveis')) {
+    redirect(returnTo)
+  }
 }

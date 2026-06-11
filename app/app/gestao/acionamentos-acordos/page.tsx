@@ -23,7 +23,10 @@ import {
   atualizarStatusBoletosAcordo,
   cancelarFormalizacaoAcordo,
   decidirAprovacaoSindicoAcordo,
+  marcarBoletoReemissaoEnviado,
   registrarAcionamentoManualAcordo,
+  registrarAjusteReemissaoParcelaAcordo,
+  solicitarBoletoReemissaoAcordo,
 } from "@/features/acordos/actions";
 import {
   listAgreementApprovalInbox,
@@ -45,6 +48,7 @@ const activationFilters = [
   { key: "sindico", label: "Síndico" },
   { key: "devedor", label: "Devedor" },
   { key: "boletos", label: "Boletos" },
+  { key: "reemissoes", label: "Reemissões" },
   { key: "pendencias", label: "Pendências" },
 ] as const;
 
@@ -304,6 +308,102 @@ function BoletoRow({ row }: { row: any }) {
   );
 }
 
+function payloadString(payload: Record<string, unknown> | null | undefined, key: string) {
+  const value = payload?.[key];
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function ReemissaoRow({ pendencia }: { pendencia: PendenciaOperacional }) {
+  const payload = pendencia.payload ?? {};
+  const etapa = payloadString(payload, "etapa") || "pendente_ajuste";
+  const revisaoId = payloadString(payload, "revisao_id");
+  const parcelaId = payloadString(payload, "parcela_id") || String(pendencia.entidade_id ?? "");
+  const valorAnterior = Number(payload.valor_anterior ?? 0);
+  const valorNovo = Number(payload.valor_novo ?? payload.valor_anterior ?? 0);
+  const vencimentoAnterior = payloadString(payload, "vencimento_anterior");
+  const vencimentoNovo = payloadString(payload, "vencimento_novo");
+  const podeAjustar = Boolean(revisaoId && parcelaId && pendencia.acordo_id);
+  const ajusteRegistrado = ["ajuste_registrado", "boleto_solicitado", "boleto_enviado"].includes(etapa);
+
+  return (
+    <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_360px_260px] xl:items-start">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={etapa === "boleto_solicitado" ? "blue" : ajusteRegistrado ? "green" : "yellow"}>
+            {etapa.replace(/_/g, " ")}
+          </Badge>
+          <Badge tone="slate">{pendencia.status}</Badge>
+        </div>
+        <Link href={pendencia.acordo_id ? `/app/acordos/${pendencia.acordo_id}` : "/app/pendencias"} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
+          {pendencia.titulo}
+        </Link>
+        <p className="mt-1 line-clamp-2 text-xs text-slate-500">{pendencia.descricao ?? "Sem descrição."}</p>
+        <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2">
+          <span>Valor anterior: {formatCurrency(valorAnterior)}</span>
+          <span>Vencimento anterior: {formatDateBR(vencimentoAnterior)}</span>
+          {ajusteRegistrado ? <span>Novo valor: {formatCurrency(valorNovo)}</span> : null}
+          {ajusteRegistrado ? <span>Novo vencimento: {formatDateBR(vencimentoNovo)}</span> : null}
+        </div>
+      </div>
+
+      <form action={registrarAjusteReemissaoParcelaAcordo} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+        <input type="hidden" name="pendencia_id" value={pendencia.id} />
+        <input type="hidden" name="revisao_id" value={revisaoId} />
+        <input type="hidden" name="acordo_id" value={pendencia.acordo_id ?? ""} />
+        <input type="hidden" name="parcela_id" value={parcelaId} />
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="space-y-1">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Novo valor</span>
+            <input
+              name="valor_novo"
+              defaultValue={valorNovo ? valorNovo.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""}
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[var(--gkli-primary)] focus:ring-2 focus:ring-[var(--gkli-primary)]/10"
+              placeholder="0,00"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Novo vencimento</span>
+            <input
+              type="date"
+              name="vencimento_novo"
+              defaultValue={vencimentoNovo}
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[var(--gkli-primary)] focus:ring-2 focus:ring-[var(--gkli-primary)]/10"
+            />
+          </label>
+        </div>
+        <Textarea name="motivo" placeholder="Motivo do ajuste" className="min-h-[68px]" />
+        <PendingSubmitButton disabled={!podeAjustar} size="sm" className="w-full" icon={<CheckCircle2 size={14} />} pendingLabel="Salvando ajuste...">
+          Salvar ajuste e gerar resumo
+        </PendingSubmitButton>
+      </form>
+
+      <div className="space-y-2">
+        <form action={solicitarBoletoReemissaoAcordo}>
+          <input type="hidden" name="pendencia_id" value={pendencia.id} />
+          <input type="hidden" name="revisao_id" value={revisaoId} />
+          <input type="hidden" name="acordo_id" value={pendencia.acordo_id ?? ""} />
+          <PendingSubmitButton disabled={!podeAjustar || !ajusteRegistrado} variant="secondary" size="sm" className="w-full" icon={<ReceiptText size={14} />} pendingLabel="Solicitando...">
+            Solicitar boleto
+          </PendingSubmitButton>
+        </form>
+        <form action={marcarBoletoReemissaoEnviado} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3">
+          <input type="hidden" name="pendencia_id" value={pendencia.id} />
+          <input type="hidden" name="revisao_id" value={revisaoId} />
+          <input type="hidden" name="acordo_id" value={pendencia.acordo_id ?? ""} />
+          <input
+            name="boleto_url"
+            placeholder="Link do boleto, se houver"
+            className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[var(--gkli-primary)] focus:ring-2 focus:ring-[var(--gkli-primary)]/10"
+          />
+          <PendingSubmitButton disabled={!podeAjustar || !["boleto_solicitado", "ajuste_registrado"].includes(etapa)} size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700" icon={<Mail size={14} />} pendingLabel="Concluindo...">
+            Boleto enviado
+          </PendingSubmitButton>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
   return (
     <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_170px_220px] xl:items-center">
@@ -361,11 +461,16 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
     listAgreementManualActivationInbox(scope, "devedor"),
     listAgreementApprovalInbox(scope),
     listAgreementBoletoInbox(scope),
-    listPendenciasOperacionais(scope, { status: "aberta" }),
+    listPendenciasOperacionais(scope),
   ]);
 
   const sindicoTermByAcordo = new Map(sindicoTerms.map((term) => [term.acordoId, term]));
-  const pendenciasImplantacao = pendencias
+  const pendenciasAbertas = pendencias.filter((pendencia) => !["resolvida", "cancelada"].includes(pendencia.status));
+  const reemissoesPendentes = pendenciasAbertas
+    .filter((pendencia) => pendencia.origem === "acordo")
+    .filter((pendencia) => pendencia.tipo === "reemissao_boleto_parcela_acordo")
+    .slice(0, 20);
+  const pendenciasImplantacao = pendenciasAbertas
     .filter((pendencia) => ["acordo", "administradora"].includes(pendencia.origem))
     .filter((pendencia) => [
       "planilha_debitos_administradora",
@@ -389,11 +494,12 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Síndico</p><p className="mt-2 text-3xl font-semibold text-slate-950">{aprovacoes.length}</p></Card>
         <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Devedor</p><p className="mt-2 text-3xl font-semibold text-slate-950">{devedorTerms.length}</p></Card>
         <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Boletos</p><p className="mt-2 text-3xl font-semibold text-slate-950">{boletos.length}</p></Card>
-        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Pend?ncias</p><p className="mt-2 text-3xl font-semibold text-slate-950">{pendenciasImplantacao.length}</p></Card>
+        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Reemissões</p><p className="mt-2 text-3xl font-semibold text-slate-950">{reemissoesPendentes.length}</p></Card>
+        <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Pendências</p><p className="mt-2 text-3xl font-semibold text-slate-950">{pendenciasImplantacao.length}</p></Card>
         <Card className="p-4"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acionados</p><p className="mt-2 text-3xl font-semibold text-slate-950">{sindicoTerms.filter((row) => row.mensagemAcionadaManual).length + devedorTerms.filter((row) => row.mensagemAcionadaManual).length}</p></Card>
       </section>
 
@@ -450,6 +556,19 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
           hasRows={boletos.length > 0}
         >
           {boletos.map((row: any) => <BoletoRow key={row.id} row={row} />)}
+        </SectionShell>
+      ) : null}
+
+      {shouldShowSection(tipoFiltro, "reemissoes") ? (
+        <SectionShell
+          title="Reemissões de parcelas"
+          description="Ajuste formal de valor e vencimento, resumo ao devedor e controle da nova via do boleto."
+          icon={ReceiptText}
+          emptyTitle="Sem reemissões pendentes"
+          emptyDescription="Nenhuma parcela de acordo está aguardando reemissão agora."
+          hasRows={reemissoesPendentes.length > 0}
+        >
+          {reemissoesPendentes.map((pendencia) => <ReemissaoRow key={pendencia.id} pendencia={pendencia} />)}
         </SectionShell>
       ) : null}
 

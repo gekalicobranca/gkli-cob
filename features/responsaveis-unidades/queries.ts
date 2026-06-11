@@ -127,3 +127,23 @@ export async function listResponsaveisUnidades(scope: CarteiraScope, filters: Re
 
   return normalizeRelationsList((data ?? []) as any[], ['condominios', 'carteiras']) as any[]
 }
+
+export async function getResponsavelUnidadeById(scope: CarteiraScope, id: string) {
+  if (!id) return null
+
+  const supabase = await createClient()
+  let query = supabase
+    .from('responsaveis_unidades')
+    .select(RESPONSAVEL_SELECT)
+    .eq('id', id)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  const { data, error } = await query.maybeSingle()
+
+  if (error) {
+    throw new Error(`Erro ao carregar responsável: ${error.message}`)
+  }
+
+  return normalizeRelationsList(data ? [data as any] : [], ['condominios', 'carteiras'])[0] ?? null
+}

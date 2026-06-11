@@ -1,12 +1,25 @@
 import Link from 'next/link'
-import { ArrowUpRight, Download, Edit3, Filter, Home, Plus, Search, X } from 'lucide-react'
+import { ArrowUpRight, Download, Edit3, Filter, Home, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
-import { EmptyState } from '@/components/data/empty-state'
+import {
+  ClearFiltersLink,
+  ListEmptyState,
+  ListFilterField,
+  ListFiltersForm,
+  ListKpiGrid,
+  ListPage,
+  ListPanel,
+  ListPanelHeader,
+  ListRow,
+  ListRows,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from '@/components/layout/list-page'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
 import { updateUnidadesStatusEmLote } from '@/features/unidades/actions'
@@ -65,13 +78,8 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   const filtrosAtivos = hasUnidadeFilters(filters) || ordenar !== 'condominio'
   const exportParams = new URLSearchParams()
 
-  if (filters.carteiraId) {
-    exportParams.set('carteira_id', filters.carteiraId)
-  }
-
-  if (filters.condominioId) {
-    exportParams.set('condominio_id', filters.condominioId)
-  }
+  if (filters.carteiraId) exportParams.set('carteira_id', filters.carteiraId)
+  if (filters.condominioId) exportParams.set('condominio_id', filters.condominioId)
 
   const exportUnidadesHref = `/api/unidades/exportacoes/unidades${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
   const ativas = rows.filter((row: any) => row.status === 'ativa').length
@@ -79,7 +87,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   const semEmail = rows.filter((row: any) => !row.email).length
 
   return (
-    <div className="space-y-3">
+    <ListPage>
       <PageHeader
         eyebrow="Base Cadastral"
         title="Unidades"
@@ -98,7 +106,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
         }
       />
 
-      <section className="grid gap-2 md:grid-cols-3">
+      <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
         <Card className="relative overflow-hidden p-3">
           <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <Home size={18} />
@@ -106,91 +114,61 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativas</p>
           <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{ativas}</p>
         </Card>
-
         <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sem telefone</p>
           <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{semTelefone}</p>
         </Card>
-
         <Card className="p-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sem e-mail</p>
           <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{semEmail}</p>
         </Card>
-      </section>
+      </ListKpiGrid>
 
-      <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 px-4 py-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <h2 className="text-base font-medium text-slate-950">Base de unidades</h2>
+      <ListPanel>
+        <ListPanelHeader>
+          <ListTitleBar>
+            <ListTitle title="Base de unidades" />
+            <ClearFiltersLink href="/app/unidades" show={filtrosAtivos} />
+          </ListTitleBar>
 
-            {filtrosAtivos ? (
-              <ButtonLink href="/app/unidades" variant="secondary" size="sm">
-                <X size={15} />
-                Limpar filtros
-              </ButtonLink>
-            ) : null}
-          </div>
-
-          <form className="mt-3 grid gap-3 xl:grid-cols-[minmax(220px,1.3fr)_minmax(180px,.85fr)_minmax(220px,1fr)_140px_170px_180px_auto] xl:items-end">
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>
-              <div className="relative">
-                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input
-                  name="q"
-                  className="pl-9"
-                  placeholder="Unidade, condomínio, bloco, responsável, CPF/CNPJ, telefone ou e-mail"
-                  defaultValue={filters.search ?? ''}
-                />
-              </div>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Carteira</span>
+          <ListFiltersForm className="xl:grid-cols-[minmax(220px,1.3fr)_minmax(180px,.85fr)_minmax(220px,1fr)_140px_170px_180px_auto]">
+            <ListSearchField
+              placeholder="Unidade, condomínio, bloco, responsável, CPF/CNPJ, telefone ou e-mail"
+              defaultValue={filters.search ?? ''}
+            />
+            <ListFilterField label="Carteira">
               <Select name="carteira_id" defaultValue={filters.carteiraId ?? ''}>
                 <option value="">Todas</option>
                 {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>
-                    {carteira.nome}
-                  </option>
+                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
                 ))}
               </Select>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Condomínio</span>
+            </ListFilterField>
+            <ListFilterField label="Condomínio">
               <Select name="condominio_id" defaultValue={filters.condominioId ?? ''}>
                 <option value="">Todos</option>
                 {condominios.map((condominio: any) => (
-                  <option key={condominio.id} value={condominio.id}>
-                    {condominio.nome}
-                  </option>
+                  <option key={condominio.id} value={condominio.id}>{condominio.nome}</option>
                 ))}
               </Select>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Status</span>
+            </ListFilterField>
+            <ListFilterField label="Status">
               <Select name="status" defaultValue={filters.status ?? ''}>
                 <option value="">Todos</option>
                 <option value="ativa">Ativa</option>
                 <option value="inativa">Inativa</option>
                 <option value="suspensa">Suspensa</option>
               </Select>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Contato</span>
+            </ListFilterField>
+            <ListFilterField label="Contato">
               <Select name="contato" defaultValue={filters.contato ?? ''}>
                 <option value="">Todos</option>
                 <option value="sem_telefone">Sem telefone</option>
                 <option value="sem_email">Sem e-mail</option>
                 <option value="incompleto">Cadastro incompleto</option>
               </Select>
-            </label>
-
-            <label className="space-y-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ordenar por</span>
+            </ListFilterField>
+            <ListFilterField label="Ordenar por">
               <Select name="ordenar" defaultValue={ordenar}>
                 <option value="condominio">Condomínio</option>
                 <option value="unidade">Unidade</option>
@@ -198,30 +176,27 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                 <option value="status">Status</option>
                 <option value="carteira">Carteira</option>
               </Select>
-            </label>
-
+            </ListFilterField>
             <Button type="submit" className="xl:w-auto">
               <Filter size={16} />
               Filtrar
             </Button>
-          </form>
-        </div>
+          </ListFiltersForm>
+        </ListPanelHeader>
 
         {rows.length === 0 ? (
-          <div className="p-3">
-            <EmptyState
-              title="Nenhuma unidade encontrada"
-              description="Ajuste os filtros ou cadastre/importe unidades para iniciar a operação."
-            />
-          </div>
+          <ListEmptyState
+            title="Nenhuma unidade encontrada"
+            description="Ajuste os filtros ou cadastre/importe unidades para iniciar a operação."
+          />
         ) : (
           <form action={updateUnidadesStatusEmLote}>
             <UnidadesBulkControls />
-            <div className="divide-y divide-slate-100">
+            <ListRows>
               {rows.map((row: any) => (
-                <div
+                <ListRow
                   key={row.id}
-                  className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[40px_minmax(300px,1.35fr)_120px_170px_220px_170px] xl:items-center"
+                  className="xl:grid-cols-[40px_minmax(300px,1.35fr)_120px_170px_220px_170px]"
                 >
                   <label className="flex items-center xl:justify-center">
                     <input
@@ -265,12 +240,12 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                       Editar
                     </ButtonLink>
                   </div>
-                </div>
+                </ListRow>
               ))}
-            </div>
+            </ListRows>
           </form>
         )}
-      </Card>
-    </div>
+      </ListPanel>
+    </ListPage>
   )
 }
