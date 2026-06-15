@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, Eye, Lock, Mail } from 'lucide-react'
+import { ArrowRight, BookOpen, Download, Eye, Lock, Mail } from 'lucide-react'
 
 export function GKLIloginPage({ errorMessage }: { errorMessage?: string }) {
   return (
@@ -121,6 +121,40 @@ export function GKLIloginPage({ errorMessage }: { errorMessage?: string }) {
                 <ArrowRight size={20} className="transition group-hover:translate-x-1" />
               </button>
             </form>
+
+            <div className="mt-6 rounded-2xl border border-[#d7e8ee] bg-[#f5fafc] p-4">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#e4f3f8] text-[#004b63]">
+                  <BookOpen size={18} />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-[#19364a]">
+                    Manual operacional
+                  </p>
+                  <p className="mt-1 text-sm leading-5 text-slate-500">
+                    Consulte o guia de Inbox, Cadastros e Operação antes de entrar.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    <Link
+                      href="/manual-operacional.html"
+                      target="_blank"
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-[#005f7c] transition hover:text-[#004b63]"
+                    >
+                      Abrir manual
+                      <ArrowRight size={15} />
+                    </Link>
+                    <Link
+                      href="/manual-operacional.pdf"
+                      target="_blank"
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-[#005f7c] transition hover:text-[#004b63]"
+                    >
+                      Baixar PDF
+                      <Download size={15} />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div className="mt-8 text-center text-sm text-slate-400">
               © 2026 GKIT Tecnologia Aplicada

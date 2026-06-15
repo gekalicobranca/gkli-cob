@@ -6,6 +6,23 @@ O GKLI Cobranca e uma plataforma operacional para cobranca condominial extrajudi
 
 Esta especificacao consolida a visao funcional e tecnica observada no modelo de dados, nos modulos da aplicacao e nas entregas documentadas. O documento deve ser tratado como vivo: cada fluxo implementado, ajustado ou descoberto deve atualizar aqui a regra de negocio, a fonte de dados e as pendencias conhecidas.
 
+## Marco atual - Inbox, Operacao e Cadastros manuais
+
+Em 2026-06-11, a etapa de Inbox, Operacao com intervencao manual e Cadastros operacionais foi consolidada como pronta para uso assistido em implantacao.
+
+Escopo fechado neste marco:
+
+- Inbox operacional como fila unica do dia;
+- listas de cobrancas, acordos, parcelas de acordo e pendencias com filtros, busca e ordenacao padronizados;
+- operacao extrajudicial por padrao, com judicializadas exibidas somente quando o operador solicitar;
+- criacao de acordo a partir da selecao de cobrancas/unidade;
+- cadastros de condominios, unidades, responsaveis e administradoras;
+- feedback visual de clique/processamento e tratamento de erro de modulo.
+
+Ficam fora deste marco: Mensageria automatizada e Gestao. Esses modulos seguem documentados apenas no nivel conceitual desta especificacao e devem ter revisao propria antes de serem considerados prontos.
+
+Manual operacional: `docs/operacao-cadastros-inbox-manual.md`.
+
 ## 2. Pilares do produto
 
 ### 2.1 Dados e importacao
@@ -47,10 +64,13 @@ Responsavel pelo trabalho diario do operador: priorizar, contatar, negociar, for
 Escopo funcional:
 
 - criar e acompanhar cobrancas por carteira, condominio e unidade;
+- operar a fila unica do Inbox operacional;
 - registrar status operacional e financeiro da cobranca;
 - centralizar a visao da cobranca em um workspace operacional;
 - gerar acordos extrajudiciais ou judiciais;
 - registrar entrada, parcelas, pagamentos, quebras, quitacoes e renegociacoes;
+- acompanhar parcelas de acordo por vencimento, com confirmacao manual de pagamento e pedido de reemissao;
+- tratar pendencias operacionais manuais que destravam acordo, boleto, aceite ou reemissao;
 - bloquear formalizacao quando houver regra operacional pendente, como planilha de debitos desatualizada;
 - registrar timeline de eventos relevantes.
 
@@ -177,9 +197,23 @@ Responsabilidades:
 
 - vincular responsavel, telefone, e-mail e identificacao;
 - agrupar cobrancas e acordos;
+- indicar judicializacao ativa quando a unidade deve sair da operacao extrajudicial padrao;
 - apoiar contato e historico operacional.
 
-### 4.4 Cobranca
+### 4.4 Responsavel de unidade
+
+Representa a pessoa ou empresa associada a uma unidade para contato, cobranca ou formalizacao de acordo.
+
+Tabela/visao operacional: `responsaveis_unidades`
+
+Responsabilidades:
+
+- manter cadastro proprio de responsaveis sem expor todos os dados pessoais diretamente nas listas;
+- classificar o responsavel como `proprietario`, `inquilino` ou `nao_informado`;
+- vincular responsavel a condominio, unidade e carteira;
+- alimentar detalhe do acordo com a classificacao do responsavel quando houver vinculo.
+
+### 4.5 Cobranca
 
 Representa um debito ou agrupamento operacional de debitos em cobranca.
 
@@ -198,7 +232,7 @@ Estados observados:
 - operacional: `novo`, `em_cobranca_ativa`, `em_negociacao`, `acordo_firmado`, `acordo_efetivado`, `judicializado`, `suspenso`;
 - financeiro: `em_aberto`, `parcial`, `quitado`, `vencido`, `renegociado`.
 
-### 4.5 Acordo
+### 4.6 Acordo
 
 Representa uma negociacao formalizada ou em acompanhamento.
 
@@ -223,7 +257,7 @@ Estados observados:
 - `cancelado`
 - `renegociado`
 
-### 4.6 Administradora
+### 4.7 Administradora
 
 Ator operacional que fornece planilhas, boletos e retornos necessarios para a cobranca.
 
@@ -240,10 +274,12 @@ Responsabilidades:
 
 - vincular condominios a uma administradora;
 - registrar contatos e preferencias de recebimento;
+- indicar se a administradora tem acesso para gerar acordo;
+- permitir cadastro sem e-mail geral obrigatorio quando os contatos especificos ainda nao estiverem completos;
 - gerar solicitacoes rastreaveis com codigo GKLI-ADM;
 - controlar retorno manual hoje e preparar retorno automatico futuro.
 
-### 4.7 Regua
+### 4.8 Regua
 
 Conjunto de etapas de comunicacao ou acao operacional.
 
@@ -264,7 +300,7 @@ Responsabilidades:
 - pausar automacao quando houver impedimento operacional;
 - alimentar mensagens e timeline.
 
-### 4.8 Mensagem
+### 4.9 Mensagem
 
 Registro de comunicacao gerada, aprovada, enviada ou retornada.
 
@@ -322,7 +358,26 @@ Criterios de aceite:
 - automacao bloqueada deve impedir novas acoes automaticas sem impedir acoes manuais autorizadas;
 - dashboards devem refletir status operacional e financeiro separadamente.
 
-### 5.3 Formalizacao de acordo
+### 5.3 Inbox operacional e intervencao manual
+
+Fluxo esperado:
+
+1. Operador inicia o dia pelo Inbox operacional.
+2. Sistema apresenta filas priorizadas: hoje, criticos, acordos em risco, negociacoes e sem retorno.
+3. Operador abre o item diretamente na cobranca, acordo, pendencia ou workspace.
+4. Operador executa a acao manual aplicavel.
+5. Sistema mostra feedback de processamento e registra efeito operacional quando houver mudanca sensivel.
+6. Listas de apoio permitem refinamento por busca, data, status, tipo, condominio e ordenacao.
+
+Criterios de aceite:
+
+- Inbox deve direcionar para o item acionavel sem exigir nova busca;
+- acoes manuais devem ter indicacao visual de clique/processamento;
+- listas operacionais devem manter filtro extrajudicial por padrao;
+- judicializadas so entram na lista de cobranca quando o operador solicitar;
+- pendencias resolvidas devem refletir no fluxo de origem quando houver vinculo.
+
+### 5.4 Formalizacao de acordo
 
 Fluxo esperado:
 
@@ -341,7 +396,7 @@ Criterios de aceite:
 - status financeiro do acordo deve refletir pagamentos e vencimentos;
 - renegociacao deve manter vinculo com acordo de origem.
 
-### 5.4 Acompanhamento de parcelas de acordo
+### 5.5 Acompanhamento de parcelas de acordo
 
 Fluxo esperado:
 
@@ -351,14 +406,17 @@ Fluxo esperado:
 4. Em atraso relevante, sistema aciona regua de acordo ou pendencia operacional.
 5. Quitacao de todas as parcelas encerra o acordo como `quitado`.
 6. Inadimplencia persistente pode marcar acordo como `quebrado`.
+7. Quando o condominio permitir reemissao, operador pode pedir reemissao pela fila de parcelas, gerando pendencia operacional para ajuste e novo envio.
 
 Criterios de aceite:
 
 - pagamento de entrada deve atualizar campos de entrada;
 - atraso deve distinguir `em_atraso`, `vencido` e `quebrado` conforme regra;
+- operador pode confirmar pagamento e solicitar reemissao pela fila sem abrir o detalhe;
+- rompimento nao deve depender de clique manual simples do operador;
 - toda mudanca automatica precisa registrar origem e horario.
 
-### 5.5 Regua de cobranca
+### 5.6 Regua de cobranca
 
 Fluxo esperado:
 
@@ -375,7 +433,7 @@ Criterios de aceite:
 - dry run do scheduler deve mostrar impacto sem alterar registros;
 - falhas devem ficar rastreaveis em job/log.
 
-### 5.6 Regua de acordo
+### 5.7 Regua de acordo
 
 Fluxo esperado:
 
@@ -390,7 +448,7 @@ Criterios de aceite:
 - acordo quitado/cancelado/quebrado nao deve seguir regua normal;
 - comunicacoes devem apontar para acordo e parcela quando possivel.
 
-### 5.7 Solicitacoes para administradora
+### 5.8 Solicitacoes para administradora
 
 Fluxo esperado:
 
@@ -408,7 +466,7 @@ Criterios de aceite:
 - retorno manual deve preservar observacao e origem;
 - estrutura deve permitir troca futura para Microsoft Graph sem mudar modelo principal.
 
-### 5.8 Portal do sindico
+### 5.9 Portal do sindico
 
 Fluxo esperado:
 
@@ -540,15 +598,19 @@ Mapa inicial entre dominio e codigo:
 
 | Dominio | Pasta principal | Rotas/API relacionadas |
 | --- | --- | --- |
-| Cobrancas | `features/cobrancas` | `app/app/cobrancas`, `app/app/workspace/[id]` |
-| Acordos | `features/acordos` | `app/aceite-acordo/[token]`, `app/api/jobs/acordos/check-status` |
+| Inbox operacional | `features/cockpit` | `app/app/inbox`, `app/app/workspace/[id]` |
+| Cobrancas | `features/cobrancas` | `app/app/cobrancas`, `app/app/cobrancas/[id]`, `app/app/workspace/[id]` |
+| Acordos | `features/acordos` | `app/app/acordos`, `app/app/acordos/fila`, `app/app/acordos/[id]`, `app/app/acordos/selecionar`, `app/aceite-acordo/[token]`, `app/api/jobs/acordos/check-status` |
 | Importacoes | `features/importacoes` | `app/api/conversao-relatorio/*` |
 | Conversao de relatorios | `features/conversao-relatorio` | `app/app/conversao-relatorio` |
 | Reguas | `features/regua`, `features/reguas` | `app/api/regua/scheduler`, `app/api/regua/processar` |
 | Mensageria | `features/mensageria` | modulos internos de renderizacao/envio |
-| Administradoras | `features/administradoras` | `app/app/administradoras` |
+| Condominios | `features/condominios` | `app/app/condominios`, `app/app/condominios/[id]`, `app/app/condominios/novo` |
+| Unidades | `features/unidades` | `app/app/unidades`, `app/app/unidades/[id]` |
+| Responsaveis | `features/responsaveis-unidades` | `app/app/responsaveis`, `app/app/responsaveis/[id]`, `app/app/responsaveis/novo` |
+| Administradoras | `features/administradoras` | `app/app/administradoras`, `app/app/administradoras/[id]`, `app/app/administradoras/nova` |
 | Timeline | `features/timeline` | usado por cobrancas/acordos/operacional |
-| Pendencias | `features/pendencias` | `app/app/agenda` |
+| Pendencias | `features/pendencias` | `app/app/pendencias` |
 | IA | `features/ia`, `features/ai` | `app/api/ia/chat` |
 | Agente automatico | `features/agente-automatico` | `app/app/agente-automatico` |
 | Analytics/Dashboard | `features/analytics`, `features/dashboard` | `app/app/analitica`, dashboard interno |
@@ -598,6 +660,8 @@ Acao recomendada:
 Criar checklist de seguranca por query/action: filtra carteira, valida role, registra auditoria quando altera dado sensivel.
 
 ## 10. Prioridade sugerida para evolucao
+
+Observacao: para Inbox, Operacao manual e Cadastros, o marco operacional esta descrito em `docs/operacao-cadastros-inbox-manual.md`. As prioridades abaixo seguem validas para evolucoes de fonte de verdade, automacao, mensageria e gestao.
 
 1. Confirmar fontes de verdade: parcelas de acordo, auditoria, status de cobranca.
 2. Mapear fluxo real de cobranca no codigo e alinhar status/transicoes.

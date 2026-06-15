@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Manual operacional - GKLI Cobrança</title>
+  <style>
+    :root { --ink: #0f172a; --muted: #475569; --soft: #f4f7f9; --line: #dbe4ea; --brand: #004b63; --brand-2: #04799a; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--soft); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; }
+    .hero { background: linear-gradient(135deg, #003d52, #04799a); color: white; padding: 44px 24px 36px; }
+    .hero-inner, .layout { max-width: 1180px; margin: 0 auto; }
+    .eyebrow { display: inline-flex; border: 1px solid rgba(255,255,255,.32); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 18px 0 8px; font-size: clamp(30px, 4vw, 48px); line-height: 1.08; letter-spacing: -0.03em; }
+    .hero p { max-width: 760px; color: rgba(255,255,255,.82); font-size: 17px; }
+    .layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 24px; padding: 24px; align-items: start; }
+    nav { position: sticky; top: 20px; border: 1px solid var(--line); background: rgba(255,255,255,.92); border-radius: 18px; padding: 16px; box-shadow: 0 16px 45px rgba(15,23,42,.08); }
+    nav h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: #64748b; }
+    nav a { display: block; padding: 8px 10px; border-radius: 10px; color: #16445a; font-size: 14px; font-weight: 600; text-decoration: none; }
+    nav a:hover { background: #e8f6fb; color: var(--brand); }
+    main { min-width: 0; border: 1px solid var(--line); background: white; border-radius: 22px; padding: 34px; box-shadow: 0 16px 45px rgba(15,23,42,.08); }
+    h1 + p, h2 + p, h3 + p { margin-top: 6px; }
+    main h1 { color: var(--brand); font-size: 34px; }
+    h2 { margin: 42px 0 12px; padding-top: 10px; border-top: 1px solid #edf2f5; color: var(--brand); font-size: 24px; letter-spacing: -0.02em; }
+    h3 { margin: 26px 0 8px; color: #16364a; font-size: 18px; }
+    p { color: var(--muted); }
+    ul, ol { margin: 10px 0 18px; padding-left: 24px; color: var(--muted); }
+    li { margin: 6px 0; }
+    code { border: 1px solid #dce8ee; border-radius: 7px; background: #f5fafc; padding: 2px 6px; color: #075e78; font-size: .92em; }
+    .top-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(255,255,255,.34); color: white; text-decoration: none; font-weight: 700; }
+    .button.secondary { background: rgba(255,255,255,.12); }
+    .button.light { background: white; color: var(--brand); }
+    .footer { max-width: 1180px; margin: 0 auto; padding: 0 24px 32px; color: #64748b; font-size: 13px; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; padding: 16px; } nav { position: static; } main { padding: 24px 18px; } }
+    @media print { .hero, nav, .footer { display: none; } body { background: white; } .layout { display: block; padding: 0; } main { border: 0; box-shadow: none; padding: 0; } h2 { break-after: avoid; } }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <span class="eyebrow">GKLI Cobrança</span>
+      <h1>Manual operacional</h1>
+      <p>Guia rápido para Inbox, Cadastros e Operação manual durante a implantação assistida.</p>
+      <div class="top-actions">
+        <a class="button light" href="/login">Voltar ao login</a>
+        <a class="button secondary" href="/manual-operacional.pdf" target="_blank">Baixar PDF</a>
+        <a class="button secondary" href="javascript:window.print()">Imprimir ou salvar em PDF</a>
+      </div>
+    </div>
+  </header>
+  <div class="layout">
+    <nav aria-label="Sumário">
+      <h2>Sumário</h2>
+      <a href="#1-visao-geral">Visão geral</a>
+<a href="#2-padrao-comum-das-telas">Padrão comum das telas</a>
+<a href="#3-rotina-recomendada-do-operador">Rotina recomendada do operador</a>
+<a href="#4-inbox-operacional">Inbox operacional</a>
+<a href="#5-operacao-cobrancas">Operação - Cobranças</a>
+<a href="#6-operacao-acordos">Operação - Acordos</a>
+<a href="#7-operacao-parcelas-de-acordos">Operação - Parcelas de acordos</a>
+<a href="#8-operacao-pendencias">Operação - Pendências</a>
+<a href="#9-cadastros-condominios">Cadastros - Condomínios</a>
+<a href="#10-cadastros-unidades">Cadastros - Unidades</a>
+<a href="#11-cadastros-responsaveis">Cadastros - Responsáveis</a>
+<a href="#12-cadastros-administradoras">Cadastros - Administradoras</a>
+<a href="#13-fluxos-praticos">Fluxos práticos</a>
+<a href="#14-cuidados-e-excecoes">Cuidados e exceções</a>
+<a href="#15-checklist-de-implantacao-assistida">Checklist de implantação assistida</a>
+<a href="#16-glossario-rapido">Glossário rápido</a>
+    </nav>
+    <main>
+      <h1 id="manual-operacional-inbox-cadastros-e-operacao">Manual operacional - Inbox, Cadastros e Operação</h1>
+<p>Data desta versão: 2026-06-11</p>
+<p>Este manual orienta o uso da etapa operacional já disponível para implantação assistida. O foco é o trabalho diário do operador: iniciar pelo Inbox, consultar ou ajustar cadastros e executar a operação manual de cobranças, acordos, parcelas e pendências.</p>
+<p>Não fazem parte deste manual: Mensageria automatizada, Gestão gerencial, dashboards executivos, réguas automáticas definitivas e integrações externas futuras.</p>
+<h2 id="1-visao-geral">1. Visão geral</h2>
+<p>O app está organizado para que o operador crie um hábito simples:</p>
+<ol>
+<li>Começar o dia pelo Inbox operacional.</li>
+<li>Abrir os itens priorizados que precisam de ação.</li>
+<li>Usar as listas de Operação para filtrar, ordenar e resolver casos.</li>
+<li>Usar Cadastros somente quando a base precisar de ajuste ou enriquecimento.</li>
+<li>Conferir se os botões acionados entraram em processamento antes de repetir uma ação.</li>
+</ol>
+<p>Áreas deste manual:</p>
+<ul>
+<li>Inbox operacional: fila única do dia.</li>
+<li>Operação: cobranças, acordos, parcelas de acordo e pendências.</li>
+<li>Cadastros: condomínios, unidades, responsáveis e administradoras.</li>
+</ul>
+<h2 id="2-padrao-comum-das-telas">2. Padrão comum das telas</h2>
+<p>As principais listas seguem o mesmo modelo de uso.</p>
+<h3 id="2-1-busca">2.1 Busca</h3>
+<p>Use a busca livre para encontrar rapidamente o item por termos conhecidos, como:</p>
+<ul>
+<li>condomínio;</li>
+<li>unidade;</li>
+<li>bloco;</li>
+<li>responsável;</li>
+<li>CPF/CNPJ;</li>
+<li>telefone;</li>
+<li>e-mail;</li>
+<li>status;</li>
+<li>número ou referência interna, quando a tela permitir.</li>
+</ul>
+<h3 id="2-2-filtros">2.2 Filtros</h3>
+<p>Os filtros variam por tela, mas seguem a mesma lógica:</p>
+<ul>
+<li>Data inicial e data final quando houver vencimento, criação ou data de acordo.</li>
+<li>Status quando o fluxo possuir situações operacionais.</li>
+<li>Tipo quando existir diferença real de tratamento.</li>
+<li>Condomínio e carteira nas bases maiores.</li>
+<li>Contato para identificar cadastros incompletos.</li>
+</ul>
+<p>Quando uma lista parecer vazia, limpe os filtros antes de concluir que não há registros.</p>
+<h3 id="2-3-ordenacao">2.3 Ordenação</h3>
+<p>Use &quot;Ordenar por&quot; para mudar a leitura da lista sem exportar dados. Exemplos comuns:</p>
+<ul>
+<li>vencimento mais antigo;</li>
+<li>data mais recente;</li>
+<li>maior valor;</li>
+<li>condomínio;</li>
+<li>unidade;</li>
+<li>responsável;</li>
+<li>status.</li>
+</ul>
+<p>Para o trabalho operacional, a ordenação mais segura costuma ser por vencimento antigo, prazo ou prioridade.</p>
+<h3 id="2-4-botoes-e-processamento">2.4 Botões e processamento</h3>
+<p>Os botões de ação devem dar retorno visual quando clicados.</p>
+<p>Regras de uso:</p>
+<ul>
+<li>Clique uma vez e aguarde o estado de processamento.</li>
+<li>Não repita a ação se o botão indicar que está salvando, confirmando, resolvendo ou solicitando.</li>
+<li>Se a tela mostrar erro de módulo, use &quot;Tentar novamente&quot;. Se persistir, informe o código exibido ao suporte.</li>
+<li>Em ações financeiras ou de status, confira se a lista ou o detalhe refletiu a alteração antes de seguir para outro item.</li>
+</ul>
+<h2 id="3-rotina-recomendada-do-operador">3. Rotina recomendada do operador</h2>
+<h3 id="3-1-inicio-do-dia">3.1 Início do dia</h3>
+<ol>
+<li>Acesse <code>/app/inbox</code>.</li>
+<li>Comece pela fila &quot;Hoje&quot;.</li>
+<li>Se houver itens em &quot;Críticos&quot;, trate-os antes dos demais.</li>
+<li>Abra cada item pela ação indicada.</li>
+<li>Ao terminar uma ação, volte para o Inbox ou para a lista relacionada.</li>
+</ol>
+<h3 id="3-2-durante-a-operacao">3.2 Durante a operação</h3>
+<p>Use as listas quando precisar de uma visão mais ampla:</p>
+<ul>
+<li><code>/app/cobrancas</code> para encontrar e priorizar débitos.</li>
+<li><code>/app/acordos</code> para acompanhar acordos por condomínio/unidade.</li>
+<li><code>/app/acordos/fila</code> para trabalhar parcelas de acordo.</li>
+<li><code>/app/pendencias</code> para resolver travas manuais.</li>
+</ul>
+<h3 id="3-3-fechamento-do-periodo-de-trabalho">3.3 Fechamento do período de trabalho</h3>
+<p>Antes de encerrar:</p>
+<ul>
+<li>confira pendências abertas ou em tratamento;</li>
+<li>verifique parcelas vencidas ou próximas do vencimento;</li>
+<li>confirme se pagamentos marcados como pagos foram atualizados;</li>
+<li>registre ajustes cadastrais que impedem a próxima ação.</li>
+</ul>
+<h2 id="4-inbox-operacional">4. Inbox operacional</h2>
+<p>Rota: <code>/app/inbox</code></p>
+<p>Objetivo: concentrar o que precisa virar ação agora, sem obrigar o operador a entrar em várias listas.</p>
+<h3 id="4-1-indicadores">4.1 Indicadores</h3>
+<p>O topo do Inbox resume:</p>
+<ul>
+<li>Fila do dia: quantidade de ações recomendadas.</li>
+<li>Críticos: itens de risco alto.</li>
+<li>Carteira acionável: valor associado a itens com ação sugerida.</li>
+<li>Conversão: potencial de negociações quentes.</li>
+</ul>
+<h3 id="4-2-filas">4.2 Filas</h3>
+<p>Filas disponíveis:</p>
+<ul>
+<li>Hoje: melhor ponto de partida.</li>
+<li>Críticos: risco alto e ação imediata.</li>
+<li>Acordos em risco: parcelas, atrasos e acordos que precisam de proteção.</li>
+<li>Negociações: casos com maior chance de acordo.</li>
+<li>Sem retorno: itens sem movimentação recente.</li>
+</ul>
+<h3 id="4-3-como-usar">4.3 Como usar</h3>
+<ol>
+<li>Escolha a fila.</li>
+<li>Leia o contexto do item.</li>
+<li>Clique na ação ou abra o registro.</li>
+<li>Execute a ação manual no workspace, acordo ou pendência.</li>
+<li>Retorne para o Inbox para seguir a próxima prioridade.</li>
+</ol>
+<h3 id="4-4-cuidados">4.4 Cuidados</h3>
+<ul>
+<li>O Inbox prioriza; ele não substitui as listas.</li>
+<li>Se precisar procurar algo específico, use Cobranças, Acordos ou Pendências.</li>
+<li>Se o item abrir uma cobrança, o destino natural é o workspace operacional.</li>
+</ul>
+<h2 id="5-operacao-cobrancas">5. Operação - Cobranças</h2>
+<p>Rota principal: <code>/app/cobrancas</code></p>
+<p>Rotas relacionadas:</p>
+<ul>
+<li>Detalhe/lista operacional: <code>/app/cobrancas/[id]</code></li>
+<li>Workspace operacional: <code>/app/workspace/[id]</code></li>
+<li>Nova cobrança: <code>/app/cobrancas/nova</code></li>
+</ul>
+<p>Objetivo: consultar e executar a cobrança extrajudicial.</p>
+<h3 id="5-1-indicadores">5.1 Indicadores</h3>
+<p>A tela resume:</p>
+<ul>
+<li>Em aberto.</li>
+<li>Novas.</li>
+<li>Ativas.</li>
+<li>Em negociação.</li>
+</ul>
+<h3 id="5-2-filtros-principais">5.2 Filtros principais</h3>
+<p>Use:</p>
+<ul>
+<li>Busca: condomínio, unidade, bloco, responsável, documento, telefone, e-mail ou referência.</li>
+<li>Status: novo, em cobrança ativa, em negociação, acordo firmado, acordo efetivado, suspenso.</li>
+<li>Vencimento de/até.</li>
+<li>Judicialização da unidade.</li>
+<li>Ordenar por: vencimento, valor, condomínio, unidade, responsável ou status.</li>
+</ul>
+<h3 id="5-3-regra-extrajudicial">5.3 Regra extrajudicial</h3>
+<p>Como o foco da operação é extrajudicial, unidades judicializadas não aparecem por padrão.</p>
+<p>Para incluir judicializadas:</p>
+<ol>
+<li>Use o filtro de judicialização.</li>
+<li>Selecione a opção correspondente.</li>
+<li>Aplique o filtro.</li>
+</ol>
+<p>Evite tratar judicializadas como cobrança comum sem confirmar o contexto.</p>
+<h3 id="5-4-acoes-esperadas">5.4 Ações esperadas</h3>
+<p>Na lista, o operador deve conseguir:</p>
+<ul>
+<li>abrir a cobrança;</li>
+<li>acessar o workspace;</li>
+<li>alterar status em lote quando a tela permitir;</li>
+<li>iniciar fluxo de acordo a partir de uma cobrança/unidade elegível.</li>
+</ul>
+<h3 id="5-5-quando-usar">5.5 Quando usar</h3>
+<p>Use Cobranças quando:</p>
+<ul>
+<li>precisar encontrar um débito específico;</li>
+<li>quiser priorizar por vencimento ou valor;</li>
+<li>precisar revisar status de cobrança;</li>
+<li>for iniciar acordo a partir de uma cobrança negociada.</li>
+</ul>
+<h2 id="6-operacao-acordos">6. Operação - Acordos</h2>
+<p>Rota principal: <code>/app/acordos</code></p>
+<p>Rotas relacionadas:</p>
+<ul>
+<li>Detalhe do acordo: <code>/app/acordos/[id]</code></li>
+<li>Selecionar cobranças para acordo: <code>/app/acordos/selecionar</code></li>
+<li>Fila de parcelas: <code>/app/acordos/fila</code></li>
+<li>Rompimentos: <code>/app/acordos/rompimentos</code></li>
+</ul>
+<p>Objetivo: acompanhar acordos ativos, em atraso, quitados, cancelados ou rompidos.</p>
+<h3 id="6-1-indicadores">6.1 Indicadores</h3>
+<p>A tela resume:</p>
+<ul>
+<li>Valor ativo.</li>
+<li>Ativos.</li>
+<li>Em atraso.</li>
+<li>Rompidos.</li>
+</ul>
+<h3 id="6-2-filtros-principais">6.2 Filtros principais</h3>
+<p>Use:</p>
+<ul>
+<li>Busca: condomínio, unidade, responsável, processo, status ou tipo.</li>
+<li>Status.</li>
+<li>Tipo: extrajudicial ou judicial.</li>
+<li>Data de início e data de fim.</li>
+<li>Ordenar por: condomínio, unidade, responsável, status, data ou valor.</li>
+</ul>
+<h3 id="6-3-criacao-de-acordo">6.3 Criação de acordo</h3>
+<p>A criação de acordo deve partir da cobrança/unidade selecionada. Isso evita carregar uma lista enorme de cobranças dentro do formulário de novo acordo.</p>
+<p>Fluxo recomendado:</p>
+<ol>
+<li>Abra a cobrança.</li>
+<li>Inicie o fluxo de acordo.</li>
+<li>Em <code>/app/acordos/selecionar</code>, selecione os débitos da unidade que entram no acordo.</li>
+<li>Use &quot;Selecionar todos&quot; quando todos os itens elegíveis fizerem parte do acordo.</li>
+<li>Itens bloqueados permanecem travados.</li>
+<li>Siga para a simulação/criação do acordo.</li>
+</ol>
+<h3 id="6-4-aceite-do-devedor">6.4 Aceite do devedor</h3>
+<p>Para efetivação do acordo, o aceite do devedor é mandatório.</p>
+<p>Enquanto a automação definitiva não estiver fechada, o acompanhamento manual deve garantir que:</p>
+<ul>
+<li>o termo correto foi gerado;</li>
+<li>o link de aceite está válido;</li>
+<li>o devedor confirmou o aceite;</li>
+<li>o registro do aceite refletiu no status do acordo;</li>
+<li>pendências de boleto ou reemissão foram geradas quando aplicável.</li>
+</ul>
+<h3 id="6-5-desfazer-cancelar-acordo-sem-aceite">6.5 Desfazer/cancelar acordo sem aceite</h3>
+<p>Se o devedor não confirmar o aceite, o acordo não deve seguir como efetivado.</p>
+<p>Use a ação disponível no detalhe do acordo ou na central de acionamentos quando houver pendência relacionada. Antes de desfazer, confira:</p>
+<ul>
+<li>se realmente não houve aceite;</li>
+<li>se boletos não foram enviados ou confirmados indevidamente;</li>
+<li>se há pendência operacional aberta vinculada ao acordo.</li>
+</ul>
+<h2 id="7-operacao-parcelas-de-acordos">7. Operação - Parcelas de acordos</h2>
+<p>Rota: <code>/app/acordos/fila</code></p>
+<p>Objetivo: acompanhar vencimentos, confirmar pagamentos e solicitar reemissões sem abrir cada acordo.</p>
+<h3 id="7-1-indicadores">7.1 Indicadores</h3>
+<p>A fila resume:</p>
+<ul>
+<li>Parcelas.</li>
+<li>Abertas.</li>
+<li>Atrasadas.</li>
+<li>Pagas.</li>
+</ul>
+<h3 id="7-2-filtros-principais">7.2 Filtros principais</h3>
+<p>Use:</p>
+<ul>
+<li>Busca: unidade, responsável ou parcela.</li>
+<li>Condomínio.</li>
+<li>Status: aberta, vencida, paga ou cancelada.</li>
+<li>Tipo: entrada ou parcela.</li>
+<li>Vencimento de/até.</li>
+<li>Ordenar por: vencimento antigo, vencimento recente, condomínio, unidade, responsável, status ou valor.</li>
+</ul>
+<p>Por padrão, trabalhe pelo vencimento mais antigo.</p>
+<h3 id="7-3-acao-pago">7.3 Ação: Pago</h3>
+<p>Use &quot;Pago&quot; quando houver confirmação confiável de pagamento.</p>
+<p>Depois de clicar:</p>
+<ul>
+<li>aguarde &quot;Confirmando...&quot;;</li>
+<li>confira se a parcela saiu da situação aberta/vencida;</li>
+<li>confira se o status do acordo foi recalculado quando aplicável.</li>
+</ul>
+<h3 id="7-4-acao-reemitir">7.4 Ação: Reemitir</h3>
+<p>Use &quot;Reemitir&quot; quando uma parcela vencida precisar ser reemitida e o condomínio permitir esse procedimento.</p>
+<p>O botão pode ficar indisponível quando:</p>
+<ul>
+<li>o condomínio não permite reemissão;</li>
+<li>a parcela não está vencida;</li>
+<li>a parcela está fora da janela de dias permitida pelo condomínio;</li>
+<li>a parcela já foi paga ou cancelada.</li>
+</ul>
+<p>Quando a reemissão é solicitada, o esperado é gerar pendência operacional para ajuste/acionamento. Se a reemissão alterar o valor, o acordo deve ser reaberto para ajuste das parcelas e envio de novo resumo ao devedor.</p>
+<h3 id="7-5-o-que-nao-fazer-pela-fila">7.5 O que não fazer pela fila</h3>
+<p>Não marque rompimento manualmente a partir da fila. Rompimento deve resultar de regra operacional, atraso persistente ou rotina controlada, não de um clique simples do operador.</p>
+<h2 id="8-operacao-pendencias">8. Operação - Pendências</h2>
+<p>Rota: <code>/app/pendencias</code></p>
+<p>Objetivo: centralizar travas manuais que impedem o fluxo de seguir.</p>
+<h3 id="8-1-exemplos-de-pendencias">8.1 Exemplos de pendências</h3>
+<ul>
+<li>Pedido de planilha de débitos.</li>
+<li>Pedido de boleto de acordo.</li>
+<li>Registro de aceite ou acionamento manual.</li>
+<li>Reemissão de parcela.</li>
+<li>Ajuste de valores de acordo.</li>
+<li>Confirmação de pagamento.</li>
+</ul>
+<h3 id="8-2-indicadores-e-prioridade">8.2 Indicadores e prioridade</h3>
+<p>Observe:</p>
+<ul>
+<li>abertas;</li>
+<li>em tratamento;</li>
+<li>atrasadas;</li>
+<li>críticas.</li>
+</ul>
+<p>Prioridades comuns:</p>
+<ul>
+<li>Baixa.</li>
+<li>Normal.</li>
+<li>Alta.</li>
+<li>Crítica.</li>
+</ul>
+<h3 id="8-3-filtros-principais">8.3 Filtros principais</h3>
+<p>Use:</p>
+<ul>
+<li>Busca.</li>
+<li>Status.</li>
+<li>Prioridade.</li>
+<li>Origem.</li>
+<li>Tipo.</li>
+<li>Data de início/fim.</li>
+<li>Ordenação por prazo, criação, prioridade, status, origem ou tipo.</li>
+</ul>
+<h3 id="8-4-acoes">8.4 Ações</h3>
+<p>Ações esperadas:</p>
+<ul>
+<li>Tratar: indica que alguém assumiu a pendência.</li>
+<li>Resolver: encerra a pendência e deve refletir no fluxo de origem quando houver vínculo.</li>
+<li>Reabrir: retorna uma pendência resolvida/cancelada para tratamento.</li>
+</ul>
+<p>Antes de resolver, confira se o efeito operacional realmente aconteceu. Exemplo: não resolver pedido de boleto se o boleto ainda não foi enviado ou registrado.</p>
+<h2 id="9-cadastros-condominios">9. Cadastros - Condomínios</h2>
+<p>Rota principal: <code>/app/condominios</code></p>
+<p>Rotas relacionadas:</p>
+<ul>
+<li>Novo condomínio: <code>/app/condominios/novo</code></li>
+<li>Detalhe/edição: <code>/app/condominios/[id]</code></li>
+</ul>
+<p>Objetivo: manter os parâmetros que orientam cobrança, acordo e reemissão.</p>
+<h3 id="9-1-indicadores">9.1 Indicadores</h3>
+<p>A tela resume:</p>
+<ul>
+<li>Ativos.</li>
+<li>Régua média.</li>
+<li>Cota média.</li>
+</ul>
+<h3 id="9-2-filtros-principais">9.2 Filtros principais</h3>
+<p>Use:</p>
+<ul>
+<li>Busca por nome, nome operacional, CNPJ ou administradora.</li>
+<li>Carteira.</li>
+<li>Administradora.</li>
+<li>Status.</li>
+<li>Ordenação por nome, administradora, status, carteira, régua ou cota.</li>
+</ul>
+<h3 id="9-3-campos-regras-relevantes">9.3 Campos/regras relevantes</h3>
+<p>No cadastro/detalhe, confira especialmente:</p>
+<ul>
+<li>carteira;</li>
+<li>administradora;</li>
+<li>status;</li>
+<li>vencimento da cota;</li>
+<li>início da cobrança após X dias;</li>
+<li>parcelas permitidas sem aprovação do síndico;</li>
+<li>dias para reemissão de parcela de acordo em atraso.</li>
+</ul>
+<h3 id="9-4-impacto-operacional">9.4 Impacto operacional</h3>
+<p>Alterações no condomínio podem afetar:</p>
+<ul>
+<li>quando uma cobrança passa a ser acionável;</li>
+<li>se o acordo precisa de aprovação;</li>
+<li>se parcela vencida pode ser reemitida;</li>
+<li>qual administradora será acionada para planilha ou boleto.</li>
+</ul>
+<h2 id="10-cadastros-unidades">10. Cadastros - Unidades</h2>
+<p>Rota principal: <code>/app/unidades</code></p>
+<p>Rotas relacionadas:</p>
+<ul>
+<li>Nova unidade: <code>/app/unidades/nova</code></li>
+<li>Detalhe/edição: <code>/app/unidades/[id]</code></li>
+</ul>
+<p>Objetivo: manter a base de unidades, responsáveis e contatos usados pela cobrança.</p>
+<h3 id="10-1-indicadores">10.1 Indicadores</h3>
+<p>A tela resume:</p>
+<ul>
+<li>Ativas.</li>
+<li>Sem telefone.</li>
+<li>Sem e-mail.</li>
+</ul>
+<h3 id="10-2-filtros-principais">10.2 Filtros principais</h3>
+<p>Use:</p>
+<ul>
+<li>Busca por unidade, condomínio, bloco, responsável, CPF/CNPJ, telefone ou e-mail.</li>
+<li>Carteira.</li>
+<li>Condomínio.</li>
+<li>Status.</li>
+<li>Contato: sem telefone, sem e-mail ou cadastro incompleto.</li>
+<li>Ordenação por condomínio, unidade, responsável, status ou carteira.</li>
+</ul>
+<h3 id="10-3-uso-operacional">10.3 Uso operacional</h3>
+<p>Use Unidades quando:</p>
+<ul>
+<li>houver divergência de contato;</li>
+<li>o responsável estiver ausente ou incompleto;</li>
+<li>a unidade estiver com status incorreto;</li>
+<li>for preciso verificar se a unidade está ativa/suspensa/inativa;</li>
+<li>a judicialização da unidade estiver impactando a cobrança extrajudicial.</li>
+</ul>
+<h3 id="10-4-acoes-em-lote">10.4 Ações em lote</h3>
+<p>Quando selecionar várias unidades, confira a seleção antes de aplicar status em lote. Alterações de unidade podem refletir na elegibilidade de cobranças e acordos.</p>
+<h2 id="11-cadastros-responsaveis">11. Cadastros - Responsáveis</h2>
+<p>Rota principal: <code>/app/responsaveis</code></p>
+<p>Rotas relacionadas:</p>
+<ul>
+<li>Novo responsável: <code>/app/responsaveis/novo</code></li>
+<li>Detalhe/edição: <code>/app/responsaveis/[id]</code></li>
+</ul>
+<p>Objetivo: manter cadastro próprio dos responsáveis por unidade, sem expor dados pessoais completos diretamente na lista.</p>
+<h3 id="11-1-indicadores">11.1 Indicadores</h3>
+<p>A tela resume:</p>
+<ul>
+<li>Ativos.</li>
+<li>Proprietários.</li>
+<li>Inquilinos.</li>
+<li>Incompletos.</li>
+</ul>
+<h3 id="11-2-filtros-principais">11.2 Filtros principais</h3>
+<p>Use:</p>
+<ul>
+<li>Busca por condomínio, unidade, responsável ou contato.</li>
+<li>Carteira.</li>
+<li>Condomínio.</li>
+<li>Status: ativos ou inativos.</li>
+<li>Contato: sem telefone, sem e-mail ou cadastro incompleto.</li>
+<li>Tipo: proprietário, inquilino ou não informado.</li>
+<li>Ordenação por condomínio, unidade, responsável, tipo, status ou carteira.</li>
+</ul>
+<h3 id="11-3-tipo-de-responsavel">11.3 Tipo de responsável</h3>
+<p>O tipo ajuda a entender quem responde pelo acordo e pela cobrança:</p>
+<ul>
+<li>Proprietário: dono da unidade.</li>
+<li>Inquilino: ocupante/responsável contratual.</li>
+<li>Não informado: usado quando a base ainda não permite classificar.</li>
+</ul>
+<p>Sempre que possível, atualize o tipo. Essa informação aparece no contexto do acordo quando o responsável estiver vinculado.</p>
+<h3 id="11-4-dados-pessoais">11.4 Dados pessoais</h3>
+<p>Dados como documento, telefone, e-mail e observações devem ser consultados e editados no cadastro individual, não na lista. A lista serve para localizar e priorizar ajustes.</p>
+<h2 id="12-cadastros-administradoras">12. Cadastros - Administradoras</h2>
+<p>Rota principal: <code>/app/administradoras</code></p>
+<p>Rotas relacionadas:</p>
+<ul>
+<li>Nova administradora: <code>/app/administradoras/nova</code></li>
+<li>Detalhe/edição: <code>/app/administradoras/[id]</code></li>
+</ul>
+<p>Objetivo: manter administradoras e contatos externos que destravam planilhas, boletos e registros de acordo.</p>
+<h3 id="12-1-indicadores">12.1 Indicadores</h3>
+<p>A tela resume:</p>
+<ul>
+<li>Total.</li>
+<li>Ativas.</li>
+<li>Hub externo ADM.</li>
+</ul>
+<h3 id="12-2-filtros-principais">12.2 Filtros principais</h3>
+<p>Use:</p>
+<ul>
+<li>Busca por nome, CNPJ ou e-mail.</li>
+<li>Status.</li>
+<li>Acesso acordos: liberado ou sem acesso.</li>
+<li>Ordenação por nome, status, acesso acordos ou contato.</li>
+</ul>
+<h3 id="12-3-flag-acesso-para-gerar-acordo">12.3 Flag &quot;acesso para gerar acordo&quot;</h3>
+<p>Use esta flag para indicar se a administradora possui acesso/condição operacional para gerar acordo.</p>
+<p>Impacto esperado:</p>
+<ul>
+<li>administradoras sem acesso podem exigir fluxo manual ou pendência antes de seguir;</li>
+<li>administradoras com acesso liberado podem destravar criação/andamento de acordo conforme regra do condomínio.</li>
+</ul>
+<h3 id="12-4-e-mail-geral">12.4 E-mail geral</h3>
+<p>O e-mail geral da administradora não deve bloquear o cadastro. Quando não houver e-mail geral:</p>
+<ul>
+<li>cadastre a administradora mesmo assim;</li>
+<li>preencha contatos específicos quando disponíveis;</li>
+<li>marque quais contatos recebem planilha, boleto ou cobrança.</li>
+</ul>
+<h2 id="13-fluxos-praticos">13. Fluxos práticos</h2>
+<h3 id="13-1-cobrar-caso-priorizado-pelo-inbox">13.1 Cobrar caso priorizado pelo Inbox</h3>
+<ol>
+<li>Abra <code>/app/inbox</code>.</li>
+<li>Escolha &quot;Hoje&quot; ou &quot;Críticos&quot;.</li>
+<li>Abra o item indicado.</li>
+<li>No workspace, execute a ação necessária.</li>
+<li>Aguarde o processamento do botão.</li>
+<li>Confirme se status, pendência ou timeline foram atualizados.</li>
+</ol>
+<h3 id="13-2-criar-acordo-a-partir-de-cobranca">13.2 Criar acordo a partir de cobrança</h3>
+<ol>
+<li>Localize a cobrança em <code>/app/cobrancas</code>.</li>
+<li>Abra a cobrança/workspace.</li>
+<li>Inicie o fluxo de acordo.</li>
+<li>Selecione os débitos elegíveis em <code>/app/acordos/selecionar</code>.</li>
+<li>Confira bloqueios por planilha ou judicialização.</li>
+<li>Simule e crie o acordo.</li>
+<li>Acompanhe aceite, boleto e parcelas.</li>
+</ol>
+<h3 id="13-3-confirmar-pagamento-de-parcela">13.3 Confirmar pagamento de parcela</h3>
+<ol>
+<li>Acesse <code>/app/acordos/fila</code>.</li>
+<li>Filtre por condomínio, vencimento ou status.</li>
+<li>Confira acordo, unidade, parcela e valor.</li>
+<li>Clique em &quot;Pago&quot;.</li>
+<li>Aguarde a confirmação.</li>
+<li>Verifique se a parcela e o acordo foram atualizados.</li>
+</ol>
+<h3 id="13-4-solicitar-reemissao-de-parcela">13.4 Solicitar reemissão de parcela</h3>
+<ol>
+<li>Acesse <code>/app/acordos/fila</code>.</li>
+<li>Filtre parcelas vencidas.</li>
+<li>Confirme se o botão &quot;Reemitir&quot; está habilitado.</li>
+<li>Clique em &quot;Reemitir&quot;.</li>
+<li>Acompanhe a pendência gerada.</li>
+<li>Se o valor mudar, ajuste o acordo e envie novo resumo ao devedor.</li>
+</ol>
+<h3 id="13-5-tratar-pendencia-operacional">13.5 Tratar pendência operacional</h3>
+<ol>
+<li>Acesse <code>/app/pendencias</code>.</li>
+<li>Filtre por status aberta/em tratamento ou prioridade.</li>
+<li>Clique em &quot;Tratar&quot; se for assumir.</li>
+<li>Execute a ação fora ou dentro do app.</li>
+<li>Clique em &quot;Resolver&quot; somente depois do efeito confirmado.</li>
+</ol>
+<h3 id="13-6-ajustar-responsavel-de-unidade">13.6 Ajustar responsável de unidade</h3>
+<ol>
+<li>Acesse <code>/app/responsaveis</code>.</li>
+<li>Busque por condomínio, unidade ou nome.</li>
+<li>Abra o cadastro individual.</li>
+<li>Atualize o tipo: proprietário, inquilino ou não informado.</li>
+<li>Complete telefone, e-mail e documento quando disponíveis.</li>
+<li>Salve e confira se o cadastro saiu de incompleto quando aplicável.</li>
+</ol>
+<h2 id="14-cuidados-e-excecoes">14. Cuidados e exceções</h2>
+<h3 id="14-1-judicializacao">14.1 Judicialização</h3>
+<p>O app prioriza cobrança extrajudicial. Judicializadas devem ficar fora do fluxo comum, salvo quando o operador solicitar explicitamente.</p>
+<h3 id="14-2-duplicidade-de-clique">14.2 Duplicidade de clique</h3>
+<p>Se um botão estiver processando, aguarde. Repetir clique em ação sensível pode gerar duplicidade de pendência, status ou registro operacional.</p>
+<h3 id="14-3-dados-incompletos">14.3 Dados incompletos</h3>
+<p>Nem todo cadastro incompleto impede a operação. Priorize completar o que afeta contato, acordo e boleto:</p>
+<ul>
+<li>responsável;</li>
+<li>telefone;</li>
+<li>e-mail;</li>
+<li>tipo do responsável;</li>
+<li>administradora;</li>
+<li>permissão de reemissão;</li>
+<li>acesso para gerar acordo.</li>
+</ul>
+<h3 id="14-4-pendencia-resolvida">14.4 Pendência resolvida</h3>
+<p>Resolver pendência deve significar que o bloqueio foi removido de verdade. Não use &quot;Resolver&quot; apenas para limpar a fila.</p>
+<h3 id="14-5-reemissao-com-valor-alterado">14.5 Reemissão com valor alterado</h3>
+<p>Quando a reemissão muda o valor, o fluxo precisa voltar para ajuste do acordo:</p>
+<ol>
+<li>reabrir/ajustar o acordo;</li>
+<li>recalcular parcelas;</li>
+<li>enviar resumo da alteração ao devedor;</li>
+<li>solicitar ou reemitir boleto;</li>
+<li>registrar envio/retorno.</li>
+</ol>
+<h2 id="15-checklist-de-implantacao-assistida">15. Checklist de implantação assistida</h2>
+<p>Use este checklist para validar a etapa manual:</p>
+<ul>
+<li>O operador inicia o dia pelo Inbox.</li>
+<li>O operador consegue abrir cada item priorizado.</li>
+<li>Cobranças filtram por busca, status, vencimento e judicialização.</li>
+<li>Acordos filtram por busca, status, tipo, data e valor.</li>
+<li>Parcelas de acordo aparecem por vencimento mais antigo.</li>
+<li>Pagamento de parcela pode ser confirmado pela fila.</li>
+<li>Pedido de reemissão gera acompanhamento manual.</li>
+<li>Pendências podem ser tratadas, resolvidas e reabertas.</li>
+<li>Condomínios possuem regra de reemissão e parâmetros de acordo.</li>
+<li>Unidades possuem status e contatos revisáveis.</li>
+<li>Responsáveis possuem tipo proprietário/inquilino/não informado.</li>
+<li>Administradoras possuem flag de acesso para gerar acordo.</li>
+<li>Botões exibem processamento perceptível.</li>
+<li>Erros de módulo mostram código para suporte.</li>
+</ul>
+<h2 id="16-glossario-rapido">16. Glossário rápido</h2>
+<ul>
+<li>Inbox: fila priorizada do que precisa de ação agora.</li>
+<li>Workspace: tela de trabalho de uma cobrança.</li>
+<li>Pendência: trava operacional que exige ação manual.</li>
+<li>Reemissão: pedido de novo boleto/parcela, quando permitido.</li>
+<li>Judicializada: unidade fora do fluxo extrajudicial padrão.</li>
+<li>Responsável: pessoa ou empresa vinculada a uma unidade.</li>
+<li>Proprietário: responsável dono da unidade.</li>
+<li>Inquilino: responsável ocupante/contratual.</li>
+<li>Acesso acordos: permissão/condição da administradora para gerar acordo.</li>
+</ul>
+    </main>
+  </div>
+  <footer class="footer">Versão gerada a partir de docs/operacao-cadastros-inbox-manual.md.</footer>
+</body>
+</html>
