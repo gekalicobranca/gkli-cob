@@ -2759,7 +2759,7 @@ function parseHflexResumoUnidade(line: string) {
   const recibosMatch = normalized.match(/RECIBOS?\s*:\s*(\d+)/i);
   const moneyValues = moneyMatchesFromText(normalized);
 
-  if (!unitMatch && !recibosMatch && !moneyValues.length) return null;
+  if (!unitMatch && !recibosMatch) return null;
 
   return {
     unidade: unitMatch?.[1],
