@@ -19,6 +19,7 @@ import { isLegacyImportType, isValidImportType } from "./engine/types";
 import {
   conciliarCobrancaImportada,
   encontrarCobrancasAbertasAusentes,
+  registrarPendenciasCobrancasAusentes,
   type CobrancaImportadaConciliacao,
 } from "./cobrancas-conciliacao";
 
@@ -1057,6 +1058,7 @@ async function finalizarImportacao(params: {
   revalidatePath("/app/unidades");
   revalidatePath("/app/responsaveis");
   revalidatePath("/app/acordos");
+  revalidatePath("/app/pendencias");
   revalidatePath("/app");
 
   redirect(`/app/importacoes/${importacaoId}?resultado=sucesso&tipo=${tipo}`);
@@ -1468,6 +1470,7 @@ async function importarCobrancas(
       if (unidade.criada) resultado.criados += 1;
 
       const importadaConciliacao: CobrancaImportadaConciliacao = {
+        carteira_id: payload.carteira_id,
         condominio_id: payload.condominio_id,
         unidade_id: payload.unidade_id,
         competencia: payload.competencia || null,
@@ -1547,6 +1550,15 @@ async function importarCobrancas(
 
     resultado.ausentes = ausentes.total;
     resultado.erros.push(...ausentes.mensagens);
+
+    const pendencias = await registrarPendenciasCobrancasAusentes(supabase, {
+      ausentes: ausentes.ausentes,
+    });
+    if (pendencias.criadas > 0) {
+      resultado.erros.push(
+        `ALERTA: ${pendencias.criadas} pendÃªncia(s) criada(s) para cobranÃ§as abertas ausentes no relatÃ³rio.`,
+      );
+    }
   } catch (error) {
     resultado.erros.push(
       `ALERTA: Não foi possível validar cobranças abertas ausentes no relatório: ${error instanceof Error ? error.message : "erro desconhecido"}`,

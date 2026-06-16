@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
 import {
   conciliarCobrancaImportada,
   encontrarCobrancasAbertasAusentes,
+  registrarPendenciasCobrancasAusentes,
   type CobrancaImportadaConciliacao,
 } from "@/features/importacoes/cobrancas-conciliacao"
 
@@ -191,6 +193,7 @@ export async function POST(request: NextRequest) {
         : "Conversão de relatório"
 
       const importadaConciliacao: CobrancaImportadaConciliacao = {
+        carteira_id: carteiraId,
         condominio_id: condominioId,
         unidade_id: unidadeId,
         vencimento: vencimentoMaisAntigo,
@@ -288,6 +291,15 @@ export async function POST(request: NextRequest) {
       })
       cobrancasAusentes = ausentes.total
       inconsistencias.push(...ausentes.mensagens)
+
+      const pendencias = await registrarPendenciasCobrancasAusentes(supabase, {
+        ausentes: ausentes.ausentes,
+      })
+      if (pendencias.criadas > 0) {
+        inconsistencias.push(
+          `ALERTA: ${pendencias.criadas} pendÃªncia(s) criada(s) para cobranÃ§as abertas ausentes no relatÃ³rio.`
+        )
+      }
     } catch (error) {
       inconsistencias.push(
         `ALERTA: Não foi possível validar cobranças abertas ausentes no relatório: ${error instanceof Error ? error.message : "erro desconhecido"}`
@@ -302,6 +314,10 @@ export async function POST(request: NextRequest) {
         atualizado_em: new Date().toISOString(),
       } as any)
       .eq("id", conversaoId)
+
+    revalidatePath("/app/pendencias")
+    revalidatePath("/app/cobrancas")
+    revalidatePath("/app")
 
     return NextResponse.json({
       ok: true,

@@ -37,6 +37,7 @@ export type ResultadoConciliacaoCobranca =
 
 type CobrancaExistente = {
   id: string;
+  carteira_id?: string | null;
   condominio_id?: string | null;
   unidade_id?: string | null;
   competencia: string | null;
@@ -49,11 +50,28 @@ type CobrancaExistente = {
   unidades?: { identificacao?: string | null; bloco?: string | null } | { identificacao?: string | null; bloco?: string | null }[] | null;
 };
 
+export type CobrancaAbertaAusente = {
+  cobrancaId: string;
+  carteiraId?: string | null;
+  condominioId?: string | null;
+  unidadeId?: string | null;
+  unidadeLabel: string;
+  vencimento: string | null;
+  competencia: string | null;
+  valorOriginal: number;
+  valorAtualizado: number;
+  observacoes: string | null;
+};
+
 type CobrancasAusentesParams = {
   condominioIds: string[];
   carteiraId?: string | null;
   importadas: CobrancaImportadaConciliacao[];
   limiteMensagens?: number;
+};
+
+type RegistrarPendenciasAusentesParams = {
+  ausentes: CobrancaAbertaAusente[];
 };
 
 function cents(value: number | string | null | undefined) {
@@ -200,7 +218,7 @@ async function listarCobrancasAbertasDoEscopo(
     let query = supabase
       .from("cobrancas")
       .select(
-        "id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status_financeiro, status_operacional, unidades:unidade_id(identificacao, bloco)",
+        "id, carteira_id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status_financeiro, status_operacional, unidades:unidade_id(identificacao, bloco)",
       )
       .in("condominio_id", condominioIds)
       .range(from, from + pageSize - 1);
@@ -232,7 +250,7 @@ export async function encontrarCobrancasAbertasAusentes(
   const limiteMensagens = params.limiteMensagens ?? 25;
 
   if (!condominioIds.length || !importadas.length) {
-    return { total: 0, mensagens: [] as string[] };
+    return { total: 0, mensagens: [] as string[], ausentes: [] as CobrancaAbertaAusente[] };
   }
 
   const abertas = await listarCobrancasAbertasDoEscopo(
@@ -256,6 +274,19 @@ export async function encontrarCobrancasAbertasAusentes(
     return !candidatas.some((importada) => isMesmoLancamentoImportado(importada, existente));
   });
 
+  const ausentesDetalhados = ausentes.map((existente) => ({
+    cobrancaId: existente.id,
+    carteiraId: existente.carteira_id ?? params.carteiraId ?? null,
+    condominioId: existente.condominio_id ?? null,
+    unidadeId: existente.unidade_id ?? null,
+    unidadeLabel: unidadeLabel(existente),
+    vencimento: existente.vencimento ?? null,
+    competencia: existente.competencia ?? null,
+    valorOriginal: Number(existente.valor_original ?? 0),
+    valorAtualizado: Number(existente.valor_atualizado ?? existente.valor_original ?? 0),
+    observacoes: existente.observacoes ?? null,
+  }));
+
   const mensagens = ausentes.slice(0, limiteMensagens).map((existente) => {
     const valor = cents(existente.valor_atualizado || existente.valor_original) / 100;
     return [
@@ -278,7 +309,74 @@ export async function encontrarCobrancasAbertasAusentes(
   return {
     total: ausentes.length,
     mensagens,
+    ausentes: ausentesDetalhados,
   };
+}
+
+export async function registrarPendenciasCobrancasAusentes(
+  supabase: SupabaseLike,
+  params: RegistrarPendenciasAusentesParams,
+) {
+  const ausentes = params.ausentes.filter((item) => item.cobrancaId);
+  if (!ausentes.length) return { criadas: 0 };
+
+  const cobrancaIds = Array.from(new Set(ausentes.map((item) => item.cobrancaId)));
+  const { data: existentes, error: existentesError } = await supabase
+    .from("central_pendencias")
+    .select("entidade_id")
+    .eq("tipo", "cobranca_aberta_ausente_relatorio")
+    .eq("entidade_tipo", "cobranca")
+    .in("entidade_id", cobrancaIds)
+    .in("status", ["aberta", "em_tratamento"]);
+
+  if (existentesError) {
+    throw new Error(`Erro ao verificar pendÃªncias de cobranÃ§as ausentes: ${existentesError.message}`);
+  }
+
+  const jaRegistradas = new Set(
+    ((existentes ?? []) as { entidade_id?: string | null }[])
+      .map((item) => item.entidade_id)
+      .filter(Boolean) as string[],
+  );
+  const novas = ausentes.filter((item) => !jaRegistradas.has(item.cobrancaId));
+  if (!novas.length) return { criadas: 0 };
+
+  const { error: insertError } = await supabase.from("central_pendencias").insert(
+    novas.map((item) => ({
+      carteira_id: item.carteiraId ?? null,
+      origem: "administradora",
+      tipo: "cobranca_aberta_ausente_relatorio",
+      status: "aberta",
+      prioridade: "alta",
+      titulo: "CobranÃ§a aberta ausente no relatÃ³rio da administradora",
+      descricao: [
+        `A cobranÃ§a da unidade ${item.unidadeLabel} continua aberta no GKLI CobranÃ§a, mas nÃ£o apareceu no relatÃ³rio importado da administradora.`,
+        item.vencimento ? `Vencimento: ${item.vencimento}.` : null,
+        `Valor atualizado: R$ ${item.valorAtualizado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`,
+        "Validar com a administradora antes de baixar, cancelar ou considerar quitada.",
+      ].filter(Boolean).join(" "),
+      entidade_tipo: "cobranca",
+      entidade_id: item.cobrancaId,
+      condominio_id: item.condominioId ?? null,
+      unidade_id: item.unidadeId ?? null,
+      cobranca_id: item.cobrancaId,
+      acordo_id: null,
+      payload: {
+        origem_validacao: "importacao_cobrancas",
+        vencimento: item.vencimento,
+        competencia: item.competencia,
+        valor_original: item.valorOriginal,
+        valor_atualizado: item.valorAtualizado,
+        observacoes: item.observacoes,
+      },
+    })),
+  );
+
+  if (insertError) {
+    throw new Error(`Erro ao criar pendÃªncias de cobranÃ§as ausentes: ${insertError.message}`);
+  }
+
+  return { criadas: novas.length };
 }
 
 export async function conciliarCobrancaImportada(
