@@ -2862,21 +2862,29 @@ function detectSafiraCobrancas(text: string): DeteccaoPdfCobrancas {
 
   const sinais = [
     /RELATORIOS\s+DE\s+RECIBOS\s+EM\s+ABERTO/,
+    /RELATORIO\s+DE\s+INADIMPLENCIA/,
     /DATA\s+VENCIMENTO\s+CODIGO\s+RECIBO/,
+    /RECIBO:\s*\d{8,}\s*VENCIMENTO:\s*\d{2}\/\d{2}\/\d{4}\s*VALOR\s+TOTAL:\s*R\$/,
+    /CONTA\s*HISTORICO\s*SUBCONTA\s*VALOR/,
     /VALOR\s+DO\s+RECIBO\s+MULTA\s+CALCULADA/,
     /VALOR\s+CORRECAO\s+JUROS\s+CALCULADO/,
     /HONORARIOS\s+CUSTAS\s+PROCESSUAIS\s+VALOR\s+TOTAL/,
     /SUBTOTAL\s+R\$/,
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
 
-  const linhasCobranca = countRegexMatches(
+  const linhasRecibosAbertos = countRegexMatches(
     normalized,
     /(?:^|\n)\s*\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+R\$\s*/g,
   );
+  const linhasInadimplencia = countRegexMatches(
+    normalized,
+    /(?:^|\n)\s*Recibo:\s*\d{8,}\s*Vencimento:\s*\d{2}\/\d{2}\/\d{4}\s*Valor\s+Total:\s*R\$\s*/gi,
+  );
+  const linhasCobranca = linhasRecibosAbertos + linhasInadimplencia;
   const subtotais = countRegexMatches(normalized, /(?:^|\n)\s*Subtotal\s+R\$\s*/g);
 
   return {
-    ok: sinais >= 4 && linhasCobranca > 0,
+    ok: sinais >= 3 && linhasCobranca > 0,
     confianca: Math.min(99, sinais * 14 + Math.min(35, linhasCobranca) + Math.min(12, subtotais)),
     condominioDetectado: extractSafiraCondominio(normalized),
     semDevedores: false,
@@ -2908,6 +2916,10 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
   let responsavelAtual = "Responsável não identificado";
 
   for (const line of lines) {
+    if (/^Relat.rio de Inadimpl/i.test(line) || /^Compet/i.test(line)) {
+      continue;
+    }
+
     if (
       /^Relat[oó]rios de recibos em aberto/i.test(line) ||
       /^\d+\s*-\s*SAFIRA\b/i.test(line) ||
@@ -2917,7 +2929,7 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
       continue;
     }
 
-    const unidadeMatch = line.match(/^(\d+)\s+(\d{2,3})\s+-\s+(.+)$/i);
+    const unidadeMatch = line.match(/^(\d+)\s+(\d{2,3})\s+-\s+(.+?)(?:\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}))?$/i);
     if (unidadeMatch) {
       blocoAtual = unidadeMatch[1];
       unidadeAtual = normalizeSafiraUnidade(unidadeMatch[1], unidadeMatch[2]);
@@ -2925,7 +2937,33 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
       continue;
     }
 
-    if (/^Subtotal\b/i.test(line)) continue;
+    if (/^Subtotal\b/i.test(line) || /^Conta\s*Hist/i.test(line)) continue;
+
+    const reciboDetalhadoMatch = line.match(
+      /^Recibo:\s*(\d{8,})\s*Vencimento:\s*(\d{2}\/\d{2}\/\d{4})\s*Valor\s+Total:\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/i,
+    );
+
+    if (reciboDetalhadoMatch && unidadeAtual) {
+      const valorTotal = parseMoney(reciboDetalhadoMatch[3]);
+      if (valorTotal > 0) {
+        recibos.push({
+          bloco: blocoAtual || "0",
+          unidade: unidadeAtual,
+          responsavel: responsavelAtual,
+          recibo: reciboDetalhadoMatch[1],
+          vencimento: reciboDetalhadoMatch[2],
+          valorPrincipal: valorTotal,
+          multa: 0,
+          correcao: 0,
+          juros: 0,
+          honorarios: 0,
+          custasProcessuais: 0,
+          valorTotal,
+          situacaoOrigem: "normal",
+        });
+      }
+      continue;
+    }
 
     const rowMatch = line.match(
       /^(\d{2}\/\d{2}\/\d{4})\s+(\d{8,})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/,
