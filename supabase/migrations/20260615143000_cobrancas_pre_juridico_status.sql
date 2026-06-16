@@ -1,6 +1,4 @@
--- Compatibiliza a constraint legada de public.cobrancas.status.
--- ASCII-only para evitar erro de colagem/encoding no SQL Editor.
--- Use antes de recriar a RPC de acordo.
+-- Add pre_juridico as an intermediate operational status before judicial action.
 
 alter table public.cobrancas
   drop constraint if exists cobrancas_status_check;

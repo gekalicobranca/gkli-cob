@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowUpRight, History, Save } from 'lucide-react'
+import { ArrowUpRight, FileText, History, Save } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -35,6 +35,10 @@ export default async function UnidadeDetalhePage({ params }: { params: Promise<{
         actions={
           <>
             <ButtonLink href="/app/unidades" variant="secondary">Voltar</ButtonLink>
+            <ButtonLink href={`/app/unidades/${id}/laudo-pre-juridico`} variant="secondary">
+              <FileText size={16} />
+              Laudo pré-jurídico
+            </ButtonLink>
             <ButtonLink href="#cadastro">Editar cadastro</ButtonLink>
           </>
         }

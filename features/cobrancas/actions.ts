@@ -161,6 +161,7 @@ export async function updateCobrancaStatus(formData: FormData) {
     COBRANCA_STATUS.EM_NEGOCIACAO,
     COBRANCA_STATUS.ACORDO_FIRMADO,
     COBRANCA_STATUS.ACORDO_EFETIVADO,
+    COBRANCA_STATUS.PRE_JURIDICO,
     COBRANCA_STATUS.JUDICIALIZADO,
     COBRANCA_STATUS.SUSPENSO,
   ]
@@ -199,7 +200,9 @@ export async function updateCobrancaStatus(formData: FormData) {
     titulo: 'Status da cobrança alterado',
     descricao: `Status alterado para ${status}.`,
     severidade:
-      status === COBRANCA_STATUS.JUDICIALIZADO || status === COBRANCA_STATUS.SUSPENSO
+      status === COBRANCA_STATUS.PRE_JURIDICO ||
+      status === COBRANCA_STATUS.JUDICIALIZADO ||
+      status === COBRANCA_STATUS.SUSPENSO
         ? 'alerta'
         : 'info',
     antes: { status_operacional: getCobrancaStatusOperacional(atual as any) },
@@ -226,6 +229,7 @@ export async function updateCobrancasStatusEmLote(formData: FormData) {
     COBRANCA_STATUS.NOVO,
     COBRANCA_STATUS.EM_COBRANCA_ATIVA,
     COBRANCA_STATUS.EM_NEGOCIACAO,
+    COBRANCA_STATUS.PRE_JURIDICO,
     COBRANCA_STATUS.JUDICIALIZADO,
     COBRANCA_STATUS.SUSPENSO,
   ]
@@ -277,7 +281,9 @@ export async function updateCobrancasStatusEmLote(formData: FormData) {
         titulo: 'Status alterado em lote',
         descricao: observacao || `Status alterado em lote para ${status}.`,
         severidade:
-          status === COBRANCA_STATUS.JUDICIALIZADO || status === COBRANCA_STATUS.SUSPENSO
+          status === COBRANCA_STATUS.PRE_JURIDICO ||
+          status === COBRANCA_STATUS.JUDICIALIZADO ||
+          status === COBRANCA_STATUS.SUSPENSO
             ? 'alerta'
             : 'info',
         antes: { status_operacional: getCobrancaStatusOperacional(cobranca) },

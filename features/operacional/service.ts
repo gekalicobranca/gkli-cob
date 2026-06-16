@@ -20,6 +20,8 @@ export function estadoLegadoParaCodigo(status: string | null | undefined) {
     em_negociacao: "em_negociacao",
     acordo_firmado: "acordo_firmado",
     acordo_efetivado: "acordo_efetivado",
+    pre_juridico: "pre_juridico",
+    juridico: "pre_juridico",
     judicializado: "judicializado",
     suspenso: "suspenso",
     novo: "novo",

@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
+import { COBRANCA_STATUS_JUDICIALIZACAO } from '@/lib/constants/cobrancas'
 
 export type CarteiraCockpitItem = {
   carteiraId: string
@@ -293,7 +294,9 @@ export async function getCarteiraProdutividadeData(
       totalCobrancas,
       cobrancasAbertas: abertas.length,
       emNegociacao: cobrancasCarteira.filter((row) => normalize(row.status_operacional) === 'em_negociacao').length,
-      judicializadas: cobrancasCarteira.filter((row) => normalize(row.status_operacional) === 'judicializado').length,
+      judicializadas: cobrancasCarteira.filter((row) =>
+        (COBRANCA_STATUS_JUDICIALIZACAO as string[]).includes(normalize(row.status_operacional)),
+      ).length,
       suspensas: cobrancasCarteira.filter((row) => normalize(row.status_operacional) === 'suspenso').length,
       valorEmAberto,
       totalAcordos: acordosCarteira.length,

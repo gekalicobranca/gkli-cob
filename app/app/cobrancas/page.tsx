@@ -34,7 +34,10 @@ import {
   normalizeStatus,
 } from "@/lib/core/status";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
-import { COBRANCA_STATUS_LABEL } from "@/lib/constants/cobrancas";
+import {
+  COBRANCA_STATUS_JUDICIALIZACAO,
+  COBRANCA_STATUS_LABEL,
+} from "@/lib/constants/cobrancas";
 import { CobrancasBulkControls } from "./cobrancas-bulk-controls";
 
 type PageProps = {
@@ -54,11 +57,13 @@ const STATUS_FILTERS = [
   COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
   COBRANCA_STATUS_OPERACIONAL.ACORDO_FIRMADO,
   COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
+  COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
   COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
 ];
 
 const STATUS_SEM_VALOR_EM_ABERTO = new Set<string>([
   COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
+  COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
   COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
   COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
 ]);
@@ -70,7 +75,7 @@ function getParam(value?: string) {
 function getJudicializacaoFilter(params: Awaited<NonNullable<PageProps["searchParams"]>>) {
   const requested = getParam(params.judicializacao_unidade);
   if (requested) return requested;
-  return getParam(params.status) === COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO ? "sim" : "nao";
+  return (COBRANCA_STATUS_JUDICIALIZACAO as string[]).includes(getParam(params.status)) ? "sim" : "nao";
 }
 
 function cobrancasHref(params: Record<string, string>, overrides: Record<string, string | null>) {
@@ -90,6 +95,7 @@ function getPriority(status: string, vencimento?: string | null) {
   if (
     [
       COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
+      COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
       COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
       COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
     ].includes(normalized as any)
@@ -174,7 +180,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const showingJudicializadas = filters.judicializacaoUnidade !== "nao";
   const hideJudicializadasHref = cobrancasHref(queryParams, {
     judicializacao_unidade: "nao",
-    status: filters.status === COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO ? null : filters.status,
+    status: (COBRANCA_STATUS_JUDICIALIZACAO as string[]).includes(filters.status) ? null : filters.status,
   });
 
   const scope = await getPermittedCarteiras();
@@ -270,11 +276,11 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 <div className="flex flex-wrap gap-2">
                   {showingJudicializadas ? (
                     <ButtonLink href={hideJudicializadasHref} variant="secondary">
-                      Ocultar judicializadas
+                      Ocultar judicialização
                     </ButtonLink>
                   ) : (
                     <ButtonLink href={cobrancasHref(queryParams, { judicializacao_unidade: "todos" })} variant="secondary">
-                      Incluir judicializadas
+                      Incluir judicialização
                     </ButtonLink>
                   )}
                   <ClearFiltersLink href="/app/cobrancas" show={hasFilters} />
@@ -302,8 +308,8 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 <ListFilterField label="Judicialização">
                   <Select name="judicializacao_unidade" defaultValue={filters.judicializacaoUnidade}>
                     <option value="nao">Extrajudicial</option>
-                    <option value="todos">Incluir judicializadas</option>
-                    <option value="sim">Somente judicializadas</option>
+                    <option value="todos">Incluir judicialização</option>
+                    <option value="sim">Somente judicialização</option>
                   </Select>
                 </ListFilterField>
                 <ListFilterField label="Ordenar por">
@@ -367,7 +373,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                           <StatusBadge status={status} />
                           {row.unidade_bloqueada_por_judicializacao ? (
                             <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
-                              Unidade judicializada
+                              Unidade em judicialização
                             </span>
                           ) : null}
                         </div>
@@ -382,7 +388,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                         </p>
                         {row.unidade_bloqueada_por_judicializacao ? (
                           <p className="mt-1 text-xs font-medium text-red-700">
-                            Bloquear acordos para esta unidade: há cobrança judicializada ativa.
+                            Bloquear acordos para esta unidade: há cobrança em pré-jurídico ou judicializada.
                           </p>
                         ) : null}
                       </div>

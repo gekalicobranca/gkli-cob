@@ -51,6 +51,7 @@ where coalesce(status_operacional, '') not in (
     'em_negociacao',
     'acordo_firmado',
     'acordo_efetivado',
+    'pre_juridico',
     'judicializado',
     'suspenso'
   )

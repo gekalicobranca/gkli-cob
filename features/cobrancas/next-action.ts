@@ -77,6 +77,11 @@ export function calcularProximaAcaoCobranca(params: {
     titulo = 'Iniciar cobrança'
     descricao = 'Cobrança nova precisa de primeiro movimento operacional.'
     acao = 'Registrar primeiro contato'
+  } else if (status === COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO) {
+    score = 30
+    titulo = 'Preparar documentação jurídica'
+    descricao = 'Cobrança saiu da cadência extrajudicial e está em preparação de documentação.'
+    acao = 'Registrar andamento pré-jurídico'
   } else if (status === COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO) {
     score = 20
     titulo = 'Monitorar judicialização'

@@ -52,6 +52,7 @@ type DashboardAcordo = {
 
 const CLOSED_COBRANCA_STATUSES = [
   COBRANCA_STATUS.ACORDO_EFETIVADO,
+  COBRANCA_STATUS.PRE_JURIDICO,
   COBRANCA_STATUS.JUDICIALIZADO,
   COBRANCA_STATUS.SUSPENSO,
   "quitado",
@@ -292,7 +293,11 @@ export async function getManagementDashboard(scope: CarteiraScope) {
       : 0;
 
   const valorJudicializado = cobrancasList
-    .filter((item) => getCobrancaOperationalStatus(item) === "judicializado")
+    .filter((item) =>
+      [COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(
+        getCobrancaOperationalStatus(item) as any,
+      ),
+    )
     .reduce((sum, item) => sum + money(item.valor_atualizado), 0);
 
   const judicializacaoPercent =
@@ -435,7 +440,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
       label: "Judicialização",
       status: traffic(judicializacaoPercent, 6, 14),
       value: `${judicializacaoPercent}%`,
-      description: "peso do valor judicializado no estoque",
+      description: "peso do valor em pré-jurídico ou judicializado no estoque",
     },
     {
       label: "Carteira sem toque",
@@ -470,8 +475,10 @@ export async function getManagementDashboard(scope: CarteiraScope) {
       (item) => normalizeStatus(item.status) === "em_atraso",
     ).length,
     acordosEmRisco: acordosEmRisco.length,
-    judicializados: cobrancasList.filter(
-      (item) => getCobrancaOperationalStatus(item) === "judicializado",
+    judicializados: cobrancasList.filter((item) =>
+      [COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(
+        getCobrancaOperationalStatus(item) as any,
+      ),
     ).length,
     totalCobrancas: cobrancasList.length,
     totalAcordos: acordosList.length,

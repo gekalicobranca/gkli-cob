@@ -41,6 +41,7 @@ export function CobrancasBulkControls() {
           <option value="suspenso">Suspender / inativar</option>
           <option value="em_cobranca_ativa">Ativar cobrança</option>
           <option value="em_negociacao">Mover para negociação</option>
+          <option value="pre_juridico">Mover para pré-jurídico</option>
           <option value="judicializado">Judicializar</option>
           <option value="novo">Marcar como nova</option>
         </Select>

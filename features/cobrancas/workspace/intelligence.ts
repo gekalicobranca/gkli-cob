@@ -56,6 +56,7 @@ export function getWorkspaceIntelligence(
     !input.ultimaInteracaoAt && Number(input.totalInteracoes ?? 0) === 0;
   const temAcordo = Boolean(input.temAcordoVigente);
   const emNegociacao = input.statusOperacional === "em_negociacao";
+  const preJuridico = input.statusOperacional === "pre_juridico";
   const judicializado = input.statusOperacional === "judicializado";
 
   let score = 10;
@@ -82,6 +83,7 @@ export function getWorkspaceIntelligence(
   score += semInteracao ? 14 : 0;
   score += emNegociacao ? 10 : 0;
   score -= temAcordo ? 25 : 0;
+  score -= preJuridico ? 10 : 0;
   score -= judicializado ? 20 : 0;
   score = clamp(Math.round(score), 0, 100);
 
@@ -132,6 +134,15 @@ export function getWorkspaceIntelligence(
     );
   }
 
+  if (preJuridico) {
+    alertas.push(
+      "Pré-jurídico: cobrança fora da cadência extrajudicial e em preparação documental.",
+    );
+    sugestoes.push(
+      "Registrar checklist de documentos e próximo marco antes da judicialização.",
+    );
+  }
+
   if (alertas.length === 0) {
     alertas.push(
       "Caso operacionalmente controlado. Melhor ganho está em manter cadência e registrar próximo passo.",
@@ -146,6 +157,8 @@ export function getWorkspaceIntelligence(
 
   const acaoPrincipal = temAcordo
     ? "Acompanhar acordo"
+    : preJuridico
+      ? "Preparar documentação"
     : emNegociacao
       ? "Formalizar proposta"
       : semInteracao
@@ -156,6 +169,8 @@ export function getWorkspaceIntelligence(
 
   const foco = temAcordo
     ? "Cumprimento"
+    : preJuridico
+      ? "Pré-jurídico"
     : risco === "critico"
       ? "Intervenção imediata"
       : risco === "alto"

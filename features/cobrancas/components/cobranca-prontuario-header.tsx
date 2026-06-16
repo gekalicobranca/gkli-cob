@@ -3,7 +3,7 @@ import { formatDateBR } from "@/utils/formatters/date";
 import type { CobrancaNextAction } from "../next-action";
 
 function headerGradient(status: string) {
-  if (status.includes("judicial") || status.includes("suspenso"))
+  if (status.includes("judicial") || status.includes("juridico") || status.includes("suspenso"))
     return "from-rose-700 to-rose-950";
   if (status.includes("acordo")) return "from-emerald-700 to-emerald-950";
   if (status.includes("negociacao")) return "from-orange-600 to-orange-900";

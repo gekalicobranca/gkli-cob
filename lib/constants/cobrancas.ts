@@ -4,6 +4,7 @@ export const COBRANCA_STATUS_OPERACIONAL = {
   EM_NEGOCIACAO: 'em_negociacao',
   ACORDO_FIRMADO: 'acordo_firmado',
   ACORDO_EFETIVADO: 'acordo_efetivado',
+  PRE_JURIDICO: 'pre_juridico',
   JUDICIALIZADO: 'judicializado',
   SUSPENSO: 'suspenso',
 } as const
@@ -35,11 +36,18 @@ export const COBRANCA_STATUS_OPERACIONAIS_ATIVOS: CobrancaStatusOperacional[] = 
 export const COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO: CobrancaStatusOperacional[] = [
   COBRANCA_STATUS_OPERACIONAL.ACORDO_FIRMADO,
   COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
+  COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
   COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
   COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
 ]
 
+export const COBRANCA_STATUS_JUDICIALIZACAO: CobrancaStatusOperacional[] = [
+  COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
+  COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
+]
+
 export const COBRANCA_STATUS_SEM_ACAO: CobrancaStatusOperacional[] = [
+  COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
   COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
   COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
   COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
@@ -51,6 +59,7 @@ export const COBRANCA_STATUS_LABEL: Record<CobrancaStatusOperacional | CobrancaS
   em_negociacao: 'Em negociação',
   acordo_firmado: 'Acordo firmado',
   acordo_efetivado: 'Acordo efetivado',
+  pre_juridico: 'Pré-jurídico',
   judicializado: 'Judicializado',
   suspenso: 'Suspenso',
   em_aberto: 'Em aberto',

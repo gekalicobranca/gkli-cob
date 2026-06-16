@@ -1,7 +1,10 @@
 import { createClient } from "@/utils/supabase/server";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
-import { COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO } from "@/lib/constants/cobrancas";
+import {
+  COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO,
+  COBRANCA_STATUS_JUDICIALIZACAO,
+} from "@/lib/constants/cobrancas";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 
@@ -24,7 +27,7 @@ async function getUnidadeIdsComJudicializacaoAtiva(
     .from("cobrancas")
     .select("unidade_id, status, status_operacional")
     .in("unidade_id", ids)
-    .or("status_operacional.eq.judicializado,status.eq.judicializado");
+    .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")})`);
 
   if (error) {
     throw new Error(`Erro ao verificar judicialização por unidade: ${error.message}`);

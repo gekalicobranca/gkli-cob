@@ -662,6 +662,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
                   <select name="destino" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" defaultValue="retomar_cobranca">
                     <option value="retomar_cobranca">Retomar cobrança</option>
                     <option value="suspender">Suspender cobranças</option>
+                    <option value="pre_juridico">Preparar documentação pré-jurídica</option>
                     <option value="judicializar">Judicializar cobranças</option>
                   </select>
                 </label>

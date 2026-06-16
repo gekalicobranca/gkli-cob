@@ -14,6 +14,7 @@ import {
   ACORDO_STATUS,
   COBRANCA_STATUS,
   COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO,
+  COBRANCA_STATUS_JUDICIALIZACAO,
   PARCELA_ACORDO_STATUS,
 } from "@/lib/core/status";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
@@ -619,7 +620,7 @@ export async function createAcordo(formData: FormData) {
     .from("cobrancas")
     .select("id")
     .eq("unidade_id", cobrancaPrincipal.unidade_id)
-    .or("status_operacional.eq.judicializado,status.eq.judicializado")
+    .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")})`)
     .limit(1);
 
   if (judicializacaoUnidadeError) {
@@ -2509,7 +2510,7 @@ export async function romperAcordoAssistido(formData: FormData) {
   const observacao = String(formData.get("observacao") ?? "").trim();
 
   if (!acordoId) throw new Error("Acordo obrigatório.");
-  if (!["retomar_cobranca", "suspender", "judicializar"].includes(destino)) throw new Error("Destino inválido.");
+  if (!["retomar_cobranca", "suspender", "pre_juridico", "judicializar"].includes(destino)) throw new Error("Destino inválido.");
 
   const { data: acordo, error } = await supabase
     .from("acordos")
@@ -2529,7 +2530,14 @@ export async function romperAcordoAssistido(formData: FormData) {
     (acordo as any).cobranca_id,
   ].filter(Boolean)));
 
-  const statusCobranca = destino === "judicializar" ? "judicializado" : destino === "suspender" ? "suspenso" : COBRANCA_STATUS.EM_COBRANCA_ATIVA;
+  const statusCobranca =
+    destino === "judicializar"
+      ? COBRANCA_STATUS.JUDICIALIZADO
+      : destino === "pre_juridico"
+        ? COBRANCA_STATUS.PRE_JURIDICO
+        : destino === "suspender"
+          ? COBRANCA_STATUS.SUSPENSO
+          : COBRANCA_STATUS.EM_COBRANCA_ATIVA;
 
   const { error: updateError } = await supabase
     .from("acordos")

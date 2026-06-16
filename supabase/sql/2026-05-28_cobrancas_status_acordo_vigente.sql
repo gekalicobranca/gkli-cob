@@ -11,7 +11,7 @@ set
 from public.acordos a
 where a.cobranca_id = c.id
   and a.status in ('ativo', 'em_dia', 'em_atraso', 'vencido', 'quitado')
-  and coalesce(c.status_operacional, '') not in ('acordo_firmado', 'acordo_efetivado', 'judicializado', 'suspenso');
+  and coalesce(c.status_operacional, '') not in ('acordo_firmado', 'acordo_efetivado', 'pre_juridico', 'judicializado', 'suspenso');
 
 -- A coluna legada `status` aparece em bases diferentes com checks diferentes
 -- (algumas usam "acordo firmado"; outras usam "acordo_firmado").
@@ -56,5 +56,5 @@ begin
   from public.acordos a
   where a.cobranca_id = c.id
     and a.status in ('ativo', 'em_dia', 'em_atraso', 'vencido', 'quitado')
-    and coalesce(c.status, '') not in (valor_firmado, valor_efetivado, 'judicializado', 'suspenso');
+    and coalesce(c.status, '') not in (valor_firmado, valor_efetivado, 'pre_juridico', 'judicializado', 'suspenso');
 end $$;
