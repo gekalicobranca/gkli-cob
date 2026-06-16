@@ -2386,9 +2386,10 @@ function detectSuperlogicaPendentesCobrancas(text: string): DeteccaoPdfCobrancas
     /CONDOMINIO\s*:\s*\d+\s*-/,
     /RECIBO\s*VENCIMENTO\s*EMISSAO/,
     /VALOR\s+PRINCIPAL|VALOR\s+ORIGINAL/,
-    /TOTAL\s+DO\s+RECIBO|NAO\s+HA\s+DEVEDORES/,
+    /TOTAL\s+DO\s+RECIBO|NAO\s+HA\s+DEVEDORES|NAO\s+CONSTA\s+PENDENCIA/,
     /TOTAL\s+(?:GERAL\s+)?DA\s+UNIDADE|QUANTIDADE\s+DE\s+UNIDADES\s+INADIMPLENTES|QUANTIDADE\s+DE\s+UNIDADE/,
-    /BLOCO\s*:\s*\S+\s+UNIDADE\s*:|NAO\s+HA\s+DEVEDORES/,
+    /BLOCO\s*:\s*\S*\s+UNIDADE\s*:|NAO\s+HA\s+DEVEDORES|NAO\s+CONSTA\s+PENDENCIA/,
+    /IMPORTANTE\s*:\s*NAO\s+RECEBEMOS\s+OS\s+AVISOS\s+DE\s+CREDITOS|CONFIGURAR\s+RESSALVA|ATENTUM/,
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
 
   const recibos = countRegexMatches(
@@ -2397,13 +2398,16 @@ function detectSuperlogicaPendentesCobrancas(text: string): DeteccaoPdfCobrancas
   );
   const semDevedores = /\*{2,}\s*N[AÃ]O\s+H[AÁ]\s+DEVEDORES\s*\*{2,}/i.test(loose);
 
-  const confianca = Math.min(99, sinais * 12 + Math.min(25, recibos) + (semDevedores ? 20 : 0));
+  const semPendencia = /NAO\s+CONSTA\s+PENDENCIA\s+NO\s+PERIODO/i.test(loose);
+  const semCobrancas = semDevedores || semPendencia;
+
+  const confianca = Math.min(99, sinais * 12 + Math.min(25, recibos) + (semCobrancas ? 20 : 0));
 
   return {
-    ok: sinais >= 5 && (recibos > 0 || semDevedores),
+    ok: (sinais >= 5 && (recibos > 0 || semDevedores)) || (semPendencia && sinais >= 4),
     confianca,
     condominioDetectado,
-    semDevedores,
+    semDevedores: semCobrancas,
   };
 }
 

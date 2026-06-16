@@ -56,6 +56,7 @@ const sections: SidebarSection[] = [
       { label: 'Unidades', href: '/app/unidades', icon: 'unit' },
       { label: 'Responsáveis', href: '/app/responsaveis', icon: 'users' },
       { label: 'Administradoras', href: '/app/administradoras', icon: 'building' },
+      { label: 'Importações', href: '/app/importacoes', icon: 'upload' },
     ],
   },
   {
@@ -79,7 +80,6 @@ const sections: SidebarSection[] = [
       { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
       { label: 'Saneamento cobranças', href: '/app/gestao/saneamento-cobrancas', icon: 'shield' },
       { label: 'Fechamento mensal', href: '/app/gestao/fechamento', icon: 'calendar', gestorOnly: true },
-      { label: 'Importações', href: '/app/importacoes', icon: 'upload' },
     ],
   },
 ]

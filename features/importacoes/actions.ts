@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { requireRole } from "@/utils/auth/require-role";
 import { getPermittedCarteiras, type CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import {
@@ -1551,13 +1552,15 @@ async function importarCobrancas(
     resultado.ausentes = ausentes.total;
     resultado.erros.push(...ausentes.mensagens);
 
-    const pendencias = await registrarPendenciasCobrancasAusentes(supabase, {
-      ausentes: ausentes.ausentes,
-    });
-    if (pendencias.criadas > 0) {
-      resultado.erros.push(
-        `ALERTA: ${pendencias.criadas} pendÃªncia(s) criada(s) para cobranÃ§as abertas ausentes no relatÃ³rio.`,
-      );
+    if (ausentes.ausentes.length > 0) {
+      const pendencias = await registrarPendenciasCobrancasAusentes(createAdminClient(), {
+        ausentes: ausentes.ausentes,
+      });
+      if (pendencias.criadas > 0) {
+        resultado.erros.push(
+          `ALERTA: ${pendencias.criadas} pendÃªncia(s) criada(s) para cobranÃ§as abertas ausentes no relatÃ³rio.`,
+        );
+      }
     }
   } catch (error) {
     resultado.erros.push(
