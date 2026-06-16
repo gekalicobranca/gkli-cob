@@ -87,6 +87,52 @@ function isAusenteRelatorio(mensagem: string) {
   return normalizada.includes('ausente no relatório') || normalizada.includes('ausente no relatorio')
 }
 
+function MessageSummary({
+  title,
+  messages,
+  tone = 'neutral',
+  limit = 8,
+}: {
+  title: string
+  messages: string[]
+  tone?: 'neutral' | 'warning' | 'danger'
+  limit?: number
+}) {
+  if (messages.length === 0) return null
+
+  const toneClass = {
+    neutral: 'bg-white/80 text-slate-700',
+    warning: 'bg-amber-50 text-amber-800',
+    danger: 'bg-rose-50 text-rose-700',
+  }[tone]
+  const titleClass = {
+    neutral: 'text-slate-950',
+    warning: 'text-amber-950',
+    danger: 'text-rose-950',
+  }[tone]
+  const visible = messages.slice(0, limit)
+  const remaining = Math.max(0, messages.length - visible.length)
+
+  return (
+    <div className={`rounded-2xl px-4 py-3 text-sm shadow-sm ${toneClass}`}>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <p className={`font-medium ${titleClass}`}>{title}</p>
+        <span className="text-xs font-medium opacity-70">{messages.length} ocorrência{messages.length === 1 ? '' : 's'}</span>
+      </div>
+      <ul className="mt-2 max-h-48 space-y-1 overflow-auto text-xs leading-5">
+        {visible.map((mensagem, index) => (
+          <li key={`${title}-${index}`} className="break-words">
+            {mensagem}
+          </li>
+        ))}
+        {remaining > 0 ? (
+          <li className="font-medium">+{remaining} ocorrência{remaining === 1 ? '' : 's'} omitida{remaining === 1 ? '' : 's'} nesta visualização.</li>
+        ) : null}
+      </ul>
+    </div>
+  )
+}
+
 export default async function ImportacaoDetalhePage({ params, searchParams }: PageProps) {
   const { id } = await params
   const query = searchParams ? await searchParams : {}
@@ -183,30 +229,10 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
 
           {resultadoMensagens.length > 0 ? (
             <div className="mt-4 space-y-3">
-              {mensagensJaExistentes.length > 0 ? (
-                <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-sm">
-                  <p className="font-medium text-slate-950">Já existiam na base</p>
-                  <p className="mt-1">{mensagensJaExistentes.join(' · ')}</p>
-                </div>
-              ) : null}
-              {mensagensDivergentes.length > 0 ? (
-                <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
-                  <p className="font-medium text-amber-950">Divergências para revisar</p>
-                  <p className="mt-1">{mensagensDivergentes.join(' · ')}</p>
-                </div>
-              ) : null}
-              {mensagensAusentes.length > 0 ? (
-                <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
-                  <p className="font-medium text-amber-950">Abertas ausentes no relatório</p>
-                  <p className="mt-1">{mensagensAusentes.join(' · ')}</p>
-                </div>
-              ) : null}
-              {mensagensOutras.length > 0 ? (
-                <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-rose-700 shadow-sm">
-                  <p className="font-medium text-rose-950">Outras ocorrências</p>
-                  <p className="mt-1">{mensagensOutras.join(' · ')}</p>
-                </div>
-              ) : null}
+              <MessageSummary title="Já existiam na base" messages={mensagensJaExistentes} />
+              <MessageSummary title="Divergências para revisar" messages={mensagensDivergentes} tone="warning" />
+              <MessageSummary title="Abertas ausentes no relatório" messages={mensagensAusentes} tone="warning" />
+              <MessageSummary title="Outras ocorrências" messages={mensagensOutras} tone="danger" />
             </div>
           ) : null}
         </Card>
