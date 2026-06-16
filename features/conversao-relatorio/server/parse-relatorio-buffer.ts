@@ -2657,11 +2657,17 @@ function detectHflexLiveFacilitiesCobrancas(text: string): DeteccaoPdfCobrancas 
   );
   const resumos = countRegexMatches(normalized, /RESUMO\s+(?:DA\s+)?UNIDADE/gi);
   const totalRecibosTexto = recibosTexto + recibosCompactos;
-  const possuiSomenteCabecalho = sinais >= 2 && totalRecibosTexto === 0 && resumos === 0;
+  const possuiSomenteCabecalho =
+    /DEVEDORES\s+DETALHADO/.test(loose) &&
+    /PAGINA\s+\d+\s+DE\s+\d+/.test(loose) &&
+    totalRecibosTexto === 0 &&
+    resumos === 0;
 
   return {
-    ok: sinais >= 3 && (totalRecibosTexto > 0 || resumos > 0 || possuiSomenteCabecalho),
-    confianca: Math.min(98, sinais * 16 + Math.min(25, totalRecibosTexto) + Math.min(15, resumos)),
+    ok: (sinais >= 3 && (totalRecibosTexto > 0 || resumos > 0)) || possuiSomenteCabecalho,
+    confianca: possuiSomenteCabecalho
+      ? 72
+      : Math.min(98, sinais * 16 + Math.min(25, totalRecibosTexto) + Math.min(15, resumos)),
     condominioDetectado,
     semDevedores: false,
   };

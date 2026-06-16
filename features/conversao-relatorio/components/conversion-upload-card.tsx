@@ -48,6 +48,21 @@ function downloadXlsx(filename: string, base64: string) {
   URL.revokeObjectURL(url);
 }
 
+async function readJsonResponse(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return {
+    ok: false,
+    error:
+      text.trim() ||
+      "O servidor nao retornou uma resposta valida para o conversor.",
+  };
+}
+
 function normalizeSearchText(value: string) {
   return value
     .normalize("NFD")
@@ -200,7 +215,7 @@ export function ConversionUploadCard({
         body: formData,
       });
 
-      const result = await response.json();
+      const result = await readJsonResponse(response);
 
       if (!response.ok || !result.ok) {
         setError(result.error ?? "Não foi possível processar o relatório.");
@@ -227,7 +242,7 @@ export function ConversionUploadCard({
           method: "POST",
           body: enrichedFormData,
         });
-        const enrichedResult = await enrichedResponse.json();
+        const enrichedResult = await readJsonResponse(enrichedResponse);
 
         if (!enrichedResponse.ok || !enrichedResult.ok) {
           setPreview(parsedPreview);
@@ -267,7 +282,7 @@ export function ConversionUploadCard({
         method: "POST",
         body: formData,
       });
-      const result = await response.json();
+      const result = await readJsonResponse(response);
 
       if (!response.ok || !result.ok) {
         setError(result.error ?? "Não foi possível processar o relatório.");
