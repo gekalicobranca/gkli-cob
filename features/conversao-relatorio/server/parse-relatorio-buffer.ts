@@ -2383,16 +2383,17 @@ function detectSuperlogicaPendentesCobrancas(text: string): DeteccaoPdfCobrancas
   const sinais = [
     /RELACAO\s+ANALITICA\s+DE\s+PENDENTES/,
     /ATUALIZADO\s+MONETARIAMENTE/,
+    /CONDOMINIO\s*:\s*\d+\s*-/,
     /RECIBO\s*VENCIMENTO\s*EMISSAO/,
     /VALOR\s+PRINCIPAL|VALOR\s+ORIGINAL/,
     /TOTAL\s+DO\s+RECIBO|NAO\s+HA\s+DEVEDORES/,
-    /TOTAL\s+DA\s+UNIDADE|QUANTIDADE\s+DE\s+UNIDADES\s+INADIMPLENTES/,
+    /TOTAL\s+(?:GERAL\s+)?DA\s+UNIDADE|QUANTIDADE\s+DE\s+UNIDADES\s+INADIMPLENTES|QUANTIDADE\s+DE\s+UNIDADE/,
     /BLOCO\s*:\s*\S+\s+UNIDADE\s*:|NAO\s+HA\s+DEVEDORES/,
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
 
   const recibos = countRegexMatches(
     normalized,
-    /(?:^|\n)\s*\d{6,}\s*(?:(?:AE|AJ|A|J|D|B|P)\s+)?\d{2}\/\d{2}\/\d{4}\s*\d{3,}/g,
+    /(?:^|\n)\s*(?:(?:AE|AJ|A|J|D|B|P)\s+)?\d{6,}\s*\d{2}\/\d{2}\/\d{4}\s*\d{3,}/g,
   );
   const semDevedores = /\*{2,}\s*N[AÃ]O\s+H[AÁ]\s+DEVEDORES\s*\*{2,}/i.test(loose);
 
@@ -2541,7 +2542,7 @@ function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondopro[] {
       continue;
     }
 
-    if (/^Total\s+da\s+Unidade\s*:/i.test(line)) {
+    if (/^Total\s+(?:Geral\s+)?da\s+Unidade\s*:/i.test(line)) {
       const totaisUnidade = totaisFromMoneyList(moneyMatchesFromText(line));
 
       // Alguns relatórios da Superlógica suprimem a linha "Total do recibo"
@@ -2569,11 +2570,19 @@ function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondopro[] {
       continue;
     }
 
-    const reciboMatch = line.match(/^(\d{6,})\s*(?:(AE|AJ|A|J|D|B|P)\s+)?(\d{2}\/\d{2}\/\d{4})\s*\d{3,}/i);
+    const reciboMatch =
+      line.match(/^(\d{6,})\s*(?:(AE|AJ|A|J|D|B|P)\s+)?(\d{2}\/\d{2}\/\d{4})\s*\d{3,}/i) ??
+      line.match(/^(?:(AE|AJ|A|J|D|B|P)\s+)?(\d{6,}?)(\d{2}\/\d{2}\/\d{4})\d{3,}/i);
     if (reciboMatch) {
-      const reciboEncontrado = reciboMatch[1] || "";
-      const marcadorEncontrado = normalizeMarcadorOrigem(reciboMatch[2]);
-      const vencimentoEncontrado = reciboMatch[3] || "";
+      const reciboEncontrado = /^\d/.test(reciboMatch[1] ?? "")
+        ? reciboMatch[1] || ""
+        : reciboMatch[2] || "";
+      const marcadorEncontrado = normalizeMarcadorOrigem(
+        /^\d/.test(reciboMatch[1] ?? "") ? reciboMatch[2] : reciboMatch[1],
+      );
+      const vencimentoEncontrado = /^\d/.test(reciboMatch[1] ?? "")
+        ? reciboMatch[3] || ""
+        : reciboMatch[3] || "";
 
       // Em PDFs paginados, um recibo pode começar no rodapé de uma página e
       // continuar no topo da página seguinte repetindo recibo/vencimento. Não
