@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ImportProgressIndicator } from "@/components/feedback/import-progress-indicator";
 import type {
   ConversaoPreview,
   TipoConversaoRelatorio,
@@ -392,6 +393,18 @@ export function ConversionUploadCard({
           {selectedTipo.description}
         </span>
       </label>
+
+      <ImportProgressIndicator
+        active={loading}
+        title="Processando relatório"
+        steps={[
+          "Enviando arquivo",
+          "Extraindo texto",
+          "Reconhecendo layout",
+          "Montando prévia",
+          "Gerando XLSX",
+        ]}
+      />
 
       {filename ? (
         <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
