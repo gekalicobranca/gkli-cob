@@ -2642,12 +2642,17 @@ function detectHflexLiveFacilitiesCobrancas(text: string): DeteccaoPdfCobrancas 
     normalized,
     /(?:^|\n)\s*\d{6,}\s+(?:(?:\d{4,})\s+){0,2}\d{2}\/\d{2}\/\d{4}\s+/g,
   );
+  const recibosCompactos = countRegexMatches(
+    normalized,
+    /(?:^|\n)\s*\d{6,}\d{2}\/\d{2}\/\d{4}(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g,
+  );
   const resumos = countRegexMatches(normalized, /RESUMO\s+(?:DA\s+)?UNIDADE/gi);
-  const possuiSomenteCabecalho = sinais >= 2 && recibosTexto === 0 && resumos === 0;
+  const totalRecibosTexto = recibosTexto + recibosCompactos;
+  const possuiSomenteCabecalho = sinais >= 2 && totalRecibosTexto === 0 && resumos === 0;
 
   return {
-    ok: sinais >= 3 && (recibosTexto > 0 || resumos > 0 || possuiSomenteCabecalho),
-    confianca: Math.min(98, sinais * 16 + Math.min(25, recibosTexto) + Math.min(15, resumos)),
+    ok: sinais >= 3 && (totalRecibosTexto > 0 || resumos > 0 || possuiSomenteCabecalho),
+    confianca: Math.min(98, sinais * 16 + Math.min(25, totalRecibosTexto) + Math.min(15, resumos)),
     condominioDetectado,
     semDevedores: false,
   };
@@ -2670,6 +2675,24 @@ function isHflexHeaderLine(line: string) {
 
 function parseHflexReceiptLine(line: string) {
   const normalized = normalize(line);
+  const compactMatch = normalized.match(/^(\d{6,}?)(\d{2}\/\d{2}\/\d{4})((?:\d|\.|,)+)$/);
+  if (compactMatch) {
+    const moneyValues = [...compactMatch[3].matchAll(/(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g)]
+      .map((match) => parseMoney(match[0]));
+    if (moneyValues.length >= 5) {
+      return {
+        recibo: compactMatch[1],
+        acordo: undefined,
+        vencimento: compactMatch[2],
+        valorPrincipal: moneyValues[0] ?? 0,
+        multa: moneyValues[1] ?? 0,
+        juros: moneyValues[2] ?? 0,
+        correcao: moneyValues[3] ?? 0,
+        valorTotal: moneyValues[moneyValues.length - 1] ?? moneyValues[0] ?? 0,
+      };
+    }
+  }
+
   const matches = [...normalized.matchAll(/(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g)];
   if (!matches.length) return null;
 
@@ -2702,6 +2725,11 @@ function parseHflexReceiptLine(line: string) {
     juros = moneyValues[2] ?? 0;
     correcao = moneyValues[3] ?? 0;
     valorTotal = moneyValues[6] ?? valorTotal;
+  } else if (moneyValues.length >= 5) {
+    multa = moneyValues[1] ?? 0;
+    juros = moneyValues[2] ?? 0;
+    correcao = moneyValues[3] ?? 0;
+    valorTotal = moneyValues[4] ?? valorTotal;
   }
 
   return {
@@ -3137,6 +3165,19 @@ function parseHflexLiveFacilitiesCobrancasPdf(text: string): ReciboCondopro[] {
 
   for (const line of lines) {
     if (isHflexHeaderLine(line)) continue;
+
+    const blocoUnidadeCompactMatch = line.match(/^(.+?)(\d{3,})$/i);
+    if (
+      blocoUnidadeCompactMatch &&
+      !/^RESUMO\b/i.test(line) &&
+      !/\d{2}\/\d{2}\/\d{4}/.test(line) &&
+      /[A-Z]/i.test(blocoUnidadeCompactMatch[1])
+    ) {
+      blocoAtual = normalize(blocoUnidadeCompactMatch[1]).replace(/\s+/g, " ");
+      unidadeAtual = blocoUnidadeCompactMatch[2];
+      unidadePendenteSemBloco = false;
+      continue;
+    }
 
     const blocoUnidadeMatch = line.match(/^([A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9 ._-]{2,})\s+(\d{3,})$/i);
     if (blocoUnidadeMatch && !/^RESUMO\b/i.test(line)) {
