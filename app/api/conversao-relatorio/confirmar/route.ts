@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
-import { conciliarCobrancaImportada } from "@/features/importacoes/cobrancas-conciliacao"
+import {
+  conciliarCobrancaImportada,
+  encontrarCobrancasAbertasAusentes,
+  type CobrancaImportadaConciliacao,
+} from "@/features/importacoes/cobrancas-conciliacao"
 
 export const runtime = "nodejs"
 
@@ -108,6 +112,7 @@ export async function POST(request: NextRequest) {
           cobrancasCriadas: 0,
           cobrancasIgnoradas: 0,
           cobrancasDivergentes: 0,
+          cobrancasAusentes: 0,
           parcelasCriadas: 0,
           inconsistencias: [],
         },
@@ -120,8 +125,10 @@ export async function POST(request: NextRequest) {
     let cobrancasCriadas = 0
     let cobrancasIgnoradas = 0
     let cobrancasDivergentes = 0
+    let cobrancasAusentes = 0
     let parcelasCriadas = 0
     const inconsistencias: string[] = []
+    const importadasParaAusencia: CobrancaImportadaConciliacao[] = []
 
     for (const item of cobrancas) {
       const unidadeLabel = String(item.unidade ?? "").trim()
@@ -183,7 +190,7 @@ export async function POST(request: NextRequest) {
         ? `Conversão de relatório - recibo ${recibo}`
         : "Conversão de relatório"
 
-      const conciliacao = await conciliarCobrancaImportada(supabase, {
+      const importadaConciliacao: CobrancaImportadaConciliacao = {
         condominio_id: condominioId,
         unidade_id: unidadeId,
         vencimento: vencimentoMaisAntigo,
@@ -192,7 +199,10 @@ export async function POST(request: NextRequest) {
         recibo,
         referencia: recibo ? `Recibo ${recibo}` : null,
         observacoes,
-      })
+      }
+      importadasParaAusencia.push(importadaConciliacao)
+
+      const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao)
 
       if (conciliacao.status === "ja_existente") {
         cobrancasIgnoradas += 1
@@ -270,6 +280,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    try {
+      const ausentes = await encontrarCobrancasAbertasAusentes(supabase, {
+        condominioIds: [condominioId],
+        carteiraId,
+        importadas: importadasParaAusencia,
+      })
+      cobrancasAusentes = ausentes.total
+      inconsistencias.push(...ausentes.mensagens)
+    } catch (error) {
+      inconsistencias.push(
+        `ALERTA: Não foi possível validar cobranças abertas ausentes no relatório: ${error instanceof Error ? error.message : "erro desconhecido"}`
+      )
+    }
+
     await supabase
       .from("conversoes_relatorio")
       .update({
@@ -285,6 +309,7 @@ export async function POST(request: NextRequest) {
         cobrancasCriadas,
         cobrancasIgnoradas,
         cobrancasDivergentes,
+        cobrancasAusentes,
         parcelasCriadas,
         inconsistencias,
       },

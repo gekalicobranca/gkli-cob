@@ -16,7 +16,11 @@ import {
 } from "./preview-rules";
 import { parseXlsx, type ParsedImportFile } from "./engine/xlsx-parser";
 import { isLegacyImportType, isValidImportType } from "./engine/types";
-import { conciliarCobrancaImportada } from "./cobrancas-conciliacao";
+import {
+  conciliarCobrancaImportada,
+  encontrarCobrancasAbertasAusentes,
+  type CobrancaImportadaConciliacao,
+} from "./cobrancas-conciliacao";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -75,6 +79,7 @@ type ImportExecutionResult = {
   criados: number;
   atualizados: number;
   divergentes: number;
+  ausentes: number;
   ignorados: number;
   erros: string[];
 };
@@ -99,7 +104,7 @@ function assertPayloadsPermitidos(scope: CarteiraScope, payloads: Record<string,
 }
 
 function emptyImportExecutionResult(): ImportExecutionResult {
-  return { importados: 0, criados: 0, atualizados: 0, divergentes: 0, ignorados: 0, erros: [] };
+  return { importados: 0, criados: 0, atualizados: 0, divergentes: 0, ausentes: 0, ignorados: 0, erros: [] };
 }
 
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
@@ -1452,6 +1457,7 @@ async function importarCobrancas(
   payloads: Record<string, any>[],
 ): Promise<ImportExecutionResult> {
   const resultado = emptyImportExecutionResult();
+  const importadasParaAusencia: CobrancaImportadaConciliacao[] = [];
 
   for (const [index, payload] of payloads.entries()) {
     const linha = Number(payload.__linha ?? index + 1);
@@ -1461,7 +1467,7 @@ async function importarCobrancas(
       payload.unidade_id = unidade.id;
       if (unidade.criada) resultado.criados += 1;
 
-      const conciliacao = await conciliarCobrancaImportada(supabase, {
+      const importadaConciliacao: CobrancaImportadaConciliacao = {
         condominio_id: payload.condominio_id,
         unidade_id: payload.unidade_id,
         competencia: payload.competencia || null,
@@ -1471,7 +1477,10 @@ async function importarCobrancas(
         recibo: payload.recibo || null,
         referencia: payload.referencia || null,
         observacoes: payload.observacoes || null,
-      });
+      };
+      importadasParaAusencia.push(importadaConciliacao);
+
+      const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao);
       const cobrancaExistenteId = conciliacao.cobrancaId;
       if (conciliacao.status === "ja_existente") {
         resultado.ignorados += 1;
@@ -1521,6 +1530,27 @@ async function importarCobrancas(
       );
       resultado.ignorados += 1;
     }
+  }
+
+  try {
+    const condominioIds = Array.from(
+      new Set(importadasParaAusencia.map((item) => item.condominio_id).filter(Boolean) as string[]),
+    );
+    const carteiraIds = Array.from(
+      new Set(payloads.map((payload) => String(payload.carteira_id ?? "").trim()).filter(Boolean)),
+    );
+    const ausentes = await encontrarCobrancasAbertasAusentes(supabase, {
+      condominioIds,
+      carteiraId: carteiraIds.length === 1 ? carteiraIds[0] : null,
+      importadas: importadasParaAusencia,
+    });
+
+    resultado.ausentes = ausentes.total;
+    resultado.erros.push(...ausentes.mensagens);
+  } catch (error) {
+    resultado.erros.push(
+      `ALERTA: Não foi possível validar cobranças abertas ausentes no relatório: ${error instanceof Error ? error.message : "erro desconhecido"}`,
+    );
   }
 
   return resultado;
@@ -1847,6 +1877,7 @@ export async function confirmarImportacao(formData: FormData) {
       criados: resultadoLegado.criados,
       atualizados: 0,
       divergentes: 0,
+      ausentes: 0,
       ignorados: Math.max(0, payloads.length - resultadoLegado.importados),
       erros: resultadoLegado.erros,
     };
@@ -1866,6 +1897,7 @@ export async function confirmarImportacao(formData: FormData) {
 
   (resultado as any).atualizados = execucao.atualizados;
   (resultado as any).divergentes = execucao.divergentes;
+  (resultado as any).ausentes = execucao.ausentes;
 
   await finalizarImportacao({
     supabase,

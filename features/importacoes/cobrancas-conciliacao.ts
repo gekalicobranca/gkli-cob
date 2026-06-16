@@ -37,6 +37,8 @@ export type ResultadoConciliacaoCobranca =
 
 type CobrancaExistente = {
   id: string;
+  condominio_id?: string | null;
+  unidade_id?: string | null;
   competencia: string | null;
   vencimento: string | null;
   valor_original: number | null;
@@ -44,6 +46,14 @@ type CobrancaExistente = {
   observacoes: string | null;
   status_financeiro: string | null;
   status_operacional: string | null;
+  unidades?: { identificacao?: string | null; bloco?: string | null } | { identificacao?: string | null; bloco?: string | null }[] | null;
+};
+
+type CobrancasAusentesParams = {
+  condominioIds: string[];
+  carteiraId?: string | null;
+  importadas: CobrancaImportadaConciliacao[];
+  limiteMensagens?: number;
 };
 
 function cents(value: number | string | null | undefined) {
@@ -146,6 +156,129 @@ function classificarCandidato(
   }
 
   return null;
+}
+
+function isMesmoLancamentoImportado(
+  importada: CobrancaImportadaConciliacao,
+  existente: CobrancaExistente,
+) {
+  return (
+    existente.unidade_id === importada.unidade_id &&
+    existente.vencimento === importada.vencimento &&
+    temMesmaCompetencia(importada, existente) &&
+    temMesmaReferencia(importada, existente)
+  );
+}
+
+function chaveAusenciaPorUnidadeVencimento(
+  unidadeId: string | null | undefined,
+  vencimento: string | null | undefined,
+) {
+  return `${unidadeId ?? ""}|${vencimento ?? ""}`;
+}
+
+function unidadeLabel(existente: CobrancaExistente) {
+  const unidadeRaw = Array.isArray(existente.unidades)
+    ? existente.unidades[0]
+    : existente.unidades;
+  const identificacao = normalizeText(unidadeRaw?.identificacao).toUpperCase();
+  const bloco = normalizeText(unidadeRaw?.bloco).toUpperCase();
+
+  if (bloco && identificacao) return `${bloco} ${identificacao}`;
+  return identificacao || existente.unidade_id || "unidade sem identificacao";
+}
+
+async function listarCobrancasAbertasDoEscopo(
+  supabase: SupabaseLike,
+  condominioIds: string[],
+  carteiraId?: string | null,
+) {
+  const rows: CobrancaExistente[] = [];
+  const pageSize = 1000;
+
+  for (let from = 0; ; from += pageSize) {
+    let query = supabase
+      .from("cobrancas")
+      .select(
+        "id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status_financeiro, status_operacional, unidades:unidade_id(identificacao, bloco)",
+      )
+      .in("condominio_id", condominioIds)
+      .range(from, from + pageSize - 1);
+
+    if (carteiraId) {
+      query = query.eq("carteira_id", carteiraId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(`Erro ao listar cobranças abertas para validação de ausência: ${error.message}`);
+    }
+
+    const page = ((data ?? []) as CobrancaExistente[]).filter(statusAberto);
+    rows.push(...page);
+
+    if (!data || data.length < pageSize) break;
+  }
+
+  return rows;
+}
+
+export async function encontrarCobrancasAbertasAusentes(
+  supabase: SupabaseLike,
+  params: CobrancasAusentesParams,
+) {
+  const condominioIds = Array.from(new Set(params.condominioIds.filter(Boolean)));
+  const importadas = params.importadas.filter((item) => item.unidade_id && item.vencimento);
+  const limiteMensagens = params.limiteMensagens ?? 25;
+
+  if (!condominioIds.length || !importadas.length) {
+    return { total: 0, mensagens: [] as string[] };
+  }
+
+  const abertas = await listarCobrancasAbertasDoEscopo(
+    supabase,
+    condominioIds,
+    params.carteiraId,
+  );
+  const importadasPorUnidadeVencimento = new Map<string, CobrancaImportadaConciliacao[]>();
+
+  for (const importada of importadas) {
+    const chave = chaveAusenciaPorUnidadeVencimento(importada.unidade_id, importada.vencimento);
+    const grupo = importadasPorUnidadeVencimento.get(chave) ?? [];
+    grupo.push(importada);
+    importadasPorUnidadeVencimento.set(chave, grupo);
+  }
+
+  const ausentes = abertas.filter((existente) => {
+    const candidatas = importadasPorUnidadeVencimento.get(
+      chaveAusenciaPorUnidadeVencimento(existente.unidade_id, existente.vencimento),
+    ) ?? [];
+    return !candidatas.some((importada) => isMesmoLancamentoImportado(importada, existente));
+  });
+
+  const mensagens = ausentes.slice(0, limiteMensagens).map((existente) => {
+    const valor = cents(existente.valor_atualizado || existente.valor_original) / 100;
+    return [
+      "ALERTA: Cobrança aberta ausente no relatório da administradora",
+      `unidade ${unidadeLabel(existente)}`,
+      existente.vencimento ? `vencimento ${existente.vencimento}` : null,
+      `valor R$ ${valor.toFixed(2).replace(".", ",")}`,
+      `id ${existente.id}`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  });
+
+  if (ausentes.length > limiteMensagens) {
+    mensagens.push(
+      `ALERTA: +${ausentes.length - limiteMensagens} cobranças abertas ausentes no relatório da administradora. Revise a base antes de baixar ou cancelar.`,
+    );
+  }
+
+  return {
+    total: ausentes.length,
+    mensagens,
+  };
 }
 
 export async function conciliarCobrancaImportada(

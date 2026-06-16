@@ -82,6 +82,11 @@ function isJaExistenteConciliacao(mensagem: string) {
   return normalizada.includes('ja existia') || normalizada.includes('já existia')
 }
 
+function isAusenteRelatorio(mensagem: string) {
+  const normalizada = mensagem.toLowerCase()
+  return normalizada.includes('ausente no relatório') || normalizada.includes('ausente no relatorio')
+}
+
 export default async function ImportacaoDetalhePage({ params, searchParams }: PageProps) {
   const { id } = await params
   const query = searchParams ? await searchParams : {}
@@ -96,7 +101,8 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
   const resultadoMensagens = (resultadoFinal?.erros ?? []) as string[]
   const mensagensDivergentes = resultadoMensagens.filter(isDivergenciaConciliacao)
   const mensagensJaExistentes = resultadoMensagens.filter(isJaExistenteConciliacao)
-  const mensagensOutras = resultadoMensagens.filter((mensagem) => !isDivergenciaConciliacao(mensagem) && !isJaExistenteConciliacao(mensagem))
+  const mensagensAusentes = resultadoMensagens.filter(isAusenteRelatorio)
+  const mensagensOutras = resultadoMensagens.filter((mensagem) => !isDivergenciaConciliacao(mensagem) && !isJaExistenteConciliacao(mensagem) && !isAusenteRelatorio(mensagem))
   const linhasComAlerta = itens.filter((item: any) => getAlertas(item.erros ?? []).length > 0).length
   const bloqueadas = itens.filter((item: any) => !item.valido).length
   const canConfirm = ['preview', 'erro'].includes(importacao.status) && importacao.total_validas > 0
@@ -144,7 +150,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
             <div className="rounded-2xl bg-white/80 p-4 shadow-sm">
               <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Importados</p>
               <p className="mt-2 text-2xl font-medium text-slate-950">{resultadoFinal.importados ?? 0}</p>
@@ -166,6 +172,10 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
               <p className="mt-2 text-2xl font-medium text-slate-950">{resultadoFinal.divergentes ?? mensagensDivergentes.length}</p>
             </div>
             <div className="rounded-2xl bg-white/80 p-4 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ausentes</p>
+              <p className="mt-2 text-2xl font-medium text-slate-950">{resultadoFinal.ausentes ?? mensagensAusentes.length}</p>
+            </div>
+            <div className="rounded-2xl bg-white/80 p-4 shadow-sm">
               <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Mensagens</p>
               <p className="mt-2 text-2xl font-medium text-slate-950">{resultadoMensagens.length}</p>
             </div>
@@ -183,6 +193,12 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                 <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
                   <p className="font-medium text-amber-950">Divergências para revisar</p>
                   <p className="mt-1">{mensagensDivergentes.join(' · ')}</p>
+                </div>
+              ) : null}
+              {mensagensAusentes.length > 0 ? (
+                <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+                  <p className="font-medium text-amber-950">Abertas ausentes no relatório</p>
+                  <p className="mt-1">{mensagensAusentes.join(' · ')}</p>
                 </div>
               ) : null}
               {mensagensOutras.length > 0 ? (
