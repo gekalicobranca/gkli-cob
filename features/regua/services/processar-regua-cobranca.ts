@@ -89,6 +89,10 @@ type ProcessarReguaParams = {
   scope?: CarteiraScope;
   origem?: "manual" | "api" | "cron";
   cooldownDias?: number;
+  q?: string;
+  carteiraId?: string;
+  condominioId?: string;
+  contato?: string;
 };
 
 type Contadores = ReguaContadores;
@@ -119,6 +123,36 @@ function hasRecentDate(value: string | null | undefined, cooldownDias: number) {
   const limite = new Date();
   limite.setDate(limite.getDate() - cooldownDias);
   return date >= limite;
+}
+
+function normalizeFilter(value?: string | null) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function matchesSearch(row: CobrancaReguaRow, search?: string) {
+  const q = normalizeFilter(search);
+  if (!q) return true;
+
+  const haystack = [
+    row.condominios?.nome,
+    row.unidades?.identificacao,
+    row.unidades?.responsavel_nome,
+    row.competencia,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(q);
+}
+
+function matchesContato(row: CobrancaReguaRow, contato?: string) {
+  const mode = contato || "todos";
+  const hasDestinatario = Boolean(row.unidades?.telefone || row.unidades?.email);
+
+  if (mode === "com_destinatario") return hasDestinatario;
+  if (mode === "sem_destinatario") return !hasDestinatario;
+  return true;
 }
 
 async function criarLote(params: {
@@ -378,6 +412,8 @@ export async function processarReguaCobranca(
   if (params.scope) {
     query = applyCarteiraScope(query, params.scope.carteiraIds);
   }
+  if (params.carteiraId) query = query.eq("carteira_id", params.carteiraId);
+  if (params.condominioId) query = query.eq("condominio_id", params.condominioId);
 
   const { data, error } = await query;
 
@@ -385,10 +421,12 @@ export async function processarReguaCobranca(
     throw new Error(`Erro ao buscar cobranças para régua: ${error.message}`);
   }
 
-  const rows = normalizeRelationsList((data ?? []) as any[], [
+  const rows = (normalizeRelationsList((data ?? []) as any[], [
     "condominios",
     "unidades",
-  ]) as CobrancaReguaRow[];
+  ]) as CobrancaReguaRow[])
+    .filter((row) => matchesSearch(row, params.q))
+    .filter((row) => matchesContato(row, params.contato));
 
   const cobrancaIds = rows.map((row) => row.id).filter(Boolean);
   const [acordosAtivos, mensagensRecentes] = await Promise.all([

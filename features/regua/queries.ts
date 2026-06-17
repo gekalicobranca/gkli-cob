@@ -14,6 +14,47 @@ import {
 import type { ReguaEtapa, ReguaTom } from "./types";
 import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from "@/lib/core/status";
 
+export type ReguaPreviewFilters = {
+  q?: string;
+  carteiraId?: string;
+  condominioId?: string;
+  contato?: string;
+};
+
+function normalizeFilter(value?: string | null) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function matchesSearch(row: any, search?: string) {
+  const q = normalizeFilter(search);
+  if (!q) return true;
+
+  const haystack = [
+    row.condominios?.nome,
+    row.condominio?.nome,
+    row.unidades?.identificacao,
+    row.unidade?.identificacao,
+    row.unidades?.responsavel_nome,
+    row.unidade?.responsavel_nome,
+    row.competencia,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(q);
+}
+
+function matchesContato(row: any, contato?: string) {
+  const mode = contato || "todos";
+  const unidade = row.unidades ?? row.unidade;
+  const hasDestinatario = Boolean(unidade?.telefone || unidade?.email);
+
+  if (mode === "com_destinatario") return hasDestinatario;
+  if (mode === "sem_destinatario") return !hasDestinatario;
+  return true;
+}
+
 const DEFAULT_COBRANCA_ETAPAS: ReguaEtapa[] = [
   {
     id: "default-cob-1",
@@ -57,7 +98,7 @@ const DEFAULT_COBRANCA_ETAPAS: ReguaEtapa[] = [
   },
 ];
 
-export async function listReguaCobrancaPreview(scope: CarteiraScope) {
+export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: ReguaPreviewFilters = {}) {
   const supabase = await createClient();
 
   let query = supabase
@@ -78,6 +119,8 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope) {
     .order("vencimento", { ascending: true });
 
   query = applyCarteiraScope(query, scope.carteiraIds);
+  if (filters.carteiraId) query = query.eq("carteira_id", filters.carteiraId);
+  if (filters.condominioId) query = query.eq("condominio_id", filters.condominioId);
 
   const { data, error } = await query;
 
@@ -88,7 +131,10 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope) {
   return normalizeRelationsList((data ?? []) as any[], [
     "condominios",
     "unidades",
-  ]).map((row: any) => {
+  ])
+    .filter((row: any) => matchesSearch(row, filters.q))
+    .filter((row: any) => matchesContato(row, filters.contato))
+    .map((row: any) => {
     const condominio = row.condominios;
     const unidade = row.unidades;
     const inicio = Number(condominio?.inicio_cobranca_dias ?? 30);
@@ -130,7 +176,7 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope) {
       }),
       destinatario_preview: unidade?.telefone || unidade?.email || "",
     };
-  });
+    });
 }
 
 
@@ -199,7 +245,7 @@ function selecionarEtapaAcordoPreview(etapas: ReguaEtapa[], diasRelativos: numbe
     .sort((a, b) => Number(b.delay_dias) - Number(a.delay_dias) || Number(b.ordem) - Number(a.ordem))[0]
 }
 
-export async function listReguaAcordoPreview(scope: CarteiraScope) {
+export async function listReguaAcordoPreview(scope: CarteiraScope, filters: ReguaPreviewFilters = {}) {
   const supabase = await createClient()
 
   let acordosQuery = supabase
@@ -224,6 +270,8 @@ export async function listReguaAcordoPreview(scope: CarteiraScope) {
     .order('data_acordo', { ascending: false })
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
+  if (filters.carteiraId) acordosQuery = acordosQuery.eq('carteira_id', filters.carteiraId)
+  if (filters.condominioId) acordosQuery = acordosQuery.eq('condominio_id', filters.condominioId)
 
   const { data: acordosData, error: acordosError } = await acordosQuery
 
@@ -234,7 +282,9 @@ export async function listReguaAcordoPreview(scope: CarteiraScope) {
   const acordos = normalizeRelationsList((acordosData ?? []) as any[], [
     'condominios',
     'unidades',
-  ]) as any[]
+  ])
+    .filter((row: any) => matchesSearch(row, filters.q))
+    .filter((row: any) => matchesContato(row, filters.contato)) as any[]
 
   if (!acordos.length) return []
 

@@ -34,6 +34,10 @@ type LoteItemStatus = (typeof LOTE_ITEM_STATUS)[keyof typeof LOTE_ITEM_STATUS]
 type ProcessarReguaAcordosParams = {
   scope?: CarteiraScope
   origem?: 'manual' | 'api' | 'cron'
+  q?: string
+  carteiraId?: string
+  condominioId?: string
+  contato?: string
 }
 
 type Contadores = ReguaContadores
@@ -70,6 +74,32 @@ function diasRelativosAoVencimento(vencimento: string | null | undefined, hoje =
   const date = parseDate(vencimento)
   if (!date) return 0
   return differenceInCalendarDays(hoje, date)
+}
+
+function normalizeFilter(value?: string | null) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function matchesSearch(row: any, search?: string) {
+  const q = normalizeFilter(search)
+  if (!q) return true
+
+  const haystack = [
+    row.condominios?.nome,
+    row.unidades?.identificacao,
+    row.unidades?.responsavel_nome,
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  return haystack.includes(q)
+}
+
+function matchesContato(row: any, contato?: string) {
+  const mode = contato || 'todos'
+  const hasDestinatario = Boolean(row.unidades?.telefone || row.unidades?.email)
+
+  if (mode === 'com_destinatario') return hasDestinatario
+  if (mode === 'sem_destinatario') return !hasDestinatario
+  return true
 }
 
 function selecionarEtapaAcordo(params: {
@@ -224,11 +254,15 @@ export async function processarReguaAcordos(
     .neq('status_financeiro', 'quitado')
 
   if (params.scope) query = applyCarteiraScope(query, params.scope.carteiraIds)
+  if (params.carteiraId) query = query.eq('carteira_id', params.carteiraId)
+  if (params.condominioId) query = query.eq('condominio_id', params.condominioId)
 
   const { data, error } = await query
   if (error) throw new Error(`Erro ao buscar acordos para régua: ${error.message}`)
 
-  const acordos = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+  const acordos = (normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[])
+    .filter((row) => matchesSearch(row, params.q))
+    .filter((row) => matchesContato(row, params.contato))
   const parcelasPorAcordo = await carregarParcelasAbertas(
     supabase,
     acordos.map((acordo) => acordo.id),

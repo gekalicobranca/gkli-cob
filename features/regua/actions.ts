@@ -5,9 +5,23 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { processarReguaCobranca } from './services/processar-regua-cobranca'
 import { processarReguaAcordos } from './services/processar-regua-acordos'
 
-export async function gerarLoteReguaCobranca(): Promise<void> {
+function getFiltro(formData?: FormData, key?: string) {
+  if (!formData || !key) return ''
+  return String(formData.get(key) ?? '').trim()
+}
+
+function getFiltrosRegua(formData?: FormData) {
+  return {
+    q: getFiltro(formData, 'q'),
+    carteiraId: getFiltro(formData, 'carteira_id'),
+    condominioId: getFiltro(formData, 'condominio_id'),
+    contato: getFiltro(formData, 'contato') || 'todos',
+  }
+}
+
+export async function gerarLoteReguaCobranca(formData?: FormData): Promise<void> {
   const scope = await getPermittedCarteiras()
-  const resultado = await processarReguaCobranca({ scope, origem: 'manual' })
+  const resultado = await processarReguaCobranca({ scope, origem: 'manual', ...getFiltrosRegua(formData) })
 
   void resultado
 
@@ -16,9 +30,9 @@ export async function gerarLoteReguaCobranca(): Promise<void> {
 }
 
 
-export async function gerarLoteReguaAcordos(): Promise<void> {
+export async function gerarLoteReguaAcordos(formData?: FormData): Promise<void> {
   const scope = await getPermittedCarteiras()
-  const resultado = await processarReguaAcordos({ scope, origem: 'manual' })
+  const resultado = await processarReguaAcordos({ scope, origem: 'manual', ...getFiltrosRegua(formData) })
 
   void resultado
 
