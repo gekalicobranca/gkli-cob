@@ -139,18 +139,18 @@ const tipoOptions: Array<{
   accept: string;
 }> = [
   {
-    value: "unidades",
-    title: "Responsáveis",
-    description:
-      "PDF de relatório de unidades → XLSX padrão Importações/Responsáveis.",
-    accept: ".pdf",
-  },
-  {
     value: "cobrancas",
     title: "Cobranças",
     description:
       "XLS, XLSX, CSV ou HTML de inadimplência → XLSX padrão Importações/Cobranças.",
     accept: ".pdf,.xls,.xlsx,.html,.htm,.csv",
+  },
+  {
+    value: "unidades",
+    title: "Responsáveis",
+    description:
+      "PDF de relatório de unidades → XLSX padrão Importações/Responsáveis.",
+    accept: ".pdf",
   },
 ];
 
@@ -164,7 +164,7 @@ export function ConversionUploadCard({
   const [loading, setLoading] = useState(false);
   const [condominioCnpj, setCondominioCnpj] = useState("");
   const [tipoConversao, setTipoConversao] =
-    useState<TipoConversaoRelatorio>("unidades");
+    useState<TipoConversaoRelatorio>("cobrancas");
 
   const selectedTipo =
     tipoOptions.find((option) => option.value === tipoConversao) ??
