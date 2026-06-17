@@ -41,6 +41,7 @@ type LoteItemStatus = (typeof LOTE_ITEM_STATUS)[keyof typeof LOTE_ITEM_STATUS];
 type CobrancaReguaRow = {
   id: string;
   carteira_id: string;
+  condominio_id?: string | null;
   competencia?: string | null;
   vencimento?: string | null;
   valor_atualizado?: number | string | null;
@@ -63,6 +64,7 @@ type CobrancaReguaRow = {
   unidades?: {
     id?: string | null;
     identificacao?: string | null;
+    bloco?: string | null;
     responsavel_nome?: string | null;
     telefone?: string | null;
     email?: string | null;
@@ -153,6 +155,61 @@ function matchesContato(row: CobrancaReguaRow, contato?: string) {
   if (mode === "com_destinatario") return hasDestinatario;
   if (mode === "sem_destinatario") return !hasDestinatario;
   return true;
+}
+
+function unidadeKey(row: CobrancaReguaRow) {
+  return [
+    row.condominio_id ?? row.condominios?.id ?? "",
+    String(row.unidades?.bloco ?? "").trim().toLowerCase(),
+    String(row.unidades?.identificacao ?? "").trim().toLowerCase(),
+  ].join("|");
+}
+
+function responsavelApoioKey(row: any) {
+  return [
+    row.condominio_id ?? "",
+    String(row.bloco ?? "").trim().toLowerCase(),
+    String(row.unidade ?? "").trim().toLowerCase(),
+  ].join("|");
+}
+
+async function loadResponsaveisApoioMap(
+  supabase: ReturnType<typeof createAdminClient>,
+  rows: CobrancaReguaRow[],
+) {
+  const condominioIds = [
+    ...new Set(rows.map((row) => row.condominio_id ?? row.condominios?.id).filter(Boolean)),
+  ];
+
+  if (!condominioIds.length) return new Map<string, any>();
+
+  const { data, error } = await supabase
+    .from("responsaveis_unidades")
+    .select("id, condominio_id, unidade, bloco, responsavel_nome, telefone, email, ativo")
+    .eq("ativo", true)
+    .in("condominio_id", condominioIds);
+
+  if (error) {
+    throw new Error(`Erro ao carregar responsÃ¡veis de apoio: ${error.message}`);
+  }
+
+  return new Map(((data ?? []) as any[]).map((row) => [responsavelApoioKey(row), row]));
+}
+
+function withResponsavelApoio(row: CobrancaReguaRow, apoioMap: Map<string, any>): CobrancaReguaRow {
+  const apoio = apoioMap.get(unidadeKey(row));
+  if (!apoio) return row;
+
+  const unidade = row.unidades ?? {};
+  return {
+    ...row,
+    unidades: {
+      ...unidade,
+      responsavel_nome: apoio.responsavel_nome || unidade.responsavel_nome,
+      telefone: apoio.telefone || unidade.telefone,
+      email: apoio.email || unidade.email,
+    },
+  };
 }
 
 async function criarLote(params: {
@@ -390,6 +447,7 @@ export async function processarReguaCobranca(
     .select(
       `
       id,
+      condominio_id,
       carteira_id,
       competencia,
       vencimento,
@@ -403,7 +461,7 @@ export async function processarReguaCobranca(
       ultima_interacao_em,
       proxima_acao_em,
       condominios(id, nome, inicio_cobranca_dias, dias_apos_vencimento_regua, intensidade_regua, regua_cobranca_id),
-      unidades(id, identificacao, responsavel_nome, telefone, email)
+      unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
     `,
     )
     .in("status_operacional", COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[])
@@ -421,10 +479,13 @@ export async function processarReguaCobranca(
     throw new Error(`Erro ao buscar cobranças para régua: ${error.message}`);
   }
 
-  const rows = (normalizeRelationsList((data ?? []) as any[], [
+  const normalizedRows = normalizeRelationsList((data ?? []) as any[], [
     "condominios",
     "unidades",
-  ]) as CobrancaReguaRow[])
+  ]) as CobrancaReguaRow[];
+  const apoioMap = await loadResponsaveisApoioMap(supabase, normalizedRows);
+  const rows = normalizedRows
+    .map((row) => withResponsavelApoio(row, apoioMap))
     .filter((row) => matchesSearch(row, params.q))
     .filter((row) => matchesContato(row, params.contato));
 

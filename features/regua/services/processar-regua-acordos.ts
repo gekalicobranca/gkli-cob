@@ -102,6 +102,59 @@ function matchesContato(row: any, contato?: string) {
   return true
 }
 
+function unidadeKey(row: any) {
+  return [
+    row.condominio_id ?? row.condominios?.id ?? '',
+    String(row.unidades?.bloco ?? '').trim().toLowerCase(),
+    String(row.unidades?.identificacao ?? '').trim().toLowerCase(),
+  ].join('|')
+}
+
+function responsavelApoioKey(row: any) {
+  return [
+    row.condominio_id ?? '',
+    String(row.bloco ?? '').trim().toLowerCase(),
+    String(row.unidade ?? '').trim().toLowerCase(),
+  ].join('|')
+}
+
+async function loadResponsaveisApoioMap(
+  supabase: ReturnType<typeof createAdminClient>,
+  rows: any[],
+) {
+  const condominioIds = [
+    ...new Set(rows.map((row) => row.condominio_id ?? row.condominios?.id).filter(Boolean)),
+  ]
+
+  if (!condominioIds.length) return new Map<string, any>()
+
+  const { data, error } = await supabase
+    .from('responsaveis_unidades')
+    .select('id, condominio_id, unidade, bloco, responsavel_nome, telefone, email, ativo')
+    .eq('ativo', true)
+    .in('condominio_id', condominioIds)
+
+  if (error) throw new Error(`Erro ao carregar responsÃ¡veis de apoio: ${error.message}`)
+
+  return new Map(((data ?? []) as any[]).map((row) => [responsavelApoioKey(row), row]))
+}
+
+function withResponsavelApoio(row: any, apoioMap: Map<string, any>) {
+  const apoio = apoioMap.get(unidadeKey(row))
+  if (!apoio) return row
+
+  const unidade = row.unidades ?? {}
+  return {
+    ...row,
+    unidades: {
+      ...unidade,
+      responsavel_nome: apoio.responsavel_nome || unidade.responsavel_nome,
+      telefone: apoio.telefone || unidade.telefone,
+      email: apoio.email || unidade.email,
+    },
+  }
+}
+
 function selecionarEtapaAcordo(params: {
   etapas: ReguaEtapa[]
   diasRelativos: number
@@ -247,7 +300,7 @@ export async function processarReguaAcordos(
       status_financeiro,
       risco,
       condominios(id, nome, regua_acordo_id),
-      unidades(id, identificacao, responsavel_nome, telefone, email)
+      unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
     `,
     )
     .in('status', ACORDO_STATUS_VIGENTES)
@@ -260,7 +313,10 @@ export async function processarReguaAcordos(
   const { data, error } = await query
   if (error) throw new Error(`Erro ao buscar acordos para régua: ${error.message}`)
 
-  const acordos = (normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[])
+  const acordosNormalizados = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+  const apoioMap = await loadResponsaveisApoioMap(supabase, acordosNormalizados)
+  const acordos = acordosNormalizados
+    .map((row) => withResponsavelApoio(row, apoioMap))
     .filter((row) => matchesSearch(row, params.q))
     .filter((row) => matchesContato(row, params.contato))
   const parcelasPorAcordo = await carregarParcelasAbertas(

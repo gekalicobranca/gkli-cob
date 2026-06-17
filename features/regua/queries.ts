@@ -25,6 +25,71 @@ function normalizeFilter(value?: string | null) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function unidadeKey(row: any) {
+  const condominioId = row.condominio_id ?? row.condominios?.id ?? row.condominio?.id ?? "";
+  const unidade = row.unidades ?? row.unidade;
+  return [
+    condominioId,
+    String(unidade?.bloco ?? "").trim().toLowerCase(),
+    String(unidade?.identificacao ?? "").trim().toLowerCase(),
+  ].join("|");
+}
+
+function responsavelApoioKey(row: any) {
+  return [
+    row.condominio_id ?? "",
+    String(row.bloco ?? "").trim().toLowerCase(),
+    String(row.unidade ?? "").trim().toLowerCase(),
+  ].join("|");
+}
+
+async function loadResponsaveisApoioMap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  rows: any[],
+) {
+  const condominioIds = [
+    ...new Set(
+      rows
+        .map((row) => row.condominio_id ?? row.condominios?.id ?? row.condominio?.id)
+        .filter(Boolean),
+    ),
+  ];
+
+  if (!condominioIds.length) return new Map<string, any>();
+
+  const { data, error } = await supabase
+    .from("responsaveis_unidades")
+    .select("id, condominio_id, unidade, bloco, responsavel_nome, telefone, email, ativo")
+    .eq("ativo", true)
+    .in("condominio_id", condominioIds);
+
+  if (error) {
+    throw new Error(`Erro ao carregar responsÃ¡veis de apoio: ${error.message}`);
+  }
+
+  return new Map(((data ?? []) as any[]).map((row) => [responsavelApoioKey(row), row]));
+}
+
+function withResponsavelApoio(row: any, apoioMap: Map<string, any>) {
+  const apoio = apoioMap.get(unidadeKey(row));
+  if (!apoio) return row;
+
+  const unidade = row.unidades ?? row.unidade ?? {};
+  const mergedUnidade = {
+    ...unidade,
+    responsavel_nome: apoio.responsavel_nome || unidade.responsavel_nome,
+    telefone: apoio.telefone || unidade.telefone,
+    email: apoio.email || unidade.email,
+  };
+
+  return {
+    ...row,
+    unidades: row.unidades ? mergedUnidade : row.unidades,
+    unidade: row.unidade ? mergedUnidade : row.unidade,
+    responsavel_apoio: apoio,
+  };
+}
+
 function matchesSearch(row: any, search?: string) {
   const q = normalizeFilter(search);
   if (!q) return true;
@@ -106,13 +171,14 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
     .select(
       `
       id,
+      condominio_id,
       carteira_id,
       competencia,
       vencimento,
       valor_atualizado,
       status,
       condominios(id, nome, inicio_cobranca_dias, intensidade_regua, regua_cobranca_id),
-      unidades(id, identificacao, responsavel_nome, telefone, email)
+      unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
     `,
     )
     .in("status", COBRANCA_STATUS_OPERACIONAIS_ATIVOS)
@@ -128,10 +194,14 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
     throw new Error(`Erro ao carregar prévia da régua: ${error.message}`);
   }
 
-  return normalizeRelationsList((data ?? []) as any[], [
+  const cobrancas = normalizeRelationsList((data ?? []) as any[], [
     "condominios",
     "unidades",
-  ])
+  ]);
+  const apoioMap = await loadResponsaveisApoioMap(supabase, cobrancas);
+
+  return cobrancas
+    .map((row: any) => withResponsavelApoio(row, apoioMap))
     .filter((row: any) => matchesSearch(row, filters.q))
     .filter((row: any) => matchesContato(row, filters.contato))
     .map((row: any) => {
@@ -262,7 +332,7 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
       status_financeiro,
       risco,
       condominios(id, nome, regua_acordo_id),
-      unidades(id, identificacao, responsavel_nome, telefone, email)
+      unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
     `,
     )
     .in('status', ['ativo', 'em_dia', 'em_atraso', 'vencido'])
@@ -279,10 +349,13 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     throw new Error(`Erro ao carregar prévia da régua de acordos: ${acordosError.message}`)
   }
 
-  const acordos = normalizeRelationsList((acordosData ?? []) as any[], [
+  const acordosNormalizados = normalizeRelationsList((acordosData ?? []) as any[], [
     'condominios',
     'unidades',
   ])
+  const apoioMap = await loadResponsaveisApoioMap(supabase, acordosNormalizados)
+  const acordos = acordosNormalizados
+    .map((row: any) => withResponsavelApoio(row, apoioMap))
     .filter((row: any) => matchesSearch(row, filters.q))
     .filter((row: any) => matchesContato(row, filters.contato)) as any[]
 
