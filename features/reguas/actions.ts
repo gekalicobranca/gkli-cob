@@ -189,3 +189,62 @@ export async function alternarEtapaRegua(etapaId: string, reguaId: string, ativo
   if (error) throw new Error(`Erro ao alterar etapa: ${error.message}`)
   revalidatePath(`/app/mensageria/reguas/${reguaId}`)
 }
+
+export async function excluirReguaOperacional(id: string) {
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+  const supabase = createAdminClient()
+
+  const { data: regua, error: reguaError } = await supabase
+    .from('reguas')
+    .select('id, carteira_id, nome, tipo')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (reguaError) throw new Error(`Erro ao carregar régua: ${reguaError.message}`)
+  if (!regua) throw new Error('Régua não encontrada.')
+
+  const carteiraId = (regua as any).carteira_id as string | null
+  if (!scope.isAdmin && carteiraId && !scope.carteiraIds?.includes(carteiraId)) {
+    throw new Error('Você não tem permissão para excluir esta régua.')
+  }
+
+  const { count: etapasCount, error: etapasError } = await supabase
+    .from('regua_etapas')
+    .select('id', { count: 'exact', head: true })
+    .eq('regua_id', id)
+
+  if (etapasError) throw new Error(`Erro ao validar etapas da régua: ${etapasError.message}`)
+  if ((etapasCount ?? 0) > 0) {
+    throw new Error('Esta régua já possui etapas. Inative a régua ou remova as etapas antes de excluir.')
+  }
+
+  const coluna = (regua as any).tipo === 'acordo' ? 'regua_acordo_id' : 'regua_cobranca_id'
+  const { count: vinculosCount, error: vinculosError } = await supabase
+    .from('condominios')
+    .select('id', { count: 'exact', head: true })
+    .eq(coluna, id)
+
+  if (vinculosError) throw new Error(`Erro ao validar vínculos da régua: ${vinculosError.message}`)
+  if ((vinculosCount ?? 0) > 0) {
+    throw new Error('Esta régua está vinculada a condomínio. Remova o vínculo ou inative a régua.')
+  }
+
+  const { error } = await supabase.from('reguas').delete().eq('id', id)
+  if (error) throw new Error(`Erro ao excluir régua: ${error.message}`)
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId,
+    entidadeTipo: 'regua',
+    entidadeId: id,
+    eventoCodigo: 'regua.excluida',
+    titulo: 'Régua excluída',
+    descricao: `Régua ${(regua as any).nome} excluída.`,
+    severidade: 'info',
+    userId: user.id,
+    payload: { origem: 'manual' },
+  })
+
+  revalidatePath('/app/mensageria/reguas')
+  redirect('/app/mensageria/reguas')
+}

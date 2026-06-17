@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Eye, PauseCircle, Plus, Save } from 'lucide-react'
+import { ArrowLeft, Eye, PauseCircle, Plus, Save, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -12,8 +12,9 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
 import { listTemplatesParaLote } from '@/features/lotes/queries'
 import { getReguaOperacional } from '@/features/reguas/queries'
-import { alternarEtapaRegua, atualizarReguaOperacional, salvarEtapaRegua } from '@/features/reguas/actions'
+import { alternarEtapaRegua, atualizarReguaOperacional, excluirReguaOperacional, salvarEtapaRegua } from '@/features/reguas/actions'
 import { TEMPLATE_CATEGORIES, categoryLabel } from '@/features/mensageria/render-template'
+import { ReguaActionButton } from './regua-action-button'
 
 export default async function ReguaDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -42,7 +43,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
         }
       />
 
-      <section className="grid gap-5 xl:grid-cols-[.9fr_1.1fr]">
+      <section className="space-y-5">
         <form action={atualizarReguaOperacional.bind(null, regua.id)}>
           <Card className="space-y-5">
             <div>
@@ -50,7 +51,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
               <h2 className="mt-3 text-lg font-semibold text-slate-950">Dados da régua</h2>
               <p className="mt-1 text-sm text-slate-500">Essa configuração pode ser usada como fallback ou vinculada ao condomínio.</p>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-[minmax(260px,1.4fr)_160px_minmax(220px,1fr)_150px_120px_150px]">
               <FormField label="Nome"><Input name="nome" defaultValue={regua.nome} required /></FormField>
               <FormField label="Tipo"><Select name="tipo" defaultValue={regua.tipo}><option value="cobranca">Cobrança</option><option value="acordo">Acordos</option></Select></FormField>
               <FormField label="Carteira"><Select name="carteira_id" defaultValue={regua.carteira_id ?? ''}><option value="">Global / fallback</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></FormField>
@@ -58,10 +59,22 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
               <FormField label="Prioridade"><Input name="prioridade" type="number" defaultValue={String(regua.prioridade ?? 0)} /></FormField>
               <FormField label="Padrão"><label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-600"><input name="padrao" type="checkbox" defaultChecked={Boolean(regua.padrao)} className="h-4 w-4 rounded border-slate-300" /> Usar como padrão</label></FormField>
             </div>
-            <FormField label="Descrição"><Textarea name="descricao" defaultValue={regua.descricao ?? ''} /></FormField>
-            <div className="flex justify-end border-t border-slate-100 pt-4"><Button type="submit"><Save size={16} /> Salvar régua</Button></div>
+            <FormField label="Descrição"><Textarea name="descricao" defaultValue={regua.descricao ?? ''} className="min-h-20" /></FormField>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+              <ReguaActionButton
+                type="submit"
+                form="excluir-regua-form"
+                variant="danger"
+                confirmMessage="Confirmar exclusão desta régua? Só será excluída se não houver etapas nem vínculos com condomínios."
+                pendingLabel="Excluindo..."
+              >
+                <Trash2 size={16} /> Excluir régua
+              </ReguaActionButton>
+              <Button type="submit"><Save size={16} /> Salvar régua</Button>
+            </div>
           </Card>
         </form>
+        <form id="excluir-regua-form" action={excluirReguaOperacional.bind(null, regua.id)} />
 
         <Card className="space-y-5">
           <div>
@@ -118,7 +131,7 @@ function EtapaForm({ reguaId, tipo, templates, etapa, compact = false }: { regua
   return (
     <form action={action} className="space-y-4">
       {etapa?.id ? <input type="hidden" name="etapa_id" value={etapa.id} /> : null}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className={compact ? "grid gap-4 md:grid-cols-2" : "grid gap-4 lg:grid-cols-4"}>
         <FormField label="Nome"><Input name="nome" defaultValue={etapa?.nome ?? ''} placeholder="Ex.: Primeiro aviso" /></FormField>
         <FormField label="Ordem"><Input name="ordem" type="number" defaultValue={String(etapa?.ordem ?? 1)} /></FormField>
         <FormField label="Delay"><Input name="delay_dias" type="number" defaultValue={String(etapa?.delay_dias ?? 0)} /></FormField>
@@ -132,7 +145,7 @@ function EtapaForm({ reguaId, tipo, templates, etapa, compact = false }: { regua
         <FormField label="Horário fim"><Input name="horario_fim" type="time" defaultValue={etapa?.horario_fim ?? '18:00'} /></FormField>
       </div>
       <FormField label="Fallback textual da etapa" hint="Opcional. Se não houver template fixo, o motor procura: carteira → global → fallback GKLI. Variáveis: {{carteira}}, {{responsavel}}, {{unidade}}, {{condominio}}, {{vencimento}}, {{valor}}, {{parcela_numero}}, {{valor_parcela}}.">
-        <Textarea name="template" defaultValue={etapa?.template ?? ''} className={compact ? 'min-h-24' : 'min-h-36'} />
+        <Textarea name="template" defaultValue={etapa?.template ?? ''} className={compact ? 'min-h-24' : 'min-h-28'} />
       </FormField>
       <input type="hidden" name="ativo" value="off" /><label className="inline-flex items-center gap-2 text-sm text-slate-600"><input name="ativo" type="checkbox" value="on" defaultChecked={etapa?.ativo !== false} className="h-4 w-4 rounded border-slate-300" /> Etapa ativa</label>
       <div className="flex justify-end"><Button type="submit"><Plus size={16} /> {etapa?.id ? 'Salvar etapa' : 'Adicionar etapa'}</Button></div>
