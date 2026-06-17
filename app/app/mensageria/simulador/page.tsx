@@ -70,6 +70,11 @@ function PreviewRow({
   const condominio = row.condominios?.nome ?? row.condominio?.nome ?? 'Condomínio'
   const destinatario = row.destinatario_preview || 'sem destinatário'
   const jaGerada = Boolean(row.ja_gerada_no_ciclo)
+  const reguaNome = row.regua_preview?.nome ?? 'Padrão interno'
+  const reguaOrigem = row.regua_preview?.origem === 'cadastrada' ? 'régua cadastrada' : 'padrão interno'
+  const etapa = row.etapa
+  const etapaLabel = etapa?.nome ?? `Etapa ${etapa?.ordem ?? '-'}`
+  const canal = String(etapa?.canal ?? 'whatsapp').toUpperCase()
 
   return (
     <div className="grid gap-4 px-5 py-4 xl:grid-cols-[44px_130px_1fr_180px] xl:items-center">
@@ -94,6 +99,9 @@ function PreviewRow({
       <div>
         <p className="text-sm font-semibold text-slate-950">{condominio} · {unidade}</p>
         <p className="mt-1 line-clamp-2 text-sm text-slate-600">{row.mensagem_preview ?? row.motivo ?? 'Sem prévia disponível.'}</p>
+        <p className="mt-2 text-xs text-slate-500">
+          {reguaNome} · {reguaOrigem} · {etapaLabel} · {canal}
+        </p>
       </div>
       <div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-500">
         <p className="font-semibold text-slate-700">Destinatário</p>

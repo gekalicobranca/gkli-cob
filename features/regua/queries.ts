@@ -172,7 +172,7 @@ function matchesContato(row: any, contato?: string) {
   return true;
 }
 
-const DEFAULT_COBRANCA_ETAPAS: ReguaEtapa[] = [
+export const DEFAULT_COBRANCA_ETAPAS: ReguaEtapa[] = [
   {
     id: "default-cob-1",
     regua_id: "default-cobranca",
@@ -215,6 +215,48 @@ const DEFAULT_COBRANCA_ETAPAS: ReguaEtapa[] = [
   },
 ];
 
+async function loadReguaMetaMap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  reguaIds: Array<string | null | undefined>,
+) {
+  const ids = [...new Set(reguaIds.filter(Boolean) as string[])];
+  if (!ids.length) return new Map<string, any>();
+
+  const { data, error } = await supabase
+    .from("reguas")
+    .select("id, nome, tipo, status")
+    .in("id", ids);
+
+  if (error) return new Map<string, any>();
+  return new Map(((data ?? []) as any[]).map((row) => [row.id, row]));
+}
+
+async function loadEtapasPorReguaMap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  reguaIds: Array<string | null | undefined>,
+) {
+  const ids = [...new Set(reguaIds.filter(Boolean) as string[])];
+  if (!ids.length) return new Map<string, ReguaEtapa[]>();
+
+  const { data, error } = await supabase
+    .from("regua_etapas")
+    .select("id, regua_id, ordem, delay_dias, canal, template, template_id, categoria_template, tom, ativo")
+    .in("regua_id", ids)
+    .eq("ativo", true)
+    .order("ordem", { ascending: true });
+
+  if (error) return new Map<string, ReguaEtapa[]>();
+
+  const map = new Map<string, ReguaEtapa[]>();
+  for (const etapa of (data ?? []) as ReguaEtapa[]) {
+    const list = map.get(etapa.regua_id) ?? [];
+    list.push(etapa);
+    map.set(etapa.regua_id, list);
+  }
+
+  return map;
+}
+
 export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: ReguaPreviewFilters = {}) {
   const supabase = await createClient();
 
@@ -249,6 +291,11 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
     "unidades",
   ]);
   const apoioMap = await loadResponsaveisApoioMap(supabase, cobrancas);
+  const reguaIds = cobrancas.map((row: any) => row.condominios?.regua_cobranca_id);
+  const [reguaMetaMap, etapasPorRegua] = await Promise.all([
+    loadReguaMetaMap(supabase, reguaIds),
+    loadEtapasPorReguaMap(supabase, reguaIds),
+  ]);
 
   const ciclo = cicloReferencia();
   const preview = cobrancas
@@ -264,12 +311,15 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
       vencimento: row.vencimento,
       inicioCobrancaDias: inicio,
     });
+    const reguaId = condominio?.regua_cobranca_id ?? null;
+    const etapas = (reguaId ? etapasPorRegua.get(reguaId) : null) ?? DEFAULT_COBRANCA_ETAPAS;
+    const reguaMeta = reguaId ? reguaMetaMap.get(reguaId) : null;
     const etapa =
       selecionarEtapa({
-        etapas: DEFAULT_COBRANCA_ETAPAS,
+        etapas,
         diasAtraso,
         inicioCobrancaDias: inicio,
-      }) ?? DEFAULT_COBRANCA_ETAPAS[0];
+      }) ?? etapas[0] ?? DEFAULT_COBRANCA_ETAPAS[0];
     const intensidade = (condominio?.intensidade_regua ??
       etapa.tom ??
       "medio") as ReguaTom;
@@ -295,6 +345,11 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
       dias_atraso: diasAtraso,
       elegivel,
       etapa,
+      regua_preview: {
+        id: reguaId ?? "default-cobranca",
+        nome: reguaMeta?.nome ?? "Padrão interno de cobrança",
+        origem: reguaMeta ? "cadastrada" : "padrao_interno",
+      },
       intensidade,
       mensagem_preview: montarMensagem({
         tipo: "cobranca",
@@ -420,6 +475,11 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     'unidades',
   ])
   const apoioMap = await loadResponsaveisApoioMap(supabase, acordosNormalizados)
+  const reguaIds = acordosNormalizados.map((row: any) => row.condominios?.regua_acordo_id)
+  const [reguaMetaMap, etapasPorRegua] = await Promise.all([
+    loadReguaMetaMap(supabase, reguaIds),
+    loadEtapasPorReguaMap(supabase, reguaIds),
+  ])
   const acordos = acordosNormalizados
     .map((row: any) => withResponsavelApoio(row, apoioMap))
     .filter((row: any) => matchesSearch(row, filters.q))
@@ -454,6 +514,9 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     const parcela = parcelas[0]
     const condominio = acordo.condominios
     const unidade = acordo.unidades
+    const reguaId = condominio?.regua_acordo_id ?? null
+    const etapas = (reguaId ? etapasPorRegua.get(reguaId) : null) ?? DEFAULT_ACORDO_ETAPAS
+    const reguaMeta = reguaId ? reguaMetaMap.get(reguaId) : null
 
     if (!parcela) {
       preview.push({
@@ -468,7 +531,7 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
 
     const diasRelativos = diasRelativosParcela(parcela.vencimento)
     const elegivel = diasRelativos >= -3
-    const etapa = selecionarEtapaAcordoPreview(DEFAULT_ACORDO_ETAPAS, diasRelativos) ?? DEFAULT_ACORDO_ETAPAS[0]
+    const etapa = selecionarEtapaAcordoPreview(etapas, diasRelativos) ?? etapas[0] ?? DEFAULT_ACORDO_ETAPAS[0]
     const fingerprint = criarReguaFingerprint({
       contexto: 'regua_acordo',
       entidadeId: parcela.id,
@@ -496,6 +559,11 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
       dias_atraso: Math.max(0, diasRelativos),
       elegivel,
       etapa,
+      regua_preview: {
+        id: reguaId ?? 'default-acordo',
+        nome: reguaMeta?.nome ?? 'Padrão interno de acordos',
+        origem: reguaMeta ? 'cadastrada' : 'padrao_interno',
+      },
       intensidade: etapa.tom,
       mensagem_preview: montarMensagem({
         tipo: 'acordo',

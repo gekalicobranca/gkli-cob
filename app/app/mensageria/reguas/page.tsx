@@ -15,6 +15,7 @@ import {
 } from '@/components/layout/list-page'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listReguasOperacionais } from '@/features/reguas/queries'
+import { DEFAULT_ACORDO_ETAPAS, DEFAULT_COBRANCA_ETAPAS } from '@/features/regua/queries'
 
 type ReguasPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
@@ -57,6 +58,35 @@ function matchesRegua(row: any, filters: Record<string, string>) {
   return true
 }
 
+const fallbackReguas = [
+  {
+    id: 'default-cobranca',
+    tipo: 'cobranca',
+    nome: 'Padrão interno de cobrança',
+    descricao: 'Usado automaticamente quando o condomínio não tem régua de cobrança configurada.',
+    etapas: DEFAULT_COBRANCA_ETAPAS,
+  },
+  {
+    id: 'default-acordo',
+    tipo: 'acordo',
+    nome: 'Padrão interno de acordos',
+    descricao: 'Usado automaticamente quando o condomínio não tem régua de acordos configurada.',
+    etapas: DEFAULT_ACORDO_ETAPAS,
+  },
+]
+
+function matchesFallbackRegua(row: any, filters: Record<string, string>) {
+  const q = normalizeText(filters.q)
+  const haystack = normalizeText([row.nome, row.descricao, 'global padrao interno'].join(' '))
+
+  if (q && !haystack.includes(q)) return false
+  if (filters.tipo && row.tipo !== filters.tipo) return false
+  if (filters.status && filters.status !== 'ativa') return false
+  if (filters.escopo && filters.escopo !== 'global') return false
+  if (filters.padrao === 'nao') return false
+  return true
+}
+
 export default async function ReguasPage({ searchParams }: ReguasPageProps) {
   const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
@@ -69,6 +99,7 @@ export default async function ReguasPage({ searchParams }: ReguasPageProps) {
     padrao: getParam(params.padrao),
   }
   const reguas = reguasBase.filter((row: any) => matchesRegua(row, filters))
+  const fallbackVisiveis = reguasBase.length === 0 ? fallbackReguas.filter((row) => matchesFallbackRegua(row, filters)) : []
   const hasFilters = Object.values(filters).some(Boolean)
 
   const ativas = count(reguas, (row) => row.status === 'ativa' || row.ativo === true)
@@ -149,8 +180,8 @@ export default async function ReguasPage({ searchParams }: ReguasPageProps) {
           </div>
         </div>
 
-        {reguas.length === 0 ? (
-          <div className="p-6 text-sm text-slate-500">Nenhuma régua cadastrada. Crie a primeira régua para substituir os padrões hardcoded.</div>
+        {reguas.length === 0 && fallbackVisiveis.length === 0 ? (
+          <div className="p-6 text-sm text-slate-500">Nenhuma régua encontrada para os filtros atuais.</div>
         ) : (
           <div className="divide-y divide-slate-100">
             {reguas.map((regua: any) => (
@@ -170,6 +201,24 @@ export default async function ReguasPage({ searchParams }: ReguasPageProps) {
                   Editar <ArrowRight size={14} />
                 </div>
               </Link>
+            ))}
+            {fallbackVisiveis.map((regua) => (
+              <div key={regua.id} className="grid gap-4 px-5 py-4 lg:grid-cols-[1fr_150px_150px_120px] lg:items-center">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={regua.tipo === 'acordo' ? 'blue' : 'primary'}>{tipoLabel(regua.tipo)}</Badge>
+                    <Badge tone="green">ativa</Badge>
+                    <Badge tone="yellow">padrão interno</Badge>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-slate-950">{regua.nome}</p>
+                  <p className="mt-1 text-sm text-slate-500">{regua.descricao}</p>
+                </div>
+                <div className="text-sm text-slate-600">Global</div>
+                <div className="text-sm text-slate-600">{regua.etapas.length} etapas</div>
+                <ButtonLink href="/app/mensageria/reguas/nova" variant="secondary" className="justify-center">
+                  Substituir
+                </ButtonLink>
+              </div>
             ))}
           </div>
         )}
