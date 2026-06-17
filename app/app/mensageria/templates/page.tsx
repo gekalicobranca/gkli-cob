@@ -1,11 +1,72 @@
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { ButtonLink } from '@/components/ui/button'
+import { Button, ButtonLink } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import { EmptyState } from '@/components/data/empty-state'
+import {
+  ClearFiltersLink,
+  ListFilterField,
+  ListFiltersForm,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from '@/components/layout/list-page'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listTemplates } from '@/features/mensageria/queries'
-import { categoryLabel, intensityLabel, renderTemplate, SAMPLE_TEMPLATE_VARIABLES } from '@/features/mensageria/render-template'
+import {
+  categoryLabel,
+  intensityLabel,
+  renderTemplate,
+  SAMPLE_TEMPLATE_VARIABLES,
+  TEMPLATE_CATEGORIES,
+  TEMPLATE_CHANNELS,
+  TEMPLATE_INTENSITIES,
+} from '@/features/mensageria/render-template'
+
+type TemplatesPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+function getParam(value: string | string[] | undefined) {
+  return String(Array.isArray(value) ? value[0] : value ?? '').trim()
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function getTemplateTipo(template: any) {
+  return template.tipo_regua ?? template.tipo ?? ''
+}
+
+function matchesTemplateFilters(template: any, filters: Record<string, string>) {
+  const q = normalizeText(filters.q)
+  const tipo = getTemplateTipo(template)
+  const haystack = normalizeText([
+    template.nome,
+    template.codigo,
+    template.categoria,
+    template.assunto,
+    template.conteudo,
+    template.carteira_nome,
+  ].filter(Boolean).join(' '))
+
+  if (q && !haystack.includes(q)) return false
+  if (filters.tipo && tipo !== filters.tipo) return false
+  if (filters.categoria && (template.categoria ?? template.tipo) !== filters.categoria) return false
+  if (filters.intensidade && template.intensidade !== filters.intensidade) return false
+  if (filters.canal && template.canal !== filters.canal) return false
+  if (filters.status === 'ativo' && !template.ativo) return false
+  if (filters.status === 'inativo' && template.ativo) return false
+  if (filters.escopo === 'global' && template.carteira_id) return false
+  if (filters.escopo === 'carteira' && !template.carteira_id) return false
+  return true
+}
 
 function badge(label: string, tone = 'slate') {
   const tones: Record<string, string> = {
@@ -18,9 +79,21 @@ function badge(label: string, tone = 'slate') {
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${tones[tone] ?? tones.slate}`}>{label}</span>
 }
 
-export default async function TemplatesMensageriaPage() {
+export default async function TemplatesMensageriaPage({ searchParams }: TemplatesPageProps) {
+  const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
-  const templates = await listTemplates(scope)
+  const templatesBase = await listTemplates(scope)
+  const filters = {
+    q: getParam(params.q),
+    tipo: getParam(params.tipo),
+    categoria: getParam(params.categoria),
+    intensidade: getParam(params.intensidade),
+    canal: getParam(params.canal),
+    status: getParam(params.status),
+    escopo: getParam(params.escopo),
+  }
+  const templates = templatesBase.filter((template: any) => matchesTemplateFilters(template, filters))
+  const hasFilters = Object.values(filters).some(Boolean)
 
   const ativos = templates.filter((template: any) => template.ativo).length
   const cobranca = templates.filter((template: any) => (template.tipo_regua ?? template.tipo) === 'cobranca').length
@@ -64,8 +137,70 @@ export default async function TemplatesMensageriaPage() {
         </Card>
       </div>
 
+      <Card className="p-5">
+        <ListTitleBar>
+          <ListTitle
+            title="Filtros"
+            description="Localize modelos por texto, tipo, canal, status ou escopo."
+          />
+          <ClearFiltersLink href="/app/mensageria/templates" show={hasFilters} />
+        </ListTitleBar>
+        <ListFiltersForm className="xl:grid-cols-[minmax(230px,1.2fr)_140px_190px_140px_130px_130px_130px_auto]">
+          <ListSearchField
+            defaultValue={filters.q}
+            placeholder="Nome, assunto, conteúdo ou carteira"
+          />
+          <ListFilterField label="Tipo">
+            <Select name="tipo" defaultValue={filters.tipo}>
+              <option value="">Todos</option>
+              <option value="cobranca">Cobrança</option>
+              <option value="acordo">Acordo</option>
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Categoria">
+            <Select name="categoria" defaultValue={filters.categoria}>
+              <option value="">Todas</option>
+              {TEMPLATE_CATEGORIES.map((categoria) => (
+                <option key={categoria} value={categoria}>{categoryLabel(categoria)}</option>
+              ))}
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Intensidade">
+            <Select name="intensidade" defaultValue={filters.intensidade}>
+              <option value="">Todas</option>
+              {TEMPLATE_INTENSITIES.map((intensidade) => (
+                <option key={intensidade} value={intensidade}>{intensityLabel(intensidade)}</option>
+              ))}
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Canal">
+            <Select name="canal" defaultValue={filters.canal}>
+              <option value="">Todos</option>
+              {TEMPLATE_CHANNELS.map((canal) => (
+                <option key={canal} value={canal}>{canal}</option>
+              ))}
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Status">
+            <Select name="status" defaultValue={filters.status}>
+              <option value="">Todos</option>
+              <option value="ativo">Ativos</option>
+              <option value="inativo">Inativos</option>
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Escopo">
+            <Select name="escopo" defaultValue={filters.escopo}>
+              <option value="">Todos</option>
+              <option value="global">Globais</option>
+              <option value="carteira">Carteira</option>
+            </Select>
+          </ListFilterField>
+          <Button type="submit">Filtrar</Button>
+        </ListFiltersForm>
+      </Card>
+
       {templates.length === 0 ? (
-        <EmptyState title="Nenhum template cadastrado" description="Crie o primeiro modelo para alimentar a régua de mensagens." />
+        <EmptyState title="Nenhum template encontrado" description={hasFilters ? 'Ajuste os filtros para ampliar a busca.' : 'Crie o primeiro modelo para alimentar a régua de mensagens.'} />
       ) : (
         <Card className="overflow-hidden p-0">
           <div className="border-b border-slate-100 px-5 py-4">
