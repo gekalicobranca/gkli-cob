@@ -97,6 +97,7 @@ type ProcessarReguaParams = {
   carteiraId?: string;
   condominioId?: string;
   contato?: string;
+  cobrancaIds?: string[];
 };
 
 type Contadores = ReguaContadores;
@@ -506,10 +507,12 @@ export async function processarReguaCobranca(
     "unidades",
   ]) as CobrancaReguaRow[];
   const apoioMap = await loadResponsaveisApoioMap(supabase, normalizedRows);
+  const selectedIds = params.cobrancaIds ? new Set(params.cobrancaIds) : null;
   const rows = normalizedRows
     .map((row) => withResponsavelApoio(row, apoioMap))
     .filter((row) => matchesSearch(row, params.q))
-    .filter((row) => matchesContato(row, params.contato));
+    .filter((row) => matchesContato(row, params.contato))
+    .filter((row) => !selectedIds || selectedIds.has(row.id));
 
   const cobrancaIds = rows.map((row) => row.id).filter(Boolean);
   const [acordosAtivos, mensagensRecentes] = await Promise.all([

@@ -19,9 +19,19 @@ function getFiltrosRegua(formData?: FormData) {
   }
 }
 
+function getSelection(formData: FormData | undefined, key: string) {
+  if (!formData || formData.get('selection_enabled') !== '1') return undefined
+  return formData.getAll(key).map((value) => String(value).trim()).filter(Boolean)
+}
+
 export async function gerarLoteReguaCobranca(formData?: FormData): Promise<void> {
   const scope = await getPermittedCarteiras()
-  const resultado = await processarReguaCobranca({ scope, origem: 'manual', ...getFiltrosRegua(formData) })
+  const resultado = await processarReguaCobranca({
+    scope,
+    origem: 'manual',
+    ...getFiltrosRegua(formData),
+    cobrancaIds: getSelection(formData, 'cobranca_ids'),
+  })
 
   void resultado
 
@@ -32,7 +42,12 @@ export async function gerarLoteReguaCobranca(formData?: FormData): Promise<void>
 
 export async function gerarLoteReguaAcordos(formData?: FormData): Promise<void> {
   const scope = await getPermittedCarteiras()
-  const resultado = await processarReguaAcordos({ scope, origem: 'manual', ...getFiltrosRegua(formData) })
+  const resultado = await processarReguaAcordos({
+    scope,
+    origem: 'manual',
+    ...getFiltrosRegua(formData),
+    parcelaIds: getSelection(formData, 'parcela_ids'),
+  })
 
   void resultado
 

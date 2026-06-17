@@ -40,6 +40,7 @@ type ProcessarReguaAcordosParams = {
   carteiraId?: string
   condominioId?: string
   contato?: string
+  parcelaIds?: string[]
 }
 
 type Contadores = ReguaContadores
@@ -348,6 +349,7 @@ export async function processarReguaAcordos(
     supabase,
     acordos.map((acordo) => acordo.id),
   )
+  const selectedParcelaIds = params.parcelaIds ? new Set(params.parcelaIds) : null
 
   async function getLote(acordo: any): Promise<LoteContext> {
     const carteiraId = acordo.carteira_id as string | undefined
@@ -371,7 +373,8 @@ export async function processarReguaAcordos(
     const dataReferencia = cicloReferencia()
 
     for (const acordo of acordos) {
-      const parcelas = parcelasPorAcordo.get(acordo.id) ?? []
+      const parcelas = (parcelasPorAcordo.get(acordo.id) ?? [])
+        .filter((parcela) => !selectedParcelaIds || selectedParcelaIds.has(parcela.id))
 
       if (!parcelas.length) {
         const lote = await getLote(acordo)

@@ -1,4 +1,4 @@
-import { PageHeader } from '@/components/ui/page-header'
+﻿import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { ButtonLink } from '@/components/ui/button'
 import { StatusBadge } from '@/components/data/status-badge'
@@ -54,13 +54,35 @@ function itemKey(prefix: string, row: any) {
   return `${prefix}-${row.id}-${row.parcela?.id ?? 'principal'}`
 }
 
-function PreviewRow({ row, tipo }: { row: any; tipo: 'cobranca' | 'acordo' }) {
+function PreviewRow({
+  row,
+  tipo,
+  selectionName,
+  selectionValue,
+}: {
+  row: any
+  tipo: 'cobranca' | 'acordo'
+  selectionName?: string
+  selectionValue?: string
+}) {
   const unidade = row.unidades?.identificacao ?? row.unidade?.identificacao ?? 'Unidade'
   const condominio = row.condominios?.nome ?? row.condominio?.nome ?? 'Condomínio'
   const destinatario = row.destinatario_preview || 'sem destinatário'
 
   return (
-    <div className="grid gap-4 px-5 py-4 xl:grid-cols-[130px_1fr_180px] xl:items-center">
+    <div className="grid gap-4 px-5 py-4 xl:grid-cols-[44px_130px_1fr_180px] xl:items-center">
+      <div className="flex xl:justify-center">
+        {selectionName && selectionValue ? (
+          <input
+            type="checkbox"
+            name={selectionName}
+            value={selectionValue}
+            defaultChecked
+            aria-label={`Selecionar ${tipo} da unidade ${unidade}`}
+            className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]"
+          />
+        ) : null}
+      </div>
       <div>
         <StatusBadge status={row.elegivel ? 'elegivel' : 'bloqueada'} />
         <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-400">{tipo}</p>
@@ -76,10 +98,10 @@ function PreviewRow({ row, tipo }: { row: any; tipo: 'cobranca' | 'acordo' }) {
     </div>
   )
 }
-
 function HiddenFilters({ filters }: { filters: Record<string, string> }) {
   return (
     <>
+      <input type="hidden" name="selection_enabled" value="1" />
       <input type="hidden" name="q" value={filters.q} />
       <input type="hidden" name="carteira_id" value={filters.carteira_id} />
       <input type="hidden" name="condominio_id" value={filters.condominio_id} />
@@ -198,3 +220,4 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
     </div>
   )
 }
+
