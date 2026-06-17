@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { requireUser } from "@/utils/auth/require-user";
@@ -933,6 +934,62 @@ export async function cancelarLoteMensagens(loteId: string, motivo?: string) {
   });
 
   touchedPaths(loteId);
+}
+
+async function countLoteRelations(
+  supabase: ReturnType<typeof createAdminClient>,
+  table: string,
+  loteId: string,
+) {
+  const { count, error } = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq("lote_id", loteId);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "42703") return 0;
+    throw new Error(`Erro ao validar vínculos do lote: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
+export async function excluirLoteMensagens(loteId: string) {
+  await requireUser();
+  const scope = await getPermittedCarteiras();
+  const supabase = createAdminClient();
+
+  const { data: lote, error: loteError } = await supabase
+    .from("lotes")
+    .select("id,carteira_id,status")
+    .eq("id", loteId)
+    .maybeSingle();
+
+  if (loteError) throw new Error(`Erro ao carregar lote: ${loteError.message}`);
+  if (!lote) throw new Error("Lote não encontrado.");
+
+  const carteiraId = (lote as any).carteira_id as string | null;
+  if (!scope.isAdmin && carteiraId && !scope.carteiraIds?.includes(carteiraId)) {
+    throw new Error("Você não tem permissão para excluir este lote.");
+  }
+
+  const [itensCount, mensagensCount, logsCount] = await Promise.all([
+    countLoteRelations(supabase, "lote_itens", loteId),
+    countLoteRelations(supabase, "mensagens", loteId),
+    countLoteRelations(supabase, "mensageria_logs", loteId),
+  ]);
+
+  if (itensCount > 0 || mensagensCount > 0 || logsCount > 0) {
+    throw new Error(
+      "Este lote já possui itens, mensagens ou histórico. Cancele o lote para manter a rastreabilidade.",
+    );
+  }
+
+  const { error } = await supabase.from("lotes").delete().eq("id", loteId);
+  if (error) throw new Error(`Erro ao excluir lote: ${error.message}`);
+
+  revalidarMensageria(loteId);
+  redirect("/app/lotes");
 }
 
 export async function enviarLoteMensagens(loteId: string) {

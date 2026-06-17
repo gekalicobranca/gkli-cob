@@ -11,6 +11,7 @@ import {
   XCircle,
   Send,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -21,6 +22,7 @@ import { countItensByStatus, getLoteDetalhe } from "@/features/lotes/queries";
 import {
   aprovarLoteMensagens,
   cancelarLoteMensagens,
+  excluirLoteMensagens,
   enviarLoteMensagens,
   reprocessarFalhasLote,
   aprovarMensagem,
@@ -286,6 +288,13 @@ export default async function LoteDetalhePage({ params }: PageProps) {
               <ActionButton tone="danger" confirmMessage="Confirmar cancelamento deste lote? Essa ação cancela mensagens e itens vinculados." pendingLabel="Cancelando...">
                 <XCircle size={16} />
                 Cancelar lote
+              </ActionButton>
+            </form>
+
+            <form action={excluirLoteMensagens.bind(null, id)}>
+              <ActionButton tone="danger" confirmMessage="Confirmar exclusão deste lote? Só será excluído se estiver vazio, sem mensagens, itens ou histórico." pendingLabel="Excluindo...">
+                <Trash2 size={16} />
+                Excluir lote
               </ActionButton>
             </form>
           </div>

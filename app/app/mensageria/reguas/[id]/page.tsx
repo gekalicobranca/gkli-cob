@@ -63,10 +63,9 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
             <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
               <ReguaActionButton
                 type="submit"
-                form="excluir-regua-form"
+                formAction={excluirReguaOperacional.bind(null, regua.id)}
                 variant="danger"
                 confirmMessage="Confirmar exclusão desta régua? Só será excluída se não houver etapas nem vínculos com condomínios."
-                pendingLabel="Excluindo..."
               >
                 <Trash2 size={16} /> Excluir régua
               </ReguaActionButton>
@@ -74,8 +73,6 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
             </div>
           </Card>
         </form>
-        <form id="excluir-regua-form" action={excluirReguaOperacional.bind(null, regua.id)} />
-
         <Card className="space-y-5">
           <div>
             <Badge tone="primary">Nova etapa</Badge>
@@ -96,7 +93,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
         ) : (
           <div className="divide-y divide-slate-100">
             {regua.etapas.map((etapa: any) => (
-              <div key={etapa.id} className="grid gap-5 px-5 py-5 xl:grid-cols-[1fr_.9fr]">
+              <div key={etapa.id} className="space-y-4 px-5 py-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={etapa.ativo === false ? 'slate' : 'green'}>{etapa.ativo === false ? 'inativa' : 'ativa'}</Badge>
@@ -107,12 +104,12 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
                   </div>
                   <p className="mt-3 text-sm font-semibold text-slate-950">{etapa.nome || `Etapa ${etapa.ordem}`}</p>
                   <p className="mt-1 text-sm text-slate-500">{etapa.canal ?? 'whatsapp'} · {etapa.acao ?? 'enviar mensagem'} · {etapa.delay_referencia ?? 'vencimento'}</p>
-                  <p className="mt-3 whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">{etapa.template}</p>
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{etapa.template || 'Sem fallback textual definido.'}</p>
                   <form action={alternarEtapaRegua.bind(null, etapa.id, regua.id, etapa.ativo === false)} className="mt-3">
                     <Button type="submit" variant="secondary"><PauseCircle size={16} /> {etapa.ativo === false ? 'Reativar etapa' : 'Desativar etapa'}</Button>
                   </form>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="border-t border-slate-100 pt-4">
                   <p className="text-sm font-semibold text-slate-950">Editar etapa</p>
                   <div className="mt-4"><EtapaForm reguaId={regua.id} tipo={regua.tipo} templates={templates as any[]} etapa={etapa} compact /></div>
                 </div>

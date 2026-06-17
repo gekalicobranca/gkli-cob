@@ -233,17 +233,21 @@ export async function excluirReguaOperacional(id: string) {
   const { error } = await supabase.from('reguas').delete().eq('id', id)
   if (error) throw new Error(`Erro ao excluir régua: ${error.message}`)
 
-  await registrarEventoOperacional(supabase as any, {
-    carteiraId,
-    entidadeTipo: 'regua',
-    entidadeId: id,
-    eventoCodigo: 'regua.excluida',
-    titulo: 'Régua excluída',
-    descricao: `Régua ${(regua as any).nome} excluída.`,
-    severidade: 'info',
-    userId: user.id,
-    payload: { origem: 'manual' },
-  })
+  try {
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId,
+      entidadeTipo: 'regua',
+      entidadeId: id,
+      eventoCodigo: 'regua.excluida',
+      titulo: 'Régua excluída',
+      descricao: `Régua ${(regua as any).nome} excluída.`,
+      severidade: 'info',
+      userId: user.id,
+      payload: { origem: 'manual' },
+    })
+  } catch {
+    // A exclusão já foi concluída; falha de auditoria não deve bloquear o retorno à lista.
+  }
 
   revalidatePath('/app/mensageria/reguas')
   redirect('/app/mensageria/reguas')
