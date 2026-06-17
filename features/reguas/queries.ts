@@ -1,5 +1,5 @@
-import { createClient } from '@/utils/supabase/server'
-import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
+import { createAdminClient } from '@/utils/supabase/admin'
+import { applyCarteiraScopeWithGlobal } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import type { ReguaEtapaResumo, ReguaResumo, ReguaTipo } from './types'
 export type { ReguaEtapaResumo } from './types'
@@ -20,7 +20,7 @@ const REGUA_SELECT = `
 `
 
 export async function listReguasOperacionais(scope: CarteiraScope, tipo?: ReguaTipo | null): Promise<ReguaResumo[]> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   let query = supabase
     .from('reguas')
@@ -29,7 +29,7 @@ export async function listReguasOperacionais(scope: CarteiraScope, tipo?: ReguaT
     .order('prioridade', { ascending: false })
     .order('nome', { ascending: true })
 
-  query = applyCarteiraScope(query, scope.carteiraIds)
+  query = applyCarteiraScopeWithGlobal(query, scope)
   if (tipo) query = query.eq('tipo', tipo)
 
   const { data, error } = await query
@@ -43,7 +43,7 @@ export async function listReguasOperacionais(scope: CarteiraScope, tipo?: ReguaT
 }
 
 export async function getReguaOperacional(id: string, scope: CarteiraScope): Promise<ReguaResumo | null> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   let query = supabase
     .from('reguas')
@@ -51,7 +51,7 @@ export async function getReguaOperacional(id: string, scope: CarteiraScope): Pro
     .eq('id', id)
     .maybeSingle()
 
-  query = applyCarteiraScope(query, scope.carteiraIds)
+  query = applyCarteiraScopeWithGlobal(query, scope)
 
   const { data, error } = await query
 
@@ -76,7 +76,7 @@ export async function listReguasForSelect(scope: CarteiraScope, tipo: ReguaTipo)
 // A listagem operacional nova usa `listReguasOperacionais`, mas este alias evita quebra
 // de build enquanto todas as telas são migradas para o novo modelo.
 export async function listReguaEtapas(): Promise<ReguaEtapaResumo[]> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('regua_etapas')
