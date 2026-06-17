@@ -105,6 +105,8 @@ type Contadores = ReguaContadores;
 type LoteContext = {
   id: string;
   carteiraId: string;
+  reguaId: string | null;
+  reguaReferencia: string;
   contadores: Contadores;
 };
 
@@ -240,13 +242,43 @@ function withResponsavelApoio(row: CobrancaReguaRow, apoioMap: Map<string, any>)
 async function criarLote(params: {
   supabase: ReturnType<typeof createAdminClient>;
   carteiraId: string;
+  reguaId?: string | null;
+  reguaReferencia: string;
+  reguaOrigem: "cadastrada" | "padrao_interno";
   operadorId?: string | null;
   origem?: string;
   ciclo: string;
 }) {
-  const { data: lote, error } = await params.supabase
+  let { data: lote, error } = await params.supabase
     .from("lotes")
     .insert({
+      carteira_id: params.carteiraId,
+      regua_id: params.reguaId ?? null,
+      tipo: LOTE_TIPO.REGUA_COBRANCA,
+      status: LOTE_STATUS.PROCESSANDO,
+      operador_id: params.operadorId ?? null,
+      observacoes: `Lote gerado pela régua de cobrança (${params.origem ?? "manual"}) · ciclo ${params.ciclo}.`,
+      iniciado_em: new Date().toISOString(),
+      total_avaliadas: 0,
+      total_criadas: 0,
+      total_puladas: 0,
+      total_duplicadas: 0,
+      total_erros: 0,
+      total_pendentes: 0,
+      total_aprovadas: 0,
+      total_enviadas: 0,
+      resumo: {
+        origem: params.origem ?? "manual",
+        ciclo: params.ciclo,
+        regua_id: params.reguaReferencia,
+        regua_origem: params.reguaOrigem,
+      },
+    } as any)
+    .select("id")
+    .single();
+
+  if (error && (error.code === "PGRST204" || String(error.message ?? "").includes("regua_id"))) {
+    const payloadSemReguaId = {
       carteira_id: params.carteiraId,
       tipo: LOTE_TIPO.REGUA_COBRANCA,
       status: LOTE_STATUS.PROCESSANDO,
@@ -261,10 +293,22 @@ async function criarLote(params: {
       total_pendentes: 0,
       total_aprovadas: 0,
       total_enviadas: 0,
-      resumo: { origem: params.origem ?? "manual", ciclo: params.ciclo },
-    } as any)
-    .select("id")
-    .single();
+      resumo: {
+        origem: params.origem ?? "manual",
+        ciclo: params.ciclo,
+        regua_id: params.reguaReferencia,
+        regua_origem: params.reguaOrigem,
+      },
+    };
+
+    const retry = await params.supabase
+      .from("lotes")
+      .insert(payloadSemReguaId as any)
+      .select("id")
+      .single();
+    lote = retry.data;
+    error = retry.error;
+  }
 
   if (error || !lote?.id) {
     throw new Error(
@@ -329,6 +373,7 @@ async function atualizarLote(params: {
   supabase: ReturnType<typeof createAdminClient>;
   loteId: string;
   contadores: Contadores;
+  reguaReferencia?: string;
   status?: string;
   erro?: string;
 }) {
@@ -346,7 +391,10 @@ async function atualizarLote(params: {
       total_pendentes: params.contadores.criadas,
       total_aprovadas: 0,
       total_enviadas: 0,
-      resumo: resumoContadores(params.contadores, { erro: params.erro ?? null }),
+      resumo: resumoContadores(params.contadores, {
+        erro: params.erro ?? null,
+        regua_id: params.reguaReferencia ?? null,
+      }),
       finalizado_em: new Date().toISOString(),
     } as any)
     .eq("id", params.loteId);
@@ -463,7 +511,7 @@ export async function processarReguaCobranca(
   const supabase = createAdminClient();
   const total = novoContador();
   const itens: ResultadoLoteRegua["itens"] = [];
-  const lotesPorCarteira = new Map<string, LoteContext>();
+  const lotesPorCarteiraRegua = new Map<string, LoteContext>();
   const cooldownDias = Number(params.cooldownDias ?? 3);
   const ciclo = cicloReferencia();
 
@@ -524,18 +572,25 @@ export async function processarReguaCobranca(
     const carteiraId = row.carteira_id;
     if (!carteiraId) throw new Error("Cobrança sem carteira_id.");
 
-    const atual = lotesPorCarteira.get(carteiraId);
+    const reguaId = row.condominios?.regua_cobranca_id ?? null;
+    const reguaReferencia = reguaId ?? "default-cobranca";
+    const loteKey = `${carteiraId}|${reguaReferencia}`;
+
+    const atual = lotesPorCarteiraRegua.get(loteKey);
     if (atual) return atual;
 
     const id = await criarLote({
       supabase,
       carteiraId,
+      reguaId,
+      reguaReferencia,
+      reguaOrigem: reguaId ? "cadastrada" : "padrao_interno",
       operadorId: params.scope?.userId,
       origem: params.origem ?? "manual",
       ciclo,
     });
-    const novo = { id, carteiraId, contadores: novoContador() };
-    lotesPorCarteira.set(carteiraId, novo);
+    const novo = { id, carteiraId, reguaId, reguaReferencia, contadores: novoContador() };
+    lotesPorCarteiraRegua.set(loteKey, novo);
     return novo;
   }
 
@@ -883,11 +938,11 @@ export async function processarReguaCobranca(
       }
     }
 
-    for (const lote of lotesPorCarteira.values()) {
-      await atualizarLote({ supabase, loteId: lote.id, contadores: lote.contadores });
+    for (const lote of lotesPorCarteiraRegua.values()) {
+      await atualizarLote({ supabase, loteId: lote.id, contadores: lote.contadores, reguaReferencia: lote.reguaReferencia });
     }
 
-    const loteIds = Array.from(lotesPorCarteira.values()).map((lote) => lote.id);
+    const loteIds = Array.from(lotesPorCarteiraRegua.values()).map((lote) => lote.id);
 
     return {
       loteId: loteIds[0] ?? "",
@@ -901,11 +956,12 @@ export async function processarReguaCobranca(
     };
   } catch (error) {
     const motivo = error instanceof Error ? error.message : "Erro inesperado ao processar lote.";
-    for (const lote of lotesPorCarteira.values()) {
+    for (const lote of lotesPorCarteiraRegua.values()) {
       await atualizarLote({
         supabase,
         loteId: lote.id,
         contadores: lote.contadores,
+        reguaReferencia: lote.reguaReferencia,
         status: LOTE_STATUS.ERRO,
         erro: motivo,
       });

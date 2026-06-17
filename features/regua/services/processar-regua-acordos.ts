@@ -47,6 +47,9 @@ type Contadores = ReguaContadores
 
 type LoteContext = {
   id: string
+  carteiraId: string
+  reguaId: string | null
+  reguaReferencia: string
   contadores: Contadores
 }
 
@@ -193,22 +196,54 @@ function selecionarEtapaAcordo(params: {
 async function criarLote(params: {
   supabase: ReturnType<typeof createAdminClient>
   carteiraId: string
+  reguaId?: string | null
+  reguaReferencia: string
+  reguaOrigem: 'cadastrada' | 'padrao_interno'
   operadorId?: string | null
   origem?: string
 }) {
-  const { data: lote, error } = await params.supabase
+  let { data: lote, error } = await params.supabase
     .from('lotes')
     .insert({
       carteira_id: params.carteiraId,
+      regua_id: params.reguaId ?? null,
       tipo: LOTE_TIPO.REGUA_ACORDO,
       status: LOTE_STATUS.PROCESSANDO,
       operador_id: params.operadorId ?? null,
       observacoes: `Lote gerado pela régua de acordos (${params.origem ?? 'manual'}).`,
       iniciado_em: new Date().toISOString(),
-      resumo: { origem: params.origem ?? 'manual', contexto: 'regua_acordo' },
+      resumo: {
+        origem: params.origem ?? 'manual',
+        contexto: 'regua_acordo',
+        regua_id: params.reguaReferencia,
+        regua_origem: params.reguaOrigem,
+      },
     } as any)
     .select('id')
     .single()
+
+  if (error && (error.code === 'PGRST204' || String(error.message ?? '').includes('regua_id'))) {
+    const retry = await params.supabase
+      .from('lotes')
+      .insert({
+        carteira_id: params.carteiraId,
+        tipo: LOTE_TIPO.REGUA_ACORDO,
+        status: LOTE_STATUS.PROCESSANDO,
+        operador_id: params.operadorId ?? null,
+        observacoes: `Lote gerado pela régua de acordos (${params.origem ?? 'manual'}).`,
+        iniciado_em: new Date().toISOString(),
+        resumo: {
+          origem: params.origem ?? 'manual',
+          contexto: 'regua_acordo',
+          regua_id: params.reguaReferencia,
+          regua_origem: params.reguaOrigem,
+        },
+      } as any)
+      .select('id')
+      .single()
+    lote = retry.data
+    error = retry.error
+  }
 
   if (error || !lote?.id) {
     throw new Error(`Erro ao criar lote da régua de acordos: ${error?.message ?? 'lote não retornado'}`)
@@ -258,6 +293,7 @@ async function atualizarLote(params: {
   supabase: ReturnType<typeof createAdminClient>
   loteId: string
   contadores: Contadores
+  reguaReferencia?: string
   status?: string
   erro?: string
 }) {
@@ -272,7 +308,11 @@ async function atualizarLote(params: {
       total_puladas: params.contadores.puladas,
       total_duplicadas: params.contadores.duplicadas,
       total_erros: params.contadores.erros,
-      resumo: resumoContadores(params.contadores, { contexto: 'regua_acordo', erro: params.erro ?? null }),
+      resumo: resumoContadores(params.contadores, {
+        contexto: 'regua_acordo',
+        erro: params.erro ?? null,
+        regua_id: params.reguaReferencia ?? null,
+      }),
       finalizado_em: new Date().toISOString(),
     } as any)
     .eq('id', params.loteId)
@@ -308,7 +348,7 @@ export async function processarReguaAcordos(
   const supabase = createAdminClient()
   const total = novoContador()
   const itens: ResultadoLoteReguaAcordos['itens'] = []
-  const lotesPorCarteira = new Map<string, LoteContext>()
+  const lotesPorCarteiraRegua = new Map<string, LoteContext>()
 
   const data = await fetchAllRows((from, to) => {
     let query: any = supabase
@@ -355,17 +395,24 @@ export async function processarReguaAcordos(
     const carteiraId = acordo.carteira_id as string | undefined
     if (!carteiraId) throw new Error('Acordo sem carteira_id.')
 
-    const atual = lotesPorCarteira.get(carteiraId)
+    const reguaId = acordo.condominios?.regua_acordo_id ?? null
+    const reguaReferencia = reguaId ?? 'default-acordo'
+    const loteKey = `${carteiraId}|${reguaReferencia}`
+
+    const atual = lotesPorCarteiraRegua.get(loteKey)
     if (atual) return atual
 
     const id = await criarLote({
       supabase,
       carteiraId,
+      reguaId,
+      reguaReferencia,
+      reguaOrigem: reguaId ? 'cadastrada' : 'padrao_interno',
       operadorId: params.scope?.userId,
       origem: params.origem ?? 'manual',
     })
-    const novo = { id, contadores: novoContador() }
-    lotesPorCarteira.set(carteiraId, novo)
+    const novo = { id, carteiraId, reguaId, reguaReferencia, contadores: novoContador() }
+    lotesPorCarteiraRegua.set(loteKey, novo)
     return novo
   }
 
@@ -646,11 +693,11 @@ export async function processarReguaAcordos(
       }
     }
 
-    for (const lote of lotesPorCarteira.values()) {
-      await atualizarLote({ supabase, loteId: lote.id, contadores: lote.contadores })
+    for (const lote of lotesPorCarteiraRegua.values()) {
+      await atualizarLote({ supabase, loteId: lote.id, contadores: lote.contadores, reguaReferencia: lote.reguaReferencia })
     }
 
-    const loteIds = Array.from(lotesPorCarteira.values()).map((lote) => lote.id)
+    const loteIds = Array.from(lotesPorCarteiraRegua.values()).map((lote) => lote.id)
 
     return {
       loteId: loteIds[0] ?? '',
@@ -664,11 +711,12 @@ export async function processarReguaAcordos(
     }
   } catch (error) {
     const motivo = error instanceof Error ? error.message : 'Erro inesperado ao processar régua de acordos.'
-    for (const lote of lotesPorCarteira.values()) {
+    for (const lote of lotesPorCarteiraRegua.values()) {
       await atualizarLote({
         supabase,
         loteId: lote.id,
         contadores: lote.contadores,
+        reguaReferencia: lote.reguaReferencia,
         status: LOTE_STATUS.ERRO,
         erro: motivo,
       })

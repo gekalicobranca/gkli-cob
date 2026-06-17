@@ -36,7 +36,7 @@ function normalizeText(value: unknown) {
 
 function matchesLote(row: any, filters: Record<string, string>) {
   const q = normalizeText(filters.q)
-  const haystack = normalizeText([row.id, row.tipo, row.status, row.observacoes].filter(Boolean).join(' '))
+  const haystack = normalizeText([row.id, row.tipo, row.status, row.observacoes, row.resumo?.regua_id].filter(Boolean).join(' '))
 
   if (q && !haystack.includes(q)) return false
   if (filters.tipo && row.tipo !== filters.tipo) return false
@@ -45,6 +45,13 @@ function matchesLote(row: any, filters: Record<string, string>) {
   if (filters.resultado === 'com_criadas' && n(row.total_criadas) <= 0) return false
   if (filters.resultado === 'com_duplicadas' && n(row.total_duplicadas) <= 0) return false
   return true
+}
+
+function reguaLabel(row: any) {
+  const reguaId = row.resumo?.regua_id
+  if (!reguaId) return 'Régua não identificada'
+  if (String(reguaId).startsWith('default-')) return 'Padrão interno'
+  return `Régua ${String(reguaId).slice(0, 8)}`
 }
 
 export default async function LotesPage({ searchParams }: LotesPageProps) {
@@ -153,7 +160,7 @@ export default async function LotesPage({ searchParams }: LotesPageProps) {
                     Lote {String(row.id).slice(0, 8)} · {row.tipo ?? 'cobranca'}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {row.observacoes ?? 'Processamento da régua'} · criado em {formatDateBR(row.created_at)}
+                    {reguaLabel(row)} · {row.observacoes ?? 'Processamento da régua'} · criado em {formatDateBR(row.created_at)}
                   </p>
                 </div>
                 <StatusBadge status={String(row.status ?? 'gerado')} />

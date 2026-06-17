@@ -95,6 +95,13 @@ function countMensagensByStatus(
   }, {});
 }
 
+function reguaLabel(lote: any) {
+  const reguaId = lote?.resumo?.regua_id;
+  if (!reguaId) return "Não identificada";
+  if (String(reguaId).startsWith("default-")) return "Padrão interno";
+  return String(reguaId);
+}
+
 function ActionButton({
   children,
   tone = "primary",
@@ -190,7 +197,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
       </section>
 
       <Card className="p-5">
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
               Tipo
@@ -204,6 +211,15 @@ export default async function LoteDetalhePage({ params }: PageProps) {
             </p>
             <p className="mt-1 text-sm text-slate-900">
               {(lote as any).status}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+              Régua
+            </p>
+            <p className="mt-1 break-all text-sm text-slate-900">
+              {reguaLabel(lote)}
             </p>
           </div>
 
