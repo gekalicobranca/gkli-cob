@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, Plus, WalletCards } from "lucide-react";
+import { ArrowUpRight, CalendarDays, FileSpreadsheet, Plus, WalletCards } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import {
@@ -87,6 +87,17 @@ function cobrancasHref(params: Record<string, string>, overrides: Record<string,
 
   const qs = query.toString();
   return qs ? `/app/cobrancas?${qs}` : "/app/cobrancas";
+}
+
+function cobrancasRelatorioHref(params: Record<string, string>) {
+  const query = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value) query.set(key, value);
+  }
+
+  const qs = query.toString();
+  return qs ? `/api/cobrancas/relatorio?${qs}` : "/api/cobrancas/relatorio";
 }
 
 function getPriority(status: string, vencimento?: string | null) {
@@ -182,6 +193,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     judicializacao_unidade: "nao",
     status: (COBRANCA_STATUS_JUDICIALIZACAO as string[]).includes(filters.status) ? null : filters.status,
   });
+  const relatorioHref = cobrancasRelatorioHref(queryParams);
 
   const scope = await getPermittedCarteiras();
   const rows = sortCobrancas(await listCobrancas(scope, filters), filters.ordenar);
@@ -210,10 +222,16 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
           title="Cobranças"
           description="Fila operacional de débitos, negociações e encaminhamentos. Priorize por risco, valor e última movimentação."
           actions={
-            <ButtonLink href="/app/cobrancas/nova">
-              <Plus size={16} />
-              Nova cobrança
-            </ButtonLink>
+            <>
+              <ButtonLink href={relatorioHref} variant="secondary">
+                <FileSpreadsheet size={16} />
+                Relatório
+              </ButtonLink>
+              <ButtonLink href="/app/cobrancas/nova">
+                <Plus size={16} />
+                Nova cobrança
+              </ButtonLink>
+            </>
           }
         />
       </LitePageHeader>
