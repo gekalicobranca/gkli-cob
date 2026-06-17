@@ -1,21 +1,64 @@
 import Link from 'next/link'
-import { ButtonLink } from '@/components/ui/button'
+import { Button, ButtonLink } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
+import {
+  ClearFiltersLink,
+  ListFilterField,
+  ListFiltersForm,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from '@/components/layout/list-page'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listLotesRegua } from '@/features/lotes/queries'
 import { formatDateBR } from '@/utils/formatters/date'
+
+type LotesPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
 
 function n(value: unknown) {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-export default async function LotesPage() {
+function getParam(value: string | string[] | undefined) {
+  return String(Array.isArray(value) ? value[0] : value ?? '').trim()
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function matchesLote(row: any, filters: Record<string, string>) {
+  const q = normalizeText(filters.q)
+  const haystack = normalizeText([row.id, row.tipo, row.status, row.observacoes].filter(Boolean).join(' '))
+
+  if (q && !haystack.includes(q)) return false
+  if (filters.tipo && row.tipo !== filters.tipo) return false
+  if (filters.status && row.status !== filters.status) return false
+  if (filters.resultado === 'com_erros' && n(row.total_erros) <= 0) return false
+  if (filters.resultado === 'com_criadas' && n(row.total_criadas) <= 0) return false
+  if (filters.resultado === 'com_duplicadas' && n(row.total_duplicadas) <= 0) return false
+  return true
+}
+
+export default async function LotesPage({ searchParams }: LotesPageProps) {
+  const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
-  const rows = await listLotesRegua(scope)
+  const rowsBase = await listLotesRegua(scope)
+  const filters = {
+    q: getParam(params.q),
+    tipo: getParam(params.tipo),
+    status: getParam(params.status),
+    resultado: getParam(params.resultado),
+  }
+  const rows = rowsBase.filter((row: any) => matchesLote(row, filters))
+  const hasFilters = Object.values(filters).some(Boolean)
 
   const totalCriadas = rows.reduce((sum: number, row: any) => sum + n(row.total_criadas), 0)
   const totalDuplicadas = rows.reduce((sum: number, row: any) => sum + n(row.total_duplicadas), 0)
@@ -56,6 +99,43 @@ export default async function LotesPage() {
           <p className="mt-1 text-sm text-slate-500">exigem revisão</p>
         </Card>
       </div>
+
+      <Card className="p-5">
+        <ListTitleBar>
+          <ListTitle title="Filtros" description="Localize lotes por texto, tipo, status ou resultado." />
+          <ClearFiltersLink href="/app/lotes" show={hasFilters} />
+        </ListTitleBar>
+        <ListFiltersForm className="xl:grid-cols-[minmax(260px,1.2fr)_170px_170px_190px_auto]">
+          <ListSearchField defaultValue={filters.q} placeholder="ID, observação, tipo ou status" />
+          <ListFilterField label="Tipo">
+            <Select name="tipo" defaultValue={filters.tipo}>
+              <option value="">Todos</option>
+              <option value="regua_cobranca">Régua cobrança</option>
+              <option value="regua_acordo">Régua acordo</option>
+              <option value="mensageria">Mensageria</option>
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Status">
+            <Select name="status" defaultValue={filters.status}>
+              <option value="">Todos</option>
+              <option value="processando">Processando</option>
+              <option value="gerado">Gerado</option>
+              <option value="concluido">Concluído</option>
+              <option value="concluido_com_falhas">Com falhas</option>
+              <option value="erro">Erro</option>
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Resultado">
+            <Select name="resultado" defaultValue={filters.resultado}>
+              <option value="">Todos</option>
+              <option value="com_criadas">Com mensagens</option>
+              <option value="com_duplicadas">Com duplicadas</option>
+              <option value="com_erros">Com erros</option>
+            </Select>
+          </ListFilterField>
+          <Button type="submit">Filtrar</Button>
+        </ListFiltersForm>
+      </Card>
 
       {rows.length === 0 ? (
         <EmptyState title="Nenhum lote registrado" description="Gere um lote em Mensageria para iniciar o histórico operacional." />

@@ -1,14 +1,63 @@
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import { EmptyState } from '@/components/data/empty-state'
+import {
+  ClearFiltersLink,
+  ListFilterField,
+  ListFiltersForm,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from '@/components/layout/list-page'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listMensageriaLogs } from '@/features/mensageria/queries'
 import { formatDateBR } from '@/utils/formatters/date'
 
-export default async function MensageriaLogPage() {
+type MensageriaLogPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+function getParam(value: string | string[] | undefined) {
+  return String(Array.isArray(value) ? value[0] : value ?? '').trim()
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function uniqueValues(rows: any[], field: string) {
+  return [...new Set(rows.map((row) => String(row[field] ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+}
+
+function matchesLog(log: any, filters: Record<string, string>) {
+  const q = normalizeText(filters.q)
+  const haystack = normalizeText([log.evento, log.descricao, log.lote_id, log.mensagem_id].filter(Boolean).join(' '))
+
+  if (q && !haystack.includes(q)) return false
+  if (filters.evento && log.evento !== filters.evento) return false
+  if (filters.status_anterior && log.status_anterior !== filters.status_anterior) return false
+  if (filters.status_novo && log.status_novo !== filters.status_novo) return false
+  return true
+}
+
+export default async function MensageriaLogPage({ searchParams }: MensageriaLogPageProps) {
+  const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
-  const logs = await listMensageriaLogs(scope)
+  const logsBase = await listMensageriaLogs(scope)
+  const filters = {
+    q: getParam(params.q),
+    evento: getParam(params.evento),
+    status_anterior: getParam(params.status_anterior),
+    status_novo: getParam(params.status_novo),
+  }
+  const logs = logsBase.filter((log: any) => matchesLog(log, filters))
+  const hasFilters = Object.values(filters).some(Boolean)
+  const eventos = uniqueValues(logsBase, 'evento')
+  const statusAnteriores = uniqueValues(logsBase, 'status_anterior')
+  const statusNovos = uniqueValues(logsBase, 'status_novo')
 
   return (
     <div className="space-y-6">
@@ -25,6 +74,35 @@ export default async function MensageriaLogPage() {
           </Link>
         }
       />
+
+      <Card className="p-5">
+        <ListTitleBar>
+          <ListTitle title="Filtros" description="Pesquise eventos por texto, tipo de evento e transição de status." />
+          <ClearFiltersLink href="/app/mensageria/log" show={hasFilters} />
+        </ListTitleBar>
+        <ListFiltersForm className="xl:grid-cols-[minmax(260px,1.2fr)_220px_180px_180px_auto]">
+          <ListSearchField defaultValue={filters.q} placeholder="Evento, descrição, lote ou mensagem" />
+          <ListFilterField label="Evento">
+            <Select name="evento" defaultValue={filters.evento}>
+              <option value="">Todos</option>
+              {eventos.map((evento) => <option key={evento} value={evento}>{evento}</option>)}
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="De">
+            <Select name="status_anterior" defaultValue={filters.status_anterior}>
+              <option value="">Todos</option>
+              {statusAnteriores.map((status) => <option key={status} value={status}>{status}</option>)}
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Para">
+            <Select name="status_novo" defaultValue={filters.status_novo}>
+              <option value="">Todos</option>
+              {statusNovos.map((status) => <option key={status} value={status}>{status}</option>)}
+            </Select>
+          </ListFilterField>
+          <Button type="submit">Filtrar</Button>
+        </ListFiltersForm>
+      </Card>
 
       {logs.length === 0 ? (
         <EmptyState title="Nenhum log registrado" description="Os próximos lotes de mensageria criarão eventos de auditoria aqui." />

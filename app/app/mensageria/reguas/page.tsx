@@ -3,9 +3,30 @@ import { ArrowRight, CheckCircle2, GitBranch, Plus, SlidersHorizontal } from 'lu
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ButtonLink } from '@/components/ui/button'
+import { Button, ButtonLink } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
+import {
+  ClearFiltersLink,
+  ListFilterField,
+  ListFiltersForm,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from '@/components/layout/list-page'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listReguasOperacionais } from '@/features/reguas/queries'
+
+type ReguasPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+function getParam(value: string | string[] | undefined) {
+  return String(Array.isArray(value) ? value[0] : value ?? '').trim()
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
 
 function count(rows: any[], predicate: (row: any) => boolean) {
   return rows.filter(predicate).length
@@ -21,9 +42,34 @@ function statusTone(status?: string | null) {
   return 'slate'
 }
 
-export default async function ReguasPage() {
+function matchesRegua(row: any, filters: Record<string, string>) {
+  const q = normalizeText(filters.q)
+  const status = row.status ?? (row.ativo === false ? 'inativa' : 'ativa')
+  const escopo = row.carteira_id ? 'carteira' : 'global'
+  const haystack = normalizeText([row.nome, row.descricao, row.carteiras?.nome].filter(Boolean).join(' '))
+
+  if (q && !haystack.includes(q)) return false
+  if (filters.tipo && row.tipo !== filters.tipo) return false
+  if (filters.status && status !== filters.status) return false
+  if (filters.escopo && escopo !== filters.escopo) return false
+  if (filters.padrao === 'sim' && !row.padrao) return false
+  if (filters.padrao === 'nao' && row.padrao) return false
+  return true
+}
+
+export default async function ReguasPage({ searchParams }: ReguasPageProps) {
+  const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
-  const reguas = await listReguasOperacionais(scope)
+  const reguasBase = await listReguasOperacionais(scope)
+  const filters = {
+    q: getParam(params.q),
+    tipo: getParam(params.tipo),
+    status: getParam(params.status),
+    escopo: getParam(params.escopo),
+    padrao: getParam(params.padrao),
+  }
+  const reguas = reguasBase.filter((row: any) => matchesRegua(row, filters))
+  const hasFilters = Object.values(filters).some(Boolean)
 
   const ativas = count(reguas, (row) => row.status === 'ativa' || row.ativo === true)
   const cobranca = count(reguas, (row) => row.tipo === 'cobranca')
@@ -48,6 +94,46 @@ export default async function ReguasPage() {
         <Card className="p-4"><Metric label="Cobrança" value={cobranca} detail="fluxo extrajudicial" /></Card>
         <Card className="p-4"><Metric label="Acordos" value={acordos} detail="parcelas e rompimento" /></Card>
       </section>
+
+      <Card className="p-5">
+        <ListTitleBar>
+          <ListTitle title="Filtros" description="Refine por tipo, status, escopo e régua padrão." />
+          <ClearFiltersLink href="/app/mensageria/reguas" show={hasFilters} />
+        </ListTitleBar>
+        <ListFiltersForm className="xl:grid-cols-[minmax(240px,1.2fr)_150px_150px_140px_140px_auto]">
+          <ListSearchField defaultValue={filters.q} placeholder="Nome, descrição ou carteira" />
+          <ListFilterField label="Tipo">
+            <Select name="tipo" defaultValue={filters.tipo}>
+              <option value="">Todas</option>
+              <option value="cobranca">Cobrança</option>
+              <option value="acordo">Acordo</option>
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Status">
+            <Select name="status" defaultValue={filters.status}>
+              <option value="">Todos</option>
+              <option value="ativa">Ativa</option>
+              <option value="rascunho">Rascunho</option>
+              <option value="inativa">Inativa</option>
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Escopo">
+            <Select name="escopo" defaultValue={filters.escopo}>
+              <option value="">Todos</option>
+              <option value="global">Global</option>
+              <option value="carteira">Carteira</option>
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Padrão">
+            <Select name="padrao" defaultValue={filters.padrao}>
+              <option value="">Todas</option>
+              <option value="sim">Sim</option>
+              <option value="nao">Não</option>
+            </Select>
+          </ListFilterField>
+          <Button type="submit">Filtrar</Button>
+        </ListFiltersForm>
+      </Card>
 
       <Card className="overflow-hidden p-0">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between">

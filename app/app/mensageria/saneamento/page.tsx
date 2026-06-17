@@ -3,10 +3,47 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, MessageSquareWa
 
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
+import {
+  ClearFiltersLink,
+  ListFilterField,
+  ListFiltersForm,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from '@/components/layout/list-page'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getMensageriaSaneamento } from '@/features/mensageria/saneamento'
 import { formatDateBR } from '@/utils/formatters/date'
+
+type MensageriaSaneamentoPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+function getParam(value: string | string[] | undefined) {
+  return String(Array.isArray(value) ? value[0] : value ?? '').trim()
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function uniqueValues(rows: any[], field: string) {
+  return [...new Set(rows.map((row) => String(row[field] ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+}
+
+function matchesItem(item: any, filters: Record<string, string>) {
+  const q = normalizeText(filters.q)
+  const haystack = normalizeText([item.tipo, item.titulo, item.descricao, item.status].filter(Boolean).join(' '))
+
+  if (q && !haystack.includes(q)) return false
+  if (filters.tipo && item.tipo !== filters.tipo) return false
+  if (filters.severity && item.severity !== filters.severity) return false
+  if (filters.status && item.status !== filters.status) return false
+  return true
+}
 
 function severityClass(severity: string) {
   if (severity === 'danger') return 'border-red-200 bg-red-50 text-red-700'
@@ -40,10 +77,20 @@ function MetricCard({ metric }: { metric: { label: string; value: number; descri
   )
 }
 
-export default async function MensageriaSaneamentoPage() {
+export default async function MensageriaSaneamentoPage({ searchParams }: MensageriaSaneamentoPageProps) {
+  const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
   const data = await getMensageriaSaneamento(scope)
-  const hasAlerts = data.items.length > 0
+  const filters = {
+    q: getParam(params.q),
+    tipo: getParam(params.tipo),
+    severity: getParam(params.severity),
+    status: getParam(params.status),
+  }
+  const items = data.items.filter((item: any) => matchesItem(item, filters))
+  const hasFilters = Object.values(filters).some(Boolean)
+  const hasAlerts = items.length > 0
+  const statuses = uniqueValues(data.items, 'status')
 
   return (
     <div className="space-y-6">
@@ -68,6 +115,40 @@ export default async function MensageriaSaneamentoPage() {
         ))}
       </section>
 
+      <Card className="p-5">
+        <ListTitleBar>
+          <ListTitle title="Filtros" description="Refine a fila por texto, tipo, severidade e status." />
+          <ClearFiltersLink href="/app/mensageria/saneamento" show={hasFilters} />
+        </ListTitleBar>
+        <ListFiltersForm className="xl:grid-cols-[minmax(260px,1.2fr)_150px_160px_180px_auto]">
+          <ListSearchField defaultValue={filters.q} placeholder="Título, descrição, tipo ou status" />
+          <ListFilterField label="Tipo">
+            <Select name="tipo" defaultValue={filters.tipo}>
+              <option value="">Todos</option>
+              <option value="mensagem">Mensagem</option>
+              <option value="lote">Lote</option>
+              <option value="log">Log</option>
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Severidade">
+            <Select name="severity" defaultValue={filters.severity}>
+              <option value="">Todas</option>
+              <option value="danger">Crítica</option>
+              <option value="warning">Atenção</option>
+              <option value="ok">Ok</option>
+              <option value="neutral">Neutra</option>
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Status">
+            <Select name="status" defaultValue={filters.status}>
+              <option value="">Todos</option>
+              {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+            </Select>
+          </ListFilterField>
+          <Button type="submit">Filtrar</Button>
+        </ListFiltersForm>
+      </Card>
+
       <Card className="overflow-hidden p-0">
         <div className="border-b border-slate-100 px-5 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -91,7 +172,7 @@ export default async function MensageriaSaneamentoPage() {
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {data.items.map((item) => (
+            {items.map((item) => (
               <Link
                 key={`${item.tipo}-${item.id}-${item.titulo}`}
                 href={item.href ?? '/app/mensageria'}
