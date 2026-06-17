@@ -1,12 +1,13 @@
 ﻿import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { Button, ButtonLink } from '@/components/ui/button'
+import { ButtonLink } from '@/components/ui/button'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listReguaAcordoPreview, listReguaCobrancaPreview } from '@/features/regua/queries'
 import { gerarLoteReguaAcordos, gerarLoteReguaCobranca } from '@/features/regua/actions'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
+import { ConfirmGenerateLoteButton } from './confirm-generate-lote-button'
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
@@ -68,6 +69,7 @@ function PreviewRow({
   const unidade = row.unidades?.identificacao ?? row.unidade?.identificacao ?? 'Unidade'
   const condominio = row.condominios?.nome ?? row.condominio?.nome ?? 'Condomínio'
   const destinatario = row.destinatario_preview || 'sem destinatário'
+  const jaGerada = Boolean(row.ja_gerada_no_ciclo)
 
   return (
     <div className="grid gap-4 px-5 py-4 xl:grid-cols-[44px_130px_1fr_180px] xl:items-center">
@@ -77,7 +79,8 @@ function PreviewRow({
             type="checkbox"
             name={selectionName}
             value={selectionValue}
-            defaultChecked
+            defaultChecked={!jaGerada}
+            disabled={jaGerada}
             aria-label={`Selecionar ${tipo} da unidade ${unidade}`}
             className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]"
           />
@@ -85,6 +88,7 @@ function PreviewRow({
       </div>
       <div>
         <StatusBadge status={row.elegivel ? 'elegivel' : 'bloqueada'} />
+        {jaGerada ? <p className="mt-2 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">já gerado</p> : null}
         <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-400">{tipo}</p>
       </div>
       <div>
@@ -136,6 +140,8 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
 
   const cobrancasElegiveis = cobrancas.filter((row: any) => row.elegivel)
   const acordosElegiveis = acordos.filter((row: any) => row.elegivel)
+  const cobrancasGeraveis = cobrancasElegiveis.filter((row: any) => !row.ja_gerada_no_ciclo)
+  const acordosGeraveis = acordosElegiveis.filter((row: any) => !row.ja_gerada_no_ciclo)
   const hasFilters = Boolean(filters.q || filters.carteira_id || filters.condominio_id || filters.contato !== 'todos')
   const showCobrancas = aba === 'cobrancas'
   const showAcordos = aba === 'acordos'
@@ -200,7 +206,7 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
             <HiddenFilters filters={filters} />
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
               <div><h2 className="text-sm font-semibold text-slate-950">Cobranças elegíveis</h2><p className="mt-1 text-xs text-slate-500">Apenas cobranças que já passaram pela janela D+ configurada.</p></div>
-              <Button type="submit">Gerar lote</Button>
+              <ConfirmGenerateLoteButton itemCount={Math.min(cobrancasGeraveis.length, 20)} tipo="cobrancas">Gerar lote</ConfirmGenerateLoteButton>
             </div>
             <div className="divide-y divide-slate-100">
               {cobrancasElegiveis.length === 0 ? <div className="p-5"><EmptyState title="Sem cobranças elegíveis" description="Nada para gerar neste momento." /></div> : cobrancasElegiveis.slice(0, 20).map((row: any) => <PreviewRow key={itemKey('c', row)} row={row} tipo="cobranca" selectionName="cobranca_ids" selectionValue={row.id} />)}
@@ -215,7 +221,7 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
             <HiddenFilters filters={filters} />
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
               <div><h2 className="text-sm font-semibold text-slate-950">Acordos elegíveis</h2><p className="mt-1 text-xs text-slate-500">Parcelas em janela preventiva ou vencidas.</p></div>
-              <Button type="submit">Gerar lote</Button>
+              <ConfirmGenerateLoteButton itemCount={Math.min(acordosGeraveis.length, 20)} tipo="acordos">Gerar lote</ConfirmGenerateLoteButton>
             </div>
             <div className="divide-y divide-slate-100">
               {acordosElegiveis.length === 0 ? <div className="p-5"><EmptyState title="Sem acordos elegíveis" description="Nenhuma parcela exige contato agora." /></div> : acordosElegiveis.slice(0, 20).map((row: any) => <PreviewRow key={itemKey('a', row)} row={row} tipo="acordo" selectionName="parcela_ids" selectionValue={row.parcela?.id ?? ''} />)}

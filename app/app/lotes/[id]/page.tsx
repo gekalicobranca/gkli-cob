@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+﻿import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -34,6 +34,7 @@ import {
 } from "@/features/mensageria/actions";
 import { buildWhatsappWebUrl } from "@/features/mensageria/whatsapp-web";
 import { LOTE_ITEM_STATUS } from "@/lib/core/status";
+import { LoteActionButton } from "./lote-action-button";
 
 type PageProps = {
   params: Promise<{
@@ -95,24 +96,23 @@ function countMensagensByStatus(
 function ActionButton({
   children,
   tone = "primary",
+  confirmMessage,
+  pendingLabel,
 }: {
   children: ReactNode;
   tone?: "primary" | "secondary" | "danger";
+  confirmMessage?: string;
+  pendingLabel?: string;
 }) {
-  const toneClass =
-    tone === "danger"
-      ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-      : tone === "secondary"
-        ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-        : "border-[var(--gkli-primary)] bg-[var(--gkli-primary)] text-white hover:opacity-95";
-
   return (
-    <button
-      type="submit"
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-sm shadow-sm transition ${toneClass}`}
+    <LoteActionButton
+      tone={tone}
+      confirmMessage={confirmMessage}
+      pendingLabel={pendingLabel}
+      className="min-h-10 rounded-2xl px-4 py-2"
     >
       {children}
-    </button>
+    </LoteActionButton>
   );
 }
 
@@ -256,21 +256,21 @@ export default async function LoteDetalhePage({ params }: PageProps) {
 
           <div className="flex flex-wrap gap-2">
             <form action={aprovarLoteMensagens.bind(null, id)}>
-              <ActionButton>
+              <ActionButton confirmMessage="Confirmar aprovação de todas as mensagens pendentes deste lote?" pendingLabel="Aprovando...">
                 <CheckCircle2 size={16} />
                 Aprovar lote
               </ActionButton>
             </form>
 
             <form action={enviarLoteMensagens.bind(null, id)}>
-              <ActionButton tone="secondary">
+              <ActionButton tone="secondary" confirmMessage="Confirmar envio das mensagens aprovadas deste lote?" pendingLabel="Enviando...">
                 <Send size={16} />
                 Enviar e-mails
               </ActionButton>
             </form>
 
             <form action={reprocessarFalhasLote.bind(null, id)}>
-              <ActionButton tone="secondary">
+              <ActionButton tone="secondary" confirmMessage="Confirmar reprocessamento das falhas deste lote?" pendingLabel="Reprocessando...">
                 <RotateCcw size={16} />
                 Reprocessar falhas
               </ActionButton>
@@ -283,7 +283,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                 "Cancelado na revisão operacional do lote.",
               )}
             >
-              <ActionButton tone="danger">
+              <ActionButton tone="danger" confirmMessage="Confirmar cancelamento deste lote? Essa ação cancela mensagens e itens vinculados." pendingLabel="Cancelando...">
                 <XCircle size={16} />
                 Cancelar lote
               </ActionButton>
@@ -428,7 +428,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                           <form
                             action={aprovarMensagem.bind(null, mensagem.id)}
                           >
-                            <ActionButton tone="secondary">
+                            <ActionButton tone="secondary" confirmMessage="Confirmar aprovação desta mensagem?" pendingLabel="Aprovando...">
                               Aprovar
                             </ActionButton>
                           </form>
@@ -439,7 +439,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                           <form
                             action={enviarMensagemEmail.bind(null, mensagem.id)}
                           >
-                            <ActionButton tone="secondary">
+                            <ActionButton tone="secondary" confirmMessage="Confirmar envio deste e-mail?" pendingLabel="Enviando...">
                               Enviar e-mail
                             </ActionButton>
                           </form>
@@ -464,7 +464,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                               mensagem.id,
                             )}
                           >
-                            <ActionButton tone="secondary">
+                            <ActionButton tone="secondary" confirmMessage="Confirmar marcação deste WhatsApp como enviado?" pendingLabel="Marcando...">
                               Marcar enviada
                             </ActionButton>
                           </form>
@@ -480,7 +480,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                               "Cancelada no detalhe do lote.",
                             )}
                           >
-                            <ActionButton tone="danger">Cancelar</ActionButton>
+                            <ActionButton tone="danger" confirmMessage="Confirmar cancelamento desta mensagem?" pendingLabel="Cancelando...">Cancelar</ActionButton>
                           </form>
                         ) : null}
                       </div>
@@ -492,8 +492,8 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                       Controle
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <form action={aprovarItemLote.bind(null, item.id)}><ActionButton tone="secondary">Aprovar item</ActionButton></form>
-                      <form action={cancelarItemLote.bind(null, item.id, "Cancelado item a item na revisão operacional.")}><ActionButton tone="danger">Remover item</ActionButton></form>
+                      <form action={aprovarItemLote.bind(null, item.id)}><ActionButton tone="secondary" confirmMessage="Confirmar aprovação deste item do lote?" pendingLabel="Aprovando...">Aprovar item</ActionButton></form>
+                      <form action={cancelarItemLote.bind(null, item.id, "Cancelado item a item na revisão operacional.")}><ActionButton tone="danger" confirmMessage="Confirmar remoção deste item do lote?" pendingLabel="Removendo...">Remover item</ActionButton></form>
                     </div>
                     {mensagem?.id ? (
                       <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
@@ -503,7 +503,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                           <input name="destinatario" defaultValue={mensagem.destinatario ?? ""} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs" placeholder="Destinatário" />
                           <input type="hidden" name="template_id" value={mensagem.template_id ?? ""} />
                           <textarea name="conteudo" defaultValue={conteudoFinal} className="min-h-24 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs" />
-                          <ActionButton tone="secondary">Salvar revisão</ActionButton>
+                          <ActionButton tone="secondary" pendingLabel="Salvando...">Salvar revisão</ActionButton>
                         </form>
                       </details>
                     ) : null}
@@ -527,7 +527,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                           <label className="inline-flex items-center gap-2 text-xs text-indigo-800"><input name="pausar_regua" type="checkbox" /> Pausar régua</label>
                           <input name="pausa_dias" type="number" min="0" defaultValue="5" className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs" />
                         </div>
-                        <ActionButton tone="secondary">Salvar retorno</ActionButton>
+                        <ActionButton tone="secondary" pendingLabel="Salvando...">Salvar retorno</ActionButton>
                       </form>
                     </details>
                     <p className="mt-1 break-all text-xs text-slate-500">
@@ -549,3 +549,4 @@ export default async function LoteDetalhePage({ params }: PageProps) {
     </div>
   );
 }
+

@@ -13,6 +13,11 @@ import {
 } from "./engine";
 import type { ReguaEtapa, ReguaTom } from "./types";
 import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from "@/lib/core/status";
+import {
+  cicloReferencia,
+  criarReguaFingerprint,
+  normalizarEtapaId,
+} from "./services/regua-shared";
 
 export type ReguaPreviewFilters = {
   q?: string;
@@ -44,6 +49,32 @@ async function fetchAllRows(buildQuery: (from: number, to: number) => any, error
   }
 
   return rows;
+}
+
+async function loadExistingFingerprintSet(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fingerprints: Array<string | null | undefined>,
+) {
+  const unique = [...new Set(fingerprints.filter(Boolean) as string[])];
+  const existing = new Set<string>();
+
+  for (let index = 0; index < unique.length; index += PAGE_SIZE) {
+    const chunk = unique.slice(index, index + PAGE_SIZE);
+    const { data, error } = await supabase
+      .from("mensagens")
+      .select("fingerprint")
+      .in("fingerprint", chunk);
+
+    if (error) {
+      throw new Error(`Erro ao verificar duplicidade de mensagens: ${error.message}`);
+    }
+
+    for (const row of data ?? []) {
+      if ((row as any).fingerprint) existing.add((row as any).fingerprint);
+    }
+  }
+
+  return existing;
 }
 
 function unidadeKey(row: any) {
@@ -219,7 +250,8 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
   ]);
   const apoioMap = await loadResponsaveisApoioMap(supabase, cobrancas);
 
-  return cobrancas
+  const ciclo = cicloReferencia();
+  const preview = cobrancas
     .map((row: any) => withResponsavelApoio(row, apoioMap))
     .filter((row: any) => matchesSearch(row, filters.q))
     .filter((row: any) => matchesContato(row, filters.contato))
@@ -249,6 +281,13 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
       vencimento: formatDateBR(row.vencimento),
       valor: formatMoneyBR(row.valor_atualizado),
     };
+    const fingerprint = criarReguaFingerprint({
+      contexto: "regua_cobranca",
+      entidadeId: row.id,
+      etapaId: normalizarEtapaId(etapa.id) ?? etapa.id ?? null,
+      canal: etapa.canal ?? "whatsapp",
+      ciclo,
+    });
 
     return {
       ...row,
@@ -263,9 +302,19 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
         intensidade,
         contexto,
       }),
+      fingerprint_preview: fingerprint,
       destinatario_preview: unidade?.telefone || unidade?.email || "",
     };
     });
+  const existing = await loadExistingFingerprintSet(
+    supabase,
+    preview.map((row: any) => row.fingerprint_preview),
+  );
+
+  return preview.map((row: any) => ({
+    ...row,
+    ja_gerada_no_ciclo: existing.has(row.fingerprint_preview),
+  }));
 }
 
 
@@ -398,6 +447,7 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
   }
 
   const preview: any[] = []
+  const ciclo = cicloReferencia()
 
   for (const acordo of acordos) {
     const parcelas = parcelasPorAcordo.get(acordo.id) ?? []
@@ -419,6 +469,13 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     const diasRelativos = diasRelativosParcela(parcela.vencimento)
     const elegivel = diasRelativos >= -3
     const etapa = selecionarEtapaAcordoPreview(DEFAULT_ACORDO_ETAPAS, diasRelativos) ?? DEFAULT_ACORDO_ETAPAS[0]
+    const fingerprint = criarReguaFingerprint({
+      contexto: 'regua_acordo',
+      entidadeId: parcela.id,
+      etapaId: normalizarEtapaId(etapa.id) ?? etapa.id ?? null,
+      canal: etapa.canal ?? 'whatsapp',
+      ciclo,
+    })
     const contexto = {
       responsavel: unidade?.responsavel_nome ?? 'responsável',
       primeiro_nome: String(unidade?.responsavel_nome ?? 'responsável').split(' ')[0],
@@ -446,11 +503,20 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
         intensidade: etapa.tom,
         contexto,
       }),
+      fingerprint_preview: fingerprint,
       destinatario_preview: unidade?.telefone || unidade?.email || '',
     })
   }
 
-  return preview
+  const existing = await loadExistingFingerprintSet(
+    supabase,
+    preview.map((row: any) => row.fingerprint_preview),
+  )
+
+  return preview.map((row: any) => ({
+    ...row,
+    ja_gerada_no_ciclo: existing.has(row.fingerprint_preview),
+  }))
 }
 
 export async function carregarEtapasDeReguaAdmin(
