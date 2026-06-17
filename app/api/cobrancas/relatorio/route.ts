@@ -14,6 +14,27 @@ function getJudicializacaoFilter(searchParams: URLSearchParams) {
   return getParam(searchParams, "judicializacao_unidade") || "nao";
 }
 
+function judicializacaoLabel(value?: string) {
+  if (value === "sim") return "Somente judicialização";
+  if (value === "todos") return "Inclui judicialização";
+  return "Extrajudicial";
+}
+
+function ordenacaoLabel(value?: string) {
+  const labels: Record<string, string> = {
+    vencimento_asc: "Vencimento mais antigo",
+    vencimento_desc: "Vencimento mais recente",
+    valor_desc: "Maior valor",
+    valor_asc: "Menor valor",
+    condominio: "Condomínio",
+    unidade: "Unidade",
+    responsavel: "Responsável",
+    status: "Status",
+  };
+
+  return labels[value || ""] ?? "Vencimento mais antigo";
+}
+
 function money(value: unknown) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -50,40 +71,40 @@ function createWorkbook(filters: CobrancaListFilters & { ordenar: string }, rows
     const unidadeLabel = [row.unidades?.bloco, row.unidades?.identificacao].filter(Boolean).join("/");
 
     return {
-      condominio: row.condominios?.nome ?? "",
-      unidade: unidadeLabel,
-      responsavel: row.unidades?.responsavel_nome ?? "",
-      competencia: row.competencia ?? "",
-      vencimento: row.vencimento ? formatDateBR(row.vencimento) : "",
-      valor_original: money(row.valor_original),
-      valor_atualizado: money(row.valor_atualizado),
-      juros: money(row.juros),
-      multa: money(row.multa),
-      correcao: money(row.correcao),
-      desconto: money(row.desconto),
-      status_operacional: statusLabel(status),
-      status_financeiro: statusLabel(String(row.status_financeiro ?? "")),
-      ultima_interacao: row.ultima_interacao_at ? formatDateBR(row.ultima_interacao_at) : "",
-      judicializacao_unidade: row.unidade_bloqueada_por_judicializacao ? "Sim" : "Nao",
-      cobranca_id: row.id,
+      "Condomínio": row.condominios?.nome ?? "",
+      "Unidade": unidadeLabel,
+      "Responsável": row.unidades?.responsavel_nome ?? "",
+      "Competência": row.competencia ?? "",
+      "Vencimento": row.vencimento ? formatDateBR(row.vencimento) : "",
+      "Valor original": money(row.valor_original),
+      "Valor atualizado": money(row.valor_atualizado),
+      "Juros": money(row.juros),
+      "Multa": money(row.multa),
+      "Correção": money(row.correcao),
+      "Desconto": money(row.desconto),
+      "Status operacional": statusLabel(status),
+      "Status financeiro": statusLabel(String(row.status_financeiro ?? "")),
+      "Última interação": row.ultima_interacao_at ? formatDateBR(row.ultima_interacao_at) : "",
+      "Judicialização da unidade": row.unidade_bloqueada_por_judicializacao ? "Sim" : "Não",
+      "ID da cobrança": row.id,
     };
   });
 
   const filterRows = [
     ["Gerado em", generatedAt.toLocaleString("pt-BR")],
-    ["Busca", filters.search || "Todas"],
+    ["Busca", filters.search || "Sem filtro"],
     ["Status", filters.status ? statusLabel(filters.status) : "Todos"],
     ["Vencimento de", filters.vencimentoDe || "Sem filtro"],
-    ["Vencimento ate", filters.vencimentoAte || "Sem filtro"],
-    ["Judicializacao", filters.judicializacaoUnidade || "nao"],
-    ["Ordenacao", filters.ordenar || "vencimento_asc"],
-    ["Total de cobrancas", rows.length],
+    ["Vencimento até", filters.vencimentoAte || "Sem filtro"],
+    ["Judicialização", judicializacaoLabel(filters.judicializacaoUnidade)],
+    ["Ordenação", ordenacaoLabel(filters.ordenar)],
+    ["Total de cobranças", rows.length],
     ["Valor original total", rows.reduce((sum, row) => sum + money(row.valor_original), 0)],
     ["Valor atualizado total", rows.reduce((sum, row) => sum + money(row.valor_atualizado), 0)],
   ];
 
   const workbook = XLSX.utils.book_new();
-  const filtrosSheet = XLSX.utils.aoa_to_sheet([["GKLI Cobranca - Relatorio de cobrancas"], [], ...filterRows]);
+  const filtrosSheet = XLSX.utils.aoa_to_sheet([["GKLI Cobrança - Relatório de cobranças"], [], ...filterRows]);
   const dadosSheet = XLSX.utils.json_to_sheet(reportRows);
 
   dadosSheet["!cols"] = [

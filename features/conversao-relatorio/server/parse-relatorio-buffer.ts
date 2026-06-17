@@ -2694,14 +2694,19 @@ function isHflexHeaderLine(line: string) {
 
 function parseHflexReceiptLine(line: string) {
   const normalized = normalize(line);
-  const compactMatch = normalized.match(/^(\d{6,}?)(\d{2}\/\d{2}\/\d{4})((?:\d|\.|,)+)$/);
+  const compactMatch = normalized.match(/^(\d{6,}(?:ADV|[A-Z]+|\d+)?)(\d{2}\/\d{2}\/\d{4})((?:\d|\.|,)+)$/i);
   if (compactMatch) {
     const moneyValues = [...compactMatch[3].matchAll(/(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g)]
       .map((match) => parseMoney(match[0]));
     if (moneyValues.length >= 5) {
+      const prefix = compactMatch[1];
+      const prefixMatch = prefix.match(/^(\d{7})(.*)$/);
+      const recibo = prefixMatch?.[1] ?? prefix;
+      const acordoRaw = normalize(prefixMatch?.[2]).replace(/^ADV$/i, "");
+
       return {
-        recibo: compactMatch[1],
-        acordo: undefined,
+        recibo,
+        acordo: acordoRaw || undefined,
         vencimento: compactMatch[2],
         valorPrincipal: moneyValues[0] ?? 0,
         multa: moneyValues[1] ?? 0,
