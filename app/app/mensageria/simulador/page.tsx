@@ -16,6 +16,40 @@ function getParam(value: string | string[] | undefined) {
   return String(Array.isArray(value) ? value[0] : value ?? '').trim()
 }
 
+function simulatorHref(filters: Record<string, string>, aba: 'cobrancas' | 'acordos') {
+  const query = new URLSearchParams()
+  query.set('aba', aba)
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value && !(key === 'contato' && value === 'todos')) query.set(key, value)
+  }
+
+  return `/app/mensageria/simulador?${query.toString()}`
+}
+
+function TabLink({
+  href,
+  active,
+  label,
+  count,
+}: {
+  href: string
+  active: boolean
+  label: string
+  count: number
+}) {
+  return (
+    <ButtonLink
+      href={href}
+      variant={active ? 'primary' : 'secondary'}
+      className="min-w-[150px] justify-center"
+    >
+      {label}
+      <span className={active ? 'text-white/80' : 'text-slate-400'}>{count}</span>
+    </ButtonLink>
+  )
+}
+
 function itemKey(prefix: string, row: any) {
   return `${prefix}-${row.id}-${row.parcela?.id ?? 'principal'}`
 }
@@ -63,6 +97,7 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
     condominio_id: getParam(params.condominio_id),
     contato: getParam(params.contato) || 'todos',
   }
+  const aba = getParam(params.aba) === 'acordos' ? 'acordos' : 'cobrancas'
   const previewFilters = {
     q: filters.q,
     carteiraId: filters.carteira_id,
@@ -80,6 +115,8 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
   const cobrancasElegiveis = cobrancas.filter((row: any) => row.elegivel)
   const acordosElegiveis = acordos.filter((row: any) => row.elegivel)
   const hasFilters = Boolean(filters.q || filters.carteira_id || filters.condominio_id || filters.contato !== 'todos')
+  const showCobrancas = aba === 'cobrancas'
+  const showAcordos = aba === 'acordos'
 
   return (
     <div className="space-y-6">
@@ -130,7 +167,12 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
         </form>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="flex flex-wrap gap-2">
+        <TabLink href={simulatorHref(filters, 'cobrancas')} active={showCobrancas} label="Cobranças" count={cobrancasElegiveis.length} />
+        <TabLink href={simulatorHref(filters, 'acordos')} active={showAcordos} label="Acordos" count={acordosElegiveis.length} />
+      </div>
+
+      {showCobrancas ? (
         <Card className="p-0">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
             <div><h2 className="text-sm font-semibold text-slate-950">Cobranças elegíveis</h2><p className="mt-1 text-xs text-slate-500">Apenas cobranças que já passaram pela janela D+ configurada.</p></div>
@@ -140,7 +182,9 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
             {cobrancasElegiveis.length === 0 ? <div className="p-5"><EmptyState title="Sem cobranças elegíveis" description="Nada para gerar neste momento." /></div> : cobrancasElegiveis.slice(0, 20).map((row: any) => <PreviewRow key={itemKey('c', row)} row={row} tipo="cobranca" />)}
           </div>
         </Card>
+      ) : null}
 
+      {showAcordos ? (
         <Card className="p-0">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
             <div><h2 className="text-sm font-semibold text-slate-950">Acordos elegíveis</h2><p className="mt-1 text-xs text-slate-500">Parcelas em janela preventiva ou vencidas.</p></div>
@@ -150,7 +194,7 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
             {acordosElegiveis.length === 0 ? <div className="p-5"><EmptyState title="Sem acordos elegíveis" description="Nenhuma parcela exige contato agora." /></div> : acordosElegiveis.slice(0, 20).map((row: any) => <PreviewRow key={itemKey('a', row)} row={row} tipo="acordo" />)}
           </div>
         </Card>
-      </div>
+      ) : null}
     </div>
   )
 }

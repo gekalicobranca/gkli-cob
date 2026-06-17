@@ -63,6 +63,7 @@ const sections: SidebarSection[] = [
     id: 'comunicacao',
     title: 'Comunicação',
     items: [
+      { label: 'Simulador', href: '/app/mensageria/simulador', icon: 'message' },
       { label: 'Templates', href: '/app/mensageria/templates', icon: 'document' },
       { label: 'Réguas', href: '/app/mensageria/reguas', icon: 'nodes' },
       { label: 'Lotes', href: '/app/lotes', icon: 'layers' },
