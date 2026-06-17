@@ -12,7 +12,13 @@ import { criarReguaOperacional } from '@/features/reguas/actions'
 
 export default async function NovaReguaPage() {
   const scope = await getPermittedCarteiras()
-  const carteiras = await listCarteirasForSelect(scope)
+  let carteiras: Awaited<ReturnType<typeof listCarteirasForSelect>> = []
+
+  try {
+    carteiras = await listCarteirasForSelect(scope)
+  } catch {
+    carteiras = []
+  }
 
   return (
     <div className="space-y-6">
