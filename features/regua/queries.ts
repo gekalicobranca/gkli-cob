@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+﻿import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
@@ -21,8 +21,29 @@ export type ReguaPreviewFilters = {
   contato?: string;
 };
 
+const PAGE_SIZE = 1000;
+
 function normalizeFilter(value?: string | null) {
   return String(value ?? "").trim().toLowerCase();
+}
+
+async function fetchAllRows(buildQuery: (from: number, to: number) => any, errorPrefix: string) {
+  const rows: any[] = [];
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`${errorPrefix}: ${error.message}`);
+    }
+
+    const page = (data ?? []) as any[];
+    rows.push(...page);
+
+    if (page.length < PAGE_SIZE) break;
+  }
+
+  return rows;
 }
 
 function unidadeKey(row: any) {
@@ -166,33 +187,31 @@ const DEFAULT_COBRANCA_ETAPAS: ReguaEtapa[] = [
 export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: ReguaPreviewFilters = {}) {
   const supabase = await createClient();
 
-  let query = supabase
-    .from("cobrancas")
-    .select(
-      `
-      id,
-      condominio_id,
-      carteira_id,
-      competencia,
-      vencimento,
-      valor_atualizado,
-      status,
-      condominios(id, nome, inicio_cobranca_dias, intensidade_regua, regua_cobranca_id),
-      unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
-    `,
-    )
-    .in("status", COBRANCA_STATUS_OPERACIONAIS_ATIVOS)
-    .order("vencimento", { ascending: true });
+  const data = await fetchAllRows((from, to) => {
+    let query = supabase
+      .from("cobrancas")
+      .select(
+        `
+        id,
+        condominio_id,
+        carteira_id,
+        competencia,
+        vencimento,
+        valor_atualizado,
+        status,
+        condominios(id, nome, inicio_cobranca_dias, intensidade_regua, regua_cobranca_id),
+        unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
+      `,
+      )
+      .in("status", COBRANCA_STATUS_OPERACIONAIS_ATIVOS)
+      .order("vencimento", { ascending: true })
+      .range(from, to);
 
-  query = applyCarteiraScope(query, scope.carteiraIds);
-  if (filters.carteiraId) query = query.eq("carteira_id", filters.carteiraId);
-  if (filters.condominioId) query = query.eq("condominio_id", filters.condominioId);
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(`Erro ao carregar prévia da régua: ${error.message}`);
-  }
+    query = applyCarteiraScope(query, scope.carteiraIds);
+    if (filters.carteiraId) query = query.eq("carteira_id", filters.carteiraId);
+    if (filters.condominioId) query = query.eq("condominio_id", filters.condominioId);
+    return query;
+  }, "Erro ao carregar prévia da régua");
 
   const cobrancas = normalizeRelationsList((data ?? []) as any[], [
     "condominios",
@@ -318,36 +337,34 @@ function selecionarEtapaAcordoPreview(etapas: ReguaEtapa[], diasRelativos: numbe
 export async function listReguaAcordoPreview(scope: CarteiraScope, filters: ReguaPreviewFilters = {}) {
   const supabase = await createClient()
 
-  let acordosQuery = supabase
-    .from('acordos')
-    .select(
-      `
-      id,
-      carteira_id,
-      condominio_id,
-      unidade_id,
-      valor_acordado,
-      data_acordo,
-      status,
-      status_financeiro,
-      risco,
-      condominios(id, nome, regua_acordo_id),
-      unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
-    `,
-    )
-    .in('status', ['ativo', 'em_dia', 'em_atraso', 'vencido'])
-    .neq('status_financeiro', 'quitado')
-    .order('data_acordo', { ascending: false })
+  const acordosData = await fetchAllRows((from, to) => {
+    let acordosQuery = supabase
+      .from('acordos')
+      .select(
+        `
+        id,
+        carteira_id,
+        condominio_id,
+        unidade_id,
+        valor_acordado,
+        data_acordo,
+        status,
+        status_financeiro,
+        risco,
+        condominios(id, nome, regua_acordo_id),
+        unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
+      `,
+      )
+      .in('status', ['ativo', 'em_dia', 'em_atraso', 'vencido'])
+      .neq('status_financeiro', 'quitado')
+      .order('data_acordo', { ascending: false })
+      .range(from, to)
 
-  acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
-  if (filters.carteiraId) acordosQuery = acordosQuery.eq('carteira_id', filters.carteiraId)
-  if (filters.condominioId) acordosQuery = acordosQuery.eq('condominio_id', filters.condominioId)
-
-  const { data: acordosData, error: acordosError } = await acordosQuery
-
-  if (acordosError) {
-    throw new Error(`Erro ao carregar prévia da régua de acordos: ${acordosError.message}`)
-  }
+    acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
+    if (filters.carteiraId) acordosQuery = acordosQuery.eq('carteira_id', filters.carteiraId)
+    if (filters.condominioId) acordosQuery = acordosQuery.eq('condominio_id', filters.condominioId)
+    return acordosQuery
+  }, 'Erro ao carregar prévia da régua de acordos')
 
   const acordosNormalizados = normalizeRelationsList((acordosData ?? []) as any[], [
     'condominios',
@@ -452,3 +469,4 @@ export async function carregarEtapasDeReguaAdmin(
   if (error || !data?.length) return tipo === 'acordo' ? DEFAULT_ACORDO_ETAPAS : DEFAULT_COBRANCA_ETAPAS
   return data as ReguaEtapa[]
 }
+

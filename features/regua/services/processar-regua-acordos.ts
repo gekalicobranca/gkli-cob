@@ -29,6 +29,8 @@ import {
   type ReguaContadores,
 } from './regua-shared'
 
+const PAGE_SIZE = 1000
+
 type LoteItemStatus = (typeof LOTE_ITEM_STATUS)[keyof typeof LOTE_ITEM_STATUS]
 
 type ProcessarReguaAcordosParams = {
@@ -78,6 +80,28 @@ function diasRelativosAoVencimento(vencimento: string | null | undefined, hoje =
 
 function normalizeFilter(value?: string | null) {
   return String(value ?? '').trim().toLowerCase()
+}
+
+async function fetchAllRows(
+  buildQuery: (from: number, to: number) => any,
+  errorPrefix: string,
+) {
+  const rows: any[] = []
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1)
+
+    if (error) {
+      throw new Error(`${errorPrefix}: ${error.message}`)
+    }
+
+    const page = (data ?? []) as any[]
+    rows.push(...page)
+
+    if (page.length < PAGE_SIZE) break
+  }
+
+  return rows
 }
 
 function matchesSearch(row: any, search?: string) {
@@ -285,33 +309,34 @@ export async function processarReguaAcordos(
   const itens: ResultadoLoteReguaAcordos['itens'] = []
   const lotesPorCarteira = new Map<string, LoteContext>()
 
-  let query: any = supabase
-    .from('acordos')
-    .select(
-      `
-      id,
-      carteira_id,
-      cobranca_id,
-      condominio_id,
-      unidade_id,
-      valor_acordado,
-      data_acordo,
-      status,
-      status_financeiro,
-      risco,
-      condominios(id, nome, regua_acordo_id),
-      unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
-    `,
-    )
-    .in('status', ACORDO_STATUS_VIGENTES)
-    .neq('status_financeiro', 'quitado')
+  const data = await fetchAllRows((from, to) => {
+    let query: any = supabase
+      .from('acordos')
+      .select(
+        `
+        id,
+        carteira_id,
+        cobranca_id,
+        condominio_id,
+        unidade_id,
+        valor_acordado,
+        data_acordo,
+        status,
+        status_financeiro,
+        risco,
+        condominios(id, nome, regua_acordo_id),
+        unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
+      `,
+      )
+      .in('status', ACORDO_STATUS_VIGENTES)
+      .neq('status_financeiro', 'quitado')
+      .range(from, to)
 
-  if (params.scope) query = applyCarteiraScope(query, params.scope.carteiraIds)
-  if (params.carteiraId) query = query.eq('carteira_id', params.carteiraId)
-  if (params.condominioId) query = query.eq('condominio_id', params.condominioId)
-
-  const { data, error } = await query
-  if (error) throw new Error(`Erro ao buscar acordos para régua: ${error.message}`)
+    if (params.scope) query = applyCarteiraScope(query, params.scope.carteiraIds)
+    if (params.carteiraId) query = query.eq('carteira_id', params.carteiraId)
+    if (params.condominioId) query = query.eq('condominio_id', params.condominioId)
+    return query
+  }, 'Erro ao buscar acordos para régua')
 
   const acordosNormalizados = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
   const apoioMap = await loadResponsaveisApoioMap(supabase, acordosNormalizados)

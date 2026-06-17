@@ -38,6 +38,8 @@ import {
 
 type LoteItemStatus = (typeof LOTE_ITEM_STATUS)[keyof typeof LOTE_ITEM_STATUS];
 
+const PAGE_SIZE = 1000;
+
 type CobrancaReguaRow = {
   id: string;
   carteira_id: string;
@@ -129,6 +131,28 @@ function hasRecentDate(value: string | null | undefined, cooldownDias: number) {
 
 function normalizeFilter(value?: string | null) {
   return String(value ?? "").trim().toLowerCase();
+}
+
+async function fetchAllRows(
+  buildQuery: (from: number, to: number) => any,
+  errorPrefix: string,
+) {
+  const rows: any[] = [];
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`${errorPrefix}: ${error.message}`);
+    }
+
+    const page = (data ?? []) as any[];
+    rows.push(...page);
+
+    if (page.length < PAGE_SIZE) break;
+  }
+
+  return rows;
 }
 
 function matchesSearch(row: CobrancaReguaRow, search?: string) {
@@ -442,42 +466,40 @@ export async function processarReguaCobranca(
   const cooldownDias = Number(params.cooldownDias ?? 3);
   const ciclo = cicloReferencia();
 
-  let query: any = supabase
-    .from("cobrancas")
-    .select(
-      `
-      id,
-      condominio_id,
-      carteira_id,
-      competencia,
-      vencimento,
-      valor_original,
-      valor_atualizado,
-      status,
-      status_operacional,
-      status_financeiro,
-      automacao_bloqueada,
-      ultima_interacao_at,
-      ultima_interacao_em,
-      proxima_acao_em,
-      condominios(id, nome, inicio_cobranca_dias, dias_apos_vencimento_regua, intensidade_regua, regua_cobranca_id),
-      unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
-    `,
-    )
-    .in("status_operacional", COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[])
-    .order("vencimento", { ascending: true });
+  const data = await fetchAllRows((from, to) => {
+    let query: any = supabase
+      .from("cobrancas")
+      .select(
+        `
+        id,
+        condominio_id,
+        carteira_id,
+        competencia,
+        vencimento,
+        valor_original,
+        valor_atualizado,
+        status,
+        status_operacional,
+        status_financeiro,
+        automacao_bloqueada,
+        ultima_interacao_at,
+        ultima_interacao_em,
+        proxima_acao_em,
+        condominios(id, nome, inicio_cobranca_dias, dias_apos_vencimento_regua, intensidade_regua, regua_cobranca_id),
+        unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
+      `,
+      )
+      .in("status_operacional", COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[])
+      .order("vencimento", { ascending: true })
+      .range(from, to);
 
-  if (params.scope) {
-    query = applyCarteiraScope(query, params.scope.carteiraIds);
-  }
-  if (params.carteiraId) query = query.eq("carteira_id", params.carteiraId);
-  if (params.condominioId) query = query.eq("condominio_id", params.condominioId);
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(`Erro ao buscar cobranças para régua: ${error.message}`);
-  }
+    if (params.scope) {
+      query = applyCarteiraScope(query, params.scope.carteiraIds);
+    }
+    if (params.carteiraId) query = query.eq("carteira_id", params.carteiraId);
+    if (params.condominioId) query = query.eq("condominio_id", params.condominioId);
+    return query;
+  }, "Erro ao buscar cobranças para régua");
 
   const normalizedRows = normalizeRelationsList((data ?? []) as any[], [
     "condominios",
