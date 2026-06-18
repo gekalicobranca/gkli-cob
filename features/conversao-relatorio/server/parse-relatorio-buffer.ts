@@ -2469,9 +2469,12 @@ function buildHabitaGlyphHashMap(buffer: Buffer) {
 
 async function extractHabitaDecodedPdfText(buffer: Buffer) {
   const pageMaps = buildHabitaGlyphHashMap(buffer);
-  const pdfjs = (await import(
-    "pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js"
-  )) as any;
+  const runtimeRequire = new Function("modulePath", "return require(modulePath)") as (
+    modulePath: string,
+  ) => any;
+  const pdfjs = runtimeRequire(
+    "pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js",
+  ) as any;
   pdfjs.disableWorker = true;
 
   const documentTask = pdfjs.getDocument(new Uint8Array(buffer));
