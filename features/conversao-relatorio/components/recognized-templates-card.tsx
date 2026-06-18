@@ -77,7 +77,15 @@ const templates: RecognizedTemplate[] = [
     cobertura: "PDF · Inadimplentes",
     descricao:
       "Extrai unidade, responsável, vencimento, competência, código, principal, juros, multa, honorários e total; marca Jurídico como situação de origem.",
-    exemplos: "Moema Flat",
+  },
+  {
+    nome: "Moema Flat · Cobranças",
+    categoria: "Cobranças",
+    status: "Homologado",
+    cobertura: "PDF · Inadimplentes",
+    descricao:
+      "Reconhece o relatório de inadimplentes do Moema Flat, incluindo unidades numéricas e comerciais, competência, atraso, honorários e situação jurídica.",
+    exemplos: "Moema Flat Service",
   },
   {
     nome: "Safira · Cobranças",

@@ -232,6 +232,19 @@ const PADRAO_SLAVIERO_COBRANCAS: Omit<
   ativo: true,
 };
 
+const PADRAO_MOEMA_FLAT_COBRANCAS: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "moema-flat-inadimplentes-cobrancas-v1",
+  nome: "Moema Flat · Cobranças",
+  tipoConversao: "cobrancas",
+  fornecedor: "Moema Flat",
+  sistema: "Relatório de inadimplentes",
+  relatorio: "Inadimplentes",
+  ativo: true,
+};
+
 
 const PADRAO_SAFIRA_COBRANCAS: Omit<
   PadraoConversaoDetectado,
@@ -3649,6 +3662,49 @@ function detectSlavieroCobrancas(text: string): DeteccaoPdfCobrancas {
   };
 }
 
+function extractMoemaFlatCobrancasCondominio(text: string) {
+  const normalized = normalizePdfText(text);
+  const match = normalized.match(
+    /(?:^|\n)\s*(W\d+[A-Z]?\s+[^\n]*Moema\s+Flat[^\n]*?)\s*\n\s*Inadimplentes\b/i,
+  );
+  return normalize(match?.[1] ?? "") || null;
+}
+
+function detectMoemaFlatCobrancas(text: string): DeteccaoPdfCobrancas {
+  const normalized = normalizePdfText(text);
+  const loose = normalizeForLooseMatch(normalized);
+
+  const sinais = [
+    /MOEMA\s+FLAT\s+SERVICE/,
+    /INADIMPLENTES/,
+    /VALORES\s+ATUALIZADOS\s+ATE/,
+    /VENCIMENTO\s*COMPET/,
+    /ATRASO\s*CODIGO\s*PRINCIPAL/,
+    /JUROS\s*MULTA\s*HONORARIOS\s*TOTAL/,
+  ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
+
+  const linhasCobrancaEspacadas = countRegexMatches(
+    normalized,
+    /(?:^|\n)\s*\d{2}\/\d{2}\/\d{2}\s+\d{2}\/\d{4}\s+\d+\s+\d+\s+/g,
+  );
+  const linhasCobrancaCompactas = countRegexMatches(
+    normalized,
+    /(?:^|\n)\s*\d{2}\/\d{2}\/\d{2}\d{2}\/\d{4}\d+[^,\n]+,\d{2}[^,\n]+,\d{2}[^,\n]+,\d{2}[^,\n]+,\d{2}[^,\n]+,\d{2}/g,
+  );
+  const linhasCobranca = linhasCobrancaEspacadas + linhasCobrancaCompactas;
+  const cabecalhosUnidade = countRegexMatches(
+    normalized,
+    /(?:^|\n)\s*[A-Z0-9][A-Z0-9.-]*\s+-\s+[^\n]+/gi,
+  );
+
+  return {
+    ok: sinais >= 5 && linhasCobranca > 0 && cabecalhosUnidade > 0,
+    confianca: Math.min(99, sinais * 14 + Math.min(25, linhasCobranca) + 5),
+    condominioDetectado: extractMoemaFlatCobrancasCondominio(normalized),
+    semDevedores: false,
+  };
+}
+
 function expandTwoDigitYearDate(value: string) {
   const match = normalize(value).match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
   if (!match) return value;
@@ -3667,6 +3723,68 @@ function cleanSlavieroResponsavel(value: string) {
 
 function situacaoSlavieroFromHeader(value: string): SituacaoOrigemCobranca {
   return /\bJur[ií]dico\b/i.test(value) ? "juridico" : "normal";
+}
+
+function splitSlavieroAtrasoCodigo(value: string) {
+  const digits = normalize(value).replace(/\D/g, "");
+  const codigoLength = digits.length >= 7 ? 5 : 4;
+
+  if (digits.length <= codigoLength) {
+    return { atraso: "", codigo: digits };
+  }
+
+  return {
+    atraso: digits.slice(0, -codigoLength),
+    codigo: digits.slice(-codigoLength),
+  };
+}
+
+function parseCompactSlavieroRow(line: string) {
+  const match = normalize(line).match(/^(\d{2}\/\d{2}\/\d{2})(\d{2}\/\d{4})(.+)$/);
+  if (!match) return null;
+
+  const body = match[3] ?? "";
+  const commaIndexes = [...body.matchAll(/,/g)].map((item) => item.index ?? -1);
+  if (commaIndexes.length < 5) return null;
+
+  const endIndexes = commaIndexes.slice(0, 5).map((index) => index + 3);
+  const valores = [
+    body.slice(0, endIndexes[0]),
+    body.slice(endIndexes[0], endIndexes[1]),
+    body.slice(endIndexes[1], endIndexes[2]),
+    body.slice(endIndexes[2], endIndexes[3]),
+    body.slice(endIndexes[3], endIndexes[4]),
+  ].map((value) => normalize(value));
+
+  const principalRaw = valores[0];
+  const commaIndex = principalRaw.indexOf(",");
+  if (commaIndex <= 0) return null;
+
+  const jurosValor = parseMoney(valores[1]);
+  const multaValor = parseMoney(valores[2]);
+  const honorariosValor = parseMoney(valores[3]);
+  const totalValor = parseMoney(valores[4]);
+  const principal = Math.round((totalValor - jurosValor - multaValor - honorariosValor) * 100) / 100;
+  const principalDigitsLength = String(Math.trunc(Math.abs(principal))).length;
+  const beforeCommaDigits = principalRaw.slice(0, commaIndex).replace(/\D/g, "");
+  const prefixo = beforeCommaDigits.slice(0, -principalDigitsLength);
+
+  if (!prefixo || !Number.isFinite(principal)) return null;
+
+  const { atraso, codigo } = splitSlavieroAtrasoCodigo(prefixo);
+  if (!codigo) return null;
+
+  return {
+    vencimento: match[1],
+    competencia: match[2],
+    atraso,
+    codigo,
+    principal,
+    juros: valores[1],
+    multa: valores[2],
+    honorarios: valores[3],
+    total: valores[4],
+  };
 }
 
 function parseSlavieroCobrancasPdf(text: string): ReciboCondopro[] {
@@ -3710,8 +3828,25 @@ function parseSlavieroCobrancasPdf(text: string): ReciboCondopro[] {
     const rowMatch = line.match(
       /^(\d{2}\/\d{2}\/\d{2})\s+(\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/
     );
+    const compactRow = rowMatch ? null : parseCompactSlavieroRow(line);
 
-    if (!rowMatch || !unidadeAtual) continue;
+    if ((!rowMatch && !compactRow) || !unidadeAtual) continue;
+
+    const row = rowMatch
+      ? {
+          vencimento: rowMatch[1],
+          competencia: rowMatch[2],
+          atraso: rowMatch[3],
+          codigo: rowMatch[4],
+          principal: rowMatch[5],
+          juros: rowMatch[6],
+          multa: rowMatch[7],
+          honorarios: rowMatch[8],
+          total: rowMatch[9],
+        }
+      : compactRow;
+
+    if (!row) continue;
 
     const situacaoOrigem = situacaoAtual;
     const marcadorOrigem = situacaoOrigem === "juridico" ? "J" : undefined;
@@ -3720,15 +3855,17 @@ function parseSlavieroCobrancasPdf(text: string): ReciboCondopro[] {
       bloco: "0",
       unidade: unidadeAtual,
       responsavel: responsavelAtual,
-      recibo: rowMatch[4],
-      vencimento: expandTwoDigitYearDate(rowMatch[1]),
-      valorPrincipal: parseMoney(rowMatch[5]),
-      juros: parseMoney(rowMatch[6]),
-      multa: parseMoney(rowMatch[7]),
+      recibo: row.codigo,
+      vencimento: expandTwoDigitYearDate(row.vencimento),
+      valorPrincipal: parseMoney(row.principal),
+      juros: parseMoney(row.juros),
+      multa: parseMoney(row.multa),
       correcao: 0,
-      valorTotal: parseMoney(rowMatch[9]),
+      honorarios: parseMoney(row.honorarios),
+      valorTotal: parseMoney(row.total),
       marcadorOrigem,
       situacaoOrigem,
+      detalhesOrigem: `Competência ${row.competencia} · atraso ${row.atraso} dias`,
     });
   }
 
@@ -4306,13 +4443,34 @@ export async function parseRelatorioBuffer(
     const deteccaoSuperlogica = detectSuperlogicaPendentesCobrancas(text);
     const deteccaoHflex = detectHflexLiveFacilitiesCobrancas(text);
     const deteccaoSlaviero = detectSlavieroCobrancas(text);
+    const deteccaoMoemaFlat = detectMoemaFlatCobrancas(text);
     const deteccaoSafira = detectSafiraCobrancas(text);
     const deteccaoLello = detectLelloCobrancas(text);
+
+    if (deteccaoMoemaFlat.ok) {
+      const recibos = parseSlavieroCobrancasPdf(text);
+      const padraoDetectado = buildPadraoDetectado(PADRAO_MOEMA_FLAT_COBRANCAS, {
+        condominioDetectado: deteccaoMoemaFlat.condominioDetectado,
+        confianca: deteccaoMoemaFlat.confianca,
+      });
+
+      if (recibos.length) {
+        return buildPreviewFromRecibos({
+          origem: "Moema Flat - Inadimplentes",
+          filename: input.filename,
+          recibos,
+          condominioCnpj: input.condominioCnpj,
+          origemSistema: "Moema Flat",
+          padraoDetectado,
+        });
+      }
+    }
 
     if (
       deteccaoLello.ok &&
       deteccaoLello.confianca >= deteccaoSafira.confianca &&
       deteccaoLello.confianca >= deteccaoSlaviero.confianca &&
+      deteccaoLello.confianca >= deteccaoMoemaFlat.confianca &&
       deteccaoLello.confianca >= deteccaoSuperlogica.confianca &&
       deteccaoLello.confianca >= deteccaoHflex.confianca
     ) {
@@ -4338,7 +4496,8 @@ export async function parseRelatorioBuffer(
       deteccaoSafira.ok &&
       deteccaoSafira.confianca >= deteccaoSuperlogica.confianca &&
       deteccaoSafira.confianca >= deteccaoHflex.confianca &&
-      deteccaoSafira.confianca >= deteccaoSlaviero.confianca
+      deteccaoSafira.confianca >= deteccaoSlaviero.confianca &&
+      deteccaoSafira.confianca >= deteccaoMoemaFlat.confianca
     ) {
       const recibos = parseSafiraCobrancasPdf(text);
       const padraoDetectado = buildPadraoDetectado(PADRAO_SAFIRA_COBRANCAS, {
