@@ -18,12 +18,14 @@ import {
 } from "./preview-rules";
 import { parseXlsx, type ParsedImportFile } from "./engine/xlsx-parser";
 import { isLegacyImportType, isValidImportType } from "./engine/types";
+import { avaliarReguaImportacao } from "./regua-importacao";
 import {
   conciliarCobrancaImportada,
   encontrarCobrancasAbertasAusentes,
   registrarPendenciasCobrancasAusentes,
   type CobrancaImportadaConciliacao,
 } from "./cobrancas-conciliacao";
+import { formatOrigemImportacao } from "./origem-importacao";
 import { sincronizarResponsavelComUnidadeOperacional } from "@/features/responsaveis-unidades/sync-unidade";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -33,6 +35,7 @@ type CondominioImportacaoRow = {
   carteira_id: string;
   nome: string;
   cnpj: string | null;
+  inicio_cobranca_dias?: number | null;
 };
 
 type UnidadeImportacaoRow = {
@@ -407,7 +410,7 @@ async function resolveCondominiosByCnpj(
 
   const { data, error } = await supabase
     .from("condominios")
-    .select("id, carteira_id, nome, cnpj")
+    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias")
     .in("cnpj", cnpjsLimpos);
 
   if (error)
@@ -426,7 +429,7 @@ async function resolveCondominioById(supabase: SupabaseClient, id: string) {
 
   const { data, error } = await supabase
     .from("condominios")
-    .select("id, carteira_id, nome, cnpj")
+    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias")
     .eq("id", id)
     .maybeSingle();
 
@@ -874,6 +877,14 @@ async function enrichCobrancaPreview(
       alertas.push("Contato encontrado no cadastro de apoio de responsaveis");
     }
 
+    const reguaImportacao = avaliarReguaImportacao({
+      vencimento: payload.vencimento,
+      inicioCobrancaDias: condominio?.inicio_cobranca_dias,
+    });
+    if (reguaImportacao.foraRegua && reguaImportacao.motivo) {
+      alertas.push(`Fora da régua de cobrança: ${reguaImportacao.motivo} Linha será mantida apenas no histórico da importação.`);
+    }
+
     const blocked = erros.length > 0;
     const priority = estimatePriority({
       valor: Number(payload.valor_atualizado ?? payload.valor_original ?? 0),
@@ -904,8 +915,12 @@ async function enrichCobrancaPreview(
         email: responsavelApoio?.email || payload.email || unidade?.email || null,
         prioridade_estimada: priority.prioridade,
         score_estimado: priority.score,
-        acao_sugerida: priority.acao,
-        motivo_prioridade: priority.motivo,
+        acao_sugerida: reguaImportacao.foraRegua ? "Manter apenas no histórico" : priority.acao,
+        motivo_prioridade: reguaImportacao.motivo ?? priority.motivo,
+        fora_regua_cobranca: reguaImportacao.foraRegua,
+        importar_cobranca: !reguaImportacao.foraRegua,
+        dias_atraso_importacao: reguaImportacao.diasAtraso,
+        inicio_cobranca_dias: reguaImportacao.inicioCobrancaDias,
       },
       valido: !blocked,
       erros,
@@ -1533,6 +1548,7 @@ async function garantirUnidadeDaImportacao(
 async function importarCobrancas(
   supabase: SupabaseClient,
   payloads: Record<string, any>[],
+  origemImportacao: string,
 ): Promise<ImportExecutionResult> {
   const resultado = emptyImportExecutionResult();
   const importadasParaAusencia: CobrancaImportadaConciliacao[] = [];
@@ -1578,6 +1594,14 @@ async function importarCobrancas(
         continue;
       }
 
+      if (payload.importar_cobranca === false || payload.fora_regua_cobranca) {
+        resultado.ignorados += 1;
+        resultado.erros.push(
+          `Linha ${linha}: cobrança mantida apenas no histórico da importação. ${payload.motivo_prioridade ?? "Vencimento fora da régua de cobrança."}`,
+        );
+        continue;
+      }
+
       const { error } = await supabase.from("cobrancas").insert({
         carteira_id: payload.carteira_id,
         condominio_id: payload.condominio_id,
@@ -1593,6 +1617,7 @@ async function importarCobrancas(
         status_operacional: "novo",
         status_financeiro: "em_aberto",
         observacoes: payload.observacoes || null,
+        origem_importacao: origemImportacao,
         importacao_id: payload.importacao_id || null,
       });
 
@@ -1969,9 +1994,10 @@ export async function confirmarImportacao(formData: FormData) {
   assertPayloadsPermitidos(scope, payloads);
 
   let execucao = emptyImportExecutionResult();
+  const origemImportacao = formatOrigemImportacao("importacao_cobrancas");
 
   if (importacao.tipo === "cobrancas") {
-    execucao = await importarCobrancas(supabase, payloads);
+    execucao = await importarCobrancas(supabase, payloads, origemImportacao);
   }
 
   if (importacao.tipo === "condominios") {

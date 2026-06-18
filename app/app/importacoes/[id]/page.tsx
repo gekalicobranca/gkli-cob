@@ -26,6 +26,15 @@ function getErrosBloqueantes(erros: string[] = []) {
   return erros.filter((erro) => !erro.startsWith('ALERTA:'))
 }
 
+function normalizeText(value: string) {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function isContatoEncontrado(alerta: string) {
+  const normalizado = normalizeText(alerta)
+  return normalizado.includes('contato encontrado') && normalizado.includes('cadastro de apoio')
+}
+
 function isLegacy(tipo: string) {
   return tipo === 'acordos_extra' || tipo === 'acordos_judiciais'
 }
@@ -149,7 +158,9 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
   const mensagensJaExistentes = resultadoMensagens.filter(isJaExistenteConciliacao)
   const mensagensAusentes = resultadoMensagens.filter(isAusenteRelatorio)
   const mensagensOutras = resultadoMensagens.filter((mensagem) => !isDivergenciaConciliacao(mensagem) && !isJaExistenteConciliacao(mensagem) && !isAusenteRelatorio(mensagem))
-  const linhasComAlerta = itens.filter((item: any) => getAlertas(item.erros ?? []).length > 0).length
+  const linhasComAlerta = itens.filter((item: any) =>
+    getAlertas(item.erros ?? []).some((alerta) => !isContatoEncontrado(alerta)),
+  ).length
   const bloqueadas = itens.filter((item: any) => !item.valido).length
   const canConfirm = ['preview', 'erro'].includes(importacao.status) && importacao.total_validas > 0
   const tipoLegado = isLegacy(importacao.tipo)
@@ -301,6 +312,8 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
           <div className="divide-y divide-slate-100">
             {itens.map((item: any) => {
               const alertas = getAlertas(item.erros ?? [])
+              const alertasPositivos = alertas.filter(isContatoEncontrado)
+              const alertasAtencao = alertas.filter((alerta) => !isContatoEncontrado(alerta))
               const erros = getErrosBloqueantes(item.erros ?? [])
               const payload = item.payload ?? {}
               const prioridade = payload.prioridade_estimada ?? (item.valido ? 'baixa' : 'bloqueada')
@@ -318,9 +331,11 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                       <StatusBadge status={item.valido ? 'válida' : 'bloqueada'} />
                       <Badge tone={priorityTone(prioridade) as any}>{prioridade}</Badge>
                       {payload.unidade_nova ? <Badge tone="yellow">unidade nova</Badge> : null}
+                      {payload.fora_regua_cobranca ? <Badge tone="slate">fora da régua</Badge> : null}
                     </div>
                     {erros.length > 0 ? <div className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-xs text-red-700">{erros.join(' · ')}</div> : null}
-                    {alertas.length > 0 ? <div className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-700">{alertas.join(' · ')}</div> : null}
+                    {alertasPositivos.length > 0 ? <div className="mt-3 rounded-2xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{alertasPositivos.join(' · ')}</div> : null}
+                    {alertasAtencao.length > 0 ? <div className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-700">{alertasAtencao.join(' · ')}</div> : null}
                   </div>
 
                   <div className="min-w-0">

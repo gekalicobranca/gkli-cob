@@ -72,6 +72,11 @@ const origemLabel: Record<string, string> = {
   manual: 'Manual',
 }
 
+const tipoLabel: Record<string, string> = {
+  cobranca_aberta_ausente_relatorio: 'Cobrança ausente no relatório',
+  emissao_boletos_acordo: 'Emissão de boletos de acordo',
+}
+
 const prioridadeClasses: Record<PendenciaPrioridade, string> = {
   baixa: 'border-slate-200 bg-slate-50 text-slate-600',
   normal: 'border-sky-200 bg-sky-50 text-sky-700',
@@ -90,8 +95,34 @@ function clean(value: unknown) {
   return String(value ?? '').trim()
 }
 
+function displayText(value: unknown) {
+  return clean(value)
+    .replace(/ÃƒÂ§/g, 'ç')
+    .replace(/ÃƒÂ£/g, 'ã')
+    .replace(/ÃƒÂ¡/g, 'á')
+    .replace(/ÃƒÂ©/g, 'é')
+    .replace(/ÃƒÂª/g, 'ê')
+    .replace(/ÃƒÂ³/g, 'ó')
+    .replace(/ÃƒÂº/g, 'ú')
+    .replace(/ÃƒÂ­/g, 'í')
+    .replace(/ÃƒÂµ/g, 'õ')
+    .replace(/Ã§/g, 'ç')
+    .replace(/Ã£/g, 'ã')
+    .replace(/Ã¡/g, 'á')
+    .replace(/Ã©/g, 'é')
+    .replace(/Ãª/g, 'ê')
+    .replace(/Ã³/g, 'ó')
+    .replace(/Ãº/g, 'ú')
+    .replace(/Ã­/g, 'í')
+    .replace(/Ãµ/g, 'õ')
+}
+
+function formatTipo(tipo: string) {
+  return tipoLabel[tipo] ?? displayText(tipo).replace(/_/g, ' ')
+}
+
 function normalizeText(value: unknown) {
-  return clean(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return displayText(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
 function dateValue(value: unknown) {
@@ -139,7 +170,7 @@ function filterPendencias(rows: PendenciaOperacional[], params: Awaited<SearchPa
       const haystack = normalizeText([
         pendencia.titulo,
         pendencia.descricao,
-        pendencia.tipo,
+        formatTipo(pendencia.tipo),
         pendencia.origem,
         pendencia.responsavel_nome,
         pendencia.status,
@@ -190,15 +221,24 @@ function FilterLink({ href, active, children }: { href: string; active: boolean;
 function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
   if (pendencia.status === 'resolvida' || pendencia.status === 'cancelada') {
     return (
-      <form action={async (formData) => {
-        'use server'
-        await reabrirPendencia(null, formData)
-      }}>
-        <input type="hidden" name="id" value={pendencia.id} />
-        <PendingSubmitButton variant="secondary" size="sm" className="w-full sm:w-auto" icon={<RotateCcw size={14} />} pendingLabel="Reabrindo...">
-          Reabrir
-        </PendingSubmitButton>
-      </form>
+      <div className="flex justify-end">
+        <form action={async (formData) => {
+          'use server'
+          await reabrirPendencia(null, formData)
+        }}>
+          <input type="hidden" name="id" value={pendencia.id} />
+          <PendingSubmitButton
+            variant="secondary"
+            size="sm"
+            className="w-full sm:w-auto"
+            icon={<RotateCcw size={14} />}
+            pendingLabel="Reabrindo..."
+            title="Voltar a pendência para aberta"
+          >
+            Reabrir
+          </PendingSubmitButton>
+        </form>
+      </div>
     )
   }
 
@@ -210,7 +250,14 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
           await iniciarTratamentoPendencia(null, formData)
         }}>
           <input type="hidden" name="id" value={pendencia.id} />
-          <PendingSubmitButton variant="secondary" size="sm" className="w-full sm:w-auto" icon={<PlayCircle size={14} />} pendingLabel="Iniciando...">
+          <PendingSubmitButton
+            variant="secondary"
+            size="sm"
+            className="w-full sm:w-auto"
+            icon={<PlayCircle size={14} />}
+            pendingLabel="Iniciando..."
+            title="Marcar como em tratamento"
+          >
             Tratar
           </PendingSubmitButton>
         </form>
@@ -220,7 +267,14 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
         await resolverPendencia(null, formData)
       }}>
         <input type="hidden" name="id" value={pendencia.id} />
-        <PendingSubmitButton variant="primary" size="sm" className="w-full sm:w-auto" icon={<CheckCircle2 size={14} />} pendingLabel="Resolvendo...">
+        <PendingSubmitButton
+          variant="primary"
+          size="sm"
+          className="w-full sm:w-auto"
+          icon={<CheckCircle2 size={14} />}
+          pendingLabel="Resolvendo..."
+          title="Marcar como resolvida"
+        >
           Resolver
         </PendingSubmitButton>
       </form>
@@ -230,9 +284,13 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
 
 function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
   const atrasada = isAtrasada(pendencia)
+  const title = displayText(pendencia.titulo)
+  const description = displayText(pendencia.descricao)
+  const responsavel = displayText(pendencia.responsavel_nome) || 'Não definido'
+  const tipo = formatTipo(pendencia.tipo)
 
   return (
-    <ListRow className="xl:grid-cols-[minmax(320px,1.4fr)_150px_170px_190px_180px] xl:items-center">
+    <ListRow className="xl:grid-cols-[minmax(420px,1fr)_170px_210px_180px] xl:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium', prioridadeClasses[pendencia.prioridade])}>
@@ -253,13 +311,13 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
             {origemLabel[pendencia.origem] ?? pendencia.origem}
           </span>
         </div>
-        <h2 className="mt-1.5 truncate text-base font-semibold tracking-[-0.02em] text-slate-950">{pendencia.titulo}</h2>
-        {pendencia.descricao ? <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{pendencia.descricao}</p> : null}
-      </div>
-
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Tipo</p>
-        <p className="mt-1 truncate text-sm text-slate-700">{pendencia.tipo}</p>
+        <h2 className="mt-2 text-base font-semibold tracking-[-0.01em] text-slate-950">{title}</h2>
+        {description ? <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{description}</p> : null}
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">{tipo}</span>
+          {pendencia.cobranca_id ? <Link href={`/app/cobrancas/${pendencia.cobranca_id}`} className="font-medium text-[var(--gkli-primary)] hover:underline">Ver cobrança</Link> : null}
+          {pendencia.acordo_id ? <Link href={`/app/acordos/${pendencia.acordo_id}`} className="font-medium text-[var(--gkli-primary)] hover:underline">Ver acordo</Link> : null}
+        </div>
       </div>
 
       <div>
@@ -269,7 +327,7 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
 
       <div>
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Responsável</p>
-        <p className="mt-1 truncate text-sm text-slate-700">{pendencia.responsavel_nome ?? 'Não definido'}</p>
+        <p className="mt-1 truncate text-sm text-slate-700">{responsavel}</p>
         <p className="mt-1 text-xs text-slate-500">Criada em {formatDateTime(pendencia.created_at)}</p>
       </div>
 
@@ -351,7 +409,7 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
             <ListFilterField label="Tipo">
               <Select name="tipo" defaultValue={clean(params.tipo)}>
                 <option value="">Todos</option>
-                {tipos.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}
+                {tipos.map((tipo) => <option key={tipo} value={tipo}>{formatTipo(tipo)}</option>)}
               </Select>
             </ListFilterField>
             <ListFilterField label="Data início">

@@ -8,6 +8,8 @@ import {
   registrarPendenciasCobrancasAusentes,
   type CobrancaImportadaConciliacao,
 } from "@/features/importacoes/cobrancas-conciliacao"
+import { formatOrigemImportacao } from "@/features/importacoes/origem-importacao"
+import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
 
 export const runtime = "nodejs"
 
@@ -123,6 +125,11 @@ export async function POST(request: NextRequest) {
 
     const preview = conversao.preview_json as any
     const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
+    const { data: condominioConfiguracao } = await supabase
+      .from("condominios")
+      .select("inicio_cobranca_dias")
+      .eq("id", condominioId)
+      .maybeSingle()
 
     let cobrancasCriadas = 0
     let cobrancasIgnoradas = 0
@@ -131,6 +138,7 @@ export async function POST(request: NextRequest) {
     let parcelasCriadas = 0
     const inconsistencias: string[] = []
     const importadasParaAusencia: CobrancaImportadaConciliacao[] = []
+    const origemImportacao = formatOrigemImportacao("conversao_relatorio")
 
     for (const item of cobrancas) {
       const unidadeLabel = String(item.unidade ?? "").trim()
@@ -220,6 +228,18 @@ export async function POST(request: NextRequest) {
         continue
       }
 
+      const reguaImportacao = avaliarReguaImportacao({
+        vencimento: vencimentoMaisAntigo,
+        inicioCobrancaDias: (condominioConfiguracao as any)?.inicio_cobranca_dias,
+      })
+      if (reguaImportacao.foraRegua) {
+        cobrancasIgnoradas += 1
+        inconsistencias.push(
+          `Unidade ${unidadeLabel}: cobrança mantida apenas no histórico da conversão. ${reguaImportacao.motivo ?? "Vencimento fora da régua de cobrança."}`
+        )
+        continue
+      }
+
       const { data: cobranca, error: cobrancaError } = await supabase
         .from("cobrancas")
         .insert({
@@ -236,7 +256,7 @@ export async function POST(request: NextRequest) {
           status_operacional: "novo",
           status_financeiro: "em_aberto",
           observacoes,
-          origem_importacao: "conversao_relatorio",
+          origem_importacao: origemImportacao,
           conversao_relatorio_id: conversaoId,
         } as any)
         .select("id")

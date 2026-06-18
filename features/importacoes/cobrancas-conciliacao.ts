@@ -330,7 +330,7 @@ export async function registrarPendenciasCobrancasAusentes(
     .in("status", ["aberta", "em_tratamento"]);
 
   if (existentesError) {
-    throw new Error(`Erro ao verificar pendÃªncias de cobranÃ§as ausentes: ${existentesError.message}`);
+    throw new Error(`Erro ao verificar pendências de cobranças ausentes: ${existentesError.message}`);
   }
 
   const jaRegistradas = new Set(
@@ -348,9 +348,9 @@ export async function registrarPendenciasCobrancasAusentes(
       tipo: "cobranca_aberta_ausente_relatorio",
       status: "aberta",
       prioridade: "alta",
-      titulo: "CobranÃ§a aberta ausente no relatÃ³rio da administradora",
+      titulo: "Cobrança aberta ausente no relatório da administradora",
       descricao: [
-        `A cobranÃ§a da unidade ${item.unidadeLabel} continua aberta no GKLI CobranÃ§a, mas nÃ£o apareceu no relatÃ³rio importado da administradora.`,
+        `A cobrança da unidade ${item.unidadeLabel} continua aberta no GKLI Cobrança, mas não apareceu no relatório importado da administradora.`,
         item.vencimento ? `Vencimento: ${item.vencimento}.` : null,
         `Valor atualizado: R$ ${item.valorAtualizado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`,
         "Validar com a administradora antes de baixar, cancelar ou considerar quitada.",
@@ -373,7 +373,7 @@ export async function registrarPendenciasCobrancasAusentes(
   );
 
   if (insertError) {
-    throw new Error(`Erro ao criar pendÃªncias de cobranÃ§as ausentes: ${insertError.message}`);
+    throw new Error(`Erro ao criar pendências de cobranças ausentes: ${insertError.message}`);
   }
 
   return { criadas: novas.length };
