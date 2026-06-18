@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import type { ListPendenciasParams, PendenciaOperacional, PendenciasResumo } from './types'
@@ -18,7 +18,7 @@ export async function listPendenciasOperacionais(
   scope: CarteiraScope,
   params: ListPendenciasParams = {},
 ) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   let query = supabase
     .from('central_pendencias')

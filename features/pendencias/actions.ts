@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 
 type ActionState = {
@@ -14,7 +14,7 @@ async function updatePendenciaStatus(formData: FormData, status: 'aberta' | 'em_
   if (!id) return { ok: false, message: 'Pendência não informada.' }
 
   const scope = await getPermittedCarteiras()
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   let query = supabase
     .from('central_pendencias')
