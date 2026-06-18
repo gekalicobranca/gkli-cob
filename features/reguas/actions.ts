@@ -7,6 +7,7 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { requireUser } from '@/utils/auth/require-user'
 import { registrarEventoOperacional } from '@/features/operacional/service'
 import type { ReguaTipo } from './types'
+import { normalizarDestinatarioPreferencial } from '@/features/regua/services/regua-shared'
 
 function s(formData: FormData, key: string) {
   const value = formData.get(key)
@@ -52,6 +53,7 @@ function buildReguaPayload(formData: FormData, carteiraId: string | null) {
     descricao: s(formData, 'descricao') || null,
     prioridade: n(formData, 'prioridade', 0),
     padrao: formData.get('padrao') === 'on',
+    destinatario_preferencial: normalizarDestinatarioPreferencial(s(formData, 'destinatario_preferencial')),
     updated_at: new Date().toISOString(),
   }
 }

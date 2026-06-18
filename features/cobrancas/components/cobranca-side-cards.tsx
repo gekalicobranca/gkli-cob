@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { ButtonLink } from '@/components/ui/button'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -8,7 +9,19 @@ function asNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function destinatarioLabel(value?: string | null) {
+  if (value === 'inquilino') return 'Inquilino'
+  if (value === 'qualquer') return 'Qualquer contato'
+  return 'Proprietário'
+}
+
 export function CobrancaSideCards({ cobranca, acordoVigente, statusOperacional }: { cobranca: any; acordoVigente: any; statusOperacional: string }) {
+  const regua = acordoVigente ? cobranca.regua_acordo : cobranca.regua_cobranca
+  const tipoRegua = acordoVigente ? 'acordo' : 'cobrança'
+  const reguaPadraoNome = acordoVigente ? 'Padrão interno de acordos' : 'Padrão interno de cobrança'
+  const reguaTitulo = acordoVigente ? 'Régua de acordo' : 'Régua de cobrança'
+  const etapaAtual = acordoVigente ? 'Acompanhamento do acordo' : statusOperacional === 'novo' ? 'Entrada na régua' : statusOperacional
+
   return (
     <div className="space-y-4">
       {acordoVigente ? (
@@ -27,11 +40,24 @@ export function CobrancaSideCards({ cobranca, acordoVigente, statusOperacional }
       ) : null}
 
       <Card>
-        <h2 className="text-lg font-semibold text-slate-950">{acordoVigente ? 'Régua de acordo' : 'Régua de cobrança'}</h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-lg font-semibold text-slate-950">{reguaTitulo}</h2>
+          <Badge tone={regua ? 'green' : 'slate'}>{regua ? 'Condomínio' : 'Padrão'}</Badge>
+        </div>
         <div className="mt-4 space-y-2 text-sm text-slate-600">
-          <p>Etapa atual: {acordoVigente ? 'Acompanhamento do acordo' : statusOperacional === 'novo' ? 'Entrada na régua' : statusOperacional}</p>
+          <p>Régua aplicada: <span className="font-medium text-slate-900">{regua?.nome ?? reguaPadraoNome}</span></p>
+          <p>Origem: {regua ? 'vínculo do condomínio' : 'fallback operacional'}</p>
+          <p>Destinatário: {destinatarioLabel(regua?.destinatario_preferencial)}</p>
+          <p>Etapa atual: {etapaAtual}</p>
           <p>Próxima ação: {acordoVigente ? 'monitorar vencimento das parcelas' : 'revisar contato / disparo'}</p>
         </div>
+        {regua?.id ? (
+          <div className="mt-4">
+            <ButtonLink href={`/app/mensageria/reguas/${regua.id}`} size="sm" variant="secondary">Abrir régua</ButtonLink>
+          </div>
+        ) : (
+          <p className="mt-4 text-xs leading-5 text-slate-500">Sem régua de {tipoRegua} vinculada ao condomínio.</p>
+        )}
       </Card>
 
       <Card>

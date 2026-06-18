@@ -14,6 +14,7 @@ create table if not exists public.reguas (
   descricao text null,
   prioridade integer not null default 0,
   padrao boolean not null default false,
+  destinatario_preferencial text not null default 'proprietario',
   ativo boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -26,12 +27,26 @@ alter table public.reguas add column if not exists status text not null default 
 alter table public.reguas add column if not exists descricao text null;
 alter table public.reguas add column if not exists prioridade integer not null default 0;
 alter table public.reguas add column if not exists padrao boolean not null default false;
+alter table public.reguas add column if not exists destinatario_preferencial text not null default 'proprietario';
 alter table public.reguas add column if not exists ativo boolean not null default true;
 alter table public.reguas add column if not exists created_at timestamptz not null default now();
 alter table public.reguas add column if not exists updated_at timestamptz not null default now();
 
+do $$
+begin
+  if to_regclass('public.reguas') is not null then
+    alter table public.reguas
+      drop constraint if exists reguas_destinatario_preferencial_check;
+
+    alter table public.reguas
+      add constraint reguas_destinatario_preferencial_check
+      check (destinatario_preferencial in ('proprietario','inquilino','qualquer'));
+  end if;
+end $$;
+
 create index if not exists idx_reguas_tipo_status on public.reguas(tipo, status);
 create index if not exists idx_reguas_carteira on public.reguas(carteira_id);
+create index if not exists reguas_destinatario_preferencial_idx on public.reguas(destinatario_preferencial);
 create unique index if not exists idx_reguas_padrao_unica_por_escopo
   on public.reguas(coalesce(carteira_id, '00000000-0000-0000-0000-000000000000'::uuid), tipo)
   where padrao = true and ativo = true and status = 'ativa';

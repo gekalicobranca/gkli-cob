@@ -13,6 +13,7 @@ const REGUA_SELECT = `
   descricao,
   prioridade,
   padrao,
+  destinatario_preferencial,
   ativo,
   created_at,
   updated_at,

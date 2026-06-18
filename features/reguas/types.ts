@@ -3,6 +3,7 @@ export type ReguaStatus = 'ativa' | 'rascunho' | 'inativa'
 export type ReguaCanal = 'whatsapp' | 'email' | 'manual'
 export type ReguaIntensidade = 'leve' | 'medio' | 'agressivo'
 export type ReguaDelayReferencia = 'vencimento' | 'atraso' | 'parcela' | 'acordo'
+export type ReguaDestinatarioPreferencial = 'proprietario' | 'inquilino' | 'qualquer'
 
 export type ReguaResumo = {
   id: string
@@ -13,6 +14,7 @@ export type ReguaResumo = {
   descricao: string | null
   prioridade: number | null
   padrao: boolean | null
+  destinatario_preferencial: ReguaDestinatarioPreferencial | null
   ativo: boolean | null
   created_at: string | null
   updated_at: string | null

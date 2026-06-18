@@ -51,11 +51,12 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
               <h2 className="mt-3 text-lg font-semibold text-slate-950">Dados da régua</h2>
               <p className="mt-1 text-sm text-slate-500">Essa configuração pode ser usada como fallback ou vinculada ao condomínio.</p>
             </div>
-            <div className="grid gap-4 lg:grid-cols-[minmax(260px,1.4fr)_160px_minmax(220px,1fr)_150px_120px_150px]">
+            <div className="grid gap-4 lg:grid-cols-[minmax(260px,1.3fr)_150px_minmax(220px,1fr)_150px_160px_120px_150px]">
               <FormField label="Nome"><Input name="nome" defaultValue={regua.nome} required /></FormField>
               <FormField label="Tipo"><Select name="tipo" defaultValue={regua.tipo}><option value="cobranca">Cobrança</option><option value="acordo">Acordos</option></Select></FormField>
               <FormField label="Carteira"><Select name="carteira_id" defaultValue={regua.carteira_id ?? ''}><option value="">Global / fallback</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></FormField>
               <FormField label="Status"><Select name="status" defaultValue={regua.status ?? 'ativa'}><option value="ativa">Ativa</option><option value="rascunho">Rascunho</option><option value="inativa">Inativa</option></Select></FormField>
+              <FormField label="Destinatário"><Select name="destinatario_preferencial" defaultValue={regua.destinatario_preferencial ?? 'proprietario'}><option value="proprietario">Proprietário</option><option value="inquilino">Inquilino</option><option value="qualquer">Qualquer contato</option></Select></FormField>
               <FormField label="Prioridade"><Input name="prioridade" type="number" defaultValue={String(regua.prioridade ?? 0)} /></FormField>
               <FormField label="Padrão"><label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-600"><input name="padrao" type="checkbox" defaultChecked={Boolean(regua.padrao)} className="h-4 w-4 rounded border-slate-300" /> Usar como padrão</label></FormField>
             </div>

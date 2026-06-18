@@ -151,7 +151,7 @@ export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {
       ultima_interacao_at,
       created_at,
       updated_at,
-      condominios(nome, cnpj, administradora, inicio_cobranca_dias),
+      condominios(nome, cnpj, administradora, inicio_cobranca_dias, regua_cobranca_id, regua_acordo_id),
       unidades(identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email)
     `)
     .eq('id', id)
@@ -165,7 +165,33 @@ export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {
     throw new Error(`Erro ao carregar cobrança: ${error.message}`)
   }
 
-  return data ? (normalizeRelations(data as any, ['condominios', 'unidades']) as any) : null
+  if (!data) return null
+
+  const cobranca = normalizeRelations(data as any, ['condominios', 'unidades']) as any
+  const reguaIds = [
+    cobranca.condominios?.regua_cobranca_id,
+    cobranca.condominios?.regua_acordo_id,
+  ].filter(Boolean) as string[]
+
+  if (reguaIds.length) {
+    const { data: reguas, error: reguasError } = await supabase
+      .from('reguas')
+      .select('id, nome, tipo, status, prioridade, padrao, destinatario_preferencial')
+      .in('id', [...new Set(reguaIds)])
+
+    if (reguasError) {
+      throw new Error(`Erro ao carregar régua da cobrança: ${reguasError.message}`)
+    }
+
+    const reguasMap = new Map(((reguas ?? []) as any[]).map((regua) => [regua.id, regua]))
+    cobranca.regua_cobranca = reguasMap.get(cobranca.condominios?.regua_cobranca_id) ?? null
+    cobranca.regua_acordo = reguasMap.get(cobranca.condominios?.regua_acordo_id) ?? null
+  } else {
+    cobranca.regua_cobranca = null
+    cobranca.regua_acordo = null
+  }
+
+  return cobranca
 }
 
 export async function listInteracoesDaCobranca(cobrancaId: string) {

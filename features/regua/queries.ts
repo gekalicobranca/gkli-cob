@@ -15,6 +15,7 @@ import type { ReguaEtapa, ReguaTom } from "./types";
 import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from "@/lib/core/status";
 import {
   cicloReferencia,
+  escolherContatoRegua,
   criarReguaFingerprint,
   normalizarEtapaId,
 } from "./services/regua-shared";
@@ -112,7 +113,7 @@ async function loadResponsaveisApoioMap(
 
   const { data, error } = await supabase
     .from("responsaveis_unidades")
-    .select("id, condominio_id, unidade, bloco, responsavel_nome, telefone, email, ativo")
+    .select("id, condominio_id, unidade, bloco, responsavel_nome, telefone, email, tipo_responsavel, ativo")
     .eq("ativo", true)
     .in("condominio_id", condominioIds);
 
@@ -127,18 +128,8 @@ function withResponsavelApoio(row: any, apoioMap: Map<string, any>) {
   const apoio = apoioMap.get(unidadeKey(row));
   if (!apoio) return row;
 
-  const unidade = row.unidades ?? row.unidade ?? {};
-  const mergedUnidade = {
-    ...unidade,
-    responsavel_nome: apoio.responsavel_nome || unidade.responsavel_nome,
-    telefone: apoio.telefone || unidade.telefone,
-    email: apoio.email || unidade.email,
-  };
-
   return {
     ...row,
-    unidades: row.unidades ? mergedUnidade : row.unidades,
-    unidade: row.unidade ? mergedUnidade : row.unidade,
     responsavel_apoio: apoio,
   };
 }
@@ -166,7 +157,7 @@ function matchesSearch(row: any, search?: string) {
 function matchesContato(row: any, contato?: string) {
   const mode = contato || "todos";
   const unidade = row.unidades ?? row.unidade;
-  const hasDestinatario = Boolean(unidade?.telefone || unidade?.email);
+  const hasDestinatario = Boolean(row.responsavel_apoio?.telefone || row.responsavel_apoio?.email || unidade?.telefone || unidade?.email);
 
   if (mode === "com_destinatario") return hasDestinatario;
   if (mode === "sem_destinatario") return !hasDestinatario;
@@ -225,7 +216,7 @@ async function loadReguaMetaMap(
 
   const { data, error } = await supabase
     .from("reguas")
-    .select("id, nome, tipo, status")
+    .select("id, nome, tipo, status, destinatario_preferencial")
     .in("id", ids);
 
   if (error) return new Map<string, any>();
@@ -324,11 +315,17 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
         diasAtraso,
         inicioCobrancaDias: inicio,
       }) ?? etapas[0] ?? DEFAULT_COBRANCA_ETAPAS[0];
+    const contatoRegua = escolherContatoRegua({
+      unidade,
+      apoio: row.responsavel_apoio,
+      canal: etapa.canal,
+      preferencia: reguaMeta?.destinatario_preferencial,
+    });
     const intensidade = (condominio?.intensidade_regua ??
       etapa.tom ??
       "medio") as ReguaTom;
     const contexto = {
-      responsavel: unidade?.responsavel_nome ?? "responsável",
+      responsavel: contatoRegua.nome,
       unidade: unidade?.identificacao ?? "unidade",
       condominio: condominio?.nome ?? "condomínio",
       competencia: row.competencia ?? "",
@@ -362,7 +359,8 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
         contexto,
       }),
       fingerprint_preview: fingerprint,
-      destinatario_preview: unidade?.telefone || unidade?.email || "",
+      destinatario_preview: contatoRegua.destinatario || "",
+      destinatario_tipo_preview: contatoRegua.tipoResponsavel,
     };
     });
   const existing = await loadExistingFingerprintSet(
@@ -524,6 +522,12 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     const reguaId = filters.reguaId || condominio?.regua_acordo_id || null
     const etapas = (reguaId ? etapasPorRegua.get(reguaId) : null) ?? DEFAULT_ACORDO_ETAPAS
     const reguaMeta = reguaId ? reguaMetaMap.get(reguaId) : null
+    const contatoReguaBase = escolherContatoRegua({
+      unidade,
+      apoio: acordo.responsavel_apoio,
+      canal: etapas[0]?.canal,
+      preferencia: reguaMeta?.destinatario_preferencial,
+    })
 
     if (!parcela) {
       preview.push({
@@ -531,7 +535,8 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
         parcela: null,
         elegivel: false,
         motivo: 'Acordo sem parcelas abertas.',
-        destinatario_preview: unidade?.telefone || unidade?.email || '',
+        destinatario_preview: contatoReguaBase.destinatario || '',
+        destinatario_tipo_preview: contatoReguaBase.tipoResponsavel,
       })
       continue
     }
@@ -539,6 +544,12 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     const diasRelativos = diasRelativosParcela(parcela.vencimento)
     const elegivel = diasRelativos >= -3
     const etapa = selecionarEtapaAcordoPreview(etapas, diasRelativos) ?? etapas[0] ?? DEFAULT_ACORDO_ETAPAS[0]
+    const contatoRegua = escolherContatoRegua({
+      unidade,
+      apoio: acordo.responsavel_apoio,
+      canal: etapa.canal,
+      preferencia: reguaMeta?.destinatario_preferencial,
+    })
     const fingerprint = criarReguaFingerprint({
       contexto: 'regua_acordo',
       entidadeId: parcela.id,
@@ -547,8 +558,8 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
       ciclo,
     })
     const contexto = {
-      responsavel: unidade?.responsavel_nome ?? 'responsável',
-      primeiro_nome: String(unidade?.responsavel_nome ?? 'responsável').split(' ')[0],
+      responsavel: contatoRegua.nome,
+      primeiro_nome: String(contatoRegua.nome).split(' ')[0],
       unidade: unidade?.identificacao ?? 'unidade',
       condominio: condominio?.nome ?? 'condomínio',
       vencimento: formatDateBR(parcela.vencimento),
@@ -579,7 +590,8 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
         contexto,
       }),
       fingerprint_preview: fingerprint,
-      destinatario_preview: unidade?.telefone || unidade?.email || '',
+      destinatario_preview: contatoRegua.destinatario || '',
+      destinatario_tipo_preview: contatoRegua.tipoResponsavel,
     })
   }
 

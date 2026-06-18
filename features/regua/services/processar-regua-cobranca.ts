@@ -28,6 +28,8 @@ import { resolveTemplateMensagem } from "@/features/mensageria/template-resolver
 import type { ReguaTom } from "../types";
 import {
   cicloReferencia,
+  carregarPreferenciasDestinatarioReguas,
+  escolherContatoRegua,
   criarReguaFingerprint,
   normalizarEtapaId,
   novoContador,
@@ -70,6 +72,12 @@ type CobrancaReguaRow = {
     responsavel_nome?: string | null;
     telefone?: string | null;
     email?: string | null;
+  } | null;
+  responsavel_apoio?: {
+    responsavel_nome?: string | null;
+    telefone?: string | null;
+    email?: string | null;
+    tipo_responsavel?: string | null;
   } | null;
 };
 
@@ -178,7 +186,12 @@ function matchesSearch(row: CobrancaReguaRow, search?: string) {
 
 function matchesContato(row: CobrancaReguaRow, contato?: string) {
   const mode = contato || "todos";
-  const hasDestinatario = Boolean(row.unidades?.telefone || row.unidades?.email);
+  const hasDestinatario = Boolean(
+    row.responsavel_apoio?.telefone ||
+    row.responsavel_apoio?.email ||
+    row.unidades?.telefone ||
+    row.unidades?.email,
+  );
 
   if (mode === "com_destinatario") return hasDestinatario;
   if (mode === "sem_destinatario") return !hasDestinatario;
@@ -213,7 +226,7 @@ async function loadResponsaveisApoioMap(
 
   const { data, error } = await supabase
     .from("responsaveis_unidades")
-    .select("id, condominio_id, unidade, bloco, responsavel_nome, telefone, email, ativo")
+    .select("id, condominio_id, unidade, bloco, responsavel_nome, telefone, email, tipo_responsavel, ativo")
     .eq("ativo", true)
     .in("condominio_id", condominioIds);
 
@@ -228,15 +241,9 @@ function withResponsavelApoio(row: CobrancaReguaRow, apoioMap: Map<string, any>)
   const apoio = apoioMap.get(unidadeKey(row));
   if (!apoio) return row;
 
-  const unidade = row.unidades ?? {};
   return {
     ...row,
-    unidades: {
-      ...unidade,
-      responsavel_nome: apoio.responsavel_nome || unidade.responsavel_nome,
-      telefone: apoio.telefone || unidade.telefone,
-      email: apoio.email || unidade.email,
-    },
+    responsavel_apoio: apoio,
   };
 }
 
@@ -564,9 +571,14 @@ export async function processarReguaCobranca(
     .filter((row) => !selectedIds || selectedIds.has(row.id));
 
   const cobrancaIds = rows.map((row) => row.id).filter(Boolean);
-  const [acordosAtivos, mensagensRecentes] = await Promise.all([
+  const reguaIds = [
+    params.reguaId,
+    ...rows.map((row) => row.condominios?.regua_cobranca_id),
+  ];
+  const [acordosAtivos, mensagensRecentes, preferenciasReguas] = await Promise.all([
     getAcordosAtivosPorCobranca(supabase, cobrancaIds),
     getUltimasMensagensPorCobranca(supabase, cobrancaIds),
+    carregarPreferenciasDestinatarioReguas(supabase, reguaIds),
   ]);
 
   async function getLote(row: CobrancaReguaRow): Promise<LoteContext> {
@@ -676,8 +688,16 @@ export async function processarReguaCobranca(
         }
 
         const canal = etapa.canal ?? "whatsapp";
+        const reguaIdAtual = params.reguaId || condominio?.regua_cobranca_id || null;
+        const preferenciaDestinatario = reguaIdAtual ? preferenciasReguas.get(reguaIdAtual) : null;
+        const contatoRegua = escolherContatoRegua({
+          unidade,
+          apoio: row.responsavel_apoio,
+          canal,
+          preferencia: preferenciaDestinatario,
+        });
         const intensidade = (condominio?.intensidade_regua ?? etapa.tom ?? "medio") as ReguaTom;
-        const destinatario = canal === "email" ? unidade?.email : unidade?.telefone;
+        const destinatario = contatoRegua.destinatario;
         const reguaEtapaId = normalizarEtapaId(etapa.id);
         const etapaReferencia = reguaEtapaId ?? etapa.id ?? null;
         const fingerprint = criarReguaFingerprint({
@@ -702,6 +722,9 @@ export async function processarReguaCobranca(
           valor_total: formatMoneyBR(row.valor_atualizado ?? row.valor_original),
           dias_atraso: avaliacao.diasAtraso,
         };
+        contexto.responsavel = contatoRegua.nome;
+        contexto.nome = contatoRegua.nome;
+        contexto.primeiro_nome = String(contatoRegua.nome).split(" ")[0];
 
         const templateResolvido = await resolveTemplateMensagem({
           carteiraId: row.carteira_id,
@@ -859,6 +882,7 @@ export async function processarReguaCobranca(
               inicio_cobranca_dias: avaliacao.inicio,
               score,
               compliance,
+              destinatario_regua: contatoRegua,
             },
           } as any)
           .select("id")

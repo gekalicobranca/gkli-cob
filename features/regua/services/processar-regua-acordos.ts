@@ -21,6 +21,8 @@ import { resolveTemplateMensagem } from '@/features/mensageria/template-resolver
 import type { ReguaEtapa, ReguaTom } from '../types'
 import {
   cicloReferencia,
+  carregarPreferenciasDestinatarioReguas,
+  escolherContatoRegua,
   criarReguaFingerprint,
   normalizarEtapaId,
   novoContador,
@@ -124,7 +126,7 @@ function matchesSearch(row: any, search?: string) {
 
 function matchesContato(row: any, contato?: string) {
   const mode = contato || 'todos'
-  const hasDestinatario = Boolean(row.unidades?.telefone || row.unidades?.email)
+  const hasDestinatario = Boolean(row.responsavel_apoio?.telefone || row.responsavel_apoio?.email || row.unidades?.telefone || row.unidades?.email)
 
   if (mode === 'com_destinatario') return hasDestinatario
   if (mode === 'sem_destinatario') return !hasDestinatario
@@ -159,7 +161,7 @@ async function loadResponsaveisApoioMap(
 
   const { data, error } = await supabase
     .from('responsaveis_unidades')
-    .select('id, condominio_id, unidade, bloco, responsavel_nome, telefone, email, ativo')
+    .select('id, condominio_id, unidade, bloco, responsavel_nome, telefone, email, tipo_responsavel, ativo')
     .eq('ativo', true)
     .in('condominio_id', condominioIds)
 
@@ -172,15 +174,9 @@ function withResponsavelApoio(row: any, apoioMap: Map<string, any>) {
   const apoio = apoioMap.get(unidadeKey(row))
   if (!apoio) return row
 
-  const unidade = row.unidades ?? {}
   return {
     ...row,
-    unidades: {
-      ...unidade,
-      responsavel_nome: apoio.responsavel_nome || unidade.responsavel_nome,
-      telefone: apoio.telefone || unidade.telefone,
-      email: apoio.email || unidade.email,
-    },
+    responsavel_apoio: apoio,
   }
 }
 
@@ -386,6 +382,10 @@ export async function processarReguaAcordos(
     .map((row) => withResponsavelApoio(row, apoioMap))
     .filter((row) => matchesSearch(row, params.q))
     .filter((row) => matchesContato(row, params.contato))
+  const preferenciasReguas = await carregarPreferenciasDestinatarioReguas(supabase, [
+    params.reguaId,
+    ...acordos.map((acordo) => acordo.condominios?.regua_acordo_id),
+  ])
   const parcelasPorAcordo = await carregarParcelasAbertas(
     supabase,
     acordos.map((acordo) => acordo.id),
@@ -492,7 +492,15 @@ export async function processarReguaAcordos(
           const etapas = await carregarEtapasDeReguaAdmin(params.reguaId || condominio?.regua_acordo_id, 'acordo')
           const etapa = selecionarEtapaAcordo({ etapas, diasRelativos }) ?? etapas[0] ?? DEFAULT_ACORDO_ETAPAS[0]
           const canal = etapa?.canal ?? 'whatsapp'
-          const destinatario = canal === 'email' ? unidade?.email : unidade?.telefone
+          const reguaIdAtual = params.reguaId || condominio?.regua_acordo_id || null
+          const preferenciaDestinatario = reguaIdAtual ? preferenciasReguas.get(reguaIdAtual) : null
+          const contatoRegua = escolherContatoRegua({
+            unidade,
+            apoio: acordo.responsavel_apoio,
+            canal,
+            preferencia: preferenciaDestinatario,
+          })
+          const destinatario = contatoRegua.destinatario
           const reguaEtapaId = normalizarEtapaId(etapa?.id)
           const etapaReferencia = reguaEtapaId ?? etapa?.id ?? null
           const fingerprint = criarReguaFingerprint({
@@ -520,6 +528,9 @@ export async function processarReguaAcordos(
             parcela_numero: parcela.numero ?? '',
             dias_atraso: Math.max(0, diasRelativos),
           }
+          contexto.responsavel = contatoRegua.nome
+          contexto.nome = contatoRegua.nome
+          contexto.primeiro_nome = String(contatoRegua.nome).split(' ')[0]
 
           const templateResolvido = await resolveTemplateMensagem({
             carteiraId: acordo.carteira_id,
@@ -640,7 +651,7 @@ export async function processarReguaAcordos(
               regua_etapa_id: reguaEtapaId,
               fingerprint,
               template_id: templateResolvido.templateId,
-              payload: { contexto, template_resolvido: templateResolvido, parcela_id: parcela.id, dias_relativos_vencimento: diasRelativos, score, compliance },
+              payload: { contexto, template_resolvido: templateResolvido, parcela_id: parcela.id, dias_relativos_vencimento: diasRelativos, score, compliance, destinatario_regua: contatoRegua },
             } as any)
             .select('id')
             .single()
