@@ -466,7 +466,7 @@ export function AppShell({
                     GKLI Cob
                   </span>
                 </div>
-                <h1 className="mt-0.5 truncate text-base font-semibold tracking-tight text-slate-950">
+                <h1 className="mt-0.5 truncate text-base font-semibold text-slate-950">
                   {currentItem?.label || 'Área operacional'}
                 </h1>
               </div>

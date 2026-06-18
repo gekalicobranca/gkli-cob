@@ -1,6 +1,8 @@
 ﻿import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { ButtonLink } from '@/components/ui/button'
+import { Button, ButtonLink } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
@@ -93,8 +95,8 @@ function PreviewRow({
       </div>
       <div>
         <StatusBadge status={row.elegivel ? 'elegivel' : 'bloqueada'} />
-        {jaGerada ? <p className="mt-2 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">já gerado</p> : null}
-        <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-400">{tipo}</p>
+        {jaGerada ? <p className="mt-2 rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">já gerado</p> : null}
+        <p className="mt-2 text-xs font-medium uppercase text-slate-400">{tipo}</p>
       </div>
       <div>
         <p className="text-sm font-semibold text-slate-950">{condominio} · {unidade}</p>
@@ -103,7 +105,7 @@ function PreviewRow({
           {reguaNome} · {reguaOrigem} · {etapaLabel} · {canal}
         </p>
       </div>
-      <div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-500">
+      <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
         <p className="font-semibold text-slate-700">Destinatário</p>
         <p className="mt-1 break-all">{destinatario}</p>
       </div>
@@ -167,42 +169,42 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
       />
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card><p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Cobranças</p><p className="mt-3 text-3xl font-semibold text-slate-950">{cobrancasElegiveis.length}</p><p className="mt-1 text-sm text-slate-500">elegíveis de {cobrancas.length}</p></Card>
-        <Card><p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Acordos</p><p className="mt-3 text-3xl font-semibold text-slate-950">{acordosElegiveis.length}</p><p className="mt-1 text-sm text-slate-500">elegíveis de {acordos.length}</p></Card>
-        <Card><p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Canal</p><p className="mt-3 text-3xl font-semibold text-slate-950">WA</p><p className="mt-1 text-sm text-slate-500">WhatsApp Web por padrão</p></Card>
-        <Card><p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Modo</p><p className="mt-3 text-3xl font-semibold text-slate-950">Prévia</p><p className="mt-1 text-sm text-slate-500">sem gravar até gerar lote</p></Card>
+        <Card><p className="text-xs font-semibold uppercase text-slate-400">Cobranças</p><p className="mt-3 text-2xl font-semibold text-slate-950">{cobrancasElegiveis.length}</p><p className="mt-1 text-sm text-slate-500">elegíveis de {cobrancas.length}</p></Card>
+        <Card><p className="text-xs font-semibold uppercase text-slate-400">Acordos</p><p className="mt-3 text-2xl font-semibold text-slate-950">{acordosElegiveis.length}</p><p className="mt-1 text-sm text-slate-500">elegíveis de {acordos.length}</p></Card>
+        <Card><p className="text-xs font-semibold uppercase text-slate-400">Canal</p><p className="mt-3 text-2xl font-semibold text-slate-950">WA</p><p className="mt-1 text-sm text-slate-500">WhatsApp Web por padrão</p></Card>
+        <Card><p className="text-xs font-semibold uppercase text-slate-400">Modo</p><p className="mt-3 text-2xl font-semibold text-slate-950">Prévia</p><p className="mt-1 text-sm text-slate-500">sem gravar até gerar lote</p></Card>
       </div>
 
       <Card className="p-5">
         <form className="grid gap-3 xl:grid-cols-[minmax(220px,1.2fr)_minmax(180px,.8fr)_minmax(220px,1fr)_180px_auto_auto] xl:items-end">
           {filters.regua_id ? <input type="hidden" name="regua_id" value={filters.regua_id} /> : null}
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Busca</span>
-            <input name="q" defaultValue={filters.q} placeholder="Responsável, unidade ou condomínio" className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[var(--gkli-primary)]" />
+            <span className="text-xs font-semibold uppercase text-slate-400">Busca</span>
+            <Input name="q" defaultValue={filters.q} placeholder="Responsável, unidade ou condomínio" />
           </label>
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Carteira</span>
-            <select name="carteira_id" defaultValue={filters.carteira_id} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[var(--gkli-primary)]">
+            <span className="text-xs font-semibold uppercase text-slate-400">Carteira</span>
+            <Select name="carteira_id" defaultValue={filters.carteira_id}>
               <option value="">Todas</option>
               {carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Condomínio</span>
-            <select name="condominio_id" defaultValue={filters.condominio_id} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[var(--gkli-primary)]">
+            <span className="text-xs font-semibold uppercase text-slate-400">Condomínio</span>
+            <Select name="condominio_id" defaultValue={filters.condominio_id}>
               <option value="">Todos</option>
               {condominios.map((condominio: any) => <option key={condominio.id} value={condominio.id}>{condominio.nome}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Contato</span>
-            <select name="contato" defaultValue={filters.contato} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[var(--gkli-primary)]">
+            <span className="text-xs font-semibold uppercase text-slate-400">Contato</span>
+            <Select name="contato" defaultValue={filters.contato}>
               <option value="todos">Todos</option>
               <option value="com_destinatario">Com destinatário</option>
               <option value="sem_destinatario">Sem destinatário</option>
-            </select>
+            </Select>
           </label>
-          <button className="h-10 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">Filtrar</button>
+          <Button type="submit">Filtrar</Button>
           {hasFilters ? <ButtonLink href="/app/mensageria/simulador" variant="secondary" className="h-10">Limpar</ButtonLink> : null}
         </form>
       </Card>

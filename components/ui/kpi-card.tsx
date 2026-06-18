@@ -7,11 +7,11 @@ export function KpiCard({ label, value, hint, description, icon }: { label: stri
     <Card className="p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="truncate text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">{label}</p>
-          <p className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-slate-950">{value}</p>
+          <p className="truncate text-xs font-medium uppercase text-slate-400">{label}</p>
+          <p className="mt-3 text-2xl font-semibold text-slate-950">{value}</p>
           {text ? <p className="mt-1 text-sm leading-5 text-slate-500">{text}</p> : null}
         </div>
-        {icon ? <div className="rounded-xl bg-[var(--gkli-primary-soft)] p-2 text-[var(--gkli-primary)]">{icon}</div> : null}
+        {icon ? <div className="rounded-lg bg-[var(--gkli-primary-soft)] p-2 text-[var(--gkli-primary)]">{icon}</div> : null}
       </div>
     </Card>
   )

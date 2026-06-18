@@ -108,19 +108,19 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
 
       <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
         <Card className="relative overflow-hidden p-3">
-          <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <Home size={18} />
           </div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativas</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{ativas}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Ativas</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{ativas}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sem telefone</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{semTelefone}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Sem telefone</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{semTelefone}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Sem e-mail</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{semEmail}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Sem e-mail</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{semEmail}</p>
         </Card>
       </ListKpiGrid>
 

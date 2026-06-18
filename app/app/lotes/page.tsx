@@ -86,23 +86,23 @@ export default async function LotesPage({ searchParams }: LotesPageProps) {
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Lotes</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{rows.length}</p>
+          <p className="text-xs font-semibold uppercase text-slate-400">Lotes</p>
+          <p className="mt-3 text-2xl font-semibold text-slate-950">{rows.length}</p>
           <p className="mt-1 text-sm text-slate-500">processamentos registrados</p>
         </Card>
         <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Criadas</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{totalCriadas}</p>
+          <p className="text-xs font-semibold uppercase text-slate-400">Criadas</p>
+          <p className="mt-3 text-2xl font-semibold text-slate-950">{totalCriadas}</p>
           <p className="mt-1 text-sm text-slate-500">mensagens geradas</p>
         </Card>
         <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Duplicadas</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{totalDuplicadas}</p>
+          <p className="text-xs font-semibold uppercase text-slate-400">Duplicadas</p>
+          <p className="mt-3 text-2xl font-semibold text-slate-950">{totalDuplicadas}</p>
           <p className="mt-1 text-sm text-slate-500">bloqueadas por fingerprint</p>
         </Card>
         <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Erros</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{totalErros}</p>
+          <p className="text-xs font-semibold uppercase text-slate-400">Erros</p>
+          <p className="mt-3 text-2xl font-semibold text-slate-950">{totalErros}</p>
           <p className="mt-1 text-sm text-slate-500">exigem revisão</p>
         </Card>
       </div>
@@ -165,23 +165,23 @@ export default async function LotesPage({ searchParams }: LotesPageProps) {
                 </div>
                 <StatusBadge status={String(row.status ?? 'gerado')} />
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Avaliadas</p>
+                  <p className="text-xs font-medium uppercase text-slate-400">Avaliadas</p>
                   <p className="mt-1 text-sm text-slate-700">{n(row.total_avaliadas)}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Criadas</p>
+                  <p className="text-xs font-medium uppercase text-slate-400">Criadas</p>
                   <p className="mt-1 text-sm text-slate-700">{n(row.total_criadas)}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Puladas</p>
+                  <p className="text-xs font-medium uppercase text-slate-400">Puladas</p>
                   <p className="mt-1 text-sm text-slate-700">{n(row.total_puladas)}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Duplicadas</p>
+                  <p className="text-xs font-medium uppercase text-slate-400">Duplicadas</p>
                   <p className="mt-1 text-sm text-slate-700">{n(row.total_duplicadas)}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Erros</p>
+                  <p className="text-xs font-medium uppercase text-slate-400">Erros</p>
                   <p className="mt-1 text-sm text-slate-700">{n(row.total_erros)}</p>
                 </div>
               </Link>

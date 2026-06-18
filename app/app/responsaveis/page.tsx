@@ -114,23 +114,23 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
 
       <ListKpiGrid className="md:grid-cols-4 xl:grid-cols-4">
         <Card className="relative overflow-hidden p-3">
-          <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <UsersRound size={18} />
           </div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativos</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{ativos}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Ativos</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{ativos}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Proprietários</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{proprietarios}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Proprietários</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{proprietarios}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Inquilinos</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{inquilinos}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Inquilinos</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{inquilinos}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Incompletos</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{incompletos}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Incompletos</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{incompletos}</p>
         </Card>
       </ListKpiGrid>
 

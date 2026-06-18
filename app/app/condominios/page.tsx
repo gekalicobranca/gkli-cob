@@ -119,19 +119,19 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
 
       <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
         <Card className="relative overflow-hidden p-3">
-          <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <Building2 size={18} />
           </div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativos</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{ativos}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Ativos</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{ativos}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Régua média</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">D+{mediaRegua}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Régua média</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">D+{mediaRegua}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Cota média</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{formatCurrency(ticketMedio)}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Cota média</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{formatCurrency(ticketMedio)}</p>
         </Card>
       </ListKpiGrid>
 

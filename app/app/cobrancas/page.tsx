@@ -238,13 +238,13 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
 
       <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
         <Card className="relative overflow-hidden p-3">
-          <div className="absolute right-4 top-3 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <WalletCards size={18} />
           </div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+          <p className="text-xs font-medium uppercase text-slate-400">
             Em aberto
           </p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">
             {formatCurrency(totalEmAberto)}
           </p>
         </Card>
@@ -265,11 +265,11 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
           ],
         ].map(([title, value, tag, tagClass]) => (
           <Card key={title} className="p-3">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+            <p className="text-xs font-medium uppercase text-slate-400">
               {title}
             </p>
             <div className="mt-1.5 flex items-end justify-between gap-3">
-              <p className="text-2xl font-semibold tracking-tight text-slate-950">
+              <p className="text-2xl font-semibold text-slate-950">
                 {value}
               </p>
               <span

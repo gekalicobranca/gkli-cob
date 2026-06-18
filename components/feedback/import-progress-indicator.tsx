@@ -52,11 +52,11 @@ export function ImportProgressIndicator({
     <div
       role="status"
       aria-live="polite"
-      className="mt-4 rounded-2xl border border-[var(--gkli-primary)]/20 bg-white p-4 shadow-sm"
+      className="fixed bottom-5 right-5 z-50 w-[min(520px,calc(100vw-2.5rem))] rounded-lg border border-[var(--gkli-primary)]/20 bg-white p-4 shadow-2xl shadow-slate-900/15"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 rounded-xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+          <span className="mt-0.5 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <Loader2 size={18} className="animate-spin" />
           </span>
           <div>
@@ -86,7 +86,7 @@ export function ImportProgressIndicator({
             <li
               key={step}
               className={[
-                "flex items-center gap-2 rounded-xl px-3 py-2 text-xs",
+                "flex items-center gap-2 rounded-lg px-3 py-2 text-xs",
                 current
                   ? "bg-[var(--gkli-primary-light)] text-[var(--gkli-primary)]"
                   : done

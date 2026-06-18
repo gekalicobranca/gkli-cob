@@ -196,26 +196,26 @@ export function GlobalOperationalSearch() {
             setOpen(true)
           }}
           onKeyDown={onInputKeyDown}
-          className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50/80 pl-10 pr-24 text-sm font-medium text-slate-800 outline-none ring-0 transition placeholder:text-slate-400 hover:border-slate-300 hover:bg-white focus:border-[#04799a]/35 focus:bg-white focus:shadow-sm focus:ring-4 focus:ring-[#04799a]/10"
+          className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50/80 pl-10 pr-24 text-sm font-medium text-slate-800 outline-none ring-0 transition placeholder:text-slate-400 hover:border-slate-300 hover:bg-white focus:border-[#04799a]/35 focus:bg-white focus:shadow-sm focus:ring-4 focus:ring-[#04799a]/10"
           placeholder="Buscar condomínio, unidade, cobrança, acordo..."
           aria-label="Busca operacional global"
         />
-        <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-xl border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-400 shadow-sm md:inline-flex">
+        <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-400 shadow-sm md:inline-flex">
           Ctrl K
         </span>
       </div>
 
       {open && (
-        <div className="absolute left-0 right-0 top-[3.25rem] z-50 overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-2xl shadow-slate-900/15">
+        <div className="absolute left-0 right-0 top-[3.25rem] z-50 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl shadow-slate-900/15">
           <div className="border-b border-slate-100 px-4 py-3">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <p className="text-xs font-semibold uppercase text-slate-400">
                 Busca operacional
               </p>
               <Link
                 href={trimmedQuery.length >= 2 ? `/app/busca?q=${encodeURIComponent(trimmedQuery)}` : '/app/busca'}
                 onClick={() => setOpen(false)}
-                className="rounded-xl px-2 py-1 text-xs font-medium text-[#04799a] transition hover:bg-[#edf8fb]"
+                className="rounded-lg px-2 py-1 text-xs font-medium text-[#04799a] transition hover:bg-[#edf8fb]"
               >
                 busca completa
               </Link>
@@ -237,7 +237,7 @@ export function GlobalOperationalSearch() {
             <div className="p-4">
               <div className="space-y-2">
                 {[0, 1, 2].map((item) => (
-                  <div key={item} className="h-14 animate-pulse rounded-2xl bg-slate-100" />
+                  <div key={item} className="h-14 animate-pulse rounded-lg bg-slate-100" />
                 ))}
               </div>
             </div>
@@ -286,7 +286,7 @@ function ResultList({
 }) {
   return (
     <section className="py-1">
-      <h3 className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">{title}</h3>
+      <h3 className="px-3 pb-1 pt-2 text-xs font-semibold uppercase text-slate-400">{title}</h3>
       <div className="space-y-1">
         {results.map((result, index) => {
           const active = activeIndex === offset + index
@@ -297,11 +297,11 @@ function ResultList({
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onSelect(result)}
               className={[
-                'flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition',
+                'flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition',
                 active ? 'bg-[#edf8fb] ring-1 ring-[#ccebf3]' : 'hover:bg-slate-50',
               ].join(' ')}
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-500">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-sm font-semibold text-slate-500">
                 {TYPE_ICONS[result.type]}
               </span>
               <span className="min-w-0 flex-1">
@@ -309,7 +309,7 @@ function ResultList({
                 <span className="mt-0.5 block truncate text-xs text-slate-500">{result.subtitle}</span>
               </span>
               {result.status ? (
-                <span className="hidden shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500 sm:inline-flex">
+                <span className="hidden shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-500 sm:inline-flex">
                   {result.status}
                 </span>
               ) : null}

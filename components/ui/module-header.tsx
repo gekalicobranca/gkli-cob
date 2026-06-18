@@ -61,7 +61,7 @@ export function ModuleHeader({
 
           <h1
             className={cn(
-              'mt-2 text-xl font-semibold leading-tight tracking-[-0.025em] md:text-2xl',
+              'mt-2 text-2xl font-semibold leading-tight',
               isSubtle ? 'text-slate-950' : 'text-white',
             )}
           >
@@ -104,7 +104,7 @@ export function ModuleSubHeader({
   return (
     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
-        <h2 className="text-lg font-semibold tracking-[-0.02em] text-slate-950">
+        <h2 className="text-lg font-semibold text-slate-950">
           {title}
         </h2>
         {description ? (

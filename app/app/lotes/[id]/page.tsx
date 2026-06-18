@@ -151,46 +151,46 @@ export default async function LoteDetalhePage({ params }: PageProps) {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+          <p className="text-xs font-semibold uppercase text-slate-400">
             Avaliadas
           </p>
-          <p className="mt-3 text-3xl text-slate-950">
+          <p className="mt-3 text-2xl font-semibold text-slate-950">
             {metric((lote as any).total_avaliadas)}
           </p>
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+          <p className="text-xs font-semibold uppercase text-slate-400">
             Criadas
           </p>
-          <p className="mt-3 text-3xl text-emerald-700">
+          <p className="mt-3 text-2xl font-semibold text-emerald-700">
             {metric((lote as any).total_criadas ?? byStatus.criado)}
           </p>
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+          <p className="text-xs font-semibold uppercase text-slate-400">
             Duplicadas
           </p>
-          <p className="mt-3 text-3xl text-amber-700">
+          <p className="mt-3 text-2xl font-semibold text-amber-700">
             {metric((lote as any).total_duplicadas ?? byStatus.duplicada)}
           </p>
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+          <p className="text-xs font-semibold uppercase text-slate-400">
             Puladas
           </p>
-          <p className="mt-3 text-3xl text-slate-700">
+          <p className="mt-3 text-2xl font-semibold text-slate-700">
             {metric((lote as any).total_puladas ?? byStatus.pulada)}
           </p>
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+          <p className="text-xs font-semibold uppercase text-slate-400">
             Erros
           </p>
-          <p className="mt-3 text-3xl text-red-700">
+          <p className="mt-3 text-2xl font-semibold text-red-700">
             {metric((lote as any).total_erros ?? byStatus.erro)}
           </p>
         </Card>
@@ -199,14 +199,14 @@ export default async function LoteDetalhePage({ params }: PageProps) {
       <Card className="p-5">
         <div className="grid gap-4 md:grid-cols-5">
           <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+            <p className="text-xs font-medium uppercase text-slate-400">
               Tipo
             </p>
             <p className="mt-1 text-sm text-slate-900">{(lote as any).tipo}</p>
           </div>
 
           <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+            <p className="text-xs font-medium uppercase text-slate-400">
               Status
             </p>
             <p className="mt-1 text-sm text-slate-900">
@@ -215,7 +215,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
           </div>
 
           <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+            <p className="text-xs font-medium uppercase text-slate-400">
               Régua
             </p>
             <p className="mt-1 break-all text-sm text-slate-900">
@@ -224,7 +224,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
           </div>
 
           <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+            <p className="text-xs font-medium uppercase text-slate-400">
               Criado em
             </p>
             <p className="mt-1 text-sm text-slate-900">
@@ -233,7 +233,7 @@ export default async function LoteDetalhePage({ params }: PageProps) {
           </div>
 
           <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+            <p className="text-xs font-medium uppercase text-slate-400">
               Finalizado em
             </p>
             <p className="mt-1 text-sm text-slate-900">

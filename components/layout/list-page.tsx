@@ -89,7 +89,7 @@ export function ListFiltersForm({ className, children, ...props }: FormHTMLAttri
 export function ListFilterField({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
     <label className={cn('space-y-1.5', className)}>
-      <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">{label}</span>
+      <span className="text-xs font-medium uppercase text-slate-400">{label}</span>
       {children}
     </label>
   )
