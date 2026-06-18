@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+import { inflateSync } from "zlib";
 import * as XLSX from "xlsx";
 
 export type ParcelaNormalizada = {
@@ -146,6 +148,19 @@ const PADRAO_SUPERLOGICA_UNIDADES: Omit<
   tipoConversao: "unidades",
   fornecedor: "Superlógica",
   sistema: "Superlógica Condomínios",
+  relatorio: "Relatório de Unidades - Completo",
+  ativo: true,
+};
+
+const PADRAO_HABITA_UNIDADES: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "habita-unidades-completo-v1",
+  nome: "Habita · Unidades",
+  tipoConversao: "unidades",
+  fornecedor: "Habita",
+  sistema: "Habita Adm de Condomínios",
   relatorio: "Relatório de Unidades - Completo",
   ativo: true,
 };
@@ -1471,7 +1486,7 @@ function buildUnidadesInconsistencias(unidades: UnidadeConversaoPreview[]) {
   unidades.forEach((unidade, index) => {
     const linha = index + 2;
     const key =
-      `${unidade.bloco || "0"}::${unidade.identificacao}`.toUpperCase();
+      `${unidade.bloco || "0"}::${unidade.identificacao}::${unidade.tipoResponsavel || "nao_informado"}::${unidade.responsavelDocumento || unidade.responsavelNome}`.toUpperCase();
 
     if (seen.has(key)) {
       inconsistencias.push(
@@ -2111,6 +2126,507 @@ function detectSuperlogicaUnidades(text: string) {
       sample: getPdfTextSample(normalized),
     },
   };
+}
+
+const HABITA_TYPE3_CHAR_MAP: Record<number, string> = {
+  0: "E",
+  1: "m",
+  2: "i",
+  3: "t",
+  4: "d",
+  5: "o",
+  6: " ",
+  7: "e",
+  8: "1",
+  9: "5",
+  11: "0",
+  12: "2",
+  13: "6",
+  14: ":",
+  15: "4",
+  16: "3",
+  17: "-",
+  18: "P",
+  19: "á",
+  20: "g",
+  21: "n",
+  22: "a",
+  23: "8",
+  24: "R",
+  25: "e",
+  26: "l",
+  27: "a",
+  28: "t",
+  29: "ó",
+  30: "r",
+  31: "i",
+  33: "d",
+  34: "e",
+  35: "U",
+  36: "n",
+  37: "s",
+  38: "-",
+  39: "C",
+  40: "m",
+  41: "p",
+  42: "í",
+  43: ":",
+  44: "3",
+  45: "1",
+  46: "4",
+  47: "5",
+  48: "M",
+  49: "E",
+  50: "T",
+  51: "O",
+  52: "A",
+  53: "S",
+  54: "B",
+  55: "I",
+  56: "ç",
+  57: "D",
+  58: "V",
+  59: "O",
+  60: "L",
+  61: "Ô",
+  62: "N",
+  63: "Ã",
+  64: "P",
+  65: "6",
+  66: "2",
+  67: "9",
+  68: "J",
+  69: ".",
+  70: "/",
+  71: "c",
+  72: "g",
+  73: "9",
+  74: "7",
+  75: "D",
+  76: "R",
+  77: "O",
+  78: "G",
+  79: "U",
+  80: "I",
+  81: "L",
+  82: "M",
+  83: "S",
+  84: "N",
+  85: "E",
+  86: "n",
+  87: "d",
+  88: "e",
+  89: "r",
+  90: "ç",
+  91: "o",
+  92: " ",
+  93: "c",
+  94: "b",
+  95: "a",
+  96: "ê",
+  97: "C",
+  98: "r",
+  99: "A",
+  100: "V",
+  101: "T",
+  102: "D",
+  103: "s",
+  104: "p",
+  105: "i",
+  106: "Ó",
+  107: "ã",
+  108: "F",
+  109: ".",
+  110: "x",
+  111: "F",
+  112: "í",
+  113: "s",
+  114: "c",
+  115: "T",
+  116: "l",
+  117: "f",
+  118: "/",
+  119: "-",
+  120: "m",
+  121: "t",
+  122: "u",
+  123: "p",
+  124: "u",
+  125: "l",
+  126: "@",
+  127: "b",
+  128: "g",
+  129: "f",
+  130: "Z",
+  131: "Í",
+  132: "z",
+  133: "b",
+  134: "j",
+  135: "ã",
+  136: "é",
+  137: "q",
+  138: "a",
+  139: "v",
+  140: "Q",
+  141: "á",
+  142: "R",
+  143: "õ",
+  144: "8",
+  145: ",",
+  146: "Á",
+  147: "7",
+  148: "H",
+  149: "Ô",
+  150: "Ã",
+  151: "u",
+  152: "h",
+  153: "Á",
+  154: "õ",
+  155: "Q",
+  156: "J",
+  157: "v",
+};
+
+function decodeHabitaType3Text(text: string) {
+  return [...text]
+    .map((char) => HABITA_TYPE3_CHAR_MAP[char.charCodeAt(0)] ?? char)
+    .join("");
+}
+
+type PdfObjectIndexEntry = {
+  start: number;
+  end: number;
+  body: string;
+};
+
+function buildPdfObjectIndex(buffer: Buffer) {
+  const source = buffer.toString("latin1");
+  const objects = new Map<number, PdfObjectIndexEntry>();
+  const objectRegex = /(\d+)\s+0\s+obj\b/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = objectRegex.exec(source))) {
+    const id = Number(match[1]);
+    const start = objectRegex.lastIndex;
+    const end = source.indexOf("endobj", start);
+    if (end < 0) break;
+    objects.set(id, { start, end, body: source.slice(start, end) });
+    objectRegex.lastIndex = end + "endobj".length;
+  }
+
+  return { source, objects };
+}
+
+function getPdfObjectStream(
+  buffer: Buffer,
+  source: string,
+  object: PdfObjectIndexEntry | undefined,
+) {
+  if (!object) return null;
+  const streamIndex = object.body.indexOf("stream");
+  if (streamIndex < 0) return null;
+
+  let dataStart = object.start + streamIndex + "stream".length;
+  if (source[dataStart] === "\r" && source[dataStart + 1] === "\n") {
+    dataStart += 2;
+  } else if (source[dataStart] === "\n") {
+    dataStart += 1;
+  }
+
+  const dataEnd = source.indexOf("endstream", dataStart);
+  if (dataEnd < 0) return null;
+
+  const raw = buffer.subarray(dataStart, dataEnd);
+  return /FlateDecode/.test(object.body) ? inflateSync(raw) : raw;
+}
+
+function getHabitaPageObjectIds(objects: Map<number, PdfObjectIndexEntry>) {
+  return [...objects.entries()]
+    .filter(
+      ([, object]) =>
+        /\/Type\s*\/Page\b/.test(object.body) &&
+        !/\/Type\s*\/Pages\b/.test(object.body),
+    )
+    .map(([id]) => id)
+    .sort((a, b) => a - b);
+}
+
+function getHabitaFontResourceId(
+  objects: Map<number, PdfObjectIndexEntry>,
+  pageObjectId: number,
+) {
+  const page = objects.get(pageObjectId);
+  const match = page?.body.match(/\/Font\s+(\d+)\s+0\s+R/);
+  return match ? Number(match[1]) : null;
+}
+
+function getHabitaType3FontId(
+  objects: Map<number, PdfObjectIndexEntry>,
+  fontResourceId: number | null,
+) {
+  if (!fontResourceId) return null;
+  const resource = objects.get(fontResourceId);
+  const match = resource?.body.match(/\/R\d+\s+(\d+)\s+0\s+R/);
+  return match ? Number(match[1]) : null;
+}
+
+function getHabitaCharProcRefs(
+  objects: Map<number, PdfObjectIndexEntry>,
+  fontObjectId: number | null,
+) {
+  const font = fontObjectId ? objects.get(fontObjectId) : null;
+  const charProcs = font?.body.match(/\/CharProcs\s*<<([\s\S]*?)>>/);
+  const refs = new Map<number, number>();
+  if (!charProcs) return refs;
+
+  const refRegex = /\/(\d+)\s+(\d+)\s+0\s+R/g;
+  let match: RegExpExecArray | null;
+  while ((match = refRegex.exec(charProcs[1]))) {
+    refs.set(Number(match[1]), Number(match[2]));
+  }
+
+  return refs;
+}
+
+function hashHabitaGlyph(stream: Buffer) {
+  return createHash("sha1").update(stream).digest("hex");
+}
+
+function buildHabitaGlyphHashMap(buffer: Buffer) {
+  const { source, objects } = buildPdfObjectIndex(buffer);
+  const pageIds = getHabitaPageObjectIds(objects);
+  const firstFontId = getHabitaType3FontId(
+    objects,
+    getHabitaFontResourceId(objects, pageIds[0]),
+  );
+  const hashToChar = new Map<string, string>();
+
+  for (const [code, streamObjectId] of getHabitaCharProcRefs(
+    objects,
+    firstFontId,
+  )) {
+    const known = HABITA_TYPE3_CHAR_MAP[code];
+    if (!known || code === 10 || code === 32) continue;
+
+    const stream = getPdfObjectStream(
+      buffer,
+      source,
+      objects.get(streamObjectId),
+    );
+    if (stream) hashToChar.set(hashHabitaGlyph(stream), known);
+  }
+
+  const pageMaps = pageIds.map((pageId) => {
+    const fontId = getHabitaType3FontId(
+      objects,
+      getHabitaFontResourceId(objects, pageId),
+    );
+    const pageMap = new Map<number, string>();
+
+    for (const [code, streamObjectId] of getHabitaCharProcRefs(
+      objects,
+      fontId,
+    )) {
+      const stream = getPdfObjectStream(
+        buffer,
+        source,
+        objects.get(streamObjectId),
+      );
+      const decoded = stream ? hashToChar.get(hashHabitaGlyph(stream)) : null;
+      if (decoded) pageMap.set(code, decoded);
+    }
+
+    return pageMap;
+  });
+
+  return pageMaps;
+}
+
+async function extractHabitaDecodedPdfText(buffer: Buffer) {
+  const pageMaps = buildHabitaGlyphHashMap(buffer);
+  const pdfjs = (await import(
+    "pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js"
+  )) as any;
+  pdfjs.disableWorker = true;
+
+  const documentTask = pdfjs.getDocument(new Uint8Array(buffer));
+  const document = await documentTask.promise;
+  const pages: string[] = [];
+
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber);
+    const textContent = await page.getTextContent({
+      normalizeWhitespace: false,
+      disableCombineTextItems: false,
+    });
+    const pageMap = pageMaps[pageNumber - 1] ?? new Map<number, string>();
+    let lastY: number | null = null;
+    let pageText = "";
+
+    for (const item of textContent.items ?? []) {
+      const decoded = [...String(item.str ?? "")]
+        .map((char) => {
+          const code = char.charCodeAt(0);
+          return pageMap.get(code) ?? HABITA_TYPE3_CHAR_MAP[code] ?? char;
+        })
+        .join("");
+
+      if (lastY === item.transform?.[5] || lastY === null) {
+        pageText += decoded;
+      } else {
+        pageText += `\n${decoded}`;
+      }
+      lastY = item.transform?.[5] ?? null;
+    }
+
+    pages.push(pageText);
+  }
+
+  await document.destroy?.();
+  return normalizePdfText(pages.join("\n"));
+}
+
+function normalizeHabitaDecodedText(text: string) {
+  return normalizePdfText(decodeHabitaType3Text(text));
+}
+
+function cleanHabitaDecodedLabel(value: string) {
+  return normalize(value)
+    .replace(/\bd(?=[A-Z0-9])/g, "")
+    .replace(/(?<=[A-Z0-9])d(?=[A-Z0-9])/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function detectHabitaUnidades(text: string) {
+  const normalized = normalizePdfText(text);
+  const headerMatches = countRegexMatches(
+    normalized,
+    /(?:^|\n)\s*Bl\s*c\s*:\s*[^\n]*?Unieaee\s*:\s*C.{0,30}?cliente\s*:\s*\d{6}[A-Z0-9]{2,12}\s*-/gi,
+  );
+  const hits = [
+    /HABITA|Relat.ri\s+deedUnieaees|METROCASA|C ne m .ni\s*:\s*d?\d{3,}/i,
+    /CNPJ\s*:\s*d?\d{2}[.\dO/ -]{12,}/i,
+    /Bl\s*c\s*:\s*.*Unieaee\s*:/i,
+    /Dados pessoais/i,
+    /Telefone\/e-mail/i,
+    /Dae sde dpagae r|Dados gerais/i,
+    /CPF\s*:\s*\d{3}\.\d{3}\.\d{3}-\d{2}/i,
+  ].reduce((total, regex) => total + (regex.test(normalized) ? 1 : 0), 0);
+
+  const condominioMatch = normalized.match(
+    /C ne m .ni\s*:\s*d?(\d+)\s*d-\s*([A-Z0-9 ?ÃÓÇ.-]{4,80})/i,
+  );
+  const condominioDetectado = condominioMatch
+    ? cleanHabitaDecodedLabel(condominioMatch[2]).replace(/\s+Eneere.*$/i, "")
+    : null;
+  const ok = hits >= 4 && headerMatches >= 5;
+  const confianca = ok
+    ? Math.min(98, 70 + hits * 3 + Math.min(12, headerMatches))
+    : Math.min(60, hits * 8 + Math.min(10, headerMatches));
+
+  return {
+    ok,
+    condominioDetectado,
+    confianca,
+    detalhes: { hits, headerMatches },
+  };
+}
+
+function cleanHabitaEmail(value: string) {
+  return value.replace(/\s+/g, "").replace(/\?/g, "");
+}
+
+function extractHabitaEmail(block: string) {
+  const emailMatch = block.match(
+    /[A-Z0-9._%+-]+\s*@\s*[A-Z0-9.-]+\s*\.\s*[A-Z]{2,}/i,
+  );
+  return emailMatch ? cleanHabitaEmail(emailMatch[0]).toLowerCase() : "";
+}
+
+function extractHabitaPhone(block: string, documento = "") {
+  const documentoDigits = onlyDigits(documento);
+  const phones = [...block.matchAll(/\b(?:\d[\s.-]?){10,11}\b/g)]
+    .map((match) => onlyDigits(match[0]))
+    .filter((phone) => phone.length >= 10 && phone.length <= 11);
+  return (
+    phones.find((phone) => phone !== documentoDigits) ??
+    phones[0] ??
+    ""
+  );
+}
+
+function extractHabitaTipoUnidade(block: string) {
+  const match = block.match(/Tip\s+deedunieaee\s*:\s*([^\n]+)/i);
+  const tipo = cleanHabitaDecodedLabel(match?.[1] ?? "");
+  if (/^loua$/i.test(tipo)) return "Loja";
+  return tipo || "Unidade";
+}
+
+function inferHabitaTipoResponsavel(block: string) {
+  const loose = normalizeForLooseMatch(block);
+  if (/LOCAT|INQUIL/.test(loose)) return "inquilino";
+  if (/PROPRIET/.test(loose)) return "proprietario";
+  return "nao_informado";
+}
+
+function parseHabitaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
+  const normalized = normalizePdfText(text);
+  const headerRegex =
+    /(?:^|\n)\s*Bl\s*c\s*:\s*([^\n]*?)\s*Unieaee\s*:\s*C.{0,30}?cliente\s*:\s*(\d{6})([A-Z0-9]{2,12})\s*-\s*([^\n]+)/gi;
+  const matches = [...normalized.matchAll(headerRegex)].map((match) => ({
+    index: match.index ?? 0,
+    bloco: normalize(match[1]) || "0",
+    codigoCliente: normalize(match[2]),
+    identificacao: normalize(match[3]),
+    responsavel: normalize(match[4]),
+  }));
+  const unidades = new Map<string, UnidadeConversaoPreview>();
+
+  matches.forEach((match, index) => {
+    const nextIndex =
+      index + 1 < matches.length ? matches[index + 1].index : normalized.length;
+    const block = normalized.slice(match.index, nextIndex);
+
+    const documentoMatch = block.match(/CPF\s*:\s*([0-9. -]{11,18})/i);
+    const documento = documentoMatch ? cleanDocument(documentoMatch[1]) : "";
+    const key =
+      `${match.bloco}::${match.identificacao}::${match.codigoCliente}::${documento || match.responsavel}`.toUpperCase();
+    if (unidades.has(key)) return;
+
+    const telefone = extractHabitaPhone(block, documento);
+    const email = extractHabitaEmail(block);
+    const tipo = extractHabitaTipoUnidade(block);
+    const observacoes = [
+      "Origem: Conversão de PDF de unidades",
+      "Sistema: Habita",
+      `Código do cliente: ${match.codigoCliente}`,
+      match.bloco ? `Bloco: ${match.bloco}` : "",
+      /Telefone\/e-mail da unidade/i.test(block)
+        ? "Contato informado na seção da unidade"
+        : "",
+      /Telefone\/e-mail do cliente/i.test(block)
+        ? "Contato informado na seção do cliente"
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    unidades.set(key, {
+      identificacao: match.identificacao,
+      bloco: match.bloco,
+      tipo,
+      responsavelNome: match.responsavel || "Responsável não identificado",
+      tipoResponsavel: inferHabitaTipoResponsavel(block),
+      responsavelDocumento: documento,
+      telefone,
+      email,
+      status: "ativo",
+      observacoes,
+    });
+  });
+
+  return [...unidades.values()];
 }
 
 function extractSuperlogicaSection(
@@ -3415,10 +3931,33 @@ function buildPreviewFromUnidadesPdf({
 
 async function parseUnidades(input: ParseInput): Promise<ParseResult> {
   if (isPdfInput(input)) {
+    const habitaText = await extractHabitaDecodedPdfText(input.buffer).catch(
+      () => "",
+    );
+    const deteccaoHabita = habitaText
+      ? detectHabitaUnidades(habitaText)
+      : { ok: false, condominioDetectado: null, confianca: 0 };
+
+    if (deteccaoHabita.ok) {
+      const unidades = parseHabitaUnidadesPdf(habitaText);
+      return buildPreviewFromUnidadesPdf({
+        filename: input.filename,
+        unidades,
+        condominioCnpj: input.condominioCnpj,
+        padraoDetectado: buildPadraoDetectado(PADRAO_HABITA_UNIDADES, {
+          condominioDetectado: deteccaoHabita.condominioDetectado,
+          confianca: deteccaoHabita.confianca,
+        }),
+      });
+    }
+
     const text = await extractPdfText(input);
+    const deteccaoHabitaFallback = detectHabitaUnidades(
+      normalizeHabitaDecodedText(text),
+    );
 
     const qualidadeTexto = analyzePdfTextQuality(text);
-    if (!qualidadeTexto.ok) {
+    if (!qualidadeTexto.ok && !deteccaoHabitaFallback.ok) {
       return {
         ok: false,
         error: buildPdfQualityError(qualidadeTexto),
@@ -3427,6 +3966,23 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
 
     const deteccaoSuperlogica = detectSuperlogicaUnidades(text);
     const deteccaoHflex = detectHflexLiveFacilitiesUnidades(text);
+
+    if (
+      deteccaoHabitaFallback.ok &&
+      deteccaoHabitaFallback.confianca >= deteccaoSuperlogica.confianca &&
+      deteccaoHabitaFallback.confianca >= deteccaoHflex.confianca
+    ) {
+      const unidades = parseHabitaUnidadesPdf(normalizeHabitaDecodedText(text));
+      return buildPreviewFromUnidadesPdf({
+        filename: input.filename,
+        unidades,
+        condominioCnpj: input.condominioCnpj,
+        padraoDetectado: buildPadraoDetectado(PADRAO_HABITA_UNIDADES, {
+          condominioDetectado: deteccaoHabitaFallback.condominioDetectado,
+          confianca: deteccaoHabitaFallback.confianca,
+        }),
+      });
+    }
 
     if (
       deteccaoSuperlogica.ok &&

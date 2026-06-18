@@ -28,6 +28,14 @@ const templates: RecognizedTemplate[] = [
       "Corrige textos com glifos duplicados, extrai unidade, titular, documento, telefone e e-mail, e gera XLSX para Importações/Unidades.",
   },
   {
+    nome: "Habita · Unidades",
+    categoria: "Unidades",
+    status: "Ativo",
+    cobertura: "PDF · Relatório de Unidades Completo",
+    descricao:
+      "Decodifica a fonte Type3 do PDF Habita, extrai unidade, responsável, CPF, telefone/e-mail e gera XLSX para Importações/Responsáveis.",
+  },
+  {
     nome: "Superlógica · Cobranças",
     categoria: "Cobranças",
     status: "Homologado",
