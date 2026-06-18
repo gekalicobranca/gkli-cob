@@ -16,6 +16,11 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean) as string[]))
 }
 
+function isMissingDestinatarioPreferencial(error: any) {
+  const message = String(error?.message ?? '')
+  return error?.code === '42703' || error?.code === 'PGRST204' || message.includes('destinatario_preferencial')
+}
+
 async function getUnidadeIdsComJudicializacaoAtiva(
   supabase: Awaited<ReturnType<typeof createClient>>,
   unidadeIds: string[],
@@ -174,16 +179,28 @@ export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {
   ].filter(Boolean) as string[]
 
   if (reguaIds.length) {
-    const { data: reguas, error: reguasError } = await supabase
+    let { data: reguas, error: reguasError }: { data: any[] | null; error: any } = await supabase
       .from('reguas')
       .select('id, nome, tipo, status, prioridade, padrao, destinatario_preferencial')
       .in('id', [...new Set(reguaIds)])
+
+    if (reguasError && isMissingDestinatarioPreferencial(reguasError)) {
+      const legacy = await supabase
+        .from('reguas')
+        .select('id, nome, tipo, status, prioridade, padrao')
+        .in('id', [...new Set(reguaIds)])
+      reguas = legacy.data
+      reguasError = legacy.error
+    }
 
     if (reguasError) {
       throw new Error(`Erro ao carregar régua da cobrança: ${reguasError.message}`)
     }
 
-    const reguasMap = new Map(((reguas ?? []) as any[]).map((regua) => [regua.id, regua]))
+    const reguasMap = new Map(((reguas ?? []) as any[]).map((regua) => [
+      regua.id,
+      { ...regua, destinatario_preferencial: regua.destinatario_preferencial ?? 'proprietario' },
+    ]))
     cobranca.regua_cobranca = reguasMap.get(cobranca.condominios?.regua_cobranca_id) ?? null
     cobranca.regua_acordo = reguasMap.get(cobranca.condominios?.regua_acordo_id) ?? null
   } else {
