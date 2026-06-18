@@ -11,6 +11,7 @@ create table if not exists public.responsaveis_unidades (
   unidade text not null,
   bloco text null,
   responsavel_nome text null,
+  tipo_responsavel text not null default 'nao_informado',
   responsavel_documento text null,
   telefone text null,
   email text null,
@@ -25,7 +26,8 @@ create unique index if not exists responsaveis_unidades_unq
   on public.responsaveis_unidades (
     condominio_id,
     lower(trim(coalesce(bloco, ''))),
-    lower(trim(unidade))
+    lower(trim(unidade)),
+    tipo_responsavel
   );
 
 create index if not exists responsaveis_unidades_carteira_idx
@@ -52,6 +54,7 @@ insert into public.responsaveis_unidades (
   unidade,
   bloco,
   responsavel_nome,
+  tipo_responsavel,
   responsavel_documento,
   telefone,
   email,
@@ -65,6 +68,7 @@ select
   u.identificacao,
   u.bloco,
   u.responsavel_nome,
+  'nao_informado',
   u.responsavel_documento,
   u.telefone,
   u.email,
@@ -75,7 +79,7 @@ from public.unidades u
 where u.carteira_id is not null
   and u.condominio_id is not null
   and nullif(trim(u.identificacao), '') is not null
-on conflict (condominio_id, lower(trim(coalesce(bloco, ''))), lower(trim(unidade)))
+on conflict (condominio_id, lower(trim(coalesce(bloco, ''))), lower(trim(unidade)), tipo_responsavel)
 do update set
   carteira_id = excluded.carteira_id,
   responsavel_nome = coalesce(nullif(trim(excluded.responsavel_nome), ''), public.responsaveis_unidades.responsavel_nome),

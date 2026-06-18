@@ -24,6 +24,7 @@ import {
   registrarPendenciasCobrancasAusentes,
   type CobrancaImportadaConciliacao,
 } from "./cobrancas-conciliacao";
+import { sincronizarResponsavelComUnidadeOperacional } from "@/features/responsaveis-unidades/sync-unidade";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -1394,7 +1395,7 @@ async function buscarUnidadeExistente(
 
 async function buscarResponsavelApoio(
   supabase: SupabaseClient,
-  params: { condominioId: string; identificacao: string; bloco?: string | null },
+  params: { condominioId: string; identificacao: string; bloco?: string | null; tipoResponsavel?: string | null },
 ) {
   if (!params.condominioId || !params.identificacao) return null;
 
@@ -1405,14 +1406,25 @@ async function buscarResponsavelApoio(
     .eq("unidade", params.identificacao)
     .eq("ativo", true);
 
+  if (params.tipoResponsavel) {
+    query = query.eq("tipo_responsavel", normalizeTipoResponsavel(params.tipoResponsavel));
+  }
+
   const bloco = String(params.bloco ?? "").trim();
   query = bloco ? query.eq("bloco", bloco) : query.is("bloco", null);
 
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await query.limit(5);
   if (error)
     throw new Error(`Erro ao buscar responsavel de apoio: ${error.message}`);
 
-  return data as ResponsavelUnidadeApoioRow | null;
+  const rows = (data ?? []) as ResponsavelUnidadeApoioRow[];
+  if (rows.length === 0) return null;
+
+  return (
+    rows.find((row) => row.tipo_responsavel === "proprietario") ??
+    rows.find((row) => row.tipo_responsavel === "nao_informado") ??
+    rows[0]
+  );
 }
 
 function dadosUnidadeComApoio(
@@ -1719,25 +1731,28 @@ async function importarResponsaveisUnidades(
         throw new Error("condomínio/carteira ausente");
       if (!identificacao) throw new Error("identificação ausente");
 
+      const tipoResponsavel = normalizeTipoResponsavel(payload.tipo_responsavel);
       const existente = await buscarResponsavelApoio(supabase, {
         condominioId: payload.condominio_id,
         identificacao,
         bloco: payload.bloco,
+        tipoResponsavel,
       });
 
+      const ativo = normalizeUnidadeStatus(payload.status) !== "inativa";
       const values = {
         carteira_id: payload.carteira_id,
         condominio_id: payload.condominio_id,
         unidade: identificacao,
         bloco: payload.bloco || null,
         responsavel_nome: payload.responsavel_nome || null,
-        tipo_responsavel: normalizeTipoResponsavel(payload.tipo_responsavel),
+        tipo_responsavel: tipoResponsavel,
         responsavel_documento: onlyDigits(
           payload.responsavel_documento || payload.cpf || payload.documento || "",
         ),
         telefone: onlyDigits(payload.telefone || payload.celular || payload.whatsapp || ""),
         email: normalizeEmail(payload.email),
-        ativo: normalizeUnidadeStatus(payload.status) !== "inativa",
+        ativo,
         origem: "importacao_unidades",
         observacoes: payload.observacoes || null,
         updated_at: new Date().toISOString(),
@@ -1746,12 +1761,34 @@ async function importarResponsaveisUnidades(
       if (existente?.id) {
         const { error } = await supabase.from("responsaveis_unidades").update(values).eq("id", existente.id);
         if (error) throw error;
+        await sincronizarResponsavelComUnidadeOperacional(supabase, {
+          carteiraId: values.carteira_id,
+          condominioId: values.condominio_id,
+          unidade: values.unidade,
+          bloco: values.bloco,
+          responsavelNome: values.responsavel_nome,
+          responsavelDocumento: values.responsavel_documento,
+          telefone: values.telefone,
+          email: values.email,
+          ativo,
+        });
         resultado.atualizados += 1;
         continue;
       }
 
       const { error } = await supabase.from("responsaveis_unidades").insert(values);
       if (error) throw error;
+      await sincronizarResponsavelComUnidadeOperacional(supabase, {
+        carteiraId: values.carteira_id,
+        condominioId: values.condominio_id,
+        unidade: values.unidade,
+        bloco: values.bloco,
+        responsavelNome: values.responsavel_nome,
+        responsavelDocumento: values.responsavel_documento,
+        telefone: values.telefone,
+        email: values.email,
+        ativo,
+      });
       resultado.importados += 1;
     } catch (error) {
       resultado.erros.push(

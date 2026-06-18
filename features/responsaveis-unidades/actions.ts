@@ -7,6 +7,7 @@ import { requireRole } from '@/utils/auth/require-role'
 import { requireUser } from '@/utils/auth/require-user'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { registrarEventoOperacional } from '@/features/operacional/service'
+import { sincronizarResponsavelComUnidadeOperacional } from '@/features/responsaveis-unidades/sync-unidade'
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
@@ -96,6 +97,18 @@ export async function createResponsavelUnidade(formData: FormData) {
     throw new Error(`Erro ao criar responsável: ${error.message}`)
   }
 
+  await sincronizarResponsavelComUnidadeOperacional(supabase as any, {
+    carteiraId,
+    condominioId,
+    unidade,
+    bloco: bloco || null,
+    responsavelNome,
+    responsavelDocumento,
+    telefone,
+    email,
+    ativo: true,
+  })
+
   await registrarEventoOperacional(supabase as any, {
     carteiraId,
     entidadeTipo: 'operacional',
@@ -166,6 +179,18 @@ export async function updateResponsavelUnidade(formData: FormData) {
   if (error) {
     throw new Error(`Erro ao atualizar responsável: ${error.message}`)
   }
+
+  await sincronizarResponsavelComUnidadeOperacional(supabase as any, {
+    carteiraId: (atual as any).carteira_id,
+    condominioId: (atual as any).condominio_id,
+    unidade,
+    bloco: bloco || null,
+    responsavelNome,
+    responsavelDocumento,
+    telefone,
+    email,
+    ativo,
+  })
 
   await registrarEventoOperacional(supabase as any, {
     carteiraId: (atual as any).carteira_id ?? null,
