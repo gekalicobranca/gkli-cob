@@ -207,6 +207,7 @@ export function ConversionUploadCard({
     setPreview(null);
     setFilename(file?.name ?? null);
     setSelectedFile(file);
+    setCondominioCnpj("");
 
     if (!file) return;
     if (file.size > MAX_SERVER_UPLOAD_BYTES) {
@@ -223,7 +224,6 @@ export function ConversionUploadCard({
       const formData = new FormData();
       formData.append("file", file);
       formData.append("tipo_conversao", tipoConversao);
-      if (condominioCnpj) formData.append("condominio_cnpj", condominioCnpj);
 
       const response = await fetch("/api/conversao-relatorio/parse", {
         method: "POST",
@@ -238,12 +238,10 @@ export function ConversionUploadCard({
       }
 
       const parsedPreview = result.preview as ConversaoPreview;
-      const autoCondominio = condominioCnpj
-        ? null
-        : autoMatchCondominio(
-            condominios,
-            parsedPreview.padraoDetectado?.condominioDetectado,
-          );
+      const autoCondominio = autoMatchCondominio(
+        condominios,
+        parsedPreview.padraoDetectado?.condominioDetectado,
+      );
 
       if (autoCondominio) {
         setCondominioCnpj(autoCondominio.cnpj);
