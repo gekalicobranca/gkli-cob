@@ -1400,7 +1400,7 @@ async function buscarResponsavelApoio(
 
   let query = supabase
     .from("responsaveis_unidades")
-    .select("id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, responsavel_documento, telefone, email")
+    .select("id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, email")
     .eq("condominio_id", params.condominioId)
     .eq("unidade", params.identificacao)
     .eq("ativo", true);

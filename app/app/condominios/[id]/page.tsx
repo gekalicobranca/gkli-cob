@@ -12,7 +12,7 @@ import { FormField } from '@/components/ui/form-field'
 import { StatusBadge } from '@/components/data/status-badge'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
-import { getCondominioIntegral, listEventosDoCondominio, listImportacoesDoCondominio, listUnidadesDoCondominio } from '@/features/condominios/queries'
+import { getCondominioIntegral, listEventosDoCondominio, listImportacoesDoCondominio, listResponsaveisDoCondominio, listUnidadesDoCondominio } from '@/features/condominios/queries'
 import { listReguasForSelect } from '@/features/reguas/queries'
 import { updateCondominioIntegral } from '@/features/condominios/actions'
 import { ClassificacaoOperacionalBadge, ClassificacaoOperacionalField } from '@/features/condominios/components/classificacao-operacional'
@@ -29,16 +29,19 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
 
   if (!condominio) notFound()
 
-  const [unidades, importacoes, eventos] = await Promise.all([
+  const [unidades, responsaveis, importacoes, eventos] = await Promise.all([
     listUnidadesDoCondominio(condominio.id, scope),
+    listResponsaveisDoCondominio(condominio.id, scope),
     listImportacoesDoCondominio(condominio, scope),
     listEventosDoCondominio(condominio, scope),
   ])
 
-  const unidadesAtivas = unidades.filter((row: any) => row.status === 'ativo').length
-  const contatosComTelefone = unidades.filter((row: any) => row.telefone).length
-  const contatosComEmail = unidades.filter((row: any) => row.email).length
-  const coberturaContato = unidades.length ? Math.round(((contatosComTelefone + contatosComEmail) / (unidades.length * 2)) * 100) : 0
+  const unidadesAtivas = unidades.filter((row: any) => ['ativo', 'ativa'].includes(String(row.status ?? '').toLowerCase())).length
+  const baseContatos = responsaveis.length ? responsaveis : unidades
+  const contatosComTelefone = baseContatos.filter((row: any) => row.telefone).length
+  const contatosComEmail = baseContatos.filter((row: any) => row.email).length
+  const coberturaContato = baseContatos.length ? Math.round(((contatosComTelefone + contatosComEmail) / (baseContatos.length * 2)) * 100) : 0
+  const responsaveisAtivos = responsaveis.filter((row: any) => row.ativo !== false).length
   const ultimaImportacao = importacoes[0]
   const nomeExibicao = condominio.nome_operacional || condominio.nome || 'Condomínio'
 
@@ -62,8 +65,9 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
         <span className="text-sm text-slate-500">Classificação usada para orientar tom, prioridade e cuidado operacional.</span>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Kpi icon={<Home size={18} />} label="Unidades" value={String(unidades.length)} detail={`${unidadesAtivas} ativas`} />
+        <Kpi icon={<Users size={18} />} label="Responsáveis" value={String(responsaveis.length)} detail={`${responsaveisAtivos} ativos`} />
         <Kpi icon={<Users size={18} />} label="Cobertura contatos" value={`${coberturaContato}%`} detail={`${contatosComTelefone} telefones · ${contatosComEmail} e-mails`} />
         <Kpi icon={<ClipboardList size={18} />} label="Importações" value={String(importacoes.length)} detail={ultimaImportacao ? `última em ${formatDateTime(ultimaImportacao.created_at)}` : 'sem importações'} />
         <Kpi icon={<Activity size={18} />} label="Eventos" value={String(eventos.length)} detail="auditoria operacional" />
@@ -74,6 +78,7 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
         <Tab href="#cobranca" icon={<Landmark size={15} />} label="Cobrança" />
         <Tab href="#reguas" icon={<Activity size={15} />} label="Réguas" />
         <Tab href="#unidades" icon={<Home size={15} />} label="Unidades" />
+        <Tab href="#responsaveis" icon={<Users size={15} />} label="Responsáveis" />
         <Tab href="#historico" icon={<History size={15} />} label="Histórico" />
         <Tab href="#auditoria" icon={<FileClock size={15} />} label="Auditoria" />
       </div>
@@ -160,6 +165,18 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
           </div>
           {unidades.length === 0 ? <div className="p-5 text-sm text-slate-500">Nenhuma unidade vinculada a este condomínio.</div> : (
             <div className="divide-y divide-slate-100">{unidades.slice(0, 12).map((unidade: any) => (<Link key={unidade.id} href={`/app/unidades/${unidade.id}`} className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[1fr_1.2fr_1fr_1fr_90px] lg:items-center"><div><p className="text-sm font-medium text-slate-950">{unidade.identificacao}</p><p className="mt-1 text-xs text-slate-500">Bloco {unidade.bloco || '-'}</p></div><div><p className="text-sm text-slate-700">{unidade.responsavel_nome || 'Responsável não informado'}</p><p className="mt-1 text-xs text-slate-500">{unidade.responsavel_documento || '-'}</p></div><div className="text-sm text-slate-600">{unidade.telefone || '-'}</div><div className="truncate text-sm text-slate-600">{unidade.email || '-'}</div><StatusBadge status={unidade.status} /></Link>))}</div>
+          )}
+        </Card>
+      </section>
+
+      <section id="responsaveis" className="scroll-mt-24">
+        <Card className="overflow-hidden p-0">
+          <div className="flex flex-col gap-3 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between">
+            <div><Badge tone="primary">Responsáveis</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Responsáveis importados</h2><p className="mt-1 text-sm text-slate-500">Base de apoio usada para contato, régua e mensageria. Não altera o total de unidades operacionais.</p></div>
+            <ButtonLink href={`/app/responsaveis?condominio_id=${condominio.id}`} variant="secondary">Ver todos</ButtonLink>
+          </div>
+          {responsaveis.length === 0 ? <div className="p-5 text-sm text-slate-500">Nenhum responsável de apoio vinculado a este condomínio.</div> : (
+            <div className="divide-y divide-slate-100">{responsaveis.slice(0, 12).map((responsavel: any) => (<Link key={responsavel.id} href={`/app/responsaveis/${responsavel.id}`} className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[1fr_1.2fr_1fr_1fr_110px] lg:items-center"><div><p className="text-sm font-medium text-slate-950">{responsavel.unidade}</p><p className="mt-1 text-xs text-slate-500">Bloco {responsavel.bloco || '-'}</p></div><div><p className="text-sm text-slate-700">{responsavel.responsavel_nome || 'Responsável não informado'}</p><p className="mt-1 text-xs text-slate-500">{responsavel.responsavel_documento || '-'}</p></div><div className="text-sm text-slate-600">{responsavel.telefone || '-'}</div><div className="truncate text-sm text-slate-600">{responsavel.email || '-'}</div><Badge tone={responsavel.ativo === false ? 'slate' : 'green'}>{responsavel.ativo === false ? 'Inativo' : 'Ativo'}</Badge></Link>))}</div>
           )}
         </Card>
       </section>

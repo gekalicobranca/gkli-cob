@@ -192,6 +192,26 @@ export async function listUnidadesDoCondominio(condominioId: string, scope: Cart
   return (data ?? []) as any[]
 }
 
+export async function listResponsaveisDoCondominio(condominioId: string, scope: CarteiraScope) {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('responsaveis_unidades')
+    .select('id, unidade, bloco, responsavel_nome, responsavel_documento, tipo_responsavel, telefone, email, ativo, carteira_id, condominio_id')
+    .eq('condominio_id', condominioId)
+    .order('unidade', { ascending: true })
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error(`Erro ao carregar responsáveis do condomínio: ${error.message}`)
+  }
+
+  return (data ?? []) as any[]
+}
+
 export async function listImportacoesDoCondominio(condominio: any, scope: CarteiraScope) {
   const supabase = await createClient()
 
