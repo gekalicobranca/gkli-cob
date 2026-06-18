@@ -1779,12 +1779,14 @@ function extractHflexOrderedOfficeUnidades(
     .filter((index) => index >= 0);
 
   // Neste layout Hflex/LiveFacilities as colunas saem como lista de unidades
-  // seguida pela lista de responsaveis. Se as quantidades batem, pareamos por ordem.
-  if (roleIndexes.length !== unidades.length) return [];
+  // seguida pela lista de responsaveis. Alguns relatórios incluem unidades
+  // administrativas depois do bloco OFFICE; elas ficam fora desta conversão.
+  if (roleIndexes.length < unidades.length) return [];
+  const officeRoleIndexes = roleIndexes.slice(0, unidades.length);
 
-  const pessoas = roleIndexes
+  const pessoas = officeRoleIndexes
     .map((roleIndex, index) => {
-      const previousRoleIndex = index === 0 ? -1 : roleIndexes[index - 1];
+      const previousRoleIndex = index === 0 ? -1 : officeRoleIndexes[index - 1];
       const nextRoleIndex =
         index + 1 < roleIndexes.length ? roleIndexes[index + 1] : lines.length;
       let nameIndex = roleIndex - 1;
