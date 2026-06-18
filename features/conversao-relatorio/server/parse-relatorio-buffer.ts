@@ -2469,12 +2469,12 @@ function buildHabitaGlyphHashMap(buffer: Buffer) {
 
 async function extractHabitaDecodedPdfText(buffer: Buffer) {
   const pageMaps = buildHabitaGlyphHashMap(buffer);
-  const runtimeRequire = new Function("modulePath", "return require(modulePath)") as (
-    modulePath: string,
-  ) => any;
-  const pdfjs = runtimeRequire(
-    "pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js",
-  ) as any;
+  // Keep this as an explicit require so Next/Vercel bundles the vendored pdf.js
+  // file. Dynamic import/new Function can work locally and still be skipped by
+  // the production bundler, which would send Habita PDFs to the generic quality
+  // blocker.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pdfjs = require("pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js") as any;
   pdfjs.disableWorker = true;
 
   const documentTask = pdfjs.getDocument(new Uint8Array(buffer));
