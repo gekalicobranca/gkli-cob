@@ -1299,6 +1299,7 @@ function repairDuplicatedGlyphLine(line: string) {
   // A correção é aplicada somente quando a linha tem forte padrão de caracteres
   // adjacentes repetidos, evitando alterar nomes/endereços legítimos.
   if (line.length < 8) return line;
+  if (/^\s*(?:UNIDADE\s*)?\d{3,8}\s*[A-Z]/i.test(line)) return line;
 
   let adjacentDuplicates = 0;
   let comparable = 0;
@@ -1393,7 +1394,7 @@ function analyzePdfTextQuality(text: string): PdfTextQualityReport {
   );
   const blocosHflex = countRegexMatches(
     loose,
-    /(?:^|\n)\s*\d{3,8}\s+[A-Z0-9][A-Z0-9 .'-]{1,60}\s*(?:\n|$)/g,
+    /(?:^|\n)\s*(?:UNIDADE\s*)?\d{3,8}\s*[A-Z0-9][A-Z0-9 .'-]{1,80}\s*(?:\n|$)/g,
   );
 
   const isSuperlogica = sinaisSuperlogica >= 5 && blocosSuperlogica > 0;
@@ -1707,7 +1708,7 @@ function parsePessoaFromPdfChunk(
   let rawNome = normalize(roleMatch[1])
     .replace(/^\d{3,8}\s+[A-Z0-9 .'-]{1,50}\s+/i, "")
     .replace(/^#?\d{2,10}\s+/, "")
-    .replace(/^#?[A-Z0-9]+\s+/, "")
+    .replace(/^#?[A-Z0-9]*\d[A-Z0-9]*\s+/, "")
     .replace(/^(CIPO|TORRE DO CIP[ÓO]|OFFICE|EDIFICIO OFFICE TAMBORE)\s+/i, "")
     .trim();
 
@@ -1741,8 +1742,102 @@ function parsePessoaFromPdfChunk(
   };
 }
 
+function dedupeAdjacentPdfLines(text: string) {
+  const lines = normalizePdfText(text)
+    .split("\n")
+    .map((line) => normalize(line))
+    .filter(Boolean);
+  const deduped: string[] = [];
+
+  for (const line of lines) {
+    if (deduped[deduped.length - 1] === line) continue;
+    deduped.push(line);
+  }
+
+  return deduped;
+}
+
+function extractHflexOrderedOfficeUnidades(
+  text: string,
+  condominioDetectado?: string | null,
+): UnidadeConversaoPreview[] {
+  const lines = dedupeAdjacentPdfLines(text);
+  const unidades = lines
+    .map((line) => line.match(/^(?:UNIDADE\s*)?(\d{6})\s*OFFICE$/i)?.[1])
+    .filter((value): value is string => Boolean(value));
+
+  if (unidades.length < 5) return [];
+
+  const roleIndexes = lines
+    .map((line, index) =>
+      /^(PROPRIETARIO|CO-PROPRIETARIO|INQUILINO)$/.test(
+        normalizeForLooseMatch(line),
+      )
+        ? index
+        : -1,
+    )
+    .filter((index) => index >= 0);
+
+  // Neste layout Hflex/LiveFacilities as colunas saem como lista de unidades
+  // seguida pela lista de responsaveis. Se as quantidades batem, pareamos por ordem.
+  if (roleIndexes.length !== unidades.length) return [];
+
+  const pessoas = roleIndexes
+    .map((roleIndex, index) => {
+      const previousRoleIndex = index === 0 ? -1 : roleIndexes[index - 1];
+      const nextRoleIndex =
+        index + 1 < roleIndexes.length ? roleIndexes[index + 1] : lines.length;
+      let nameIndex = roleIndex - 1;
+
+      while (
+        nameIndex > previousRoleIndex &&
+        (/^#?\d{2,10}$/.test(lines[nameIndex]) ||
+          /^(RELATORIO|PROCESSADO|POR\b)/i.test(
+            normalizeForLooseMatch(lines[nameIndex]),
+          ))
+      ) {
+        nameIndex -= 1;
+      }
+
+      const chunk = lines.slice(Math.max(previousRoleIndex + 1, nameIndex), nextRoleIndex);
+      return parsePessoaFromPdfChunk(chunk.join("\n"), condominioDetectado);
+    })
+    .filter((pessoa): pessoa is PessoaUnidadePdf => Boolean(pessoa));
+
+  if (pessoas.length !== unidades.length) return [];
+
+  return unidades.map((identificacao, index) => {
+    const pessoa = pessoas[index];
+    const observacoes = [
+      "Origem: Conversão de PDF de unidades",
+      `Papel importado: ${pessoa.papel}`,
+      pessoa.tipoPessoa ? `Tipo pessoa: ${pessoa.tipoPessoa}` : "",
+      ...formatAdditionalContactsObservacao(pessoa),
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    return {
+      identificacao,
+      bloco: "",
+      tipo: "OFFICE",
+      responsavelNome: pessoa.nome,
+      responsavelDocumento: pessoa.documento,
+      telefone: pessoa.telefone,
+      email: pessoa.email,
+      status: "ativo",
+      observacoes,
+    };
+  });
+}
+
 function extractHflexCondominio(text: string) {
   const normalized = normalizePdfText(text);
+  const headerMatch = normalizeForLooseMatch(normalized).match(
+    /\d{3,8}\s*(?:SUBCONDOMINIO|CONDOMINIO)\s+(.+?)\s*BLOCOS/,
+  );
+  if (headerMatch) return normalize(headerMatch[1]);
+
   const lines = normalized
     .split("\n")
     .map((line) => normalize(line))
@@ -2198,6 +2293,12 @@ function parseUnidadesPdf(
   text: string,
   condominioDetectado?: string | null,
 ): UnidadeConversaoPreview[] {
+  const orderedOfficeUnidades = extractHflexOrderedOfficeUnidades(
+    text,
+    condominioDetectado,
+  );
+  if (orderedOfficeUnidades.length) return orderedOfficeUnidades;
+
   const blocks = splitUnitPdfBlocks(text);
   const unidades: UnidadeConversaoPreview[] = [];
 
