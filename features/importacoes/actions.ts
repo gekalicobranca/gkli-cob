@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { requireRole } from "@/utils/auth/require-role";
+import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import { getPermittedCarteiras, type CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import {
   estimatePriority,
@@ -1298,6 +1299,50 @@ export async function createImportacaoPreview(formData: FormData) {
 
 export async function createImportacaoLegadoPreview(formData: FormData) {
   return createImportacaoPreview(formData);
+}
+
+export async function limparHistoricoImportacoes() {
+  await requireRole(["admin", "gestor", "operador"]);
+
+  const supabase = await createClient();
+  const scope = await getPermittedCarteiras();
+
+  let idsQuery = supabase.from("importacoes").select("id");
+  idsQuery = applyCarteiraScope(idsQuery, scope.carteiraIds);
+
+  const { data: importacoes, error: selectError } = await idsQuery;
+  if (selectError) {
+    throw new Error(`Erro ao localizar histórico de importações: ${selectError.message}`);
+  }
+
+  const ids = (importacoes ?? [])
+    .map((row: any) => row.id)
+    .filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
+
+  if (!ids.length) {
+    revalidatePath("/app/importacoes");
+    return;
+  }
+
+  const { error: itensError } = await supabase
+    .from("importacao_itens")
+    .delete()
+    .in("importacao_id", ids);
+
+  if (itensError) {
+    throw new Error(`Erro ao limpar itens do histórico: ${itensError.message}`);
+  }
+
+  const { error: importacoesError } = await supabase
+    .from("importacoes")
+    .delete()
+    .in("id", ids);
+
+  if (importacoesError) {
+    throw new Error(`Erro ao limpar histórico de importações: ${importacoesError.message}`);
+  }
+
+  revalidatePath("/app/importacoes");
 }
 
 async function rollbackCreatedRows(
