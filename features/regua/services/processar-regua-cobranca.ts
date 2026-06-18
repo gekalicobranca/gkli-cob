@@ -98,6 +98,7 @@ type ProcessarReguaParams = {
   condominioId?: string;
   contato?: string;
   cobrancaIds?: string[];
+  reguaId?: string;
 };
 
 type Contadores = ReguaContadores;
@@ -572,7 +573,7 @@ export async function processarReguaCobranca(
     const carteiraId = row.carteira_id;
     if (!carteiraId) throw new Error("Cobrança sem carteira_id.");
 
-    const reguaId = row.condominios?.regua_cobranca_id ?? null;
+    const reguaId = params.reguaId || row.condominios?.regua_cobranca_id || null;
     const reguaReferencia = reguaId ?? "default-cobranca";
     const loteKey = `${carteiraId}|${reguaReferencia}`;
 
@@ -662,7 +663,7 @@ export async function processarReguaCobranca(
           continue;
         }
 
-        const etapas = await carregarEtapasDeReguaAdmin(condominio?.regua_cobranca_id);
+        const etapas = await carregarEtapasDeReguaAdmin(params.reguaId || condominio?.regua_cobranca_id);
         const etapa =
           selecionarEtapa({
             etapas,

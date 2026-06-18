@@ -16,6 +16,7 @@ function getFiltrosRegua(formData?: FormData) {
     carteiraId: getFiltro(formData, 'carteira_id'),
     condominioId: getFiltro(formData, 'condominio_id'),
     contato: getFiltro(formData, 'contato') || 'todos',
+    reguaId: getFiltro(formData, 'regua_id'),
   }
 }
 

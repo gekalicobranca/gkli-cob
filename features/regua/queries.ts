@@ -24,6 +24,7 @@ export type ReguaPreviewFilters = {
   carteiraId?: string;
   condominioId?: string;
   contato?: string;
+  reguaId?: string;
 };
 
 const PAGE_SIZE = 1000;
@@ -291,7 +292,10 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
     "unidades",
   ]);
   const apoioMap = await loadResponsaveisApoioMap(supabase, cobrancas);
-  const reguaIds = cobrancas.map((row: any) => row.condominios?.regua_cobranca_id);
+  const reguaIds = [
+    ...cobrancas.map((row: any) => row.condominios?.regua_cobranca_id),
+    filters.reguaId,
+  ];
   const [reguaMetaMap, etapasPorRegua] = await Promise.all([
     loadReguaMetaMap(supabase, reguaIds),
     loadEtapasPorReguaMap(supabase, reguaIds),
@@ -311,7 +315,7 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
       vencimento: row.vencimento,
       inicioCobrancaDias: inicio,
     });
-    const reguaId = condominio?.regua_cobranca_id ?? null;
+    const reguaId = filters.reguaId || condominio?.regua_cobranca_id || null;
     const etapas = (reguaId ? etapasPorRegua.get(reguaId) : null) ?? DEFAULT_COBRANCA_ETAPAS;
     const reguaMeta = reguaId ? reguaMetaMap.get(reguaId) : null;
     const etapa =
@@ -475,7 +479,10 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     'unidades',
   ])
   const apoioMap = await loadResponsaveisApoioMap(supabase, acordosNormalizados)
-  const reguaIds = acordosNormalizados.map((row: any) => row.condominios?.regua_acordo_id)
+  const reguaIds = [
+    ...acordosNormalizados.map((row: any) => row.condominios?.regua_acordo_id),
+    filters.reguaId,
+  ]
   const [reguaMetaMap, etapasPorRegua] = await Promise.all([
     loadReguaMetaMap(supabase, reguaIds),
     loadEtapasPorReguaMap(supabase, reguaIds),
@@ -514,7 +521,7 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     const parcela = parcelas[0]
     const condominio = acordo.condominios
     const unidade = acordo.unidades
-    const reguaId = condominio?.regua_acordo_id ?? null
+    const reguaId = filters.reguaId || condominio?.regua_acordo_id || null
     const etapas = (reguaId ? etapasPorRegua.get(reguaId) : null) ?? DEFAULT_ACORDO_ETAPAS
     const reguaMeta = reguaId ? reguaMetaMap.get(reguaId) : null
 

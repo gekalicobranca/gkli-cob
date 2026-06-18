@@ -118,6 +118,7 @@ function HiddenFilters({ filters }: { filters: Record<string, string> }) {
       <input type="hidden" name="carteira_id" value={filters.carteira_id} />
       <input type="hidden" name="condominio_id" value={filters.condominio_id} />
       <input type="hidden" name="contato" value={filters.contato} />
+      <input type="hidden" name="regua_id" value={filters.regua_id} />
     </>
   )
 }
@@ -130,6 +131,7 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
     carteira_id: getParam(params.carteira_id),
     condominio_id: getParam(params.condominio_id),
     contato: getParam(params.contato) || 'todos',
+    regua_id: getParam(params.regua_id),
   }
   const aba = getParam(params.aba) === 'acordos' ? 'acordos' : 'cobrancas'
   const previewFilters = {
@@ -137,6 +139,7 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
     carteiraId: filters.carteira_id,
     condominioId: filters.condominio_id,
     contato: filters.contato,
+    reguaId: filters.regua_id,
   }
 
   const [cobrancas, acordos, carteiras, condominios] = await Promise.all([
@@ -150,7 +153,7 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
   const acordosElegiveis = acordos.filter((row: any) => row.elegivel)
   const cobrancasGeraveis = cobrancasElegiveis.filter((row: any) => !row.ja_gerada_no_ciclo)
   const acordosGeraveis = acordosElegiveis.filter((row: any) => !row.ja_gerada_no_ciclo)
-  const hasFilters = Boolean(filters.q || filters.carteira_id || filters.condominio_id || filters.contato !== 'todos')
+  const hasFilters = Boolean(filters.q || filters.carteira_id || filters.condominio_id || filters.contato !== 'todos' || filters.regua_id)
   const showCobrancas = aba === 'cobrancas'
   const showAcordos = aba === 'acordos'
 
@@ -159,7 +162,7 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
       <PageHeader
         eyebrow="Motor de cobrança"
         title="Simulador de lotes"
-        description="Confira quem entrará na régua antes de gerar mensagens reais. É a trava de segurança operacional antes do disparo."
+        description={filters.regua_id ? "Prévia específica da régua selecionada antes de gerar o lote." : "Confira quem entrará na régua antes de gerar mensagens reais. É a trava de segurança operacional antes do disparo."}
         actions={<ButtonLink href="/app/mensageria/reguas" variant="header">Painel de réguas</ButtonLink>}
       />
 
@@ -172,6 +175,7 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
 
       <Card className="p-5">
         <form className="grid gap-3 xl:grid-cols-[minmax(220px,1.2fr)_minmax(180px,.8fr)_minmax(220px,1fr)_180px_auto_auto] xl:items-end">
+          {filters.regua_id ? <input type="hidden" name="regua_id" value={filters.regua_id} /> : null}
           <label className="space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Busca</span>
             <input name="q" defaultValue={filters.q} placeholder="Responsável, unidade ou condomínio" className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[var(--gkli-primary)]" />

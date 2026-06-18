@@ -27,7 +27,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
   if (!regua) notFound()
 
   const templates = await listTemplatesParaLote(scope, regua.carteira_id)
-  const previewHref = regua.tipo === 'acordo' ? '/app/regua-acordo' : '/app/regua-cobranca'
+  const previewHref = `/app/mensageria/simulador?aba=${regua.tipo === 'acordo' ? 'acordos' : 'cobrancas'}&regua_id=${regua.id}`
 
   return (
     <div className="space-y-6">
@@ -38,7 +38,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
         actions={
           <>
             <ButtonLink href="/app/mensageria/reguas" variant="header"><ArrowLeft size={16} /> Voltar</ButtonLink>
-            <ButtonLink href={previewHref} variant="header"><Eye size={16} /> Prévia</ButtonLink>
+            <ButtonLink href={previewHref} variant="header"><Eye size={16} /> Simular esta régua</ButtonLink>
           </>
         }
       />

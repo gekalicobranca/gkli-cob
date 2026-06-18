@@ -41,6 +41,7 @@ type ProcessarReguaAcordosParams = {
   condominioId?: string
   contato?: string
   parcelaIds?: string[]
+  reguaId?: string
 }
 
 type Contadores = ReguaContadores
@@ -395,7 +396,7 @@ export async function processarReguaAcordos(
     const carteiraId = acordo.carteira_id as string | undefined
     if (!carteiraId) throw new Error('Acordo sem carteira_id.')
 
-    const reguaId = acordo.condominios?.regua_acordo_id ?? null
+    const reguaId = params.reguaId || acordo.condominios?.regua_acordo_id || null
     const reguaReferencia = reguaId ?? 'default-acordo'
     const loteKey = `${carteiraId}|${reguaReferencia}`
 
@@ -488,7 +489,7 @@ export async function processarReguaAcordos(
             continue
           }
 
-          const etapas = await carregarEtapasDeReguaAdmin(condominio?.regua_acordo_id, 'acordo')
+          const etapas = await carregarEtapasDeReguaAdmin(params.reguaId || condominio?.regua_acordo_id, 'acordo')
           const etapa = selecionarEtapaAcordo({ etapas, diasRelativos }) ?? etapas[0] ?? DEFAULT_ACORDO_ETAPAS[0]
           const canal = etapa?.canal ?? 'whatsapp'
           const destinatario = canal === 'email' ? unidade?.email : unidade?.telefone
