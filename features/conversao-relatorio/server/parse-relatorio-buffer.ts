@@ -165,6 +165,19 @@ const PADRAO_HABITA_UNIDADES: Omit<
   ativo: true,
 };
 
+const PADRAO_MOEMA_FLAT_UNIDADES: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "moema-flat-titulares-xlsx-v1",
+  nome: "Moema Flat · Titulares",
+  tipoConversao: "unidades",
+  fornecedor: "Moema Flat",
+  sistema: "Planilha de titulares",
+  relatorio: "Lista de titulares de direito",
+  ativo: true,
+};
+
 
 const PADRAO_SUPERLOGICA_PENDENTES_COBRANCAS: Omit<
   PadraoConversaoDetectado,
@@ -436,6 +449,18 @@ function sheetRows(sheet: XLSX.WorkSheet) {
     defval: "",
     blankrows: false,
   });
+}
+
+function isWorkbookInput(input: ParseInput) {
+  const filename = input.filename.toLowerCase();
+  const mime = String(input.mimeType ?? "").toLowerCase();
+  return (
+    /\.(xlsx|xls|csv|html?|ods)$/.test(filename) ||
+    mime.includes("spreadsheet") ||
+    mime.includes("excel") ||
+    mime.includes("csv") ||
+    mime.includes("html")
+  );
 }
 
 function decodeHtmlEntities(value: string) {
@@ -2629,6 +2654,176 @@ function parseHabitaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
   return [...unidades.values()];
 }
 
+function normalizeHeaderKey(value: unknown) {
+  return normalizeForLooseMatch(normalize(value))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/email_v_lido/g, "email_valido")
+    .replace(/^_+|_+$/g, "");
+}
+
+function detectMoemaFlatUnidades(rows: unknown[][]) {
+  const headers = (rows[0] ?? []).map(normalizeHeaderKey);
+  const headerSet = new Set(headers);
+  const required = [
+    "nr_uh",
+    "tipo_investidor",
+    "nome_titular_de_direito",
+  ];
+  const contactHeaders = [
+    "telefone1",
+    "telefone2",
+    "telefone3",
+    "celular",
+    "1_email_valido",
+    "2_email_valido",
+    "3_email_valido",
+  ];
+  const requiredHits = required.filter((header) => headerSet.has(header)).length;
+  const contactHits = contactHeaders.filter((header) =>
+    headerSet.has(header),
+  ).length;
+  const dataRows = rows.slice(1).filter((row) => row.some((cell) => normalize(cell)));
+  const flatHits = dataRows.filter((row) =>
+    /cond[oô]mino\s+flat/i.test(normalize(row[1])),
+  ).length;
+  const ok = requiredHits === required.length && contactHits >= 4 && dataRows.length >= 5;
+
+  return {
+    ok,
+    confianca: ok
+      ? Math.min(98, 78 + contactHits * 2 + Math.min(8, flatHits))
+      : requiredHits * 20 + contactHits * 4,
+    condominioDetectado: flatHits > 0 ? "Moema Flat" : null,
+  };
+}
+
+function getMoemaFlatCell(
+  row: unknown[],
+  indexByHeader: Map<string, number>,
+  header: string,
+) {
+  const index = indexByHeader.get(header);
+  return index === undefined ? "" : normalize(row[index]);
+}
+
+function cleanMoemaFlatEmail(value: unknown) {
+  const email = normalize(value).toLowerCase().replace(/\s+/g, "");
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+}
+
+function firstMoemaFlatPhone(values: unknown[]) {
+  for (const value of values) {
+    const phone = onlyDigits(normalize(value));
+    if (phone && phone !== "0" && phone.length >= 8) return phone;
+  }
+  return "";
+}
+
+function firstMoemaFlatEmail(values: unknown[]) {
+  for (const value of values) {
+    const email = cleanMoemaFlatEmail(value);
+    if (email) return email;
+  }
+  return "";
+}
+
+function mergeMoemaFlatDuplicate(
+  primary: UnidadeConversaoPreview,
+  secondary: UnidadeConversaoPreview,
+) {
+  const primaryHasContact = Boolean(primary.telefone || primary.email);
+  const keeper = primaryHasContact ? primary : secondary;
+  const extra = primaryHasContact ? secondary : primary;
+  const contatoExtra = [extra.telefone, extra.email].filter(Boolean).join(" / ");
+  const complemento = `Responsável adicional na origem: ${extra.responsavelNome || "sem nome"}${
+    contatoExtra ? ` (${contatoExtra})` : " (sem contato)"
+  }`;
+
+  return {
+    ...keeper,
+    observacoes: [keeper.observacoes, complemento].filter(Boolean).join(" | "),
+  };
+}
+
+function parseMoemaFlatUnidadesXlsx(rows: unknown[][]) {
+  const headers = (rows[0] ?? []).map(normalizeHeaderKey);
+  const indexByHeader = new Map<string, number>();
+  headers.forEach((header, index) => {
+    if (header && !indexByHeader.has(header)) indexByHeader.set(header, index);
+  });
+
+  const unidades = new Map<string, UnidadeConversaoPreview>();
+
+  for (const row of rows.slice(1)) {
+    if (!row.some((cell) => normalize(cell))) continue;
+
+    const identificacao = getMoemaFlatCell(row, indexByHeader, "nr_uh");
+    const responsavelNome = getMoemaFlatCell(
+      row,
+      indexByHeader,
+      "nome_titular_de_direito",
+    );
+    if (!identificacao && !responsavelNome) continue;
+
+    const tipoInvestidor = getMoemaFlatCell(
+      row,
+      indexByHeader,
+      "tipo_investidor",
+    );
+    const phoneValues = [
+      getMoemaFlatCell(row, indexByHeader, "celular"),
+      getMoemaFlatCell(row, indexByHeader, "telefone1"),
+      getMoemaFlatCell(row, indexByHeader, "telefone2"),
+      getMoemaFlatCell(row, indexByHeader, "telefone3"),
+    ];
+    const emailValues = [
+      getMoemaFlatCell(row, indexByHeader, "1_email_valido"),
+      getMoemaFlatCell(row, indexByHeader, "2_email_valido"),
+      getMoemaFlatCell(row, indexByHeader, "3_email_valido"),
+    ];
+    const telefone = firstMoemaFlatPhone(phoneValues);
+    const email = firstMoemaFlatEmail(emailValues);
+    const telefonesExtras = [...new Set(phoneValues.map(onlyDigits))]
+      .filter((item) => item && item !== "0" && item.length >= 8)
+      .filter((item) => item !== telefone);
+    const emailsExtras = [...new Set(emailValues.map(cleanMoemaFlatEmail))]
+      .filter(Boolean)
+      .filter((item) => item !== email);
+    const observacoes = [
+      "Origem: Conversão de XLSX de titulares",
+      tipoInvestidor ? `Tipo investidor: ${tipoInvestidor}` : "",
+      telefonesExtras.length
+        ? `Telefones adicionais: ${telefonesExtras.join(", ")}`
+        : "",
+      emailsExtras.length ? `E-mails adicionais: ${emailsExtras.join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join(" | ");
+    const unidade: UnidadeConversaoPreview = {
+      identificacao,
+      bloco: "",
+      tipo: "Flat",
+      responsavelNome,
+      tipoResponsavel: "proprietario",
+      responsavelDocumento: "",
+      telefone,
+      email,
+      status: "ativo",
+      observacoes,
+    };
+    const key = identificacao.toUpperCase();
+    const existente = unidades.get(key);
+
+    unidades.set(
+      key,
+      existente ? mergeMoemaFlatDuplicate(existente, unidade) : unidade,
+    );
+  }
+
+  return [...unidades.values()];
+}
+
 function extractSuperlogicaSection(
   block: string,
   startLabel: RegExp,
@@ -3930,6 +4125,34 @@ function buildPreviewFromUnidadesPdf({
 }
 
 async function parseUnidades(input: ParseInput): Promise<ParseResult> {
+  if (isWorkbookInput(input) && !isPdfInput(input)) {
+    const workbook = readWorkbook(input.buffer);
+
+    for (const sheetName of workbook.SheetNames) {
+      const rows = sheetRows(workbook.Sheets[sheetName]);
+      const deteccaoMoemaFlat = detectMoemaFlatUnidades(rows);
+
+      if (deteccaoMoemaFlat.ok) {
+        const unidades = parseMoemaFlatUnidadesXlsx(rows);
+        return buildPreviewFromUnidadesPdf({
+          filename: input.filename,
+          unidades,
+          condominioCnpj: input.condominioCnpj,
+          padraoDetectado: buildPadraoDetectado(PADRAO_MOEMA_FLAT_UNIDADES, {
+            condominioDetectado: deteccaoMoemaFlat.condominioDetectado,
+            confianca: deteccaoMoemaFlat.confianca,
+          }),
+        });
+      }
+    }
+
+    return {
+      ok: false,
+      error:
+        "Planilha lida, mas nenhum padrão ativo de Responsáveis/Unidades foi reconhecido com segurança. Nesta versão, o XLSX ativo é Moema Flat - Lista de titulares; para os demais padrões de unidades, envie PDF reconhecido pelo conversor.",
+    };
+  }
+
   if (isPdfInput(input)) {
     const habitaText = await extractHabitaDecodedPdfText(input.buffer).catch(
       () => "",
@@ -4032,6 +4255,7 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
       "Nesta versão, a conversão de unidades aceita PDF. Para cobranças, use XLS, XLSX, CSV ou HTML.",
   };
 }
+
 function buildPreviewCobrancasSemDevedores({
   origem,
   filename,

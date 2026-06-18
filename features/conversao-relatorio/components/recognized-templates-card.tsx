@@ -36,6 +36,14 @@ const templates: RecognizedTemplate[] = [
       "Decodifica a fonte Type3 do PDF Habita, extrai unidade, responsável, CPF, telefone/e-mail e gera XLSX para Importações/Responsáveis.",
   },
   {
+    nome: "Moema Flat · Titulares",
+    categoria: "Unidades",
+    status: "Ativo",
+    cobertura: "XLSX · Lista de titulares",
+    descricao:
+      "Reconhece NR. UH, titular de direito, telefones e e-mails válidos, consolidando duplicidades por unidade no padrão Importações/Responsáveis.",
+  },
+  {
     nome: "Superlógica · Cobranças",
     categoria: "Cobranças",
     status: "Homologado",
