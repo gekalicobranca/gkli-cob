@@ -7,6 +7,14 @@ import type {
   TipoConversaoRelatorio,
 } from "../server/parse-relatorio-buffer";
 
+const MAX_SERVER_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+function formatFileSize(bytes: number) {
+  return `${(bytes / 1024 / 1024).toLocaleString("pt-BR", {
+    maximumFractionDigits: 1,
+  })} MB`;
+}
+
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -201,6 +209,13 @@ export function ConversionUploadCard({
     setSelectedFile(file);
 
     if (!file) return;
+    if (file.size > MAX_SERVER_UPLOAD_BYTES) {
+      setSelectedFile(null);
+      setError(
+        `Arquivo muito grande para processar online (${formatFileSize(file.size)}). O limite seguro deste conversor na Vercel é ${formatFileSize(MAX_SERVER_UPLOAD_BYTES)}. Use uma versão reduzida do PDF ou gere a planilha em conversão local.`,
+      );
+      return;
+    }
 
     setLoading(true);
 

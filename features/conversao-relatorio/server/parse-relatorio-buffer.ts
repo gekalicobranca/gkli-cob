@@ -58,6 +58,7 @@ export type UnidadeConversaoPreview = {
   bloco: string;
   tipo: string;
   responsavelNome: string;
+  tipoResponsavel: string;
   responsavelDocumento: string;
   telefone: string;
   email: string;
@@ -1514,6 +1515,15 @@ function normalizeRole(value: string) {
   return raw || "RESPONSAVEL";
 }
 
+function tipoResponsavelFromPapelImportado(value: string) {
+  const papel = normalizeRole(value);
+  if (papel === "INQUILINO") return "inquilino";
+  if (papel === "PROPRIETARIO" || papel === "CO-PROPRIETARIO") {
+    return "proprietario";
+  }
+  return "nao_informado";
+}
+
 function onlyDigits(value: string) {
   return normalize(value).replace(/\D/g, "");
 }
@@ -1824,6 +1834,7 @@ function extractHflexOrderedOfficeUnidades(
       bloco: "",
       tipo: "OFFICE",
       responsavelNome: pessoa.nome,
+      tipoResponsavel: tipoResponsavelFromPapelImportado(pessoa.papel),
       responsavelDocumento: pessoa.documento,
       telefone: pessoa.telefone,
       email: pessoa.email,
@@ -2280,6 +2291,7 @@ function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
       bloco: block.bloco,
       tipo,
       responsavelNome: block.responsavel || "Responsável não identificado",
+      tipoResponsavel: hasLocatario ? "inquilino" : "nao_informado",
       responsavelDocumento: documento,
       telefone,
       email,
@@ -2353,6 +2365,7 @@ function parseUnidadesPdf(
       bloco: "",
       tipo: normalize(block.tipo) || "Unidade",
       responsavelNome: principal.nome,
+      tipoResponsavel: tipoResponsavelFromPapelImportado(principal.papel),
       responsavelDocumento: principal.documento,
       telefone: principal.telefone,
       email: principal.email,
@@ -2402,6 +2415,7 @@ function buildRowsUnidadesPadraoGkli(
     "bloco",
     "tipo",
     "responsavel_nome",
+    "tipo_responsavel",
     "responsavel_documento",
     "telefone",
     "email",
@@ -2415,6 +2429,7 @@ function buildRowsUnidadesPadraoGkli(
     unidade.bloco,
     unidade.tipo,
     unidade.responsavelNome,
+    unidade.tipoResponsavel || "nao_informado",
     unidade.responsavelDocumento,
     unidade.telefone,
     unidade.email,
@@ -2454,6 +2469,7 @@ function buildXlsxBase64UnidadesPadraoGkli(
     { wch: 10 },
     { wch: 16 },
     { wch: 34 },
+    { wch: 18 },
     { wch: 20 },
     { wch: 18 },
     { wch: 32 },

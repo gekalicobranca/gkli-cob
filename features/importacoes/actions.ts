@@ -53,6 +53,7 @@ type ResponsavelUnidadeApoioRow = {
   unidade: string;
   bloco: string | null;
   responsavel_nome?: string | null;
+  tipo_responsavel?: string | null;
   responsavel_documento?: string | null;
   telefone?: string | null;
   email?: string | null;
@@ -305,6 +306,17 @@ function normalizeUnidadeStatus(value: unknown) {
   return "ativa";
 }
 
+function normalizeTipoResponsavel(value: unknown) {
+  const key = normalizeKey(String(value ?? ""));
+  if (["proprietario", "proprietaria", "dono", "titular"].includes(key)) {
+    return "proprietario";
+  }
+  if (["inquilino", "locatario", "locataria"].includes(key)) {
+    return "inquilino";
+  }
+  return "nao_informado";
+}
+
 function normalizeUnidadePayload(
   payload: Record<string, any>,
   condominioPadrao?: CondominioImportacaoRow | null,
@@ -347,6 +359,9 @@ function normalizeUnidadePayload(
     bloco: getFirst(payload, ["bloco", "torre"]),
     tipo: getFirst(payload, ["tipo"]) || "unidade",
     responsavel_nome: responsavelNome,
+    tipo_responsavel: normalizeTipoResponsavel(
+      getFirst(payload, ["tipo_responsavel", "papel", "vinculo", "vínculo"]),
+    ),
     responsavel_documento: responsavelDocumento,
     telefone,
     email,
@@ -456,7 +471,7 @@ async function resolveResponsaveisApoioByCondominioIds(
   const { data, error } = await supabase
     .from("responsaveis_unidades")
     .select(
-      "id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, responsavel_documento, telefone, email",
+      "id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, email",
     )
     .eq("ativo", true)
     .in("condominio_id", ids.length > 0 ? ids : [EMPTY_UUID]);
@@ -1407,6 +1422,9 @@ function dadosUnidadeComApoio(
   return {
     responsavel_nome:
       responsavelApoio?.responsavel_nome || payload.responsavel_nome || null,
+    tipo_responsavel:
+      responsavelApoio?.tipo_responsavel ||
+      normalizeTipoResponsavel(payload.tipo_responsavel),
     responsavel_documento:
       responsavelApoio?.responsavel_documento ||
       payload.responsavel_documento ||
@@ -1713,6 +1731,7 @@ async function importarResponsaveisUnidades(
         unidade: identificacao,
         bloco: payload.bloco || null,
         responsavel_nome: payload.responsavel_nome || null,
+        tipo_responsavel: normalizeTipoResponsavel(payload.tipo_responsavel),
         responsavel_documento: onlyDigits(
           payload.responsavel_documento || payload.cpf || payload.documento || "",
         ),
