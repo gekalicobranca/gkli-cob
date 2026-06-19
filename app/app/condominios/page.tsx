@@ -25,7 +25,6 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
 import { ClassificacaoOperacionalBadge } from '@/features/condominios/components/classificacao-operacional'
 import {
-  hasCondominioFilters,
   listAdministradorasCondominios,
   listCondominios,
   normalizeCondominioFilters,
@@ -67,12 +66,13 @@ function sortCondominios(rows: any[], ordenar: string) {
 export default async function CondominiosPage({ searchParams }: CondominiosPageProps) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
+  const statusParam = getParam(params?.status)
 
   const filters = normalizeCondominioFilters({
     search: getParam(params?.q),
     carteiraId: getParam(params?.carteira_id),
     administradora: getParam(params?.administradora),
-    status: getParam(params?.status),
+    status: statusParam === undefined ? 'ativo' : statusParam,
   })
 
   const [rowsBase, carteiras, administradoras] = await Promise.all([
@@ -83,7 +83,9 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
 
   const ordenar = getParam(params?.ordenar) ?? 'nome'
   const rows = sortCondominios(rowsBase, ordenar)
-  const filtrosAtivos = hasCondominioFilters(filters) || ordenar !== 'nome'
+  const filtrosAtivos =
+    Boolean(filters.search || filters.carteiraId || filters.administradora || (filters.status && filters.status !== 'ativo')) ||
+    ordenar !== 'nome'
   const exportParams = new URLSearchParams()
 
   if (filters.carteiraId) exportParams.set('carteira_id', filters.carteiraId)
