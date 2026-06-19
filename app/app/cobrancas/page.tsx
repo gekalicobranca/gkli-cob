@@ -229,15 +229,15 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
       </LitePageHeader>
 
       <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="relative overflow-hidden border-red-100 bg-red-50/55 p-3 shadow-sm">
-          <div className="absolute inset-x-0 top-0 h-1 bg-red-500" />
-          <div className="absolute right-4 top-3 rounded-lg bg-red-100 p-2 text-red-700">
+        <Card className="relative overflow-hidden border-orange-100 bg-orange-50/60 p-3 shadow-sm">
+          <div className="absolute inset-x-0 top-0 h-1 bg-orange-500" />
+          <div className="absolute right-4 top-3 rounded-lg bg-orange-100 p-2 text-orange-700">
             <WalletCards size={18} />
           </div>
-          <p className="text-xs font-medium uppercase text-red-700/70">
+          <p className="text-xs font-medium uppercase text-orange-700/75">
             Em aberto
           </p>
-          <p className="mt-1.5 text-2xl font-semibold text-red-950">
+          <p className="mt-1.5 text-2xl font-semibold text-orange-950">
             {formatCurrency(resumo.totalEmAberto)}
           </p>
         </Card>

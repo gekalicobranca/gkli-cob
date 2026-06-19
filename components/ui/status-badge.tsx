@@ -43,6 +43,7 @@ function toneFor(status: string): BadgeTone {
       'vencida',
       'em_atraso',
       'judicializado',
+      'suspenso',
       'cancelado',
       'cancelada',
       'rompido',
