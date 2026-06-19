@@ -155,6 +155,36 @@ const VALOR_COTA_KEYS = [
   "cota",
   "cota_condominial",
 ];
+const NOME_OPERACIONAL_KEYS = ["nome_operacional", "nome_fantasia", "apelido", "nome_curto"];
+const CLASSIFICACAO_OPERACIONAL_KEYS = ["classificacao_operacional", "classificacao", "categoria", "badge"];
+const PARCELAS_ACORDO_KEYS = [
+  "parcelas_acordo_sem_aprovacao_sindico",
+  "parcelas_sem_aprovacao",
+  "parcelas_sem_aprovacao_sindico",
+];
+const DIAS_REEMISSAO_ACORDO_KEYS = [
+  "dias_reemissao_parcela_acordo_atrasada",
+  "dias_reemissao_acordo",
+  "dias_reemissao_parcela",
+];
+
+function toNonNegativeInteger(value: unknown, fallback = 0) {
+  const parsed = Number(value ?? fallback);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : fallback;
+}
+
+function normalizeClassificacaoOperacional(value: unknown) {
+  const key = normalizeKey(String(value || "prata"));
+  if (["ouro", "prata", "bronze"].includes(key)) return key;
+  return "prata";
+}
+
+function normalizeCondominioStatus(value: unknown) {
+  const key = normalizeKey(String(value || "ativo"));
+  if (["inativo", "inativa", "inactive", "desativado", "desativada"].includes(key)) return "inativo";
+  if (["suspenso", "suspensa", "pausado", "pausada"].includes(key)) return "suspenso";
+  return "ativo";
+}
 
 function getDocumento(
   payload: Record<string, any>,
@@ -265,6 +295,11 @@ function normalizeCondominioPayload(
   return {
     ...payload,
     nome: getFirst(payload, CONDOMINIO_NOME_KEYS) || payload.nome,
+    nome_operacional:
+      getFirst(payload, NOME_OPERACIONAL_KEYS) ||
+      payload.nome_operacional ||
+      getFirst(payload, CONDOMINIO_NOME_KEYS) ||
+      payload.nome,
     cnpj: getDocumento(payload, CONDOMINIO_CNPJ_KEYS, 14),
     vencimento_cota_dia: toPositiveNumber(
       getFirst(payload, VENCIMENTO_COTA_KEYS),
@@ -277,6 +312,18 @@ function normalizeCondominioPayload(
     valor_cota_condominial: parseMoney(
       getFirst(payload, VALOR_COTA_KEYS) || payload.valor_cota_condominial,
     ),
+    parcelas_acordo_sem_aprovacao_sindico: toNonNegativeInteger(
+      getFirst(payload, PARCELAS_ACORDO_KEYS) ?? payload.parcelas_acordo_sem_aprovacao_sindico,
+      0,
+    ),
+    dias_reemissao_parcela_acordo_atrasada: toNonNegativeInteger(
+      getFirst(payload, DIAS_REEMISSAO_ACORDO_KEYS) ?? payload.dias_reemissao_parcela_acordo_atrasada,
+      0,
+    ),
+    classificacao_operacional: normalizeClassificacaoOperacional(
+      getFirst(payload, CLASSIFICACAO_OPERACIONAL_KEYS) ?? payload.classificacao_operacional,
+    ),
+    status: normalizeCondominioStatus(payload.status),
   };
 }
 
@@ -1702,11 +1749,15 @@ async function importarCondominios(
           .from("condominios")
           .update({
             nome: payload.nome,
+            nome_operacional: payload.nome_operacional || payload.nome,
             administradora: payload.administradora || null,
             vencimento_cota_dia: Number(payload.vencimento_cota_dia),
             valor_cota_condominial: Number(payload.valor_cota_condominial || 0),
             inicio_cobranca_dias: Number(payload.inicio_cobranca_dias),
-            status: "ativo",
+            parcelas_acordo_sem_aprovacao_sindico: Number(payload.parcelas_acordo_sem_aprovacao_sindico || 0),
+            dias_reemissao_parcela_acordo_atrasada: Number(payload.dias_reemissao_parcela_acordo_atrasada || 0),
+            classificacao_operacional: payload.classificacao_operacional || "prata",
+            status: payload.status || "ativo",
             observacoes: payload.observacoes || null,
           })
           .eq("id", existente.id);
@@ -1719,12 +1770,16 @@ async function importarCondominios(
       const { error } = await supabase.from("condominios").insert({
         carteira_id: payload.carteira_id,
         nome: payload.nome,
+        nome_operacional: payload.nome_operacional || payload.nome,
         cnpj,
         administradora: payload.administradora || null,
         vencimento_cota_dia: Number(payload.vencimento_cota_dia),
         valor_cota_condominial: Number(payload.valor_cota_condominial || 0),
         inicio_cobranca_dias: Number(payload.inicio_cobranca_dias),
-        status: "ativo",
+        parcelas_acordo_sem_aprovacao_sindico: Number(payload.parcelas_acordo_sem_aprovacao_sindico || 0),
+        dias_reemissao_parcela_acordo_atrasada: Number(payload.dias_reemissao_parcela_acordo_atrasada || 0),
+        classificacao_operacional: payload.classificacao_operacional || "prata",
+        status: payload.status || "ativo",
         observacoes: payload.observacoes || null,
       });
 
