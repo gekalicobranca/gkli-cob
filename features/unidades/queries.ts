@@ -33,6 +33,19 @@ export type UnidadeFilters = {
   contato?: string
 }
 
+export type UnidadePageOptions = {
+  page?: number
+  pageSize?: number
+  orderBy?: string
+}
+
+export type UnidadeResumo = {
+  total: number
+  ativas: number
+  semTelefone: number
+  semEmail: number
+}
+
 function cleanFilter(value?: string | string[] | null) {
   if (Array.isArray(value)) return value[0]?.trim() || undefined
   return value?.trim() || undefined
@@ -93,45 +106,41 @@ export function hasUnidadeFilters(filters: UnidadeFilters = {}) {
   return Boolean(normalized.search || normalized.carteiraId || normalized.condominioId || normalized.status || normalized.contato)
 }
 
-export async function listUnidades(scope: CarteiraScope, filters: UnidadeFilters = {}) {
-  const supabase = await createClient()
-  const normalized = normalizeUnidadeFilters(filters)
+async function applyUnidadeFilters(
+  query: any,
+  scope: CarteiraScope,
+  filters: ReturnType<typeof normalizeUnidadeFilters>,
+) {
+  let scopedQuery = query
 
-  let query = supabase
-    .from('unidades')
-    .select(UNIDADE_SELECT)
-    .order('identificacao', { ascending: true })
-
-  query = applyCarteiraScope(query, scope.carteiraIds)
-
-  if (normalized.carteiraId) {
-    query = query.eq('carteira_id', normalized.carteiraId)
+  if (filters.carteiraId) {
+    scopedQuery = scopedQuery.eq('carteira_id', filters.carteiraId)
   }
 
-  if (normalized.condominioId) {
-    query = query.eq('condominio_id', normalized.condominioId)
+  if (filters.condominioId) {
+    scopedQuery = scopedQuery.eq('condominio_id', filters.condominioId)
   }
 
-  if (normalized.status) {
-    query = query.eq('status', normalized.status)
+  if (filters.status) {
+    scopedQuery = scopedQuery.eq('status', filters.status)
   }
 
-  if (normalized.contato === 'sem_telefone') {
-    query = query.is('telefone', null)
+  if (filters.contato === 'sem_telefone') {
+    scopedQuery = scopedQuery.is('telefone', null)
   }
 
-  if (normalized.contato === 'sem_email') {
-    query = query.is('email', null)
+  if (filters.contato === 'sem_email') {
+    scopedQuery = scopedQuery.is('email', null)
   }
 
-  if (normalized.contato === 'incompleto') {
-    query = query.or('telefone.is.null,email.is.null,responsavel_nome.is.null')
+  if (filters.contato === 'incompleto') {
+    scopedQuery = scopedQuery.or('telefone.is.null,email.is.null,responsavel_nome.is.null')
   }
 
-  if (normalized.search) {
-    const term = normalized.search.replace(/[%_]/g, '')
+  if (filters.search) {
+    const term = filters.search.replace(/[%_]/g, '')
     const digits = onlyDigits(term)
-    const condominioIds = await listCondominioIdsMatchingSearch(term, scope, normalized.carteiraId)
+    const condominioIds = await listCondominioIdsMatchingSearch(term, scope, filters.carteiraId)
     const clauses = [
       `identificacao.ilike.%${term}%`,
       `bloco.ilike.%${term}%`,
@@ -149,8 +158,31 @@ export async function listUnidades(scope: CarteiraScope, filters: UnidadeFilters
       clauses.push(`condominio_id.in.(${condominioIds.join(',')})`)
     }
 
-    query = query.or(clauses.join(','))
+    scopedQuery = scopedQuery.or(clauses.join(','))
   }
+
+  return scopedQuery
+}
+
+function applyUnidadeOrder(query: any, orderBy?: string) {
+  if (orderBy === 'unidade') return query.order('identificacao', { ascending: true })
+  if (orderBy === 'responsavel') return query.order('responsavel_nome', { ascending: true }).order('identificacao', { ascending: true })
+  if (orderBy === 'status') return query.order('status', { ascending: true }).order('identificacao', { ascending: true })
+  if (orderBy === 'carteira') return query.order('carteira_id', { ascending: true }).order('identificacao', { ascending: true })
+  return query.order('condominio_id', { ascending: true }).order('identificacao', { ascending: true })
+}
+
+export async function listUnidades(scope: CarteiraScope, filters: UnidadeFilters = {}) {
+  const supabase = await createClient()
+  const normalized = normalizeUnidadeFilters(filters)
+
+  let query = supabase
+    .from('unidades')
+    .select(UNIDADE_SELECT)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  query = await applyUnidadeFilters(query, scope, normalized)
+  query = applyUnidadeOrder(query)
 
   const { data, error } = await query
 
@@ -159,6 +191,67 @@ export async function listUnidades(scope: CarteiraScope, filters: UnidadeFilters
   }
 
   return normalizeRelationsList((data ?? []) as any[], ['condominios', 'carteiras']) as any[]
+}
+
+export async function listUnidadesPage(
+  scope: CarteiraScope,
+  filters: UnidadeFilters = {},
+  options: UnidadePageOptions = {},
+) {
+  const supabase = await createClient()
+  const normalized = normalizeUnidadeFilters(filters)
+  const pageSize = Math.max(1, Number(options.pageSize ?? 50))
+  const page = Math.max(1, Number(options.page ?? 1))
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  let query = supabase
+    .from('unidades')
+    .select(UNIDADE_SELECT, { count: 'exact' })
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  query = await applyUnidadeFilters(query, scope, normalized)
+  query = applyUnidadeOrder(query, options.orderBy)
+  query = query.range(from, to)
+
+  const { data, error, count } = await query
+
+  if (error) {
+    throw new Error(`Erro ao carregar unidades: ${error.message}`)
+  }
+
+  return {
+    rows: normalizeRelationsList((data ?? []) as any[], ['condominios', 'carteiras']) as any[],
+    total: count ?? 0,
+    page,
+    pageSize,
+  }
+}
+
+export async function summarizeUnidades(scope: CarteiraScope, filters: UnidadeFilters = {}): Promise<UnidadeResumo> {
+  const supabase = await createClient()
+  const normalized = normalizeUnidadeFilters(filters)
+
+  let query = supabase
+    .from('unidades')
+    .select('status,telefone,email,responsavel_nome')
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  query = await applyUnidadeFilters(query, scope, normalized)
+
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error(`Erro ao resumir unidades: ${error.message}`)
+  }
+
+  const rows = (data ?? []) as any[]
+  return {
+    total: rows.length,
+    ativas: rows.filter((row) => row.status === 'ativa').length,
+    semTelefone: rows.filter((row) => !row.telefone).length,
+    semEmail: rows.filter((row) => !row.email).length,
+  }
 }
 
 export async function getUnidadeIntegral(id: string, scope: CarteiraScope) {

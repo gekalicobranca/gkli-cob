@@ -162,6 +162,8 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
     getAlertas(item.erros ?? []).some((alerta) => !isContatoEncontrado(alerta)),
   ).length
   const bloqueadas = itens.filter((item: any) => !item.valido).length
+  const totalLinhas = Number(importacao.total_linhas ?? itens.length)
+  const previewLimitado = totalLinhas > itens.length
   const canConfirm = ['preview', 'erro'].includes(importacao.status) && importacao.total_validas > 0
   const tipoLegado = isLegacy(importacao.tipo)
 
@@ -307,6 +309,11 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-base font-medium text-slate-950">Preview inteligente</h2>
             <p className="mt-1 text-sm text-slate-500">Revise vínculos, erros bloqueantes, alertas e impacto antes de gravar.</p>
+            {previewLimitado ? (
+              <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                Exibindo as primeiras {itens.length} linhas de {totalLinhas}. Os totais acima consideram a importação completa.
+              </p>
+            ) : null}
           </div>
 
           <div className="divide-y divide-slate-100">

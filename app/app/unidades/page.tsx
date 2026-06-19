@@ -14,6 +14,7 @@ import {
   ListPage,
   ListPanel,
   ListPanelHeader,
+  ListPagination,
   ListRow,
   ListRows,
   ListSearchField,
@@ -23,15 +24,32 @@ import {
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
 import { updateUnidadesStatusEmLote } from '@/features/unidades/actions'
-import { hasUnidadeFilters, listUnidades, normalizeUnidadeFilters } from '@/features/unidades/queries'
+import { hasUnidadeFilters, listUnidadesPage, normalizeUnidadeFilters, summarizeUnidades } from '@/features/unidades/queries'
 import { UnidadesBulkControls } from './unidades-bulk-controls'
 
 type UnidadesPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+const PAGE_SIZE = 50
+
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
+}
+
+function getPageParam(value: string | string[] | undefined) {
+  const page = Number(getParam(value) ?? 1)
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
+}
+
+function unidadesHref(params: Record<string, string | undefined>, page: number) {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value) query.set(key, value)
+  }
+  if (page > 1) query.set('page', String(page))
+  const qs = query.toString()
+  return qs ? `/app/unidades?${qs}` : '/app/unidades'
 }
 
 function normalizeText(value: unknown) {
@@ -58,6 +76,7 @@ function sortUnidades(rows: any[], ordenar: string) {
 export default async function UnidadesPage({ searchParams }: UnidadesPageProps) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
+  const page = getPageParam(params?.page)
 
   const filters = normalizeUnidadeFilters({
     search: getParam(params?.q),
@@ -67,13 +86,14 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
     contato: getParam(params?.contato),
   })
 
-  const [rowsBase, carteiras, condominios] = await Promise.all([
-    listUnidades(scope, filters),
+  const ordenar = getParam(params?.ordenar) ?? 'condominio'
+  const [pageData, resumo, carteiras, condominios] = await Promise.all([
+    listUnidadesPage(scope, filters, { page, pageSize: PAGE_SIZE, orderBy: ordenar }),
+    summarizeUnidades(scope, filters),
     listCarteirasForSelect(scope),
     listCondominiosForSelect(scope),
   ])
-  const ordenar = getParam(params?.ordenar) ?? 'condominio'
-  const rows = sortUnidades(rowsBase, ordenar)
+  const rows = sortUnidades(pageData.rows, ordenar)
 
   const filtrosAtivos = hasUnidadeFilters(filters) || ordenar !== 'condominio'
   const exportParams = new URLSearchParams()
@@ -82,9 +102,16 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   if (filters.condominioId) exportParams.set('condominio_id', filters.condominioId)
 
   const exportUnidadesHref = `/api/unidades/exportacoes/unidades${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
-  const ativas = rows.filter((row: any) => row.status === 'ativa').length
-  const semTelefone = rows.filter((row: any) => !row.telefone).length
-  const semEmail = rows.filter((row: any) => !row.email).length
+  const paginationParams = {
+    q: filters.search,
+    carteira_id: filters.carteiraId,
+    condominio_id: filters.condominioId,
+    status: filters.status,
+    contato: filters.contato,
+    ordenar,
+  }
+  const previousHref = page > 1 ? unidadesHref(paginationParams, page - 1) : undefined
+  const nextHref = page * PAGE_SIZE < pageData.total ? unidadesHref(paginationParams, page + 1) : undefined
 
   return (
     <ListPage>
@@ -112,15 +139,15 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
             <Home size={18} />
           </div>
           <p className="text-xs font-medium uppercase text-slate-400">Ativas</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{ativas}</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.ativas}</p>
         </Card>
         <Card className="p-3">
           <p className="text-xs font-medium uppercase text-slate-400">Sem telefone</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{semTelefone}</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.semTelefone}</p>
         </Card>
         <Card className="p-3">
           <p className="text-xs font-medium uppercase text-slate-400">Sem e-mail</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{semEmail}</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.semEmail}</p>
         </Card>
       </ListKpiGrid>
 
@@ -245,6 +272,13 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
             </ListRows>
           </form>
         )}
+        <ListPagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={pageData.total}
+          previousHref={previousHref}
+          nextHref={nextHref}
+        />
       </ListPanel>
     </ListPage>
   )

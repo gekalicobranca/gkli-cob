@@ -1,5 +1,5 @@
 import type { FormHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
-import { Search, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 import { EmptyState } from '@/components/data/empty-state'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -27,6 +27,14 @@ type ClearFiltersLinkProps = {
 type ListEmptyStateProps = {
   title: string
   description: string
+}
+
+type ListPaginationProps = {
+  page: number
+  pageSize: number
+  total: number
+  previousHref?: string
+  nextHref?: string
 }
 
 export function ListPage({ className, children, ...props }: BaseProps) {
@@ -136,6 +144,46 @@ export function ListEmptyState({ title, description }: ListEmptyStateProps) {
   return (
     <div className="p-3">
       <EmptyState title={title} description={description} />
+    </div>
+  )
+}
+
+export function ListPagination({ page, pageSize, total, previousHref, nextHref }: ListPaginationProps) {
+  if (total <= pageSize && page <= 1) return null
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const currentPage = Math.min(Math.max(page, 1), totalPages)
+  const start = total === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const end = Math.min(total, currentPage * pageSize)
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
+      <span>
+        Exibindo {start}-{end} de {total}
+      </span>
+      <div className="flex items-center gap-2">
+        <ButtonLink
+          href={previousHref ?? '#'}
+          variant="secondary"
+          size="sm"
+          className={!previousHref ? 'pointer-events-none opacity-45' : undefined}
+        >
+          <ChevronLeft size={15} />
+          Anterior
+        </ButtonLink>
+        <span className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
+          {currentPage} / {totalPages}
+        </span>
+        <ButtonLink
+          href={nextHref ?? '#'}
+          variant="secondary"
+          size="sm"
+          className={!nextHref ? 'pointer-events-none opacity-45' : undefined}
+        >
+          Próxima
+          <ChevronRight size={15} />
+        </ButtonLink>
+      </div>
     </div>
   )
 }

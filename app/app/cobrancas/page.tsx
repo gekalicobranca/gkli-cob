@@ -16,6 +16,7 @@ import {
   ListFiltersForm,
   ListPanel,
   ListPanelHeader,
+  ListPagination,
   ListSearchField,
   ListTitle,
   ListTitleBar,
@@ -27,7 +28,7 @@ import { StatusBadge } from "@/components/data/status-badge";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
-import { listCobrancas } from "@/features/cobrancas/queries";
+import { listCobrancasPage, summarizeCobrancas } from "@/features/cobrancas/queries";
 import { updateCobrancasStatusEmLote } from "@/features/cobrancas/actions";
 import {
   COBRANCA_STATUS_OPERACIONAL,
@@ -48,6 +49,7 @@ type PageProps = {
     vencimento_ate?: string;
     judicializacao_unidade?: string;
     ordenar?: string;
+    page?: string;
   }>;
 };
 
@@ -61,15 +63,15 @@ const STATUS_FILTERS = [
   COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
 ];
 
-const STATUS_SEM_VALOR_EM_ABERTO = new Set<string>([
-  COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
-  COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
-  COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
-  COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
-]);
+const PAGE_SIZE = 50;
 
 function getParam(value?: string) {
   return String(value ?? "").trim();
+}
+
+function getPageParam(value?: string) {
+  const page = Number(value ?? 1);
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 }
 
 function getJudicializacaoFilter(params: Awaited<NonNullable<PageProps["searchParams"]>>) {
@@ -136,34 +138,9 @@ function getPriority(status: string, vencimento?: string | null) {
   };
 }
 
-function sumBy(rows: any[], predicate: (row: any) => boolean) {
-  return rows
-    .filter(predicate)
-    .reduce((sum, row) => sum + Number(row.valor_atualizado ?? 0), 0);
-}
-
-function comparableCobranca(row: any, field: string) {
-  if (field === "vencimento_asc" || field === "vencimento_desc") return new Date(`${row.vencimento ?? "1900-01-01"}T00:00:00`).getTime();
-  if (field === "valor_asc" || field === "valor_desc") return Number(row.valor_atualizado ?? 0);
-  if (field === "condominio") return normalizeStatus(row.condominios?.nome);
-  if (field === "unidade") return normalizeStatus(row.unidades?.identificacao);
-  if (field === "responsavel") return normalizeStatus(row.unidades?.responsavel_nome);
-  if (field === "status") return normalizeStatus(getCobrancaStatusOperacional(row));
-  return new Date(`${row.vencimento ?? "1900-01-01"}T00:00:00`).getTime();
-}
-
-function sortCobrancas(rows: any[], ordenar: string) {
-  const field = ordenar || "vencimento_asc";
-  return [...rows].sort((a, b) => {
-    const av = comparableCobranca(a, field);
-    const bv = comparableCobranca(b, field);
-    if (typeof av === "number" && typeof bv === "number") return field.endsWith("_desc") ? bv - av : av - bv;
-    return String(av).localeCompare(String(bv), "pt-BR", { numeric: true });
-  });
-}
-
 export default async function CobrancasPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : {};
+  const page = getPageParam(params.page);
   const filters = {
     search: getParam(params.q),
     status: getParam(params.status),
@@ -196,23 +173,14 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const relatorioHref = cobrancasRelatorioHref(queryParams);
 
   const scope = await getPermittedCarteiras();
-  const rows = sortCobrancas(await listCobrancas(scope, filters), filters.ordenar);
-
-  const totalEmAberto = sumBy(
-    rows,
-    (row: any) => !STATUS_SEM_VALOR_EM_ABERTO.has(getCobrancaStatusOperacional(row)),
-  );
-  const totalNegociacao = sumBy(
-    rows,
-    (row: any) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
-  );
-  const novas = rows.filter((row: any) => getCobrancaStatusOperacional(row) === "novo").length;
-  const ativas = rows.filter(
-    (row: any) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
-  ).length;
-  const emNegociacao = rows.filter(
-    (row: any) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
-  ).length;
+  const [pageData, resumo] = await Promise.all([
+    listCobrancasPage(scope, filters, { page, pageSize: PAGE_SIZE, orderBy: filters.ordenar }),
+    summarizeCobrancas(scope, filters),
+  ]);
+  const rows = pageData.rows;
+  const ativas = resumo.ativas;
+  const previousHref = page > 1 ? cobrancasHref(queryParams, { page: String(page - 1) }) : undefined;
+  const nextHref = page * PAGE_SIZE < pageData.total ? cobrancasHref(queryParams, { page: String(page + 1) }) : undefined;
 
   return (
     <LitePageShell>
@@ -245,22 +213,22 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
             Em aberto
           </p>
           <p className="mt-1.5 text-2xl font-semibold text-slate-950">
-            {formatCurrency(totalEmAberto)}
+            {formatCurrency(resumo.totalEmAberto)}
           </p>
         </Card>
 
         {[
           [
             "Novas",
-            novas,
+            resumo.novas,
             "entrada",
             "bg-[var(--gkli-primary-light)] text-[var(--gkli-primary)]",
           ],
           ["Ativas", ativas, "cobrança", "bg-blue-50 text-blue-700"],
           [
             "Negociação",
-            emNegociacao,
-            formatCurrency(totalNegociacao),
+            resumo.emNegociacao,
+            formatCurrency(resumo.totalNegociacao),
             "bg-amber-50 text-amber-700",
           ],
         ].map(([title, value, tag, tagClass]) => (
@@ -452,6 +420,13 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                   );
                 })}
               </LiteScrollArea>
+              <ListPagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={pageData.total}
+                previousHref={previousHref}
+                nextHref={nextHref}
+              />
             </form>
           )}
         </ListPanel>

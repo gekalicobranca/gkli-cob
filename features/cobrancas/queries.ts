@@ -2,7 +2,11 @@ import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/normalize-relation'
-import { COBRANCA_STATUS_JUDICIALIZACAO } from '@/lib/constants/cobrancas'
+import {
+  COBRANCA_STATUS_JUDICIALIZACAO,
+  COBRANCA_STATUS_OPERACIONAL,
+} from '@/lib/constants/cobrancas'
+import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 export type CobrancaListFilters = {
   search?: string
@@ -10,10 +14,32 @@ export type CobrancaListFilters = {
   vencimentoDe?: string
   vencimentoAte?: string
   judicializacaoUnidade?: string
+  limit?: number
 }
+
+export type CobrancaPageOptions = {
+  page?: number
+  pageSize?: number
+  orderBy?: string
+}
+
+export type CobrancaResumo = {
+  total: number
+  totalEmAberto: number
+  totalNegociacao: number
+  novas: number
+  ativas: number
+  emNegociacao: number
+}
+
+const EMPTY_UUID = '00000000-0000-0000-0000-000000000000'
 
 function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean) as string[]))
+}
+
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, '')
 }
 
 function isMissingDestinatarioPreferencial(error: any) {
@@ -41,8 +67,160 @@ async function getUnidadeIdsComJudicializacaoAtiva(
   return new Set((data ?? []).map((row: any) => row.unidade_id).filter(Boolean))
 }
 
+async function listAllUnidadeIdsComJudicializacaoAtiva(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  scope: CarteiraScope,
+) {
+  let query = supabase
+    .from('cobrancas')
+    .select('unidade_id, carteira_id')
+    .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(',')}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(',')})`)
+    .not('unidade_id', 'is', null)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error(`Erro ao verificar judicializaÃ§Ã£o por unidade: ${error.message}`)
+  }
+
+  return uniqueStrings((data ?? []).map((row: any) => row.unidade_id))
+}
+
+async function listCondominioIdsMatchingSearch(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  scope: CarteiraScope,
+  term: string,
+) {
+  const digits = onlyDigits(term)
+  const clauses = [
+    `nome.ilike.%${term}%`,
+    `nome_operacional.ilike.%${term}%`,
+    `administradora.ilike.%${term}%`,
+  ]
+
+  if (digits) {
+    clauses.push(`cnpj.ilike.%${digits}%`)
+  } else {
+    clauses.push(`cnpj.ilike.%${term}%`)
+  }
+
+  let query = supabase
+    .from('condominios')
+    .select('id, carteira_id')
+    .or(clauses.join(','))
+    .limit(500)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  const { data, error } = await query
+  if (error) throw new Error(`Erro ao buscar condomÃ­nios vinculados Ã s cobranÃ§as: ${error.message}`)
+  return (data ?? []).map((row: any) => String(row.id)).filter(Boolean)
+}
+
+async function listUnidadeIdsMatchingSearch(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  scope: CarteiraScope,
+  term: string,
+) {
+  const digits = onlyDigits(term)
+  const clauses = [
+    `identificacao.ilike.%${term}%`,
+    `bloco.ilike.%${term}%`,
+    `responsavel_nome.ilike.%${term}%`,
+    `email.ilike.%${term}%`,
+  ]
+
+  if (digits) {
+    clauses.push(`responsavel_documento.ilike.%${digits}%`, `telefone.ilike.%${digits}%`)
+  } else {
+    clauses.push(`responsavel_documento.ilike.%${term}%`, `telefone.ilike.%${term}%`)
+  }
+
+  let query = supabase
+    .from('unidades')
+    .select('id, carteira_id')
+    .or(clauses.join(','))
+    .limit(1000)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  const { data, error } = await query
+  if (error) throw new Error(`Erro ao buscar unidades vinculadas Ã s cobranÃ§as: ${error.message}`)
+  return (data ?? []).map((row: any) => String(row.id)).filter(Boolean)
+}
+
+async function applyCobrancaFilters(
+  query: any,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  scope: CarteiraScope,
+  filters: CobrancaListFilters,
+) {
+  let scopedQuery = query
+
+  if (filters.status) {
+    scopedQuery = scopedQuery.or(`status_operacional.eq.${filters.status},status.eq.${filters.status}`)
+  }
+
+  if (filters.vencimentoDe) {
+    scopedQuery = scopedQuery.gte('vencimento', filters.vencimentoDe)
+  }
+
+  if (filters.vencimentoAte) {
+    scopedQuery = scopedQuery.lte('vencimento', filters.vencimentoAte)
+  }
+
+  const judicializacaoUnidade = filters.judicializacaoUnidade || 'nao'
+  if (judicializacaoUnidade !== 'todos') {
+    const unidadeIds = await listAllUnidadeIdsComJudicializacaoAtiva(supabase, scope)
+    if (judicializacaoUnidade === 'sim') {
+      scopedQuery = scopedQuery.in('unidade_id', unidadeIds.length ? unidadeIds : [EMPTY_UUID])
+    } else if (unidadeIds.length > 0) {
+      scopedQuery = scopedQuery.not('unidade_id', 'in', `(${unidadeIds.join(',')})`)
+    }
+  }
+
+  const search = String(filters.search ?? '').trim()
+  if (search) {
+    const term = search.replace(/[%_]/g, '')
+    const [condominioIds, unidadeIds] = await Promise.all([
+      listCondominioIdsMatchingSearch(supabase, scope, term),
+      listUnidadeIdsMatchingSearch(supabase, scope, term),
+    ])
+    const clauses = [
+      `competencia.ilike.%${term}%`,
+      `status.ilike.%${term}%`,
+      `status_operacional.ilike.%${term}%`,
+    ]
+
+    if (condominioIds.length > 0) {
+      clauses.push(`condominio_id.in.(${condominioIds.join(',')})`)
+    }
+
+    if (unidadeIds.length > 0) {
+      clauses.push(`unidade_id.in.(${unidadeIds.join(',')})`)
+    }
+
+    scopedQuery = scopedQuery.or(clauses.join(','))
+  }
+
+  return scopedQuery
+}
+
+function applyCobrancaOrder(query: any, orderBy?: string) {
+  if (orderBy === 'vencimento_desc') return query.order('vencimento', { ascending: false })
+  if (orderBy === 'valor_desc') return query.order('valor_atualizado', { ascending: false }).order('vencimento', { ascending: true })
+  if (orderBy === 'valor_asc') return query.order('valor_atualizado', { ascending: true }).order('vencimento', { ascending: true })
+  if (orderBy === 'condominio') return query.order('condominio_id', { ascending: true }).order('vencimento', { ascending: true })
+  if (orderBy === 'unidade' || orderBy === 'responsavel') return query.order('unidade_id', { ascending: true }).order('vencimento', { ascending: true })
+  if (orderBy === 'status') return query.order('status_operacional', { ascending: true }).order('vencimento', { ascending: true })
+  return query.order('vencimento', { ascending: true })
+}
+
 export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListFilters = {}) {
   const supabase = await createClient()
+  const limit = Number(filters.limit ?? 0)
 
   let query = supabase
     .from('cobrancas')
@@ -67,20 +245,13 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
       condominios(nome),
       unidades(identificacao, bloco, responsavel_nome)
     `)
-    .order('vencimento', { ascending: true })
 
   query = applyCarteiraScope(query, scope.carteiraIds)
+  query = await applyCobrancaFilters(query, supabase, scope, filters)
+  query = applyCobrancaOrder(query)
 
-  if (filters.status) {
-    query = query.or(`status_operacional.eq.${filters.status},status.eq.${filters.status}`)
-  }
-
-  if (filters.vencimentoDe) {
-    query = query.gte('vencimento', filters.vencimentoDe)
-  }
-
-  if (filters.vencimentoAte) {
-    query = query.lte('vencimento', filters.vencimentoAte)
+  if (Number.isFinite(limit) && limit > 0) {
+    query = query.limit(limit)
   }
 
   const { data, error } = await query
@@ -94,39 +265,114 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
     supabase,
     rowsBase.map((row: any) => row.unidade_id),
   )
-  let rows = rowsBase.map((row: any) => ({
+  const rows = rowsBase.map((row: any) => ({
     ...row,
     unidade_bloqueada_por_judicializacao: Boolean(row.unidade_id && unidadesJudicializadas.has(row.unidade_id)),
   }))
 
-  const judicializacaoUnidade = filters.judicializacaoUnidade || 'nao'
+  return rows
+}
 
-  if (judicializacaoUnidade === 'sim') {
-    rows = rows.filter((row: any) => row.unidade_bloqueada_por_judicializacao)
-  } else if (judicializacaoUnidade !== 'todos') {
-    rows = rows.filter((row: any) => !row.unidade_bloqueada_por_judicializacao)
+export async function listCobrancasPage(
+  scope: CarteiraScope,
+  filters: CobrancaListFilters = {},
+  options: CobrancaPageOptions = {},
+) {
+  const supabase = await createClient()
+  const pageSize = Math.max(1, Number(options.pageSize ?? 50))
+  const page = Math.max(1, Number(options.page ?? 1))
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  let query = supabase
+    .from('cobrancas')
+    .select(`
+      id,
+      competencia,
+      vencimento,
+      valor_original,
+      valor_atualizado,
+      juros,
+      multa,
+      correcao,
+      desconto,
+      status,
+      status_operacional,
+      status_financeiro,
+      carteira_id,
+      condominio_id,
+      unidade_id,
+      created_at,
+      ultima_interacao_at,
+      condominios(nome),
+      unidades(identificacao, bloco, responsavel_nome)
+    `, { count: 'exact' })
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  query = await applyCobrancaFilters(query, supabase, scope, filters)
+  query = applyCobrancaOrder(query, options.orderBy)
+  query = query.range(from, to)
+
+  const { data, error, count } = await query
+
+  if (error) {
+    throw new Error(`Erro ao carregar cobranÃ§as: ${error.message}`)
   }
 
-  const search = String(filters.search ?? '').trim().toLowerCase()
+  const rowsBase = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+  const unidadesJudicializadas = await getUnidadeIdsComJudicializacaoAtiva(
+    supabase,
+    rowsBase.map((row: any) => row.unidade_id),
+  )
 
-  if (!search) return rows
+  return {
+    rows: rowsBase.map((row: any) => ({
+      ...row,
+      unidade_bloqueada_por_judicializacao: Boolean(row.unidade_id && unidadesJudicializadas.has(row.unidade_id)),
+    })),
+    total: count ?? 0,
+    page,
+    pageSize,
+  }
+}
 
-  return rows.filter((row: any) => {
-    const haystack = [
-      row.competencia,
-      row.status,
-      row.status_operacional,
-      row.condominios?.nome,
-      row.unidades?.identificacao,
-      row.unidades?.bloco,
-      row.unidades?.responsavel_nome,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
+export async function summarizeCobrancas(scope: CarteiraScope, filters: CobrancaListFilters = {}): Promise<CobrancaResumo> {
+  const supabase = await createClient()
 
-    return haystack.includes(search)
-  })
+  let query = supabase
+    .from('cobrancas')
+    .select('id,valor_atualizado,status,status_operacional,status_financeiro')
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  query = await applyCobrancaFilters(query, supabase, scope, filters)
+
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error(`Erro ao resumir cobranÃ§as: ${error.message}`)
+  }
+
+  const rows = (data ?? []) as any[]
+  const withoutOpenValue = new Set<string>([
+    COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
+    COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
+    COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
+    COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
+  ])
+  const totalNegociacao = rows
+    .filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO)
+    .reduce((sum, row) => sum + Number(row.valor_atualizado ?? 0), 0)
+
+  return {
+    total: rows.length,
+    totalEmAberto: rows
+      .filter((row) => !withoutOpenValue.has(getCobrancaStatusOperacional(row)))
+      .reduce((sum, row) => sum + Number(row.valor_atualizado ?? 0), 0),
+    totalNegociacao,
+    novas: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.NOVO).length,
+    ativas: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA).length,
+    emNegociacao: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO).length,
+  }
 }
 
 export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {

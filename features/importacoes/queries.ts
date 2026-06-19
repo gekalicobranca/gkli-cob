@@ -21,6 +21,7 @@ export async function listImportacoes(scope: CarteiraScope) {
       carteiras(nome)
     `)
     .order('created_at', { ascending: false })
+    .limit(100)
 
   query = applyCarteiraScope(query, scope.carteiraIds)
 
@@ -73,6 +74,7 @@ export async function listImportacaoItens(importacaoId: string) {
     .select('id, linha, payload, valido, erros, created_at')
     .eq('importacao_id', importacaoId)
     .order('linha', { ascending: true })
+    .limit(1000)
 
   if (error) {
     throw new Error(`Erro ao carregar itens da importação: ${error.message}`)

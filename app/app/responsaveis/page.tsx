@@ -14,6 +14,7 @@ import {
   ListPage,
   ListPanel,
   ListPanelHeader,
+  ListPagination,
   ListRow,
   ListRows,
   ListSearchField,
@@ -24,16 +25,34 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
 import {
   hasResponsavelUnidadeFilters,
-  listResponsaveisUnidades,
+  listResponsaveisUnidadesPage,
   normalizeResponsavelUnidadeFilters,
+  summarizeResponsaveisUnidades,
 } from '@/features/responsaveis-unidades/queries'
 
 type ResponsaveisPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+const PAGE_SIZE = 50
+
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
+}
+
+function getPageParam(value: string | string[] | undefined) {
+  const page = Number(getParam(value) ?? 1)
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
+}
+
+function responsaveisHref(params: Record<string, string | undefined>, page: number) {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value) query.set(key, value)
+  }
+  if (page > 1) query.set('page', String(page))
+  const qs = query.toString()
+  return qs ? `/app/responsaveis?${qs}` : '/app/responsaveis'
 }
 
 function normalizeText(value: unknown) {
@@ -79,6 +98,7 @@ function completenessLabel(row: any) {
 export default async function ResponsaveisPage({ searchParams }: ResponsaveisPageProps) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
+  const page = getPageParam(params?.page)
 
   const filters = normalizeResponsavelUnidadeFilters({
     search: getParam(params?.q),
@@ -89,19 +109,27 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
     tipoResponsavel: getParam(params?.tipo_responsavel),
   })
 
-  const [rowsBase, carteiras, condominios] = await Promise.all([
-    listResponsaveisUnidades(scope, filters),
+  const ordenar = getParam(params?.ordenar) ?? 'condominio'
+  const [pageData, resumo, carteiras, condominios] = await Promise.all([
+    listResponsaveisUnidadesPage(scope, filters, { page, pageSize: PAGE_SIZE, orderBy: ordenar }),
+    summarizeResponsaveisUnidades(scope, filters),
     listCarteirasForSelect(scope),
     listCondominiosForSelect(scope),
   ])
 
-  const ordenar = getParam(params?.ordenar) ?? 'condominio'
-  const rows = sortResponsaveis(rowsBase, ordenar)
+  const rows = sortResponsaveis(pageData.rows, ordenar)
   const filtrosAtivos = hasResponsavelUnidadeFilters(filters) || ordenar !== 'condominio'
-  const ativos = rows.filter((row: any) => row.ativo !== false).length
-  const proprietarios = rows.filter((row: any) => row.tipo_responsavel === 'proprietario').length
-  const inquilinos = rows.filter((row: any) => row.tipo_responsavel === 'inquilino').length
-  const incompletos = rows.filter((row: any) => !row.responsavel_nome || !row.responsavel_documento || !row.telefone || !row.email).length
+  const paginationParams = {
+    q: filters.search,
+    carteira_id: filters.carteiraId,
+    condominio_id: filters.condominioId,
+    contato: filters.contato,
+    ativo: filters.ativo,
+    tipo_responsavel: filters.tipoResponsavel,
+    ordenar,
+  }
+  const previousHref = page > 1 ? responsaveisHref(paginationParams, page - 1) : undefined
+  const nextHref = page * PAGE_SIZE < pageData.total ? responsaveisHref(paginationParams, page + 1) : undefined
 
   return (
     <ListPage>
@@ -118,19 +146,19 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
             <UsersRound size={18} />
           </div>
           <p className="text-xs font-medium uppercase text-slate-400">Ativos</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{ativos}</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.ativos}</p>
         </Card>
         <Card className="p-3">
           <p className="text-xs font-medium uppercase text-slate-400">Proprietários</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{proprietarios}</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.proprietarios}</p>
         </Card>
         <Card className="p-3">
           <p className="text-xs font-medium uppercase text-slate-400">Inquilinos</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{inquilinos}</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.inquilinos}</p>
         </Card>
         <Card className="p-3">
           <p className="text-xs font-medium uppercase text-slate-400">Incompletos</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{incompletos}</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.incompletos}</p>
         </Card>
       </ListKpiGrid>
 
@@ -245,6 +273,13 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
             })}
           </ListRows>
         )}
+        <ListPagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={pageData.total}
+          previousHref={previousHref}
+          nextHref={nextHref}
+        />
       </ListPanel>
     </ListPage>
   )
