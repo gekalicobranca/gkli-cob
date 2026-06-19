@@ -94,13 +94,13 @@ export default async function ReguasPage({ searchParams }: ReguasPageProps) {
   const filters = {
     q: getParam(params.q),
     tipo: getParam(params.tipo),
-    status: getParam(params.status),
+    status: params.status === undefined ? 'ativa' : getParam(params.status),
     escopo: getParam(params.escopo),
     padrao: getParam(params.padrao),
   }
   const reguas = reguasBase.filter((row: any) => matchesRegua(row, filters))
   const fallbackVisiveis = reguasBase.length === 0 ? fallbackReguas.filter((row) => matchesFallbackRegua(row, filters)) : []
-  const hasFilters = Object.values(filters).some(Boolean)
+  const hasFilters = Object.entries(filters).some(([key, value]) => Boolean(value) && !(key === 'status' && value === 'ativa'))
 
   const ativas = count(reguas, (row) => row.status === 'ativa' || row.ativo === true)
   const cobranca = count(reguas, (row) => row.tipo === 'cobranca')

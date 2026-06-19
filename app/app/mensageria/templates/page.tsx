@@ -89,11 +89,11 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
     categoria: getParam(params.categoria),
     intensidade: getParam(params.intensidade),
     canal: getParam(params.canal),
-    status: getParam(params.status),
+    status: params.status === undefined ? 'ativo' : getParam(params.status),
     escopo: getParam(params.escopo),
   }
   const templates = templatesBase.filter((template: any) => matchesTemplateFilters(template, filters))
-  const hasFilters = Object.values(filters).some(Boolean)
+  const hasFilters = Object.entries(filters).some(([key, value]) => Boolean(value) && !(key === 'status' && value === 'ativo'))
 
   const ativos = templates.filter((template: any) => template.ativo).length
   const cobranca = templates.filter((template: any) => (template.tipo_regua ?? template.tipo) === 'cobranca').length

@@ -24,7 +24,6 @@ import {
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
 import {
-  hasResponsavelUnidadeFilters,
   listResponsaveisUnidadesPage,
   normalizeResponsavelUnidadeFilters,
   summarizeResponsaveisUnidades,
@@ -99,13 +98,14 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
   const params = await searchParams
   const scope = await getPermittedCarteiras()
   const page = getPageParam(params?.page)
+  const ativoParam = getParam(params?.ativo)
 
   const filters = normalizeResponsavelUnidadeFilters({
     search: getParam(params?.q),
     carteiraId: getParam(params?.carteira_id),
     condominioId: getParam(params?.condominio_id),
     contato: getParam(params?.contato),
-    ativo: getParam(params?.ativo),
+    ativo: ativoParam === undefined ? 'ativo' : ativoParam,
     tipoResponsavel: getParam(params?.tipo_responsavel),
   })
 
@@ -118,7 +118,16 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
   ])
 
   const rows = sortResponsaveis(pageData.rows, ordenar)
-  const filtrosAtivos = hasResponsavelUnidadeFilters(filters) || ordenar !== 'condominio'
+  const filtrosAtivos =
+    Boolean(
+      filters.search ||
+      filters.carteiraId ||
+      filters.condominioId ||
+      filters.contato ||
+      filters.tipoResponsavel ||
+      (filters.ativo && filters.ativo !== 'ativo'),
+    ) ||
+    ordenar !== 'condominio'
   const paginationParams = {
     q: filters.search,
     carteira_id: filters.carteiraId,

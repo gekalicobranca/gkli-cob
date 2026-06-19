@@ -56,11 +56,20 @@ function sortAdministradoras(rows: Awaited<ReturnType<typeof listAdministradoras
 
 export default async function AdministradorasPage({ searchParams }: Props) {
   const params = await searchParams
-  const filters = normalizeAdmFilters({ search: getParam(params?.q), status: getParam(params?.status) })
+  const statusParam = getParam(params?.status)
+  const filters = normalizeAdmFilters({
+    search: getParam(params?.q),
+    status: statusParam === undefined ? 'ativo' : statusParam,
+  })
   const ordenar = getParam(params?.ordenar) ?? 'nome'
   const rows = sortAdministradoras(filterAdministradoras(await listAdministradoras(filters), params), ordenar)
   const ativas = rows.filter((row) => row.status !== 'inativo').length
-  const filtrosAtivos = Boolean(filters.search || filters.status || getParam(params?.acesso_acordo) || ordenar !== 'nome')
+  const filtrosAtivos = Boolean(
+    filters.search ||
+    (filters.status && filters.status !== 'ativo') ||
+    getParam(params?.acesso_acordo) ||
+    ordenar !== 'nome',
+  )
 
   return (
     <ListPage>

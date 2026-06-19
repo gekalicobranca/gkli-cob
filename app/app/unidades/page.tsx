@@ -24,7 +24,7 @@ import {
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
 import { updateUnidadesStatusEmLote } from '@/features/unidades/actions'
-import { hasUnidadeFilters, listUnidadesPage, normalizeUnidadeFilters, summarizeUnidades } from '@/features/unidades/queries'
+import { listUnidadesPage, normalizeUnidadeFilters, summarizeUnidades } from '@/features/unidades/queries'
 import { UnidadesBulkControls } from './unidades-bulk-controls'
 
 type UnidadesPageProps = {
@@ -77,12 +77,13 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   const params = await searchParams
   const scope = await getPermittedCarteiras()
   const page = getPageParam(params?.page)
+  const statusParam = getParam(params?.status)
 
   const filters = normalizeUnidadeFilters({
     search: getParam(params?.q),
     carteiraId: getParam(params?.carteira_id),
     condominioId: getParam(params?.condominio_id),
-    status: getParam(params?.status),
+    status: statusParam === undefined ? 'ativa' : statusParam,
     contato: getParam(params?.contato),
   })
 
@@ -95,7 +96,9 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   ])
   const rows = sortUnidades(pageData.rows, ordenar)
 
-  const filtrosAtivos = hasUnidadeFilters(filters) || ordenar !== 'condominio'
+  const filtrosAtivos =
+    Boolean(filters.search || filters.carteiraId || filters.condominioId || filters.contato || (filters.status && filters.status !== 'ativa')) ||
+    ordenar !== 'condominio'
   const exportParams = new URLSearchParams()
 
   if (filters.carteiraId) exportParams.set('carteira_id', filters.carteiraId)
