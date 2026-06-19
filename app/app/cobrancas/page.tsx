@@ -161,7 +161,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const statusParam = getParam(params.status);
   const filters = {
     search: getParam(params.q),
-    status: params.status === undefined ? COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA : statusParam,
+    status: statusParam,
     vencimentoDe: getParam(params.vencimento_de),
     vencimentoAte: getParam(params.vencimento_ate),
     judicializacaoUnidade: getJudicializacaoFilter(params),
@@ -177,7 +177,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   };
   const hasFilters = Boolean(
     filters.search ||
-    (filters.status && filters.status !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA) ||
+    filters.status ||
     filters.vencimentoDe ||
     filters.vencimentoAte ||
     filters.ordenar !== "vencimento_asc" ||
