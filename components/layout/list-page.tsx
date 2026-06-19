@@ -80,7 +80,7 @@ export function ListTitle({ title, description }: { title: string; description?:
 
 export function ListFiltersForm({ className, children, ...props }: FormHTMLAttributes<HTMLFormElement>) {
   return (
-    <form className={cn('mt-3 grid gap-3 xl:items-end', className)} {...props}>
+    <form className={cn('mt-3 grid min-w-0 gap-3 xl:items-end', className)} {...props}>
       {children}
     </form>
   )
@@ -88,7 +88,7 @@ export function ListFiltersForm({ className, children, ...props }: FormHTMLAttri
 
 export function ListFilterField({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
-    <label className={cn('space-y-1.5', className)}>
+    <label className={cn('min-w-0 space-y-1.5', className)}>
       <span className="text-xs font-medium uppercase text-slate-400">{label}</span>
       {children}
     </label>

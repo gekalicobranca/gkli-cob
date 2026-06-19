@@ -144,7 +144,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
             <ClearFiltersLink href="/app/responsaveis" show={filtrosAtivos} />
           </ListTitleBar>
 
-          <ListFiltersForm className="xl:grid-cols-[minmax(240px,1.2fr)_minmax(170px,.8fr)_minmax(210px,1fr)_150px_160px_170px_180px_auto]">
+          <ListFiltersForm className="md:grid-cols-2 xl:grid-cols-4">
             <ListSearchField
               placeholder="Condomínio, unidade, responsável ou contato"
               defaultValue={filters.search ?? ''}
@@ -198,7 +198,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                 <option value="carteira">Carteira</option>
               </Select>
             </ListFilterField>
-            <Button type="submit">Filtrar</Button>
+            <Button type="submit" className="md:w-fit">Filtrar</Button>
           </ListFiltersForm>
         </ListPanelHeader>
 
