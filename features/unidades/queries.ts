@@ -231,21 +231,28 @@ export async function listUnidadesPage(
 export async function summarizeUnidades(scope: CarteiraScope, filters: UnidadeFilters = {}): Promise<UnidadeResumo> {
   const supabase = await createClient()
   const normalized = normalizeUnidadeFilters(filters)
+  const pageSize = 1000
+  const rows: any[] = []
 
-  let query = supabase
-    .from('unidades')
-    .select('status,telefone,email,responsavel_nome')
+  for (let from = 0; ; from += pageSize) {
+    let query = supabase
+      .from('unidades')
+      .select('status,telefone,email,responsavel_nome')
 
-  query = applyCarteiraScope(query, scope.carteiraIds)
-  query = await applyUnidadeFilters(query, scope, normalized)
+    query = applyCarteiraScope(query, scope.carteiraIds)
+    query = await applyUnidadeFilters(query, scope, normalized)
+    query = query.range(from, from + pageSize - 1)
 
-  const { data, error } = await query
+    const { data, error } = await query
 
-  if (error) {
-    throw new Error(`Erro ao resumir unidades: ${error.message}`)
+    if (error) {
+      throw new Error(`Erro ao resumir unidades: ${error.message}`)
+    }
+
+    rows.push(...((data ?? []) as any[]))
+    if (!data || data.length < pageSize) break
   }
 
-  const rows = (data ?? []) as any[]
   return {
     total: rows.length,
     ativas: rows.filter((row) => row.status === 'ativa').length,

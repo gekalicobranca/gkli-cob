@@ -205,21 +205,28 @@ export async function summarizeResponsaveisUnidades(
 ): Promise<ResponsavelUnidadeResumo> {
   const supabase = await createClient()
   const normalized = normalizeResponsavelUnidadeFilters(filters)
+  const pageSize = 1000
+  const rows: any[] = []
 
-  let query = supabase
-    .from('responsaveis_unidades')
-    .select('ativo,tipo_responsavel,responsavel_nome,responsavel_documento,telefone,email')
+  for (let from = 0; ; from += pageSize) {
+    let query = supabase
+      .from('responsaveis_unidades')
+      .select('ativo,tipo_responsavel,responsavel_nome,responsavel_documento,telefone,email')
 
-  query = applyCarteiraScope(query, scope.carteiraIds)
-  query = applyResponsavelUnidadeFilters(query, normalized)
+    query = applyCarteiraScope(query, scope.carteiraIds)
+    query = applyResponsavelUnidadeFilters(query, normalized)
+    query = query.range(from, from + pageSize - 1)
 
-  const { data, error } = await query
+    const { data, error } = await query
 
-  if (error) {
-    throw new Error(`Erro ao resumir responsÃ¡veis: ${error.message}`)
+    if (error) {
+      throw new Error(`Erro ao resumir responsÃ¡veis: ${error.message}`)
+    }
+
+    rows.push(...((data ?? []) as any[]))
+    if (!data || data.length < pageSize) break
   }
 
-  const rows = (data ?? []) as any[]
   return {
     total: rows.length,
     ativos: rows.filter((row) => row.ativo !== false).length,

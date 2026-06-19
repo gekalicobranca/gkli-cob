@@ -338,21 +338,28 @@ export async function listCobrancasPage(
 
 export async function summarizeCobrancas(scope: CarteiraScope, filters: CobrancaListFilters = {}): Promise<CobrancaResumo> {
   const supabase = await createClient()
+  const pageSize = 1000
+  const rows: any[] = []
 
-  let query = supabase
-    .from('cobrancas')
-    .select('id,valor_atualizado,status,status_operacional,status_financeiro')
+  for (let from = 0; ; from += pageSize) {
+    let query = supabase
+      .from('cobrancas')
+      .select('id,valor_atualizado,status,status_operacional,status_financeiro')
 
-  query = applyCarteiraScope(query, scope.carteiraIds)
-  query = await applyCobrancaFilters(query, supabase, scope, filters)
+    query = applyCarteiraScope(query, scope.carteiraIds)
+    query = await applyCobrancaFilters(query, supabase, scope, filters)
+    query = query.range(from, from + pageSize - 1)
 
-  const { data, error } = await query
+    const { data, error } = await query
 
-  if (error) {
-    throw new Error(`Erro ao resumir cobranÃ§as: ${error.message}`)
+    if (error) {
+      throw new Error(`Erro ao resumir cobranÃ§as: ${error.message}`)
+    }
+
+    rows.push(...((data ?? []) as any[]))
+    if (!data || data.length < pageSize) break
   }
 
-  const rows = (data ?? []) as any[]
   const withoutOpenValue = new Set<string>([
     COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
     COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
