@@ -130,6 +130,17 @@ function getPriority(status: string, vencimento?: string | null) {
       COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
     ].includes(normalized as any)
   ) {
+    if (normalized === COBRANCA_STATUS_OPERACIONAL.SUSPENSO) {
+      return { label: "Baixa", className: "bg-red-50 text-red-700" };
+    }
+
+    if (
+      normalized === COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO ||
+      normalized === COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO
+    ) {
+      return { label: "Baixa", className: "bg-red-50 text-red-700" };
+    }
+
     return { label: "Baixa", className: "bg-slate-100 text-slate-600" };
   }
 
