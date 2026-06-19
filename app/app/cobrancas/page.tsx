@@ -240,15 +240,14 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
       </LitePageHeader>
 
       <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="relative overflow-hidden border-orange-100 bg-orange-50/60 p-3 shadow-sm">
-          <div className="absolute inset-x-0 top-0 h-1 bg-orange-500" />
-          <div className="absolute right-4 top-3 rounded-lg bg-orange-100 p-2 text-orange-700">
+        <Card className="relative overflow-hidden p-3">
+          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <WalletCards size={18} />
           </div>
-          <p className="text-xs font-medium uppercase text-orange-700/75">
+          <p className="text-xs font-medium uppercase text-slate-400">
             Em aberto
           </p>
-          <p className="mt-1.5 text-2xl font-semibold text-orange-950">
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">
             {formatCurrency(resumo.totalEmAberto)}
           </p>
         </Card>
@@ -267,28 +266,13 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
             formatCurrency(resumo.totalNegociacao),
             "bg-amber-50 text-amber-700",
           ],
-        ].map(([title, value, tag, tagClass]) => {
-          const cardClass =
-            title === "Novas"
-              ? "border-sky-100 bg-sky-50/70"
-              : title === "Ativas"
-                ? "border-emerald-100 bg-emerald-50/70"
-                : "border-amber-100 bg-amber-50/75";
-          const barClass =
-            title === "Novas" ? "bg-sky-500" : title === "Ativas" ? "bg-emerald-500" : "bg-amber-500";
-          const titleClass =
-            title === "Novas" ? "text-sky-700/75" : title === "Ativas" ? "text-emerald-700/75" : "text-amber-700/75";
-          const valueClass =
-            title === "Novas" ? "text-sky-950" : title === "Ativas" ? "text-emerald-950" : "text-amber-950";
-
-          return (
-          <Card key={title} className={`relative overflow-hidden p-3 shadow-sm ${cardClass}`}>
-            <div className={`absolute inset-x-0 top-0 h-1 ${barClass}`} />
-            <p className={`text-xs font-medium uppercase ${titleClass}`}>
+        ].map(([title, value, tag, tagClass]) => (
+          <Card key={title} className="p-3">
+            <p className="text-xs font-medium uppercase text-slate-400">
               {title}
             </p>
             <div className="mt-1.5 flex items-end justify-between gap-3">
-              <p className={`text-2xl font-semibold ${valueClass}`}>
+              <p className="text-2xl font-semibold text-slate-950">
                 {value}
               </p>
               <span
@@ -298,8 +282,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
               </span>
             </div>
         </Card>
-          );
-        })}
+        ))}
       </LiteKpiStrip>
 
       <LiteWorkArea>
