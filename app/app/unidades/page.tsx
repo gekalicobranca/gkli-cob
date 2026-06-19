@@ -32,6 +32,22 @@ type UnidadesPageProps = {
 }
 
 const PAGE_SIZE = 50
+const EMPTY_RESUMO = {
+  total: 0,
+  ativas: 0,
+  semTelefone: 0,
+  semEmail: 0,
+}
+
+function emptyPageData(page: number) {
+  return {
+    rows: [],
+    total: 0,
+    page,
+    pageSize: PAGE_SIZE,
+    error: null as string | null,
+  }
+}
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
@@ -89,10 +105,22 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
 
   const ordenar = getParam(params?.ordenar) ?? 'condominio'
   const [pageData, resumo, carteiras, condominios] = await Promise.all([
-    listUnidadesPage(scope, filters, { page, pageSize: PAGE_SIZE, orderBy: ordenar }),
-    summarizeUnidades(scope, filters),
-    listCarteirasForSelect(scope),
-    listCondominiosForSelect(scope),
+    listUnidadesPage(scope, filters, { page, pageSize: PAGE_SIZE, orderBy: ordenar }).catch((error) => {
+      console.error('Erro ao carregar lista de unidades:', error)
+      return { ...emptyPageData(page), error: 'Nao foi possivel carregar a lista de unidades agora.' }
+    }),
+    summarizeUnidades(scope, filters).catch((error) => {
+      console.error('Erro ao resumir unidades na lista:', error)
+      return EMPTY_RESUMO
+    }),
+    listCarteirasForSelect(scope).catch((error) => {
+      console.error('Erro ao carregar carteiras no filtro de unidades:', error)
+      return []
+    }),
+    listCondominiosForSelect(scope).catch((error) => {
+      console.error('Erro ao carregar condominios no filtro de unidades:', error)
+      return []
+    }),
   ])
   const rows = sortUnidades(pageData.rows, ordenar)
 

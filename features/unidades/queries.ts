@@ -161,7 +161,7 @@ async function applyUnidadeFilters(
     scopedQuery = scopedQuery.or(clauses.join(','))
   }
 
-  return scopedQuery
+  return { query: scopedQuery }
 }
 
 function applyUnidadeOrder(query: any, orderBy?: string) {
@@ -181,7 +181,7 @@ export async function listUnidades(scope: CarteiraScope, filters: UnidadeFilters
     .select(UNIDADE_SELECT)
 
   query = applyCarteiraScope(query, scope.carteiraIds)
-  query = await applyUnidadeFilters(query, scope, normalized)
+  query = (await applyUnidadeFilters(query, scope, normalized)).query
   query = applyUnidadeOrder(query)
 
   const { data, error } = await query
@@ -205,24 +205,36 @@ export async function listUnidadesPage(
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
-  let query = supabase
-    .from('unidades')
-    .select(UNIDADE_SELECT, { count: 'exact' })
+  async function buildQuery(withCount: boolean) {
+    let query = supabase
+      .from('unidades')
+      .select(UNIDADE_SELECT, withCount ? { count: 'exact' } : undefined)
 
-  query = applyCarteiraScope(query, scope.carteiraIds)
-  query = await applyUnidadeFilters(query, scope, normalized)
-  query = applyUnidadeOrder(query, options.orderBy)
-  query = query.range(from, to)
+    query = applyCarteiraScope(query, scope.carteiraIds)
+    query = (await applyUnidadeFilters(query, scope, normalized)).query
+    query = applyUnidadeOrder(query, options.orderBy)
+    return query.range(from, to)
+  }
 
-  const { data, error, count } = await query
+  let { data, error, count } = await buildQuery(true)
+
+  if (error) {
+    console.error('Erro ao carregar unidades com contagem exata:', error)
+    const retry = await buildQuery(false)
+    data = retry.data
+    error = retry.error
+    count = null
+  }
 
   if (error) {
     throw new Error(`Erro ao carregar unidades: ${error.message}`)
   }
 
+  const rows = normalizeRelationsList((data ?? []) as any[], ['condominios', 'carteiras']) as any[]
+
   return {
-    rows: normalizeRelationsList((data ?? []) as any[], ['condominios', 'carteiras']) as any[],
-    total: count ?? 0,
+    rows,
+    total: count ?? from + rows.length + (rows.length === pageSize ? 1 : 0),
     page,
     pageSize,
   }
@@ -240,7 +252,7 @@ export async function summarizeUnidades(scope: CarteiraScope, filters: UnidadeFi
       .select('status,telefone,email,responsavel_nome')
 
     query = applyCarteiraScope(query, scope.carteiraIds)
-    query = await applyUnidadeFilters(query, scope, normalized)
+    query = (await applyUnidadeFilters(query, scope, normalized)).query
     query = query.range(from, from + pageSize - 1)
 
     const { data, error } = await query

@@ -205,7 +205,7 @@ async function applyCobrancaFilters(
     scopedQuery = scopedQuery.or(clauses.join(','))
   }
 
-  return scopedQuery
+  return { query: scopedQuery }
 }
 
 function applyCobrancaOrder(query: any, orderBy?: string) {
@@ -247,7 +247,7 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
     `)
 
   query = applyCarteiraScope(query, scope.carteiraIds)
-  query = await applyCobrancaFilters(query, supabase, scope, filters)
+  query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
   query = applyCobrancaOrder(query)
 
   if (Number.isFinite(limit) && limit > 0) {
@@ -284,36 +284,46 @@ export async function listCobrancasPage(
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
-  let query = supabase
-    .from('cobrancas')
-    .select(`
-      id,
-      competencia,
-      vencimento,
-      valor_original,
-      valor_atualizado,
-      juros,
-      multa,
-      correcao,
-      desconto,
-      status,
-      status_operacional,
-      status_financeiro,
-      carteira_id,
-      condominio_id,
-      unidade_id,
-      created_at,
-      ultima_interacao_at,
-      condominios(nome),
-      unidades(identificacao, bloco, responsavel_nome)
-    `, { count: 'exact' })
+  async function buildQuery(withCount: boolean) {
+    let query = supabase
+      .from('cobrancas')
+      .select(`
+        id,
+        competencia,
+        vencimento,
+        valor_original,
+        valor_atualizado,
+        juros,
+        multa,
+        correcao,
+        desconto,
+        status,
+        status_operacional,
+        status_financeiro,
+        carteira_id,
+        condominio_id,
+        unidade_id,
+        created_at,
+        ultima_interacao_at,
+        condominios(nome),
+        unidades(identificacao, bloco, responsavel_nome)
+      `, withCount ? { count: 'exact' } : undefined)
 
-  query = applyCarteiraScope(query, scope.carteiraIds)
-  query = await applyCobrancaFilters(query, supabase, scope, filters)
-  query = applyCobrancaOrder(query, options.orderBy)
-  query = query.range(from, to)
+    query = applyCarteiraScope(query, scope.carteiraIds)
+    query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
+    query = applyCobrancaOrder(query, options.orderBy)
+    return query.range(from, to)
+  }
 
-  const { data, error, count } = await query
+  let { data, error, count } = await buildQuery(true)
+
+  if (error) {
+    console.error('Erro ao carregar cobrancas com contagem exata:', error)
+    const retry = await buildQuery(false)
+    data = retry.data
+    error = retry.error
+    count = null
+  }
 
   if (error) {
     throw new Error(`Erro ao carregar cobranÃ§as: ${error.message}`)
@@ -330,7 +340,7 @@ export async function listCobrancasPage(
       ...row,
       unidade_bloqueada_por_judicializacao: Boolean(row.unidade_id && unidadesJudicializadas.has(row.unidade_id)),
     })),
-    total: count ?? 0,
+    total: count ?? from + rowsBase.length + (rowsBase.length === pageSize ? 1 : 0),
     page,
     pageSize,
   }
@@ -347,7 +357,7 @@ export async function summarizeCobrancas(scope: CarteiraScope, filters: Cobranca
       .select('id,valor_atualizado,status,status_operacional,status_financeiro')
 
     query = applyCarteiraScope(query, scope.carteiraIds)
-    query = await applyCobrancaFilters(query, supabase, scope, filters)
+    query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
     query = query.range(from, from + pageSize - 1)
 
     const { data, error } = await query

@@ -73,6 +73,15 @@ const EMPTY_RESUMO = {
   emNegociacao: 0,
 };
 
+function emptyPageData(page: number) {
+  return {
+    rows: [],
+    total: 0,
+    page,
+    pageSize: PAGE_SIZE,
+  };
+}
+
 function getParam(value?: string) {
   return String(value ?? "").trim();
 }
@@ -183,7 +192,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
 
   const scope = await getPermittedCarteiras();
   const [pageData, resumo] = await Promise.all([
-    listCobrancasPage(scope, filters, { page, pageSize: PAGE_SIZE, orderBy: filters.ordenar }),
+    listCobrancasPage(scope, filters, { page, pageSize: PAGE_SIZE, orderBy: filters.ordenar }).catch((error) => {
+      console.error("Erro ao carregar lista de cobrancas:", error);
+      return emptyPageData(page);
+    }),
     summarizeCobrancas(scope, filters).catch((error) => {
       console.error("Erro ao resumir cobrancas na lista:", error);
       return EMPTY_RESUMO;
