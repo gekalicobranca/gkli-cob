@@ -64,6 +64,14 @@ const STATUS_FILTERS = [
 ];
 
 const PAGE_SIZE = 50;
+const EMPTY_RESUMO = {
+  total: 0,
+  totalEmAberto: 0,
+  totalNegociacao: 0,
+  novas: 0,
+  ativas: 0,
+  emNegociacao: 0,
+};
 
 function getParam(value?: string) {
   return String(value ?? "").trim();
@@ -176,7 +184,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const scope = await getPermittedCarteiras();
   const [pageData, resumo] = await Promise.all([
     listCobrancasPage(scope, filters, { page, pageSize: PAGE_SIZE, orderBy: filters.ordenar }),
-    summarizeCobrancas(scope, filters),
+    summarizeCobrancas(scope, filters).catch((error) => {
+      console.error("Erro ao resumir cobrancas na lista:", error);
+      return EMPTY_RESUMO;
+    }),
   ]);
   const rows = pageData.rows;
   const ativas = resumo.ativas;
