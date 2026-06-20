@@ -50,6 +50,30 @@ type DashboardAcordo = {
   }> | null;
 };
 
+type DashboardUnidade = {
+  identificacao?: string | null;
+  bloco?: string | null;
+  responsavel_nome?: string | null;
+};
+
+type DashboardCarteira = {
+  id: string;
+  nome: string | null;
+};
+
+type GestaoCobranca = DashboardCobranca & {
+  condominio_id?: string | null;
+  unidade_id?: string | null;
+  unidades?: DashboardUnidade | DashboardUnidade[] | null;
+};
+
+type GestaoAcordo = DashboardAcordo & {
+  condominio_id?: string | null;
+  unidade_id?: string | null;
+  status_financeiro?: string | null;
+  unidades?: DashboardUnidade | DashboardUnidade[] | null;
+};
+
 const CLOSED_COBRANCA_STATUSES = [
   COBRANCA_STATUS.ACORDO_EFETIVADO,
   COBRANCA_STATUS.PRE_JURIDICO,
@@ -107,6 +131,26 @@ function getCondominioName(item: {
   }
 
   return relation?.nome ?? "Sem condomínio";
+}
+
+function getRelationOne<T>(relation?: T | T[] | null) {
+  if (Array.isArray(relation)) return relation[0] ?? null;
+  return relation ?? null;
+}
+
+function getUnidadeLabel(item: { unidades?: DashboardUnidade | DashboardUnidade[] | null }) {
+  const unidade = getRelationOne(item.unidades);
+  if (!unidade) return "Unidade não informada";
+
+  const bloco = String(unidade.bloco ?? "").trim();
+  const identificacao = String(unidade.identificacao ?? "").trim();
+
+  return [
+    bloco && bloco !== "0" ? `Bloco ${bloco}` : null,
+    identificacao ? `Unidade ${identificacao}` : "Unidade não informada",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function buildStatusDistribution(
@@ -497,5 +541,365 @@ export async function getManagementDashboard(scope: CarteiraScope) {
       { label: "Acordos", value: acordosList.length },
       { label: "Ativos", value: acordosAtivos.length },
     ],
+  };
+}
+
+export async function getManagementDashboardTabs(scope: CarteiraScope) {
+  const supabase = await createClient();
+
+  let cobrancasQuery = supabase
+    .from("cobrancas")
+    .select(
+      `
+      id,
+      condominio_id,
+      unidade_id,
+      competencia,
+      vencimento,
+      valor_atualizado,
+      status,
+      status_operacional,
+      status_financeiro,
+      ultima_interacao_at,
+      created_at,
+      carteira_id,
+      condominios(nome),
+      unidades(identificacao, bloco, responsavel_nome)
+    `,
+    )
+    .order("vencimento", { ascending: true });
+
+  cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds);
+
+  let acordosQuery = supabase
+    .from("acordos")
+    .select(
+      `
+      id,
+      condominio_id,
+      unidade_id,
+      tipo,
+      valor_acordado,
+      entrada,
+      data_acordo,
+      status,
+      status_financeiro,
+      carteira_id,
+      condominios(nome),
+      unidades(identificacao, bloco, responsavel_nome),
+      parcelas_acordo(valor, vencimento, status, data_pagamento)
+    `,
+    )
+    .order("data_acordo", { ascending: false });
+
+  acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds);
+
+  let carteirasQuery = supabase
+    .from("carteiras")
+    .select("id, nome")
+    .order("nome", { ascending: true });
+
+  carteirasQuery = applyCarteiraScope(carteirasQuery, scope.carteiraIds);
+
+  const [
+    { data: cobrancas, error: cobrancasError },
+    { data: acordos, error: acordosError },
+    { data: carteiras, error: carteirasError },
+  ] = await Promise.all([cobrancasQuery, acordosQuery, carteirasQuery]);
+
+  if (cobrancasError) {
+    throw new Error(`Erro ao carregar gestão/cobranças: ${cobrancasError.message}`);
+  }
+
+  if (acordosError) {
+    throw new Error(`Erro ao carregar gestão/acordos: ${acordosError.message}`);
+  }
+
+  if (carteirasError) {
+    throw new Error(`Erro ao carregar gestão/carteiras: ${carteirasError.message}`);
+  }
+
+  const now = new Date();
+  const cobrancasList = (cobrancas ?? []) as GestaoCobranca[];
+  const acordosList = (acordos ?? []) as GestaoAcordo[];
+  const carteiraMap = new Map(
+    ((carteiras ?? []) as DashboardCarteira[]).map((carteira) => [
+      carteira.id,
+      carteira.nome ?? "Carteira sem nome",
+    ]),
+  );
+
+  const isClosedCobranca = (item: GestaoCobranca) => {
+    const operationalStatus = getCobrancaOperationalStatus(item);
+    const financialStatus = getCobrancaFinancialStatus(item);
+    return CLOSED_COBRANCA_STATUSES.includes(operationalStatus) || financialStatus === "quitado";
+  };
+
+  const activeCobrancas = cobrancasList.filter((item) => !isClosedCobranca(item));
+  const vencidas = activeCobrancas.filter((item) => {
+    const vencimento = safeDate(item.vencimento);
+    return Boolean(vencimento && vencimento < now);
+  });
+  const emNegociacao = activeCobrancas.filter(
+    (item) => getCobrancaOperationalStatus(item) === COBRANCA_STATUS.EM_NEGOCIACAO,
+  );
+  const judicializadas = cobrancasList.filter((item) =>
+    [COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(
+      getCobrancaOperationalStatus(item) as any,
+    ),
+  );
+  const suspensas = cobrancasList.filter(
+    (item) => getCobrancaOperationalStatus(item) === COBRANCA_STATUS.SUSPENSO,
+  );
+  const semInteracao = activeCobrancas.filter((item) => {
+    const lastInteraction = safeDate(item.ultima_interacao_at);
+    const reference = lastInteraction ?? safeDate(item.created_at) ?? safeDate(item.vencimento);
+    return daysBetween(reference, now) >= 7;
+  });
+
+  const activeValue = activeCobrancas.reduce((sum, item) => sum + money(item.valor_atualizado), 0);
+  const overdueValue = vencidas.reduce((sum, item) => sum + money(item.valor_atualizado), 0);
+  const overdueDays = vencidas.map((item) => Math.max(0, daysBetween(safeDate(item.vencimento), now)));
+
+  const agingRanges = [
+    { label: "0 a 30 dias", from: 0, to: 30 },
+    { label: "31 a 60 dias", from: 31, to: 60 },
+    { label: "61 a 90 dias", from: 61, to: 90 },
+    { label: "+90 dias", from: 91, to: Number.POSITIVE_INFINITY },
+  ];
+
+  const aging = agingRanges.map((range) => {
+    const items = vencidas.filter((item) => {
+      const days = Math.max(0, daysBetween(safeDate(item.vencimento), now));
+      return days >= range.from && days <= range.to;
+    });
+    const value = items.reduce((sum, item) => sum + money(item.valor_atualizado), 0);
+    return {
+      label: range.label,
+      count: items.length,
+      value,
+      percentage: overdueValue > 0 ? Math.round((value / overdueValue) * 100) : 0,
+    };
+  });
+
+  const topCondominiosMap = new Map<
+    string,
+    { nome: string; count: number; value: number; units: Set<string>; totalDays: number }
+  >();
+
+  for (const item of activeCobrancas) {
+    const nome = getCondominioName(item);
+    const current = topCondominiosMap.get(nome) ?? {
+      nome,
+      count: 0,
+      value: 0,
+      units: new Set<string>(),
+      totalDays: 0,
+    };
+    current.count += 1;
+    current.value += money(item.valor_atualizado);
+    current.units.add(item.unidade_id ?? getUnidadeLabel(item));
+    current.totalDays += Math.max(0, daysBetween(safeDate(item.vencimento), now));
+    topCondominiosMap.set(nome, current);
+  }
+
+  const cobrancasPorCarteiraMap = new Map<
+    string,
+    { nome: string; count: number; value: number; vencidas: number; negociacao: number; judicializadas: number }
+  >();
+
+  for (const item of cobrancasList) {
+    const nome = carteiraMap.get(item.carteira_id ?? "") ?? "Sem carteira";
+    const current = cobrancasPorCarteiraMap.get(nome) ?? {
+      nome,
+      count: 0,
+      value: 0,
+      vencidas: 0,
+      negociacao: 0,
+      judicializadas: 0,
+    };
+    const operational = getCobrancaOperationalStatus(item);
+    current.count += 1;
+    current.value += money(item.valor_atualizado);
+    current.vencidas += safeDate(item.vencimento) && safeDate(item.vencimento)! < now ? 1 : 0;
+    current.negociacao += operational === COBRANCA_STATUS.EM_NEGOCIACAO ? 1 : 0;
+    current.judicializadas += [COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(operational as any) ? 1 : 0;
+    cobrancasPorCarteiraMap.set(nome, current);
+  }
+
+  const criticas = [...activeCobrancas]
+    .sort((a, b) => {
+      const byDelay = daysBetween(safeDate(b.vencimento), now) - daysBetween(safeDate(a.vencimento), now);
+      if (byDelay !== 0) return byDelay;
+      return money(b.valor_atualizado) - money(a.valor_atualizado);
+    })
+    .slice(0, 8)
+    .map((item) => ({
+      id: item.id,
+      condominio: getCondominioName(item),
+      unidade: getUnidadeLabel(item),
+      responsavel: getRelationOne(item.unidades)?.responsavel_nome ?? null,
+      vencimento: item.vencimento,
+      value: money(item.valor_atualizado),
+      status: getCobrancaOperationalStatus(item),
+      diasAtraso: Math.max(0, daysBetween(safeDate(item.vencimento), now)),
+      href: `/app/cobrancas/${item.id}`,
+    }));
+
+  const parcelas = acordosList.flatMap((acordo) =>
+    (acordo.parcelas_acordo ?? []).map((parcela) => ({
+      ...parcela,
+      acordoId: acordo.id,
+      condominio: getCondominioName(acordo),
+      unidade: getUnidadeLabel(acordo),
+      carteiraId: acordo.carteira_id,
+    })),
+  );
+  const parcelaAberta = (status?: string | null) =>
+    !["paga", "pago", "quitada", "quitado", "cancelada", "cancelado"].includes(normalizeStatus(status));
+  const parcelasAbertas = parcelas.filter((parcela) => parcelaAberta(parcela.status));
+  const parcelasAtrasadas = parcelasAbertas.filter((parcela) => {
+    const vencimento = safeDate(parcela.vencimento);
+    return Boolean(vencimento && vencimento < now);
+  });
+  const acordosAtivos = acordosList.filter((item) =>
+    ["ativo", "em_dia", "em dia"].includes(normalizeStatus(item.status)),
+  );
+  const acordosRisco = acordosList.filter((item) =>
+    [...RISK_ACORDO_STATUSES, "rompido", "quebrado"].includes(normalizeStatus(item.status) as any),
+  );
+  const acordosQuitados = acordosList.filter((item) =>
+    ["quitado", "pago"].includes(normalizeStatus(item.status_financeiro ?? item.status)),
+  );
+  const acordosRompidos = acordosList.filter((item) =>
+    ["rompido", "quebrado"].includes(normalizeStatus(item.status)),
+  );
+  const totalAcordado = acordosList.reduce((sum, item) => sum + money(item.valor_acordado), 0);
+  const valorAtivoAcordos = acordosAtivos.reduce((sum, item) => sum + money(item.valor_acordado), 0);
+  const valorRiscoAcordos = acordosRisco.reduce((sum, item) => sum + money(item.valor_acordado), 0);
+  const valorQuitadoAcordos = acordosQuitados.reduce((sum, item) => sum + money(item.valor_acordado), 0);
+
+  const acordosTopCondominiosMap = new Map<
+    string,
+    { nome: string; count: number; value: number; ativos: number; risco: number }
+  >();
+  const acordosCarteiraMap = new Map<
+    string,
+    { nome: string; count: number; value: number; ativos: number; risco: number }
+  >();
+
+  for (const item of acordosList) {
+    const status = normalizeStatus(item.status);
+    const isAtivo = ["ativo", "em_dia", "em dia"].includes(status);
+    const isRisco = [...RISK_ACORDO_STATUSES, "rompido", "quebrado"].includes(status as any);
+    const condominio = getCondominioName(item);
+    const carteira = carteiraMap.get(item.carteira_id ?? "") ?? "Sem carteira";
+
+    for (const [key, map] of [
+      [condominio, acordosTopCondominiosMap],
+      [carteira, acordosCarteiraMap],
+    ] as const) {
+      const current = map.get(key) ?? { nome: key, count: 0, value: 0, ativos: 0, risco: 0 };
+      current.count += 1;
+      current.value += money(item.valor_acordado);
+      current.ativos += isAtivo ? 1 : 0;
+      current.risco += isRisco ? 1 : 0;
+      map.set(key, current);
+    }
+  }
+
+  const proximasParcelas = parcelasAbertas
+    .sort((a, b) => (safeDate(a.vencimento)?.getTime() ?? 0) - (safeDate(b.vencimento)?.getTime() ?? 0))
+    .slice(0, 8)
+    .map((parcela) => ({
+      acordoId: parcela.acordoId,
+      condominio: parcela.condominio,
+      unidade: parcela.unidade,
+      vencimento: parcela.vencimento ?? null,
+      valor: money(parcela.valor),
+      status: normalizeStatus(parcela.status),
+      dias: daysBetween(safeDate(parcela.vencimento), now),
+      href: `/app/acordos/${parcela.acordoId}`,
+    }));
+
+  return {
+    generatedAt: now.toISOString(),
+    cobrancas: {
+      kpis: {
+        totalAtivas: activeCobrancas.length,
+        valorAtivo: activeValue,
+        vencidas: vencidas.length,
+        valorVencido: overdueValue,
+        emNegociacao: emNegociacao.length,
+        valorNegociacao: emNegociacao.reduce((sum, item) => sum + money(item.valor_atualizado), 0),
+        judicializadas: judicializadas.length,
+        valorJudicializado: judicializadas.reduce((sum, item) => sum + money(item.valor_atualizado), 0),
+        suspensas: suspensas.length,
+        valorSuspenso: suspensas.reduce((sum, item) => sum + money(item.valor_atualizado), 0),
+        semInteracao: semInteracao.length,
+        valorSemInteracao: semInteracao.reduce((sum, item) => sum + money(item.valor_atualizado), 0),
+        atrasoMedioDias: overdueDays.length ? Math.round(overdueDays.reduce((sum, days) => sum + days, 0) / overdueDays.length) : 0,
+        maiorAtrasoDias: overdueDays.length ? Math.max(...overdueDays) : 0,
+      },
+      aging,
+      status: buildStatusDistribution(
+        cobrancasList.map((item) => ({
+          status: getCobrancaOperationalStatus(item),
+          value: money(item.valor_atualizado),
+        })),
+      ),
+      topCondominios: Array.from(topCondominiosMap.values())
+        .map((item) => ({
+          nome: item.nome,
+          count: item.count,
+          unidades: item.units.size,
+          value: item.value,
+          atrasoMedioDias: item.count ? Math.round(item.totalDays / item.count) : 0,
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10),
+      carteiras: Array.from(cobrancasPorCarteiraMap.values())
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8),
+      criticas,
+    },
+    acordos: {
+      kpis: {
+        totalAcordos: acordosList.length,
+        valorAcordado: totalAcordado,
+        ativos: acordosAtivos.length,
+        valorAtivo: valorAtivoAcordos,
+        emRisco: acordosRisco.length,
+        valorEmRisco: valorRiscoAcordos,
+        rompidos: acordosRompidos.length,
+        valorRompido: acordosRompidos.reduce((sum, item) => sum + money(item.valor_acordado), 0),
+        quitados: acordosQuitados.length,
+        valorQuitado: valorQuitadoAcordos,
+        parcelasAbertas: parcelasAbertas.length,
+        valorParcelasAbertas: parcelasAbertas.reduce((sum, item) => sum + money(item.valor), 0),
+        parcelasAtrasadas: parcelasAtrasadas.length,
+        valorParcelasAtrasadas: parcelasAtrasadas.reduce((sum, item) => sum + money(item.valor), 0),
+        recuperacaoPercent: totalAcordado > 0 ? Math.round((valorQuitadoAcordos / totalAcordado) * 100) : 0,
+      },
+      status: buildStatusDistribution(
+        acordosList.map((item) => ({
+          status: item.status,
+          value: money(item.valor_acordado),
+        })),
+      ),
+      parcelasStatus: buildStatusDistribution(
+        parcelas.map((item) => ({
+          status: item.status ?? "sem status",
+          value: money(item.valor),
+        })),
+      ),
+      topCondominios: Array.from(acordosTopCondominiosMap.values())
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10),
+      carteiras: Array.from(acordosCarteiraMap.values())
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8),
+      proximasParcelas,
+    },
   };
 }

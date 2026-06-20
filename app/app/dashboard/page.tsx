@@ -1,18 +1,18 @@
+import Link from "next/link";
 import {
-  Activity,
   AlertTriangle,
   ArrowUpRight,
-  Banknote,
   BarChart3,
+  CalendarClock,
   CircleDollarSign,
-  Gauge,
   Handshake,
-  LineChart,
-  PieChart,
-  ShieldAlert,
-  Target,
-  TrendingUp,
+  Layers3,
+  ListChecks,
+  Scale,
+  WalletCards,
 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   LiteKpiStrip,
@@ -21,216 +21,170 @@ import {
   LiteScrollArea,
   LiteWorkArea,
 } from "@/components/layout/lite-page-shell";
-import { Card } from "@/components/ui/card";
-import { ButtonLink } from "@/components/ui/button";
-import { formatCurrency } from "@/utils/formatters/currency";
-import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
-import { getManagementDashboard } from "@/features/dashboard/queries";
 import { cn } from "@/lib/utils";
+import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
+import { formatCurrency } from "@/utils/formatters/currency";
+import { formatDateBR } from "@/utils/formatters/date";
+import { getManagementDashboardTabs } from "@/features/dashboard/queries";
 
-type TrafficStatus = "verde" | "amarelo" | "vermelho";
-
-type StatusSlice = {
-  label: string;
-  count: number;
-  value: number;
-  percentage: number;
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-type BarItem = {
-  label: string;
-  value?: number;
-  aberto?: number;
-  acordado?: number;
-  count?: number;
-};
+type DashboardData = Awaited<ReturnType<typeof getManagementDashboardTabs>>;
+type StatusSlice = DashboardData["cobrancas"]["status"][number];
 
-const trafficClasses: Record<TrafficStatus, string> = {
-  verde: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  amarelo: "border-amber-200 bg-amber-50 text-amber-700",
-  vermelho: "border-red-200 bg-red-50 text-red-700",
-};
+const TAB_OPTIONS = [
+  {
+    id: "cobrancas",
+    label: "Cobranças",
+    icon: WalletCards,
+    href: "/app/dashboard?tab=cobrancas",
+  },
+  {
+    id: "acordos",
+    label: "Acordos",
+    icon: Handshake,
+    href: "/app/dashboard?tab=acordos",
+  },
+] as const;
 
-const trafficDotClasses: Record<TrafficStatus, string> = {
-  verde: "bg-emerald-500 shadow-emerald-500/30",
-  amarelo: "bg-amber-500 shadow-amber-500/30",
-  vermelho: "bg-red-500 shadow-red-500/30",
-};
-
-function percent(value: number) {
-  return `${Math.max(0, Math.min(100, Math.round(value)))}%`;
+function firstParam(value?: string | string[]) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
-function maxValue(values: number[]) {
-  return Math.max(1, ...values.map((value) => Number(value || 0)));
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("pt-BR").format(value);
 }
 
-function KpiCard({
-  title,
+function statusLabel(value: string) {
+  return String(value || "sem status")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function ManagementKpi({
+  label,
   value,
-  description,
+  note,
   icon: Icon,
-  signal,
+  tone = "slate",
 }: {
-  title: string;
+  label: string;
   value: string;
-  description: string;
-  icon: React.ElementType;
-  signal?: TrafficStatus;
+  note: string;
+  icon: typeof WalletCards;
+  tone?: "blue" | "green" | "amber" | "red" | "slate";
 }) {
+  const tones = {
+    blue: "bg-sky-50 text-sky-700",
+    green: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    red: "bg-rose-50 text-rose-700",
+    slate: "bg-slate-100 text-slate-600",
+  };
+
   return (
-    <Card className="relative overflow-hidden p-4">
-      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[var(--gkli-primary-light)]" />
-      <div className="relative flex items-start justify-between gap-4">
+    <Card className="min-h-[104px] p-5">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
-            {title}
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+            {label}
           </p>
-          <p className="mt-3 text-2xl font-medium tracking-[-0.035em] text-slate-950">
+          <p className="mt-3 text-2xl font-semibold leading-none text-slate-950">
             {value}
           </p>
-          <p className="mt-1 text-[13px] leading-5 text-slate-500">
-            {description}
-          </p>
+          <p className="mt-3 text-sm text-slate-500">{note}</p>
         </div>
-        <div className="rounded-2xl bg-[var(--gkli-primary)] p-2.5 text-white shadow-sm">
-          <Icon size={18} />
-        </div>
+        <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full", tones[tone])}>
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
       </div>
-
-      {signal ? (
-        <div className="relative mt-4 flex items-center gap-2 text-[12px] text-slate-500">
-          <span
-            className={cn(
-              "h-2 w-2 rounded-full shadow-[0_0_0_4px]",
-              trafficDotClasses[signal],
-            )}
-          />
-          Semáforo {signal}
-        </div>
-      ) : null}
     </Card>
   );
 }
 
-function TrafficCard({
-  label,
-  status,
-  value,
-  description,
+function TabLink({
+  option,
+  active,
 }: {
-  label: string;
-  status: TrafficStatus;
-  value: string;
-  description: string;
-  key?: string;
+  option: (typeof TAB_OPTIONS)[number];
+  active: boolean;
+}) {
+  const Icon = option.icon;
+  return (
+    <Link
+      href={option.href}
+      className={cn(
+        "inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-medium transition",
+        active
+          ? "border-sky-200 bg-white text-slate-950 shadow-sm"
+          : "border-white/15 bg-white/10 text-white/78 hover:bg-white/15 hover:text-white",
+      )}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {option.label}
+    </Link>
+  );
+}
+
+function SectionHeader({
+  eyebrow,
+  title,
+  action,
+}: {
+  eyebrow: string;
+  title: string;
+  action?: React.ReactNode;
 }) {
   return (
-    <div className={cn("rounded-2xl border px-4 py-3", trafficClasses[status])}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "h-2.5 w-2.5 rounded-full shadow-[0_0_0_4px]",
-              trafficDotClasses[status],
-            )}
-          />
-          <p className="text-[12px] font-medium uppercase tracking-[0.12em]">
-            {label}
-          </p>
-        </div>
-        <p className="text-sm font-semibold">{value}</p>
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+          {eyebrow}
+        </p>
+        <h2 className="mt-1 text-lg font-semibold text-slate-950">{title}</h2>
       </div>
-      <p className="mt-2 text-[12px] leading-5 opacity-80">{description}</p>
+      {action}
     </div>
   );
 }
 
-function GaugeCard({ score }: { score: number }) {
-  const dash = 2 * Math.PI * 48;
-  const offset = dash - (dash * Math.max(0, Math.min(100, score))) / 100;
-
-  return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Gauge size={18} className="text-[var(--gkli-primary)]" />
-            <h2 className="text-[15px] font-medium tracking-[-0.015em] text-slate-950">
-              Saúde da carteira
-            </h2>
-          </div>
-          <p className="mt-1 text-[13px] leading-5 text-slate-500">
-            Score gerencial combinando risco, judicialização, aging e falta de
-            interação.
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 flex items-center justify-center">
-        <div className="relative h-40 w-40">
-          <svg viewBox="0 0 120 120" className="h-40 w-40 -rotate-90">
-            <circle
-              cx="60"
-              cy="60"
-              r="48"
-              fill="none"
-              stroke="rgb(226 232 240)"
-              strokeWidth="12"
-            />
-            <circle
-              cx="60"
-              cy="60"
-              r="48"
-              fill="none"
-              stroke="var(--gkli-primary)"
-              strokeLinecap="round"
-              strokeWidth="12"
-              strokeDasharray={dash}
-              strokeDashoffset={offset}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl font-medium tracking-[-0.05em] text-slate-950">
-              {score}
-            </span>
-            <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
-              / 100
-            </span>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function HorizontalBars({
+function BarList({
   items,
-  valueKey = "value",
+  total,
+  valueType = "money",
 }: {
-  items: BarItem[];
-  valueKey?: "value" | "aberto" | "acordado";
+  items: Array<{ label: string; count: number; value: number; percentage?: number }>;
+  total?: number;
+  valueType?: "money" | "count";
 }) {
-  const max = maxValue(items.map((item) => Number(item[valueKey] ?? 0)));
+  const max = Math.max(...items.map((item) => item.value), 1);
+  const totalValue = total ?? items.reduce((sum, item) => sum + item.value, 0);
+
+  if (!items.length) {
+    return <p className="py-10 text-center text-sm text-slate-500">Sem dados para exibir.</p>;
+  }
 
   return (
     <div className="space-y-4">
       {items.map((item) => {
-        const value = Number(item[valueKey] ?? 0);
+        const width = item.percentage ?? (totalValue > 0 ? Math.round((item.value / totalValue) * 100) : 0);
         return (
           <div key={item.label}>
-            <div className="mb-1.5 flex items-center justify-between gap-3 text-[13px]">
-              <span className="truncate text-slate-600">{item.label}</span>
-              <span className="shrink-0 font-medium text-slate-950">
-                {formatCurrency(value)}
+            <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+              <span className="font-medium text-slate-700">{item.label}</span>
+              <span className="text-slate-500">
+                {valueType === "money" ? formatCurrency(item.value) : formatNumber(item.count)}
               </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-slate-100">
               <div
                 className="h-full rounded-full bg-[var(--gkli-primary)]"
-                style={{ width: percent((value / max) * 100) }}
+                style={{ width: `${Math.max(4, Math.min(100, width || Math.round((item.value / max) * 100)))}%` }}
               />
             </div>
+            <p className="mt-1 text-xs text-slate-400">{formatNumber(item.count)} registros</p>
           </div>
         );
       })}
@@ -238,117 +192,24 @@ function HorizontalBars({
   );
 }
 
-function StackedStatus({ items }: { items: StatusSlice[] }) {
-  if (items.length === 0) {
-    return (
-      <p className="text-[13px] text-slate-500">
-        Sem dados suficientes para montar a distribuição.
-      </p>
-    );
+function StatusList({ items }: { items: StatusSlice[] }) {
+  const palette = ["bg-sky-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-slate-400"];
+
+  if (!items.length) {
+    return <p className="py-10 text-center text-sm text-slate-500">Sem status para exibir.</p>;
   }
-
-  return (
-    <div>
-      <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
-        {items.map((item, index) => (
-          <div
-            key={item.label}
-            className={cn(
-              "h-full",
-              index % 4 === 0 && "bg-[var(--gkli-primary)]",
-              index % 4 === 1 && "bg-slate-500",
-              index % 4 === 2 && "bg-slate-300",
-              index % 4 === 3 && "bg-slate-700",
-            )}
-            style={{ width: percent(item.percentage) }}
-            title={`${item.label}: ${item.percentage}%`}
-          />
-        ))}
-      </div>
-
-      <div className="mt-4 space-y-3">
-        {items.slice(0, 5).map((item) => (
-          <div
-            key={item.label}
-            className="flex items-center justify-between gap-4 text-[13px]"
-          >
-            <div className="min-w-0">
-              <p className="truncate font-medium capitalize text-slate-700">
-                {item.label}
-              </p>
-              <p className="text-[12px] text-slate-400">
-                {item.count} registros · {item.percentage}%
-              </p>
-            </div>
-            <p className="shrink-0 font-medium text-slate-950">
-              {formatCurrency(item.value)}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ColumnChart({
-  items,
-}: {
-  items: Array<{ label: string; aberto: number; acordado: number }>;
-}) {
-  const max = maxValue(items.flatMap((item) => [item.aberto, item.acordado]));
-
-  if (items.length === 0) {
-    return (
-      <p className="text-[13px] text-slate-500">
-        Sem dados mensais suficientes.
-      </p>
-    );
-  }
-
-  return (
-    <div className="flex h-64 items-end gap-3 pt-6">
-      {items.map((item) => (
-        <div
-          key={item.label}
-          className="flex min-w-0 flex-1 flex-col items-center gap-2"
-        >
-          <div className="flex h-48 w-full items-end justify-center gap-1.5 rounded-2xl bg-slate-50 px-2 py-2">
-            <div
-              className="w-full max-w-5 rounded-t-lg bg-slate-400"
-              style={{ height: percent((item.aberto / max) * 100) }}
-              title={`Aberto: ${formatCurrency(item.aberto)}`}
-            />
-            <div
-              className="w-full max-w-5 rounded-t-lg bg-[var(--gkli-primary)]"
-              style={{ height: percent((item.acordado / max) * 100) }}
-              title={`Acordado: ${formatCurrency(item.acordado)}`}
-            />
-          </div>
-          <span className="w-full truncate text-center text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">
-            {item.label}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Funnel({ items }: { items: Array<{ label: string; value: number }> }) {
-  const max = maxValue(items.map((item) => item.value));
 
   return (
     <div className="space-y-3">
-      {items.map((item) => (
-        <div key={item.label} className="rounded-2xl bg-slate-50 p-3">
-          <div className="flex items-center justify-between text-[13px]">
-            <span className="font-medium text-slate-600">{item.label}</span>
-            <span className="font-semibold text-slate-950">{item.value}</span>
+      {items.slice(0, 7).map((item, index) => (
+        <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", palette[index % palette.length])} />
+            <span className="truncate text-sm font-medium text-slate-700">{statusLabel(item.label)}</span>
           </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
-            <div
-              className="h-full rounded-full bg-[var(--gkli-primary)]"
-              style={{ width: percent((item.value / max) * 100) }}
-            />
+          <div className="text-right">
+            <p className="text-sm font-semibold text-slate-950">{formatNumber(item.count)}</p>
+            <p className="text-xs text-slate-400">{formatCurrency(item.value)}</p>
           </div>
         </div>
       ))}
@@ -356,280 +217,296 @@ function Funnel({ items }: { items: Array<{ label: string; value: number }> }) {
   );
 }
 
-export default async function DashboardPage() {
+function RankingTable({
+  rows,
+  type,
+}: {
+  rows: DashboardData["cobrancas"]["topCondominios"] | DashboardData["acordos"]["topCondominios"];
+  type: "cobrancas" | "acordos";
+}) {
+  if (!rows.length) {
+    return <p className="py-10 text-center text-sm text-slate-500">Sem concentração por condomínio.</p>;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-100">
+      <table className="w-full text-left text-sm">
+        <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+          <tr>
+            <th className="px-4 py-3 font-semibold">Condomínio</th>
+            <th className="px-4 py-3 font-semibold">Qtd.</th>
+            <th className="px-4 py-3 font-semibold">Valor</th>
+            <th className="px-4 py-3 font-semibold">{type === "cobrancas" ? "Atraso médio" : "Risco"}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((row) => (
+            <tr key={row.nome}>
+              <td className="px-4 py-3 font-medium text-slate-950">{row.nome}</td>
+              <td className="px-4 py-3 text-slate-600">{formatNumber(row.count)}</td>
+              <td className="px-4 py-3 font-semibold text-slate-950">{formatCurrency(row.value)}</td>
+              <td className="px-4 py-3 text-slate-600">
+                {type === "cobrancas"
+                  ? `${"atrasoMedioDias" in row ? row.atrasoMedioDias : 0} dias`
+                  : `${"risco" in row ? row.risco : 0} casos`}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CobrancasTab({ data }: { data: DashboardData["cobrancas"] }) {
+  return (
+    <>
+      <LiteKpiStrip className="grid grid-cols-4 gap-3">
+        <ManagementKpi
+          label="Carteira ativa"
+          value={formatCurrency(data.kpis.valorAtivo)}
+          note={`${formatNumber(data.kpis.totalAtivas)} cobranças em acompanhamento`}
+          icon={CircleDollarSign}
+          tone="blue"
+        />
+        <ManagementKpi
+          label="Vencidas"
+          value={formatCurrency(data.kpis.valorVencido)}
+          note={`${formatNumber(data.kpis.vencidas)} cobranças · atraso médio ${data.kpis.atrasoMedioDias} dias`}
+          icon={CalendarClock}
+          tone="amber"
+        />
+        <ManagementKpi
+          label="Negociação"
+          value={formatCurrency(data.kpis.valorNegociacao)}
+          note={`${formatNumber(data.kpis.emNegociacao)} cobranças em conversa`}
+          icon={Handshake}
+          tone="green"
+        />
+        <ManagementKpi
+          label="Sem toque"
+          value={formatNumber(data.kpis.semInteracao)}
+          note={`${formatCurrency(data.kpis.valorSemInteracao)} sem interação recente`}
+          icon={AlertTriangle}
+          tone="red"
+        />
+      </LiteKpiStrip>
+
+      <LiteWorkArea>
+        <LiteScrollArea className="h-full pr-1">
+          <div className="grid grid-cols-[1.35fr_.9fr] gap-3">
+            <Card className="p-5">
+              <SectionHeader eyebrow="Concentração" title="Condomínios com maior carteira ativa" />
+              <RankingTable rows={data.topCondominios} type="cobrancas" />
+            </Card>
+
+            <Card className="p-5">
+              <SectionHeader eyebrow="Aging" title="Valor vencido por faixa" />
+              <BarList items={data.aging} total={data.kpis.valorVencido} />
+            </Card>
+
+            <Card className="p-5">
+              <SectionHeader
+                eyebrow="Fila crítica"
+                title="Cobranças que pedem decisão"
+                action={
+                  <ButtonLink href="/app/cobrancas" variant="secondary" size="sm">
+                    Abrir fila <ArrowUpRight className="h-3.5 w-3.5" />
+                  </ButtonLink>
+                }
+              />
+              <div className="divide-y divide-slate-100">
+                {data.criticas.length ? (
+                  data.criticas.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      className="grid grid-cols-[1fr_130px_110px] gap-4 py-3 text-sm hover:bg-slate-50"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-950">{item.condominio}</p>
+                        <p className="truncate text-slate-500">{item.unidade}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Valor</p>
+                        <p className="font-semibold text-slate-950">{formatCurrency(item.value)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Atraso</p>
+                        <p className="font-semibold text-amber-700">{item.diasAtraso} dias</p>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <p className="py-10 text-center text-sm text-slate-500">Sem cobranças críticas.</p>
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <SectionHeader eyebrow="Status" title="Distribuição operacional" />
+              <StatusList items={data.status} />
+            </Card>
+
+            <Card className="col-span-2 p-5">
+              <SectionHeader eyebrow="Carteiras" title="Resumo por carteira" />
+              <BarList
+                items={data.carteiras.map((item) => ({
+                  label: item.nome,
+                  count: item.count,
+                  value: item.value,
+                }))}
+              />
+            </Card>
+          </div>
+        </LiteScrollArea>
+      </LiteWorkArea>
+    </>
+  );
+}
+
+function AcordosTab({ data }: { data: DashboardData["acordos"] }) {
+  return (
+    <>
+      <LiteKpiStrip className="grid grid-cols-4 gap-3">
+        <ManagementKpi
+          label="Acordado"
+          value={formatCurrency(data.kpis.valorAcordado)}
+          note={`${formatNumber(data.kpis.totalAcordos)} acordos no histórico`}
+          icon={Handshake}
+          tone="blue"
+        />
+        <ManagementKpi
+          label="Ativos"
+          value={formatCurrency(data.kpis.valorAtivo)}
+          note={`${formatNumber(data.kpis.ativos)} acordos em andamento`}
+          icon={ListChecks}
+          tone="green"
+        />
+        <ManagementKpi
+          label="Risco"
+          value={formatCurrency(data.kpis.valorEmRisco)}
+          note={`${formatNumber(data.kpis.emRisco)} acordos atrasados ou rompidos`}
+          icon={AlertTriangle}
+          tone="red"
+        />
+        <ManagementKpi
+          label="Parcelas abertas"
+          value={formatCurrency(data.kpis.valorParcelasAbertas)}
+          note={`${formatNumber(data.kpis.parcelasAbertas)} parcelas · ${data.kpis.recuperacaoPercent}% recuperado`}
+          icon={Scale}
+          tone="amber"
+        />
+      </LiteKpiStrip>
+
+      <LiteWorkArea>
+        <LiteScrollArea className="h-full pr-1">
+          <div className="grid grid-cols-[1.35fr_.9fr] gap-3">
+            <Card className="p-5">
+              <SectionHeader eyebrow="Concentração" title="Condomínios com maior volume acordado" />
+              <RankingTable rows={data.topCondominios} type="acordos" />
+            </Card>
+
+            <Card className="p-5">
+              <SectionHeader eyebrow="Status" title="Acordos por situação" />
+              <StatusList items={data.status} />
+            </Card>
+
+            <Card className="p-5">
+              <SectionHeader
+                eyebrow="Agenda"
+                title="Próximas parcelas e atrasos"
+                action={
+                  <ButtonLink href="/app/acordos" variant="secondary" size="sm">
+                    Abrir acordos <ArrowUpRight className="h-3.5 w-3.5" />
+                  </ButtonLink>
+                }
+              />
+              <div className="divide-y divide-slate-100">
+                {data.proximasParcelas.length ? (
+                  data.proximasParcelas.map((item) => (
+                    <Link
+                      key={`${item.acordoId}-${item.vencimento}-${item.valor}`}
+                      href={item.href}
+                      className="grid grid-cols-[1fr_130px_120px] gap-4 py-3 text-sm hover:bg-slate-50"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-950">{item.condominio}</p>
+                        <p className="truncate text-slate-500">{item.unidade}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Vencimento</p>
+                        <p className="font-semibold text-slate-950">{formatDateBR(item.vencimento)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Valor</p>
+                        <p className="font-semibold text-slate-950">{formatCurrency(item.valor)}</p>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <p className="py-10 text-center text-sm text-slate-500">Sem parcelas abertas.</p>
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <SectionHeader eyebrow="Parcelas" title="Distribuição das parcelas" />
+              <StatusList items={data.parcelasStatus} />
+            </Card>
+
+            <Card className="col-span-2 p-5">
+              <SectionHeader eyebrow="Carteiras" title="Resumo por carteira" />
+              <BarList
+                items={data.carteiras.map((item) => ({
+                  label: item.nome,
+                  count: item.count,
+                  value: item.value,
+                }))}
+              />
+            </Card>
+          </div>
+        </LiteScrollArea>
+      </LiteWorkArea>
+    </>
+  );
+}
+
+export default async function DashboardPage({ searchParams }: PageProps) {
+  const params = searchParams ? await searchParams : {};
+  const activeTab = firstParam(params.tab) === "acordos" ? "acordos" : "cobrancas";
   const scope = await getPermittedCarteiras();
-  const metrics = await getManagementDashboard(scope);
+  const data = await getManagementDashboardTabs(scope);
 
   return (
     <LitePageShell>
       <LitePageHeader>
         <PageHeader
-          eyebrow="Gestão BI"
+          eyebrow="Gestão"
           title="Dashboard de gestão"
-          description="Visão executiva da operação: saúde da carteira, recuperação, risco, aging, acordos e judicialização em uma leitura única de BI. O cockpit mostra o que fazer agora; este dashboard mostra para onde a operação está indo."
+          description="Visão executiva da carteira operacional, com leitura separada de cobranças e acordos."
           actions={
-            <>
-              <ButtonLink href="/app" variant="secondary">
-                <Activity size={16} />
-                Ir para cockpit
+            <div className="flex flex-wrap items-center gap-2">
+              <ButtonLink href="/app/dashboard/funil" variant="header" size="md">
+                <BarChart3 className="h-4 w-4" />
+                Funil
               </ButtonLink>
-              <ButtonLink href="/app/dashboard/funil" variant="secondary">
-                <Target size={16} />
-                Funil operacional
+              <ButtonLink href="/app/inbox" variant="header" size="md">
+                <Layers3 className="h-4 w-4" />
+                Inbox
               </ButtonLink>
-              <ButtonLink href="/app/cobrancas" variant="secondary">
-                <ArrowUpRight size={16} />
-                Base de cobranças
-              </ButtonLink>
-              <ButtonLink href="/app/acordos/gestao" variant="secondary">
-                <Handshake size={16} />
-                Gestão de acordos
-              </ButtonLink>
-            </>
+            </div>
           }
         >
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {metrics.semaforos.map((item) => (
-              <TrafficCard
-                key={item.label}
-                label={item.label}
-                status={item.status}
-                value={item.value}
-                description={item.description}
-              />
+          <div className="flex items-center gap-2">
+            {TAB_OPTIONS.map((option) => (
+              <TabLink key={option.id} option={option} active={activeTab === option.id} />
             ))}
           </div>
         </PageHeader>
       </LitePageHeader>
 
-      <LiteKpiStrip className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          title="Carteira em aberto"
-          value={formatCurrency(metrics.totalEmAberto)}
-          description="estoque extrajudicial ainda acionável"
-          icon={Banknote}
-          signal={metrics.totalVencido > 0 ? "amarelo" : "verde"}
-        />
-        <KpiCard
-          title="Acordado"
-          value={formatCurrency(metrics.totalAcordado)}
-          description={`${metrics.totalAcordos} acordos cadastrados · ${metrics.acordosAtivos} ativos`}
-          icon={Handshake}
-          signal={metrics.acordosEmRisco > 0 ? "amarelo" : "verde"}
-        />
-        <KpiCard
-          title="Recuperação estimada"
-          value={`${metrics.taxaRecuperacao}%`}
-          description="acordado sobre estoque total monitorado"
-          icon={TrendingUp}
-          signal={
-            metrics.taxaRecuperacao >= 40
-              ? "verde"
-              : metrics.taxaRecuperacao >= 20
-                ? "amarelo"
-                : "vermelho"
-          }
-        />
-        <KpiCard
-          title="Conversão"
-          value={`${metrics.taxaConversao}%`}
-          description="acordos gerados sobre cobranças registradas"
-          icon={Target}
-          signal={
-            metrics.taxaConversao >= 25
-              ? "verde"
-              : metrics.taxaConversao >= 10
-                ? "amarelo"
-                : "vermelho"
-          }
-        />
-      </LiteKpiStrip>
-
-      <LiteWorkArea>
-        <LiteScrollArea className="h-full space-y-4 pr-1">
-          <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-            <GaugeCard score={metrics.healthScore} />
-
-            <Card className="p-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <LineChart
-                      size={18}
-                      className="text-[var(--gkli-primary)]"
-                    />
-                    <h2 className="text-[15px] font-medium tracking-[-0.015em] text-slate-950">
-                      Evolução mensal
-                    </h2>
-                  </div>
-                  <p className="mt-1 text-[13px] leading-5 text-slate-500">
-                    Comparativo visual entre valor em aberto e valor acordado
-                    por mês.
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 text-[12px] text-slate-500">
-                  <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-slate-400" />
-                    Aberto
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[var(--gkli-primary)]" />
-                    Acordado
-                  </span>
-                </div>
-              </div>
-
-              <ColumnChart items={metrics.monthlySeries} />
-            </Card>
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-3">
-            <Card className="p-4">
-              <div className="flex items-center gap-2">
-                <ShieldAlert size={18} className="text-[var(--gkli-primary)]" />
-                <h2 className="text-[15px] font-medium tracking-[-0.015em] text-slate-950">
-                  Aging da inadimplência
-                </h2>
-              </div>
-              <p className="mt-1 text-[13px] leading-5 text-slate-500">
-                Quanto mais deslocado para +90 dias, maior a pressão sobre
-                conversão e judicialização.
-              </p>
-
-              <div className="mt-5 space-y-4">
-                {metrics.agingBuckets.map((bucket) => (
-                  <div key={bucket.label}>
-                    <div className="mb-1.5 flex items-center justify-between gap-3 text-[13px]">
-                      <span className="text-slate-600">{bucket.label}</span>
-                      <span className="font-medium text-slate-950">
-                        {formatCurrency(bucket.value)}
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-[var(--gkli-primary)]"
-                        style={{
-                          width: percent(
-                            (bucket.value / Math.max(1, metrics.totalVencido)) *
-                              100,
-                          ),
-                        }}
-                      />
-                    </div>
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      {bucket.count} cobranças
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-center gap-2">
-                <PieChart size={18} className="text-[var(--gkli-primary)]" />
-                <h2 className="text-[15px] font-medium tracking-[-0.015em] text-slate-950">
-                  Status das cobranças
-                </h2>
-              </div>
-              <p className="mt-1 text-[13px] leading-5 text-slate-500">
-                Distribuição financeira por etapa do fluxo de cobrança.
-              </p>
-              <div className="mt-5">
-                <StackedStatus items={metrics.statusDistribution} />
-              </div>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-center gap-2">
-                <BarChart3 size={18} className="text-[var(--gkli-primary)]" />
-                <h2 className="text-[15px] font-medium tracking-[-0.015em] text-slate-950">
-                  Funil de recuperação
-                </h2>
-              </div>
-              <p className="mt-1 text-[13px] leading-5 text-slate-500">
-                Da cobrança registrada até o acordo ativo.
-              </p>
-              <div className="mt-5">
-                <Funnel items={metrics.funnel} />
-              </div>
-            </Card>
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-            <Card className="p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <CircleDollarSign
-                      size={18}
-                      className="text-[var(--gkli-primary)]"
-                    />
-                    <h2 className="text-[15px] font-medium tracking-[-0.015em] text-slate-950">
-                      Condomínios com maior impacto financeiro
-                    </h2>
-                  </div>
-                  <p className="mt-1 text-[13px] leading-5 text-slate-500">
-                    Ranking combinado de valor em aberto e acordado para
-                    orientar gestão de carteira.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <HorizontalBars
-                  items={metrics.topCondominios.map((item) => ({
-                    label: item.nome,
-                    value: item.aberto + item.acordado,
-                  }))}
-                />
-              </div>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-center gap-2">
-                <AlertTriangle
-                  size={18}
-                  className="text-[var(--gkli-primary)]"
-                />
-                <h2 className="text-[15px] font-medium tracking-[-0.015em] text-slate-950">
-                  Acordos sob pressão
-                </h2>
-              </div>
-              <p className="mt-1 text-[13px] leading-5 text-slate-500">
-                Controle gerencial dos acordos que podem virar perda de
-                recuperação.
-              </p>
-
-              <div className="mt-5 grid gap-3">
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
-                    Valor em risco
-                  </p>
-                  <p className="mt-2 text-2xl font-medium tracking-[-0.035em] text-slate-950">
-                    {formatCurrency(metrics.valorAcordosRisco)}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
-                    Parcelas atrasadas
-                  </p>
-                  <p className="mt-2 text-2xl font-medium tracking-[-0.035em] text-slate-950">
-                    {formatCurrency(metrics.valorParcelasAtrasadas)}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
-                    Acordos em atraso
-                  </p>
-                  <p className="mt-2 text-2xl font-medium tracking-[-0.035em] text-slate-950">
-                    {metrics.acordosEmAtraso}
-                  </p>
-                </div>
-              </div>
-            </Card>
-          </section>
-        </LiteScrollArea>
-      </LiteWorkArea>
+      {activeTab === "acordos" ? <AcordosTab data={data.acordos} /> : <CobrancasTab data={data.cobrancas} />}
     </LitePageShell>
   );
 }
