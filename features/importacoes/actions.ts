@@ -634,7 +634,8 @@ function validateSimplePayload(tipo: string, payload: Record<string, any>) {
   const erros: string[] = [];
 
   if (tipo === "condominios") {
-    if (!payload.carteira_id) erros.push("Carteira vazia");
+    if (!payload.carteira_id && !getFirst(payload, ["carteira", "carteira_nome"]))
+      erros.push("Carteira vazia");
     if (!payload.nome) erros.push("Nome vazio");
     const cnpj = normalizeCnpj(payload.cnpj ?? "");
     if (!cnpj) erros.push("CNPJ vazio");
