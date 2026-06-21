@@ -36,7 +36,7 @@ import {
   marcarMensagemWhatsappEnviada,
 } from "@/features/mensageria/actions";
 import { buildWhatsappWebUrl } from "@/features/mensageria/whatsapp-web";
-import { LOTE_ITEM_STATUS } from "@/lib/core/status";
+import { LOTE_ITEM_STATUS, MENSAGEM_STATUS } from "@/lib/core/status";
 import { LoteActionButton } from "./lote-action-button";
 
 type PageProps = {
@@ -146,6 +146,30 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
   const byStatus = countItensByStatus(itens);
   const byMensagemStatus = countMensagensByStatus(itens as any);
   const generatedNow = getSearchParam(resolvedSearchParams, "gerado") === "1";
+  const totalCriadas = numberValue((lote as any).total_criadas ?? byStatus.criado);
+  const totalPuladas = numberValue((lote as any).total_puladas ?? byStatus.pulada);
+  const totalDuplicadas = numberValue((lote as any).total_duplicadas ?? byStatus.duplicada);
+  const totalErros = numberValue((lote as any).total_erros ?? byStatus.erro);
+  const pendentesAprovacao = numberValue(
+    byMensagemStatus[MENSAGEM_STATUS.PENDENTE_APROVACAO] ?? byMensagemStatus.pendente,
+  );
+  const aprovadas = numberValue(byMensagemStatus[MENSAGEM_STATUS.APROVADA]);
+  const enviadas = numberValue(byMensagemStatus[MENSAGEM_STATUS.ENVIADA]);
+  const falhas = numberValue(
+    byMensagemStatus[MENSAGEM_STATUS.FALHA] ?? byMensagemStatus.erro ?? byMensagemStatus.falha_envio,
+  );
+  const hasMensagens = itens.some((item: any) => Boolean(item.mensagem?.id));
+  const hasMensagensOperacionais = totalCriadas > 0 || hasMensagens;
+  const isAuditoriaSemMensagens =
+    !hasMensagensOperacionais && (totalPuladas > 0 || totalDuplicadas > 0 || totalErros > 0);
+  const hasEmailAprovado = itens.some(
+    (item: any) =>
+      item.mensagem?.canal === "email" &&
+      (item.mensagem?.status_operacional || item.mensagem?.status) === MENSAGEM_STATUS.APROVADA,
+  );
+  const canApproveLote = pendentesAprovacao + falhas > 0;
+  const canSendEmails = hasEmailAprovado;
+  const canReprocessar = falhas > 0 || numberValue(byStatus.erro) > 0;
 
   return (
     <div className="space-y-5">
@@ -165,24 +189,51 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
       />
 
       {generatedNow ? (
-        <Card className="border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+        <Card
+          className={
+            hasMensagensOperacionais
+              ? "border-emerald-200 bg-emerald-50 p-4 text-emerald-800"
+              : "border-amber-200 bg-amber-50 p-4 text-amber-800"
+          }
+        >
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <span
+              className={
+                hasMensagensOperacionais
+                  ? "mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"
+                  : "mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700"
+              }
+            >
               <Sparkles size={18} />
             </span>
             <div>
-              <p className="font-semibold">Lote gerado com sucesso.</p>
-              <p className="mt-1 text-sm text-emerald-700">
-                Foram avaliadas {metric((lote as any).total_avaliadas)} cobrancas:
-                {" "}
-                {metric((lote as any).total_criadas ?? byStatus.criado)} mensagens criadas,
-                {" "}
-                {metric((lote as any).total_puladas ?? byStatus.pulada)} puladas,
-                {" "}
-                {metric((lote as any).total_duplicadas ?? byStatus.duplicada)} duplicadas e
-                {" "}
-                {metric((lote as any).total_erros ?? byStatus.erro)} erros.
+              <p className="font-semibold">
+                {hasMensagensOperacionais
+                  ? "Lote operacional gerado."
+                  : "Registro de auditoria gerado sem mensagens."}
               </p>
+              <p
+                className={
+                  hasMensagensOperacionais
+                    ? "mt-1 text-sm text-emerald-700"
+                    : "mt-1 text-sm text-amber-700"
+                }
+              >
+                Foram avaliadas {metric((lote as any).total_avaliadas)} cobranças:
+                {" "}
+                {metric(totalCriadas)} mensagens criadas,
+                {" "}
+                {metric(totalPuladas)} puladas,
+                {" "}
+                {metric(totalDuplicadas)} duplicadas e
+                {" "}
+                {metric(totalErros)} erros.
+              </p>
+              {!hasMensagensOperacionais ? (
+                <p className="mt-1 text-sm text-amber-700">
+                  Não há mensagens para aprovar ou enviar neste lote. Revise os motivos dos itens pulados.
+                </p>
+              ) : null}
             </div>
           </div>
         </Card>
@@ -203,7 +254,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
             Criadas
           </p>
           <p className="mt-3 text-2xl font-semibold text-emerald-700">
-            {metric((lote as any).total_criadas ?? byStatus.criado)}
+            {metric(totalCriadas)}
           </p>
         </Card>
 
@@ -212,7 +263,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
             Duplicadas
           </p>
           <p className="mt-3 text-2xl font-semibold text-amber-700">
-            {metric((lote as any).total_duplicadas ?? byStatus.duplicada)}
+            {metric(totalDuplicadas)}
           </p>
         </Card>
 
@@ -221,7 +272,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
             Puladas
           </p>
           <p className="mt-3 text-2xl font-semibold text-slate-700">
-            {metric((lote as any).total_puladas ?? byStatus.pulada)}
+            {metric(totalPuladas)}
           </p>
         </Card>
 
@@ -230,7 +281,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
             Erros
           </p>
           <p className="mt-3 text-2xl font-semibold text-red-700">
-            {metric((lote as any).total_erros ?? byStatus.erro)}
+            {metric(totalErros)}
           </p>
         </Card>
       </section>
@@ -297,59 +348,72 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
               Próximo passo operacional
             </p>
             <h2 className="mt-1 text-base text-slate-950">
-              Revisar, aprovar, enviar e acompanhar retorno
+              {isAuditoriaSemMensagens
+                ? "Revisar motivos dos itens pulados"
+                : "Revisar, aprovar, enviar e acompanhar retorno"}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Pendentes de aprovação:{" "}
-              {metric(
-                byMensagemStatus.pendente_aprovacao ??
-                  byMensagemStatus.pendente,
-              )}{" "}
-              · Aprovadas: {metric(byMensagemStatus.aprovada)} · Enviadas:{" "}
-              {metric(byMensagemStatus.enviada)} · Erros:{" "}
-              {metric(byMensagemStatus.erro ?? byMensagemStatus.falha_envio)}
+              {isAuditoriaSemMensagens ? (
+                <>
+                  Este lote não criou mensagens. Puladas: {metric(totalPuladas)} · Duplicadas:{" "}
+                  {metric(totalDuplicadas)} · Erros: {metric(totalErros)}
+                </>
+              ) : (
+                <>
+                  Pendentes de aprovação: {metric(pendentesAprovacao)} · Aprovadas:{" "}
+                  {metric(aprovadas)} · Enviadas: {metric(enviadas)} · Erros: {metric(falhas)}
+                </>
+              )}
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <form action={aprovarLoteMensagens.bind(null, id)}>
-              <ActionButton confirmMessage="Confirmar aprovação de todas as mensagens pendentes deste lote?" pendingLabel="Aprovando...">
-                <CheckCircle2 size={16} />
-                Aprovar lote
-              </ActionButton>
-            </form>
+            {canApproveLote ? (
+              <form action={aprovarLoteMensagens.bind(null, id)}>
+                <ActionButton confirmMessage="Confirmar aprovação de todas as mensagens pendentes deste lote?" pendingLabel="Aprovando...">
+                  <CheckCircle2 size={16} />
+                  Aprovar lote
+                </ActionButton>
+              </form>
+            ) : null}
 
-            <form action={enviarLoteMensagens.bind(null, id)}>
-              <ActionButton tone="secondary" confirmMessage="Confirmar envio das mensagens aprovadas deste lote?" pendingLabel="Enviando...">
-                <Send size={16} />
-                Enviar e-mails
-              </ActionButton>
-            </form>
+            {canSendEmails ? (
+              <form action={enviarLoteMensagens.bind(null, id)}>
+                <ActionButton tone="secondary" confirmMessage="Confirmar envio dos e-mails aprovados deste lote?" pendingLabel="Enviando...">
+                  <Send size={16} />
+                  Enviar e-mails
+                </ActionButton>
+              </form>
+            ) : null}
 
-            <form action={reprocessarFalhasLote.bind(null, id)}>
-              <ActionButton tone="secondary" confirmMessage="Confirmar reprocessamento das falhas deste lote?" pendingLabel="Reprocessando...">
-                <RotateCcw size={16} />
-                Reprocessar falhas
-              </ActionButton>
-            </form>
+            {canReprocessar ? (
+              <form action={reprocessarFalhasLote.bind(null, id)}>
+                <ActionButton tone="secondary" confirmMessage="Confirmar reprocessamento das falhas deste lote?" pendingLabel="Reprocessando...">
+                  <RotateCcw size={16} />
+                  Reprocessar falhas
+                </ActionButton>
+              </form>
+            ) : null}
 
-            <form
-              action={cancelarLoteMensagens.bind(
-                null,
-                id,
-                "Cancelado na revisão operacional do lote.",
-              )}
-            >
-              <ActionButton tone="danger" confirmMessage="Confirmar cancelamento deste lote? Essa ação cancela mensagens e itens vinculados." pendingLabel="Cancelando...">
-                <XCircle size={16} />
-                Cancelar lote
-              </ActionButton>
-            </form>
+            {hasMensagensOperacionais ? (
+              <form
+                action={cancelarLoteMensagens.bind(
+                  null,
+                  id,
+                  "Cancelado na revisão operacional do lote.",
+                )}
+              >
+                <ActionButton tone="danger" confirmMessage="Confirmar cancelamento deste lote? Essa ação cancela mensagens e itens vinculados." pendingLabel="Cancelando...">
+                  <XCircle size={16} />
+                  Cancelar lote
+                </ActionButton>
+              </form>
+            ) : null}
 
             <form action={excluirLoteMensagens.bind(null, id)}>
-              <ActionButton tone="danger" confirmMessage="Confirmar exclusão deste lote? Só será excluído se estiver vazio, sem mensagens, itens ou histórico." pendingLabel="Excluindo...">
+              <ActionButton tone="danger" confirmMessage="Confirmar exclusão deste registro? A exclusão só será permitida se não houver mensagens vinculadas." pendingLabel="Excluindo...">
                 <Trash2 size={16} />
-                Excluir lote
+                {hasMensagensOperacionais ? "Excluir lote" : "Excluir registro"}
               </ActionButton>
             </form>
           </div>
@@ -392,6 +456,10 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                 mensagem?.destinatario || destinatarioPlanejado || unidade?.telefone || "";
               const canalExibido = mensagem?.canal || canalPlanejado || "";
               const destinatarioExibido = mensagem?.destinatario || destinatarioPlanejado || "";
+              const hasMensagem = Boolean(mensagem?.id);
+              const canApproveItem =
+                hasMensagem &&
+                (item.status === LOTE_ITEM_STATUS.CRIADO || item.status === LOTE_ITEM_STATUS.ERRO);
               const whatsappUrl =
                 canalExibido === "whatsapp" && mensagem?.id
                   ? buildWhatsappWebUrl(destinatarioWhatsapp, conteudoFinal)
@@ -566,9 +634,16 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                       Controle
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <form action={aprovarItemLote.bind(null, item.id)}><ActionButton tone="secondary" confirmMessage="Confirmar aprovação deste item do lote?" pendingLabel="Aprovando...">Aprovar item</ActionButton></form>
+                      {canApproveItem ? (
+                        <form action={aprovarItemLote.bind(null, item.id)}><ActionButton tone="secondary" confirmMessage="Confirmar aprovação deste item do lote?" pendingLabel="Aprovando...">Aprovar item</ActionButton></form>
+                      ) : null}
                       <form action={cancelarItemLote.bind(null, item.id, "Cancelado item a item na revisão operacional.")}><ActionButton tone="danger" confirmMessage="Confirmar remoção deste item do lote?" pendingLabel="Removendo...">Remover item</ActionButton></form>
                     </div>
+                    {!hasMensagem ? (
+                      <p className="mt-2 rounded-2xl bg-slate-50 p-3 text-xs text-slate-500">
+                        Item sem mensagem operacional. Use o motivo do pulo para ajustar cadastro, compliance ou régua antes de gerar novamente.
+                      </p>
+                    ) : null}
                     {mensagem?.id ? (
                       <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                         <summary className="cursor-pointer text-xs font-medium text-slate-700">Editar mensagem / canal</summary>
@@ -581,29 +656,31 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                         </form>
                       </details>
                     ) : null}
-                    <details className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-3">
-                      <summary className="cursor-pointer text-xs font-medium text-indigo-800">Registrar retorno manual</summary>
-                      <form action={registrarRetornoManualLoteItem.bind(null, item.id)} className="mt-3 space-y-3">
-                        <select name="retorno_tipo" defaultValue="sem_resposta" className="w-full rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs">
-                          <option value="prometeu_pagar">Prometeu pagar</option>
-                          <option value="pediu_boleto">Pediu boleto</option>
-                          <option value="aceitou_acordo">Aceitou acordo</option>
-                          <option value="quer_negociar">Quer negociar</option>
-                          <option value="contestou_divida">Contestou dívida</option>
-                          <option value="sem_resposta">Sem resposta</option>
-                          <option value="telefone_invalido">Telefone inválido</option>
-                          <option value="email_invalido">E-mail inválido</option>
-                          <option value="sindico_assumiu">Síndico assumiu</option>
-                          <option value="juridico">Jurídico</option>
-                        </select>
-                        <textarea name="observacao" className="min-h-20 w-full rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs" placeholder="Observação do operador" />
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <label className="inline-flex items-center gap-2 text-xs text-indigo-800"><input name="pausar_regua" type="checkbox" /> Pausar régua</label>
-                          <input name="pausa_dias" type="number" min="0" defaultValue="5" className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs" />
-                        </div>
-                        <ActionButton tone="secondary" pendingLabel="Salvando...">Salvar retorno</ActionButton>
-                      </form>
-                    </details>
+                    {hasMensagem ? (
+                      <details className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-3">
+                        <summary className="cursor-pointer text-xs font-medium text-indigo-800">Registrar retorno manual</summary>
+                        <form action={registrarRetornoManualLoteItem.bind(null, item.id)} className="mt-3 space-y-3">
+                          <select name="retorno_tipo" defaultValue="sem_resposta" className="w-full rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs">
+                            <option value="prometeu_pagar">Prometeu pagar</option>
+                            <option value="pediu_boleto">Pediu boleto</option>
+                            <option value="aceitou_acordo">Aceitou acordo</option>
+                            <option value="quer_negociar">Quer negociar</option>
+                            <option value="contestou_divida">Contestou dívida</option>
+                            <option value="sem_resposta">Sem resposta</option>
+                            <option value="telefone_invalido">Telefone inválido</option>
+                            <option value="email_invalido">E-mail inválido</option>
+                            <option value="sindico_assumiu">Síndico assumiu</option>
+                            <option value="juridico">Jurídico</option>
+                          </select>
+                          <textarea name="observacao" className="min-h-20 w-full rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs" placeholder="Observação do operador" />
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <label className="inline-flex items-center gap-2 text-xs text-indigo-800"><input name="pausar_regua" type="checkbox" /> Pausar régua</label>
+                            <input name="pausa_dias" type="number" min="0" defaultValue="5" className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs" />
+                          </div>
+                          <ActionButton tone="secondary" pendingLabel="Salvando...">Salvar retorno</ActionButton>
+                        </form>
+                      </details>
+                    ) : null}
                     <p className="mt-1 break-all text-xs text-slate-500">
                       {item.fingerprint || "Sem fingerprint"}
                     </p>

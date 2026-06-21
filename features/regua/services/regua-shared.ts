@@ -145,7 +145,10 @@ export function criarReguaFingerprint(params: {
 }
 
 export function statusFinalDoLote(contadores: ReguaContadores, fallback = LOTE_STATUS.PENDENTE_APROVACAO) {
-  return contadores.erros > 0 ? LOTE_STATUS.CONCLUIDO_COM_FALHAS : fallback
+  if (contadores.erros > 0) return LOTE_STATUS.CONCLUIDO_COM_FALHAS
+  if (contadores.criadas > 0) return fallback
+  if (contadores.avaliadas > 0) return LOTE_STATUS.CONCLUIDO
+  return LOTE_STATUS.GERADO
 }
 
 export function resumoContadores(contadores: ReguaContadores, extras: Record<string, unknown> = {}) {

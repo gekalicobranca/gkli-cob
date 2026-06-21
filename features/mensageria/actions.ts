@@ -548,6 +548,10 @@ export async function aprovarItemLote(itemId: string) {
   const item = await getLoteItemResumo(supabase, itemId);
   const lote = await getLoteResumo(supabase, item.lote_id);
 
+  if (!item.mensagem_id) {
+    throw new Error("Este item nao possui mensagem para aprovar.");
+  }
+
   const { error: itemError } = await supabase
     .from("lote_itens")
     .update({
@@ -560,7 +564,6 @@ export async function aprovarItemLote(itemId: string) {
     .in("status", [
       LOTE_ITEM_STATUS.CRIADO,
       LOTE_ITEM_STATUS.ERRO,
-      LOTE_ITEM_STATUS.PULADA,
     ]);
 
   if (itemError) throw new Error(`Erro ao aprovar item: ${itemError.message}`);
@@ -787,6 +790,20 @@ export async function aprovarLoteMensagens(loteId: string) {
   const supabase = await createClient();
   const userId = await getUserId(supabase);
   const now = new Date().toISOString();
+
+  const { count: mensagensAprovaveis, error: countError } = await supabase
+    .from("mensagens")
+    .select("id", { count: "exact", head: true })
+    .eq("lote_id", loteId)
+    .in("status", [MENSAGEM_STATUS.PENDENTE_APROVACAO, MENSAGEM_STATUS.FALHA]);
+
+  if (countError) {
+    throw new Error(`Erro ao validar mensagens do lote: ${countError.message}`);
+  }
+
+  if ((mensagensAprovaveis ?? 0) === 0) {
+    throw new Error("Este lote nao possui mensagens pendentes para aprovar.");
+  }
 
   const { error: mensagensError } = await supabase
     .from("mensagens")
