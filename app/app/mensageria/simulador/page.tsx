@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
+import { AlertTriangle } from 'lucide-react'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listReguaAcordoPreview, listReguaCobrancaPreview } from '@/features/regua/queries'
 import { gerarLoteReguaAcordos, gerarLoteReguaCobranca } from '@/features/regua/actions'
@@ -125,6 +126,15 @@ function HiddenFilters({ filters }: { filters: Record<string, string> }) {
   )
 }
 
+async function safeLoadSelects<T>(loader: () => Promise<T[]>, label: string) {
+  try {
+    return { rows: await loader(), error: '' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : `Não foi possível carregar ${label}.`
+    return { rows: [] as T[], error: message }
+  }
+}
+
 export default async function SimuladorReguaPage({ searchParams }: PageProps) {
   const scope = await getPermittedCarteiras()
   const params = searchParams ? await searchParams : {}
@@ -136,6 +146,8 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
     regua_id: getParam(params.regua_id),
   }
   const aba = getParam(params.aba) === 'acordos' ? 'acordos' : 'cobrancas'
+  const showCobrancas = aba === 'cobrancas'
+  const showAcordos = aba === 'acordos'
   const previewFilters = {
     q: filters.q,
     carteiraId: filters.carteira_id,
@@ -144,20 +156,32 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
     reguaId: filters.regua_id,
   }
 
-  const [cobrancas, acordos, carteiras, condominios] = await Promise.all([
-    listReguaCobrancaPreview(scope, previewFilters),
-    listReguaAcordoPreview(scope, previewFilters),
-    listCarteirasForSelect(scope),
-    listCondominiosForSelect(scope),
+  const [carteirasResult, condominiosResult] = await Promise.all([
+    safeLoadSelects(() => listCarteirasForSelect(scope), 'carteiras'),
+    safeLoadSelects(() => listCondominiosForSelect(scope), 'condomínios'),
   ])
+  const carteiras = carteirasResult.rows
+  const condominios = condominiosResult.rows
+  let cobrancas: any[] = []
+  let acordos: any[] = []
+  const selectErrors = [carteirasResult.error, condominiosResult.error].filter(Boolean)
+  let previewError = selectErrors.join(' ')
+
+  try {
+    if (showCobrancas) {
+      cobrancas = await listReguaCobrancaPreview(scope, previewFilters)
+    } else {
+      acordos = await listReguaAcordoPreview(scope, previewFilters)
+    }
+  } catch (error) {
+    previewError = error instanceof Error ? error.message : 'Não foi possível carregar a prévia da régua.'
+  }
 
   const cobrancasElegiveis = cobrancas.filter((row: any) => row.elegivel)
   const acordosElegiveis = acordos.filter((row: any) => row.elegivel)
   const cobrancasGeraveis = cobrancasElegiveis.filter((row: any) => !row.ja_gerada_no_ciclo)
   const acordosGeraveis = acordosElegiveis.filter((row: any) => !row.ja_gerada_no_ciclo)
   const hasFilters = Boolean(filters.q || filters.carteira_id || filters.condominio_id || filters.contato !== 'todos' || filters.regua_id)
-  const showCobrancas = aba === 'cobrancas'
-  const showAcordos = aba === 'acordos'
 
   return (
     <div className="space-y-6">
@@ -213,6 +237,18 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
         <TabLink href={simulatorHref(filters, 'cobrancas')} active={showCobrancas} label="Cobranças" count={cobrancasElegiveis.length} />
         <TabLink href={simulatorHref(filters, 'acordos')} active={showAcordos} label="Acordos" count={acordosElegiveis.length} />
       </div>
+
+      {previewError ? (
+        <Card className="border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-semibold">Não foi possível carregar a prévia desta aba.</p>
+              <p className="mt-1">{previewError}</p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {showCobrancas ? (
         <Card className="p-0">

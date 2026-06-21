@@ -264,11 +264,14 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
         vencimento,
         valor_atualizado,
         status,
+        status_operacional,
+        status_financeiro,
         condominios(id, nome, inicio_cobranca_dias, intensidade_regua, regua_cobranca_id),
         unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
       `,
       )
-      .in("status", COBRANCA_STATUS_OPERACIONAIS_ATIVOS)
+      .in("status_operacional", COBRANCA_STATUS_OPERACIONAIS_ATIVOS)
+      .neq("status_financeiro", "quitado")
       .order("vencimento", { ascending: true })
       .range(from, to);
 
