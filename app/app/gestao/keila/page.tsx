@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { getManagementDashboardTabs } from "@/features/dashboard/queries";
+import { getKeilaEligibilitySummary } from "@/features/keila/queries";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -190,6 +191,7 @@ function QueueItem({
 
 function RulesGrid() {
   const rules = [
+    "Operar somente condomínios com operação virtual habilitada",
     "Somente operar cobranças dentro da régua",
     "Bloquear judicializadas, suspensas e inativas",
     "Exigir contato validado antes de preparar envio",
@@ -247,7 +249,10 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
     ? firstParam(params.tab)
     : "painel") as CockpitTab;
   const scope = await getPermittedCarteiras();
-  const dashboard = await getManagementDashboardTabs(scope);
+  const [dashboard, keilaEligibility] = await Promise.all([
+    getManagementDashboardTabs(scope),
+    getKeilaEligibilitySummary(scope),
+  ]);
 
   const approvalCount =
     dashboard.cobrancas.kpis.semInteracao +
@@ -291,9 +296,9 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
           tone="blue"
         />
         <Kpi
-          label="Cobranças analisáveis"
-          value={numberBR(dashboard.cobrancas.kpis.totalAtivas)}
-          note={formatCurrency(dashboard.cobrancas.kpis.valorAtivo)}
+          label="Cobranças habilitadas"
+          value={numberBR(keilaEligibility.enabledTotal)}
+          note={`${formatCurrency(keilaEligibility.enabledValue)} em ${numberBR(keilaEligibility.enabledCondominios)} condomínios`}
           icon={WalletCards}
           tone="green"
         />
@@ -319,6 +324,12 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
             <div className="grid grid-cols-[1.2fr_.8fr] gap-3">
               <Section eyebrow="Operação" title="Estado atual da Keila">
                 <div className="grid grid-cols-2 gap-3">
+                  <QueueItem
+                    title="Filtro por operação virtual"
+                    description={`${numberBR(keilaEligibility.blockedByCondominioFlag)} cobranças ativas estão fora da fila porque o condomínio não permite operação virtual.`}
+                    meta="Obrigatório"
+                    tone="blue"
+                  />
                   <QueueItem
                     title="Preparação de lotes"
                     description="Pode analisar elegibilidade e montar rascunhos para aprovação."
@@ -348,6 +359,13 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
 
               <Section eyebrow="Próxima revisão" title="Fila de supervisão">
                 <div className="space-y-3">
+                  <QueueItem
+                    title="Bloqueadas por condomínio"
+                    description={`${formatCurrency(keilaEligibility.blockedValue)} fora da operação virtual até habilitação no cadastro.`}
+                    meta={numberBR(keilaEligibility.blockedByCondominioFlag)}
+                    href="/app/condominios"
+                    tone="slate"
+                  />
                   <QueueItem
                     title="Cobranças sem interação recente"
                     description="Casos que a Keila pode preparar para revisão antes de novo acionamento."
@@ -413,13 +431,20 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
           {activeTab === "fila" ? (
             <Section eyebrow="Tarefas" title="Fila operacional da Keila">
               <div className="space-y-3">
-                <QueueItem
-                  title="Preparar cobrança ativa"
-                  description={`${numberBR(dashboard.cobrancas.kpis.totalAtivas)} cobranças podem entrar na análise de régua.`}
-                  meta="Cobrança"
-                  href="/app/cobrancas"
-                  tone="green"
-                />
+                  <QueueItem
+                    title="Preparar cobrança ativa"
+                    description={`${numberBR(keilaEligibility.enabledTotal)} cobranças estão em condomínios habilitados para análise de régua.`}
+                    meta="Cobrança"
+                    href="/app/cobrancas"
+                    tone="green"
+                  />
+                  <QueueItem
+                    title="Ignorar condomínios não habilitados"
+                    description={`${numberBR(keilaEligibility.blockedByCondominioFlag)} cobranças ficam fora da fila da Keila por decisão cadastral.`}
+                    meta="Trava"
+                    href="/app/condominios"
+                    tone="slate"
+                  />
                 <QueueItem
                   title="Revisar aging"
                   description={`${formatCurrency(dashboard.cobrancas.kpis.valorVencido)} vencido para priorização.`}

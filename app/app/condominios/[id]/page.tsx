@@ -126,6 +126,23 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <FormField label="Dias para reemissão de parcela de acordo em atraso"><Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" max="365" defaultValue={condominio.dias_reemissao_parcela_acordo_atrasada ?? 0} /></FormField>
           </div>
 
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <label className="flex items-start gap-3 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                name="operacao_virtual_habilitada"
+                defaultChecked={Boolean(condominio.operacao_virtual_habilitada)}
+                className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]"
+              />
+              <span>
+                <span className="block font-medium text-slate-950">Permitir operação virtual</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">
+                  Quando habilitado, a Keila pode considerar este condomínio para filas, tarefas e lotes supervisionados.
+                </span>
+              </span>
+            </label>
+          </div>
+
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
             <p className="font-semibold">Regras operacionais de acordos</p>
             <p className="mt-1">Acima do limite de parcelas, o sistema envia primeiro a aprovação pública ao síndico. Somente após esse aceite o termo é enviado ao devedor. Se os dias de reemissão forem 0, parcelas vencidas não poderão ser reemitidas pelo acompanhamento.</p>

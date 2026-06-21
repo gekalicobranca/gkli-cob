@@ -16,6 +16,7 @@ const CONDOMINIO_SELECT = `
   parcelas_acordo_sem_aprovacao_sindico,
   dias_reemissao_parcela_acordo_atrasada,
   classificacao_operacional,
+  operacao_virtual_habilitada,
   regua_cobranca_id,
   regua_acordo_id,
   status,
