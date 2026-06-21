@@ -73,15 +73,16 @@ function TabButton({ tab, active }: { tab: (typeof tabs)[number]; active: boolea
   return (
     <Link
       href={`/app/gestao/keila?tab=${tab.id}`}
+      style={active ? { color: "#0f172a" } : undefined}
       className={cn(
         "inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition",
         active
-          ? "border-sky-200 bg-white text-slate-950 shadow-sm"
+          ? "border-sky-200 bg-white shadow-sm"
           : "border-white/15 bg-white/10 text-white/78 hover:bg-white/15 hover:text-white",
       )}
     >
-      <Icon className="h-4 w-4" aria-hidden="true" />
-      {tab.label}
+      <Icon className={cn("h-4 w-4", active ? "text-sky-700" : "text-white/85")} aria-hidden="true" />
+      <span className={active ? "text-slate-950" : undefined}>{tab.label}</span>
     </Link>
   );
 }
