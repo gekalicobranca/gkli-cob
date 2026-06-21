@@ -76,11 +76,7 @@ const sections: SidebarSection[] = [
     title: 'Gestão',
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
-      { label: 'Saúde sistema', href: '/app/gestao/saude-sistema', icon: 'alert' },
-      { label: 'Gestão acordos', href: '/app/acordos/gestao', icon: 'chart' },
-      { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
-      { label: 'Saneamento cobranças', href: '/app/gestao/saneamento-cobrancas', icon: 'shield' },
-      { label: 'Fechamento mensal', href: '/app/gestao/fechamento', icon: 'calendar', gestorOnly: true },
+      { label: 'Keila', href: '/app/gestao/keila', icon: 'robot' },
     ],
   },
 ]
@@ -107,6 +103,17 @@ const settingsGroups: SidebarSection[] = [
       { label: 'Inteligência operacional', href: '/app/inteligencia', icon: 'spark' },
       { label: 'Conversão de relatório', href: '/app/conversao-relatorio', icon: 'document' },
       { label: 'Timeline operacional', href: '/app/timeline', icon: 'timeline' },
+    ],
+  },
+  {
+    id: 'gestao-avancada',
+    title: 'Gestão avançada',
+    items: [
+      { label: 'Saúde sistema', href: '/app/gestao/saude-sistema', icon: 'alert' },
+      { label: 'Gestão acordos', href: '/app/acordos/gestao', icon: 'chart' },
+      { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
+      { label: 'Saneamento cobranças', href: '/app/gestao/saneamento-cobrancas', icon: 'shield' },
+      { label: 'Fechamento mensal', href: '/app/gestao/fechamento', icon: 'calendar', gestorOnly: true },
     ],
   },
   {
@@ -502,7 +509,7 @@ export function AppShell({
                       </Link>
                     </div>
 
-                    <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <div className="mt-4 grid gap-4 md:grid-cols-4">
                       {settingsGroups.map((group) => (
                         <section key={group.id}>
                           <h2 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
