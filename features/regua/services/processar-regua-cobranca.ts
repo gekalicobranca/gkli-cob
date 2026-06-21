@@ -99,7 +99,7 @@ export type ResultadoLoteRegua = {
 
 type ProcessarReguaParams = {
   scope?: CarteiraScope;
-  origem?: "manual" | "api" | "cron";
+  origem?: "manual" | "api" | "cron" | "keila_teste";
   cooldownDias?: number;
   q?: string;
   carteiraId?: string;

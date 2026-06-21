@@ -370,7 +370,7 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
         <PageHeader
           eyebrow="Operadora virtual"
           title="Keila"
-          description="Cockpit independente para supervisionar, aprovar e auditar a operação virtual baseada em regras."
+          description="Cockpit em modo teste para supervisionar, aprovar e auditar a operação virtual baseada em regras."
           actions={
             <div className="flex flex-wrap gap-2">
               <ButtonLink href="/app/dashboard" variant="header" size="md">
@@ -395,10 +395,10 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
       <LiteKpiStrip className="grid grid-cols-4 gap-3">
         <Kpi
           label="Modo"
-          value="Supervisionado"
-          note="Keila prepara ações, mas não envia sem aprovação"
+          value="Teste"
+          note="Keila prepara lotes rastreáveis, mas não envia sem aprovação"
           icon={Lock}
-          tone="blue"
+          tone="amber"
         />
         <Kpi
           label="Cobranças habilitadas"
@@ -416,8 +416,8 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
         />
         <Kpi
           label="Envio automático"
-          value="0"
-          note="Nenhum canal autorizado para disparo autônomo"
+          value="Bloqueado"
+          note="No modo teste, todo envio exige revisão humana"
           icon={ShieldCheck}
           tone="red"
         />
@@ -434,19 +434,19 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
               ) : null}
 
               <div className="col-span-2">
-                <Section eyebrow="Piloto assistido" title="Fluxo de execução da Keila">
+                <Section eyebrow="Modo teste assistido" title="Fluxo de execução da Keila">
                   <div className="space-y-3">
                     <AssistedActivity
                       title="1. Validar fila habilitada"
-                      description="Confere se existem condomínios ativos com operação virtual liberada para a Keila."
+                      description="Confere se existem condomínios ativos liberados para o teste da Keila."
                       meta="Sem gravação"
                       action={validarFilaKeila}
                       tone="blue"
                     />
                     <AssistedActivity
-                      title="2. Preparar lote supervisionado"
+                      title="2. Preparar lote de teste"
                       description="Executa a régua nos condomínios habilitados e cria somente mensagens pendentes de aprovação."
-                      meta="Cria lote"
+                      meta="Teste"
                       action={prepararLotesKeila}
                       tone="green"
                     />
