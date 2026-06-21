@@ -136,7 +136,6 @@ async function safeLoadSelects<T>(loader: () => Promise<T[]>, label: string) {
 }
 
 export default async function SimuladorReguaPage({ searchParams }: PageProps) {
-  const scope = await getPermittedCarteiras()
   const params = searchParams ? await searchParams : {}
   const filters = {
     q: getParam(params.q),
@@ -156,18 +155,23 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
     reguaId: filters.regua_id,
   }
 
-  const [carteirasResult, condominiosResult] = await Promise.all([
-    safeLoadSelects(() => listCarteirasForSelect(scope), 'carteiras'),
-    safeLoadSelects(() => listCondominiosForSelect(scope), 'condomínios'),
-  ])
-  const carteiras = carteirasResult.rows
-  const condominios = condominiosResult.rows
+  let carteiras: any[] = []
+  let condominios: any[] = []
   let cobrancas: any[] = []
   let acordos: any[] = []
-  const selectErrors = [carteirasResult.error, condominiosResult.error].filter(Boolean)
-  let previewError = selectErrors.join(' ')
+  let previewError = ''
 
   try {
+    const scope = await getPermittedCarteiras()
+    const [carteirasResult, condominiosResult] = await Promise.all([
+      safeLoadSelects(() => listCarteirasForSelect(scope), 'carteiras'),
+      safeLoadSelects(() => listCondominiosForSelect(scope), 'condomínios'),
+    ])
+    carteiras = carteirasResult.rows
+    condominios = condominiosResult.rows
+    const selectErrors = [carteirasResult.error, condominiosResult.error].filter(Boolean)
+    previewError = selectErrors.join(' ')
+
     if (showCobrancas) {
       cobrancas = await listReguaCobrancaPreview(scope, previewFilters)
     } else {
