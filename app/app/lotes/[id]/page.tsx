@@ -12,6 +12,7 @@ import {
   Send,
   RotateCcw,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -42,6 +43,7 @@ type PageProps = {
   params: Promise<{
     id: string;
   }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function numberValue(value: unknown) {
@@ -131,12 +133,19 @@ function ActionButton({
   );
 }
 
-export default async function LoteDetalhePage({ params }: PageProps) {
+function getSearchParam(params: Record<string, string | string[] | undefined>, key: string) {
+  const value = params[key];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function LoteDetalhePage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
   const scope = await getPermittedCarteiras();
   const { lote, itens } = await getLoteDetalhe(id, scope);
   const byStatus = countItensByStatus(itens);
   const byMensagemStatus = countMensagensByStatus(itens as any);
+  const generatedNow = getSearchParam(resolvedSearchParams, "gerado") === "1";
 
   return (
     <div className="space-y-5">
@@ -154,6 +163,30 @@ export default async function LoteDetalhePage({ params }: PageProps) {
           </Link>
         }
       />
+
+      {generatedNow ? (
+        <Card className="border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <Sparkles size={18} />
+            </span>
+            <div>
+              <p className="font-semibold">Lote gerado com sucesso.</p>
+              <p className="mt-1 text-sm text-emerald-700">
+                Foram avaliadas {metric((lote as any).total_avaliadas)} cobrancas:
+                {" "}
+                {metric((lote as any).total_criadas ?? byStatus.criado)} mensagens criadas,
+                {" "}
+                {metric((lote as any).total_puladas ?? byStatus.pulada)} puladas,
+                {" "}
+                {metric((lote as any).total_duplicadas ?? byStatus.duplicada)} duplicadas e
+                {" "}
+                {metric((lote as any).total_erros ?? byStatus.erro)} erros.
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Card className="p-4">

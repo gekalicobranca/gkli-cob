@@ -39,7 +39,7 @@ export async function gerarLoteReguaCobranca(formData?: FormData): Promise<void>
 
   revalidatePath('/app/mensageria')
   revalidatePath('/app/lotes')
-  if (resultado.loteId) redirect(`/app/lotes/${resultado.loteId}`)
+  if (resultado.loteId) redirect(`/app/lotes/${resultado.loteId}?gerado=1`)
 }
 
 
@@ -57,5 +57,5 @@ export async function gerarLoteReguaAcordos(formData?: FormData): Promise<void> 
   revalidatePath('/app/mensageria')
   revalidatePath('/app/lotes')
   revalidatePath('/app/regua-acordo')
-  if (resultado.loteId) redirect(`/app/lotes/${resultado.loteId}`)
+  if (resultado.loteId) redirect(`/app/lotes/${resultado.loteId}?gerado=1`)
 }
