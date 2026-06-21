@@ -11,12 +11,13 @@ import {
   Lock,
   Mail,
   MessageCircle,
+  PlayCircle,
   ShieldCheck,
   SlidersHorizontal,
   WalletCards,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   LiteKpiStrip,
@@ -29,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { getManagementDashboardTabs } from "@/features/dashboard/queries";
+import { prepararLotesKeila, validarFilaKeila } from "@/features/keila/actions";
 import { getKeilaEligibilitySummary } from "@/features/keila/queries";
 
 type PageProps = {
@@ -189,6 +191,107 @@ function QueueItem({
   return href ? <Link href={href}>{content}</Link> : content;
 }
 
+function KeilaResultCard({ params }: { params: Record<string, string | string[] | undefined> }) {
+  const result = firstParam(params.keila_result);
+  if (!result) return null;
+
+  const status = firstParam(params.status) ?? "ok";
+  const message = firstParam(params.message) ?? "Atividade executada.";
+  const tone =
+    status === "operacional"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : status === "auditoria" || status === "vazio"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : "border-sky-200 bg-sky-50 text-sky-800";
+
+  const metrics = [
+    ["Condomínios", firstParam(params.condominios)],
+    ["Avaliadas", firstParam(params.avaliadas)],
+    ["Criadas", firstParam(params.criadas)],
+    ["Puladas", firstParam(params.puladas)],
+    ["Duplicadas", firstParam(params.duplicadas)],
+    ["Erros", firstParam(params.erros)],
+    ["Lotes", firstParam(params.lotes)],
+  ].filter(([, value]) => value !== undefined && value !== "");
+  const loteId = firstParam(params.lote_id);
+
+  return (
+    <Card className={cn("p-4", tone)}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-70">
+            Resultado da atividade
+          </p>
+          <h2 className="mt-1 text-base font-semibold">
+            {result === "preparacao_lotes" ? "Preparação de lotes" : "Validação da fila"}
+          </h2>
+          <p className="mt-1 text-sm opacity-85">{message}</p>
+          {metrics.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {metrics.map(([label, value]) => (
+                <span key={label} className="rounded-full bg-white/60 px-3 py-1 text-xs font-medium">
+                  {label}: {value}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {loteId ? (
+          <Link
+            href={`/app/lotes/${loteId}?gerado=1`}
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-white/70 bg-white/70 px-3 py-2 text-sm font-medium shadow-sm transition hover:bg-white"
+          >
+            Abrir lote
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        ) : null}
+      </div>
+    </Card>
+  );
+}
+
+function AssistedActivity({
+  title,
+  description,
+  meta,
+  action,
+  tone = "blue",
+}: {
+  title: string;
+  description: string;
+  meta: string;
+  action: () => Promise<void>;
+  tone?: "blue" | "green" | "amber" | "red" | "slate";
+}) {
+  const tones = {
+    blue: "bg-sky-50 text-sky-700",
+    green: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    red: "bg-rose-50 text-rose-700",
+    slate: "bg-slate-100 text-slate-600",
+  };
+
+  return (
+    <div className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-lg border border-slate-100 px-4 py-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", tones[tone])}>
+            {meta}
+          </span>
+          <p className="font-semibold text-slate-950">{title}</p>
+        </div>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      </div>
+      <form action={action}>
+        <Button variant="secondary" size="md" className="min-w-28">
+          <PlayCircle className="h-4 w-4" />
+          Executar
+        </Button>
+      </form>
+    </div>
+  );
+}
+
 function RulesGrid() {
   const rules = [
     "Operar somente condomínios com operação virtual habilitada",
@@ -248,6 +351,7 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
   const activeTab = (tabs.some((tab) => tab.id === firstParam(params.tab))
     ? firstParam(params.tab)
     : "painel") as CockpitTab;
+  const hasKeilaResult = Boolean(firstParam(params.keila_result));
   const scope = await getPermittedCarteiras();
   const [dashboard, keilaEligibility] = await Promise.all([
     getManagementDashboardTabs(scope),
@@ -322,6 +426,47 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
         <LiteScrollArea className="h-full pr-1">
           {activeTab === "painel" ? (
             <div className="grid grid-cols-[1.2fr_.8fr] gap-3">
+              {hasKeilaResult ? (
+                <div className="col-span-2">
+                  <KeilaResultCard params={params} />
+                </div>
+              ) : null}
+
+              <div className="col-span-2">
+                <Section eyebrow="Piloto assistido" title="Fluxo de execução da Keila">
+                  <div className="space-y-3">
+                    <AssistedActivity
+                      title="1. Validar fila habilitada"
+                      description="Confere se existem condomínios ativos com operação virtual liberada para a Keila."
+                      meta="Sem gravação"
+                      action={validarFilaKeila}
+                      tone="blue"
+                    />
+                    <AssistedActivity
+                      title="2. Preparar lote supervisionado"
+                      description="Executa a régua nos condomínios habilitados e cria somente mensagens pendentes de aprovação."
+                      meta="Cria lote"
+                      action={prepararLotesKeila}
+                      tone="green"
+                    />
+                    <QueueItem
+                      title="3. Revisar e aprovar lote"
+                      description="Abra o lote gerado, confira mensagens, itens pulados e aprove apenas o que estiver correto."
+                      meta="Humano"
+                      href="/app/lotes"
+                      tone="amber"
+                    />
+                    <QueueItem
+                      title="4. Enviar ou marcar retorno"
+                      description="Envio real continua supervisionado; WhatsApp manual deve ser aberto e marcado como enviado."
+                      meta="Supervisão"
+                      href="/app/lotes"
+                      tone="red"
+                    />
+                  </div>
+                </Section>
+              </div>
+
               <Section eyebrow="Operação" title="Estado atual da Keila">
                 <div className="grid grid-cols-2 gap-3">
                   <QueueItem
