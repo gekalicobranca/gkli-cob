@@ -19,6 +19,10 @@ function n(formData: FormData, key: string, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+function checkboxOn(formData: FormData, key: string) {
+  return formData.getAll(key).some((value) => value === 'on')
+}
+
 async function resolveCarteiraId(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const carteiraId = s(formData, 'carteira_id') || null
@@ -148,7 +152,7 @@ export async function salvarEtapaRegua(reguaId: string, formData: FormData) {
     horario_inicio: s(formData, 'horario_inicio') || null,
     horario_fim: s(formData, 'horario_fim') || null,
     acao: s(formData, 'acao') || 'enviar_mensagem',
-    ativo: formData.get('ativo') !== 'off',
+    ativo: checkboxOn(formData, 'ativo'),
     updated_at: new Date().toISOString(),
   }
 
