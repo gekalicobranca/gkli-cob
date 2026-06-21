@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { processarReguaCobranca } from './services/processar-regua-cobranca'
 import { processarReguaAcordos } from './services/processar-regua-acordos'
@@ -38,6 +39,7 @@ export async function gerarLoteReguaCobranca(formData?: FormData): Promise<void>
 
   revalidatePath('/app/mensageria')
   revalidatePath('/app/lotes')
+  if (resultado.loteId) redirect(`/app/lotes/${resultado.loteId}`)
 }
 
 
@@ -55,4 +57,5 @@ export async function gerarLoteReguaAcordos(formData?: FormData): Promise<void> 
   revalidatePath('/app/mensageria')
   revalidatePath('/app/lotes')
   revalidatePath('/app/regua-acordo')
+  if (resultado.loteId) redirect(`/app/lotes/${resultado.loteId}`)
 }
