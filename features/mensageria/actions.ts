@@ -966,24 +966,23 @@ export async function excluirLoteMensagens(loteId: string) {
     .maybeSingle();
 
   if (loteError) throw new Error(`Erro ao carregar lote: ${loteError.message}`);
-  if (!lote) throw new Error("Lote não encontrado.");
+  if (!lote) throw new Error("Lote nao encontrado.");
 
   const carteiraId = (lote as any).carteira_id as string | null;
   if (!scope.isAdmin && carteiraId && !scope.carteiraIds?.includes(carteiraId)) {
-    throw new Error("Você não tem permissão para excluir este lote.");
+    throw new Error("Voce nao tem permissao para excluir este lote.");
   }
 
-  const [itensCount, mensagensCount, logsCount] = await Promise.all([
-    countLoteRelations(supabase, "lote_itens", loteId),
-    countLoteRelations(supabase, "mensagens", loteId),
-    countLoteRelations(supabase, "mensageria_logs", loteId),
-  ]);
-
-  if (itensCount > 0 || mensagensCount > 0 || logsCount > 0) {
-    throw new Error(
-      "Este lote já possui itens, mensagens ou histórico. Cancele o lote para manter a rastreabilidade.",
-    );
+  const mensagensCount = await countLoteRelations(supabase, "mensagens", loteId);
+  if (mensagensCount > 0) {
+    throw new Error("Este lote ja possui mensagens. Cancele o lote para manter a rastreabilidade.");
   }
+
+  const { error: logsError } = await supabase.from("mensageria_logs").delete().eq("lote_id", loteId);
+  if (logsError) throw new Error(`Erro ao excluir historico do lote: ${logsError.message}`);
+
+  const { error: itensError } = await supabase.from("lote_itens").delete().eq("lote_id", loteId);
+  if (itensError) throw new Error(`Erro ao excluir itens do lote: ${itensError.message}`);
 
   const { error } = await supabase.from("lotes").delete().eq("id", loteId);
   if (error) throw new Error(`Erro ao excluir lote: ${error.message}`);

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 
 type LoteActionButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -19,13 +20,14 @@ export function LoteActionButton({
   onClick,
   ...props
 }: LoteActionButtonProps) {
+  const { pending } = useFormStatus();
   const variant = tone === "danger" ? "danger" : tone === "secondary" ? "secondary" : "primary";
 
   return (
     <Button
       type="submit"
       variant={variant}
-      disabled={disabled}
+      disabled={disabled || pending}
       onClick={(event) => {
         if (confirmMessage && !window.confirm(confirmMessage)) {
           event.preventDefault();
@@ -33,14 +35,10 @@ export function LoteActionButton({
         }
 
         onClick?.(event);
-        if (!event.defaultPrevented) {
-          event.currentTarget.disabled = true;
-          event.currentTarget.textContent = pendingLabel;
-        }
       }}
       {...props}
     >
-      {children}
+      {pending ? pendingLabel : children}
     </Button>
   );
 }
