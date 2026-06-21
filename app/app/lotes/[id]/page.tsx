@@ -95,6 +95,12 @@ function countMensagensByStatus(
   }, {});
 }
 
+function payloadValue(payload: unknown, key: string) {
+  if (!payload || typeof payload !== "object") return "";
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : "";
+}
+
 function reguaLabel(lote: any) {
   const reguaId = lote?.resumo?.regua_id;
   if (!reguaId) return "Não identificada";
@@ -344,12 +350,17 @@ export default async function LoteDetalhePage({ params }: PageProps) {
               const unidade = cobranca?.unidade || acordo?.unidade;
               const condominio = unidade?.condominio;
               const mensagem = item.mensagem;
+              const canalPlanejado = payloadValue(item.payload, "canal");
+              const destinatarioPlanejado = payloadValue(item.payload, "destinatario");
+              const mensagemPlanejada = payloadValue(item.payload, "mensagem");
               const conteudoFinal =
-                mensagem?.conteudo_renderizado || mensagem?.conteudo || "";
+                mensagem?.conteudo_renderizado || mensagem?.conteudo || mensagemPlanejada || "";
               const destinatarioWhatsapp =
-                mensagem?.destinatario || unidade?.telefone || "";
+                mensagem?.destinatario || destinatarioPlanejado || unidade?.telefone || "";
+              const canalExibido = mensagem?.canal || canalPlanejado || "";
+              const destinatarioExibido = mensagem?.destinatario || destinatarioPlanejado || "";
               const whatsappUrl =
-                mensagem?.canal === "whatsapp"
+                canalExibido === "whatsapp" && mensagem?.id
                   ? buildWhatsappWebUrl(destinatarioWhatsapp, conteudoFinal)
                   : "";
               const valor = numberValue(
@@ -425,15 +436,20 @@ export default async function LoteDetalhePage({ params }: PageProps) {
                       Mensagem
                     </p>
                     <p className="mt-1 text-sm text-slate-900">
-                      {mensagem?.canal || "Sem canal"}
+                      {canalExibido || "Sem canal"}
                     </p>
+                    {!mensagem?.id && canalPlanejado ? (
+                      <span className="mt-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-700">
+                        canal planejado
+                      </span>
+                    ) : null}
                     {mensagem?.status_operacional || mensagem?.status ? (
                       <span className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
                         {mensagem.status_operacional || mensagem.status}
                       </span>
                     ) : null}
                     <p className="mt-1 text-xs text-slate-500">
-                      {mensagem?.destinatario || "Sem destinatário"}
+                      {destinatarioExibido || "Sem destinatário"}
                     </p>
                     {conteudoFinal ? (
                       <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-500">
