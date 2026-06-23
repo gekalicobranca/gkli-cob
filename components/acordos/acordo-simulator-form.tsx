@@ -118,6 +118,7 @@ export function AcordoSimulatorForm({
   const [despesaCobrancaPercentual, setDespesaCobrancaPercentual] =
     useState("10,00");
   const [entrada, setEntrada] = useState("0,00");
+  const [entradaVencimento, setEntradaVencimento] = useState(() => toISODate(new Date()));
   const [quantidadeParcelas, setQuantidadeParcelas] = useState("3");
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => {
     const date = new Date();
@@ -206,6 +207,7 @@ export function AcordoSimulatorForm({
       despesaCobranca,
       total,
       entrada: entradaNumber,
+      entradaVencimento,
       saldo,
       parcelas,
     };
@@ -213,6 +215,7 @@ export function AcordoSimulatorForm({
     cobrancasSelecionadas,
     despesaCobrancaPercentual,
     entrada,
+    entradaVencimento,
     quantidadeParcelas,
     primeiroVencimento,
   ]);
@@ -259,7 +262,7 @@ export function AcordoSimulatorForm({
 
     const parcelasResumo = [
       preview.entrada > 0
-        ? `Entrada: ${formatCurrency(preview.entrada)} · vencimento na formalização`
+        ? `Entrada: ${formatCurrency(preview.entrada)} · vencimento ${formatDateBR(preview.entradaVencimento)}`
         : null,
       ...preview.parcelas.map(
         (parcela) =>
@@ -524,6 +527,22 @@ export function AcordoSimulatorForm({
             />
           </FormField>
 
+          {preview.entrada > 0 ? (
+            <FormField label="Vencimento da entrada">
+              <Input
+                name="entrada_vencimento"
+                type="date"
+                required
+                value={entradaVencimento}
+                onChange={(
+                  event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+                ) => setEntradaVencimento(event.target.value)}
+              />
+            </FormField>
+          ) : (
+            <input type="hidden" name="entrada_vencimento" value="" />
+          )}
+
           <FormField label="Número de parcelas">
             <Input
               name="quantidade_parcelas"
@@ -732,7 +751,7 @@ export function AcordoSimulatorForm({
               <div>
                 <p className="text-sm font-semibold text-slate-950">Entrada</p>
                 <p className="text-xs text-slate-500">
-                  Acompanha pagamento separado do parcelamento
+                  Venc. {formatDateBR(preview.entradaVencimento)}
                 </p>
               </div>
               <p className="text-sm font-semibold text-slate-950">

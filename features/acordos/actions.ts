@@ -495,6 +495,7 @@ export async function createAcordo(formData: FormData) {
     formData.get("despesa_cobranca_valor"),
   );
   const entrada = toNumber(formData.get("entrada"));
+  const entradaVencimento = String(formData.get("entrada_vencimento") ?? "");
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
   const primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
@@ -508,6 +509,8 @@ export async function createAcordo(formData: FormData) {
   if (tipo === "judicial" && !numeroProcesso)
     throw new Error("Número do processo obrigatório para acordo judicial.");
   if (entrada < 0) throw new Error("Entrada inválida.");
+  if (entrada > 0 && !entradaVencimento)
+    throw new Error("Vencimento da entrada obrigatório quando houver entrada.");
   if (
     !Number.isInteger(quantidadeParcelas) ||
     quantidadeParcelas < 1 ||
@@ -713,7 +716,7 @@ export async function createAcordo(formData: FormData) {
       numero: 0,
       tipo_parcela: "entrada",
       valor: entrada,
-      vencimento: toISODate(new Date()),
+      vencimento: entradaVencimento,
       status: PARCELA_ACORDO_STATUS.PENDENTE,
     });
   }

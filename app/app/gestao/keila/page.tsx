@@ -16,7 +16,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   LiteKpiStrip,
@@ -29,8 +29,13 @@ import { cn } from "@/lib/utils";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { getManagementDashboardTabs } from "@/features/dashboard/queries";
-import { prepararLotesKeila, validarFilaKeila } from "@/features/keila/actions";
-import { getKeilaEligibilitySummary, listCondominiosKeilaTeste } from "@/features/keila/queries";
+import { ativarKeilaAutonoma, prepararAcordosNegociacaoKeila, prepararLotesKeila, validarFilaKeila } from "@/features/keila/actions";
+import {
+  getKeilaEligibilitySummary,
+  getKeilaOperationalQueue,
+  listCondominiosKeilaTeste,
+  type KeilaOperationalItem,
+} from "@/features/keila/queries";
 import { ExecutionButton } from "./execution-button";
 
 type PageProps = {
@@ -159,12 +164,14 @@ function QueueItem({
   meta,
   href,
   tone = "slate",
+  state,
 }: {
   title: string;
   description: string;
   meta: string;
   href?: string;
   tone?: "blue" | "green" | "amber" | "red" | "slate";
+  state?: KeilaOperationalItem["state"];
 }) {
   const tones = {
     blue: "bg-sky-50 text-sky-700",
@@ -173,14 +180,33 @@ function QueueItem({
     red: "bg-rose-50 text-rose-700",
     slate: "bg-slate-100 text-slate-600",
   };
+  const states = {
+    pendente: "bg-sky-50 text-sky-700",
+    supervisao: "bg-amber-50 text-amber-700",
+    bloqueado: "bg-rose-50 text-rose-700",
+    processado: "bg-emerald-50 text-emerald-700",
+    erro: "bg-rose-100 text-rose-800",
+  };
+  const stateLabel = {
+    pendente: "pendente",
+    supervisao: "supervisão",
+    bloqueado: "bloqueado",
+    processado: "processado",
+    erro: "erro",
+  };
 
   const content = (
     <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 px-4 py-3 transition hover:bg-slate-50">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", tones[tone])}>
             {meta}
           </span>
+          {state ? (
+            <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", states[state])}>
+              {stateLabel[state]}
+            </span>
+          ) : null}
           <p className="truncate font-semibold text-slate-950">{title}</p>
         </div>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
@@ -190,6 +216,42 @@ function QueueItem({
   );
 
   return href ? <Link href={href}>{content}</Link> : content;
+}
+
+function QueueList({
+  items,
+  emptyTitle,
+  emptyDescription,
+}: {
+  items: KeilaOperationalItem[];
+  emptyTitle: string;
+  emptyDescription: string;
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+        <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
+        <p className="mt-3 font-semibold text-slate-950">{emptyTitle}</p>
+        <p className="mt-1 text-sm text-slate-500">{emptyDescription}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <QueueItem
+          key={item.id}
+          title={item.title}
+          description={item.description}
+          meta={item.meta}
+          href={item.href}
+          tone={item.tone}
+          state={item.state}
+        />
+      ))}
+    </div>
+  );
 }
 
 function KeilaResultCard({ params }: { params: Record<string, string | string[] | undefined> }) {
@@ -213,8 +275,19 @@ function KeilaResultCard({ params }: { params: Record<string, string | string[] 
     ["Duplicadas", firstParam(params.duplicadas)],
     ["Erros", firstParam(params.erros)],
     ["Lotes", firstParam(params.lotes)],
+    ["Planilhas", firstParam(params.planilhas)],
+    ["Acordos", firstParam(params.acordos) ?? firstParam(params.propostas)],
   ].filter(([, value]) => value !== undefined && value !== "");
   const loteId = firstParam(params.lote_id);
+  const acordoUrl = firstParam(params.acordo_url);
+  const resultTitle =
+    result === "autonomia"
+      ? "Autonomia da Keila"
+      : result === "preparacao_lotes"
+      ? "Preparacao de lotes"
+      : result === "preparacao_acordos"
+        ? "Acordos supervisionados"
+        : "Validacao da fila";
 
   return (
     <Card className={cn("p-4", tone)}>
@@ -223,8 +296,8 @@ function KeilaResultCard({ params }: { params: Record<string, string | string[] 
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] opacity-70">
             Resultado da atividade
           </p>
-          <h2 className="mt-1 text-base font-semibold">
-            {result === "preparacao_lotes" ? "Preparação de lotes" : "Validação da fila"}
+          <h2 className="mt-1 text-base font-semibold" title={resultTitle}>
+            {resultTitle}
           </h2>
           <p className="mt-1 text-sm opacity-85">{message}</p>
           {metrics.length ? (
@@ -243,6 +316,14 @@ function KeilaResultCard({ params }: { params: Record<string, string | string[] 
             className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-white/70 bg-white/70 px-3 py-2 text-sm font-medium shadow-sm transition hover:bg-white"
           >
             Abrir lote
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        ) : acordoUrl ? (
+          <Link
+            href={acordoUrl}
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-white/70 bg-white/70 px-3 py-2 text-sm font-medium shadow-sm transition hover:bg-white"
+          >
+            Abrir acordo
             <ArrowUpRight className="h-4 w-4" />
           </Link>
         ) : null}
@@ -357,10 +438,11 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
     : "painel") as CockpitTab;
   const hasKeilaResult = Boolean(keilaResult);
   const scope = await getPermittedCarteiras();
-  const [dashboard, keilaEligibility, condominiosKeilaTeste] = await Promise.all([
+  const [dashboard, keilaEligibility, condominiosKeilaTeste, keilaQueue] = await Promise.all([
     getManagementDashboardTabs(scope),
     getKeilaEligibilitySummary(scope),
     listCondominiosKeilaTeste(scope),
+    getKeilaOperationalQueue(scope),
   ]);
 
   const approvalCount =
@@ -374,9 +456,15 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
         <PageHeader
           eyebrow="Operadora virtual"
           title="Keila"
-          description="Cockpit em modo teste para supervisionar, aprovar e auditar a operação virtual baseada em regras."
+          description="Cockpit para ativar, supervisionar e auditar a operação virtual baseada em regras."
           actions={
             <div className="flex flex-wrap gap-2">
+              <form action={ativarKeilaAutonoma}>
+                <Button variant="header" size="md" type="submit">
+                  <Bot className="h-4 w-4" />
+                  Ativar Keila
+                </Button>
+              </form>
               <ButtonLink href="/app/dashboard" variant="header" size="md">
                 <WalletCards className="h-4 w-4" />
                 Dashboard
@@ -399,10 +487,10 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
       <LiteKpiStrip className="grid grid-cols-4 gap-3">
         <Kpi
           label="Modo"
-          value="Teste"
-          note="Keila prepara lotes rastreáveis, mas não envia sem aprovação"
+          value="Autônoma"
+          note="Keila filtra, prepara lotes e monitora negociações com auditoria"
           icon={Lock}
-          tone="amber"
+          tone="green"
         />
         <Kpi
           label="Cobranças habilitadas"
@@ -420,10 +508,10 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
         />
         <Kpi
           label="Envio automático"
-          value="Bloqueado"
-          note="No modo teste, todo envio exige revisão humana"
+          value="Controlado"
+          note="Disparos seguem os canais e travas configurados"
           icon={ShieldCheck}
-          tone="red"
+          tone="amber"
         />
       </LiteKpiStrip>
 
@@ -438,7 +526,7 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
               ) : null}
 
               <div className="col-span-2">
-                <Section eyebrow="Modo teste assistido" title="Fluxo de execução da Keila">
+                <Section eyebrow="Piloto assistido" title="Fluxo de execução da Keila">
                   <div className="space-y-3">
                     <AssistedActivity
                       title="1. Validar fila habilitada"
@@ -450,7 +538,7 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
                     />
                     <AssistedActivity
                       title="2. Preparar lote de teste"
-                      description="Executa a régua somente no condomínio escolhido e cria mensagens pendentes de aprovação."
+                      description="Executa a régua somente no condomínio escolhido para validar o comportamento antes do ciclo autônomo."
                       meta="Teste"
                       action={prepararLotesKeila}
                       processed={keilaResult === "preparacao_lotes"}
@@ -486,6 +574,14 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
                       meta="Supervisão"
                       href="/app/lotes"
                       tone="red"
+                    />
+                    <AssistedActivity
+                      title="5. Preparar acordos em negociacao"
+                      description="Monitora retornos dos lotes da Keila, pede planilha se a negociação virou o mês e prepara proposta conforme as regras do condomínio."
+                      meta="Negociacao"
+                      action={prepararAcordosNegociacaoKeila}
+                      processed={keilaResult === "preparacao_acordos"}
+                      tone="amber"
                     />
                   </div>
                 </Section>
@@ -599,7 +695,33 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
 
           {activeTab === "fila" ? (
             <Section eyebrow="Tarefas" title="Fila operacional da Keila">
-              <div className="space-y-3">
+              <div className="space-y-5">
+                {keilaQueue.nextAction ? (
+                  <div>
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                      Próxima ação sugerida
+                    </p>
+                    <QueueItem
+                      title={keilaQueue.nextAction.title}
+                      description={keilaQueue.nextAction.description}
+                      meta={keilaQueue.nextAction.meta}
+                      href={keilaQueue.nextAction.href}
+                      tone={keilaQueue.nextAction.tone}
+                      state={keilaQueue.nextAction.state}
+                    />
+                  </div>
+                ) : (
+                  <QueueList
+                    items={[]}
+                    emptyTitle="Nenhuma ação imediata"
+                    emptyDescription="A Keila não encontrou lote, retorno ou bloqueio pendente agora."
+                  />
+                )}
+                <div>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                    Execução
+                  </p>
+                  <div className="space-y-3">
                   <QueueItem
                     title="Preparar cobrança ativa"
                     description={`${numberBR(keilaEligibility.enabledTotal)} cobranças estão em condomínios habilitados para análise de régua.`}
@@ -614,6 +736,38 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
                     href="/app/condominios"
                     tone="slate"
                   />
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                    Pendências reais
+                  </p>
+                  <QueueList
+                    items={keilaQueue.pending}
+                    emptyTitle="Sem pendências de execução"
+                    emptyDescription="Não há lotes pendentes nem retornos de negociação aguardando preparo."
+                  />
+                </div>
+                <div>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                    Supervisão
+                  </p>
+                  <QueueList
+                    items={keilaQueue.supervision}
+                    emptyTitle="Nada em supervisão"
+                    emptyDescription="Não há mensagens ou propostas da Keila aguardando aprovação humana."
+                  />
+                </div>
+                <div>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                    Bloqueios
+                  </p>
+                  <QueueList
+                    items={keilaQueue.blocked}
+                    emptyTitle="Sem bloqueios de planilha"
+                    emptyDescription="Nenhuma negociação da Keila está travada por necessidade de débitos atualizados."
+                  />
+                </div>
                 <QueueItem
                   title="Revisar aging"
                   description={`${formatCurrency(dashboard.cobrancas.kpis.valorVencido)} vencido para priorização.`}
@@ -634,21 +788,21 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
 
           {activeTab === "lotes" ? (
             <Section eyebrow="Mensageria" title="Lotes preparados pela Keila">
-              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                <FileClock className="mx-auto h-8 w-8 text-slate-400" />
-                <p className="mt-3 font-semibold text-slate-950">Nenhum lote da Keila criado ainda</p>
-                <p className="mt-1 text-sm text-slate-500">A primeira etapa será montar rascunhos supervisionados antes de qualquer envio.</p>
-              </div>
+              <QueueList
+                items={keilaQueue.lotes}
+                emptyTitle="Nenhum lote da Keila criado ainda"
+                emptyDescription="A primeira etapa será montar rascunhos supervisionados antes de qualquer envio."
+              />
             </Section>
           ) : null}
 
           {activeTab === "auditoria" ? (
             <Section eyebrow="Rastreabilidade" title="Auditoria da operação virtual">
-              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                <ShieldCheck className="mx-auto h-8 w-8 text-slate-400" />
-                <p className="mt-3 font-semibold text-slate-950">Auditoria pronta para receber eventos</p>
-                <p className="mt-1 text-sm text-slate-500">Cada ação deverá registrar regra, régua, etapa, template, canal, destinatário e resultado.</p>
-              </div>
+              <QueueList
+                items={keilaQueue.executed}
+                emptyTitle="Auditoria pronta para receber eventos"
+                emptyDescription="Cada ação deverá registrar regra, régua, etapa, template, canal, destinatário e resultado."
+              />
             </Section>
           ) : null}
 
