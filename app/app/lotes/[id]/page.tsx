@@ -36,7 +36,7 @@ import {
   marcarMensagemWhatsappEnviada,
 } from "@/features/mensageria/actions";
 import { buildWhatsappWebUrl } from "@/features/mensageria/whatsapp-web";
-import { LOTE_ITEM_STATUS, MENSAGEM_STATUS } from "@/lib/core/status";
+import { COBRANCA_STATUS, LOTE_ITEM_STATUS, MENSAGEM_STATUS } from "@/lib/core/status";
 import { LoteActionButton } from "./lote-action-button";
 
 type PageProps = {
@@ -101,6 +101,24 @@ function payloadValue(payload: unknown, key: string) {
   if (!payload || typeof payload !== "object") return "";
   const value = (payload as Record<string, unknown>)[key];
   return typeof value === "string" ? value : "";
+}
+
+function retornoManualLabel(retorno?: string | null) {
+  const labels: Record<string, string> = {
+    prometeu_pagar: "Prometeu pagar",
+    pediu_boleto: "Pediu boleto",
+    aceitou_acordo: "Aceitou acordo",
+    quer_negociar: "Quer negociar",
+    contestou_divida: "Contestou divida",
+    sem_resposta: "Sem resposta",
+    telefone_invalido: "Telefone invalido",
+    email_invalido: "E-mail invalido",
+    sindico_assumiu: "Sindico assumiu",
+    juridico: "Juridico",
+  };
+
+  if (!retorno) return "";
+  return labels[retorno] ?? retorno.replaceAll("_", " ");
 }
 
 function reguaLabel(lote: any) {
@@ -497,6 +515,10 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
               const valor = numberValue(
                 cobranca?.valor_atualizado ?? cobranca?.valor_original ?? acordo?.valor_acordado,
               );
+              const retornoManual = retornoManualLabel(item.retorno_tipo);
+              const cobrancaEmNegociacao =
+                String(cobranca?.status_operacional ?? cobranca?.status ?? "") ===
+                COBRANCA_STATUS.EM_NEGOCIACAO;
 
               return (
                 <div
@@ -518,6 +540,20 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                           mensagem criada
                         </span>
                       ) : null}
+
+                      {retornoManual ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-700">
+                          <CheckCircle2 size={14} />
+                          retorno manual: {retornoManual}
+                        </span>
+                      ) : null}
+
+                      {cobrancaEmNegociacao ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-700">
+                          <MessageSquare size={14} />
+                          em negociação
+                        </span>
+                      ) : null}
                     </div>
 
                     <p className="mt-3 text-sm text-slate-950">
@@ -532,6 +568,28 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                         ? ` · ${unidade.responsavel_nome}`
                         : ""}
                     </p>
+
+                    {retornoManual || cobrancaEmNegociacao ? (
+                      <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                        {retornoManual ? (
+                          <p>
+                            Retorno manual registrado: <span className="font-semibold">{retornoManual}</span>
+                            {item.retorno_registrado_em
+                              ? ` em ${formatDateBR(item.retorno_registrado_em)}`
+                              : ""}
+                            .
+                          </p>
+                        ) : null}
+                        {item.retorno_observacao ? (
+                          <p className="mt-1">Observação: {item.retorno_observacao}</p>
+                        ) : null}
+                        {cobrancaEmNegociacao ? (
+                          <p className={retornoManual || item.retorno_observacao ? "mt-1" : ""}>
+                            Cobrança marcada como em negociação.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
 
                     {item.motivo ? (
                       <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600">

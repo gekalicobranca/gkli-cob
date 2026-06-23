@@ -11,6 +11,7 @@ import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 export type CobrancaListFilters = {
   search?: string
   status?: string
+  statusList?: string[]
   vencimentoDe?: string
   vencimentoAte?: string
   judicializacaoUnidade?: string
@@ -159,7 +160,11 @@ async function applyCobrancaFilters(
 ) {
   let scopedQuery = query
 
-  if (filters.status) {
+  if (filters.statusList?.length) {
+    scopedQuery = scopedQuery.or(
+      `status_operacional.in.(${filters.statusList.join(',')}),status.in.(${filters.statusList.join(',')})`,
+    )
+  } else if (filters.status) {
     scopedQuery = scopedQuery.or(`status_operacional.eq.${filters.status},status.eq.${filters.status}`)
   }
 

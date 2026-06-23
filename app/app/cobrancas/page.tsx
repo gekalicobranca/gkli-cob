@@ -60,7 +60,14 @@ const STATUS_FILTERS = [
   COBRANCA_STATUS_OPERACIONAL.ACORDO_FIRMADO,
   COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
   COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
+  COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
   COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
+];
+
+const STATUS_FILA_OPERACIONAL = [
+  COBRANCA_STATUS_OPERACIONAL.NOVO,
+  COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
+  COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
 ];
 
 const PAGE_SIZE = 50;
@@ -95,6 +102,33 @@ function getJudicializacaoFilter(params: Awaited<NonNullable<PageProps["searchPa
   const requested = getParam(params.judicializacao_unidade);
   if (requested) return requested;
   return (COBRANCA_STATUS_JUDICIALIZACAO as string[]).includes(getParam(params.status)) ? "sim" : "nao";
+}
+
+function getStatusFilter(statusParam: string) {
+  if (!statusParam || statusParam === "operacionais") {
+    return {
+      status: "",
+      statusList: STATUS_FILA_OPERACIONAL,
+      statusSelect: "operacionais",
+      showingAll: false,
+    };
+  }
+
+  if (statusParam === "todos") {
+    return {
+      status: "",
+      statusList: undefined,
+      statusSelect: "todos",
+      showingAll: true,
+    };
+  }
+
+  return {
+    status: statusParam,
+    statusList: undefined,
+    statusSelect: statusParam,
+    showingAll: false,
+  };
 }
 
 function cobrancasHref(params: Record<string, string>, overrides: Record<string, string | null>) {
@@ -170,17 +204,19 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : {};
   const page = getPageParam(params.page);
   const statusParam = getParam(params.status);
+  const statusFilter = getStatusFilter(statusParam);
   const filters = {
     search: getParam(params.q),
-    status: statusParam,
+    status: statusFilter.status,
+    statusList: statusFilter.statusList,
     vencimentoDe: getParam(params.vencimento_de),
     vencimentoAte: getParam(params.vencimento_ate),
-    judicializacaoUnidade: getJudicializacaoFilter(params),
+    judicializacaoUnidade: statusFilter.showingAll ? "todos" : getJudicializacaoFilter(params),
     ordenar: getParam(params.ordenar) || "vencimento_asc",
   };
   const queryParams = {
     q: filters.search,
-    status: filters.status,
+    status: statusFilter.statusSelect === "operacionais" ? "" : statusFilter.statusSelect,
     vencimento_de: filters.vencimentoDe,
     vencimento_ate: filters.vencimentoAte,
     judicializacao_unidade: filters.judicializacaoUnidade,
@@ -188,17 +224,18 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   };
   const hasFilters = Boolean(
     filters.search ||
-    filters.status ||
+    statusFilter.statusSelect !== "operacionais" ||
     filters.vencimentoDe ||
     filters.vencimentoAte ||
     filters.ordenar !== "vencimento_asc" ||
     filters.judicializacaoUnidade !== "nao",
   );
-  const showingJudicializadas = filters.judicializacaoUnidade !== "nao";
-  const hideJudicializadasHref = cobrancasHref(queryParams, {
+  const showingAll = statusFilter.showingAll && filters.judicializacaoUnidade === "todos";
+  const filaOperacionalHref = cobrancasHref(queryParams, {
+    status: null,
     judicializacao_unidade: "nao",
-    status: (COBRANCA_STATUS_JUDICIALIZACAO as string[]).includes(filters.status) ? null : filters.status,
   });
+  const exibirTodasHref = cobrancasHref(queryParams, { status: "todos", judicializacao_unidade: "todos" });
   const relatorioHref = cobrancasRelatorioHref(queryParams);
 
   const scope = await getPermittedCarteiras();
@@ -295,13 +332,13 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                   description="Filtre, selecione cobranças e aplique mudanças operacionais em lote."
                 />
                 <div className="flex flex-wrap gap-2">
-                  {showingJudicializadas ? (
-                    <ButtonLink href={hideJudicializadasHref} variant="secondary">
-                      Ocultar judicialização
+                  {showingAll ? (
+                    <ButtonLink href={filaOperacionalHref} variant="secondary">
+                      Ver fila operacional
                     </ButtonLink>
                   ) : (
-                    <ButtonLink href={cobrancasHref(queryParams, { judicializacao_unidade: "todos" })} variant="secondary">
-                      Incluir judicialização
+                    <ButtonLink href={exibirTodasHref} variant="secondary">
+                      Exibir todas
                     </ButtonLink>
                   )}
                   <ClearFiltersLink href="/app/cobrancas" show={hasFilters} />
@@ -311,8 +348,9 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
               <ListFiltersForm className="mt-0 xl:grid-cols-[minmax(220px,1fr)_180px_170px_170px_210px_190px_110px]">
                 <ListSearchField defaultValue={filters.search} placeholder="Buscar responsável, unidade, bloco..." />
                 <ListFilterField label="Status">
-                  <Select name="status" defaultValue={filters.status}>
-                    <option value="">Todos os status</option>
+                  <Select name="status" defaultValue={statusFilter.statusSelect}>
+                    <option value="operacionais">Fila operacional</option>
+                    <option value="todos">Todos os status</option>
                     {STATUS_FILTERS.map((status) => (
                       <option key={status} value={status}>
                         {COBRANCA_STATUS_LABEL[status]}
