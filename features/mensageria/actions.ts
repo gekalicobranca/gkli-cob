@@ -9,7 +9,9 @@ import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { sendSmtpEmail } from "@/features/mensageria/email-provider";
 import { registrarEventoOperacional } from "@/features/operacional/service";
 import { TEMPLATE_VARIABLES } from "@/features/mensageria/render-template";
+import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 import {
+  COBRANCA_STATUS,
   LOTE_ITEM_STATUS,
   LOTE_STATUS,
   MENSAGEM_STATUS,
@@ -1061,6 +1063,88 @@ export async function reprocessarFalhasLote(loteId: string) {
   touchedPaths(loteId);
 }
 
+async function moverCobrancaParaNegociacaoPorRetorno(
+  supabase: SupabaseClient,
+  input: {
+    cobrancaId: string | null;
+    carteiraId: string | null;
+    loteId: string;
+    loteItemId: string;
+    mensagemId: string | null;
+    retorno: string;
+    observacao: string | null;
+    userId: string | null;
+    now: string;
+  },
+) {
+  if (input.retorno !== "quer_negociar" || !input.cobrancaId) return;
+
+  const { data: cobranca, error: cobrancaError } = await supabase
+    .from("cobrancas")
+    .select("id, carteira_id, status, status_operacional")
+    .eq("id", input.cobrancaId)
+    .maybeSingle();
+
+  if (cobrancaError) {
+    throw new Error(`Erro ao carregar cobranca para negociacao: ${cobrancaError.message}`);
+  }
+
+  if (!cobranca) return;
+
+  const statusAnterior = getCobrancaStatusOperacional(cobranca as any);
+  const statusBloqueados = new Set<string>([
+    COBRANCA_STATUS.ACORDO_FIRMADO,
+    COBRANCA_STATUS.ACORDO_EFETIVADO,
+    COBRANCA_STATUS.PRE_JURIDICO,
+    COBRANCA_STATUS.JUDICIALIZADO,
+    COBRANCA_STATUS.SUSPENSO,
+  ]);
+
+  if (statusAnterior === COBRANCA_STATUS.EM_NEGOCIACAO || statusBloqueados.has(statusAnterior)) {
+    return;
+  }
+
+  const { error: updateError } = await supabase
+    .from("cobrancas")
+    .update({
+      status: COBRANCA_STATUS.EM_NEGOCIACAO,
+      status_operacional: COBRANCA_STATUS.EM_NEGOCIACAO,
+      ultima_interacao_at: input.now,
+    } as any)
+    .eq("id", input.cobrancaId);
+
+  if (updateError) {
+    throw new Error(`Erro ao mover cobranca para negociacao: ${updateError.message}`);
+  }
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (cobranca as any).carteira_id ?? input.carteiraId,
+    entidadeTipo: "cobranca",
+    entidadeId: input.cobrancaId,
+    eventoCodigo: "cobranca.retorno_negociacao",
+    estadoAnterior: statusAnterior,
+    estadoNovo: COBRANCA_STATUS.EM_NEGOCIACAO,
+    titulo: "Cobranca em negociacao",
+    descricao: input.observacao ?? "Retorno manual do lote: devedor quer negociar.",
+    severidade: "info",
+    userId: input.userId,
+    antes: { status_operacional: statusAnterior },
+    depois: { status_operacional: COBRANCA_STATUS.EM_NEGOCIACAO },
+    origem: "manual",
+    auditavel: true,
+    payload: {
+      lote_id: input.loteId,
+      lote_item_id: input.loteItemId,
+      mensagem_id: input.mensagemId,
+      retorno_tipo: input.retorno,
+    },
+  });
+
+  revalidatePath(`/app/cobrancas/${input.cobrancaId}`);
+  revalidatePath("/app/cobrancas");
+  revalidatePath("/app/dashboard");
+}
+
 
 export async function registrarRetornoManualLoteItem(itemId: string, formData: FormData) {
   const supabase = await createClient();
@@ -1108,6 +1192,18 @@ export async function registrarRetornoManualLoteItem(itemId: string, formData: F
       throw new Error(`Erro ao atualizar retorno da mensagem: ${mensagemError.message}`);
     }
   }
+
+  await moverCobrancaParaNegociacaoPorRetorno(supabase, {
+    cobrancaId: item.cobranca_id,
+    carteiraId: lote.carteira_id,
+    loteId: item.lote_id,
+    loteItemId: item.id,
+    mensagemId: item.mensagem_id,
+    retorno,
+    observacao,
+    userId: user.id,
+    now,
+  });
 
   await logMensageria(supabase, {
     carteira_id: lote.carteira_id,
