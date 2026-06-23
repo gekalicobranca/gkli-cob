@@ -956,111 +956,6 @@ async function monitorarNegociacoesKeila(
         : "Keila criou acordos supervisionados em rascunho para as negociacoes monitoradas.",
   };
 
-  const rows = paraCriar.map((item) => {
-    const cobranca = relationOne(item.cobranca);
-    const condominio = relationOne(cobranca?.condominio);
-    const unidade = relationOne(cobranca?.unidade);
-    const acordoUrl = `/app/acordos/selecionar?cobrancaId=${cobranca.id}`;
-
-    return {
-      carteira_id: cobranca.carteira_id,
-      origem: "acordo",
-      tipo: KEILA_ACORDO_PENDENCIA_TIPO,
-      status: "aberta",
-      prioridade: "normal",
-      titulo: "Preparar proposta de acordo pela Keila",
-      descricao: `Retorno manual indicou negociação em ${condominio?.nome ?? "condomínio não informado"}, ${unidadeLabel(unidade)}. A Keila separou a cobrança para formatar o acordo conforme as regras do condomínio e submeter o envio à revisão humana.`,
-      entidade_tipo: "cobranca",
-      entidade_id: cobranca.id,
-      condominio_id: cobranca.condominio_id,
-      unidade_id: cobranca.unidade_id,
-      cobranca_id: cobranca.id,
-      acordo_id: null,
-      responsavel_nome: unidade?.responsavel_nome ?? null,
-      prazo_limite: addDays(new Date(), 1).toISOString(),
-      payload: {
-        origem: "keila",
-        lote_id: item.lote_id,
-        lote_item_id: item.id,
-        retorno_tipo: item.retorno_tipo,
-        retorno_observacao: item.retorno_observacao,
-        retorno_registrado_em: item.retorno_registrado_em,
-        acordo_url: acordoUrl,
-        parcelas_acordo_sem_aprovacao_sindico: condominio?.parcelas_acordo_sem_aprovacao_sindico ?? null,
-      },
-    };
-  });
-
-  const { data: criadas, error: insertError } = await supabase
-    .from("central_pendencias")
-    .insert(rows as any)
-    .select("id, carteira_id, cobranca_id, condominio_id, unidade_id, payload");
-
-  if (insertError) {
-    throw new Error(`Erro ao preparar propostas de acordo da Keila: ${insertError.message}`);
-  }
-
-  await Promise.all([
-    ...planilhasCriadas.map((pendencia) =>
-      registrarEventoOperacional(supabase as any, {
-        carteiraId: pendencia.carteira_id,
-        entidadeTipo: "unidade",
-        entidadeId: pendencia.unidade_id,
-        eventoCodigo: "keila.planilha_debitos_solicitada",
-        titulo: "Keila solicitou planilha de débitos",
-        descricao: "Negociação monitorada pela Keila atravessou o mês e foi bloqueada até atualização dos débitos.",
-        severidade: "alerta",
-        origem: "app",
-        auditavel: true,
-        payload: {
-          pendencia_id: pendencia.id,
-          cobranca_id: pendencia.cobranca_id,
-          condominio_id: pendencia.condominio_id,
-          unidade_id: pendencia.unidade_id,
-          ...(pendencia.payload ?? {}),
-        },
-      }),
-    ),
-    ...((criadas ?? []) as any[]).map((pendencia) =>
-      registrarEventoOperacional(supabase as any, {
-        carteiraId: pendencia.carteira_id,
-        entidadeTipo: "cobranca",
-        entidadeId: pendencia.cobranca_id,
-        eventoCodigo: "keila.acordo_proposta_preparada",
-        titulo: "Keila preparou proposta de acordo",
-        descricao: "Retorno de negociação monitorado pela Keila e encaminhado para proposta supervisionada.",
-        severidade: "info",
-        origem: "app",
-        auditavel: true,
-        payload: {
-          pendencia_id: pendencia.id,
-          cobranca_id: pendencia.cobranca_id,
-          condominio_id: pendencia.condominio_id,
-          unidade_id: pendencia.unidade_id,
-          ...(pendencia.payload ?? {}),
-        },
-      }),
-    ),
-  ]);
-
-  revalidatePath("/app/gestao/keila");
-  revalidatePath("/app/pendencias");
-  revalidatePath("/app/acordos");
-
-  const primeira = (criadas ?? [])[0] as any;
-  return {
-    status: "operacional",
-    avaliadas: candidatos.length,
-    candidatos: candidatos.length,
-    criadas: criadas?.length ?? 0,
-    duplicadas: candidatos.length - (criadas?.length ?? 0) - planilhasCriadas.length,
-    planilhas: planilhasCriadas.length,
-    acordoUrl: primeira?.payload?.acordo_url ?? "",
-    message:
-      planilhasCriadas.length > 0
-        ? "Keila preparou propostas e solicitou planilhas para negociações que viraram o mês."
-        : "Keila preparou as negociações para proposta de acordo supervisionada.",
-  };
 }
 
 export async function prepararAcordosNegociacaoKeila() {
@@ -1142,7 +1037,7 @@ export async function ativarKeilaAutonoma() {
       avaliadas: lotes.avaliadas + acordos.avaliadas,
       lotes_criados: lotes.lotes,
       mensagens_criadas: lotes.criadas,
-      propostas_criadas: acordos.criadas,
+      acordos_criados: acordos.criadas,
       planilhas_solicitadas: acordos.planilhas,
       puladas: lotes.puladas,
       duplicadas: lotes.duplicadas + acordos.duplicadas,
@@ -1168,7 +1063,7 @@ export async function ativarKeilaAutonoma() {
       duplicadas: lotes.duplicadas + acordos.duplicadas,
       erros: lotes.erros,
       lotes: lotes.lotes,
-      propostas: acordos.criadas,
+      acordos: acordos.criadas,
       planilhas: acordos.planilhas,
       lote_id: lotes.loteIds[0] ?? "",
       acordo_url: acordos.acordoUrl,

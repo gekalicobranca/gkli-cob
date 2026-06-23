@@ -1,5 +1,6 @@
 import net from 'node:net'
 import tls from 'node:tls'
+import { createAdminClient } from '@/utils/supabase/admin'
 
 export type EmailPayload = {
   to: string
@@ -15,20 +16,136 @@ type SmtpConfig = {
   pass?: string
   from: string
   secure: boolean
+  starttls: boolean
+  ehloDomain: string
 }
 
-function getConfig(): SmtpConfig {
+export type PublicSmtpConfigStatus = {
+  source: 'database' | 'environment' | 'missing'
+  configured: boolean
+  active: boolean
+  host: string | null
+  port: number | null
+  user: string | null
+  from: string | null
+  secure: boolean
+  starttls: boolean
+  ehloDomain: string
+  hasPassword: boolean
+  updatedAt: string | null
+  unavailableReason?: string
+}
+
+function getEnvConfig(): SmtpConfig {
   const host = process.env.SMTP_HOST
   const port = Number(process.env.SMTP_PORT ?? 587)
   const user = process.env.SMTP_USER
   const pass = process.env.SMTP_PASS
   const from = process.env.SMTP_FROM || user
   const secure = String(process.env.SMTP_SECURE ?? '').toLowerCase() === 'true' || port === 465
+  const starttls = String(process.env.SMTP_STARTTLS ?? 'true').toLowerCase() !== 'false'
+  const ehloDomain = process.env.SMTP_EHLO_DOMAIN || 'gkli.local'
 
   if (!host) throw new Error('SMTP_HOST não configurado')
   if (!from) throw new Error('SMTP_FROM não configurado')
 
-  return { host, port, user, pass, from, secure }
+  return { host, port, user, pass, from, secure, starttls, ehloDomain }
+}
+
+async function getDatabaseConfig(): Promise<SmtpConfig | null> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('integracoes_smtp_config')
+    .select('ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
+    .eq('ativo', true)
+    .order('atualizado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return null
+  if (!data?.ativo || !data.host) return null
+
+  const from = data.remetente || data.usuario
+  if (!from) return null
+
+  return {
+    host: data.host,
+    port: Number(data.porta ?? 587),
+    user: data.usuario ?? undefined,
+    pass: data.senha ?? undefined,
+    from,
+    secure: Boolean(data.secure) || Number(data.porta ?? 587) === 465,
+    starttls: data.starttls !== false,
+    ehloDomain: data.ehlo_domain || 'gkli.local',
+  }
+}
+
+export async function getSmtpConfigStatus(): Promise<PublicSmtpConfigStatus> {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('integracoes_smtp_config')
+      .select('ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
+      .order('atualizado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!error && data) {
+      const from = data.remetente || data.usuario || null
+      return {
+        source: 'database',
+        configured: Boolean(data.host && from),
+        active: Boolean(data.ativo),
+        host: data.host ?? null,
+        port: Number(data.porta ?? 587),
+        user: data.usuario ?? null,
+        from,
+        secure: Boolean(data.secure) || Number(data.porta ?? 587) === 465,
+        starttls: data.starttls !== false,
+        ehloDomain: data.ehlo_domain || 'gkli.local',
+        hasPassword: Boolean(data.senha),
+        updatedAt: data.atualizado_em ?? null,
+      }
+    }
+
+    if (error) return envStatus(error.message)
+  } catch (error) {
+    return envStatus(error instanceof Error ? error.message : 'Configuração no banco indisponível')
+  }
+
+  return envStatus()
+}
+
+function envStatus(unavailableReason?: string): PublicSmtpConfigStatus {
+  const host = process.env.SMTP_HOST || null
+  const port = Number(process.env.SMTP_PORT ?? 587)
+  const user = process.env.SMTP_USER || null
+  const from = process.env.SMTP_FROM || user
+
+  return {
+    source: host && from ? 'environment' : 'missing',
+    configured: Boolean(host && from),
+    active: Boolean(host && from),
+    host,
+    port: Number.isFinite(port) ? port : 587,
+    user,
+    from,
+    secure: String(process.env.SMTP_SECURE ?? '').toLowerCase() === 'true' || port === 465,
+    starttls: String(process.env.SMTP_STARTTLS ?? 'true').toLowerCase() !== 'false',
+    ehloDomain: process.env.SMTP_EHLO_DOMAIN || 'gkli.local',
+    hasPassword: Boolean(process.env.SMTP_PASS),
+    updatedAt: null,
+    unavailableReason,
+  }
+}
+
+async function getConfig(override?: SmtpConfig): Promise<SmtpConfig> {
+  if (override) return override
+
+  const databaseConfig = await getDatabaseConfig()
+  if (databaseConfig) return databaseConfig
+
+  return getEnvConfig()
 }
 
 function readResponse(socket: net.Socket | tls.TLSSocket): Promise<string> {
@@ -102,8 +219,8 @@ async function upgradeToTls(socket: net.Socket, config: SmtpConfig) {
   })
 }
 
-export async function sendSmtpEmail(payload: EmailPayload) {
-  const config = getConfig()
+export async function sendSmtpEmail(payload: EmailPayload, overrideConfig?: SmtpConfig) {
+  const config = await getConfig(overrideConfig)
   const from = sanitizeAddress(payload.from || config.from)
   const to = sanitizeAddress(payload.to)
   const subject = payload.subject?.trim() || 'Mensagem GKLI Cobrança'
@@ -116,12 +233,12 @@ export async function sendSmtpEmail(payload: EmailPayload) {
 
   try {
     await readResponse(socket)
-    await command(socket, `EHLO ${process.env.SMTP_EHLO_DOMAIN || 'gkli.local'}`, [250])
+    await command(socket, `EHLO ${config.ehloDomain}`, [250])
 
-    if (!config.secure && String(process.env.SMTP_STARTTLS ?? 'true').toLowerCase() !== 'false') {
+    if (!config.secure && config.starttls) {
       await command(socket, 'STARTTLS', [220])
       socket = await upgradeToTls(socket as net.Socket, config)
-      await command(socket, `EHLO ${process.env.SMTP_EHLO_DOMAIN || 'gkli.local'}`, [250])
+      await command(socket, `EHLO ${config.ehloDomain}`, [250])
     }
 
     if (config.user && config.pass) {

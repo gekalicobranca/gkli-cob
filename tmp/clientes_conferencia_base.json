@@ -1,0 +1,709 @@
+[
+  {
+    "cliente": "CONDOMINIO BOSQUE MARAJOARA",
+    "documento": "32.670.404/0001-89",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO BOSQUE MARAJOARA",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "LAAGER TECNOLOGIAS SUSTENTAVEIS LTDA",
+    "documento": "12.126.307/0001-12",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO FABBRICA MOOCA",
+    "documento": "25.197.944/0001-21",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "GIRO TATUAPE",
+    "documento": "30.088.899/0001-07",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO K360 HUMBERTO I",
+    "documento": "50.887.640/0001-33",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO K360 HUMBERTO I",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO SAO MANUEL",
+    "documento": "03.811.371/0001-41",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO SOMA PERDIZES - OFFICES",
+    "documento": "56.911.617/0002-02",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO SOMA PERDIZES - RESIDENCIAL",
+    "documento": "56.911.617/0001-13",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO HADDOCK 885",
+    "documento": "65.644.615/0001-04",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO MENHAUS PANAMBY",
+    "documento": "55.947.795/0001-31",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO WIMBLEDON PARK",
+    "documento": "03.206.814/0001-75",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "HI VIEW ALTO DA BOA VISTA",
+    "documento": "63.744.144/0001-72",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO CLOCK VILA ROMANA",
+    "documento": "42.216.619/0001-88",
+    "encontrado": "SIM",
+    "base_nome": "CLOCK VILA ROMANA",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "ALIVE HOME CLUB BELEM",
+    "documento": "59.383.451/0001-06",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO NEW WAY",
+    "documento": "23.896.621/0001-09",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO NEW WAY",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "ASSOCIACAO PALACIO DAS AGUAS HOME RESORT",
+    "documento": "31.523.049/0001-52",
+    "encontrado": "SIM",
+    "base_nome": "ASSOCIAÇÃO PALÁCIO DAS ÁGUAS HOME RESORT",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO ALPHAVILLE TRES PRAIAS RESIDENCIAL 3",
+    "documento": "55.526.739/0001-23",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMINIO ALPHAVILLE TRES PRAIAS – RESIDENCIAL 3",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CAMINHOS DA LAPA CONDOMINIO JERIVAS",
+    "documento": "41.238.935/0001-98",
+    "encontrado": "SIM",
+    "base_nome": "CAMINHOS DA LAPA CONDOMÍNIO JERIVÁS",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO CONCEPT HOME",
+    "documento": "22.191.048/0001-67",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO ALPHA STAY",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO CADIZ JARDIM PRUDENCIA",
+    "documento": "47.908.154/0001-40",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO CÁDIZ JARDIM PRUDÊNCIA",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO AYLA MOEMA - STUDIOS",
+    "documento": "46.936.326/0002-07",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO AYLA MOEMA - RESIDENCIAL/ STUDIOS",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO COMODITA CLUB RESIDENCE",
+    "documento": "19.723.248/0001-09",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO COMODITÁ CLUB RESIDENCE",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO COSMOPOLITAN HIGH GARDEN",
+    "documento": "26.434.222/0001-06",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO CYRELA IBIRAPUERA BY YOO SETOR RESIDENCIAL 1",
+    "documento": "49.109.007/0002-16",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO CYRELA IBIRAPUERA BY YOO - SETOR RESIDENCIAL 1",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO DOMO RESIDENCIAL LIFE",
+    "documento": "19.719.471/0001-82",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMINIO DOMO RESIDENCIAL LIFE",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO CYRELA IBIRAPUERA BY YOO SETOR RESIDENCIAL 2",
+    "documento": "49.109.007/0001-35",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO CYRELA IBIRAPUERA BY YOO - SETOR RESIDENCIAL 2",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO CYRELA THE PARC BY YOO RESIDENCES",
+    "documento": "54.588.992/0001-49",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO CHACARA DAS FLORES",
+    "documento": "53.835.344/0001-87",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO ESTACAO GABRIELE",
+    "documento": "29.050.207/0001-52",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMINIO EDIFICIO ESTAÇÃO GABRIELE",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO AIRPORT HOTELS",
+    "documento": "05.524.902/0001-40",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO GREENPARK PENTHOUSE",
+    "documento": "65.472.409/0001-56",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO CACIQUE",
+    "documento": "55.234.678/0001-20",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO EDIFÍCIO CACIQUE",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO IMPERIAL BERRINI OFFICES",
+    "documento": "02.498.495/0001-56",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO EDIFÍCIO IMPERIAL BERRINI OFFICES",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO OASIS",
+    "documento": "10.933.934/0001-30",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO EDIFÍCIO OASIS",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO SOLAR DOS BANDEIRANTES",
+    "documento": "55.294.375/0001-01",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO SOLAR DOS BANDEIRANTES",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO FOLLOW THE EUREKA BUILDING",
+    "documento": "26.307.047/0001-96",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO FOLLOW – THE EUREKA BUILDING",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO MAISON D ORSAY",
+    "documento": "07.439.062/0001-43",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO MAISON D'ORSAY",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO PARQUE MARAJOARA SOL",
+    "documento": "54.461.801/0001-83",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO NORTE SETOR HOTELEIRO NORTE",
+    "documento": "04.728.078/0001-88",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO VISO MOEMA",
+    "documento": "46.073.676/0001-06",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO VISO MOEMA",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO HARMONIA 1040 SETOR RESIDENCIAL 1 APARTAMENTOS",
+    "documento": "52.389.637/0002-04",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO RESIDENCIAL DAS ILHAS",
+    "documento": "08.769.535/0001-33",
+    "encontrado": "SIM",
+    "base_nome": "RESIDENCIAL DAS ILHAS",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CYRELA ATMOSFERA 360 SUBCONDOMINIO 2",
+    "documento": "57.637.536/0004-82",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "NATAL CATARINA CARVALHO FERREIRA",
+    "documento": "071.247.794-21",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "EDIFICIO PARC EXCLUSIF PERDIZES",
+    "documento": "25.144.200/0001-49",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMINIO EDIFICIO PARC EXCLUSIF PERDIZES (INTRÓITO)",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "VERDANA SUITES JARDIM PRUDENCIA SETOR MORADIA TORRE 3",
+    "documento": "57.897.276/0004-84",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO NEW SIDE",
+    "documento": "41.502.011/0001-57",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO SUIT SAO BERNARDO",
+    "documento": "29.205.467/0001-50",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO SUIT SÃO BERNARDO",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "HAUS MITRE RESERVA VILA MARIANA SETOR RESIDENCIAL",
+    "documento": "61.675.871/0002-80",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO VILA DO ROSIO",
+    "documento": "00.605.464/0001-21",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO CAROLINE MAHAL",
+    "documento": "05.032.159/0001-01",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO CAROLINE MAHAL",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO RESIDENCIAL MAIS ESTILO E DESIGN MORUMBI",
+    "documento": "19.436.901/0001-59",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO RESIDENCIAL MAIS ESTILO & DESIGN MORUMBI",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO LAS VENTANAS",
+    "documento": "22.246.106/0001-02",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO LAS VENTANAS",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO VILLA NATURA",
+    "documento": "07.964.226/0001-51",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO HARMONIA 1040 SETOR RESIDENCIAL 2 LOFTS",
+    "documento": "52.389.637/0003-87",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "ELO DUO CAMINHOS DA LAPA TORRE B SETOR RESIDENCIAL 3",
+    "documento": "54.405.702/0003-46",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMINIO Elo & Elo Duo Caminhos da Lapa - Setor 2 - Residencial (Torre A - Elo Caminhos da Lapa);",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO RESERVA BUTANTA",
+    "documento": "18.777.394/0001-54",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO VIVAZ ESTACAO VILA PRUDENTE",
+    "documento": "54.589.086/0001-69",
+    "encontrado": "SIM",
+    "base_nome": "COND. VIVAZ ESTAÇÃO VILA PRUDENTE",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO MODULO SAUDE",
+    "documento": "50.725.158/0001-96",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO SQUARE GUARULHOS",
+    "documento": "14.234.598/0001-98",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO SQUARE GUARULHOS",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "VERDANA JARDIM PRUDENCIA SETOR RESIDENCIAL",
+    "documento": "57.897.276/0001-31",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO SQUARE GARDEN CAMPO BELO RESIDENCIAL",
+    "documento": "52.151.457/0002-81",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO SQUARE GARDEN CAMPO BELO - RESIDENCIAL",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "OLIVA VILA MASCOTE",
+    "documento": "24.206.902/0001-47",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO VILLA DORIA",
+    "documento": "05.382.774/0001-48",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO VILLA DORIA",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO HARMONIA MORUMBI RESIDENCE",
+    "documento": "29.910.260/0001-86",
+    "encontrado": "SIM",
+    "base_nome": "HARMONIA MORUMBI RESIDENCE",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO VILLA LOBOS OFFICE PARK",
+    "documento": "13.190.286/0001-67",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO VILLA LOBOS OFFICE PARK",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO OFFICE VILLA EUROPA",
+    "documento": "00.906.970/0001-50",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO EXTENSION BERRINI",
+    "documento": "55.211.616/0001-01",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO GARDEN CLUB BARRA FUNDA",
+    "documento": "13.018.928/0001-45",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO GARDEN CLUB BARRA FUNDA",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO IL FARO",
+    "documento": "47.288.221/0001-70",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO IL FARO",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO JARDIM SUL GALLERY",
+    "documento": "20.456.882/0001-01",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO PROJECT HOME",
+    "documento": "04.763.468/0001-99",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO PROJECT HOME",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO SQUARE GARDEN CAMPO BELO STUDIOS",
+    "documento": "52.151.457/0003-62",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO GRUTA DAS LAGOSTAS",
+    "documento": "50.322.098/0001-71",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMINIO GRUTA DAS LAGOSTAS",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO DESIGN 101",
+    "documento": "44.066.095/0001-11",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO DESIGN 101",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "ELO CAMINHOS DA LAPA TORRE A SETOR RESIDENCIAL 2",
+    "documento": "54.405.702/0002-65",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO CYRELA IBIRAPUERA BY YOO MEDPLEX",
+    "documento": "49.109.007/0003-05",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO CYRELA IBIRAPUERA BY YOO - MEDPLEX",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO VIEW BUTANTA",
+    "documento": "51.776.364/0001-07",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMINIO VIEW BUTANTÃ",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO VILA DAS CORES",
+    "documento": "08.258.385/0001-01",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO VILA DAS CORES",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "HI VIEW ALTO DA BOA VISTA SETOR W STYLE RESIDENCIAL",
+    "documento": "63.744.144/0003-34",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO PANAMBY PENTHOUSES",
+    "documento": "24.977.773/0001-90",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO HARMONIA 1040 ESCRITORIOS",
+    "documento": "52.389.637/0004-68",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMINIO HARMONIA 1040 - ESCRITÓRIOS",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO MOEMA FLAT SERVICE",
+    "documento": "04.632.843/0001-61",
+    "encontrado": "SIM",
+    "base_nome": "EDIFÍCIO MOEMA FLAT SERVICE",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO HARMONIA 1040 LOJAS",
+    "documento": "52.389.637/0005-49",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMINIO HARMONIA 1040 - LOJAS",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "ESTILO GRANJA VIANA",
+    "documento": "24.169.107/0001-26",
+    "encontrado": "SIM",
+    "base_nome": "ESTILO GRANJA VIANA CONDOMÍNIO",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO RAIZES DA MATA",
+    "documento": "08.422.331/0001-21",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO RAIZES DA MATA",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "HELVETIA GRAND QUARTIER GARTEN HAUS CONDOMINIUM",
+    "documento": "12.418.783/0001-07",
+    "encontrado": "SIM",
+    "base_nome": "HELVETIA GRAND QUARTIER – GARTEN HAUS CONDOMINIUM",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO MAISON IPIRANGA",
+    "documento": "60.943.001/0001-00",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO ILIADA",
+    "documento": "53.829.495/0001-22",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO KEY MOEMA",
+    "documento": "42.331.105/0001-73",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO KEY MOEMA",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO RESIDENCIAL FORLIFE TULIPAS CLUBE",
+    "documento": "42.459.034/0001-99",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO RESIDENCIAL FORLIFE TULIPAS CLUBE",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO MANOR I4 SETOR PEDRO",
+    "documento": "47.379.614/0001-90",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "MARA JANE DE CASTRO PEDROZO",
+    "documento": "076.371.188-30",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO RESIDENCIAL FINE",
+    "documento": "14.556.697/0001-96",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO RESIDENCIAL FINE",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "PRIVATE BELA VISTA",
+    "documento": "37.983.337/0001-76",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO EDIFICIO YOHANNES BRAHMS",
+    "documento": "54.960.836/0001-67",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO DAS TULIPAS",
+    "documento": "26.342.721/0001-73",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMÍNIO DAS TULIPAS",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "CONDOMINIO BREKA MOEMA",
+    "documento": "54.561.752/0001-50",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "CONDOMINIO XPRESS TUCURUVI",
+    "documento": "53.156.448/0001-65",
+    "encontrado": "SIM",
+    "base_nome": "CONDOMINIO XPRESS TUCURUVI",
+    "base_status": "ativo"
+  },
+  {
+    "cliente": "REGIS FABIANO MOCHIATE",
+    "documento": "322.750.188-08",
+    "encontrado": "NAO",
+    "base_nome": "",
+    "base_status": ""
+  },
+  {
+    "cliente": "SUBCONDOMINIO EDIFICIO OFFICE TAMBORE",
+    "documento": "11.772.599/0001-06",
+    "encontrado": "SIM",
+    "base_nome": "SUBCONDOMINIO EDIFICIO OFFICE TAMBORE",
+    "base_status": "ativo"
+  }
+]
