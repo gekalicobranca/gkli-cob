@@ -110,3 +110,29 @@ export async function getKeilaEligibilitySummary(scope: CarteiraScope) {
       .slice(0, 8),
   };
 }
+
+export async function listCondominiosKeilaTeste(scope: CarteiraScope) {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from("condominios")
+    .select("id, nome, carteira_id, regua_cobranca_id")
+    .eq("operacao_virtual_habilitada", true)
+    .eq("status", "ativo")
+    .order("nome", { ascending: true });
+
+  query = applyCarteiraScope(query, scope.carteiraIds);
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`Erro ao carregar condominios habilitados para Keila: ${error.message}`);
+  }
+
+  return (data ?? []) as Array<{
+    id: string;
+    nome: string | null;
+    carteira_id: string | null;
+    regua_cobranca_id: string | null;
+  }>;
+}

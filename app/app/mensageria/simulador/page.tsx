@@ -12,6 +12,8 @@ import { gerarLoteReguaAcordos, gerarLoteReguaCobranca } from '@/features/regua/
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
 import { ConfirmGenerateLoteButton } from './confirm-generate-lote-button'
 
+const PREVIEW_LIMIT = 20
+
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
@@ -135,6 +137,15 @@ async function safeLoadSelects<T>(loader: () => Promise<T[]>, label: string) {
   }
 }
 
+async function safeLoadPreview<T>(loader: () => Promise<T[]>, label: string) {
+  try {
+    return { rows: await loader(), error: '' }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : `Não foi possível carregar ${label}.`
+    return { rows: [] as T[], error: `Prévia de ${label}: ${detail}` }
+  }
+}
+
 export default async function SimuladorReguaPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : {}
   const filters = {
@@ -172,19 +183,27 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
     const selectErrors = [carteirasResult.error, condominiosResult.error].filter(Boolean)
     previewError = selectErrors.join(' ')
 
-    if (showCobrancas) {
-      cobrancas = await listReguaCobrancaPreview(scope, previewFilters)
-    } else {
-      acordos = await listReguaAcordoPreview(scope, previewFilters)
-    }
+    const [cobrancasResult, acordosResult] = await Promise.all([
+      safeLoadPreview(() => listReguaCobrancaPreview(scope, previewFilters), 'cobranças'),
+      safeLoadPreview(() => listReguaAcordoPreview(scope, previewFilters), 'acordos'),
+    ])
+    cobrancas = cobrancasResult.rows
+    acordos = acordosResult.rows
+    previewError = [
+      previewError,
+      cobrancasResult.error,
+      acordosResult.error,
+    ].filter(Boolean).join(' ')
   } catch (error) {
     previewError = error instanceof Error ? error.message : 'Não foi possível carregar a prévia da régua.'
   }
 
   const cobrancasElegiveis = cobrancas.filter((row: any) => row.elegivel)
   const acordosElegiveis = acordos.filter((row: any) => row.elegivel)
-  const cobrancasGeraveis = cobrancasElegiveis.filter((row: any) => !row.ja_gerada_no_ciclo)
-  const acordosGeraveis = acordosElegiveis.filter((row: any) => !row.ja_gerada_no_ciclo)
+  const cobrancasVisiveis = cobrancasElegiveis.slice(0, PREVIEW_LIMIT)
+  const acordosVisiveis = acordosElegiveis.slice(0, PREVIEW_LIMIT)
+  const cobrancasGeraveisVisiveis = cobrancasVisiveis.filter((row: any) => !row.ja_gerada_no_ciclo)
+  const acordosGeraveisVisiveis = acordosVisiveis.filter((row: any) => !row.ja_gerada_no_ciclo)
   const hasFilters = Boolean(filters.q || filters.carteira_id || filters.condominio_id || filters.contato !== 'todos' || filters.regua_id)
 
   return (
@@ -259,11 +278,21 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
           <form action={gerarLoteReguaCobranca}>
             <HiddenFilters filters={filters} />
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-              <div><h2 className="text-sm font-semibold text-slate-950">Cobranças elegíveis</h2><p className="mt-1 text-xs text-slate-500">Apenas cobranças que já passaram pela janela D+ configurada.</p></div>
-              <ConfirmGenerateLoteButton itemCount={Math.min(cobrancasGeraveis.length, 20)} tipo="cobrancas">Gerar lote</ConfirmGenerateLoteButton>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-950">Cobranças elegíveis</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Gerar lote usa somente os itens visíveis e selecionados nesta tela.
+                </p>
+              </div>
+              <ConfirmGenerateLoteButton itemCount={cobrancasGeraveisVisiveis.length} tipo="cobrancas">Gerar lote</ConfirmGenerateLoteButton>
             </div>
+            {cobrancasElegiveis.length > PREVIEW_LIMIT ? (
+              <div className="border-b border-amber-100 bg-amber-50 px-5 py-3 text-xs text-amber-800">
+                Mostrando os primeiros {PREVIEW_LIMIT} de {cobrancasElegiveis.length} itens elegíveis. Refine os filtros para gerar lotes menores e controlados.
+              </div>
+            ) : null}
             <div className="divide-y divide-slate-100">
-              {cobrancasElegiveis.length === 0 ? <div className="p-5"><EmptyState title="Sem cobranças elegíveis" description="Nada para gerar neste momento." /></div> : cobrancasElegiveis.slice(0, 20).map((row: any) => <PreviewRow key={itemKey('c', row)} row={row} tipo="cobranca" selectionName="cobranca_ids" selectionValue={row.id} />)}
+              {cobrancasElegiveis.length === 0 ? <div className="p-5"><EmptyState title="Sem cobranças elegíveis" description="Nada para gerar neste momento." /></div> : cobrancasVisiveis.map((row: any) => <PreviewRow key={itemKey('c', row)} row={row} tipo="cobranca" selectionName="cobranca_ids" selectionValue={row.id} />)}
             </div>
           </form>
         </Card>
@@ -274,11 +303,21 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
           <form action={gerarLoteReguaAcordos}>
             <HiddenFilters filters={filters} />
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-              <div><h2 className="text-sm font-semibold text-slate-950">Acordos elegíveis</h2><p className="mt-1 text-xs text-slate-500">Parcelas em janela preventiva ou vencidas.</p></div>
-              <ConfirmGenerateLoteButton itemCount={Math.min(acordosGeraveis.length, 20)} tipo="acordos">Gerar lote</ConfirmGenerateLoteButton>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-950">Acordos elegíveis</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Gerar lote usa somente os itens visíveis e selecionados nesta tela.
+                </p>
+              </div>
+              <ConfirmGenerateLoteButton itemCount={acordosGeraveisVisiveis.length} tipo="acordos">Gerar lote</ConfirmGenerateLoteButton>
             </div>
+            {acordosElegiveis.length > PREVIEW_LIMIT ? (
+              <div className="border-b border-amber-100 bg-amber-50 px-5 py-3 text-xs text-amber-800">
+                Mostrando os primeiros {PREVIEW_LIMIT} de {acordosElegiveis.length} itens elegíveis. Refine os filtros para gerar lotes menores e controlados.
+              </div>
+            ) : null}
             <div className="divide-y divide-slate-100">
-              {acordosElegiveis.length === 0 ? <div className="p-5"><EmptyState title="Sem acordos elegíveis" description="Nenhuma parcela exige contato agora." /></div> : acordosElegiveis.slice(0, 20).map((row: any) => <PreviewRow key={itemKey('a', row)} row={row} tipo="acordo" selectionName="parcela_ids" selectionValue={row.parcela?.id ?? ''} />)}
+              {acordosElegiveis.length === 0 ? <div className="p-5"><EmptyState title="Sem acordos elegíveis" description="Nenhuma parcela exige contato agora." /></div> : acordosVisiveis.map((row: any) => <PreviewRow key={itemKey('a', row)} row={row} tipo="acordo" selectionName="parcela_ids" selectionValue={row.parcela?.id ?? ''} />)}
             </div>
           </form>
         </Card>

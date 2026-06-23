@@ -11,13 +11,12 @@ import {
   Lock,
   Mail,
   MessageCircle,
-  PlayCircle,
   ShieldCheck,
   SlidersHorizontal,
   WalletCards,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   LiteKpiStrip,
@@ -31,7 +30,8 @@ import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { getManagementDashboardTabs } from "@/features/dashboard/queries";
 import { prepararLotesKeila, validarFilaKeila } from "@/features/keila/actions";
-import { getKeilaEligibilitySummary } from "@/features/keila/queries";
+import { getKeilaEligibilitySummary, listCondominiosKeilaTeste } from "@/features/keila/queries";
+import { ExecutionButton } from "./execution-button";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -256,12 +256,16 @@ function AssistedActivity({
   description,
   meta,
   action,
+  fields,
+  processed = false,
   tone = "blue",
 }: {
   title: string;
   description: string;
   meta: string;
-  action: () => Promise<void>;
+  action: (formData: FormData) => Promise<void>;
+  fields?: ReactNode;
+  processed?: boolean;
   tone?: "blue" | "green" | "amber" | "red" | "slate";
 }) {
   const tones = {
@@ -283,11 +287,9 @@ function AssistedActivity({
         </div>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
       </div>
-      <form action={action}>
-        <Button variant="secondary" size="md" className="min-w-28">
-          <PlayCircle className="h-4 w-4" />
-          Executar
-        </Button>
+      <form action={action} className="flex items-center gap-3">
+        {fields}
+        <ExecutionButton processed={processed} />
       </form>
     </div>
   );
@@ -349,14 +351,16 @@ function ChannelCard({
 
 export default async function KeilaCockpitPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : {};
+  const keilaResult = firstParam(params.keila_result);
   const activeTab = (tabs.some((tab) => tab.id === firstParam(params.tab))
     ? firstParam(params.tab)
     : "painel") as CockpitTab;
-  const hasKeilaResult = Boolean(firstParam(params.keila_result));
+  const hasKeilaResult = Boolean(keilaResult);
   const scope = await getPermittedCarteiras();
-  const [dashboard, keilaEligibility] = await Promise.all([
+  const [dashboard, keilaEligibility, condominiosKeilaTeste] = await Promise.all([
     getManagementDashboardTabs(scope),
     getKeilaEligibilitySummary(scope),
+    listCondominiosKeilaTeste(scope),
   ]);
 
   const approvalCount =
@@ -441,13 +445,32 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
                       description="Confere se existem condomínios ativos liberados para o teste da Keila."
                       meta="Sem gravação"
                       action={validarFilaKeila}
+                      processed={keilaResult === "validacao"}
                       tone="blue"
                     />
                     <AssistedActivity
                       title="2. Preparar lote de teste"
-                      description="Executa a régua nos condomínios habilitados e cria somente mensagens pendentes de aprovação."
+                      description="Executa a régua somente no condomínio escolhido e cria mensagens pendentes de aprovação."
                       meta="Teste"
                       action={prepararLotesKeila}
+                      processed={keilaResult === "preparacao_lotes"}
+                      fields={
+                        <label className="min-w-[260px]">
+                          <span className="sr-only">Condomínio do teste</span>
+                          <select
+                            name="condominio_id"
+                            defaultValue=""
+                            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                          >
+                            <option value="">Escolher condomínio</option>
+                            {condominiosKeilaTeste.map((condominio) => (
+                              <option key={condominio.id} value={condominio.id}>
+                                {condominio.nome ?? "Condomínio sem nome"}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      }
                       tone="green"
                     />
                     <QueueItem

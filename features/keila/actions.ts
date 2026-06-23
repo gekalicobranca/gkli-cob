@@ -64,8 +64,9 @@ export async function validarFilaKeila() {
   );
 }
 
-export async function prepararLotesKeila() {
+export async function prepararLotesKeila(formData?: FormData) {
   const { scope, condominios } = await getCondominiosHabilitados();
+  const condominioId = String(formData?.get("condominio_id") ?? "").trim();
 
   if (condominios.length === 0) {
     redirect(
@@ -73,6 +74,27 @@ export async function prepararLotesKeila() {
         keila_result: "preparacao_lotes",
         status: "vazio",
         message: "Nenhum condominio habilitado para preparar lote de teste.",
+      }),
+    );
+  }
+
+  if (!condominioId) {
+    redirect(
+      resultUrl({
+        keila_result: "preparacao_lotes",
+        status: "vazio",
+        message: "Escolha um condominio habilitado antes de preparar o lote de teste.",
+      }),
+    );
+  }
+
+  const condominioSelecionado = condominios.find((condominio) => condominio.id === condominioId);
+  if (!condominioSelecionado) {
+    redirect(
+      resultUrl({
+        keila_result: "preparacao_lotes",
+        status: "vazio",
+        message: "O condominio escolhido nao esta habilitado para o teste da Keila.",
       }),
     );
   }
@@ -88,7 +110,7 @@ export async function prepararLotesKeila() {
 
   const loteIds: string[] = [];
 
-  for (const condominio of condominios) {
+  for (const condominio of [condominioSelecionado]) {
     const resultado = await processarReguaCobranca({
       scope,
       origem: KEILA_TEST_ORIGIN,
@@ -119,7 +141,7 @@ export async function prepararLotesKeila() {
       lote_id: loteIds[0] ?? "",
       message:
         totals.criadas > 0
-          ? "Lote de teste preparado pela Keila para aprovacao humana."
+          ? `Lote de teste preparado pela Keila para ${condominioSelecionado.nome ?? "o condominio selecionado"}.`
           : "Teste concluido sem mensagens. Revise os motivos dos itens pulados.",
     }),
   );

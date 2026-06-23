@@ -983,7 +983,7 @@ export async function excluirLoteMensagens(loteId: string) {
     .maybeSingle();
 
   if (loteError) throw new Error(`Erro ao carregar lote: ${loteError.message}`);
-  if (!lote) throw new Error("Lote nao encontrado.");
+  if (!lote) redirect("/app/lotes?erro=lote_nao_encontrado");
 
   const carteiraId = (lote as any).carteira_id as string | null;
   if (!scope.isAdmin && carteiraId && !scope.carteiraIds?.includes(carteiraId)) {
@@ -992,7 +992,7 @@ export async function excluirLoteMensagens(loteId: string) {
 
   const mensagensCount = await countLoteRelations(supabase, "mensagens", loteId);
   if (mensagensCount > 0) {
-    throw new Error("Este lote ja possui mensagens. Cancele o lote para manter a rastreabilidade.");
+    redirect(`/app/lotes/${loteId}?erro=exclusao_bloqueada`);
   }
 
   const { error: logsError } = await supabase.from("mensageria_logs").delete().eq("lote_id", loteId);
@@ -1073,12 +1073,11 @@ export async function registrarRetornoManualLoteItem(itemId: string, formData: F
   const item = await getLoteItemResumo(supabase, itemId);
   const lote = await getLoteResumo(supabase, item.lote_id);
 
-  const novoStatus = pausarRegua ? LOTE_ITEM_STATUS.PAUSADO : LOTE_ITEM_STATUS.RETORNO_REGISTRADO;
+  const statusRetorno = pausarRegua ? LOTE_ITEM_STATUS.PAUSADO : LOTE_ITEM_STATUS.RETORNO_REGISTRADO;
 
   const { error: itemError } = await supabase
     .from("lote_itens")
     .update({
-      status: novoStatus,
       operador_id: user.id,
       retorno_tipo: retorno,
       retorno_observacao: observacao,
@@ -1093,7 +1092,7 @@ export async function registrarRetornoManualLoteItem(itemId: string, formData: F
   if (itemError) throw new Error(`Erro ao registrar retorno: ${itemError.message}`);
 
   if (item.mensagem_id) {
-    await supabase
+    const { error: mensagemError } = await supabase
       .from("mensagens")
       .update({
         status_operacional: "aguardando_retorno",
@@ -1104,6 +1103,10 @@ export async function registrarRetornoManualLoteItem(itemId: string, formData: F
         updated_at: now,
       } as any)
       .eq("id", item.mensagem_id);
+
+    if (mensagemError) {
+      throw new Error(`Erro ao atualizar retorno da mensagem: ${mensagemError.message}`);
+    }
   }
 
   await logMensageria(supabase, {
@@ -1113,7 +1116,7 @@ export async function registrarRetornoManualLoteItem(itemId: string, formData: F
     mensagem_id: item.mensagem_id,
     evento: "retorno_manual_registrado",
     status_anterior: item.status,
-    status_novo: novoStatus,
+    status_novo: statusRetorno,
     descricao: observacao,
     payload: { retorno, pausar_regua: pausarRegua, pausa_dias: pausaDias },
   });
@@ -1125,7 +1128,7 @@ export async function registrarRetornoManualLoteItem(itemId: string, formData: F
     entidadeId: item.cobranca_id ?? item.acordo_id ?? item.lote_id,
     eventoCodigo: `retorno_manual.${retorno}`,
     estadoAnterior: item.status ?? null,
-    estadoNovo: novoStatus,
+    estadoNovo: statusRetorno,
     titulo: "Retorno manual registrado",
     descricao: observacao ?? `Retorno registrado: ${retorno.replaceAll("_", " ")}.`,
     severidade: pausarRegua ? "alerta" : "info",
@@ -1157,6 +1160,44 @@ async function recalcularStatusLote(loteId: string) {
 
   const rows = data ?? [];
   const total = rows.length;
+
+  if (total === 0) {
+    const { data: itensData } = await supabase
+      .from("lote_itens")
+      .select("status")
+      .eq("lote_id", loteId);
+
+    const itens = itensData ?? [];
+    const totalItens = itens.length;
+    const cancelados = itens.filter((row: any) => row.status === LOTE_ITEM_STATUS.CANCELADO).length;
+    const errosItens = itens.filter((row: any) => row.status === LOTE_ITEM_STATUS.ERRO).length;
+    const terminais = itens.filter((row: any) =>
+      [
+        LOTE_ITEM_STATUS.PULADA,
+        LOTE_ITEM_STATUS.DUPLICADA,
+        LOTE_ITEM_STATUS.CANCELADO,
+        LOTE_ITEM_STATUS.ERRO,
+      ].includes(row.status),
+    ).length;
+    const itemStatus =
+      totalItens > 0 && cancelados === totalItens
+        ? LOTE_STATUS.CANCELADO
+        : totalItens > 0 && terminais === totalItens
+          ? errosItens > 0
+            ? LOTE_STATUS.CONCLUIDO_COM_FALHAS
+            : LOTE_STATUS.CONCLUIDO
+          : LOTE_STATUS.GERADO;
+
+    await supabase
+      .from("lotes")
+      .update({
+        status: itemStatus,
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq("id", loteId);
+    return;
+  }
+
   const enviadas = rows.filter(
     (row: any) => row.status === MENSAGEM_STATUS.ENVIADA,
   ).length;

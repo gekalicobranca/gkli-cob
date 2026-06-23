@@ -138,6 +138,18 @@ function getSearchParam(params: Record<string, string | string[] | undefined>, k
   return Array.isArray(value) ? value[0] : value;
 }
 
+function feedbackErroLote(codigo?: string) {
+  if (codigo === "exclusao_bloqueada") {
+    return {
+      title: "Exclusão bloqueada para preservar a rastreabilidade.",
+      description:
+        "Este lote possui mensagens vinculadas. Use Cancelar lote para encerrar o fluxo mantendo o histórico operacional.",
+    };
+  }
+
+  return null;
+}
+
 export default async function LoteDetalhePage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : {};
@@ -146,6 +158,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
   const byStatus = countItensByStatus(itens);
   const byMensagemStatus = countMensagensByStatus(itens as any);
   const generatedNow = getSearchParam(resolvedSearchParams, "gerado") === "1";
+  const feedbackErro = feedbackErroLote(getSearchParam(resolvedSearchParams, "erro"));
   const totalCriadas = numberValue((lote as any).total_criadas ?? byStatus.criado);
   const totalPuladas = numberValue((lote as any).total_puladas ?? byStatus.pulada);
   const totalDuplicadas = numberValue((lote as any).total_duplicadas ?? byStatus.duplicada);
@@ -187,6 +200,20 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
           </Link>
         }
       />
+
+      {feedbackErro ? (
+        <Card className="border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+              <ShieldAlert size={18} />
+            </span>
+            <div>
+              <p className="font-semibold">{feedbackErro.title}</p>
+              <p className="mt-1 text-sm text-amber-800">{feedbackErro.description}</p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {generatedNow ? (
         <Card
@@ -410,12 +437,14 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
               </form>
             ) : null}
 
-            <form action={excluirLoteMensagens.bind(null, id)}>
-              <ActionButton tone="danger" confirmMessage="Confirmar exclusão deste registro? A exclusão só será permitida se não houver mensagens vinculadas." pendingLabel="Excluindo...">
-                <Trash2 size={16} />
-                {hasMensagensOperacionais ? "Excluir lote" : "Excluir registro"}
-              </ActionButton>
-            </form>
+            {!hasMensagensOperacionais ? (
+              <form action={excluirLoteMensagens.bind(null, id)}>
+                <ActionButton tone="danger" confirmMessage="Confirmar exclusão deste registro?" pendingLabel="Excluindo...">
+                  <Trash2 size={16} />
+                  Excluir registro
+                </ActionButton>
+              </form>
+            ) : null}
           </div>
         </div>
       </Card>
@@ -457,6 +486,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
               const canalExibido = mensagem?.canal || canalPlanejado || "";
               const destinatarioExibido = mensagem?.destinatario || destinatarioPlanejado || "";
               const hasMensagem = Boolean(mensagem?.id);
+              const mensagemStatus = String(mensagem?.status ?? "");
               const canApproveItem =
                 hasMensagem &&
                 (item.status === LOTE_ITEM_STATUS.CRIADO || item.status === LOTE_ITEM_STATUS.ERRO);
@@ -566,7 +596,8 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
 
                     {mensagem?.id ? (
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {String(mensagem.status ?? "") === "pendente" ? (
+                        {mensagemStatus === MENSAGEM_STATUS.PENDENTE_APROVACAO ||
+                        mensagemStatus === MENSAGEM_STATUS.FALHA ? (
                           <form
                             action={aprovarMensagem.bind(null, mensagem.id)}
                           >
@@ -577,7 +608,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                         ) : null}
 
                         {mensagem.canal === "email" &&
-                        String(mensagem.status ?? "") === "aprovada" ? (
+                        mensagemStatus === MENSAGEM_STATUS.APROVADA ? (
                           <form
                             action={enviarMensagemEmail.bind(null, mensagem.id)}
                           >
@@ -599,7 +630,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                         ) : null}
 
                         {mensagem.canal === "whatsapp" &&
-                        String(mensagem.status ?? "") === "aprovada" ? (
+                        mensagemStatus === MENSAGEM_STATUS.APROVADA ? (
                           <form
                             action={marcarMensagemWhatsappEnviada.bind(
                               null,
@@ -612,9 +643,11 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                           </form>
                         ) : null}
 
-                        {["pendente", "aprovada", "erro"].includes(
-                          String(mensagem.status ?? ""),
-                        ) ? (
+                        {[
+                          MENSAGEM_STATUS.PENDENTE_APROVACAO,
+                          MENSAGEM_STATUS.APROVADA,
+                          MENSAGEM_STATUS.FALHA,
+                        ].includes(mensagemStatus as any) ? (
                           <form
                             action={cancelarMensagem.bind(
                               null,

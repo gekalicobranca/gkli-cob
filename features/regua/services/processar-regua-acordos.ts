@@ -318,15 +318,20 @@ async function atualizarLote(params: {
 async function carregarParcelasAbertas(
   supabase: ReturnType<typeof createAdminClient>,
   acordoIds: string[],
+  parcelaIds?: string[],
 ) {
   if (!acordoIds.length) return new Map<string, any[]>()
 
-  const { data, error } = await supabase
+  let query: any = supabase
     .from('parcelas_acordo')
     .select('id, acordo_id, numero, tipo_parcela, valor, vencimento, status')
     .in('acordo_id', acordoIds)
     .in('status', [PARCELA_ACORDO_STATUS.PENDENTE, PARCELA_ACORDO_STATUS.VENCIDA])
     .order('vencimento', { ascending: true })
+
+  if (parcelaIds?.length) query = query.in('id', parcelaIds)
+
+  const { data, error } = await query
 
   if (error) throw new Error(`Erro ao carregar parcelas de acordo: ${error.message}`)
 
@@ -339,6 +344,23 @@ async function carregarParcelasAbertas(
   return map
 }
 
+async function carregarAcordoIdsPorParcelas(
+  supabase: ReturnType<typeof createAdminClient>,
+  parcelaIds: string[],
+) {
+  if (!parcelaIds.length) return []
+
+  const { data, error } = await supabase
+    .from('parcelas_acordo')
+    .select('acordo_id')
+    .in('id', parcelaIds)
+    .in('status', [PARCELA_ACORDO_STATUS.PENDENTE, PARCELA_ACORDO_STATUS.VENCIDA])
+
+  if (error) throw new Error(`Erro ao localizar acordos selecionados: ${error.message}`)
+
+  return [...new Set((data ?? []).map((row: any) => row.acordo_id).filter(Boolean))]
+}
+
 export async function processarReguaAcordos(
   params: ProcessarReguaAcordosParams = {},
 ): Promise<ResultadoLoteReguaAcordos> {
@@ -346,6 +368,12 @@ export async function processarReguaAcordos(
   const total = novoContador()
   const itens: ResultadoLoteReguaAcordos['itens'] = []
   const lotesPorCarteiraRegua = new Map<string, LoteContext>()
+  const selectedParcelaIds = params.parcelaIds
+    ? params.parcelaIds.map((id) => String(id).trim()).filter(Boolean)
+    : null
+  const selectedAcordoIds = selectedParcelaIds
+    ? await carregarAcordoIdsPorParcelas(supabase, selectedParcelaIds)
+    : null
 
   const data = await fetchAllRows((from, to) => {
     let query: any = supabase
@@ -373,6 +401,7 @@ export async function processarReguaAcordos(
     if (params.scope) query = applyCarteiraScope(query, params.scope.carteiraIds)
     if (params.carteiraId) query = query.eq('carteira_id', params.carteiraId)
     if (params.condominioId) query = query.eq('condominio_id', params.condominioId)
+    if (selectedAcordoIds) query = query.in('id', selectedAcordoIds.length ? selectedAcordoIds : [''])
     return query
   }, 'Erro ao buscar acordos para régua')
 
@@ -389,8 +418,8 @@ export async function processarReguaAcordos(
   const parcelasPorAcordo = await carregarParcelasAbertas(
     supabase,
     acordos.map((acordo) => acordo.id),
+    selectedParcelaIds ?? undefined,
   )
-  const selectedParcelaIds = params.parcelaIds ? new Set(params.parcelaIds) : null
 
   async function getLote(acordo: any): Promise<LoteContext> {
     const carteiraId = acordo.carteira_id as string | undefined
@@ -421,10 +450,11 @@ export async function processarReguaAcordos(
     const dataReferencia = cicloReferencia()
 
     for (const acordo of acordos) {
-      const parcelas = (parcelasPorAcordo.get(acordo.id) ?? [])
-        .filter((parcela) => !selectedParcelaIds || selectedParcelaIds.has(parcela.id))
+      const parcelas = parcelasPorAcordo.get(acordo.id) ?? []
 
       if (!parcelas.length) {
+        if (selectedParcelaIds) continue
+
         const lote = await getLote(acordo)
         total.avaliadas += 1
         total.puladas += 1

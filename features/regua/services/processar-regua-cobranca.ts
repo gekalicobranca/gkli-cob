@@ -522,6 +522,9 @@ export async function processarReguaCobranca(
   const lotesPorCarteiraRegua = new Map<string, LoteContext>();
   const cooldownDias = Number(params.cooldownDias ?? 3);
   const ciclo = cicloReferencia();
+  const selectedIdsForQuery = params.cobrancaIds
+    ? params.cobrancaIds.map((id) => String(id).trim()).filter(Boolean)
+    : null;
 
   const data = await fetchAllRows((from, to) => {
     let query: any = supabase
@@ -555,6 +558,7 @@ export async function processarReguaCobranca(
     }
     if (params.carteiraId) query = query.eq("carteira_id", params.carteiraId);
     if (params.condominioId) query = query.eq("condominio_id", params.condominioId);
+    if (selectedIdsForQuery) query = query.in("id", selectedIdsForQuery.length ? selectedIdsForQuery : [""]);
     return query;
   }, "Erro ao buscar cobranças para régua");
 
@@ -563,12 +567,10 @@ export async function processarReguaCobranca(
     "unidades",
   ]) as CobrancaReguaRow[];
   const apoioMap = await loadResponsaveisApoioMap(supabase, normalizedRows);
-  const selectedIds = params.cobrancaIds ? new Set(params.cobrancaIds) : null;
   const rows = normalizedRows
     .map((row) => withResponsavelApoio(row, apoioMap))
     .filter((row) => matchesSearch(row, params.q))
-    .filter((row) => matchesContato(row, params.contato))
-    .filter((row) => !selectedIds || selectedIds.has(row.id));
+    .filter((row) => matchesContato(row, params.contato));
 
   const cobrancaIds = rows.map((row) => row.id).filter(Boolean);
   const reguaIds = [
