@@ -56,6 +56,19 @@ function relationOne<T>(relation?: T | T[] | null) {
   return relation ?? null;
 }
 
+function contatoResponsavelAcionavel(unidade: any) {
+  const nome = String(unidade?.responsavel_nome ?? "").trim();
+  const email = String(unidade?.email ?? "").trim();
+  const telefone = String(unidade?.telefone ?? "").replace(/\D/g, "");
+
+  return {
+    nome,
+    email,
+    telefone,
+    acionavel: Boolean(nome && (email || telefone)),
+  };
+}
+
 function isKeilaLote(row: { resumo?: any; observacoes?: string | null }) {
   const origem = String(row.resumo?.origem ?? "");
   const observacoes = String(row.observacoes ?? "");
@@ -272,6 +285,11 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
     throw new Error("Cobranca incompleta para acordo da Keila.");
   }
 
+  const contatoResponsavel = contatoResponsavelAcionavel(unidade);
+  if (!contatoResponsavel.acionavel) {
+    throw new Error("Unidade sem responsavel acionavel para acordo da Keila.");
+  }
+
   const valorCalculado = Math.max(
     0,
     Number(cobranca.valor_original ?? 0) +
@@ -351,14 +369,14 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
   }
 
   const acordoId = String(acordoIdData);
-  const responsavelNome = unidade?.responsavel_nome ?? "Responsavel nao informado";
+  const responsavelNome = contatoResponsavel.nome;
   const resumo = montarResumoAcordoKeila({
     acordoId,
     condominioNome: condominio?.nome ?? "Condominio nao informado",
     unidadeLabel: unidadeLabel(unidade),
     responsavelNome,
-    responsavelEmail: unidade?.email ?? null,
-    responsavelTelefone: unidade?.telefone ?? null,
+    responsavelEmail: contatoResponsavel.email || null,
+    responsavelTelefone: contatoResponsavel.telefone || null,
     valorBase: valorBaseCobranca,
     despesa: despesaCobrancaValor,
     valorAcordado,
@@ -372,7 +390,7 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
     acordoId,
     carteiraId: cobranca.carteira_id,
     destinatarioNome: responsavelNome,
-    destinatarioEmail: unidade?.email ?? null,
+    destinatarioEmail: contatoResponsavel.email || null,
     titulo: "Termo de acordo para aceite digital",
     corpo: resumo,
   });
@@ -382,7 +400,7 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
     carteira_id: cobranca.carteira_id,
     acordo_id: acordoId,
     cobranca_id: cobranca.id,
-    destinatario: unidade?.email ?? null,
+    destinatario: contatoResponsavel.email || null,
     assunto: "Proposta de acordo para aceite digital",
     conteudo: [
       `Prezado(a) ${responsavelNome},`,

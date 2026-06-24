@@ -459,6 +459,30 @@ function rethrowNextNavigationError(error: unknown) {
   }
 }
 
+function getContatoResponsavelAcordo(unidade: any) {
+  const nome = String(unidade?.responsavel_nome ?? "").trim();
+  const email = String(unidade?.email ?? "").trim();
+  const telefone = String(unidade?.telefone ?? "").replace(/\D/g, "");
+
+  return {
+    nome,
+    email,
+    telefone,
+    acionavel: Boolean(nome && (email || telefone)),
+  };
+}
+
+function assertContatoResponsavelAcordo(unidade: any) {
+  const contato = getContatoResponsavelAcordo(unidade);
+  if (!contato.acionavel) {
+    throw new Error(
+      "Nao e possivel gerar acordo sem responsavel acionavel. Atualize nome e e-mail ou celular do responsavel da unidade antes de criar o acordo.",
+    );
+  }
+
+  return contato;
+}
+
 export async function createAcordoComEstado(
   _state: AcordoActionState,
   formData: FormData,
@@ -745,6 +769,7 @@ export async function createAcordo(formData: FormData) {
   const unidadePrincipal = Array.isArray((cobrancaPrincipal as any).unidades)
     ? (cobrancaPrincipal as any).unidades[0]
     : (cobrancaPrincipal as any).unidades;
+  const contatoResponsavel = assertContatoResponsavelAcordo(unidadePrincipal);
   const parcelasPermitidasSemSindico = Number(
     condominioPrincipal?.parcelas_acordo_sem_aprovacao_sindico ?? 0,
   );
@@ -847,9 +872,9 @@ export async function createAcordo(formData: FormData) {
     acordoId: acordo.id,
     condominioNome: condominioPrincipal?.nome ?? "Condomínio não informado",
     unidadeLabel,
-    responsavelNome: unidadePrincipal?.responsavel_nome ?? "Responsável não informado",
-    responsavelEmail: unidadePrincipal?.email ?? null,
-    responsavelTelefone: unidadePrincipal?.telefone ?? null,
+    responsavelNome: contatoResponsavel.nome,
+    responsavelEmail: contatoResponsavel.email || null,
+    responsavelTelefone: contatoResponsavel.telefone || null,
     valorBase: valorBaseCobranca,
     despesa: despesaCobrancaValor,
     valorAcordado,
@@ -898,8 +923,8 @@ export async function createAcordo(formData: FormData) {
         acordoId: acordo.id,
         carteiraId: cobrancaPrincipal.carteira_id,
         cobrancaId: cobrancaPrincipal.id,
-        destinatarioNome: unidadePrincipal?.responsavel_nome ?? null,
-        destinatarioEmail: unidadePrincipal?.email ?? null,
+        destinatarioNome: contatoResponsavel.nome,
+        destinatarioEmail: contatoResponsavel.email || null,
         resumo: resumoAcordo,
       });
     }
@@ -2098,6 +2123,8 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
 
   const now = new Date().toISOString();
   const acordo = (termo as any).acordos;
+  const contatoResponsavelParaTermo =
+    tipoAceite === "sindico" ? assertContatoResponsavelAcordo(acordo?.unidades) : null;
 
   const { error: updateTermoError } = await supabase
     .from("acordos_termos")
@@ -2137,8 +2164,8 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
       acordoId: (termo as any).acordo_id,
       carteiraId: (termo as any).carteira_id,
       cobrancaId: acordo?.cobranca_id ?? null,
-      destinatarioNome: acordo?.unidades?.responsavel_nome ?? null,
-      destinatarioEmail: acordo?.unidades?.email ?? null,
+      destinatarioNome: contatoResponsavelParaTermo?.nome ?? null,
+      destinatarioEmail: contatoResponsavelParaTermo?.email || null,
       resumo: (termo as any).corpo,
     });
 
@@ -2187,6 +2214,181 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
 
   revalidatePath(`/app/acordos/${(termo as any).acordo_id}`);
   redirect(`/${tipoAceite === "sindico" ? "aceite-sindico" : "aceite-acordo"}/${token}?aceito=1`);
+}
+
+export async function registrarAceiteManualTermoAcordo(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const supabase = createAdminClient();
+
+  const termoId = String(formData.get("termo_id") ?? "").trim();
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+  const tipoAceiteInformado = String(formData.get("tipo_aceite") ?? "").trim();
+  const nome = String(formData.get("nome") ?? "").trim();
+  const documento = String(formData.get("documento") ?? "").trim();
+  const observacao = String(formData.get("observacao") ?? "").trim();
+
+  if (!termoId) throw new Error("Termo obrigatorio para registrar aceite.");
+  if (!acordoId) throw new Error("Acordo obrigatorio para registrar aceite.");
+  if (!nome) throw new Error("Nome obrigatorio para registrar aceite manual.");
+  if (!observacao) throw new Error("Informe a evidencia do aceite manual.");
+
+  const { data: termo, error: termoError } = await supabase
+    .from("acordos_termos")
+    .select(
+      `*, acordos:acordo_id (*, condominios:condominio_id (id, nome, administradora_id), unidades:unidade_id (id, identificacao, bloco, responsavel_nome, email, telefone))`,
+    )
+    .eq("id", termoId)
+    .eq("acordo_id", acordoId)
+    .maybeSingle();
+
+  if (termoError) throw new Error(`Erro ao localizar termo: ${termoError.message}`);
+  if (!termo) throw new Error("Termo nao encontrado.");
+
+  const tipoAceite = String((termo as any).tipo_aceite ?? "");
+  if (!["devedor", "sindico"].includes(tipoAceite)) {
+    throw new Error("Tipo de aceite do termo invalido.");
+  }
+  if (tipoAceiteInformado && tipoAceiteInformado !== tipoAceite) {
+    throw new Error("Tipo de aceite informado nao confere com o termo.");
+  }
+
+  const carteiraScope = await getPermittedCarteiras();
+  assertCarteiraPermitida(carteiraScope, (termo as any).carteira_id);
+
+  if ((termo as any).status === "aceito") {
+    revalidatePath(`/app/acordos/${acordoId}`);
+    return;
+  }
+
+  if (!["pendente", "visualizado"].includes(String((termo as any).status ?? ""))) {
+    throw new Error("Este termo nao esta mais disponivel para aceite.");
+  }
+
+  const now = new Date().toISOString();
+  const acordo = (termo as any).acordos;
+  let termoDevedorJaExiste = false;
+  let contatoResponsavelParaTermo: ReturnType<typeof assertContatoResponsavelAcordo> | null = null;
+
+  if (tipoAceite === "sindico") {
+    const { data: termoDevedorExistente, error: termoDevedorError } = await supabase
+      .from("acordos_termos")
+      .select("id")
+      .eq("acordo_id", acordoId)
+      .eq("tipo_aceite", "devedor")
+      .limit(1);
+
+    if (termoDevedorError) throw new Error(`Erro ao verificar termo do devedor: ${termoDevedorError.message}`);
+
+    termoDevedorJaExiste = (termoDevedorExistente ?? []).length > 0;
+    if (!termoDevedorJaExiste) {
+      contatoResponsavelParaTermo = assertContatoResponsavelAcordo(acordo?.unidades);
+    }
+  }
+
+  const { error: updateTermoError } = await supabase
+    .from("acordos_termos")
+    .update({
+      status: "aceito",
+      aceito_em: now,
+      aceite_ip: null,
+      aceite_user_agent: "aceite_manual_operador",
+      destinatario_nome: nome,
+      destinatario_documento: documento || null,
+      updated_at: now,
+    })
+    .eq("id", termoId)
+    .eq("acordo_id", acordoId);
+
+  if (updateTermoError) throw new Error(`Erro ao registrar aceite manual: ${updateTermoError.message}`);
+
+  const { error: aceiteError } = await supabase.from("acordos_aceites").insert({
+    acordo_id: acordoId,
+    termo_id: termoId,
+    tipo_aceite: tipoAceite,
+    nome,
+    documento: documento || null,
+    ip: null,
+    user_agent: "aceite_manual_operador",
+    payload: {
+      origem: "manual_operador",
+      observacao,
+      registrado_por: user?.id ?? null,
+    },
+  });
+
+  if (aceiteError) throw new Error(`Erro ao salvar historico do aceite: ${aceiteError.message}`);
+
+  if (tipoAceite === "sindico") {
+    await supabase
+      .from("acordos")
+      .update({
+        sindico_aprovado_em: now,
+        fluxo_status: "aprovado_sindico_aguardando_aceite_devedor",
+      })
+      .eq("id", acordoId);
+
+    if (!termoDevedorJaExiste && contatoResponsavelParaTermo) {
+      await gerarTermoDevedorEEmail(supabase as any, {
+        acordoId,
+        carteiraId: (termo as any).carteira_id,
+        cobrancaId: acordo?.cobranca_id ?? null,
+        destinatarioNome: contatoResponsavelParaTermo.nome,
+        destinatarioEmail: contatoResponsavelParaTermo.email || null,
+        resumo: (termo as any).corpo,
+      });
+    }
+
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: (termo as any).carteira_id,
+      entidadeTipo: "acordo",
+      entidadeId: acordoId,
+      eventoCodigo: "acordo.sindico_aprovou_manual",
+      titulo: "Sindico aprovado manualmente",
+      descricao: "Aprovacao do sindico registrada manualmente com evidencia operacional.",
+      severidade: "sucesso",
+      payload: { termo_id: termoId, observacao },
+      origem: "manual",
+      auditavel: true,
+      userId: user?.id ?? null,
+    });
+  } else {
+    await supabase
+      .from("acordos")
+      .update({
+        devedor_aceito_em: now,
+        fluxo_status: "aceito_aguardando_boletos",
+      })
+      .eq("id", acordoId);
+
+    await gerarSolicitacaoBoletosAdministradora(supabase as any, {
+      acordoId,
+      carteiraId: (termo as any).carteira_id,
+      cobrancaId: acordo?.cobranca_id ?? null,
+      condominioId: acordo?.condominio_id,
+      unidadeId: acordo?.unidade_id,
+      administradoraId: acordo?.condominios?.administradora_id ?? null,
+      resumo: (termo as any).corpo,
+    });
+
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: (termo as any).carteira_id,
+      entidadeTipo: "acordo",
+      entidadeId: acordoId,
+      eventoCodigo: "acordo.devedor_aceitou_manual",
+      titulo: "Devedor aceitou manualmente",
+      descricao: "Aceite do devedor registrado manualmente. Solicitacao de boletos gerada para a administradora.",
+      severidade: "sucesso",
+      payload: { termo_id: termoId, observacao },
+      origem: "manual",
+      auditavel: true,
+      userId: user?.id ?? null,
+    });
+  }
+
+  revalidatePath(`/app/acordos/${acordoId}`);
+  revalidatePath("/app/gestao/acionamentos-acordos");
+  revalidatePath("/app/acordos");
 }
 
 export async function registrarAcionamentoManualAcordo(formData: FormData) {

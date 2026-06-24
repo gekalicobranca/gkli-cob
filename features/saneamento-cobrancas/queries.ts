@@ -13,12 +13,22 @@ export type SaneamentoCobrancasFilters = {
   orderDir?: string
 }
 
+export type CorrecaoUnidadeCobrancaFilters = {
+  q?: string
+  condominioId?: string
+  cobrancaId?: string
+}
+
 function normalizeSortText(value: unknown) {
   return String(value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase()
+}
+
+function onlyDigits(value: unknown) {
+  return String(value ?? '').replace(/\D/g, '')
 }
 
 function normalizeUnitSort(value: unknown) {
@@ -55,6 +65,85 @@ function compareOperationalSaneamento(a: any, b: any) {
   if (unidade !== 0) return unidade
 
   return compareCreatedAt(b, a)
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+}
+
+function unidadeOptionSort(a: any, b: any) {
+  const bloco = compareText(a.bloco, b.bloco)
+  if (bloco !== 0) return bloco
+  return compareUnit(a.identificacao, b.identificacao)
+}
+
+async function listUnidadeIdsMatchingCorrecao(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  scope: CarteiraScope,
+  term: string,
+  condominioId?: string,
+) {
+  const cleanTerm = term.replace(/[%_]/g, '').trim()
+  if (!cleanTerm) return []
+
+  const digits = onlyDigits(cleanTerm)
+  const clauses = [
+    `identificacao.ilike.%${cleanTerm}%`,
+    `bloco.ilike.%${cleanTerm}%`,
+    `responsavel_nome.ilike.%${cleanTerm}%`,
+    `email.ilike.%${cleanTerm}%`,
+  ]
+
+  if (digits) {
+    clauses.push(`telefone.ilike.%${digits}%`, `responsavel_documento.ilike.%${digits}%`)
+  }
+
+  let query = supabase
+    .from('unidades')
+    .select('id, carteira_id')
+    .or(clauses.join(','))
+    .limit(500)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  if (condominioId) query = query.eq('condominio_id', condominioId)
+
+  const { data, error } = await query
+  if (error) throw new Error(`Erro ao buscar unidades para correção: ${error.message}`)
+
+  return (data ?? []).map((row: any) => String(row.id)).filter(Boolean)
+}
+
+async function listCondominioIdsMatchingCorrecao(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  scope: CarteiraScope,
+  term: string,
+) {
+  const cleanTerm = term.replace(/[%_]/g, '').trim()
+  if (!cleanTerm) return []
+
+  const digits = onlyDigits(cleanTerm)
+  const clauses = [
+    `nome.ilike.%${cleanTerm}%`,
+    `nome_operacional.ilike.%${cleanTerm}%`,
+    `administradora.ilike.%${cleanTerm}%`,
+  ]
+
+  if (digits) {
+    clauses.push(`cnpj.ilike.%${digits}%`)
+  }
+
+  let query = supabase
+    .from('condominios')
+    .select('id, carteira_id')
+    .or(clauses.join(','))
+    .limit(500)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  const { data, error } = await query
+  if (error) throw new Error(`Erro ao buscar condomínios para correção: ${error.message}`)
+
+  return (data ?? []).map((row: any) => String(row.id)).filter(Boolean)
 }
 
 function sortSaneamentoOperacionalmente(rows: any[], orderBy = 'operacional', orderDir = 'asc') {
@@ -177,6 +266,91 @@ export async function listSaneamentoCobrancas(
   })
 
   return sortSaneamentoOperacionalmente(filteredRows, orderBy, filters.orderDir)
+}
+
+export async function listCobrancasParaCorrecaoUnidade(
+  scope: CarteiraScope,
+  filters: CorrecaoUnidadeCobrancaFilters = {},
+) {
+  const supabase = await createClient()
+  const q = String(filters.q ?? '').trim()
+  const condominioId = String(filters.condominioId ?? '').trim()
+  const unidadeIds = q ? await listUnidadeIdsMatchingCorrecao(supabase, scope, q, condominioId) : []
+  const condominioIds = q && !condominioId ? await listCondominioIdsMatchingCorrecao(supabase, scope, q) : []
+
+  let query = supabase
+    .from('cobrancas')
+    .select(`
+      id,
+      carteira_id,
+      condominio_id,
+      unidade_id,
+      competencia,
+      vencimento,
+      valor_original,
+      valor_atualizado,
+      status,
+      status_operacional,
+      status_financeiro,
+      created_at,
+      condominios(nome),
+      unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
+    `)
+    .order('created_at', { ascending: false })
+    .limit(120)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  if (condominioId) query = query.eq('condominio_id', condominioId)
+
+  if (q) {
+    const term = q.replace(/[%_]/g, '')
+    const clauses = [
+      `competencia.ilike.%${term}%`,
+      `status_operacional.ilike.%${term}%`,
+      `status_financeiro.ilike.%${term}%`,
+    ]
+
+    if (isUuid(term)) {
+      clauses.push(`id.eq.${term}`, `unidade_id.eq.${term}`)
+    }
+
+    if (unidadeIds.length > 0) {
+      clauses.push(`unidade_id.in.(${unidadeIds.join(',')})`)
+    }
+
+    if (condominioIds.length > 0) {
+      clauses.push(`condominio_id.in.(${condominioIds.join(',')})`)
+    }
+
+    query = query.or(clauses.join(','))
+  }
+
+  if (filters.cobrancaId) {
+    query = query.eq('id', filters.cobrancaId)
+  }
+
+  const { data, error } = await query
+  if (error) throw new Error(`Erro ao carregar cobranças para correção: ${error.message}`)
+
+  return normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+}
+
+export async function listUnidadesDestinoCorrecao(scope: CarteiraScope, condominioId?: string) {
+  if (!condominioId) return []
+
+  const supabase = await createClient()
+  let query = supabase
+    .from('unidades')
+    .select('id, carteira_id, condominio_id, identificacao, bloco, responsavel_nome, telefone, email, status')
+    .eq('condominio_id', condominioId)
+    .limit(1000)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  const { data, error } = await query
+  if (error) throw new Error(`Erro ao carregar unidades destino: ${error.message}`)
+
+  return [...((data ?? []) as any[])].sort(unidadeOptionSort)
 }
 
 export async function getSaneamentoCobrancasResumo(scope: CarteiraScope) {

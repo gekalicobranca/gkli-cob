@@ -2,7 +2,10 @@ import { CheckCircle2, ClipboardList, FileText, MailCheck, Send } from "lucide-r
 
 import { Card, CardContent } from "@/components/ui/card";
 import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
-import { atualizarStatusBoletosAcordo } from "@/features/acordos/actions";
+import {
+  atualizarStatusBoletosAcordo,
+  registrarAceiteManualTermoAcordo,
+} from "@/features/acordos/actions";
 
 function formatDateTime(value?: string | null) {
   if (!value) return null;
@@ -65,6 +68,53 @@ function Step({
 
 function firstTerm(terms: any[], type: "devedor" | "sindico") {
   return terms.find((term) => String(term.tipo_aceite) === type) ?? null;
+}
+
+function ManualAcceptanceForm({ acordo, term }: { acordo: any; term: any }) {
+  if (term.status === "aceito") return null;
+
+  const nomePadrao =
+    term.destinatario_nome ||
+    (term.tipo_aceite === "devedor" ? acordo?.unidades?.responsavel_nome : "") ||
+    "";
+
+  return (
+    <form action={registrarAceiteManualTermoAcordo} className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <input type="hidden" name="acordo_id" value={acordo.id} />
+      <input type="hidden" name="termo_id" value={term.id} />
+      <input type="hidden" name="tipo_aceite" value={term.tipo_aceite} />
+      <div className="grid gap-2 md:grid-cols-2">
+        <input
+          name="nome"
+          defaultValue={nomePadrao}
+          required
+          placeholder={term.tipo_aceite === "sindico" ? "Nome do sindico" : "Nome do responsavel"}
+          className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#007fa3] focus:ring-2 focus:ring-[#007fa3]/15"
+        />
+        <input
+          name="documento"
+          placeholder="Documento, se houver"
+          className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#007fa3] focus:ring-2 focus:ring-[#007fa3]/15"
+        />
+      </div>
+      <textarea
+        name="observacao"
+        required
+        placeholder="Evidencia do aceite manual"
+        className="mt-2 min-h-[72px] w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[#007fa3] focus:ring-2 focus:ring-[#007fa3]/15"
+      />
+      <div className="mt-2 flex justify-end">
+        <PendingSubmitButton
+          size="sm"
+          variant="secondary"
+          icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+          pendingLabel="Salvando..."
+        >
+          Registrar aceite manual
+        </PendingSubmitButton>
+      </div>
+    </form>
+  );
 }
 
 export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
@@ -155,18 +205,21 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
             ) : (
               <div className="mt-3 divide-y divide-slate-200 rounded-xl bg-white">
                 {terms.map((term: any) => (
-                  <div key={term.id} className="flex items-center justify-between gap-3 p-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-950">
-                        {term.tipo_aceite === "sindico" ? "Aprovação do síndico" : "Aceite do devedor"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {term.status === "aceito" ? `Aceito ${formatDateTime(term.aceito_em) ?? ""}` : "Pendente"}
-                      </p>
+                  <div key={term.id} className="p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-950">
+                          {term.tipo_aceite === "sindico" ? "Aprovação do síndico" : "Aceite do devedor"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {term.status === "aceito" ? `Aceito ${formatDateTime(term.aceito_em) ?? ""}` : "Pendente"}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                        {String(term.status || "pendente")}
+                      </span>
                     </div>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                      {String(term.status || "pendente")}
-                    </span>
+                    <ManualAcceptanceForm acordo={acordo} term={term} />
                   </div>
                 ))}
               </div>
