@@ -171,8 +171,8 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
 
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
             <Toggle label="Ativar envio por SMTP" name="ativo" defaultChecked={status.source === "database" ? status.active : false} helper="Quando ativo, lotes e testes usam esta configuração." />
-            <Toggle label="SSL direto" name="secure" defaultChecked={status.source === "database" ? status.secure : false} helper="Normalmente usado na porta 465." />
-            <Toggle label="STARTTLS" name="starttls" defaultChecked={status.source === "database" ? status.starttls : true} helper="Normalmente usado nas portas 587 ou 25." />
+            <Toggle label="SSL direto" name="secure" defaultChecked={status.source === "database" ? status.secure : false} helper="Normalmente usado na porta 465. Não use junto com STARTTLS." />
+            <Toggle label="STARTTLS" name="starttls" defaultChecked={status.source === "database" ? status.starttls : true} helper="Normalmente usado nas portas 587 ou 25. Se SSL direto estiver ligado, esta opção é ignorada." />
           </div>
         </form>
 

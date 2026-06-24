@@ -19,7 +19,7 @@ function boolValue(formData: FormData, key: string) {
 
 function redirectWithResult(type: "saved" | "tested" | "error", message?: string) {
   const params = new URLSearchParams({ smtp: type });
-  if (message) params.set("msg", message.slice(0, 180));
+  if (message) params.set("msg", message.slice(0, 360));
   redirect(`${PAGE_PATH}?${params.toString()}`);
 }
 
@@ -34,8 +34,8 @@ export async function salvarConfiguracaoSmtp(formData: FormData) {
   const remetente = formString(formData, "remetente") || usuario;
   const ehloDomain = formString(formData, "ehlo_domain") || "gkli.local";
   const ativo = boolValue(formData, "ativo");
-  const secure = boolValue(formData, "secure") || porta === 465;
-  const starttls = boolValue(formData, "starttls");
+  const secure = boolValue(formData, "secure");
+  const starttls = !secure && boolValue(formData, "starttls");
 
   if (!host) redirectWithResult("error", "Informe o servidor SMTP.");
   if (!Number.isFinite(porta) || porta <= 0) redirectWithResult("error", "Informe uma porta válida.");

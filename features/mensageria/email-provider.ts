@@ -74,8 +74,8 @@ async function getDatabaseConfig(): Promise<SmtpConfig | null> {
     user: data.usuario ?? undefined,
     pass: data.senha ?? undefined,
     from,
-    secure: Boolean(data.secure) || Number(data.porta ?? 587) === 465,
-    starttls: data.starttls !== false,
+    secure: Boolean(data.secure),
+    starttls: !data.secure && data.starttls !== false,
     ehloDomain: data.ehlo_domain || 'gkli.local',
   }
 }
@@ -100,8 +100,8 @@ export async function getSmtpConfigStatus(): Promise<PublicSmtpConfigStatus> {
         port: Number(data.porta ?? 587),
         user: data.usuario ?? null,
         from,
-        secure: Boolean(data.secure) || Number(data.porta ?? 587) === 465,
-        starttls: data.starttls !== false,
+        secure: Boolean(data.secure),
+        starttls: !data.secure && data.starttls !== false,
         ehloDomain: data.ehlo_domain || 'gkli.local',
         hasPassword: Boolean(data.senha),
         updatedAt: data.atualizado_em ?? null,
@@ -202,20 +202,36 @@ function escapeData(text: string) {
   return text.replace(/\r?\n/g, '\r\n').replace(/^\./gm, '..')
 }
 
+function smtpConnectionError(error: unknown, config: SmtpConfig) {
+  const message = error instanceof Error ? error.message : String(error)
+  const lower = message.toLowerCase()
+
+  if (lower.includes('wrong version number') || lower.includes('tls_validate_record_header')) {
+    const mode = config.secure ? 'SSL direto' : config.starttls ? 'STARTTLS' : 'sem TLS'
+    return new Error(
+      `Modo TLS incompatível com o servidor (${config.host}:${config.port}, ${mode}). ` +
+      'Se estiver usando porta 587 ou 25, deixe "SSL direto" desligado e use STARTTLS. ' +
+      'Se estiver usando porta 465, teste com SSL direto ligado; se o provedor orientar STARTTLS na 465, deixe SSL direto desligado e STARTTLS ligado.',
+    )
+  }
+
+  return error instanceof Error ? error : new Error(message)
+}
+
 function createSocket(config: SmtpConfig): Promise<net.Socket | tls.TLSSocket> {
   return new Promise((resolve, reject) => {
     const socket = config.secure
       ? tls.connect(config.port, config.host, { servername: config.host }, () => resolve(socket))
       : net.connect(config.port, config.host, () => resolve(socket))
 
-    socket.once('error', reject)
+    socket.once('error', (error) => reject(smtpConnectionError(error, config)))
   })
 }
 
 async function upgradeToTls(socket: net.Socket, config: SmtpConfig) {
   return new Promise<tls.TLSSocket>((resolve, reject) => {
     const secureSocket = tls.connect({ socket, servername: config.host }, () => resolve(secureSocket))
-    secureSocket.once('error', reject)
+    secureSocket.once('error', (error) => reject(smtpConnectionError(error, config)))
   })
 }
 
