@@ -472,6 +472,68 @@ export async function createAcordoComEstado(
   }
 }
 
+export async function salvarContatoResponsavelAcordo(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const supabase = await createClient();
+  const scope = await getPermittedCarteiras();
+
+  const unidadeId = String(formData.get("unidade_id") ?? "").trim();
+  const responsavelNome = String(formData.get("contato_responsavel_nome") ?? "").trim();
+  const email = String(formData.get("contato_responsavel_email") ?? "").trim();
+  const telefone = String(formData.get("contato_responsavel_telefone") ?? "").replace(/\D/g, "");
+  const returnTo = String(formData.get("return_to") ?? "/app/acordos").trim();
+  const safeReturnTo = returnTo.startsWith("/app/acordos/novo")
+    ? returnTo
+    : "/app/acordos";
+
+  if (!unidadeId) throw new Error("Unidade obrigatoria para salvar o contato.");
+
+  const { data: unidadeAtual, error: unidadeError } = await supabase
+    .from("unidades")
+    .select("id, carteira_id, responsavel_nome, email, telefone")
+    .eq("id", unidadeId)
+    .maybeSingle();
+
+  if (unidadeError) throw new Error(`Erro ao carregar unidade: ${unidadeError.message}`);
+  if (!unidadeAtual) throw new Error("Unidade nao encontrada.");
+
+  assertCarteiraPermitida(scope, (unidadeAtual as any).carteira_id);
+
+  const patch = {
+    responsavel_nome: responsavelNome || null,
+    email: email || null,
+    telefone: telefone || null,
+  };
+
+  const { error: updateError } = await supabase
+    .from("unidades")
+    .update(patch)
+    .eq("id", unidadeId);
+
+  if (updateError) {
+    throw new Error(`Erro ao salvar contato do responsavel: ${updateError.message}`);
+  }
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (unidadeAtual as any).carteira_id ?? null,
+    entidadeTipo: "unidade",
+    entidadeId: unidadeId,
+    eventoCodigo: "unidade.contato_responsavel_atualizado_acordo",
+    titulo: "Contato do responsavel atualizado no acordo",
+    descricao: responsavelNome || "Contato ajustado durante a criacao do acordo.",
+    severidade: "info",
+    payload: { antes: unidadeAtual, depois: patch, origem: "novo_acordo" },
+    origem: "manual",
+    auditavel: true,
+    userId: user?.id ?? null,
+  });
+
+  revalidatePath("/app/acordos/novo");
+  revalidatePath(`/app/unidades/${unidadeId}`);
+  redirect(safeReturnTo);
+}
+
 export async function createAcordo(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();

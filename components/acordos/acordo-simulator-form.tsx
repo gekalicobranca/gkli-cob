@@ -1,8 +1,12 @@
 "use client";
 
 import { type ChangeEvent, useActionState, useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
-import { createAcordoComEstado, solicitarAprovacaoSindicoAcordo } from "@/features/acordos/actions";
+import { AlertTriangle, Mail, Phone, Save, UserRound } from "lucide-react";
+import {
+  createAcordoComEstado,
+  salvarContatoResponsavelAcordo,
+  solicitarAprovacaoSindicoAcordo,
+} from "@/features/acordos/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,7 +34,13 @@ type CobrancaOption = {
   status_operacional?: string | null;
   status_financeiro?: string | null;
   condominios?: { nome: string; parcelas_acordo_sem_aprovacao_sindico?: number | null; dias_reemissao_parcela_acordo_atrasada?: number | null } | null;
-  unidades?: { identificacao: string; responsavel_nome: string | null } | null;
+  unidades?: {
+    id?: string | null;
+    identificacao: string;
+    responsavel_nome: string | null;
+    email?: string | null;
+    telefone?: string | null;
+  } | null;
 };
 
 type AcordoSimulatorFormProps = {
@@ -40,6 +50,7 @@ type AcordoSimulatorFormProps = {
   bloqueadoPorPendenciaPlanilha?: boolean;
   bloqueadoPorPendenciaAprovacaoSindico?: boolean;
   aprovacaoSindicoSolicitada?: boolean;
+  returnTo?: string;
   inteligenciaOperacional?: {
     reincidencia: number;
     rompimentos: number;
@@ -104,6 +115,7 @@ export function AcordoSimulatorForm({
   bloqueadoPorPendenciaPlanilha = false,
   bloqueadoPorPendenciaAprovacaoSindico = false,
   aprovacaoSindicoSolicitada = false,
+  returnTo = "/app/acordos/novo",
   inteligenciaOperacional = { reincidencia: 0, rompimentos: 0 },
 }: AcordoSimulatorFormProps) {
   const [actionState, createAcordoAction, isCreatingAcordo] = useActionState(
@@ -135,6 +147,12 @@ export function AcordoSimulatorForm({
   const cobrancaSelecionada =
     cobrancasSelecionadas[0] ??
     cobrancas.find((item) => item.id === cobrancaId);
+  const responsavelAcionado = {
+    unidadeId: cobrancaSelecionada?.unidade_id ?? cobrancaSelecionada?.unidades?.id ?? "",
+    nome: cobrancaSelecionada?.unidades?.responsavel_nome ?? "Responsável não informado",
+    email: cobrancaSelecionada?.unidades?.email ?? "E-mail não informado",
+    telefone: cobrancaSelecionada?.unidades?.telefone ?? "Celular não informado",
+  };
   const limiteParcelasSemSindico = Number(
     cobrancaSelecionada?.condominios?.parcelas_acordo_sem_aprovacao_sindico ?? 0,
   );
@@ -679,6 +697,68 @@ export function AcordoSimulatorForm({
       </Card>
 
       <div className="space-y-4">
+        <Card>
+          <input type="hidden" name="unidade_id" value={responsavelAcionado.unidadeId} />
+          <input type="hidden" name="return_to" value={returnTo} />
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--gkli-primary)]">
+            Responsável acionado
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-slate-950">
+            Contato do devedor
+          </h2>
+
+          <div className="mt-5 grid gap-3">
+            <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
+              <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gkli-primary)]" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Nome</p>
+                <Input
+                  name="contato_responsavel_nome"
+                  defaultValue={responsavelAcionado.nome === "Responsável não informado" ? "" : responsavelAcionado.nome}
+                  placeholder="Nome do responsável"
+                  className="mt-2"
+                />
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
+              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gkli-primary)]" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">E-mail</p>
+                <Input
+                  name="contato_responsavel_email"
+                  type="email"
+                  defaultValue={responsavelAcionado.email === "E-mail não informado" ? "" : responsavelAcionado.email}
+                  placeholder="email@exemplo.com"
+                  className="mt-2"
+                />
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
+              <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gkli-primary)]" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Celular</p>
+                <Input
+                  name="contato_responsavel_telefone"
+                  defaultValue={responsavelAcionado.telefone === "Celular não informado" ? "" : responsavelAcionado.telefone}
+                  placeholder="WhatsApp/celular"
+                  className="mt-2"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Button
+              type="submit"
+              variant="secondary"
+              formAction={salvarContatoResponsavelAcordo}
+              disabled={!responsavelAcionado.unidadeId}
+            >
+              <Save size={16} />
+              Salvar contato
+            </Button>
+          </div>
+        </Card>
+
         <Card>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--gkli-primary)]">
             Simulador

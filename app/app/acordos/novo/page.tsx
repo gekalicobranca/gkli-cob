@@ -93,6 +93,10 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
         unidadeId: cobrancaReferencia.unidade_id,
       })
     : { reincidencia: 0, rompimentos: 0 };
+  const returnParams = new URLSearchParams();
+  if (selectedIds.length > 0) returnParams.set("cobrancaIds", selectedIds.join(","));
+  if (query.sindico) returnParams.set("sindico", query.sindico);
+  const currentPath = `/app/acordos/novo${returnParams.size > 0 ? `?${returnParams.toString()}` : ""}`;
 
   return (
     <div className="space-y-6">
@@ -117,6 +121,7 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
         bloqueadoPorPendenciaPlanilha={Boolean(pendenciaPlanilha)}
         bloqueadoPorPendenciaAprovacaoSindico={Boolean(pendenciaAprovacaoSindico)}
         aprovacaoSindicoSolicitada={query.sindico === "solicitada"}
+        returnTo={currentPath}
         inteligenciaOperacional={inteligenciaOperacional}
       />
     </div>
