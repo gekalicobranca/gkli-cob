@@ -79,6 +79,12 @@ type CobrancaReguaRow = {
     email?: string | null;
     tipo_responsavel?: string | null;
   } | null;
+  responsaveis_apoio?: Array<{
+    responsavel_nome?: string | null;
+    telefone?: string | null;
+    email?: string | null;
+    tipo_responsavel?: string | null;
+  }>;
 };
 
 export type ResultadoLoteRegua = {
@@ -186,9 +192,9 @@ function matchesSearch(row: CobrancaReguaRow, search?: string) {
 
 function matchesContato(row: CobrancaReguaRow, contato?: string) {
   const mode = contato || "todos";
+  const apoios = row.responsaveis_apoio ?? (row.responsavel_apoio ? [row.responsavel_apoio] : []);
   const hasDestinatario = Boolean(
-    row.responsavel_apoio?.telefone ||
-    row.responsavel_apoio?.email ||
+    apoios.some((apoio) => apoio.telefone || apoio.email) ||
     row.unidades?.telefone ||
     row.unidades?.email,
   );
@@ -202,6 +208,14 @@ function unidadeKey(row: CobrancaReguaRow) {
   return [
     row.condominio_id ?? row.condominios?.id ?? "",
     String(row.unidades?.bloco ?? "").trim().toLowerCase(),
+    String(row.unidades?.identificacao ?? "").trim().toLowerCase(),
+  ].join("|");
+}
+
+function unidadeKeySemBloco(row: CobrancaReguaRow) {
+  return [
+    row.condominio_id ?? row.condominios?.id ?? "",
+    "",
     String(row.unidades?.identificacao ?? "").trim().toLowerCase(),
   ].join("|");
 }
@@ -234,16 +248,27 @@ async function loadResponsaveisApoioMap(
     throw new Error(`Erro ao carregar responsÃ¡veis de apoio: ${error.message}`);
   }
 
-  return new Map(((data ?? []) as any[]).map((row) => [responsavelApoioKey(row), row]));
+  const map = new Map<string, any[]>();
+  for (const row of (data ?? []) as any[]) {
+    const key = responsavelApoioKey(row);
+    const current = map.get(key) ?? [];
+    current.push(row);
+    map.set(key, current);
+  }
+  return map;
 }
 
-function withResponsavelApoio(row: CobrancaReguaRow, apoioMap: Map<string, any>): CobrancaReguaRow {
-  const apoio = apoioMap.get(unidadeKey(row));
-  if (!apoio) return row;
+function withResponsavelApoio(row: CobrancaReguaRow, apoioMap: Map<string, any[]>): CobrancaReguaRow {
+  const apoios = [
+    ...(apoioMap.get(unidadeKey(row)) ?? []),
+    ...(apoioMap.get(unidadeKeySemBloco(row)) ?? []),
+  ].filter((apoio, index, list) => !apoio.id || list.findIndex((item) => item.id === apoio.id) === index);
+  if (!apoios.length) return row;
 
   return {
     ...row,
-    responsavel_apoio: apoio,
+    responsavel_apoio: apoios[0],
+    responsaveis_apoio: apoios,
   };
 }
 
@@ -694,7 +719,7 @@ export async function processarReguaCobranca(
         const preferenciaDestinatario = reguaIdAtual ? preferenciasReguas.get(reguaIdAtual) : null;
         const contatoRegua = escolherContatoRegua({
           unidade,
-          apoio: row.responsavel_apoio,
+          apoios: row.responsaveis_apoio,
           canal,
           preferencia: preferenciaDestinatario,
         });

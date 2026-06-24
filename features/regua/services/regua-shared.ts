@@ -26,6 +26,8 @@ type ResponsavelApoioContato = UnidadeContato & {
   tipo_responsavel?: string | null
 }
 
+export type ResponsavelApoioContatoRegua = ResponsavelApoioContato
+
 export function normalizarDestinatarioPreferencial(value?: string | null): DestinatarioPreferencialRegua {
   if (value === 'inquilino' || value === 'qualquer') return value
   return 'proprietario'
@@ -41,24 +43,23 @@ function normalizarTipoResponsavel(value?: string | null) {
 export function escolherContatoRegua(params: {
   unidade?: UnidadeContato | null
   apoio?: ResponsavelApoioContato | null
+  apoios?: ResponsavelApoioContato[] | null
   canal?: string | null
   preferencia?: string | null
 }) {
   const preferencia = normalizarDestinatarioPreferencial(params.preferencia)
   const unidade = params.unidade ?? {}
-  const apoio = params.apoio ?? null
+  const apoios = params.apoios?.length ? params.apoios : params.apoio ? [params.apoio] : []
   const canal = params.canal === 'email' ? 'email' : 'whatsapp'
 
   const candidatos = [
-    apoio
-      ? {
-          nome: apoio.responsavel_nome ?? unidade.responsavel_nome ?? null,
-          telefone: apoio.telefone ?? null,
-          email: apoio.email ?? null,
-          tipo: normalizarTipoResponsavel(apoio.tipo_responsavel),
-          origem: 'responsaveis_unidades',
-        }
-      : null,
+    ...apoios.map((apoio) => ({
+      nome: apoio.responsavel_nome ?? unidade.responsavel_nome ?? null,
+      telefone: apoio.telefone ?? null,
+      email: apoio.email ?? null,
+      tipo: normalizarTipoResponsavel(apoio.tipo_responsavel),
+      origem: 'responsaveis_unidades',
+    })),
     {
       nome: unidade.responsavel_nome ?? null,
       telefone: unidade.telefone ?? null,

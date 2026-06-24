@@ -89,6 +89,16 @@ function unidadeKey(row: any) {
   ].join("|");
 }
 
+function unidadeKeySemBloco(row: any) {
+  const condominioId = row.condominio_id ?? row.condominios?.id ?? row.condominio?.id ?? "";
+  const unidade = row.unidades ?? row.unidade;
+  return [
+    condominioId,
+    "",
+    String(unidade?.identificacao ?? "").trim().toLowerCase(),
+  ].join("|");
+}
+
 function responsavelApoioKey(row: any) {
   return [
     row.condominio_id ?? "",
@@ -121,16 +131,30 @@ async function loadResponsaveisApoioMap(
     throw new Error(`Erro ao carregar responsÃ¡veis de apoio: ${error.message}`);
   }
 
-  return new Map(((data ?? []) as any[]).map((row) => [responsavelApoioKey(row), row]));
+  const map = new Map<string, any[]>();
+  for (const row of (data ?? []) as any[]) {
+    const key = responsavelApoioKey(row);
+    const current = map.get(key) ?? [];
+    current.push(row);
+    map.set(key, current);
+  }
+  return map;
 }
 
-function withResponsavelApoio(row: any, apoioMap: Map<string, any>) {
-  const apoio = apoioMap.get(unidadeKey(row));
-  if (!apoio) return row;
+function withResponsavelApoio(row: any, apoioMap: Map<string, any[]>) {
+  const apoios = [
+    ...(apoioMap.get(unidadeKey(row)) ?? []),
+    ...(apoioMap.get(unidadeKeySemBloco(row)) ?? []),
+  ].filter(
+    (apoio, index, list) =>
+      !apoio.id || list.findIndex((item) => item.id === apoio.id) === index,
+  );
+  if (!apoios.length) return row;
 
   return {
     ...row,
-    responsavel_apoio: apoio,
+    responsavel_apoio: apoios[0],
+    responsaveis_apoio: apoios,
   };
 }
 
@@ -157,7 +181,8 @@ function matchesSearch(row: any, search?: string) {
 function matchesContato(row: any, contato?: string) {
   const mode = contato || "todos";
   const unidade = row.unidades ?? row.unidade;
-  const hasDestinatario = Boolean(row.responsavel_apoio?.telefone || row.responsavel_apoio?.email || unidade?.telefone || unidade?.email);
+  const apoios = row.responsaveis_apoio ?? (row.responsavel_apoio ? [row.responsavel_apoio] : []);
+  const hasDestinatario = Boolean(apoios.some((apoio: any) => apoio.telefone || apoio.email) || unidade?.telefone || unidade?.email);
 
   if (mode === "com_destinatario") return hasDestinatario;
   if (mode === "sem_destinatario") return !hasDestinatario;
@@ -320,7 +345,7 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
       }) ?? etapas[0] ?? DEFAULT_COBRANCA_ETAPAS[0];
     const contatoRegua = escolherContatoRegua({
       unidade,
-      apoio: row.responsavel_apoio,
+      apoios: row.responsaveis_apoio,
       canal: etapa.canal,
       preferencia: reguaMeta?.destinatario_preferencial,
     });
@@ -527,7 +552,7 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     const reguaMeta = reguaId ? reguaMetaMap.get(reguaId) : null
     const contatoReguaBase = escolherContatoRegua({
       unidade,
-      apoio: acordo.responsavel_apoio,
+      apoios: acordo.responsaveis_apoio,
       canal: etapas[0]?.canal,
       preferencia: reguaMeta?.destinatario_preferencial,
     })
@@ -549,7 +574,7 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     const etapa = selecionarEtapaAcordoPreview(etapas, diasRelativos) ?? etapas[0] ?? DEFAULT_ACORDO_ETAPAS[0]
     const contatoRegua = escolherContatoRegua({
       unidade,
-      apoio: acordo.responsavel_apoio,
+      apoios: acordo.responsaveis_apoio,
       canal: etapa.canal,
       preferencia: reguaMeta?.destinatario_preferencial,
     })

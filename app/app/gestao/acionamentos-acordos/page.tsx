@@ -490,14 +490,14 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Gest?o"
+        eyebrow="Gestão"
         title="Acionamentos de implantação"
-        description="Central tempor?ria para aprova??es, aceites, boletos e pend?ncias enquanto a automa??o est? sendo implantada."
+        description="Central temporária para aprovações, aceites, boletos e pendências enquanto a automação está sendo implantada."
         actions={
           <>
             <ButtonLink href="/app/dashboard" variant="secondary">Voltar</ButtonLink>
-            <ButtonLink href="/app/acordos/gestao" variant="secondary">Gest?o de acordos</ButtonLink>
-            <ButtonLink href="/app/pendencias" variant="secondary">Pend?ncias</ButtonLink>
+            <ButtonLink href="/app/acordos/gestao" variant="secondary">Gestão de acordos</ButtonLink>
+            <ButtonLink href="/app/pendencias" variant="secondary">Pendências</ButtonLink>
           </>
         }
       />
@@ -528,10 +528,10 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
 
       {shouldShowSection(tipoFiltro, "sindico") ? (
         <SectionShell
-          title="Aprova??o do s?ndico"
-          description="Acordos que dependem de decis?o do s?ndico e, quando houver termo, permitem acionamento manual."
+          title="Aprovação do síndico"
+          description="Acordos que dependem de decisão do síndico e, quando houver termo, permitem acionamento manual."
           icon={ShieldCheck}
-          emptyTitle="Sem aprova??o de s?ndico pendente"
+          emptyTitle="Sem aprovação de síndico pendente"
           emptyDescription="Nenhum acordo depende desta etapa agora."
           hasRows={aprovacoes.length > 0}
         >
@@ -544,7 +544,7 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
       {shouldShowSection(tipoFiltro, "devedor") ? (
         <SectionShell
           title="Aceite do devedor"
-          description="Termos de devedor pendentes, com link p?blico, e-mail, WhatsApp e registro manual de contato."
+          description="Termos de devedor pendentes, com link público, e-mail, WhatsApp e registro manual de contato."
           icon={Send}
           emptyTitle="Sem aceite de devedor pendente"
           emptyDescription="Todos os termos de devedor foram aceitos ou ainda não foram gerados."
@@ -560,7 +560,7 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
           description="Acordos aceitos que estão aguardando emissão, recebimento ou envio dos boletos."
           icon={ReceiptText}
           emptyTitle="Sem boletos em acompanhamento"
-          emptyDescription="Nenhum acordo est? parado nesta etapa agora."
+          emptyDescription="Nenhum acordo está parado nesta etapa agora."
           hasRows={boletos.length > 0}
         >
           {boletos.map((row: any) => <BoletoRow key={row.id} row={row} />)}
@@ -582,10 +582,10 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
 
       {shouldShowSection(tipoFiltro, "pendencias") ? (
         <SectionShell
-          title="Pend?ncias bloqueantes"
+          title="Pendências bloqueantes"
           description="Travas administrativas e financeiras que podem impedir a continuidade do acordo."
           icon={PlayCircle}
-          emptyTitle="Sem pend?ncias bloqueantes"
+          emptyTitle="Sem pendências bloqueantes"
           emptyDescription="Nenhuma pendência de implantação aberta para acordos ou administradoras."
           hasRows={pendenciasImplantacao.length > 0}
         >
