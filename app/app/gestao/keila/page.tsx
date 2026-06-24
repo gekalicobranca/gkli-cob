@@ -547,6 +547,10 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
                 <WalletCards className="h-4 w-4" />
                 Dashboard
               </ButtonLink>
+              <ButtonLink href="/app/gestao/keila?tab=supervisao" variant="header" size="md">
+                <Eye className="h-4 w-4" />
+                Fila de supervisão
+              </ButtonLink>
               <ButtonLink href="/app/mensageria/reguas" variant="header" size="md">
                 <SlidersHorizontal className="h-4 w-4" />
                 Réguas
@@ -596,15 +600,15 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
       <LiteWorkArea>
         <LiteScrollArea className="h-full pr-1">
           {activeTab === "painel" ? (
-            <div className="grid grid-cols-[1.2fr_.8fr] gap-3">
+            <div className="grid gap-3">
               {hasKeilaResult ? (
-                <div className="col-span-2">
+                <div>
                   <KeilaResultCard params={params} />
                 </div>
               ) : null}
 
               <Section eyebrow="Piloto assistido" title="Fluxo de tarefas">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                   <TaskFlowCard
                     title="Validar fila habilitada"
                     description="Confere os condomínios ativos liberados para o teste da Keila."
@@ -664,39 +668,6 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
                     processed={keilaResult === "preparacao_acordos"}
                     tone="amber"
                     icon={WalletCards}
-                  />
-                </div>
-              </Section>
-
-              <Section eyebrow="Próxima revisão" title="Fila de supervisão">
-                <div className="space-y-3">
-                  <QueueItem
-                    title="Bloqueadas por condomínio"
-                    description={`${formatCurrency(keilaEligibility.blockedValue)} fora da operação virtual até habilitação no cadastro.`}
-                    meta={numberBR(keilaEligibility.blockedByCondominioFlag)}
-                    href="/app/condominios"
-                    tone="slate"
-                  />
-                  <QueueItem
-                    title="Cobranças sem interação recente"
-                    description="Casos que a Keila pode preparar para revisão antes de novo acionamento."
-                    meta={numberBR(dashboard.cobrancas.kpis.semInteracao)}
-                    href="/app/dashboard?tab=cobrancas"
-                    tone="amber"
-                  />
-                  <QueueItem
-                    title="Acordos em risco"
-                    description="Acompanhamento de acordos atrasados, vencidos ou rompidos."
-                    meta={numberBR(dashboard.acordos.kpis.emRisco)}
-                    href="/app/dashboard?tab=acordos"
-                    tone="red"
-                  />
-                  <QueueItem
-                    title="Parcelas atrasadas"
-                    description="Parcelas abertas que exigem tratamento operacional."
-                    meta={numberBR(dashboard.acordos.kpis.parcelasAtrasadas)}
-                    href="/app/acordos"
-                    tone="red"
                   />
                 </div>
               </Section>

@@ -178,13 +178,36 @@ function readResponse(socket: net.Socket | tls.TLSSocket): Promise<string> {
   })
 }
 
-async function command(socket: net.Socket | tls.TLSSocket, value: string, expected: number[]) {
+function smtpCommandError(commandLabel: string, response: string) {
+  const cleanResponse = response.trim()
+  const lower = cleanResponse.toLowerCase()
+
+  if (cleanResponse.includes('5.7.139') || lower.includes('smtpclientauthentication is disabled')) {
+    return new Error(
+      'Autenticação SMTP recusada pelo Microsoft 365: o SMTP AUTH está desativado no tenant ou nesta caixa postal. ' +
+      'Ative "Authenticated SMTP" no Microsoft 365 para o tenant e para o usuário/remetente, ou use outro método de envio compatível, como Graph/OAuth.',
+    )
+  }
+
+  if (commandLabel === 'AUTH LOGIN') {
+    return new Error(`SMTP recusou a autenticação: ${cleanResponse}`)
+  }
+
+  return new Error(`SMTP rejeitou comando "${commandLabel}": ${cleanResponse}`)
+}
+
+async function command(
+  socket: net.Socket | tls.TLSSocket,
+  value: string,
+  expected: number[],
+  options?: { label?: string },
+) {
   socket.write(`${value}\r\n`)
   const response = await readResponse(socket)
   const code = Number(response.slice(0, 3))
 
   if (!expected.includes(code)) {
-    throw new Error(`SMTP rejeitou comando "${value.split(' ')[0]}": ${response.trim()}`)
+    throw smtpCommandError(options?.label ?? value.split(' ')[0], response)
   }
 
   return response
@@ -259,8 +282,8 @@ export async function sendSmtpEmail(payload: EmailPayload, overrideConfig?: Smtp
 
     if (config.user && config.pass) {
       await command(socket, 'AUTH LOGIN', [334])
-      await command(socket, Buffer.from(config.user).toString('base64'), [334])
-      await command(socket, Buffer.from(config.pass).toString('base64'), [235])
+      await command(socket, Buffer.from(config.user).toString('base64'), [334], { label: 'AUTH LOGIN' })
+      await command(socket, Buffer.from(config.pass).toString('base64'), [235], { label: 'AUTH LOGIN' })
     }
 
     await command(socket, `MAIL FROM:<${from}>`, [250])
