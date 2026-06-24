@@ -338,6 +338,7 @@ function TaskFlowCard({
   meta,
   action,
   href,
+  formId,
   fields,
   processed = false,
   tone = "blue",
@@ -348,6 +349,7 @@ function TaskFlowCard({
   meta: string;
   action?: (formData: FormData) => Promise<void>;
   href?: string;
+  formId?: string;
   fields?: ReactNode;
   processed?: boolean;
   tone?: "blue" | "green" | "amber" | "red" | "slate";
@@ -387,7 +389,7 @@ function TaskFlowCard({
   };
   const palette = tones[tone];
   const content = (
-    <>
+    <div className="flex h-full flex-col">
       <div className="flex items-start gap-4">
         <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-2xl shadow-lg", palette.icon)}>
           <Icon className="h-5 w-5" aria-hidden="true" />
@@ -400,7 +402,7 @@ function TaskFlowCard({
           <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
         </div>
       </div>
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/70 pt-4">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-white/70 pt-4">
         {fields ? <div className="min-w-[240px] flex-1">{fields}</div> : <span />}
         {href ? (
           <span className={cn("inline-flex items-center gap-2 text-sm font-semibold", palette.cta)}>
@@ -425,11 +427,11 @@ function TaskFlowCard({
           </span>
         ) : null}
       </div>
-    </>
+    </div>
   );
 
   const className = cn(
-    "group block min-h-[210px] rounded-2xl border p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md",
+    "group block h-full min-h-[310px] rounded-2xl border p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md xl:h-[330px]",
     palette.shell,
   );
 
@@ -439,7 +441,7 @@ function TaskFlowCard({
 
   if (action && !fields) {
     return (
-      <form action={action}>
+      <form id={formId} action={action}>
         <button type="submit" className={cn(className, "w-full text-left")}>
           {content}
         </button>
@@ -448,7 +450,7 @@ function TaskFlowCard({
   }
 
   if (action) {
-    return <form action={action} className={className}>{content}</form>;
+    return <form id={formId} action={action} className={className}>{content}</form>;
   }
 
   return <div className={className}>{content}</div>;
@@ -527,6 +529,7 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
     dashboard.cobrancas.kpis.semInteracao +
     dashboard.acordos.kpis.emRisco +
     dashboard.acordos.kpis.parcelasAtrasadas;
+  const prepararLoteFormId = "keila-preparar-lote-form";
 
   return (
     <LitePageShell>
@@ -607,7 +610,28 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
                 </div>
               ) : null}
 
-              <Section eyebrow="Piloto assistido" title="Fluxo de tarefas">
+              <Section
+                eyebrow="Piloto assistido"
+                title="Fluxo de tarefas"
+                action={
+                  <label className="w-full min-w-[260px] sm:w-[340px]">
+                    <span className="sr-only">Condomínio do teste</span>
+                    <select
+                      form={prepararLoteFormId}
+                      name="condominio_id"
+                      defaultValue=""
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                    >
+                      <option value="">Escolher condomínio</option>
+                      {condominiosKeilaTeste.map((condominio) => (
+                        <option key={condominio.id} value={condominio.id}>
+                          {condominio.nome ?? "Condomínio sem nome"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                }
+              >
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                   <TaskFlowCard
                     title="Validar fila habilitada"
@@ -623,24 +647,8 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
                     description="Executa a régua no condomínio escolhido antes do ciclo autônomo."
                     meta="Teste controlado"
                     action={prepararLotesKeila}
+                    formId={prepararLoteFormId}
                     processed={keilaResult === "preparacao_lotes"}
-                    fields={
-                      <label>
-                        <span className="sr-only">Condomínio do teste</span>
-                        <select
-                          name="condominio_id"
-                          defaultValue=""
-                          className="h-10 w-full rounded-xl border border-white/80 bg-white/90 px-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                        >
-                          <option value="">Escolher condomínio</option>
-                          {condominiosKeilaTeste.map((condominio) => (
-                            <option key={condominio.id} value={condominio.id}>
-                              {condominio.nome ?? "Condomínio sem nome"}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    }
                     tone="green"
                     icon={ClipboardList}
                   />
