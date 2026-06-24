@@ -332,48 +332,126 @@ function KeilaResultCard({ params }: { params: Record<string, string | string[] 
   );
 }
 
-function AssistedActivity({
+function TaskFlowCard({
   title,
   description,
   meta,
   action,
+  href,
   fields,
   processed = false,
   tone = "blue",
+  icon: Icon = Bot,
 }: {
   title: string;
   description: string;
   meta: string;
-  action: (formData: FormData) => Promise<void>;
+  action?: (formData: FormData) => Promise<void>;
+  href?: string;
   fields?: ReactNode;
   processed?: boolean;
   tone?: "blue" | "green" | "amber" | "red" | "slate";
+  icon?: typeof Bot;
 }) {
   const tones = {
-    blue: "bg-sky-50 text-sky-700",
-    green: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-rose-50 text-rose-700",
-    slate: "bg-slate-100 text-slate-600",
+    blue: {
+      shell: "border-sky-200 bg-sky-50/85 hover:border-sky-300 hover:bg-sky-50",
+      icon: "bg-sky-600 text-white shadow-sky-500/20",
+      badge: "bg-white/80 text-sky-700 ring-sky-100",
+      cta: "text-sky-700",
+    },
+    green: {
+      shell: "border-emerald-200 bg-emerald-50/85 hover:border-emerald-300 hover:bg-emerald-50",
+      icon: "bg-emerald-600 text-white shadow-emerald-500/20",
+      badge: "bg-white/80 text-emerald-700 ring-emerald-100",
+      cta: "text-emerald-700",
+    },
+    amber: {
+      shell: "border-amber-200 bg-amber-50/90 hover:border-amber-300 hover:bg-amber-50",
+      icon: "bg-amber-500 text-white shadow-amber-500/20",
+      badge: "bg-white/80 text-amber-700 ring-amber-100",
+      cta: "text-amber-700",
+    },
+    red: {
+      shell: "border-rose-200 bg-rose-50/90 hover:border-rose-300 hover:bg-rose-50",
+      icon: "bg-rose-600 text-white shadow-rose-500/20",
+      badge: "bg-white/80 text-rose-700 ring-rose-100",
+      cta: "text-rose-700",
+    },
+    slate: {
+      shell: "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white",
+      icon: "bg-slate-800 text-white shadow-slate-500/20",
+      badge: "bg-white/80 text-slate-600 ring-slate-100",
+      cta: "text-slate-700",
+    },
   };
-
-  return (
-    <div className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-lg border border-slate-100 px-4 py-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", tones[tone])}>
+  const palette = tones[tone];
+  const content = (
+    <>
+      <div className="flex items-start gap-4">
+        <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-2xl shadow-lg", palette.icon)}>
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1", palette.badge)}>
             {meta}
           </span>
-          <p className="font-semibold text-slate-950">{title}</p>
+          <h3 className="mt-3 text-base font-semibold text-slate-950">{title}</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
         </div>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
       </div>
-      <form action={action} className="flex items-center gap-3">
-        {fields}
-        <ExecutionButton processed={processed} />
-      </form>
-    </div>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/70 pt-4">
+        {fields ? <div className="min-w-[240px] flex-1">{fields}</div> : <span />}
+        {href ? (
+          <span className={cn("inline-flex items-center gap-2 text-sm font-semibold", palette.cta)}>
+            Abrir
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+          </span>
+        ) : action && fields ? (
+          <ExecutionButton processed={processed} />
+        ) : action ? (
+          <span className={cn("inline-flex items-center gap-2 text-sm font-semibold", palette.cta)}>
+            {processed ? (
+              <>
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                Processado
+              </>
+            ) : (
+              <>
+                Executar
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+              </>
+            )}
+          </span>
+        ) : null}
+      </div>
+    </>
   );
+
+  const className = cn(
+    "group block min-h-[210px] rounded-2xl border p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md",
+    palette.shell,
+  );
+
+  if (href) {
+    return <Link href={href} className={className}>{content}</Link>;
+  }
+
+  if (action && !fields) {
+    return (
+      <form action={action}>
+        <button type="submit" className={cn(className, "w-full text-left")}>
+          {content}
+        </button>
+      </form>
+    );
+  }
+
+  if (action) {
+    return <form action={action} className={className}>{content}</form>;
+  }
+
+  return <div className={className}>{content}</div>;
 }
 
 function RulesGrid() {
@@ -525,99 +603,67 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
                 </div>
               ) : null}
 
-              <div className="col-span-2">
-                <Section eyebrow="Piloto assistido" title="Fluxo de execução da Keila">
-                  <div className="space-y-3">
-                    <AssistedActivity
-                      title="1. Validar fila habilitada"
-                      description="Confere se existem condomínios ativos liberados para o teste da Keila."
-                      meta="Sem gravação"
-                      action={validarFilaKeila}
-                      processed={keilaResult === "validacao"}
-                      tone="blue"
-                    />
-                    <AssistedActivity
-                      title="2. Preparar lote de teste"
-                      description="Executa a régua somente no condomínio escolhido para validar o comportamento antes do ciclo autônomo."
-                      meta="Teste"
-                      action={prepararLotesKeila}
-                      processed={keilaResult === "preparacao_lotes"}
-                      fields={
-                        <label className="min-w-[260px]">
-                          <span className="sr-only">Condomínio do teste</span>
-                          <select
-                            name="condominio_id"
-                            defaultValue=""
-                            className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
-                          >
-                            <option value="">Escolher condomínio</option>
-                            {condominiosKeilaTeste.map((condominio) => (
-                              <option key={condominio.id} value={condominio.id}>
-                                {condominio.nome ?? "Condomínio sem nome"}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      }
-                      tone="green"
-                    />
-                    <QueueItem
-                      title="3. Revisar e aprovar lote"
-                      description="Abra o lote gerado, confira mensagens, itens pulados e aprove apenas o que estiver correto."
-                      meta="Humano"
-                      href="/app/lotes"
-                      tone="amber"
-                    />
-                    <QueueItem
-                      title="4. Enviar ou marcar retorno"
-                      description="Envio real continua supervisionado; WhatsApp manual deve ser aberto e marcado como enviado."
-                      meta="Supervisão"
-                      href="/app/lotes"
-                      tone="red"
-                    />
-                    <AssistedActivity
-                      title="5. Preparar acordos em negociacao"
-                      description="Monitora retornos dos lotes da Keila, pede planilha se a negociação virou o mês e prepara proposta conforme as regras do condomínio."
-                      meta="Negociacao"
-                      action={prepararAcordosNegociacaoKeila}
-                      processed={keilaResult === "preparacao_acordos"}
-                      tone="amber"
-                    />
-                  </div>
-                </Section>
-              </div>
-
-              <Section eyebrow="Operação" title="Estado atual da Keila">
-                <div className="grid grid-cols-2 gap-3">
-                  <QueueItem
-                    title="Filtro por operação virtual"
-                    description={`${numberBR(keilaEligibility.blockedByCondominioFlag)} cobranças ativas estão fora da fila porque o condomínio não permite operação virtual.`}
-                    meta="Obrigatório"
+              <Section eyebrow="Piloto assistido" title="Fluxo de tarefas">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <TaskFlowCard
+                    title="Validar fila habilitada"
+                    description="Confere os condomínios ativos liberados para o teste da Keila."
+                    meta="Sem gravação"
+                    action={validarFilaKeila}
+                    processed={keilaResult === "validacao"}
                     tone="blue"
+                    icon={Eye}
                   />
-                  <QueueItem
-                    title="Preparação de lotes"
-                    description="Pode analisar elegibilidade e montar rascunhos para aprovação."
-                    meta="Liberado"
+                  <TaskFlowCard
+                    title="Preparar lote de teste"
+                    description="Executa a régua no condomínio escolhido antes do ciclo autônomo."
+                    meta="Teste controlado"
+                    action={prepararLotesKeila}
+                    processed={keilaResult === "preparacao_lotes"}
+                    fields={
+                      <label>
+                        <span className="sr-only">Condomínio do teste</span>
+                        <select
+                          name="condominio_id"
+                          defaultValue=""
+                          className="h-10 w-full rounded-xl border border-white/80 bg-white/90 px-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        >
+                          <option value="">Escolher condomínio</option>
+                          {condominiosKeilaTeste.map((condominio) => (
+                            <option key={condominio.id} value={condominio.id}>
+                              {condominio.nome ?? "Condomínio sem nome"}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    }
                     tone="green"
+                    icon={ClipboardList}
                   />
-                  <QueueItem
-                    title="Envio por canal"
-                    description="WhatsApp e e-mail seguem bloqueados até aprovação por lote."
-                    meta="Bloqueado"
-                    tone="red"
-                  />
-                  <QueueItem
-                    title="Criação de pendências"
-                    description="Pode apontar bloqueios e sugerir pendências operacionais."
-                    meta="Rascunho"
+                  <TaskFlowCard
+                    title="Revisar e aprovar lote"
+                    description="Abra o lote gerado, confira mensagens e aprove apenas o que estiver correto."
+                    meta="Humano"
+                    href="/app/lotes"
                     tone="amber"
+                    icon={ShieldCheck}
                   />
-                  <QueueItem
-                    title="Auditoria"
-                    description="Toda decisão precisa registrar regra, origem e resultado."
-                    meta="Obrigatória"
-                    tone="blue"
+                  <TaskFlowCard
+                    title="Enviar ou marcar retorno"
+                    description="Envio real continua supervisionado; WhatsApp manual deve ser marcado após contato."
+                    meta="Supervisão"
+                    href="/app/lotes"
+                    tone="red"
+                    icon={MessageCircle}
+                  />
+                  <TaskFlowCard
+                    title="Preparar acordos em negociação"
+                    description="Monitora retornos, pede planilha quando necessário e prepara proposta conforme as regras."
+                    meta="Negociação"
+                    action={prepararAcordosNegociacaoKeila}
+                    processed={keilaResult === "preparacao_acordos"}
+                    tone="amber"
+                    icon={WalletCards}
                   />
                 </div>
               </Section>
@@ -652,17 +698,6 @@ export default async function KeilaCockpitPage({ searchParams }: PageProps) {
                     href="/app/acordos"
                     tone="red"
                   />
-                </div>
-              </Section>
-
-              <Section eyebrow="Governança" title="Travas obrigatórias">
-                <RulesGrid />
-              </Section>
-
-              <Section eyebrow="Canais" title="Integrações supervisionadas">
-                <div className="space-y-3">
-                  <ChannelCard title="WhatsApp" status="Preparado para integração oficial" icon={MessageCircle} />
-                  <ChannelCard title="E-mail" status="Aguardando configuração de envio" icon={Mail} />
                 </div>
               </Section>
             </div>
