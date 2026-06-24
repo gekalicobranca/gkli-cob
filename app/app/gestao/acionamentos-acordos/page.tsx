@@ -93,6 +93,7 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
   const body = activationBody(row);
   const whatsapp = whatsappHref(row.destinatarioTelefone, body);
   const mailto = mailtoHref(row.destinatarioEmail, row.mensagemAssunto ?? "Termo de acordo para aceite digital", body);
+  const acionado = isManuallyTriggered(row);
 
   return (
     <div className="flex flex-wrap justify-end gap-2">
@@ -112,16 +113,23 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
           WhatsApp
         </ButtonLink>
       ) : null}
-      <form action={registrarAcionamentoManualAcordo}>
-        <input type="hidden" name="termo_id" value={row.termoId} />
-        <input type="hidden" name="acordo_id" value={row.acordoId} />
-        <input type="hidden" name="mensagem_id" value={row.mensagemId ?? ""} />
-        <input type="hidden" name="canal" value={canal} />
-        <input type="hidden" name="return_to" value={returnTo} />
-        <PendingSubmitButton size="sm" icon={<Send size={14} />} pendingLabel="Marcando...">
-          Marcar acionado
-        </PendingSubmitButton>
-      </form>
+      {acionado ? (
+        <span className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 text-xs font-medium text-emerald-700 shadow-sm">
+          <CheckCircle2 size={14} />
+          Acionado
+        </span>
+      ) : (
+        <form action={registrarAcionamentoManualAcordo}>
+          <input type="hidden" name="termo_id" value={row.termoId} />
+          <input type="hidden" name="acordo_id" value={row.acordoId} />
+          <input type="hidden" name="mensagem_id" value={row.mensagemId ?? ""} />
+          <input type="hidden" name="canal" value={canal} />
+          <input type="hidden" name="return_to" value={returnTo} />
+          <PendingSubmitButton size="sm" icon={<Send size={14} />} pendingLabel="Marcando...">
+            Marcar acionado
+          </PendingSubmitButton>
+        </form>
+      )}
       {canal === "devedor" ? (
         <form action={cancelarFormalizacaoAcordo}>
           <input type="hidden" name="acordo_id" value={row.acordoId} />
