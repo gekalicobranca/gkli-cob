@@ -188,7 +188,7 @@ export async function listResponsaveisUnidadesPage(
   const { data, error, count } = await query
 
   if (error) {
-    throw new Error(`Erro ao carregar responsÃ¡veis: ${error.message}`)
+    throw new Error(`Erro ao carregar responsáveis: ${error.message}`)
   }
 
   return {
@@ -220,7 +220,7 @@ export async function summarizeResponsaveisUnidades(
     const { data, error } = await query
 
     if (error) {
-      throw new Error(`Erro ao resumir responsÃ¡veis: ${error.message}`)
+      throw new Error(`Erro ao resumir responsáveis: ${error.message}`)
     }
 
     rows.push(...((data ?? []) as any[]))

@@ -188,7 +188,7 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
             <p className="mt-1 text-sm text-slate-500">Inclui acordos efetivados por pagamento à vista, entrada ou primeira parcela.</p>
           </div>
           <div className="divide-y divide-slate-100">
-            {acordos.length === 0 ? <div className="px-5 py-8 text-sm text-slate-500">Clique em Processar para preencher esta base.</div> : acordos.slice(0, 12).map((row: any) => (
+            {acordos.length === 0 ? <div className="px-5 py-8 text-sm text-slate-500">Clique em Processar para preencher esta base.</div> : acordos.map((row: any) => (
               <div key={row.id} className="grid gap-3 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_130px_150px_150px] lg:items-center">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-slate-950">{row.condominios?.nome ?? 'Condomínio não informado'}</p>
@@ -216,7 +216,7 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
         <Card className="p-5">
           <h2 className="text-base font-medium text-slate-950">Repasses por condomínio</h2>
           <div className="mt-4 space-y-3">
-            {despesas.length === 0 ? <p className="text-sm text-slate-500">Sem despesas apuradas.</p> : despesas.slice(0, 8).map((row: any) => (
+            {despesas.length === 0 ? <p className="text-sm text-slate-500">Sem despesas apuradas.</p> : despesas.map((row: any) => (
               <div key={row.id} className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0">
                 <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{row.condominios?.nome ?? row.carteiras?.nome ?? 'Agrupamento'}</p><p className="text-xs text-slate-500">Base {formatCurrency(Number(row.valor_base ?? 0))}</p></div>
                 <p className="shrink-0 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_despesa ?? 0))}</p>
@@ -228,7 +228,7 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
         <Card className="p-5">
           <h2 className="text-base font-medium text-slate-950">Apuração por operador</h2>
           <div className="mt-4 space-y-3">
-            {operadores.length === 0 ? <p className="text-sm text-slate-500">Sem operadores apurados.</p> : operadores.slice(0, 8).map((row: any) => (
+            {operadores.length === 0 ? <p className="text-sm text-slate-500">Sem operadores apurados.</p> : operadores.map((row: any) => (
               <div key={row.id} className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{row.profiles?.nome ?? row.profiles?.email ?? 'Operador'}</p><p className="text-xs text-slate-500">{row.acordos_realizados} acordo(s) · {row.carteiras?.nome ?? 'Carteira'}</p></div>
@@ -243,7 +243,7 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
         <Card className="p-5">
           <h2 className="text-base font-medium text-slate-950">Comissão por carteira</h2>
           <div className="mt-4 space-y-3">
-            {carteiras.length === 0 ? <p className="text-sm text-slate-500">Sem carteiras apuradas.</p> : carteiras.slice(0, 8).map((row: any) => (
+            {carteiras.length === 0 ? <p className="text-sm text-slate-500">Sem carteiras apuradas.</p> : carteiras.map((row: any) => (
               <div key={row.id} className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0">
                 <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{row.carteiras?.nome ?? 'Carteira'}</p><p className="text-xs text-slate-500">{row.acordos_realizados} acordo(s) · {Number(row.percentual_comissao ?? 0).toFixed(2)}%</p></div>
                 <p className="shrink-0 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_comissao ?? 0))}</p>
@@ -257,7 +257,7 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
         <Card className="p-5">
           <h2 className="text-base font-medium text-slate-950">Base Omie</h2>
           <div className="mt-4 space-y-3">
-            {faturamentos.length === 0 ? <p className="text-sm text-slate-500">Sem base Omie apurada.</p> : faturamentos.slice(0, 8).map((row: any) => (
+            {faturamentos.length === 0 ? <p className="text-sm text-slate-500">Sem base Omie apurada.</p> : faturamentos.map((row: any) => (
               <div key={row.id} className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0">
                 <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{row.condominios?.nome ?? 'Cliente Omie'}</p><p className="text-xs text-slate-500">Repasse de cobrança extrajudicial</p></div>
                 <p className="shrink-0 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_faturamento ?? 0))}</p>
@@ -269,7 +269,7 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
         <Card className="p-5">
           <h2 className="text-base font-medium text-slate-950">Auditoria</h2>
           <div className="mt-4 divide-y divide-slate-100">
-            {auditoria.length === 0 ? <p className="text-sm text-slate-500">Sem eventos.</p> : auditoria.slice(0, 8).map((evento: any) => (
+            {auditoria.length === 0 ? <p className="text-sm text-slate-500">Sem eventos.</p> : auditoria.map((evento: any) => (
               <div key={evento.id} className="grid gap-2 py-3 md:grid-cols-[120px_minmax(0,1fr)] md:items-center">
                 <p className="text-xs text-slate-500">{formatDateBR(evento.created_at)}</p>
                 <div><p className="text-sm font-medium text-slate-800">{evento.descricao}</p><p className="text-xs text-slate-500">{evento.acao}</p></div>

@@ -45,7 +45,13 @@ export type PendenciasResumo = {
 }
 
 export type ListPendenciasParams = {
+  q?: string
   status?: string
   prioridade?: string
   origem?: string
+  tipo?: string
+  situacao?: string
+  data_de?: string
+  data_ate?: string
+  ordenar?: string
 }

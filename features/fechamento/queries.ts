@@ -13,7 +13,10 @@ function addDays(date: Date, days: number) {
 }
 
 function toDateInputValue(date: Date) {
-  return date.toISOString().slice(0, 10)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export function formatCompetencia(value?: string | null) {
@@ -85,6 +88,29 @@ export async function getFechamentoPeriodo(id: string) {
 export async function getFechamentoResumo(periodoId: string): Promise<FechamentoResumo> {
   const supabase = await createClient()
 
+  const { data: resumoRpc, error: resumoRpcError } = await supabase
+    .rpc('get_fechamento_resumo' as any, { p_periodo_id: periodoId } as any)
+    .maybeSingle()
+
+  if (!resumoRpcError && resumoRpc) {
+    const resumo = resumoRpc as Record<string, unknown>
+    return {
+      acordos: asNumber(resumo.acordos),
+      pagamentos: asNumber(resumo.pagamentos),
+      valorPago: asNumber(resumo.valor_pago),
+      valorRecuperado: asNumber(resumo.valor_recuperado),
+      valorBaseCobranca: asNumber(resumo.valor_base_cobranca),
+      despesas: asNumber(resumo.despesas),
+      comissoes: asNumber(resumo.comissoes),
+      faturamento: asNumber(resumo.faturamento),
+      divergencias: asNumber(resumo.divergencias),
+    }
+  }
+
+  if (resumoRpcError && !['42883', 'PGRST202'].includes(resumoRpcError.code ?? '')) {
+    throw new Error(`Erro ao carregar resumo do fechamento: ${resumoRpcError.message}`)
+  }
+
   const [pagamentosResult, despesasResult, comissoesResult, faturamentoResult] = await Promise.all([
     supabase.from('fechamento_pagamentos').select('valor_pago, valor_recuperado, valor_base_cobranca, divergencia', { count: 'exact' }).eq('periodo_id', periodoId),
     supabase.from('fechamento_despesas').select('valor_despesa').eq('periodo_id', periodoId),
@@ -116,7 +142,7 @@ export async function getFechamentoResumo(periodoId: string): Promise<Fechamento
   }
 }
 
-export async function listFechamentoPagamentos(periodoId: string) {
+export async function listFechamentoPagamentos(periodoId: string, limit = 12) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -131,6 +157,7 @@ export async function listFechamentoPagamentos(periodoId: string) {
     `)
     .eq('periodo_id', periodoId)
     .order('data_pagamento', { ascending: true })
+    .limit(limit)
 
   if (error) {
     throw new Error(`Erro ao carregar acordos do fechamento: ${error.message}`)
@@ -139,7 +166,7 @@ export async function listFechamentoPagamentos(periodoId: string) {
   return data ?? []
 }
 
-export async function listFechamentoDespesas(periodoId: string) {
+export async function listFechamentoDespesas(periodoId: string, limit = 8) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -147,6 +174,7 @@ export async function listFechamentoDespesas(periodoId: string) {
     .select('*, condominios:condominio_id (id, nome), carteiras:carteira_id (id, nome)')
     .eq('periodo_id', periodoId)
     .order('valor_despesa', { ascending: false })
+    .limit(limit)
 
   if (error) {
     throw new Error(`Erro ao carregar despesas do fechamento: ${error.message}`)
@@ -155,7 +183,7 @@ export async function listFechamentoDespesas(periodoId: string) {
   return data ?? []
 }
 
-export async function listFechamentoOperadores(periodoId: string) {
+export async function listFechamentoOperadores(periodoId: string, limit = 8) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -163,6 +191,7 @@ export async function listFechamentoOperadores(periodoId: string) {
     .select('*, profiles:operador_id (id, nome, email), carteiras:carteira_id (id, nome)')
     .eq('periodo_id', periodoId)
     .order('valor_recuperado', { ascending: false })
+    .limit(limit)
 
   if (error && error.code !== '42P01') {
     throw new Error(`Erro ao carregar apuração por operador: ${error.message}`)
@@ -171,7 +200,7 @@ export async function listFechamentoOperadores(periodoId: string) {
   return data ?? []
 }
 
-export async function listFechamentoCarteiras(periodoId: string) {
+export async function listFechamentoCarteiras(periodoId: string, limit = 8) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -179,6 +208,7 @@ export async function listFechamentoCarteiras(periodoId: string) {
     .select('*, carteiras:carteira_id (id, nome)')
     .eq('periodo_id', periodoId)
     .order('valor_recuperado', { ascending: false })
+    .limit(limit)
 
   if (error && error.code !== '42P01') {
     throw new Error(`Erro ao carregar apuração por carteira: ${error.message}`)
@@ -187,7 +217,7 @@ export async function listFechamentoCarteiras(periodoId: string) {
   return data ?? []
 }
 
-export async function listFechamentoComissoes(periodoId: string) {
+export async function listFechamentoComissoes(periodoId: string, limit = 50) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -195,6 +225,7 @@ export async function listFechamentoComissoes(periodoId: string) {
     .select('*, profiles:operador_id (id, nome, email), carteiras:carteira_id (id, nome)')
     .eq('periodo_id', periodoId)
     .order('valor_comissao', { ascending: false })
+    .limit(limit)
 
   if (error) {
     throw new Error(`Erro ao carregar comissões do fechamento: ${error.message}`)
@@ -203,7 +234,7 @@ export async function listFechamentoComissoes(periodoId: string) {
   return data ?? []
 }
 
-export async function listFechamentoFaturamentosOmie(periodoId: string) {
+export async function listFechamentoFaturamentosOmie(periodoId: string, limit = 8) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -211,6 +242,7 @@ export async function listFechamentoFaturamentosOmie(periodoId: string) {
     .select('*, condominios:condominio_id (id, nome, cnpj), carteiras:carteira_id (id, nome)')
     .eq('periodo_id', periodoId)
     .order('valor_faturamento', { ascending: false })
+    .limit(limit)
 
   if (error) {
     throw new Error(`Erro ao carregar faturamentos Omie: ${error.message}`)
@@ -219,7 +251,7 @@ export async function listFechamentoFaturamentosOmie(periodoId: string) {
   return data ?? []
 }
 
-export async function listFechamentoAuditoria(periodoId: string) {
+export async function listFechamentoAuditoria(periodoId: string, limit = 8) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -227,6 +259,7 @@ export async function listFechamentoAuditoria(periodoId: string) {
     .select('*, profiles:user_id (id, nome, email)')
     .eq('periodo_id', periodoId)
     .order('created_at', { ascending: false })
+    .limit(limit)
 
   if (error) {
     throw new Error(`Erro ao carregar auditoria do fechamento: ${error.message}`)

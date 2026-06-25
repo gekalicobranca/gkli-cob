@@ -83,7 +83,7 @@ async function listAllUnidadeIdsComJudicializacaoAtiva(
   const { data, error } = await query
 
   if (error) {
-    throw new Error(`Erro ao verificar judicializaÃ§Ã£o por unidade: ${error.message}`)
+    throw new Error(`Erro ao verificar judicialização por unidade: ${error.message}`)
   }
 
   return uniqueStrings((data ?? []).map((row: any) => row.unidade_id))
@@ -116,7 +116,7 @@ async function listCondominioIdsMatchingSearch(
   query = applyCarteiraScope(query, scope.carteiraIds)
 
   const { data, error } = await query
-  if (error) throw new Error(`Erro ao buscar condomÃ­nios vinculados Ã s cobranÃ§as: ${error.message}`)
+  if (error) throw new Error(`Erro ao buscar condomínios vinculados às cobranças: ${error.message}`)
   return (data ?? []).map((row: any) => String(row.id)).filter(Boolean)
 }
 
@@ -148,7 +148,7 @@ async function listUnidadeIdsMatchingSearch(
   query = applyCarteiraScope(query, scope.carteiraIds)
 
   const { data, error } = await query
-  if (error) throw new Error(`Erro ao buscar unidades vinculadas Ã s cobranÃ§as: ${error.message}`)
+  if (error) throw new Error(`Erro ao buscar unidades vinculadas às cobranças: ${error.message}`)
   return (data ?? []).map((row: any) => String(row.id)).filter(Boolean)
 }
 
@@ -331,7 +331,7 @@ export async function listCobrancasPage(
   }
 
   if (error) {
-    throw new Error(`Erro ao carregar cobranÃ§as: ${error.message}`)
+    throw new Error(`Erro ao carregar cobranças: ${error.message}`)
   }
 
   const rowsBase = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
@@ -368,7 +368,7 @@ export async function summarizeCobrancas(scope: CarteiraScope, filters: Cobranca
     const { data, error } = await query
 
     if (error) {
-      throw new Error(`Erro ao resumir cobranÃ§as: ${error.message}`)
+      throw new Error(`Erro ao resumir cobranças: ${error.message}`)
     }
 
     rows.push(...((data ?? []) as any[]))

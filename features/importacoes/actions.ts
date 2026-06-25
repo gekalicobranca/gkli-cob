@@ -1706,7 +1706,7 @@ async function importarCobrancas(
       });
       if (pendencias.criadas > 0) {
         resultado.erros.push(
-          `ALERTA: ${pendencias.criadas} pendÃªncia(s) criada(s) para cobranÃ§as abertas ausentes no relatÃ³rio.`,
+          `ALERTA: ${pendencias.criadas} pendência(s) criada(s) para cobranças abertas ausentes no relatório.`,
         );
       }
     }

@@ -246,7 +246,7 @@ async function loadResponsaveisApoioMap(
     .in("condominio_id", condominioIds);
 
   if (error) {
-    throw new Error(`Erro ao carregar responsÃ¡veis de apoio: ${error.message}`);
+    throw new Error(`Erro ao carregar responsáveis de apoio: ${error.message}`);
   }
 
   const map = new Map<string, any[]>();

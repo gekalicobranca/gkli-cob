@@ -259,7 +259,7 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
     .order("created_at", { ascending: false });
 
   if (revisoesError && revisoesError.code !== "42P01") {
-    throw new Error(`Erro ao carregar revisÃµes do acordo: ${revisoesError.message}`);
+    throw new Error(`Erro ao carregar revisões do acordo: ${revisoesError.message}`);
   }
 
   const parcelasNormalizadas = ((parcelas ?? []) as any[]).map((parcela) => ({

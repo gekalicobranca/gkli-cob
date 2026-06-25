@@ -378,8 +378,8 @@ export default async function AcordoDetalhePage({ params }: Props) {
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="space-y-4 p-5">
             <SectionTitle
-              title="RevisÃµes do acordo"
-              description="HistÃ³rico de ajustes formais por reemissÃ£o de parcela."
+              title="Revisões do acordo"
+              description="Histórico de ajustes formais por reemissão de parcela."
               count={revisoes.length}
             />
             <div className="grid gap-3 md:grid-cols-2">
