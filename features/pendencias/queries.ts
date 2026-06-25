@@ -55,10 +55,45 @@ export async function listPendenciasOperacionais(
   const status = normalizeFilter(params.status)
   const prioridade = normalizeFilter(params.prioridade)
   const origem = normalizeFilter(params.origem)
+  const tipo = normalizeFilter(params.tipo)
+  const situacao = normalizeFilter(params.situacao)
+  const dataDe = normalizeDateFilter(params.data_de)
+  const dataAte = normalizeDateFilter(params.data_ate)
+  const termo = normalizeTextFilter(params.q)
 
   if (status) query = query.eq('status', status)
   if (prioridade) query = query.eq('prioridade', prioridade)
   if (origem) query = query.eq('origem', origem)
+  if (tipo) query = query.eq('tipo', tipo)
+  if (dataDe) query = query.gte('created_at', `${dataDe}T00:00:00`)
+  if (dataAte) query = query.lt('created_at', `${addOneDayInput(dataAte)}T00:00:00`)
+
+  if (situacao === 'ativas') {
+    query = query.not('status', 'in', '(resolvida,cancelada)')
+  } else if (situacao === 'atrasadas') {
+    query = query.not('status', 'in', '(resolvida,cancelada)').lt('prazo_limite', new Date().toISOString())
+  } else if (situacao === 'com_prazo') {
+    query = query.not('prazo_limite', 'is', null)
+  } else if (situacao === 'sem_prazo') {
+    query = query.is('prazo_limite', null)
+  } else if (situacao === 'sem_responsavel') {
+    query = query.or('responsavel_nome.is.null,responsavel_nome.eq.')
+  }
+
+  if (termo) {
+    const safeTerm = sanitizeOrTerm(termo)
+    if (safeTerm) {
+      const pattern = `%${safeTerm}%`
+      query = query.or([
+        `titulo.ilike.${pattern}`,
+        `descricao.ilike.${pattern}`,
+        `tipo.ilike.${pattern}`,
+        `origem.ilike.${pattern}`,
+        `responsavel_nome.ilike.${pattern}`,
+        `entidade_tipo.ilike.${pattern}`,
+      ].join(','))
+    }
+  }
 
   const { data, error } = await query
 
