@@ -196,16 +196,16 @@ function montarResumoAcordoKeila(params: {
     .join("\n");
 
   return [
-    `Condominio: ${params.condominioNome}`,
+    `Condomínio: ${params.condominioNome}`,
     `Unidade: ${params.unidadeLabel}`,
-    `Responsavel: ${params.responsavelNome}`,
-    params.responsavelEmail ? `E-mail do responsavel: ${params.responsavelEmail}` : null,
-    params.responsavelTelefone ? `Celular do responsavel: ${params.responsavelTelefone}` : null,
+    `Responsável: ${params.responsavelNome}`,
+    params.responsavelEmail ? `E-mail do responsável: ${params.responsavelEmail}` : null,
+    params.responsavelTelefone ? `Celular do responsável: ${params.responsavelTelefone}` : null,
     "Tipo: Extrajudicial",
     "",
     "Resumo financeiro:",
-    `Valor das cobrancas: ${formatBRL(params.valorBase)}`,
-    `Despesa de cobranca: ${formatBRL(params.despesa)}`,
+    `Valor das cobranças: ${formatBRL(params.valorBase)}`,
+    `Despesa de cobrança: ${formatBRL(params.despesa)}`,
     `Valor total do acordo: ${formatBRL(params.valorAcordado)}`,
     `Entrada: ${formatBRL(params.entrada)}`,
     `Quantidade de parcelas: ${params.quantidadeParcelas}`,
@@ -214,7 +214,7 @@ function montarResumoAcordoKeila(params: {
     "Plano de pagamento:",
     linhasParcelas || "-",
     "",
-    `Referencia interna do acordo: ${params.acordoId}`,
+    `Referência interna do acordo: ${params.acordoId}`,
   ].filter((line): line is string => line !== null).join("\n");
 }
 
@@ -282,12 +282,12 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
   const unidade = relationOne(cobranca?.unidade);
 
   if (!cobranca?.id || !cobranca.carteira_id || !cobranca.condominio_id || !cobranca.unidade_id) {
-    throw new Error("Cobranca incompleta para acordo da Keila.");
+    throw new Error("Cobrança incompleta para acordo da Keila.");
   }
 
   const contatoResponsavel = contatoResponsavelAcionavel(unidade);
   if (!contatoResponsavel.acionavel) {
-    throw new Error("Unidade sem responsavel acionavel para acordo da Keila.");
+    throw new Error("Unidade sem responsável acionável para acordo da Keila.");
   }
 
   const valorCalculado = Math.max(
@@ -300,7 +300,7 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
   );
   const valorBaseCobranca = roundMoney(Number(cobranca.valor_atualizado ?? 0) || valorCalculado);
   if (valorBaseCobranca <= 0) {
-    throw new Error("Valor da cobranca invalido para acordo da Keila.");
+    throw new Error("Valor da cobrança inválido para acordo da Keila.");
   }
 
   const despesaCobrancaPercentual = 10;
@@ -365,14 +365,14 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
   );
 
   if (acordoError || !acordoIdData) {
-    throw new Error(`Erro ao criar acordo da Keila: ${acordoError?.message ?? "acordo nao retornado"}`);
+    throw new Error(`Erro ao criar acordo da Keila: ${acordoError?.message ?? "acordo não retornado"}`);
   }
 
   const acordoId = String(acordoIdData);
   const responsavelNome = contatoResponsavel.nome;
   const resumo = montarResumoAcordoKeila({
     acordoId,
-    condominioNome: condominio?.nome ?? "Condominio nao informado",
+    condominioNome: condominio?.nome ?? "Condomínio não informado",
     unidadeLabel: unidadeLabel(unidade),
     responsavelNome,
     responsavelEmail: contatoResponsavel.email || null,
@@ -412,7 +412,7 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
       `Link para aceite digital: ${linkAceite}`,
       "",
       "Atenciosamente,",
-      "GKLI Cobranca",
+      "GKLI Cobrança",
     ].join("\n"),
     payload: {
       origem: "app",
@@ -465,8 +465,8 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
       eventoCodigo: "keila.cobranca_vinculada_acordo",
       estadoAnterior: getCobrancaStatusOperacional(cobranca),
       estadoNovo: COBRANCA_STATUS.ACORDO_FIRMADO,
-      titulo: "Keila vinculou cobranca a acordo",
-      descricao: `Cobranca vinculada ao acordo supervisionado ${acordoId}.`,
+      titulo: "Keila vinculou cobrança a acordo",
+      descricao: `Cobrança vinculada ao acordo supervisionado ${acordoId}.`,
       severidade: "sucesso",
       origem: "app",
       auditavel: true,
@@ -503,7 +503,7 @@ async function getCondominiosHabilitados() {
   query = applyScope(query, scope.carteiraIds);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Erro ao carregar condominios da Keila: ${error.message}`);
+  if (error) throw new Error(`Erro ao carregar condomínios da Keila: ${error.message}`);
 
   return {
     scope,
@@ -561,11 +561,11 @@ async function gerarLotesKeila(params: {
         condominioId: condominio.id,
         loteId: resultado.loteIds[0] ?? null,
         eventoCodigo: "keila.lote_preparado",
-        titulo: "Keila processou regua do condominio",
+        titulo: "Keila processou régua do condomínio",
         descricao:
           resultado.loteIds.length > 0
-            ? `Lote preparado para ${condominio.nome ?? "condominio habilitado"}.`
-            : `Regua processada sem novo lote para ${condominio.nome ?? "condominio habilitado"}.`,
+            ? `Lote preparado para ${condominio.nome ?? "condomínio habilitado"}.`
+            : `Régua processada sem novo lote para ${condominio.nome ?? "condomínio habilitado"}.`,
         statusExecucao: resultado.loteIds.length > 0 ? "supervisao" : "processado",
         severidade: resultado.totalErros > 0 ? "alerta" : "sucesso",
         payload: {
@@ -585,8 +585,8 @@ async function gerarLotesKeila(params: {
         carteiraId: condominio.carteira_id ?? null,
         condominioId: condominio.id,
         eventoCodigo: "keila.lote_erro",
-        titulo: "Keila encontrou erro ao processar regua",
-        descricao: `Nao foi possivel preparar lote para ${condominio.nome ?? "condominio habilitado"}.`,
+        titulo: "Keila encontrou erro ao processar régua",
+        descricao: `Não foi possível preparar lote para ${condominio.nome ?? "condomínio habilitado"}.`,
         statusExecucao: "erro",
         severidade: "critico",
         payload: {
@@ -611,8 +611,8 @@ export async function validarFilaKeila() {
     titulo: "Keila validou fila habilitada",
     descricao:
       condominios.length > 0
-        ? "Validacao encontrou condominios habilitados para operacao virtual."
-        : "Validacao nao encontrou condominios habilitados para operacao virtual.",
+        ? "Validação encontrou condomínios habilitados para operação virtual."
+        : "Validação não encontrou condomínios habilitados para operação virtual.",
     statusExecucao: condominios.length > 0 ? "processado" : "bloqueado",
     severidade: condominios.length > 0 ? "sucesso" : "alerta",
     payload: {
@@ -628,8 +628,8 @@ export async function validarFilaKeila() {
       condominios: condominios.length,
       message:
         condominios.length > 0
-          ? "Modo teste validado. Existem condominios habilitados para a Keila preparar lotes supervisionados."
-          : "Nenhum condominio ativo esta habilitado para o teste da Keila.",
+          ? "Modo teste validado. Existem condomínios habilitados para a Keila preparar lotes supervisionados."
+          : "Nenhum condomínio ativo está habilitado para o teste da Keila.",
     }),
   );
 }
@@ -643,7 +643,7 @@ export async function prepararLotesKeila(formData?: FormData) {
       resultUrl({
         keila_result: "preparacao_lotes",
         status: "vazio",
-        message: "Nenhum condominio habilitado para preparar lote de teste.",
+        message: "Nenhum condomínio habilitado para preparar lote de teste.",
       }),
     );
   }
@@ -653,7 +653,7 @@ export async function prepararLotesKeila(formData?: FormData) {
       resultUrl({
         keila_result: "preparacao_lotes",
         status: "vazio",
-        message: "Escolha um condominio habilitado antes de preparar o lote de teste.",
+        message: "Escolha um condomínio habilitado antes de preparar o lote de teste.",
       }),
     );
   }
@@ -664,7 +664,7 @@ export async function prepararLotesKeila(formData?: FormData) {
       resultUrl({
         keila_result: "preparacao_lotes",
         status: "vazio",
-        message: "O condominio escolhido nao esta habilitado para o teste da Keila.",
+        message: "O condomínio escolhido não está habilitado para o teste da Keila.",
       }),
     );
   }
@@ -688,7 +688,7 @@ export async function prepararLotesKeila(formData?: FormData) {
       lote_id: totals.loteIds[0] ?? "",
       message:
         totals.criadas > 0
-          ? `Lote de teste preparado pela Keila para ${condominioSelecionado.nome ?? "o condominio selecionado"}.`
+          ? `Lote de teste preparado pela Keila para ${condominioSelecionado.nome ?? "o condomínio selecionado"}.`
           : "Teste concluido sem mensagens. Revise os motivos dos itens pulados.",
     }),
   );
@@ -938,8 +938,8 @@ async function monitorarNegociacoesKeila(
         entidadeTipo: "unidade",
         entidadeId: pendencia.unidade_id,
         eventoCodigo: "keila.planilha_debitos_solicitada",
-        titulo: "Keila solicitou planilha de debitos",
-        descricao: "Negociacao monitorada pela Keila atravessou o mes e foi bloqueada ate atualizacao dos debitos.",
+        titulo: "Keila solicitou planilha de débitos",
+        descricao: "Negociação monitorada pela Keila atravessou o mês e foi bloqueada até atualização dos débitos.",
         severidade: "alerta",
         origem: "app",
         auditavel: true,
@@ -1044,10 +1044,10 @@ export async function ativarKeilaAutonoma() {
   await registrarKeilaOperacao(supabase, {
     carteiraId: scope.carteiraIds?.[0] ?? null,
     eventoCodigo: "keila.ciclo_autonomo_executado",
-    titulo: "Keila executou ciclo autonomo",
+    titulo: "Keila executou ciclo autônomo",
     descricao: houveAcao
-      ? "Ciclo autonomo filtrou cobrancas, preparou lotes e monitorou negociacoes."
-      : "Ciclo autonomo executado sem novas acoes geradas.",
+      ? "Ciclo autônomo filtrou cobranças, preparou lotes e monitorou negociações."
+      : "Ciclo autônomo executado sem novas ações geradas.",
     statusExecucao: houveAcao ? "processado" : "bloqueado",
     severidade: lotes.erros > 0 ? "alerta" : houveAcao ? "sucesso" : "info",
     payload: {

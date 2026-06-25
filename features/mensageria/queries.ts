@@ -38,6 +38,15 @@ export type MensageriaLog = {
 
 export type MensagemMensageria = MensageriaLog
 
+export type MensageriaLogFilters = {
+  evento?: string
+  status_anterior?: string
+  status_novo?: string
+  data_inicio?: string
+  data_fim?: string
+  limit?: number
+}
+
 function logSupabaseError(contexto: string, error: unknown) {
   const err = error as { message?: string; details?: string; hint?: string; code?: string }
   console.error(contexto, {
@@ -168,7 +177,19 @@ export async function countReguaEtapasPorTemplate(templateIds?: string[]) {
   return result
 }
 
-export async function listMensageriaLogs(scope?: CarteiraScope): Promise<MensageriaLog[]> {
+function clampLimit(value: number | undefined, fallback = 200) {
+  if (!value || !Number.isFinite(value)) return fallback
+  return Math.max(1, Math.min(Math.trunc(value), 500))
+}
+
+function endOfDayIso(date: string) {
+  return `${date}T23:59:59.999`
+}
+
+export async function listMensageriaLogs(
+  scope?: CarteiraScope,
+  filters: MensageriaLogFilters = {},
+): Promise<MensageriaLog[]> {
   await requireUser()
   const supabase = createAdminClient()
 
@@ -176,7 +197,13 @@ export async function listMensageriaLogs(scope?: CarteiraScope): Promise<Mensage
     .from('mensageria_logs')
     .select('id,carteira_id,lote_id,lote_item_id,mensagem_id,evento,status_anterior,status_novo,descricao,payload,created_at')
     .order('created_at', { ascending: false })
-    .limit(500)
+    .limit(clampLimit(filters.limit))
+
+  if (filters.evento) query = query.eq('evento', filters.evento)
+  if (filters.status_anterior) query = query.eq('status_anterior', filters.status_anterior)
+  if (filters.status_novo) query = query.eq('status_novo', filters.status_novo)
+  if (filters.data_inicio) query = query.gte('created_at', filters.data_inicio)
+  if (filters.data_fim) query = query.lte('created_at', endOfDayIso(filters.data_fim))
 
   query = applyCarteiraScope(query, scope)
 
@@ -325,7 +352,7 @@ export async function getMensageriaCockpit(scope?: CarteiraScope): Promise<Mensa
   const [{ data: mensagens, error: mensagensError }, { data: lotes, error: lotesError }, logs] = await Promise.all([
     mensagensQuery,
     lotesQuery,
-    listMensageriaLogs(scope),
+    listMensageriaLogs(scope, { limit: 80 }),
   ])
 
   if (mensagensError) {

@@ -165,7 +165,7 @@ export async function listCondominiosKeilaTeste(scope: CarteiraScope) {
   const { data, error } = await query;
 
   if (error) {
-    throw new Error(`Erro ao carregar condominios habilitados para Keila: ${error.message}`);
+    throw new Error(`Erro ao carregar condomínios habilitados para Keila: ${error.message}`);
   }
 
   return (data ?? []) as Array<{
@@ -306,7 +306,7 @@ export async function getKeilaOperationalQueue(scope: CarteiraScope) {
   const supervision: KeilaOperationalItem[] = mensagensRascunho.slice(0, 8).map((mensagem) => ({
     id: `mensagem-${mensagem.id}`,
     title: "Mensagem de acordo em rascunho",
-    description: `${mensagem.canal ?? "Canal nao definido"} aguardando revisao humana antes do envio.`,
+    description: `${mensagem.canal ?? "Canal não definido"} aguardando revisão humana antes do envio.`,
     meta: statusLabel(mensagem.status_operacional ?? mensagem.status),
     href: mensagem.acordo_id ? `/app/acordos/${mensagem.acordo_id}` : "/app/acordos",
     tone: "amber",
@@ -316,8 +316,8 @@ export async function getKeilaOperationalQueue(scope: CarteiraScope) {
 
   const blocked: KeilaOperationalItem[] = pendenciasPlanilha.slice(0, 8).map((pendencia) => ({
     id: `pendencia-${pendencia.id}`,
-    title: pendencia.titulo ?? "Solicitar planilha de debitos",
-    description: pendencia.descricao ?? "Negociacao virou o mes e exige debitos atualizados antes da proposta.",
+    title: pendencia.titulo ?? "Solicitar planilha de débitos",
+    description: pendencia.descricao ?? "Negociação virou o mês e exige débitos atualizados antes da proposta.",
     meta: pendencia.prioridade ?? "pendencia",
     href: "/app/pendencias",
     tone: "red",
@@ -328,7 +328,7 @@ export async function getKeilaOperationalQueue(scope: CarteiraScope) {
   const lotes: KeilaOperationalItem[] = lotesKeila.slice(0, 10).map((lote) => ({
     id: `lote-${lote.id}`,
     title: "Lote preparado pela Keila",
-    description: lote.observacoes ?? "Lote de regua criado pela operacao virtual.",
+    description: lote.observacoes ?? "Lote de régua criado pela operação virtual.",
     meta: statusLabel(lote.status),
     href: `/app/lotes/${lote.id}`,
     tone: PENDING_LOTE_STATUSES.includes(String(lote.status ?? "")) ? "amber" : "green",

@@ -101,7 +101,6 @@ function matchesLog(log: any, filters: Record<string, string>) {
 export default async function MensageriaLogPage({ searchParams }: MensageriaLogPageProps) {
   const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
-  const logsBase = await listMensageriaLogs(scope)
   const filters = {
     q: getParam(params.q),
     evento: getParam(params.evento),
@@ -110,6 +109,14 @@ export default async function MensageriaLogPage({ searchParams }: MensageriaLogP
     data_inicio: getParam(params.data_inicio),
     data_fim: getParam(params.data_fim),
   }
+  const logsBase = await listMensageriaLogs(scope, {
+    evento: filters.evento,
+    status_anterior: filters.status_anterior,
+    status_novo: filters.status_novo,
+    data_inicio: filters.data_inicio,
+    data_fim: filters.data_fim,
+    limit: filters.q ? 500 : 200,
+  })
   const logs = logsBase.filter((log: any) => matchesLog(log, filters))
   const hasFilters = Object.values(filters).some(Boolean)
   const eventos = uniqueValues(logsBase, 'evento')

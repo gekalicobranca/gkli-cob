@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeRelationsList } from '@/utils/supabase/normalize-relation'
+import { normalizeSaneamentoText, normalizeUnidadeComparable } from './service'
 
 export type SaneamentoCobrancasFilters = {
   carteiraId?: string
@@ -17,6 +18,35 @@ export type CorrecaoUnidadeCobrancaFilters = {
   q?: string
   condominioId?: string
   cobrancaId?: string
+}
+
+export type UnidadeDuplicadaSaneamento = {
+  id: string
+  condominio_id: string
+  condominio_nome: string
+  carteira_id: string | null
+  identificacao: string | null
+  bloco: string | null
+  responsavel_nome: string | null
+  telefone: string | null
+  email: string | null
+  status: string | null
+  cobrancas: number
+  acordos: number
+  scoreDestino: number
+}
+
+export type GrupoUnidadesDuplicadasSaneamento = {
+  key: string
+  condominio_id: string
+  condominio_nome: string
+  identificacao: string
+  bloco: string | null
+  totalUnidades: number
+  totalCobrancas: number
+  totalAcordos: number
+  destinoSugerido: UnidadeDuplicadaSaneamento
+  unidades: UnidadeDuplicadaSaneamento[]
 }
 
 function normalizeSortText(value: unknown) {
@@ -75,6 +105,17 @@ function unidadeOptionSort(a: any, b: any) {
   const bloco = compareText(a.bloco, b.bloco)
   if (bloco !== 0) return bloco
   return compareUnit(a.identificacao, b.identificacao)
+}
+
+function unidadeDuplicadaScore(row: UnidadeDuplicadaSaneamento) {
+  let score = 0
+  if (row.cobrancas > 0) score += row.cobrancas * 10
+  if (row.acordos > 0) score += row.acordos * 12
+  if (String(row.responsavel_nome ?? '').trim()) score += 4
+  if (String(row.email ?? '').trim()) score += 3
+  if (String(row.telefone ?? '').trim()) score += 3
+  if (String(row.status ?? '') === 'ativa') score += 2
+  return score
 }
 
 async function listUnidadeIdsMatchingCorrecao(
@@ -351,6 +392,132 @@ export async function listUnidadesDestinoCorrecao(scope: CarteiraScope, condomin
   if (error) throw new Error(`Erro ao carregar unidades destino: ${error.message}`)
 
   return [...((data ?? []) as any[])].sort(unidadeOptionSort)
+}
+
+export async function listPossiveisUnidadesDuplicadas(
+  scope: CarteiraScope,
+  filters: { q?: string; condominioId?: string } = {},
+) {
+  const supabase = await createClient()
+  const q = String(filters.q ?? '').trim()
+  const condominioId = String(filters.condominioId ?? '').trim()
+  const condominioIds = q && !condominioId ? await listCondominioIdsMatchingCorrecao(supabase, scope, q) : []
+
+  let unidadesQuery = supabase
+    .from('unidades')
+    .select(`
+      id,
+      carteira_id,
+      condominio_id,
+      identificacao,
+      bloco,
+      responsavel_nome,
+      telefone,
+      email,
+      status,
+      condominios(nome)
+    `)
+    .order('condominio_id')
+    .order('bloco')
+    .order('identificacao')
+    .limit(2500)
+
+  unidadesQuery = applyCarteiraScope(unidadesQuery, scope.carteiraIds)
+  if (condominioId) unidadesQuery = unidadesQuery.eq('condominio_id', condominioId)
+
+  if (q) {
+    const term = q.replace(/[%_]/g, '')
+    const digits = onlyDigits(term)
+    const clauses = [
+      `identificacao.ilike.%${term}%`,
+      `bloco.ilike.%${term}%`,
+      `responsavel_nome.ilike.%${term}%`,
+      `email.ilike.%${term}%`,
+    ]
+    if (digits) clauses.push(`telefone.ilike.%${digits}%`, `responsavel_documento.ilike.%${digits}%`)
+    if (condominioIds.length > 0) clauses.push(`condominio_id.in.(${condominioIds.join(',')})`)
+    unidadesQuery = unidadesQuery.or(clauses.join(','))
+  }
+
+  const { data, error } = await unidadesQuery
+  if (error) throw new Error(`Erro ao carregar unidades duplicadas: ${error.message}`)
+
+  const unidades = normalizeRelationsList((data ?? []) as any[], ['condominios']) as any[]
+  const unidadeIds = unidades.map((row) => String(row.id)).filter(Boolean)
+
+  const [cobrancasResult, acordosResult] = unidadeIds.length
+    ? await Promise.all([
+      supabase.from('cobrancas').select('id, unidade_id').in('unidade_id', unidadeIds).limit(10000),
+      supabase.from('acordos').select('id, unidade_id').in('unidade_id', unidadeIds).limit(10000),
+    ])
+    : [{ data: [], error: null }, { data: [], error: null }]
+
+  if (cobrancasResult.error) throw new Error(`Erro ao contar cobranças por unidade: ${cobrancasResult.error.message}`)
+  if (acordosResult.error) throw new Error(`Erro ao contar acordos por unidade: ${acordosResult.error.message}`)
+
+  const cobrancasPorUnidade = new Map<string, number>()
+  for (const row of cobrancasResult.data ?? []) {
+    const unidadeId = String((row as any).unidade_id ?? '')
+    if (!unidadeId) continue
+    cobrancasPorUnidade.set(unidadeId, (cobrancasPorUnidade.get(unidadeId) ?? 0) + 1)
+  }
+
+  const acordosPorUnidade = new Map<string, number>()
+  for (const row of acordosResult.data ?? []) {
+    const unidadeId = String((row as any).unidade_id ?? '')
+    if (!unidadeId) continue
+    acordosPorUnidade.set(unidadeId, (acordosPorUnidade.get(unidadeId) ?? 0) + 1)
+  }
+
+  const groups = new Map<string, UnidadeDuplicadaSaneamento[]>()
+
+  for (const row of unidades) {
+    const unidadeNormalizada = normalizeUnidadeComparable(row.identificacao)
+    if (!unidadeNormalizada) continue
+
+    const blocoNormalizado = normalizeSaneamentoText(row.bloco)
+    const key = [row.condominio_id, blocoNormalizado, unidadeNormalizada].join('|')
+    const mapped: UnidadeDuplicadaSaneamento = {
+      id: row.id,
+      condominio_id: row.condominio_id,
+      condominio_nome: row.condominios?.nome ?? 'Condomínio não informado',
+      carteira_id: row.carteira_id ?? null,
+      identificacao: row.identificacao ?? null,
+      bloco: row.bloco ?? null,
+      responsavel_nome: row.responsavel_nome ?? null,
+      telefone: row.telefone ?? null,
+      email: row.email ?? null,
+      status: row.status ?? null,
+      cobrancas: cobrancasPorUnidade.get(row.id) ?? 0,
+      acordos: acordosPorUnidade.get(row.id) ?? 0,
+      scoreDestino: 0,
+    }
+    mapped.scoreDestino = unidadeDuplicadaScore(mapped)
+    groups.set(key, [...(groups.get(key) ?? []), mapped])
+  }
+
+  const result: GrupoUnidadesDuplicadasSaneamento[] = []
+  for (const [key, rows] of groups) {
+    if (rows.length < 2) continue
+    const unidadesOrdenadas = [...rows].sort((a, b) => b.scoreDestino - a.scoreDestino || compareText(a.responsavel_nome, b.responsavel_nome))
+    const destinoSugerido = unidadesOrdenadas[0]
+    result.push({
+      key,
+      condominio_id: destinoSugerido.condominio_id,
+      condominio_nome: destinoSugerido.condominio_nome,
+      identificacao: destinoSugerido.identificacao ?? '-',
+      bloco: destinoSugerido.bloco,
+      totalUnidades: rows.length,
+      totalCobrancas: rows.reduce((sum, row) => sum + row.cobrancas, 0),
+      totalAcordos: rows.reduce((sum, row) => sum + row.acordos, 0),
+      destinoSugerido,
+      unidades: unidadesOrdenadas,
+    })
+  }
+
+  return result
+    .sort((a, b) => b.totalCobrancas - a.totalCobrancas || compareText(a.condominio_nome, b.condominio_nome) || compareUnit(a.identificacao, b.identificacao))
+    .slice(0, 80)
 }
 
 export async function getSaneamentoCobrancasResumo(scope: CarteiraScope) {

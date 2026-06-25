@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+import { requireRole } from '@/utils/auth/require-role'
 
 type ActionState = {
   ok: boolean
@@ -10,6 +11,8 @@ type ActionState = {
 }
 
 async function updatePendenciaStatus(formData: FormData, status: 'aberta' | 'em_tratamento' | 'resolvida' | 'cancelada'): Promise<ActionState> {
+  await requireRole(['admin', 'gestor', 'operador'])
+
   const id = String(formData.get('id') ?? '')
   if (!id) return { ok: false, message: 'Pendência não informada.' }
 
@@ -30,15 +33,23 @@ async function updatePendenciaStatus(formData: FormData, status: 'aberta' | 'em_
     query = query.in('carteira_id', scope.carteiraIds)
   }
 
-  const { error } = await query.select('id').single()
+  const { data, error } = await query.select('id').maybeSingle()
 
   if (error) return { ok: false, message: `Erro ao atualizar pendência: ${error.message}` }
+  if (!data) {
+    return {
+      ok: false,
+      message: 'Pendência não encontrada nas carteiras permitidas para o seu usuário.',
+    }
+  }
 
   revalidatePath('/app/pendencias')
   return { ok: true, message: 'Pendência atualizada.' }
 }
 
 async function updatePendenciasStatusEmLote(formData: FormData, status: 'resolvida' | 'cancelada'): Promise<ActionState> {
+  await requireRole(['admin', 'gestor', 'operador'])
+
   const ids = [...new Set(formData.getAll('pendencia_ids').map((value) => String(value ?? '').trim()).filter(Boolean))]
   if (ids.length === 0) return { ok: false, message: 'Selecione ao menos uma pendência.' }
 
@@ -63,6 +74,12 @@ async function updatePendenciasStatusEmLote(formData: FormData, status: 'resolvi
   const { data, error } = await query.select('id')
 
   if (error) return { ok: false, message: `Erro ao atualizar pendências: ${error.message}` }
+  if (!data?.length) {
+    return {
+      ok: false,
+      message: 'Nenhuma pendência selecionada foi encontrada nas carteiras permitidas para o seu usuário.',
+    }
+  }
 
   revalidatePath('/app/pendencias')
   return { ok: true, message: `${data?.length ?? 0} pendência(s) atualizada(s).` }

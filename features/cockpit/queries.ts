@@ -135,12 +135,13 @@ export async function getCockpitInteligente(scope: CarteiraScope) {
     }
   })
 
-  const itensBase = [
+  const itensOrdenados = [
     ...acordosNormalizados.map(buildAcordoItem),
     ...cobrancasBase.map(buildCobrancaItem),
   ].sort((a, b) => b.score - a.score)
 
-  const itens = await anexarEventosRecentes(supabase, itensBase)
+  const itensComEventos = await anexarEventosRecentes(supabase, itensOrdenados.slice(0, 80))
+  const itens = [...itensComEventos, ...itensOrdenados.slice(80)]
   const prioridadeHoje = itens.slice(0, 16)
   const criticos = itens.filter((item) => item.prioridade === 'critica')
   const alta = itens.filter((item) => item.prioridade === 'alta')

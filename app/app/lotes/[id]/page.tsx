@@ -109,12 +109,12 @@ function retornoManualLabel(retorno?: string | null) {
     pediu_boleto: "Pediu boleto",
     aceitou_acordo: "Aceitou acordo",
     quer_negociar: "Quer negociar",
-    contestou_divida: "Contestou divida",
+    contestou_divida: "Contestou dívida",
     sem_resposta: "Sem resposta",
-    telefone_invalido: "Telefone invalido",
-    email_invalido: "E-mail invalido",
-    sindico_assumiu: "Sindico assumiu",
-    juridico: "Juridico",
+    telefone_invalido: "Telefone inválido",
+    email_invalido: "E-mail inválido",
+    sindico_assumiu: "Síndico assumiu",
+    juridico: "Jurídico",
   };
 
   if (!retorno) return "";
@@ -172,7 +172,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
   const { id } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const scope = await getPermittedCarteiras();
-  const { lote, itens } = await getLoteDetalhe(id, scope);
+  const { lote, itens, totalItens, itemLimit, itensTruncados, hasEmailAprovado } = await getLoteDetalhe(id, scope);
   const byStatus = countItensByStatus(itens);
   const byMensagemStatus = countMensagensByStatus(itens as any);
   const generatedNow = getSearchParam(resolvedSearchParams, "gerado") === "1";
@@ -182,22 +182,17 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
   const totalDuplicadas = numberValue((lote as any).total_duplicadas ?? byStatus.duplicada);
   const totalErros = numberValue((lote as any).total_erros ?? byStatus.erro);
   const pendentesAprovacao = numberValue(
-    byMensagemStatus[MENSAGEM_STATUS.PENDENTE_APROVACAO] ?? byMensagemStatus.pendente,
+    (lote as any).total_pendentes ?? byMensagemStatus[MENSAGEM_STATUS.PENDENTE_APROVACAO] ?? byMensagemStatus.pendente,
   );
-  const aprovadas = numberValue(byMensagemStatus[MENSAGEM_STATUS.APROVADA]);
-  const enviadas = numberValue(byMensagemStatus[MENSAGEM_STATUS.ENVIADA]);
+  const aprovadas = numberValue((lote as any).total_aprovadas ?? byMensagemStatus[MENSAGEM_STATUS.APROVADA]);
+  const enviadas = numberValue((lote as any).total_enviadas ?? byMensagemStatus[MENSAGEM_STATUS.ENVIADA]);
   const falhas = numberValue(
-    byMensagemStatus[MENSAGEM_STATUS.FALHA] ?? byMensagemStatus.erro ?? byMensagemStatus.falha_envio,
+    (lote as any).total_erros ?? byMensagemStatus[MENSAGEM_STATUS.FALHA] ?? byMensagemStatus.erro ?? byMensagemStatus.falha_envio,
   );
   const hasMensagens = itens.some((item: any) => Boolean(item.mensagem?.id));
   const hasMensagensOperacionais = totalCriadas > 0 || hasMensagens;
   const isAuditoriaSemMensagens =
     !hasMensagensOperacionais && (totalPuladas > 0 || totalDuplicadas > 0 || totalErros > 0);
-  const hasEmailAprovado = itens.some(
-    (item: any) =>
-      item.mensagem?.canal === "email" &&
-      (item.mensagem?.status_operacional || item.mensagem?.status) === MENSAGEM_STATUS.APROVADA,
-  );
   const canApproveLote = pendentesAprovacao + falhas > 0;
   const canSendEmails = hasEmailAprovado;
   const canReprocessar = falhas > 0 || numberValue(byStatus.erro) > 0;
@@ -333,7 +328,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
 
       <Card className="p-5">
         <div className="grid gap-4 md:grid-cols-5">
-          <div>
+            <div>
             <p className="text-xs font-medium uppercase text-slate-400">
               Tipo
             </p>
@@ -471,14 +466,20 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
         <div className="border-b border-slate-100 px-5 py-4">
           <div className="flex items-center gap-3">
             <MessageSquare size={18} className="text-slate-400" />
-            <div>
+          <div>
               <h2 className="text-base text-slate-950">Itens do lote</h2>
               <p className="text-sm text-slate-500">
-                Cada linha representa uma cobrança avaliada pelo motor da régua.
+                Exibindo {metric(itens.length)} de {metric(totalItens)} item(ns) do lote.
               </p>
             </div>
           </div>
         </div>
+
+        {itensTruncados ? (
+          <div className="border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
+            Este lote tem mais de {metric(itemLimit)} itens. A tela mostra os mais recentes para manter a revisão rápida; as ações do lote continuam considerando todos os itens.
+          </div>
+        ) : null}
 
         {itens.length === 0 ? (
           <div className="p-5">

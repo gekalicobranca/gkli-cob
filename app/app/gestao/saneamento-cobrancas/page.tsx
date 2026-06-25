@@ -13,6 +13,7 @@ import { alterarUnidadeCobrancaPeloSaneamento } from "@/features/saneamento-cobr
 import {
   listCobrancasParaCorrecaoUnidade,
   listCondominiosParaSaneamento,
+  listPossiveisUnidadesDuplicadas,
   listUnidadesDestinoCorrecao,
 } from "@/features/saneamento-cobrancas/queries";
 import { listCobrancas } from "@/features/cobrancas/queries";
@@ -42,6 +43,10 @@ function unidadeCompleta(unidade: any) {
   return `Unidade ${bloco}${unidade?.identificacao ?? "-"}${contato ? ` · ${contato}` : ""}`;
 }
 
+function contatoResumo(unidade: any) {
+  return [unidade?.responsavel_nome, unidade?.email, unidade?.telefone].filter(Boolean).join(" · ") || "Sem responsável/contato";
+}
+
 function cobrancaUrl(row: any, params: URLSearchParams) {
   const next = new URLSearchParams(params);
   next.set("cobranca_id", row.id);
@@ -60,11 +65,12 @@ export default async function SaneamentoCobrancasPage({ searchParams }: Props) {
   if (q) baseParams.set("q", q);
   if (condominioId) baseParams.set("condominio_id", condominioId);
 
-  const [condominios, correcaoRows, selectedRows, judicialRows] = await Promise.all([
+  const [condominios, correcaoRows, selectedRows, judicialRows, duplicidadeRows] = await Promise.all([
     listCondominiosParaSaneamento(scope),
     listCobrancasParaCorrecaoUnidade(scope, { q, condominioId }),
     cobrancaId ? listCobrancasParaCorrecaoUnidade(scope, { cobrancaId }) : Promise.resolve([]),
     listCobrancas(scope, { judicializacaoUnidade: "sim" }),
+    listPossiveisUnidadesDuplicadas(scope, { q, condominioId }),
   ]);
 
   const selectedCobranca = selectedRows[0] ?? null;
@@ -210,6 +216,78 @@ export default async function SaneamentoCobrancasPage({ searchParams }: Props) {
           )}
         </Card>
       </div>
+
+      <Card className="overflow-hidden p-0">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-slate-950">Possíveis unidades duplicadas</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Grupos com mesmo condomínio, bloco e identificação normalizada. Use como apoio para escolher a unidade destino da cobrança.
+              </p>
+            </div>
+            <span className="rounded-xl bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-800 ring-1 ring-cyan-100">
+              {duplicidadeRows.length} grupo(s)
+            </span>
+          </div>
+        </div>
+
+        {duplicidadeRows.length === 0 ? (
+          <div className="p-5">
+            <EmptyState title="Nenhuma duplicidade encontrada" description="Ajuste o filtro de condomínio ou busca para localizar agrupamentos suspeitos." />
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {duplicidadeRows.map((grupo) => (
+              <div key={grupo.key} className="px-5 py-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-950">{grupo.condominio_nome}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Unidade {grupo.bloco ? `Bloco ${grupo.bloco} · ` : ""}{grupo.identificacao} · {grupo.totalUnidades} cadastros · {grupo.totalCobrancas} cobrança(s) · {grupo.totalAcordos} acordo(s)
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-100">
+                    Destino sugerido: Unidade {grupo.destinoSugerido.bloco ? `Bloco ${grupo.destinoSugerido.bloco} · ` : ""}{grupo.destinoSugerido.identificacao}
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                  {grupo.unidades.map((unidade) => {
+                    const isDestino = unidade.id === grupo.destinoSugerido.id;
+                    return (
+                      <div key={unidade.id} className={["rounded-xl border p-3", isDestino ? "border-emerald-200 bg-emerald-50/60" : "border-slate-200 bg-white"].join(" ")}>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-950">
+                              Unidade {unidade.bloco ? `Bloco ${unidade.bloco} · ` : ""}{unidade.identificacao}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-slate-500">{contatoResumo(unidade)}</p>
+                          </div>
+                          {isDestino ? (
+                            <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">melhor destino</span>
+                          ) : null}
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span>{unidade.cobrancas} cobrança(s)</span>
+                          <span>{unidade.acordos} acordo(s)</span>
+                          <span>Status {unidade.status ?? "-"}</span>
+                          <Link href={`/app/unidades/${unidade.id}`} className="font-semibold text-[var(--gkli-primary)] hover:underline">
+                            Abrir unidade
+                          </Link>
+                          <Link href={`/app/gestao/saneamento-cobrancas?condominio_id=${grupo.condominio_id}&q=${encodeURIComponent(String(unidade.identificacao ?? ""))}`} className="font-semibold text-[var(--gkli-primary)] hover:underline">
+                            Ver cobranças
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <div className="grid gap-3 md:grid-cols-3">
         <Card className="p-5">

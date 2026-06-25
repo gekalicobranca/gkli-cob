@@ -10,6 +10,11 @@ import {
 } from "@/features/importacoes/cobrancas-conciliacao"
 import { formatOrigemImportacao } from "@/features/importacoes/origem-importacao"
 import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
+import {
+  buscarPossivelUnidadePorNormalizacao,
+  registrarSaneamentosDaCobrancaImportada,
+  type UnidadeSaneamentoRow,
+} from "@/features/saneamento-cobrancas/service"
 
 export const runtime = "nodejs"
 
@@ -17,6 +22,53 @@ function brDateToIso(value: string) {
   const [day, month, year] = value.split("/")
   if (!day || !month || !year) return null
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
+}
+
+async function buscarUnidadeLiteral(
+  supabase: ReturnType<typeof createAdminClient>,
+  params: { condominioId: string; identificacao: string },
+) {
+  const { data, error } = await supabase
+    .from("unidades")
+    .select("id, carteira_id, condominio_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email")
+    .eq("condominio_id", params.condominioId)
+    .eq("identificacao", params.identificacao)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Erro ao buscar unidade ${params.identificacao}: ${error.message}`)
+  }
+
+  return data as UnidadeSaneamentoRow | null
+}
+
+async function registrarSaneamentoConversao(
+  supabase: ReturnType<typeof createAdminClient>,
+  params: {
+    carteiraId: string
+    condominioId: string
+    unidadeLabel: string
+    responsavelNome: string
+    unidade: UnidadeSaneamentoRow | null
+    unidadeCriada: boolean
+    unidadeSugerida: UnidadeSaneamentoRow | null
+    cobrancaId?: string | null
+  },
+) {
+  await registrarSaneamentosDaCobrancaImportada(supabase as any, {
+    payload: {
+      carteira_id: params.carteiraId,
+      condominio_id: params.condominioId,
+      unidade: params.unidadeLabel,
+      identificacao: params.unidadeLabel,
+      responsavel_nome: params.responsavelNome,
+    },
+    unidade: params.unidade,
+    unidadeCriada: params.unidadeCriada,
+    unidadeSugerida: params.unidadeSugerida,
+    cobrancaId: params.cobrancaId ?? null,
+    importacaoId: null,
+  })
 }
 
 async function isCarteiraPermitida(
@@ -149,14 +201,20 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      const { data: unidadeExistente } = await supabase
-        .from("unidades")
-        .select("id")
-        .eq("condominio_id", condominioId)
-        .eq("identificacao", unidadeLabel)
-        .maybeSingle()
+      const unidadeExistente = await buscarUnidadeLiteral(supabase, {
+        condominioId,
+        identificacao: unidadeLabel,
+      })
+      const unidadeSugerida = unidadeExistente
+        ? null
+        : await buscarPossivelUnidadePorNormalizacao(supabase as any, {
+            condominioId,
+            identificacao: unidadeLabel,
+          })
 
-      let unidadeId = unidadeExistente?.id ?? null
+      let unidadeUsada: UnidadeSaneamentoRow | null = unidadeExistente ?? unidadeSugerida
+      let unidadeId = unidadeUsada?.id ?? null
+      let unidadeCriada = false
 
       if (!unidadeId) {
         const { data: novaUnidade, error: unidadeError } = await supabase
@@ -168,7 +226,7 @@ export async function POST(request: NextRequest) {
             responsavel_nome: responsavelNome || "Responsável não identificado",
             status: "ativa",
           } as any)
-          .select("id")
+          .select("id, carteira_id, condominio_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email")
           .single()
 
         if (unidadeError || !novaUnidade) {
@@ -178,7 +236,13 @@ export async function POST(request: NextRequest) {
           continue
         }
 
+        unidadeUsada = novaUnidade as UnidadeSaneamentoRow
         unidadeId = novaUnidade.id
+        unidadeCriada = true
+      } else if (unidadeSugerida) {
+        inconsistencias.push(
+          `Unidade ${unidadeLabel}: usada unidade existente equivalente (${unidadeSugerida.identificacao}) e criada pendência de saneamento para conferência.`
+        )
       }
 
       const vencimentoPorRecibo = brDateToIso(String(item.vencimento ?? ""))
@@ -216,11 +280,31 @@ export async function POST(request: NextRequest) {
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao)
 
       if (conciliacao.status === "ja_existente") {
+        await registrarSaneamentoConversao(supabase, {
+          carteiraId,
+          condominioId,
+          unidadeLabel,
+          responsavelNome,
+          unidade: unidadeUsada,
+          unidadeCriada,
+          unidadeSugerida,
+          cobrancaId: conciliacao.cobrancaId,
+        })
         cobrancasIgnoradas += 1
         continue
       }
 
       if (conciliacao.status === "divergente") {
+        await registrarSaneamentoConversao(supabase, {
+          carteiraId,
+          condominioId,
+          unidadeLabel,
+          responsavelNome,
+          unidade: unidadeUsada,
+          unidadeCriada,
+          unidadeSugerida,
+          cobrancaId: conciliacao.cobrancaId,
+        })
         cobrancasDivergentes += 1
         inconsistencias.push(
           `Unidade ${unidadeLabel}: cobrança parecida encontrada com divergência de valores (${conciliacao.cobrancaId}).`
@@ -233,6 +317,15 @@ export async function POST(request: NextRequest) {
         inicioCobrancaDias: (condominioConfiguracao as any)?.inicio_cobranca_dias,
       })
       if (reguaImportacao.foraRegua) {
+        await registrarSaneamentoConversao(supabase, {
+          carteiraId,
+          condominioId,
+          unidadeLabel,
+          responsavelNome,
+          unidade: unidadeUsada,
+          unidadeCriada,
+          unidadeSugerida,
+        })
         cobrancasIgnoradas += 1
         inconsistencias.push(
           `Unidade ${unidadeLabel}: cobrança mantida apenas no histórico da conversão. ${reguaImportacao.motivo ?? "Vencimento fora da régua de cobrança."}`
@@ -270,6 +363,17 @@ export async function POST(request: NextRequest) {
       }
 
       cobrancasCriadas += 1
+
+      await registrarSaneamentoConversao(supabase, {
+        carteiraId,
+        condominioId,
+        unidadeLabel,
+        responsavelNome,
+        unidade: unidadeUsada,
+        unidadeCriada,
+        unidadeSugerida,
+        cobrancaId: cobranca.id,
+      })
 
       const parcelas = Array.isArray(item.parcelas) ? item.parcelas : []
 

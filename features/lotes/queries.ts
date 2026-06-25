@@ -3,6 +3,9 @@ import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 
+const LOTE_LIST_LIMIT = 200
+const LOTE_ITEM_DETAIL_LIMIT = 250
+
 export async function listLotesRegua(scope: CarteiraScope) {
   const supabase = await createClient()
 
@@ -28,6 +31,7 @@ export async function listLotesRegua(scope: CarteiraScope) {
       created_at
     `)
     .order('created_at', { ascending: false })
+    .limit(LOTE_LIST_LIMIT)
 
   query = applyCarteiraScope(query, scope.carteiraIds)
 
@@ -78,6 +82,23 @@ export async function getLoteDetalhe(id: string, scope: CarteiraScope) {
   if (!lote) {
     notFound()
   }
+
+  const { count: totalItens, error: totalItensError } = await supabase
+    .from('lote_itens')
+    .select('id', { count: 'planned', head: true })
+    .eq('lote_id', id)
+
+  if (totalItensError) {
+    throw new Error(`Erro ao contar itens do lote: ${totalItensError.message}`)
+  }
+
+  const { data: emailAprovado } = await supabase
+    .from('mensagens')
+    .select('id')
+    .eq('lote_id', id)
+    .eq('canal', 'email')
+    .or('status.eq.aprovada,status_operacional.eq.aprovada')
+    .limit(1)
 
   const { data: itens, error: itensError } = await supabase
     .from('lote_itens')
@@ -157,6 +178,7 @@ export async function getLoteDetalhe(id: string, scope: CarteiraScope) {
     `)
     .eq('lote_id', id)
     .order('created_at', { ascending: false })
+    .limit(LOTE_ITEM_DETAIL_LIMIT)
 
   if (itensError) {
     throw new Error(`Erro ao carregar itens do lote: ${itensError.message}`)
@@ -165,6 +187,10 @@ export async function getLoteDetalhe(id: string, scope: CarteiraScope) {
   return {
     lote,
     itens: itens ?? [],
+    totalItens: totalItens ?? 0,
+    itemLimit: LOTE_ITEM_DETAIL_LIMIT,
+    itensTruncados: (totalItens ?? 0) > LOTE_ITEM_DETAIL_LIMIT,
+    hasEmailAprovado: Boolean((emailAprovado ?? []).length),
   }
 }
 

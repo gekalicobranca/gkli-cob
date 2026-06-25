@@ -41,32 +41,32 @@ export async function getProximasAcoesInbox(scope: CarteiraScope): Promise<Proxi
 
   let importacoesPendentesQuery = supabase
     .from("importacoes")
-    .select("id", { count: "exact", head: true })
+    .select("id", { count: "planned", head: true })
     .not("status", "in", "(confirmada,erro)");
   importacoesPendentesQuery = applyCarteiraScope(importacoesPendentesQuery, scope.carteiraIds);
 
   let pendenciasAbertasQuery = supabase
     .from("central_pendencias")
-    .select("id", { count: "exact", head: true })
+    .select("id", { count: "planned", head: true })
     .not("status", "in", "(resolvida,cancelada)");
   pendenciasAbertasQuery = applyCarteiraScope(pendenciasAbertasQuery, scope.carteiraIds);
 
   let pendenciasCriticasQuery = supabase
     .from("central_pendencias")
-    .select("id", { count: "exact", head: true })
+    .select("id", { count: "planned", head: true })
     .eq("prioridade", "critica")
     .not("status", "in", "(resolvida,cancelada)");
   pendenciasCriticasQuery = applyCarteiraScope(pendenciasCriticasQuery, scope.carteiraIds);
 
   let lotesComErroQuery = supabase
     .from("lotes")
-    .select("id", { count: "exact", head: true })
+    .select("id", { count: "planned", head: true })
     .or("status.eq.erro,status.eq.concluido_com_falhas,total_erros.gt.0");
   lotesComErroQuery = applyCarteiraScope(lotesComErroQuery, scope.carteiraIds);
 
   let lotesGeradosQuery = supabase
     .from("lotes")
-    .select("id", { count: "exact", head: true })
+    .select("id", { count: "planned", head: true })
     .eq("status", "gerado");
   lotesGeradosQuery = applyCarteiraScope(lotesGeradosQuery, scope.carteiraIds);
 

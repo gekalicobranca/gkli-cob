@@ -88,7 +88,7 @@ function ManualAcceptanceForm({ acordo, term }: { acordo: any; term: any }) {
           name="nome"
           defaultValue={nomePadrao}
           required
-          placeholder={term.tipo_aceite === "sindico" ? "Nome do sindico" : "Nome do responsavel"}
+          placeholder={term.tipo_aceite === "sindico" ? "Nome do síndico" : "Nome do responsável"}
           className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#007fa3] focus:ring-2 focus:ring-[#007fa3]/15"
         />
         <input
@@ -100,7 +100,7 @@ function ManualAcceptanceForm({ acordo, term }: { acordo: any; term: any }) {
       <textarea
         name="observacao"
         required
-        placeholder="Evidencia do aceite manual"
+        placeholder="Evidência do aceite manual"
         className="mt-2 min-h-[72px] w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[#007fa3] focus:ring-2 focus:ring-[#007fa3]/15"
       />
       <div className="mt-2 flex justify-end">
@@ -129,21 +129,21 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
   const boletosEnviados = String(acordo?.fluxo_status) === "boletos_enviados";
 
   const termoPrincipal = termoDevedor ?? termoSindico;
-  const carteiraNome = acordo?.carteiras?.nome ?? "GKLI Cobranca";
+  const carteiraNome = acordo?.carteiras?.nome ?? "GKLI Cobrança";
   const contatoResponsavel = [
-    acordo?.unidades?.email ? `E-mail do responsavel: ${acordo.unidades.email}` : null,
-    acordo?.unidades?.telefone ? `Celular do responsavel: ${acordo.unidades.telefone}` : null,
+    acordo?.unidades?.email ? `E-mail do responsável: ${acordo.unidades.email}` : null,
+    acordo?.unidades?.telefone ? `Celular do responsável: ${acordo.unidades.telefone}` : null,
   ].filter(Boolean).join("\n");
   const resumoSolicitacao = (() => {
     const resumo = termoPrincipal?.corpo ?? "Resumo do acordo indisponível na base local.";
     if (!contatoResponsavel) return resumo;
-    if (resumo.includes("E-mail do responsavel") || resumo.includes("Celular do responsavel")) return resumo;
-    return [resumo, "", "Contato do responsavel:", contatoResponsavel].join("\n");
+    if (resumo.includes("E-mail do responsável") || resumo.includes("Celular do responsável")) return resumo;
+    return [resumo, "", "Contato do responsável:", contatoResponsavel].join("\n");
   })();
   const textoSolicitacao = [
     "Prezados,",
     "",
-    "Solicitamos a emissao dos boletos do acordo abaixo, conforme plano formalizado e aceites registrados:",
+    "Solicitamos a emissão dos boletos do acordo abaixo, conforme plano formalizado e aceites registrados:",
     "",
     resumoSolicitacao,
     "",

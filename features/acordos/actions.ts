@@ -189,6 +189,24 @@ async function criarTermoAcordo(supabase: any, params: {
   corpo: string;
   expiraEm?: string | null;
 }) {
+  const { data: termoExistente, error: termoExistenteError } = await supabase
+    .from("acordos_termos")
+    .select("id, token")
+    .eq("acordo_id", params.acordoId)
+    .eq("tipo_aceite", params.tipoAceite)
+    .in("status", ["pendente", "visualizado", "aceito"])
+    .order("criado_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (termoExistenteError) {
+    throw new Error(`Erro ao verificar termo de acordo existente: ${termoExistenteError.message}`);
+  }
+
+  if (termoExistente?.id && termoExistente?.token) {
+    return { id: String(termoExistente.id), token: String(termoExistente.token), created: false };
+  }
+
   const token = makeToken();
   const { data, error } = await supabase
     .from("acordos_termos")
@@ -211,7 +229,7 @@ async function criarTermoAcordo(supabase: any, params: {
     throw new Error(`Erro ao gerar termo de acordo: ${error.message}`);
   }
 
-  return data as { id: string; token: string };
+  return { ...(data as { id: string; token: string }), created: true };
 }
 
 function montarResumoAcordo(params: {
@@ -242,8 +260,8 @@ function montarResumoAcordo(params: {
     `Condomínio: ${params.condominioNome}`,
     `Unidade: ${params.unidadeLabel}`,
     `Responsável: ${params.responsavelNome}`,
-    params.responsavelEmail ? `E-mail do responsavel: ${params.responsavelEmail}` : null,
-    params.responsavelTelefone ? `Celular do responsavel: ${params.responsavelTelefone}` : null,
+    params.responsavelEmail ? `E-mail do responsável: ${params.responsavelEmail}` : null,
+    params.responsavelTelefone ? `Celular do responsável: ${params.responsavelTelefone}` : null,
     `Tipo: ${params.tipo === "judicial" ? "Judicial" : "Extrajudicial"}`,
     params.numeroProcesso ? `Processo: ${params.numeroProcesso}` : null,
     "",
@@ -281,26 +299,28 @@ async function gerarTermoDevedorEEmail(supabase: any, params: {
   });
 
   const link = `${getPublicBaseUrl()}/aceite-acordo/${termo.token}`;
-  await inserirMensagemEmail(supabase, {
-    carteira_id: params.carteiraId,
-    acordo_id: params.acordoId,
-    cobranca_id: params.cobrancaId,
-    destinatario: params.destinatarioEmail,
-    assunto: "Termo de acordo para aceite digital",
-    conteudo: [
-      "Prezado(a),",
-      "",
-      "Segue termo de acordo para conferência e aceite digital.",
-      "",
-      params.resumo,
-      "",
-      `Link público para aceite: ${link}`,
-      "",
-      "Atenciosamente,",
-      "GKLI Cobrança",
-    ].join("\n"),
-    payload: { termo_id: termo.id, link_aceite: link, tipo_aceite: "devedor" },
-  });
+  if (termo.created) {
+    await inserirMensagemEmail(supabase, {
+      carteira_id: params.carteiraId,
+      acordo_id: params.acordoId,
+      cobranca_id: params.cobrancaId,
+      destinatario: params.destinatarioEmail,
+      assunto: "Termo de acordo para aceite digital",
+      conteudo: [
+        "Prezado(a),",
+        "",
+        "Segue termo de acordo para conferência e aceite digital.",
+        "",
+        params.resumo,
+        "",
+        `Link público para aceite: ${link}`,
+        "",
+        "Atenciosamente,",
+        "GKLI Cobrança",
+      ].join("\n"),
+      payload: { termo_id: termo.id, link_aceite: link, tipo_aceite: "devedor" },
+    });
+  }
 
   return termo;
 }
@@ -321,6 +341,22 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
     .maybeSingle();
 
   if ((acordoAtual as any)?.boletos_solicitados_em) return;
+
+  const [{ data: mensagemExistente }, { data: pendenciaExistente }] = await Promise.all([
+    supabase
+      .from("mensagens")
+      .select("id")
+      .eq("acordo_id", params.acordoId)
+      .eq("origem_evento", "acordo_boletos_administradora")
+      .limit(1),
+    supabase
+      .from("central_pendencias")
+      .select("id")
+      .eq("acordo_id", params.acordoId)
+      .eq("tipo", "emissao_boletos_acordo")
+      .not("status", "in", "(resolvida,cancelada)")
+      .limit(1),
+  ]);
 
   let destinatario: string | null = null;
   let administradoraAcessoGerarAcordo: boolean | null = null;
@@ -363,17 +399,17 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
     ].filter(Boolean).join("\n"))
     .join("\n\n");
 
-  const carteiraNome = (acordoAtual as any)?.carteiras?.nome ?? "GKLI Cobranca";
+  const carteiraNome = (acordoAtual as any)?.carteiras?.nome ?? "GKLI Cobrança";
   const unidade = (acordoAtual as any)?.unidades;
   const contatoResponsavel = [
-    unidade?.email ? `E-mail do responsavel: ${unidade.email}` : null,
-    unidade?.telefone ? `Celular do responsavel: ${unidade.telefone}` : null,
+    unidade?.email ? `E-mail do responsável: ${unidade.email}` : null,
+    unidade?.telefone ? `Celular do responsável: ${unidade.telefone}` : null,
   ].filter(Boolean).join("\n");
-  const resumoComContato = params.resumo.includes("E-mail do responsavel")
-    || params.resumo.includes("Celular do responsavel")
+  const resumoComContato = params.resumo.includes("E-mail do responsável")
+    || params.resumo.includes("Celular do responsável")
     || !contatoResponsavel
       ? params.resumo
-      : [params.resumo, "", "Contato do responsavel:", contatoResponsavel].join("\n");
+      : [params.resumo, "", "Contato do responsável:", contatoResponsavel].join("\n");
 
   const conteudo = [
     "Prezados,",
@@ -389,37 +425,41 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
     carteiraNome,
   ].join("\n");
 
-  await inserirMensagemEmail(supabase, {
-    carteira_id: params.carteiraId,
-    acordo_id: params.acordoId,
-    cobranca_id: params.cobrancaId,
-    destinatario,
-    assunto: "Solicitação de emissão de boletos - acordo aprovado",
-    conteudo,
-    origem_evento: "acordo_boletos_administradora",
-    payload: {
-      administradora_id: params.administradoraId ?? null,
-      administradora_acesso_gerar_acordo: administradoraAcessoGerarAcordo,
-      destinatario_obrigatorio: false,
-    },
-  });
+  if (!((mensagemExistente ?? []) as any[]).length) {
+    await inserirMensagemEmail(supabase, {
+      carteira_id: params.carteiraId,
+      acordo_id: params.acordoId,
+      cobranca_id: params.cobrancaId,
+      destinatario,
+      assunto: "Solicitação de emissão de boletos - acordo aprovado",
+      conteudo,
+      origem_evento: "acordo_boletos_administradora",
+      payload: {
+        administradora_id: params.administradoraId ?? null,
+        administradora_acesso_gerar_acordo: administradoraAcessoGerarAcordo,
+        destinatario_obrigatorio: false,
+      },
+    });
+  }
 
-  await supabase.from("central_pendencias").insert({
-    carteira_id: params.carteiraId,
-    origem: "acordo",
-    tipo: "emissao_boletos_acordo",
-    status: "aberta",
-    prioridade: "alta",
-    titulo: "Solicitar/acompanhar emissão dos boletos do acordo",
-    descricao: "Acordo aceito e liberado para emissão dos boletos pela administradora.",
-    entidade_tipo: "acordo",
-    entidade_id: params.acordoId,
-    condominio_id: params.condominioId,
-    unidade_id: params.unidadeId,
-    cobranca_id: params.cobrancaId,
-    acordo_id: params.acordoId,
-    administradora_id: params.administradoraId ?? null,
-  });
+  if (!((pendenciaExistente ?? []) as any[]).length) {
+    await supabase.from("central_pendencias").insert({
+      carteira_id: params.carteiraId,
+      origem: "acordo",
+      tipo: "emissao_boletos_acordo",
+      status: "aberta",
+      prioridade: "alta",
+      titulo: "Solicitar/acompanhar emissão dos boletos do acordo",
+      descricao: "Acordo aceito e liberado para emissão dos boletos pela administradora.",
+      entidade_tipo: "acordo",
+      entidade_id: params.acordoId,
+      condominio_id: params.condominioId,
+      unidade_id: params.unidadeId,
+      cobranca_id: params.cobrancaId,
+      acordo_id: params.acordoId,
+      administradora_id: params.administradoraId ?? null,
+    });
+  }
 
   await supabase.from("acordos").update({
     boletos_solicitados_em: new Date().toISOString(),
@@ -476,7 +516,7 @@ function assertContatoResponsavelAcordo(unidade: any) {
   const contato = getContatoResponsavelAcordo(unidade);
   if (!contato.acionavel) {
     throw new Error(
-      "Nao e possivel gerar acordo sem responsavel acionavel. Atualize nome e e-mail ou celular do responsavel da unidade antes de criar o acordo.",
+      "Não é possível gerar acordo sem responsável acionável. Atualize nome e e-mail ou celular do responsável da unidade antes de criar o acordo.",
     );
   }
 
@@ -511,7 +551,7 @@ export async function salvarContatoResponsavelAcordo(formData: FormData) {
     ? returnTo
     : "/app/acordos";
 
-  if (!unidadeId) throw new Error("Unidade obrigatoria para salvar o contato.");
+  if (!unidadeId) throw new Error("Unidade obrigatória para salvar o contato.");
 
   const { data: unidadeAtual, error: unidadeError } = await supabase
     .from("unidades")
@@ -520,7 +560,7 @@ export async function salvarContatoResponsavelAcordo(formData: FormData) {
     .maybeSingle();
 
   if (unidadeError) throw new Error(`Erro ao carregar unidade: ${unidadeError.message}`);
-  if (!unidadeAtual) throw new Error("Unidade nao encontrada.");
+  if (!unidadeAtual) throw new Error("Unidade não encontrada.");
 
   assertCarteiraPermitida(scope, (unidadeAtual as any).carteira_id);
 
@@ -536,7 +576,7 @@ export async function salvarContatoResponsavelAcordo(formData: FormData) {
     .eq("id", unidadeId);
 
   if (updateError) {
-    throw new Error(`Erro ao salvar contato do responsavel: ${updateError.message}`);
+    throw new Error(`Erro ao salvar contato do responsável: ${updateError.message}`);
   }
 
   await registrarEventoOperacional(supabase as any, {
@@ -544,8 +584,8 @@ export async function salvarContatoResponsavelAcordo(formData: FormData) {
     entidadeTipo: "unidade",
     entidadeId: unidadeId,
     eventoCodigo: "unidade.contato_responsavel_atualizado_acordo",
-    titulo: "Contato do responsavel atualizado no acordo",
-    descricao: responsavelNome || "Contato ajustado durante a criacao do acordo.",
+    titulo: "Contato do responsável atualizado no acordo",
+    descricao: responsavelNome || "Contato ajustado durante a criação do acordo.",
     severidade: "info",
     payload: { antes: unidadeAtual, depois: patch, origem: "novo_acordo" },
     origem: "manual",
@@ -2126,7 +2166,7 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
   if ((termo as any).status === "aceito") redirect(`/${tipoAceite === "sindico" ? "aceite-sindico" : "aceite-acordo"}/${token}?aceito=1`);
 
   if (!["pendente", "visualizado"].includes(String((termo as any).status ?? ""))) {
-    throw new Error("Este termo nao esta mais disponível para aceite.");
+    throw new Error("Este termo não está mais disponível para aceite.");
   }
 
   const now = new Date().toISOString();
@@ -2236,9 +2276,9 @@ export async function registrarAceiteManualTermoAcordo(formData: FormData) {
   const documento = String(formData.get("documento") ?? "").trim();
   const observacao = String(formData.get("observacao") ?? "").trim();
 
-  if (!termoId) throw new Error("Termo obrigatorio para registrar aceite.");
-  if (!acordoId) throw new Error("Acordo obrigatorio para registrar aceite.");
-  if (!nome) throw new Error("Nome obrigatorio para registrar aceite manual.");
+  if (!termoId) throw new Error("Termo obrigatório para registrar aceite.");
+  if (!acordoId) throw new Error("Acordo obrigatório para registrar aceite.");
+  if (!nome) throw new Error("Nome obrigatório para registrar aceite manual.");
   if (!observacao) throw new Error("Informe a evidência do aceite manual.");
 
   const { data: termo, error: termoError } = await supabase
@@ -2251,14 +2291,14 @@ export async function registrarAceiteManualTermoAcordo(formData: FormData) {
     .maybeSingle();
 
   if (termoError) throw new Error(`Erro ao localizar termo: ${termoError.message}`);
-  if (!termo) throw new Error("Termo nao encontrado.");
+  if (!termo) throw new Error("Termo não encontrado.");
 
   const tipoAceite = String((termo as any).tipo_aceite ?? "");
   if (!["devedor", "sindico"].includes(tipoAceite)) {
-    throw new Error("Tipo de aceite do termo invalido.");
+    throw new Error("Tipo de aceite do termo inválido.");
   }
   if (tipoAceiteInformado && tipoAceiteInformado !== tipoAceite) {
-    throw new Error("Tipo de aceite informado nao confere com o termo.");
+    throw new Error("Tipo de aceite informado não confere com o termo.");
   }
 
   const carteiraScope = await getPermittedCarteiras();
@@ -2270,7 +2310,7 @@ export async function registrarAceiteManualTermoAcordo(formData: FormData) {
   }
 
   if (!["pendente", "visualizado"].includes(String((termo as any).status ?? ""))) {
-    throw new Error("Este termo nao esta mais disponível para aceite.");
+    throw new Error("Este termo não está mais disponível para aceite.");
   }
 
   const now = new Date().toISOString();
@@ -2413,8 +2453,8 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
     ? returnTo
     : "/app/gestao/acionamentos-acordos";
 
-  if (!termoId) throw new Error("Termo obrigatorio para registrar acionamento.");
-  if (!acordoId) throw new Error("Acordo obrigatorio para registrar acionamento.");
+  if (!termoId) throw new Error("Termo obrigatório para registrar acionamento.");
+  if (!acordoId) throw new Error("Acordo obrigatório para registrar acionamento.");
 
   const { data: termo, error: termoError } = await supabase
     .from("acordos_termos")
@@ -2424,7 +2464,7 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
     .maybeSingle();
 
   if (termoError) throw new Error(`Erro ao carregar termo: ${termoError.message}`);
-  if (!termo) throw new Error("Termo nao encontrado.");
+  if (!termo) throw new Error("Termo não encontrado.");
 
   const carteiraScope = await getPermittedCarteiras();
   assertCarteiraPermitida(carteiraScope, (termo as any).carteira_id);
@@ -2469,7 +2509,7 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
     }
 
     if (!mensagemAtualizada) {
-      throw new Error("Mensagem de acionamento nao encontrada para este acordo.");
+      throw new Error("Mensagem de acionamento não encontrada para este acordo.");
     }
   } else {
     const aceitePath = (termo as any).tipo_aceite === "sindico" ? "aceite-sindico" : "aceite-acordo";
@@ -2484,7 +2524,7 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
       `Link publico para aceite: ${link}`,
       "",
       "Atenciosamente,",
-      "GKLI Cobranca",
+      "GKLI Cobrança",
     ].join("\n");
 
     const { data: mensagemCriada, error: insertMensagemError } = await supabase
@@ -2548,6 +2588,7 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
 export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();
+  const scope = await getPermittedCarteiras();
   const supabase = await createClient();
 
   const acordoId = String(formData.get("acordo_id") ?? "").trim();
@@ -2566,6 +2607,7 @@ export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
 
   if (error) throw new Error(`Erro ao carregar acordo: ${error.message}`);
   if (!acordo) throw new Error("Acordo não encontrado.");
+  assertCarteiraPermitida(scope, (acordo as any).carteira_id);
 
   const now = new Date().toISOString();
   const update = decisao === "aprovar"
@@ -2598,6 +2640,7 @@ export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
 export async function atualizarStatusBoletosAcordo(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();
+  const scope = await getPermittedCarteiras();
   const supabase = await createClient();
 
   const acordoId = String(formData.get("acordo_id") ?? "").trim();
@@ -2613,6 +2656,7 @@ export async function atualizarStatusBoletosAcordo(formData: FormData) {
     .maybeSingle();
   if (error) throw new Error(`Erro ao carregar acordo: ${error.message}`);
   if (!acordo) throw new Error("Acordo não encontrado.");
+  assertCarteiraPermitida(scope, (acordo as any).carteira_id);
 
   const { error: updateError } = await supabase
     .from("acordos")
@@ -2647,10 +2691,10 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
   const supabase = await createClient();
 
   const acordoId = String(formData.get("acordo_id") ?? "").trim();
-  const motivo = String(formData.get("motivo") ?? "Devedor nao confirmou o aceite").trim();
+  const motivo = String(formData.get("motivo") ?? "Devedor não confirmou o aceite").trim();
   const observacao = String(formData.get("observacao") ?? "").trim();
 
-  if (!acordoId) throw new Error("Acordo obrigatorio.");
+  if (!acordoId) throw new Error("Acordo obrigatório.");
 
   const { data: acordo, error: acordoError } = await supabase
     .from("acordos")
@@ -2659,13 +2703,13 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
     .maybeSingle();
 
   if (acordoError) throw new Error(`Erro ao carregar acordo: ${acordoError.message}`);
-  if (!acordo) throw new Error("Acordo nao encontrado.");
+  if (!acordo) throw new Error("Acordo não encontrado.");
 
   assertCarteiraPermitida(scope, (acordo as any).carteira_id);
 
   const statusAtual = String((acordo as any).status ?? "");
   if (["cancelado", "quitado", "rompido", "quebrado"].includes(statusAtual)) {
-    throw new Error("Este acordo nao permite cancelamento da formalização.");
+    throw new Error("Este acordo não permite cancelamento da formalização.");
   }
 
   if ((acordo as any).devedor_aceito_em) {
@@ -2749,7 +2793,7 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
     entidadeId: acordoId,
     eventoCodigo: "acordo.formalizacao_cancelada",
     titulo: "Formalização cancelada",
-    descricao: [motivo || "Devedor nao confirmou o aceite", observacao || null].filter(Boolean).join(" - "),
+    descricao: [motivo || "Devedor não confirmou o aceite", observacao || null].filter(Boolean).join(" - "),
     severidade: "alerta",
     payload: { motivo, observacao, cobranca_ids: cobrancaIds },
     antes: {
@@ -2777,6 +2821,7 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
 export async function romperAcordoAssistido(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();
+  const scope = await getPermittedCarteiras();
   const supabase = await createClient();
 
   const acordoId = String(formData.get("acordo_id") ?? "").trim();
@@ -2794,6 +2839,7 @@ export async function romperAcordoAssistido(formData: FormData) {
     .maybeSingle();
   if (error) throw new Error(`Erro ao carregar acordo: ${error.message}`);
   if (!acordo) throw new Error("Acordo não encontrado.");
+  assertCarteiraPermitida(scope, (acordo as any).carteira_id);
 
   const { data: vinculadas } = await supabase
     .from("acordo_cobrancas")
