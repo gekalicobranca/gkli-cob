@@ -23,6 +23,13 @@ function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null
   }
 }
 
+function revalidateCobrancaViews(cobrancaId?: string | null, options: { cockpit?: boolean; dashboard?: boolean } = {}) {
+  if (cobrancaId) revalidatePath(`/app/cobrancas/${cobrancaId}`)
+  revalidatePath('/app/cobrancas')
+  if (options.cockpit) revalidatePath('/app/cockpit')
+  if (options.dashboard) revalidatePath('/app/dashboard')
+}
+
 async function assertCobrancaPermitida(
   supabase: Awaited<ReturnType<typeof createClient>>,
   scope: CarteiraScope,
@@ -143,9 +150,7 @@ export async function createCobranca(formData: FormData) {
     auditavel: true,
   })
 
-  revalidatePath('/app/cobrancas')
-  revalidatePath('/app')
-  revalidatePath('/app/dashboard')
+  revalidateCobrancaViews(null, { dashboard: true })
   redirect('/app/cobrancas')
 }
 
@@ -212,10 +217,7 @@ export async function updateCobrancaStatus(formData: FormData) {
     userId: user?.id ?? null,
   })
 
-  revalidatePath(`/app/cobrancas/${cobrancaId}`)
-  revalidatePath('/app/cobrancas')
-  revalidatePath('/app')
-  revalidatePath('/app/dashboard')
+  revalidateCobrancaViews(cobrancaId, { dashboard: true })
 }
 
 export async function updateCobrancasStatusEmLote(formData: FormData) {
@@ -296,9 +298,7 @@ export async function updateCobrancasStatusEmLote(formData: FormData) {
     ),
   )
 
-  revalidatePath('/app/cobrancas')
-  revalidatePath('/app')
-  revalidatePath('/app/dashboard')
+  revalidateCobrancaViews(null, { dashboard: true })
 }
 
 export async function updateCobrancaFinanceiro(formData: FormData) {
@@ -366,10 +366,7 @@ export async function updateCobrancaFinanceiro(formData: FormData) {
     auditavel: true,
   })
 
-  revalidatePath(`/app/cobrancas/${cobrancaId}`)
-  revalidatePath('/app/cobrancas')
-  revalidatePath('/app')
-  revalidatePath('/app/dashboard')
+  revalidateCobrancaViews(cobrancaId, { dashboard: true })
 }
 
 export async function createInteracaoCobranca(formData: FormData) {
@@ -427,9 +424,7 @@ export async function createInteracaoCobranca(formData: FormData) {
     userId: user.id,
   })
 
-  revalidatePath(`/app/cobrancas/${cobrancaId}`)
-  revalidatePath('/app/cobrancas')
-  revalidatePath('/app')
+  revalidateCobrancaViews(cobrancaId)
 }
 
 export async function agendarRetornoCobranca(formData: FormData) {
@@ -490,7 +485,5 @@ export async function agendarRetornoCobranca(formData: FormData) {
     userId: user.id,
   })
 
-  revalidatePath(`/app/cobrancas/${cobrancaId}`)
-  revalidatePath('/app/cockpit')
-  revalidatePath('/app/cobrancas')
+  revalidateCobrancaViews(cobrancaId, { cockpit: true })
 }
