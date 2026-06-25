@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, MessageSquareWarning } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, ExternalLink, MessageSquareWarning } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
@@ -36,7 +36,7 @@ function uniqueValues(rows: any[], field: string) {
 
 function matchesItem(item: any, filters: Record<string, string>) {
   const q = normalizeText(filters.q)
-  const haystack = normalizeText([item.tipo, item.titulo, item.descricao, item.status].filter(Boolean).join(' '))
+  const haystack = normalizeText([item.tipo, item.titulo, item.descricao, item.acao, item.status].filter(Boolean).join(' '))
 
   if (q && !haystack.includes(q)) return false
   if (filters.tipo && item.tipo !== filters.tipo) return false
@@ -50,6 +50,13 @@ function severityClass(severity: string) {
   if (severity === 'warning') return 'border-amber-200 bg-amber-50 text-amber-700'
   if (severity === 'ok') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
   return 'border-slate-200 bg-slate-50 text-slate-700'
+}
+
+function severityLabel(severity: string) {
+  if (severity === 'danger') return 'Crítica'
+  if (severity === 'warning') return 'Atenção'
+  if (severity === 'ok') return 'Ok'
+  return 'Neutra'
 }
 
 function MetricCard({ metric }: { metric: { label: string; value: number; description: string; severity: string } }) {
@@ -77,6 +84,26 @@ function MetricCard({ metric }: { metric: { label: string; value: number; descri
   )
 }
 
+function DistributionCard({ title, data }: { title: string; data: Record<string, number> }) {
+  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 6)
+
+  return (
+    <Card className="p-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{title}</p>
+      <div className="mt-4 space-y-3">
+        {entries.length === 0 ? (
+          <p className="text-sm text-slate-500">Sem dados no recorte atual.</p>
+        ) : entries.map(([status, total]) => (
+          <div key={status} className="flex items-center justify-between gap-3">
+            <StatusBadge status={status} />
+            <span className="text-sm font-semibold text-slate-950">{total}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 export default async function MensageriaSaneamentoPage({ searchParams }: MensageriaSaneamentoPageProps) {
   const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
@@ -97,7 +124,7 @@ export default async function MensageriaSaneamentoPage({ searchParams }: Mensage
       <PageHeader
         eyebrow="Mensageria"
         title="Saneamento operacional"
-        description="Fechamento do P3: monitore pendências, falhas, vínculos e lotes que precisam de revisão antes de avançar para BI/IA."
+        description="Monitore falhas, vínculos, contadores e lotes que precisam de revisão antes de avançar para BI, IA ou envio assistido."
         actions={
           <Link
             href="/app/mensageria"
@@ -121,7 +148,7 @@ export default async function MensageriaSaneamentoPage({ searchParams }: Mensage
           <ClearFiltersLink href="/app/mensageria/saneamento" show={hasFilters} />
         </ListTitleBar>
         <ListFiltersForm className="xl:grid-cols-[minmax(260px,1.2fr)_150px_160px_180px_auto]">
-          <ListSearchField defaultValue={filters.q} placeholder="Título, descrição, tipo ou status" />
+          <ListSearchField defaultValue={filters.q} placeholder="Título, ação sugerida, tipo ou status" />
           <ListFilterField label="Tipo">
             <Select name="tipo" defaultValue={filters.tipo}>
               <option value="">Todos</option>
@@ -176,16 +203,22 @@ export default async function MensageriaSaneamentoPage({ searchParams }: Mensage
               <Link
                 key={`${item.tipo}-${item.id}-${item.titulo}`}
                 href={item.href ?? '/app/mensageria'}
-                className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[1fr_150px_160px] xl:items-center"
+                className="grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[minmax(0,1fr)_150px_150px_120px] xl:items-center"
               >
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full border px-2.5 py-1 text-xs ${severityClass(item.severity)}`}>
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${severityClass(item.severity)}`}>
+                      {severityLabel(item.severity)}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
                       {item.tipo}
                     </span>
                     <p className="text-sm font-semibold text-slate-950">{item.titulo}</p>
                   </div>
                   <p className="mt-2 text-sm text-slate-500">{item.descricao}</p>
+                  {item.acao ? (
+                    <p className="mt-2 text-sm font-medium text-slate-700">Ação sugerida: {item.acao}</p>
+                  ) : null}
                 </div>
 
                 <div>
@@ -195,6 +228,11 @@ export default async function MensageriaSaneamentoPage({ searchParams }: Mensage
                 <p className="text-sm text-slate-500">
                   {item.created_at ? formatDateBR(item.created_at) : 'Sem data'}
                 </p>
+
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--gkli-primary)]">
+                  Abrir
+                  <ExternalLink size={14} />
+                </span>
               </Link>
             ))}
           </div>
@@ -202,24 +240,9 @@ export default async function MensageriaSaneamentoPage({ searchParams }: Mensage
       </Card>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Status mensagens</p>
-          <pre className="mt-4 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-slate-100">
-            {JSON.stringify(data.statusMensagens, null, 2)}
-          </pre>
-        </Card>
-        <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Status operacional</p>
-          <pre className="mt-4 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-slate-100">
-            {JSON.stringify(data.statusOperacional, null, 2)}
-          </pre>
-        </Card>
-        <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Status lotes</p>
-          <pre className="mt-4 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-slate-100">
-            {JSON.stringify(data.statusLotes, null, 2)}
-          </pre>
-        </Card>
+        <DistributionCard title="Status mensagens" data={data.statusMensagens} />
+        <DistributionCard title="Status operacional" data={data.statusOperacional} />
+        <DistributionCard title="Status lotes" data={data.statusLotes} />
       </section>
     </div>
   )

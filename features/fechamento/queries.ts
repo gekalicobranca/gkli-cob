@@ -6,6 +6,16 @@ function asNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function addDays(date: Date, days: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function toDateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
+
 export function formatCompetencia(value?: string | null) {
   if (!value) return '-'
   const [ano, mes] = value.split('-')
@@ -29,6 +39,33 @@ export async function listFechamentoPeriodos() {
   return (data ?? []) as FechamentoPeriodo[]
 }
 
+export async function getFechamentoPeriodoDefaults() {
+  const supabase = await createClient()
+  const today = new Date()
+
+  const { data, error } = await supabase
+    .from('fechamento_periodos')
+    .select('data_fechamento')
+    .neq('status', 'cancelado')
+    .order('data_fechamento', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Erro ao carregar sugestão de período: ${error.message}`)
+  }
+
+  const abertura = data?.data_fechamento
+    ? addDays(new Date(`${data.data_fechamento}T00:00:00`), 1)
+    : new Date(today.getFullYear(), today.getMonth(), 1)
+
+  return {
+    competencia: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`,
+    dataAbertura: toDateInputValue(abertura),
+    dataFechamento: toDateInputValue(today),
+  }
+}
+
 export async function getFechamentoPeriodo(id: string) {
   const supabase = await createClient()
 
@@ -49,7 +86,7 @@ export async function getFechamentoResumo(periodoId: string): Promise<Fechamento
   const supabase = await createClient()
 
   const [pagamentosResult, despesasResult, comissoesResult, faturamentoResult] = await Promise.all([
-    supabase.from('fechamento_pagamentos').select('valor_pago, divergencia', { count: 'exact' }).eq('periodo_id', periodoId),
+    supabase.from('fechamento_pagamentos').select('valor_pago, valor_recuperado, valor_base_cobranca, divergencia', { count: 'exact' }).eq('periodo_id', periodoId),
     supabase.from('fechamento_despesas').select('valor_despesa').eq('periodo_id', periodoId),
     supabase.from('fechamento_comissoes').select('valor_comissao').eq('periodo_id', periodoId),
     supabase.from('fechamento_faturamentos_omie').select('valor_faturamento').eq('periodo_id', periodoId),
@@ -67,8 +104,11 @@ export async function getFechamentoResumo(periodoId: string): Promise<Fechamento
   const faturamentos = faturamentoResult.data ?? []
 
   return {
+    acordos: pagamentosResult.count ?? pagamentos.length,
     pagamentos: pagamentosResult.count ?? pagamentos.length,
     valorPago: pagamentos.reduce((sum: number, row: any) => sum + asNumber(row.valor_pago), 0),
+    valorRecuperado: pagamentos.reduce((sum: number, row: any) => sum + asNumber(row.valor_recuperado), 0),
+    valorBaseCobranca: pagamentos.reduce((sum: number, row: any) => sum + asNumber(row.valor_base_cobranca), 0),
     despesas: despesas.reduce((sum: number, row: any) => sum + asNumber(row.valor_despesa), 0),
     comissoes: comissoes.reduce((sum: number, row: any) => sum + asNumber(row.valor_comissao), 0),
     faturamento: faturamentos.reduce((sum: number, row: any) => sum + asNumber(row.valor_faturamento), 0),
@@ -83,7 +123,7 @@ export async function listFechamentoPagamentos(periodoId: string) {
     .from('fechamento_pagamentos')
     .select(`
       *,
-      acordos:acordo_id (id, status, valor_acordado),
+      acordos:acordo_id (id, status, valor_acordado, entrada, quantidade_parcelas),
       parcelas:parcela_id (id, numero, vencimento, valor),
       condominios:condominio_id (id, nome),
       unidades:unidade_id (id, bloco, identificacao, responsavel_nome),
@@ -93,7 +133,7 @@ export async function listFechamentoPagamentos(periodoId: string) {
     .order('data_pagamento', { ascending: true })
 
   if (error) {
-    throw new Error(`Erro ao carregar pagamentos do fechamento: ${error.message}`)
+    throw new Error(`Erro ao carregar acordos do fechamento: ${error.message}`)
   }
 
   return data ?? []
@@ -110,6 +150,38 @@ export async function listFechamentoDespesas(periodoId: string) {
 
   if (error) {
     throw new Error(`Erro ao carregar despesas do fechamento: ${error.message}`)
+  }
+
+  return data ?? []
+}
+
+export async function listFechamentoOperadores(periodoId: string) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('fechamento_operadores')
+    .select('*, profiles:operador_id (id, nome, email), carteiras:carteira_id (id, nome)')
+    .eq('periodo_id', periodoId)
+    .order('valor_recuperado', { ascending: false })
+
+  if (error && error.code !== '42P01') {
+    throw new Error(`Erro ao carregar apuração por operador: ${error.message}`)
+  }
+
+  return data ?? []
+}
+
+export async function listFechamentoCarteiras(periodoId: string) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('fechamento_carteiras')
+    .select('*, carteiras:carteira_id (id, nome)')
+    .eq('periodo_id', periodoId)
+    .order('valor_recuperado', { ascending: false })
+
+  if (error && error.code !== '42P01') {
+    throw new Error(`Erro ao carregar apuração por carteira: ${error.message}`)
   }
 
   return data ?? []

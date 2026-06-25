@@ -10,7 +10,7 @@ import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import { requireGestor } from '@/utils/auth/require-gestor'
 import { criarFechamentoPeriodo } from '@/features/fechamento/actions'
-import { formatCompetencia, listFechamentoPeriodos } from '@/features/fechamento/queries'
+import { formatCompetencia, getFechamentoPeriodoDefaults, listFechamentoPeriodos } from '@/features/fechamento/queries'
 
 function statusClass(status: string) {
   if (status === 'faturado') return 'bg-emerald-50 text-emerald-700'
@@ -23,7 +23,10 @@ function statusClass(status: string) {
 
 export default async function FechamentoMensalPage() {
   await requireGestor()
-  const periodos = await listFechamentoPeriodos()
+  const [periodos, defaults] = await Promise.all([
+    listFechamentoPeriodos(),
+    getFechamentoPeriodoDefaults(),
+  ])
 
   const aberto = periodos.filter((periodo) => ['aberto', 'reaberto', 'em_conferencia'].includes(periodo.status)).length
   const faturado = periodos.filter((periodo) => periodo.status === 'faturado').length
@@ -34,8 +37,8 @@ export default async function FechamentoMensalPage() {
       <PageHeader
         eyebrow="Gestão"
         title="Fechamento mensal"
-        description="Períodos de apuração com datas definidas pelo gestor, base para repasse extrajudicial, Omie e comissões."
-        actions={<ButtonLink href="/app/dashboard" variant="secondary">Voltar</ButtonLink>}
+        description="Processamento de acordos realizados, repasses de despesas, apuração por operador e comissão por carteira."
+        actions={<ButtonLink href="/app/gestao" variant="secondary">Voltar</ButtonLink>}
       />
 
       <section className="grid gap-3 md:grid-cols-3">
@@ -75,7 +78,7 @@ export default async function FechamentoMensalPage() {
               <div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><FileSpreadsheet size={18} /></div>
               <div>
                 <h2 className="text-base font-medium text-slate-950">Períodos</h2>
-                <p className="mt-1 text-sm text-slate-500">Abra, confira, feche e marque como faturado.</p>
+                <p className="mt-1 text-sm text-slate-500">Abra, processe, confira, feche e marque como faturado.</p>
               </div>
             </div>
           </div>
@@ -98,7 +101,7 @@ export default async function FechamentoMensalPage() {
                   <p className="mt-1 truncate text-xs text-slate-500">Conferência até {formatDateBR(periodo.data_limite_conferencia)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Despesas / Comissões</p>
+                  <p className="text-xs text-slate-400">Despesas / Comissão</p>
                   <p className="text-sm font-medium text-slate-800">{formatCurrency(Number(periodo.total_despesas_cobranca ?? 0))} · {formatCurrency(Number(periodo.total_comissoes ?? 0))}</p>
                 </div>
                 <div className="text-right">
@@ -114,24 +117,24 @@ export default async function FechamentoMensalPage() {
           <div className="mb-4 flex items-center gap-3">
             <div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><Plus size={18} /></div>
             <div>
-              <h2 className="text-base font-medium text-slate-950">Novo período</h2>
-              <p className="mt-1 text-sm text-slate-500">O gestor define as datas.</p>
+              <h2 className="text-base font-medium text-slate-950">Novo fechamento</h2>
+              <p className="mt-1 text-sm text-slate-500">Abertura sugerida pelo D+1 do fechamento anterior.</p>
             </div>
           </div>
 
           <form action={criarFechamentoPeriodo} className="space-y-3">
             <label className="block text-sm font-medium text-slate-700">
               Competência
-              <Input name="competencia" type="month" required className="mt-1" />
+              <Input name="competencia" type="month" defaultValue={defaults.competencia} required className="mt-1" />
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-sm font-medium text-slate-700">
-                Abertura
-                <Input name="data_abertura" type="date" required className="mt-1" />
+                De
+                <Input name="data_abertura" type="date" defaultValue={defaults.dataAbertura} required className="mt-1" />
               </label>
               <label className="block text-sm font-medium text-slate-700">
-                Fechamento
-                <Input name="data_fechamento" type="date" required className="mt-1" />
+                Até
+                <Input name="data_fechamento" type="date" defaultValue={defaults.dataFechamento} required className="mt-1" />
               </label>
             </div>
             <label className="block text-sm font-medium text-slate-700">
@@ -142,7 +145,7 @@ export default async function FechamentoMensalPage() {
               Observações
               <Textarea name="observacoes" rows={3} className="mt-1" placeholder="Critérios, exceções ou orientação da competência." />
             </label>
-            <Button type="submit" className="w-full">Criar período</Button>
+            <Button type="submit" className="w-full">Criar fechamento</Button>
           </form>
         </Card>
       </section>

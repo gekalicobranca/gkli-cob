@@ -26,8 +26,11 @@ export type FechamentoPeriodo = {
 }
 
 export type FechamentoResumo = {
+  acordos: number
   pagamentos: number
   valorPago: number
+  valorRecuperado: number
+  valorBaseCobranca: number
   despesas: number
   comissoes: number
   faturamento: number
