@@ -68,6 +68,15 @@ async function destinatarioBloqueado(supabase: ReturnType<typeof createAdminClie
   return data as any
 }
 
+function applyEscopoMesmoDebito(query: any, ctx: ReguaComplianceContext) {
+  let scoped = query
+
+  scoped = ctx.condominioId ? scoped.eq('condominio_id', ctx.condominioId) : scoped.is('condominio_id', null)
+  scoped = ctx.unidadeId ? scoped.eq('unidade_id', ctx.unidadeId) : scoped.is('unidade_id', null)
+
+  return scoped
+}
+
 export async function avaliarComplianceRegua(ctx: ReguaComplianceContext): Promise<ReguaComplianceResult> {
   const canal = ctx.canal ?? 'whatsapp'
   if (canal === 'manual') return { permitido: true, regra: 'canal_manual' }
@@ -98,24 +107,28 @@ export async function avaliarComplianceRegua(ctx: ReguaComplianceContext): Promi
     const desde = new Date(agora)
     desde.setMinutes(desde.getMinutes() - Number(regra?.intervalo_minimo_minutos ?? DEFAULT_MIN_INTERVAL_MINUTES))
 
-    const { count: intervaloCount, error: intervaloError } = await supabase
+    // Ballpark: depois evoluir para agrupamento por contato quando o mesmo
+    // destinatario tiver unidades/condominios diferentes no mesmo ciclo.
+    const intervaloQuery = supabase
       .from('mensagens')
       .select('id', { count: 'exact', head: true })
       .eq('destinatario', ctx.destinatario)
       .eq('canal', canal)
       .gte('created_at', desde.toISOString())
+    const { count: intervaloCount, error: intervaloError } = await applyEscopoMesmoDebito(intervaloQuery, ctx)
 
     if (intervaloError && intervaloError.code !== '42P01') throw new Error(`Erro ao validar intervalo mínimo: ${intervaloError.message}`)
     if ((intervaloCount ?? 0) > 0) {
       return { permitido: false, motivo: 'Compliance: intervalo mínimo entre contatos ainda não foi cumprido.', regra: 'intervalo_minimo' }
     }
 
-    const { count: diarioCount, error: diarioError } = await supabase
+    const diarioQuery = supabase
       .from('mensagens')
       .select('id', { count: 'exact', head: true })
       .eq('destinatario', ctx.destinatario)
       .eq('canal', canal)
       .gte('created_at', `${sameDayIso(agora)}T00:00:00.000Z`)
+    const { count: diarioCount, error: diarioError } = await applyEscopoMesmoDebito(diarioQuery, ctx)
 
     if (diarioError && diarioError.code !== '42P01') throw new Error(`Erro ao validar limite diário: ${diarioError.message}`)
     if ((diarioCount ?? 0) >= Number(regra?.limite_diario_destinatario ?? DEFAULT_DAILY_LIMIT_PER_DESTINATARIO)) {
