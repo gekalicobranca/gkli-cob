@@ -208,7 +208,7 @@ export async function listUnidadesPage(
   async function buildQuery(withCount: boolean) {
     let query = supabase
       .from('unidades')
-      .select(UNIDADE_SELECT, withCount ? { count: 'exact' } : undefined)
+      .select(UNIDADE_SELECT, withCount ? { count: 'planned' } : undefined)
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyUnidadeFilters(query, scope, normalized)).query
@@ -219,7 +219,6 @@ export async function listUnidadesPage(
   let { data, error, count } = await buildQuery(true)
 
   if (error) {
-    console.error('Erro ao carregar unidades com contagem exata:', error)
     const retry = await buildQuery(false)
     data = retry.data
     error = retry.error

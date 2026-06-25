@@ -312,7 +312,7 @@ export async function listCobrancasPage(
         ultima_interacao_at,
         condominios(nome),
         unidades(identificacao, bloco, responsavel_nome)
-      `, withCount ? { count: 'exact' } : undefined)
+      `, withCount ? { count: 'planned' } : undefined)
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
@@ -323,7 +323,6 @@ export async function listCobrancasPage(
   let { data, error, count } = await buildQuery(true)
 
   if (error) {
-    console.error('Erro ao carregar cobrancas com contagem exata:', error)
     const retry = await buildQuery(false)
     data = retry.data
     error = retry.error
