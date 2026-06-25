@@ -378,7 +378,7 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
   const conteudo = [
     "Prezados,",
     "",
-    "Solicitamos a emissao dos boletos do acordo abaixo, conforme plano formalizado e aceites registrados:",
+    "Solicitamos a emissão dos boletos do acordo abaixo, conforme plano formalizado e aceites registrados:",
     "",
     resumoComContato,
     "",
@@ -2091,7 +2091,7 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
   const token = String(formData.get("token") ?? "").trim();
   const nome = String(formData.get("nome") ?? "").trim();
   const documento = String(formData.get("documento") ?? "").trim();
-  const tipoAceite = String(formData.get("tipo_aceite") ?? "devedor").trim();
+  const tipoAceiteInformado = String(formData.get("tipo_aceite") ?? "").trim();
 
   if (!token) throw new Error("Token de aceite obrigatório.");
   if (!nome) throw new Error("Nome obrigatório para formalizar o aceite.");
@@ -2115,10 +2115,18 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
 
   if (termoError) throw new Error(`Erro ao localizar termo: ${termoError.message}`);
   if (!termo) throw new Error("Termo não encontrado ou link inválido.");
+  const tipoAceite = String((termo as any).tipo_aceite ?? "").trim();
+  if (!["devedor", "sindico"].includes(tipoAceite)) {
+    throw new Error("Tipo de aceite do termo inválido.");
+  }
+  if (tipoAceiteInformado && tipoAceiteInformado !== tipoAceite) {
+    throw new Error("Tipo de aceite informado não confere com o termo.");
+  }
+
   if ((termo as any).status === "aceito") redirect(`/${tipoAceite === "sindico" ? "aceite-sindico" : "aceite-acordo"}/${token}?aceito=1`);
 
   if (!["pendente", "visualizado"].includes(String((termo as any).status ?? ""))) {
-    throw new Error("Este termo nao esta mais disponivel para aceite.");
+    throw new Error("Este termo nao esta mais disponível para aceite.");
   }
 
   const now = new Date().toISOString();
@@ -2231,7 +2239,7 @@ export async function registrarAceiteManualTermoAcordo(formData: FormData) {
   if (!termoId) throw new Error("Termo obrigatorio para registrar aceite.");
   if (!acordoId) throw new Error("Acordo obrigatorio para registrar aceite.");
   if (!nome) throw new Error("Nome obrigatorio para registrar aceite manual.");
-  if (!observacao) throw new Error("Informe a evidencia do aceite manual.");
+  if (!observacao) throw new Error("Informe a evidência do aceite manual.");
 
   const { data: termo, error: termoError } = await supabase
     .from("acordos_termos")
@@ -2262,7 +2270,7 @@ export async function registrarAceiteManualTermoAcordo(formData: FormData) {
   }
 
   if (!["pendente", "visualizado"].includes(String((termo as any).status ?? ""))) {
-    throw new Error("Este termo nao esta mais disponivel para aceite.");
+    throw new Error("Este termo nao esta mais disponível para aceite.");
   }
 
   const now = new Date().toISOString();
@@ -2317,7 +2325,7 @@ export async function registrarAceiteManualTermoAcordo(formData: FormData) {
     },
   });
 
-  if (aceiteError) throw new Error(`Erro ao salvar historico do aceite: ${aceiteError.message}`);
+  if (aceiteError) throw new Error(`Erro ao salvar histórico do aceite: ${aceiteError.message}`);
 
   if (tipoAceite === "sindico") {
     await supabase
@@ -2344,8 +2352,8 @@ export async function registrarAceiteManualTermoAcordo(formData: FormData) {
       entidadeTipo: "acordo",
       entidadeId: acordoId,
       eventoCodigo: "acordo.sindico_aprovou_manual",
-      titulo: "Sindico aprovado manualmente",
-      descricao: "Aprovacao do sindico registrada manualmente com evidencia operacional.",
+      titulo: "Síndico aprovado manualmente",
+      descricao: "Aprovação do síndico registrada manualmente com evidência operacional.",
       severidade: "sucesso",
       payload: { termo_id: termoId, observacao },
       origem: "manual",
@@ -2657,11 +2665,11 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
 
   const statusAtual = String((acordo as any).status ?? "");
   if (["cancelado", "quitado", "rompido", "quebrado"].includes(statusAtual)) {
-    throw new Error("Este acordo nao permite cancelamento da formalizacao.");
+    throw new Error("Este acordo nao permite cancelamento da formalização.");
   }
 
   if ((acordo as any).devedor_aceito_em) {
-    throw new Error("O acordo ja possui aceite do devedor. Use o fluxo de rompimento, se necessario.");
+    throw new Error("O acordo já possui aceite do devedor. Use o fluxo de rompimento, se necessário.");
   }
 
   const { data: termos, error: termosError } = await supabase
@@ -2675,7 +2683,7 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
     (termo) => termo.tipo_aceite === "devedor" && termo.status === "aceito",
   );
   if (termoDevedorAceito) {
-    throw new Error("O acordo ja possui termo aceito pelo devedor. Use o fluxo de rompimento, se necessario.");
+    throw new Error("O acordo já possui termo aceito pelo devedor. Use o fluxo de rompimento, se necessário.");
   }
 
   const { data: parcelas, error: parcelasError } = await supabase
@@ -2689,7 +2697,7 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
     (parcela) => parcela.data_pagamento || ["paga", "pago", "quitada", "quitado"].includes(String(parcela.status ?? "").toLowerCase()),
   );
   if (possuiPagamento) {
-    throw new Error("Este acordo ja possui pagamento registrado. Use o fluxo de rompimento, se necessario.");
+    throw new Error("Este acordo já possui pagamento registrado. Use o fluxo de rompimento, se necessário.");
   }
 
   const { data: vinculadas } = await supabase
@@ -2740,7 +2748,7 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
     entidadeTipo: "acordo",
     entidadeId: acordoId,
     eventoCodigo: "acordo.formalizacao_cancelada",
-    titulo: "Formalizacao cancelada",
+    titulo: "Formalização cancelada",
     descricao: [motivo || "Devedor nao confirmou o aceite", observacao || null].filter(Boolean).join(" - "),
     severidade: "alerta",
     payload: { motivo, observacao, cobranca_ids: cobrancaIds },
