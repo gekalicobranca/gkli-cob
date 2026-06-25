@@ -176,7 +176,7 @@ export async function listMensageriaLogs(scope?: CarteiraScope): Promise<Mensage
     .from('mensageria_logs')
     .select('id,carteira_id,lote_id,lote_item_id,mensagem_id,evento,status_anterior,status_novo,descricao,payload,created_at')
     .order('created_at', { ascending: false })
-    .limit(200)
+    .limit(500)
 
   query = applyCarteiraScope(query, scope)
 

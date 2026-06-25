@@ -26,6 +26,8 @@ type MensagemEnvio = {
   carteira_id: string | null;
   lote_id: string | null;
   lote_item_id: string | null;
+  status: string | null;
+  status_operacional: string | null;
   canal: string | null;
   destinatario: string | null;
   conteudo: string | null;
@@ -69,6 +71,8 @@ async function getMensagemEnvio(supabase: SupabaseClient, id: string) {
       carteira_id,
       lote_id,
       lote_item_id,
+      status,
+      status_operacional,
       canal,
       destinatario,
       conteudo,
@@ -232,8 +236,14 @@ async function atualizarMensagemErro(
     lote_item_id: mensagem.lote_item_id,
     mensagem_id: mensagem.id,
     evento: "email_erro",
+    status_anterior: mensagem.status_operacional ?? mensagem.status,
     status_novo: MENSAGEM_STATUS.FALHA,
     descricao: message,
+    payload: {
+      canal: mensagem.canal,
+      destinatario: mensagem.destinatario,
+      tentativa: Number(mensagem.tentativas_envio ?? 0) + 1,
+    },
   });
 }
 
@@ -414,9 +424,14 @@ export async function enviarMensagemEmail(id: string) {
       lote_item_id: mensagem.lote_item_id,
       mensagem_id: mensagem.id,
       evento: "email_enviado",
-      status_anterior: "aprovada",
+      status_anterior: mensagem.status_operacional ?? mensagem.status,
       status_novo: MENSAGEM_STATUS.ENVIADA,
       descricao: `E-mail enviado para ${mensagem.destinatario}`,
+      payload: {
+        canal: mensagem.canal,
+        destinatario: mensagem.destinatario,
+        tentativa: Number(mensagem.tentativas_envio ?? 0) + 1,
+      },
     });
 
     await registrarEventoOperacional(supabase as any, {
@@ -472,11 +487,15 @@ export async function marcarMensagemWhatsappEnviada(id: string) {
     carteira_id: mensagem.carteira_id,
     lote_id: mensagem.lote_id,
     lote_item_id: mensagem.lote_item_id,
-    mensagem_id: mensagem.id,
-    evento: "whatsapp_web_enviado_manual",
-    status_anterior: "aprovada",
+      mensagem_id: mensagem.id,
+      evento: "whatsapp_web_enviado_manual",
+    status_anterior: mensagem.status_operacional ?? mensagem.status,
     status_novo: MENSAGEM_STATUS.ENVIADA,
     descricao: "Operador abriu no WhatsApp Web e marcou como enviado.",
+    payload: {
+      canal: mensagem.canal,
+      destinatario: mensagem.destinatario,
+    },
   });
 
   await registrarEventoOperacional(supabase as any, {
@@ -1013,6 +1032,12 @@ export async function excluirLoteMensagens(loteId: string) {
 export async function enviarLoteMensagens(loteId: string) {
   const supabase = await createClient();
 
+  const { data: lote } = await supabase
+    .from("lotes")
+    .select("id,carteira_id,status")
+    .eq("id", loteId)
+    .maybeSingle();
+
   const { data: mensagens, error } = await supabase
     .from("mensagens")
     .select("id,canal")
@@ -1028,11 +1053,36 @@ export async function enviarLoteMensagens(loteId: string) {
   }
 
   await recalcularStatusLote(loteId);
+
+  await logMensageria(supabase, {
+    carteira_id: (lote as any)?.carteira_id,
+    lote_id: loteId,
+    evento: "lote_envio_email_executado",
+    status_anterior: (lote as any)?.status,
+    descricao: `${mensagens?.length ?? 0} e-mail(s) aprovados processados no lote.`,
+    payload: {
+      total_emails_processados: mensagens?.length ?? 0,
+    },
+  });
+
   touchedPaths(loteId);
 }
 
 export async function reprocessarFalhasLote(loteId: string) {
   const supabase = await createClient();
+
+  const [{ data: lote }, { count: falhas }] = await Promise.all([
+    supabase
+      .from("lotes")
+      .select("id,carteira_id,status")
+      .eq("id", loteId)
+      .maybeSingle(),
+    supabase
+      .from("mensagens")
+      .select("id", { count: "exact", head: true })
+      .eq("lote_id", loteId)
+      .eq("status", MENSAGEM_STATUS.FALHA),
+  ]);
 
   const { error } = await supabase
     .from("mensagens")
@@ -1055,9 +1105,16 @@ export async function reprocessarFalhasLote(loteId: string) {
     .eq("status", LOTE_ITEM_STATUS.ERRO);
 
   await logMensageria(supabase, {
+    carteira_id: (lote as any)?.carteira_id,
     lote_id: loteId,
     evento: "lote_falhas_reprocessadas",
+    status_anterior: MENSAGEM_STATUS.FALHA,
     status_novo: MENSAGEM_STATUS.APROVADA,
+    descricao: `${falhas ?? 0} falha(s) recolocadas para envio.`,
+    payload: {
+      total_reprocessadas: falhas ?? 0,
+      status_lote_anterior: (lote as any)?.status ?? null,
+    },
   });
 
   touchedPaths(loteId);

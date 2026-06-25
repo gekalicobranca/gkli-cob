@@ -25,6 +25,7 @@ import { avaliarComplianceRegua } from "./compliance";
 import { verificarSuspensaoRegua } from "./suspension";
 import { salvarScoreRegua } from "./intelligence";
 import { resolveTemplateMensagem } from "@/features/mensageria/template-resolver";
+import { registrarLogMensageria } from "@/features/mensageria/engine/logs";
 import type { ReguaTom } from "../types";
 import {
   cicloReferencia,
@@ -398,6 +399,24 @@ async function criarItemLote(params: {
   if (error) {
     throw new Error(`Erro ao criar item do lote: ${error.message}`);
   }
+
+  await registrarLogMensageria(params.supabase, {
+    carteira_id: params.row.carteira_id,
+    lote_id: params.loteId,
+    lote_item_id: item?.id ?? null,
+    mensagem_id: params.mensagemId ?? null,
+    evento: `regua_cobranca_${params.status}`,
+    status_novo: params.status,
+    descricao: params.motivo ?? "Item de régua de cobrança registrado no lote.",
+    payload: {
+      cobranca_id: params.row.id,
+      condominio_id: condominio?.id ?? null,
+      unidade_id: unidade?.id ?? null,
+      fingerprint: params.fingerprint ?? null,
+      regua_etapa_id: params.reguaEtapaId ?? null,
+      ...(params.payload ?? {}),
+    },
+  });
 
   return item?.id ?? null;
 }
