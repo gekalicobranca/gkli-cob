@@ -10,6 +10,7 @@ import {
   PlayCircle,
   RotateCcw,
   SearchCheck,
+  Trash2,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
@@ -34,9 +35,16 @@ import {
 } from '@/components/layout/list-page'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getPendenciasResumo, listPendenciasOperacionais } from '@/features/pendencias/queries'
-import { iniciarTratamentoPendencia, reabrirPendencia, resolverPendencia } from '@/features/pendencias/actions'
+import {
+  iniciarTratamentoPendencia,
+  limparPendenciasEmLote,
+  reabrirPendencia,
+  resolverPendencia,
+  resolverPendenciasEmLote,
+} from '@/features/pendencias/actions'
 import type { PendenciaOperacional, PendenciaPrioridade, PendenciaStatus } from '@/features/pendencias/types'
 import { cn } from '@/lib/utils'
+import { PendenciasBulkSelect } from './pendencias-bulk-select'
 
 type SearchParams = Promise<{
   q?: string
@@ -44,6 +52,7 @@ type SearchParams = Promise<{
   prioridade?: string
   origem?: string
   tipo?: string
+  situacao?: string
   data_de?: string
   data_ate?: string
   ordenar?: string
@@ -157,12 +166,18 @@ function origemIcon(origem: string) {
 function filterPendencias(rows: PendenciaOperacional[], params: Awaited<SearchParams>) {
   const termo = normalizeText(params.q)
   const tipo = clean(params.tipo)
+  const situacao = clean(params.situacao)
   const dataDe = dateValue(params.data_de)
   const dataAte = dateValue(params.data_ate)
 
   return rows.filter((pendencia) => {
     const data = clean(pendencia.created_at).slice(0, 10)
     if (tipo && pendencia.tipo !== tipo) return false
+    if (situacao === 'ativas' && ['resolvida', 'cancelada'].includes(pendencia.status)) return false
+    if (situacao === 'atrasadas' && !isAtrasada(pendencia)) return false
+    if (situacao === 'com_prazo' && !pendencia.prazo_limite) return false
+    if (situacao === 'sem_prazo' && pendencia.prazo_limite) return false
+    if (situacao === 'sem_responsavel' && clean(pendencia.responsavel_nome)) return false
     if (dataDe && data < dataDe) return false
     if (dataAte && data > dataAte) return false
 
@@ -175,6 +190,14 @@ function filterPendencias(rows: PendenciaOperacional[], params: Awaited<SearchPa
         pendencia.responsavel_nome,
         pendencia.status,
         pendencia.prioridade,
+        pendencia.entidade_tipo,
+        pendencia.entidade_id,
+        pendencia.cobranca_id,
+        pendencia.acordo_id,
+        pendencia.condominio_id,
+        pendencia.unidade_id,
+        pendencia.administradora_id,
+        JSON.stringify(pendencia.payload ?? {}),
       ].filter(Boolean).join(' '))
       if (!haystack.includes(termo)) return false
     }
@@ -290,7 +313,18 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
   const tipo = formatTipo(pendencia.tipo)
 
   return (
-    <ListRow className="xl:grid-cols-[minmax(420px,1fr)_170px_210px_180px] xl:items-center">
+    <ListRow className="xl:grid-cols-[32px_minmax(420px,1fr)_170px_210px_180px] xl:items-center">
+      <div className="pt-1">
+        <input
+          form="pendencias-bulk-form"
+          data-pendencia-checkbox
+          type="checkbox"
+          name="pendencia_ids"
+          value={pendencia.id}
+          aria-label={`Selecionar pendência ${title}`}
+          className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]"
+        />
+      </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium', prioridadeClasses[pendencia.prioridade])}>
@@ -345,7 +379,7 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
   const statusAtual = params.status ?? 'todos'
   const origemAtual = params.origem ?? 'todos'
   const tipos = Array.from(new Set(basePendencias.map((pendencia) => pendencia.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  const hasFilters = Boolean(params.q || params.status || params.prioridade || params.origem || params.tipo || params.data_de || params.data_ate || params.ordenar)
+  const hasFilters = Boolean(params.q || params.status || params.prioridade || params.origem || params.tipo || params.situacao || params.data_de || params.data_ate || params.ordenar)
 
   return (
     <ListPage>
@@ -380,8 +414,8 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
             <ClearFiltersLink href="/app/pendencias" show={hasFilters} />
           </ListTitleBar>
 
-          <ListFiltersForm className="xl:grid-cols-[minmax(220px,1fr)_150px_150px_170px_180px_155px_155px_190px_auto]">
-            <ListSearchField defaultValue={clean(params.q)} placeholder="Título, tipo, responsável..." />
+          <ListFiltersForm className="xl:grid-cols-[minmax(240px,1fr)_155px_150px_160px_170px_170px_150px_150px_180px_auto]">
+            <ListSearchField defaultValue={clean(params.q)} placeholder="Título, tipo, unidade, cobrança, acordo..." />
             <ListFilterField label="Status">
               <Select name="status" defaultValue={clean(params.status)}>
                 <option value="">Todos</option>
@@ -412,6 +446,16 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
                 {tipos.map((tipo) => <option key={tipo} value={tipo}>{formatTipo(tipo)}</option>)}
               </Select>
             </ListFilterField>
+            <ListFilterField label="Situação">
+              <Select name="situacao" defaultValue={clean(params.situacao)}>
+                <option value="">Todas</option>
+                <option value="ativas">Ativas</option>
+                <option value="atrasadas">Atrasadas</option>
+                <option value="com_prazo">Com prazo</option>
+                <option value="sem_prazo">Sem prazo</option>
+                <option value="sem_responsavel">Sem responsável</option>
+              </Select>
+            </ListFilterField>
             <ListFilterField label="Data início">
               <Input name="data_de" type="date" defaultValue={dateValue(params.data_de)} />
             </ListFilterField>
@@ -435,6 +479,7 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
 
           <div className="mt-3 flex flex-wrap gap-2">
             <FilterLink href="/app/pendencias" active={statusAtual === 'todos' && origemAtual === 'todos'}>Todas</FilterLink>
+            <FilterLink href="/app/pendencias?situacao=ativas" active={params.situacao === 'ativas'}>Ativas</FilterLink>
             <FilterLink href="/app/pendencias?status=aberta" active={statusAtual === 'aberta'}>Abertas</FilterLink>
             <FilterLink href="/app/pendencias?status=em_tratamento" active={statusAtual === 'em_tratamento'}>Em tratamento</FilterLink>
             <FilterLink href="/app/pendencias?prioridade=critica" active={params.prioridade === 'critica'}>Críticas</FilterLink>
@@ -442,6 +487,42 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
             <FilterLink href="/app/pendencias?origem=acordo" active={origemAtual === 'acordo'}>Acordos</FilterLink>
             <FilterLink href="/app/pendencias?origem=mensageria" active={origemAtual === 'mensageria'}>Mensageria</FilterLink>
           </div>
+
+          {pendencias.length > 0 ? (
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3 text-sm text-slate-600">
+                <PendenciasBulkSelect total={pendencias.length} />
+                <span>Selecionar pendências visíveis</span>
+                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200">{pendencias.length} na lista</span>
+              </div>
+              <form id="pendencias-bulk-form" className="flex flex-wrap gap-2">
+                <PendingSubmitButton
+                  formAction={async (formData) => {
+                    'use server'
+                    await resolverPendenciasEmLote(formData)
+                  }}
+                  size="sm"
+                  variant="primary"
+                  icon={<CheckCircle2 size={14} />}
+                  pendingLabel="Resolvendo..."
+                >
+                  Resolver selecionadas
+                </PendingSubmitButton>
+                <PendingSubmitButton
+                  formAction={async (formData) => {
+                    'use server'
+                    await limparPendenciasEmLote(formData)
+                  }}
+                  size="sm"
+                  variant="secondary"
+                  icon={<Trash2 size={14} />}
+                  pendingLabel="Limpando..."
+                >
+                  Limpar selecionadas
+                </PendingSubmitButton>
+              </form>
+            </div>
+          ) : null}
         </ListPanelHeader>
 
         {pendencias.length > 0 ? (
