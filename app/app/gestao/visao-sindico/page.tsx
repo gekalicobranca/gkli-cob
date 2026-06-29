@@ -211,6 +211,10 @@ export default async function VisaoSindicoPage() {
         description="Acompanhamento dos acordos que dependem do síndico, com fila de aprovação e termos públicos ativos."
         actions={
           <>
+            <ButtonLink href="/app/gestao/visao-sindico/acessos" variant="secondary">
+              <Home className="h-4 w-4" />
+              Acessos
+            </ButtonLink>
             <ButtonLink href="/app/gestao/acionamentos-acordos?tipo=sindico" variant="secondary">
               <ShieldCheck className="h-4 w-4" />
               Acionamentos

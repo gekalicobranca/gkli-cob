@@ -25,5 +25,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(url, { status: 303 })
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profile?.role === 'sindico') {
+      return NextResponse.redirect(getRedirectUrl(request, '/sindico'), { status: 303 })
+    }
+  }
+
   return NextResponse.redirect(getRedirectUrl(request, '/app'), { status: 303 })
 }
