@@ -3029,7 +3029,8 @@ export async function gerarHistoricoAcordosPreJuridico(formData: FormData) {
 }
 
 export async function gerarListaAdministradoraPreJuridico(formData: FormData) {
-  await registrarEtapaPreJuridico(formData, "listaAdministradora");
+  const acordoIds = await registrarEtapaPreJuridico(formData, "listaAdministradora");
+  redirect(`/api/acordos/pre-juridico/lista-administradora/pdf?ids=${encodeURIComponent(acordoIds.join(","))}`);
 }
 
 export async function gerarProcuracaoPreJuridico(formData: FormData) {

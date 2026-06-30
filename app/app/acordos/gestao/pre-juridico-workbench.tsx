@@ -158,14 +158,14 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
         </ActionCard>
         <ActionCard
           title="Lista para administradora"
-          description="Registra a lista operacional para conferência ou cobrança."
+          description="Gera um PDF com uma administradora por página e resumo por condomínio."
           icon={ClipboardList}
           action={gerarListaAdministradoraPreJuridico}
           selectedIds={selectedIds}
           disabled={selectedIds.length === 0}
-          pendingLabel="Gerando..."
+          pendingLabel="Gerando lista..."
         >
-          Gerar lista
+          Gerar lista PDF
         </ActionCard>
         <ActionCard
           title="Procuração"
