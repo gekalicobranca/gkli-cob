@@ -2955,6 +2955,7 @@ export async function romperAcordoAssistido(formData: FormData) {
   });
 
   revalidatePath("/app/acordos");
+  revalidatePath("/app/acordos/gestao");
   revalidatePath("/app/acordos/rompimentos");
   revalidatePath(`/app/acordos/${acordoId}`);
 }

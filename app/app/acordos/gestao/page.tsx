@@ -1,128 +1,320 @@
 import Link from 'next/link'
-import { AlertTriangle, ArrowUpRight, Banknote, FileText, Handshake, Inbox, ReceiptText, TrendingUp } from 'lucide-react'
-import { PageHeader } from '@/components/ui/page-header'
-import { Card } from '@/components/ui/card'
-import { ButtonLink } from '@/components/ui/button'
-import { CheckAcordosStatusButton } from '@/components/acordos/check-status-button'
-import { formatCurrency } from '@/utils/formatters/currency'
-import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { getAgreementPerformance, listAgreementExceptionInbox } from '@/features/acordos/queries'
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  BriefcaseBusiness,
+  FileText,
+  Filter,
+  Gavel,
+  RotateCcw,
+  Search,
+  ShieldAlert,
+  X,
+} from 'lucide-react'
 
-function Kpi({ title, value, detail, icon: Icon }: { title: string; value: string; detail: string; icon: React.ElementType }) {
+import { EmptyState } from '@/components/data/empty-state'
+import { StatusBadge } from '@/components/data/status-badge'
+import { Button, ButtonLink } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/ui/page-header'
+import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
+import { Select } from '@/components/ui/select'
+import { romperAcordoAssistido } from '@/features/acordos/actions'
+import { listRompimentosAcordos } from '@/features/acordos/queries'
+import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+import { formatCurrency } from '@/utils/formatters/currency'
+import { formatDateBR } from '@/utils/formatters/date'
+
+type SearchParams = Promise<{
+  q?: string
+  destino?: string
+  status?: string
+  ordenar?: string
+}>
+
+function clean(value: unknown) {
+  return String(value ?? '').trim()
+}
+
+function normalizeText(value: unknown) {
+  return clean(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function isPreJuridico(row: any) {
+  const fluxo = String(row.fluxo_status ?? '').toLowerCase()
+  const cobrancaStatus = String(row.cobrancas?.status_operacional ?? row.cobrancas?.status ?? '').toLowerCase()
+  return fluxo.includes('pre_juridico') || cobrancaStatus.includes('pre_juridico')
+}
+
+function isJudicializado(row: any) {
+  const fluxo = String(row.fluxo_status ?? '').toLowerCase()
+  const cobrancaStatus = String(row.cobrancas?.status_operacional ?? row.cobrancas?.status ?? '').toLowerCase()
+  return fluxo.includes('judicial') || cobrancaStatus.includes('judicial')
+}
+
+function isSuspenso(row: any) {
+  const fluxo = String(row.fluxo_status ?? '').toLowerCase()
+  const cobrancaStatus = String(row.cobrancas?.status_operacional ?? row.cobrancas?.status ?? '').toLowerCase()
+  return fluxo.includes('suspender') || fluxo.includes('suspenso') || cobrancaStatus.includes('suspenso')
+}
+
+function destinoOperacional(row: any) {
+  const fluxo = String(row.fluxo_status ?? '').toLowerCase()
+  if (isJudicializado(row)) return 'Judicializado'
+  if (isPreJuridico(row)) return 'Pré-jurídico'
+  if (isSuspenso(row)) return 'Suspenso'
+  if (fluxo.includes('retomar_cobranca')) return 'Retomar cobrança'
+  return 'A decidir'
+}
+
+function destinoTone(row: any) {
+  const destino = destinoOperacional(row)
+  if (destino === 'Pré-jurídico') return 'bg-violet-50 text-violet-700'
+  if (destino === 'Judicializado') return 'bg-rose-50 text-rose-700'
+  if (destino === 'Retomar cobrança') return 'bg-sky-50 text-sky-700'
+  if (destino === 'Suspenso') return 'bg-slate-100 text-slate-700'
+  return 'bg-amber-50 text-amber-700'
+}
+
+function isAcordoQuebradoOuRompido(row: any) {
+  const status = String(row.status ?? '').toLowerCase()
+  const financeiro = String(row.status_financeiro ?? '').toLowerCase()
+  return ['quebrado', 'rompido'].includes(status) || financeiro === 'vencido'
+}
+
+function filterRows(rows: any[], params: Awaited<SearchParams>) {
+  const termo = normalizeText(params.q)
+  const destino = clean(params.destino)
+  const status = clean(params.status)
+
+  return rows.filter((row) => {
+    if (status && row.status !== status && row.status_financeiro !== status) return false
+    if (destino) {
+      if (destino === 'pre_juridico' && !isPreJuridico(row)) return false
+      if (destino === 'judicializado' && !isJudicializado(row)) return false
+      if (destino === 'retomar_cobranca' && !String(row.fluxo_status ?? '').includes('retomar_cobranca')) return false
+      if (destino === 'suspenso' && !isSuspenso(row)) return false
+      if (destino === 'a_decidir' && destinoOperacional(row) !== 'A decidir') return false
+    }
+
+    if (termo) {
+      const haystack = normalizeText([
+        row.condominios?.nome,
+        row.unidades?.identificacao,
+        row.unidades?.bloco,
+        row.unidades?.responsavel_nome,
+        row.status,
+        row.status_financeiro,
+        row.fluxo_status,
+      ].filter(Boolean).join(' '))
+      if (!haystack.includes(termo)) return false
+    }
+
+    return true
+  })
+}
+
+function sortRows(rows: any[], ordenar: string) {
+  const field = ordenar || 'valor_desc'
+  return [...rows].sort((a, b) => {
+    if (field === 'valor_asc') return Number(a.valor_acordado ?? 0) - Number(b.valor_acordado ?? 0)
+    if (field === 'data_desc') return new Date(b.data_acordo ?? 0).getTime() - new Date(a.data_acordo ?? 0).getTime()
+    if (field === 'data_asc') return new Date(a.data_acordo ?? 0).getTime() - new Date(b.data_acordo ?? 0).getTime()
+    if (field === 'destino') return destinoOperacional(a).localeCompare(destinoOperacional(b), 'pt-BR')
+    if (field === 'condominio') return normalizeText(a.condominios?.nome).localeCompare(normalizeText(b.condominios?.nome), 'pt-BR')
+    return Number(b.valor_acordado ?? 0) - Number(a.valor_acordado ?? 0)
+  })
+}
+
+function ActionForm({
+  row,
+  destino,
+  label,
+  icon,
+  variant = 'secondary',
+}: {
+  row: any
+  destino: 'retomar_cobranca' | 'pre_juridico' | 'judicializar'
+  label: string
+  icon: React.ReactNode
+  variant?: 'primary' | 'secondary' | 'danger'
+}) {
+  return (
+    <form action={romperAcordoAssistido}>
+      <input type="hidden" name="acordo_id" value={row.id} />
+      <input type="hidden" name="destino" value={destino} />
+      <input type="hidden" name="motivo" value="Gestão de acordo quebrado/rompido" />
+      <PendingSubmitButton size="sm" variant={variant} icon={icon} pendingLabel="Atualizando...">
+        {label}
+      </PendingSubmitButton>
+    </form>
+  )
+}
+
+function Kpi({ label, value, detail, icon: Icon }: { label: string; value: string; detail: string; icon: React.ElementType }) {
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{title}</p>
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{label}</p>
           <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
           <p className="mt-1 text-[13px] text-slate-500">{detail}</p>
         </div>
-        <div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><Icon size={18} /></div>
+        <div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+          <Icon size={18} />
+        </div>
       </div>
     </Card>
   )
 }
 
-export default async function GestaoAcordosPage() {
+export default async function GestaoAcordosPage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams
   const scope = await getPermittedCarteiras()
-  const [metrics, exceptions] = await Promise.all([
-    getAgreementPerformance(scope),
-    listAgreementExceptionInbox(scope),
-  ])
-
-  const topExceptions = exceptions.slice(0, 5)
+  const baseRows = (await listRompimentosAcordos(scope)).filter(isAcordoQuebradoOuRompido)
+  const rows = sortRows(filterRows(baseRows, params), clean(params.ordenar))
+  const valorTotal = rows.reduce((sum: number, row: any) => sum + Number(row.valor_acordado ?? 0), 0)
+  const preJuridico = rows.filter(isPreJuridico)
+  const judicializados = rows.filter(isJudicializado)
+  const aDecidir = rows.filter((row) => destinoOperacional(row) === 'A decidir')
+  const hasFilters = Boolean(params.q || params.destino || params.status || params.ordenar)
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Acordos"
-        title="Gestão de acordos"
-        description="KPIs e exceções para acompanhar recuperação sem carregar a operação com telas pesadas."
+        title="Gestão de acordos rompidos"
+        description="Triagem de acordos quebrados, retomada operacional e encaminhamento para preparação pré-jurídica."
         actions={
           <>
             <ButtonLink href="/app/acordos" variant="secondary">Voltar</ButtonLink>
-            <ButtonLink href="/app/acordos/excecoes" variant="secondary"><Inbox size={16} />Exceções</ButtonLink>
-            <ButtonLink href="/app/acordos/aprovacoes" variant="secondary">Aprovações</ButtonLink>
-            <ButtonLink href="/app/acordos/boletos" variant="secondary">Boletos</ButtonLink>
-            <ButtonLink href="/app/gestao/acionamentos-acordos" variant="secondary">Acionamentos</ButtonLink>
+            <ButtonLink href="/app/acordos/rompimentos" variant="secondary">Lista antiga</ButtonLink>
           </>
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <Kpi title="Ativos" value={String(metrics.acordosAtivos)} detail="em acompanhamento" icon={Handshake} />
-        <Kpi title="Efetivados" value={String(metrics.acordosEfetivados)} detail={`${metrics.taxaEfetivacao}% de efetivação`} icon={TrendingUp} />
-        <Kpi title="Rompidos" value={String(metrics.acordosRompidos)} detail="exigem decisão operacional" icon={AlertTriangle} />
-        <Kpi title="Acordado" value={formatCurrency(metrics.valorAcordado)} detail="valor total negociado" icon={Banknote} />
-        <Kpi title="Recuperado" value={formatCurrency(metrics.valorRecuperado)} detail={`${metrics.taxaRecuperacao}% do valor acordado`} icon={ReceiptText} />
-        <Kpi title="Saldo aberto" value={formatCurrency(metrics.saldoAberto)} detail="acordado ainda não recebido" icon={FileText} />
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Kpi label="Acordos em risco" value={String(rows.length)} detail="rompidos, quebrados ou vencidos" icon={AlertTriangle} />
+        <Kpi label="Valor em risco" value={formatCurrency(valorTotal)} detail="saldo negociado a recuperar" icon={ShieldAlert} />
+        <Kpi label="Pré-jurídico" value={String(preJuridico.length)} detail="já encaminhados para documentação" icon={BriefcaseBusiness} />
+        <Kpi label="A decidir" value={String(aDecidir.length)} detail={`${judicializados.length} judicializado(s)`} icon={Gavel} />
       </section>
 
-      <section className="grid gap-3 md:grid-cols-3">
-        <Card className="p-4">
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Boletos pendentes</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-950">{metrics.boletosPendentes}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Aprovações</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-950">{metrics.aprovacoesPendentes}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Aceites</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-950">{metrics.aceitesPendentes}</p>
-        </Card>
-      </section>
-
-      <Card className="border-amber-200 bg-amber-50 p-4">
-        <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-center">
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <h2 className="text-base font-medium text-amber-950">Atualização operacional de status</h2>
-            <p className="mt-1 text-sm leading-6 text-amber-900">
-              Esta rotina marca parcelas vencidas, coloca acordos ativos em atraso e rompe acordos com mais de 15 dias de atraso, reativando as cobranças vinculadas.
-            </p>
+            <h2 className="text-base font-medium text-slate-950">Fila de decisão</h2>
+            <p className="mt-1 text-sm text-slate-500">Filtre acordos rompidos e escolha o próximo destino operacional.</p>
           </div>
-          <CheckAcordosStatusButton />
+          {hasFilters ? (
+            <ButtonLink href="/app/acordos/gestao" variant="secondary" size="sm">
+              <X size={15} />
+              Limpar
+            </ButtonLink>
+          ) : null}
         </div>
+
+        <form className="mt-4 grid gap-3 xl:grid-cols-[minmax(240px,1fr)_170px_160px_180px_auto] xl:items-end">
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>
+            <div className="relative">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input name="q" defaultValue={clean(params.q)} className="pl-9" placeholder="Condomínio, unidade, responsável..." />
+            </div>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Destino</span>
+            <Select name="destino" defaultValue={clean(params.destino)}>
+              <option value="">Todos</option>
+              <option value="a_decidir">A decidir</option>
+              <option value="retomar_cobranca">Retomar cobrança</option>
+              <option value="pre_juridico">Pré-jurídico</option>
+              <option value="judicializado">Judicializado</option>
+              <option value="suspenso">Suspenso</option>
+            </Select>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Status</span>
+            <Select name="status" defaultValue={clean(params.status)}>
+              <option value="">Todos</option>
+              <option value="quebrado">Quebrado</option>
+              <option value="rompido">Rompido</option>
+              <option value="vencido">Vencido</option>
+            </Select>
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Ordenar por</span>
+            <Select name="ordenar" defaultValue={clean(params.ordenar) || 'valor_desc'}>
+              <option value="valor_desc">Maior valor</option>
+              <option value="valor_asc">Menor valor</option>
+              <option value="data_desc">Mais recente</option>
+              <option value="data_asc">Mais antigo</option>
+              <option value="destino">Destino</option>
+              <option value="condominio">Condomínio</option>
+            </Select>
+          </label>
+          <Button type="submit">
+            <Filter size={16} />
+            Filtrar
+          </Button>
+        </form>
       </Card>
 
-      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <Card className="overflow-hidden p-0">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-base font-medium text-slate-950">Exceções prioritárias</h2>
-            <p className="mt-1 text-sm text-slate-500">Somente itens que pedem decisão da coordenação.</p>
+      <Card className="overflow-hidden p-0">
+        {rows.length === 0 ? (
+          <div className="p-5">
+            <EmptyState title="Sem acordos para encaminhar" description="Nenhum acordo rompido, quebrado ou vencido foi encontrado neste filtro." />
           </div>
+        ) : (
           <div className="divide-y divide-slate-100">
-            {topExceptions.length === 0 ? (
-              <div className="px-5 py-6 text-sm text-slate-500">Nenhuma exceção relevante agora.</div>
-            ) : topExceptions.map((item) => (
-              <Link key={item.id} href={`/app/acordos/${item.acordoId}`} className="group grid gap-3 px-5 py-4 transition hover:bg-slate-50 md:grid-cols-[1fr_130px_32px] md:items-center">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{item.tipo}</span>
-                    <span className={item.prioridade === 'Alta' ? 'rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700' : 'rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700'}>{item.prioridade}</span>
+            {rows.map((row: any) => {
+              const unidadeId = row.unidade_id ?? row.unidades?.id
+              return (
+                <div key={row.id} className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(320px,1.3fr)_160px_170px_300px] xl:items-center">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={row.status} />
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${destinoTone(row)}`}>{destinoOperacional(row)}</span>
+                    </div>
+                    <Link href={`/app/acordos/${row.id}`} className="mt-2 block truncate text-sm font-semibold text-slate-950 hover:text-[var(--gkli-primary)]">
+                      {row.condominios?.nome ?? 'Condomínio não informado'} · Unidade {row.unidades?.identificacao ?? '-'}
+                    </Link>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {row.unidades?.responsavel_nome ?? 'Responsável não informado'} · acordo em {formatDateBR(row.data_acordo)}
+                    </p>
                   </div>
-                  <p className="mt-2 truncate text-sm font-medium text-slate-950">{item.titulo}</p>
-                  <p className="mt-1 truncate text-xs text-slate-500">{item.descricao}</p>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado ?? 0))}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Cobrança</p>
+                    <p className="mt-1 text-sm text-slate-700">{String(row.cobrancas?.status_operacional ?? row.cobrancas?.status ?? '-').replace(/_/g, ' ')}</p>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {unidadeId ? (
+                      <ButtonLink href={`/app/unidades/${unidadeId}/laudo-pre-juridico`} variant="secondary" size="sm">
+                        <FileText size={14} />
+                        Laudo
+                      </ButtonLink>
+                    ) : null}
+                    <ActionForm row={row} destino="retomar_cobranca" label="Retomar" icon={<RotateCcw size={14} />} />
+                    <ActionForm row={row} destino="pre_juridico" label="Pré-jurídico" icon={<BriefcaseBusiness size={14} />} />
+                    <ActionForm row={row} destino="judicializar" label="Judicializar" icon={<Gavel size={14} />} variant="danger" />
+                    <ButtonLink href={`/app/acordos/${row.id}`} variant="ghost" size="sm">
+                      <ArrowUpRight size={14} />
+                    </ButtonLink>
+                  </div>
                 </div>
-                <p className="text-sm font-semibold text-slate-950">{formatCurrency(item.valor)}</p>
-                <ArrowUpRight size={16} className="text-slate-400 group-hover:text-[var(--gkli-primary)]" />
-              </Link>
-            ))}
+              )
+            })}
           </div>
-        </Card>
-
-        <Card className="p-4">
-          <h2 className="text-base font-medium text-slate-950">Relatórios</h2>
-          <p className="mt-1 text-sm text-slate-500">Leituras sintéticas com detalhe e impressão.</p>
-          <div className="mt-4 space-y-2">
-            <ButtonLink href="/app/relatorios/acordos-recuperacao" variant="secondary" className="w-full justify-start"><FileText size={16} />Recuperação</ButtonLink>
-            <ButtonLink href="/app/relatorios/acordos-rompimentos" variant="secondary" className="w-full justify-start"><AlertTriangle size={16} />Rompimentos</ButtonLink>
-            <ButtonLink href="/app/acordos/aprovacoes" variant="secondary" className="w-full justify-start"><FileText size={16} />Aprovações</ButtonLink>
-            <ButtonLink href="/app/acordos/boletos" variant="secondary" className="w-full justify-start"><ReceiptText size={16} />Boletos</ButtonLink>
-            <ButtonLink href="/app/gestao/acionamentos-acordos" variant="secondary" className="w-full justify-start"><FileText size={16} />Acionamentos</ButtonLink>
-          </div>
-        </Card>
-      </section>
+        )}
+      </Card>
     </div>
   )
 }
