@@ -1,4 +1,4 @@
-import { KeyRound, PlusCircle, ShieldCheck } from "lucide-react";
+import { KeyRound, PlusCircle } from "lucide-react";
 
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -53,16 +53,10 @@ export default async function SindicoAccessPage({
         title="Acessos dos sindicos"
         description="Crie o login do sindico e vincule o acesso aos condominios liberados para consulta."
         actions={
-          <>
-            <ButtonLink href="/app/gestao/visao-sindico" variant="secondary">
-              <ShieldCheck className="h-4 w-4" />
-              Visao do sindico
-            </ButtonLink>
-            <ButtonLink href="/sindico/login" target="_blank" variant="secondary">
-              <KeyRound className="h-4 w-4" />
-              Login do sindico
-            </ButtonLink>
-          </>
+          <ButtonLink href="/sindico/login" target="_blank" variant="secondary">
+            <KeyRound className="h-4 w-4" />
+            Login do sindico
+          </ButtonLink>
         }
       />
 
