@@ -2983,13 +2983,13 @@ async function registrarEtapaPreJuridico(formData: FormData, step: PreJuridicoSt
   const acordos = await carregarAcordosSelecionadosParaPreJuridico(supabase, acordoIds, scope);
 
   const titulos: Record<PreJuridicoStepKey, string> = {
-    historico: "Histórico do acordo gerado para o jurídico",
+    historico: "PDF pré-jurídico consolidado gerado",
     listaAdministradora: "Lista para administradora gerada",
     procuracao: "Procuração gerada para encaminhamento",
   };
 
   const descricoes: Record<PreJuridicoStepKey, string> = {
-    historico: "Relatório do acordo preparado para análise jurídica.",
+    historico: "Documento único gerado com uma unidade por página para análise jurídica.",
     listaAdministradora: "Lista de cobrança preparada para solicitação ou conferência junto à administradora.",
     procuracao: "Procuração preparada como etapa obrigatória do encaminhamento pré-jurídico.",
   };
@@ -3019,10 +3019,13 @@ async function registrarEtapaPreJuridico(formData: FormData, step: PreJuridicoSt
   revalidatePath("/app/acordos");
   revalidatePath("/app/acordos/gestao");
   for (const acordoId of acordoIds) revalidatePath(`/app/acordos/${acordoId}`);
+
+  return acordoIds;
 }
 
 export async function gerarHistoricoAcordosPreJuridico(formData: FormData) {
-  await registrarEtapaPreJuridico(formData, "historico");
+  const acordoIds = await registrarEtapaPreJuridico(formData, "historico");
+  redirect(`/api/acordos/pre-juridico/pdf?ids=${encodeURIComponent(acordoIds.join(","))}`);
 }
 
 export async function gerarListaAdministradoraPreJuridico(formData: FormData) {
@@ -3044,7 +3047,7 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
 
   const faltantes = acordos.filter((acordo) => !preJuridicoStepsCompletos(stepsPorAcordo.get(acordo.id)));
   if (faltantes.length > 0) {
-    throw new Error("Antes de alterar para pré-jurídico, gere o histórico do acordo, a lista para administradora e a procuração de todos os acordos selecionados.");
+    throw new Error("Antes de alterar para pré-jurídico, gere o PDF consolidado, a lista para administradora e a procuração de todos os acordos selecionados.");
   }
 
   const { data: vinculos, error: vinculosError } = await supabase

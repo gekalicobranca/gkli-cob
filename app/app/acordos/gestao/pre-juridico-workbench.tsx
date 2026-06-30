@@ -146,15 +146,15 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
     <div className="space-y-4">
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <ActionCard
-          title="Histórico do acordo"
-          description="Registra a geração do relatório para o jurídico."
+          title="Documento único"
+          description="Gera o PDF pré-jurídico, com uma unidade por página."
           icon={FileText}
           action={gerarHistoricoAcordosPreJuridico}
           selectedIds={selectedIds}
           disabled={selectedIds.length === 0}
-          pendingLabel="Gerando..."
+          pendingLabel="Gerando PDF..."
         >
-          Gerar histórico
+          Gerar PDF
         </ActionCard>
         <ActionCard
           title="Lista para administradora"
@@ -215,7 +215,6 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
             </div>
             <div className="divide-y divide-slate-100">
               {rows.map((row) => {
-                const unidadeId = row.unidade_id ?? row.unidades?.id
                 const steps = row.pre_juridico_steps
                 const parcelaQuebrada = row.parcelas_fora_janela?.[0]
                 return (
@@ -269,16 +268,11 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
 
                     <div className="flex flex-col gap-2">
                       <div className="flex flex-wrap gap-1.5">
-                        <StepMark checked={Boolean(steps?.historico)} label="Histórico" />
+                        <StepMark checked={Boolean(steps?.historico)} label="PDF" />
                         <StepMark checked={Boolean(steps?.listaAdministradora)} label="Lista" />
                         <StepMark checked={Boolean(steps?.procuracao)} label="Procuração" />
                       </div>
                       <div className="flex flex-wrap justify-end gap-2">
-                        {unidadeId ? (
-                          <ButtonLink href={`/app/unidades/${unidadeId}/laudo-pre-juridico`} variant="secondary" size="sm">
-                            Laudo
-                          </ButtonLink>
-                        ) : null}
                         <ButtonLink href={`/app/acordos/${row.id}`} variant="ghost" size="sm" aria-label="Abrir acordo">
                           <ArrowUpRight size={14} />
                         </ButtonLink>
