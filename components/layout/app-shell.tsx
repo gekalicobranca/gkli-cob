@@ -75,9 +75,6 @@ const sections: SidebarSection[] = [
     id: 'gestao',
     title: 'Gestão',
     items: [
-      { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
-      { label: 'Acessos síndicos', href: '/app/gestao/visao-sindico/acessos', icon: 'home' },
-      { label: 'Keila', href: '/app/gestao/keila', icon: 'robot' },
       { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
     ],
   },
@@ -121,6 +118,9 @@ const settingsGroups: SidebarSection[] = [
     id: 'lab',
     title: 'Lab',
     items: [
+      { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
+      { label: 'Acessos síndicos', href: '/app/gestao/visao-sindico/acessos', icon: 'home' },
+      { label: 'Keila', href: '/app/gestao/keila', icon: 'robot' },
       { label: 'Lab experimental', href: '/app/configuracoes/lab', icon: 'beaker' },
       { label: 'Lite legado', href: '/app/configuracoes/lab/lite', icon: 'spark' },
       { label: 'Mobile', href: '/app/configuracoes/lab/mobile', icon: 'mobile' },
