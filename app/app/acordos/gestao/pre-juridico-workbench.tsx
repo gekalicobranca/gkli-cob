@@ -169,14 +169,14 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
         </ActionCard>
         <ActionCard
           title="Procuração"
-          description="Registra a preparação da procuração vinculada aos acordos."
+          description="Gera uma procuração em PDF para cada acordo selecionado."
           icon={FileSignature}
           action={gerarProcuracaoPreJuridico}
           selectedIds={selectedIds}
           disabled={selectedIds.length === 0}
-          pendingLabel="Gerando..."
+          pendingLabel="Gerando procuração..."
         >
-          Gerar procuração
+          Gerar procuração PDF
         </ActionCard>
         <ActionCard
           title="Alterar status"
