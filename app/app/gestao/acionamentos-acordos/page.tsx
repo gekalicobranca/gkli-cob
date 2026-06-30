@@ -25,6 +25,7 @@ import {
   decidirAprovacaoSindicoAcordo,
   marcarBoletoReemissaoEnviado,
   registrarAcionamentoManualAcordo,
+  registrarAceiteManualTermoAcordo,
   registrarAjusteReemissaoParcelaAcordo,
   solicitarBoletoReemissaoAcordo,
 } from "@/features/acordos/actions";
@@ -145,6 +146,49 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
             Cancelar formalização
           </PendingSubmitButton>
         </form>
+      ) : null}
+      {canal === "devedor" ? (
+        <details className="w-full rounded-xl border border-emerald-100 bg-emerald-50/60 p-2 text-left">
+          <summary className="flex cursor-pointer list-none items-center justify-end gap-2 text-xs font-medium text-emerald-800">
+            <CheckCircle2 size={14} />
+            Registrar aceite
+          </summary>
+          <form action={registrarAceiteManualTermoAcordo} className="mt-3 grid gap-2">
+            <input type="hidden" name="acordo_id" value={row.acordoId} />
+            <input type="hidden" name="termo_id" value={row.termoId} />
+            <input type="hidden" name="tipo_aceite" value="devedor" />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input
+                name="nome"
+                defaultValue={row.destinatarioNome ?? ""}
+                required
+                placeholder="Nome do devedor"
+                className="h-9 rounded-lg border border-emerald-100 bg-white px-3 text-xs text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+              />
+              <input
+                name="documento"
+                placeholder="Documento, se houver"
+                className="h-9 rounded-lg border border-emerald-100 bg-white px-3 text-xs text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+              />
+            </div>
+            <Textarea
+              name="observacao"
+              required
+              placeholder="Evidência do aceite manual"
+              className="min-h-[68px] border-emerald-100 bg-white text-xs focus:border-emerald-500 focus:ring-emerald-500/15"
+            />
+            <div className="flex justify-end">
+              <PendingSubmitButton
+                size="sm"
+                variant="secondary"
+                icon={<CheckCircle2 size={14} />}
+                pendingLabel="Registrando..."
+              >
+                Confirmar aceite
+              </PendingSubmitButton>
+            </div>
+          </form>
+        </details>
       ) : null}
     </div>
   );
