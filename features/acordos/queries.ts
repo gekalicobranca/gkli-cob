@@ -3,6 +3,7 @@ import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import {
   COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO,
+  COBRANCA_STATUS_OPERACIONAIS_ATIVOS,
   COBRANCA_STATUS_JUDICIALIZACAO,
 } from "@/lib/constants/cobrancas";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
@@ -847,6 +848,118 @@ export async function listRompimentosAcordos(scope?: CarteiraScope) {
     ['quebrado', 'rompido', 'cancelado'].includes(String(acordo.status ?? '')) ||
     ['vencido'].includes(String(acordo.status_financeiro ?? ''))
   )
+}
+
+function diasAtrasoParcela(vencimento?: string | null) {
+  const diff = diffDaysFromToday(vencimento)
+  return diff !== null && diff < 0 ? Math.abs(diff) : 0
+}
+
+function isCobrancaAtivaParaVincenda(cobranca: any) {
+  const status = String(cobranca.status ?? '').toLowerCase()
+  const financeiro = String(cobranca.status_financeiro ?? '').toLowerCase()
+  if (['pago', 'paga', 'quitado', 'quitada', 'baixado', 'baixada', 'cancelado', 'cancelada'].includes(status)) return false
+  if (['pago', 'paga', 'quitado', 'quitada', 'baixado', 'baixada', 'cancelado', 'cancelada'].includes(financeiro)) return false
+  return (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[]).includes(getCobrancaStatusOperacional(cobranca))
+}
+
+export async function listAcordosQuebradosParaGestao(scope?: CarteiraScope) {
+  const acordos = (await listAcordos(scope) as any[]).filter((acordo) => {
+    const status = String(acordo.status ?? '').toLowerCase()
+    return !['quitado', 'cancelado', 'renegociado'].includes(status)
+  })
+  const acordoIds = acordos.map((acordo) => acordo.id).filter(Boolean)
+  if (acordoIds.length === 0) return []
+
+  const supabase = await createClient()
+  const [parcelas, vinculosResult] = await Promise.all([
+    getParcelasDosAcordos(acordoIds),
+    supabase
+      .from('acordo_cobrancas')
+      .select('acordo_id,cobranca_id')
+      .in('acordo_id', acordoIds),
+  ])
+
+  if (vinculosResult.error && vinculosResult.error.code !== '42P01') {
+    throw new Error(`Erro ao carregar cobranças dos acordos: ${vinculosResult.error.message}`)
+  }
+
+  const parcelasPorAcordo = new Map<string, any[]>()
+  for (const parcela of parcelas) {
+    const acordoId = parcela.acordo_id
+    if (!acordoId) continue
+    if (!parcelasPorAcordo.has(acordoId)) parcelasPorAcordo.set(acordoId, [])
+    parcelasPorAcordo.get(acordoId)!.push(parcela)
+  }
+
+  const cobrancaIdsPorAcordo = new Map<string, Set<string>>()
+  for (const acordo of acordos) {
+    cobrancaIdsPorAcordo.set(acordo.id, new Set(uniqueStrings([acordo.cobranca_id])))
+  }
+  for (const vinculo of (vinculosResult.data ?? []) as any[]) {
+    if (!vinculo.acordo_id || !vinculo.cobranca_id) continue
+    if (!cobrancaIdsPorAcordo.has(vinculo.acordo_id)) cobrancaIdsPorAcordo.set(vinculo.acordo_id, new Set())
+    cobrancaIdsPorAcordo.get(vinculo.acordo_id)!.add(vinculo.cobranca_id)
+  }
+
+  const unidadeIds = uniqueStrings(acordos.map((acordo) => acordo.unidade_id))
+  const condominioIds = uniqueStrings(acordos.map((acordo) => acordo.condominio_id))
+  let cobrancasDaBase: any[] = []
+
+  if (unidadeIds.length > 0 && condominioIds.length > 0) {
+    let cobrancasQuery = supabase
+      .from('cobrancas')
+      .select('id,carteira_id,condominio_id,unidade_id,competencia,vencimento,status,status_operacional,status_financeiro,valor_original,valor_atualizado')
+      .in('unidade_id', unidadeIds)
+      .in('condominio_id', condominioIds)
+
+    if (scope) {
+      cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
+    }
+
+    const { data, error } = await cobrancasQuery
+    if (error) throw new Error(`Erro ao carregar vincendas dos acordos: ${error.message}`)
+    cobrancasDaBase = (data ?? []) as any[]
+  }
+
+  const hoje = todayDateOnly()
+
+  return acordos
+    .map((acordo) => {
+      const diasReemissao = Number(acordo.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0)
+      const parcelasAbertas = (parcelasPorAcordo.get(acordo.id) ?? []).filter((parcela) => !isParcelaEncerrada(parcela))
+      const parcelasForaJanela = parcelasAbertas
+        .map((parcela) => ({ ...parcela, dias_atraso: diasAtrasoParcela(parcela.vencimento), dias_reemissao_permitidos: diasReemissao }))
+        .filter((parcela) => parcela.dias_atraso > diasReemissao)
+        .sort((a, b) => b.dias_atraso - a.dias_atraso)
+
+      const vinculadas = cobrancaIdsPorAcordo.get(acordo.id) ?? new Set<string>()
+      const vincendasForaAcordo = cobrancasDaBase
+        .filter((cobranca) => cobranca.condominio_id === acordo.condominio_id && cobranca.unidade_id === acordo.unidade_id)
+        .filter((cobranca) => !vinculadas.has(cobranca.id))
+        .filter(isCobrancaAtivaParaVincenda)
+        .filter((cobranca) => {
+          const vencimento = normalizeDateOnly(cobranca.vencimento)
+          return vencimento !== null && vencimento.getTime() >= hoje.getTime()
+        })
+        .sort((a, b) => (normalizeDateOnly(a.vencimento)?.getTime() ?? 0) - (normalizeDateOnly(b.vencimento)?.getTime() ?? 0))
+
+      const valorVincendas = vincendasForaAcordo.reduce(
+        (sum, cobranca) => sum + Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0),
+        0,
+      )
+
+      return {
+        ...acordo,
+        parcelas_fora_janela: parcelasForaJanela,
+        vincendas_fora_acordo: vincendasForaAcordo,
+        valor_vincendas_fora_acordo: valorVincendas,
+        valor_risco_operacional: Number(acordo.valor_acordado ?? 0) + valorVincendas,
+        motivo_quebra_parcela: parcelasForaJanela.length > 0,
+        motivo_quebra_vincendas: vincendasForaAcordo.length > 0,
+      }
+    })
+    .filter((acordo) => acordo.motivo_quebra_parcela || acordo.motivo_quebra_vincendas)
 }
 
 export type AgreementOperationalIntelligence = {

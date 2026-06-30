@@ -21,7 +21,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { Select } from '@/components/ui/select'
 import { romperAcordoAssistido } from '@/features/acordos/actions'
-import { listRompimentosAcordos } from '@/features/acordos/queries'
+import { listAcordosQuebradosParaGestao } from '@/features/acordos/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -80,12 +80,6 @@ function destinoTone(row: any) {
   return 'bg-amber-50 text-amber-700'
 }
 
-function isAcordoQuebradoOuRompido(row: any) {
-  const status = String(row.status ?? '').toLowerCase()
-  const financeiro = String(row.status_financeiro ?? '').toLowerCase()
-  return ['quebrado', 'rompido'].includes(status) || financeiro === 'vencido'
-}
-
 function filterRows(rows: any[], params: Awaited<SearchParams>) {
   const termo = normalizeText(params.q)
   const destino = clean(params.destino)
@@ -121,12 +115,12 @@ function filterRows(rows: any[], params: Awaited<SearchParams>) {
 function sortRows(rows: any[], ordenar: string) {
   const field = ordenar || 'valor_desc'
   return [...rows].sort((a, b) => {
-    if (field === 'valor_asc') return Number(a.valor_acordado ?? 0) - Number(b.valor_acordado ?? 0)
+    if (field === 'valor_asc') return Number(a.valor_risco_operacional ?? a.valor_acordado ?? 0) - Number(b.valor_risco_operacional ?? b.valor_acordado ?? 0)
     if (field === 'data_desc') return new Date(b.data_acordo ?? 0).getTime() - new Date(a.data_acordo ?? 0).getTime()
     if (field === 'data_asc') return new Date(a.data_acordo ?? 0).getTime() - new Date(b.data_acordo ?? 0).getTime()
     if (field === 'destino') return destinoOperacional(a).localeCompare(destinoOperacional(b), 'pt-BR')
     if (field === 'condominio') return normalizeText(a.condominios?.nome).localeCompare(normalizeText(b.condominios?.nome), 'pt-BR')
-    return Number(b.valor_acordado ?? 0) - Number(a.valor_acordado ?? 0)
+    return Number(b.valor_risco_operacional ?? b.valor_acordado ?? 0) - Number(a.valor_risco_operacional ?? a.valor_acordado ?? 0)
   })
 }
 
@@ -175,11 +169,12 @@ function Kpi({ label, value, detail, icon: Icon }: { label: string; value: strin
 export default async function GestaoAcordosPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
-  const baseRows = (await listRompimentosAcordos(scope)).filter(isAcordoQuebradoOuRompido)
+  const baseRows = await listAcordosQuebradosParaGestao(scope)
   const rows = sortRows(filterRows(baseRows, params), clean(params.ordenar))
-  const valorTotal = rows.reduce((sum: number, row: any) => sum + Number(row.valor_acordado ?? 0), 0)
-  const preJuridico = rows.filter(isPreJuridico)
+  const valorTotal = rows.reduce((sum: number, row: any) => sum + Number(row.valor_risco_operacional ?? row.valor_acordado ?? 0), 0)
   const judicializados = rows.filter(isJudicializado)
+  const porParcela = rows.filter((row: any) => row.motivo_quebra_parcela)
+  const comVincendas = rows.filter((row: any) => row.motivo_quebra_vincendas)
   const aDecidir = rows.filter((row) => destinoOperacional(row) === 'A decidir')
   const hasFilters = Boolean(params.q || params.destino || params.status || params.ordenar)
 
@@ -187,8 +182,8 @@ export default async function GestaoAcordosPage({ searchParams }: { searchParams
     <div className="space-y-5">
       <PageHeader
         eyebrow="Acordos"
-        title="Gestão de acordos rompidos"
-        description="Triagem de acordos quebrados, retomada operacional e encaminhamento para preparação pré-jurídica."
+        title="Gestão de acordos quebrados"
+        description="Acordos com parcela fora da janela de reemissão do condomínio ou com cotas vincendas fora do acordo."
         actions={
           <>
             <ButtonLink href="/app/acordos" variant="secondary">Voltar</ButtonLink>
@@ -198,17 +193,17 @@ export default async function GestaoAcordosPage({ searchParams }: { searchParams
       />
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Acordos em risco" value={String(rows.length)} detail="rompidos, quebrados ou vencidos" icon={AlertTriangle} />
-        <Kpi label="Valor em risco" value={formatCurrency(valorTotal)} detail="saldo negociado a recuperar" icon={ShieldAlert} />
-        <Kpi label="Pré-jurídico" value={String(preJuridico.length)} detail="já encaminhados para documentação" icon={BriefcaseBusiness} />
-        <Kpi label="A decidir" value={String(aDecidir.length)} detail={`${judicializados.length} judicializado(s)`} icon={Gavel} />
+        <Kpi label="Acordos quebrados" value={String(rows.length)} detail="somente quebras reais" icon={AlertTriangle} />
+        <Kpi label="Valor em risco" value={formatCurrency(valorTotal)} detail="acordo mais vincendas fora do acordo" icon={ShieldAlert} />
+        <Kpi label="Fora da janela" value={String(porParcela.length)} detail="parcela atrasada além da reemissão" icon={BriefcaseBusiness} />
+        <Kpi label="Com vincendas" value={String(comVincendas.length)} detail={`${aDecidir.length} a decidir · ${judicializados.length} judicializado(s)`} icon={Gavel} />
       </section>
 
       <Card className="p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <h2 className="text-base font-medium text-slate-950">Fila de decisão</h2>
-            <p className="mt-1 text-sm text-slate-500">Filtre acordos rompidos e escolha o próximo destino operacional.</p>
+            <p className="mt-1 text-sm text-slate-500">Filtre acordos quebrados e escolha o próximo destino operacional.</p>
           </div>
           {hasFilters ? (
             <ButtonLink href="/app/acordos/gestao" variant="secondary" size="sm">
@@ -267,7 +262,7 @@ export default async function GestaoAcordosPage({ searchParams }: { searchParams
       <Card className="overflow-hidden p-0">
         {rows.length === 0 ? (
           <div className="p-5">
-            <EmptyState title="Sem acordos para encaminhar" description="Nenhum acordo rompido, quebrado ou vencido foi encontrado neste filtro." />
+            <EmptyState title="Sem acordos quebrados" description="Nenhum acordo com parcela fora da janela ou cotas vincendas fora do acordo foi encontrado neste filtro." />
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -290,10 +285,24 @@ export default async function GestaoAcordosPage({ searchParams }: { searchParams
                   <div>
                     <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor</p>
                     <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado ?? 0))}</p>
+                    {Number(row.valor_vincendas_fora_acordo ?? 0) > 0 ? (
+                      <p className="mt-1 text-xs text-slate-500">+ {formatCurrency(Number(row.valor_vincendas_fora_acordo ?? 0))} em vincendas</p>
+                    ) : null}
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Cobrança</p>
-                    <p className="mt-1 text-sm text-slate-700">{String(row.cobrancas?.status_operacional ?? row.cobrancas?.status ?? '-').replace(/_/g, ' ')}</p>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Quebra</p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {row.parcelas_fora_janela?.length ? (
+                        <span className="rounded-full bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">
+                          {row.parcelas_fora_janela[0].dias_atraso}d &gt; {row.parcelas_fora_janela[0].dias_reemissao_permitidos}d
+                        </span>
+                      ) : null}
+                      {row.vincendas_fora_acordo?.length ? (
+                        <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+                          {row.vincendas_fora_acordo.length} vincenda(s)
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="flex flex-wrap justify-end gap-2">
                     {unidadeId ? (
