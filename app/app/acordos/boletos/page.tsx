@@ -78,11 +78,11 @@ export default async function BoletosAcordosPage() {
                 <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Data</p><p className="mt-1 text-sm text-slate-700">{formatDateBR(row.data_acordo)}</p></div>
                 <form action={atualizarStatusBoletosAcordo} className="flex flex-wrap justify-end gap-2">
                   <input type="hidden" name="acordo_id" value={row.id} />
-                  <PendingSubmitButton name="status_boletos" value="boletos_recebidos" variant="secondary" size="sm" className="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100" icon={<CheckCircle2 size={14} />} pendingLabel="Confirmando...">
-                    Recebidos
+                  <PendingSubmitButton name="status_boletos" value="boletos_recebidos" variant="secondary" size="sm" className="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100" disabled={row.etapa_boleto === 'Boletos recebidos' || row.etapa_boleto === 'Boletos enviados'} icon={<CheckCircle2 size={14} />} pendingLabel="Confirmando...">
+                    {row.etapa_boleto === 'Boletos recebidos' || row.etapa_boleto === 'Boletos enviados' ? 'Recebimento confirmado' : 'Confirmar recebimento'}
                   </PendingSubmitButton>
-                  <PendingSubmitButton name="status_boletos" value="boletos_enviados" size="sm" className="bg-emerald-600 hover:bg-emerald-700" icon={<MailCheck size={14} />} pendingLabel="Confirmando...">
-                    Enviados
+                  <PendingSubmitButton name="status_boletos" value="boletos_enviados" size="sm" className="bg-emerald-600 hover:bg-emerald-700" disabled={row.etapa_boleto === 'Boletos enviados'} icon={<MailCheck size={14} />} pendingLabel="Confirmando...">
+                    {row.etapa_boleto === 'Boletos enviados' ? 'Envio confirmado' : 'Confirmar envio'}
                   </PendingSubmitButton>
                 </form>
               </div>

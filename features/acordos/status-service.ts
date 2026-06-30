@@ -120,7 +120,7 @@ export async function checkAcordosStatus(
     if (idsAtraso.length > 0) {
       const { error: atrasoError, count } = await supabase
         .from("acordos")
-        .update({ status: ACORDO_STATUS.EM_ATRASO }, { count: "exact" })
+        .update({ status: ACORDO_STATUS.EM_ATRASO, status_financeiro: "vencido" }, { count: "exact" })
         .in("id", idsAtraso)
         .in("status", [ACORDO_STATUS.ATIVO]);
 

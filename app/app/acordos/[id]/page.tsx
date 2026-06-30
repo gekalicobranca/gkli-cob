@@ -15,7 +15,6 @@ import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import {
   cancelarFormalizacaoAcordo,
   marcarParcelaComoPaga,
-  marcarParcelaComoVencida,
   romperAcordoAssistido,
   solicitarReemissaoParcelaAcordo,
 } from "@/features/acordos/actions";
@@ -132,20 +131,6 @@ function ParcelaActions({
           pendingLabel="Baixando..."
         >
           Marcar como paga
-        </PendingSubmitButton>
-      </form>
-
-      <form action={marcarParcelaComoVencida}>
-        <input type="hidden" name="parcela_id" value={parcela.id} />
-        <input type="hidden" name="acordo_id" value={acordoId} />
-        <PendingSubmitButton
-          variant="secondary"
-          size="sm"
-          className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-          icon={<Flag className="h-3.5 w-3.5" />}
-          pendingLabel="Marcando..."
-        >
-          Marcar como vencida
         </PendingSubmitButton>
       </form>
 

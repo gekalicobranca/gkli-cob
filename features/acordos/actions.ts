@@ -342,21 +342,12 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
 
   if ((acordoAtual as any)?.boletos_solicitados_em) return;
 
-  const [{ data: mensagemExistente }, { data: pendenciaExistente }] = await Promise.all([
-    supabase
-      .from("mensagens")
-      .select("id")
-      .eq("acordo_id", params.acordoId)
-      .eq("origem_evento", "acordo_boletos_administradora")
-      .limit(1),
-    supabase
-      .from("central_pendencias")
-      .select("id")
-      .eq("acordo_id", params.acordoId)
-      .eq("tipo", "emissao_boletos_acordo")
-      .not("status", "in", "(resolvida,cancelada)")
-      .limit(1),
-  ]);
+  const { data: mensagemExistente } = await supabase
+    .from("mensagens")
+    .select("id")
+    .eq("acordo_id", params.acordoId)
+    .eq("origem_evento", "acordo_boletos_administradora")
+    .limit(1);
 
   let destinatario: string | null = null;
   let administradoraAcessoGerarAcordo: boolean | null = null;
@@ -439,25 +430,6 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
         administradora_acesso_gerar_acordo: administradoraAcessoGerarAcordo,
         destinatario_obrigatorio: false,
       },
-    });
-  }
-
-  if (!((pendenciaExistente ?? []) as any[]).length) {
-    await supabase.from("central_pendencias").insert({
-      carteira_id: params.carteiraId,
-      origem: "acordo",
-      tipo: "emissao_boletos_acordo",
-      status: "aberta",
-      prioridade: "alta",
-      titulo: "Solicitar/acompanhar emissão dos boletos do acordo",
-      descricao: "Acordo aceito e liberado para emissão dos boletos pela administradora.",
-      entidade_tipo: "acordo",
-      entidade_id: params.acordoId,
-      condominio_id: params.condominioId,
-      unidade_id: params.unidadeId,
-      cobranca_id: params.cobrancaId,
-      acordo_id: params.acordoId,
-      administradora_id: params.administradoraId ?? null,
     });
   }
 
@@ -2741,6 +2713,21 @@ export async function atualizarStatusBoletosAcordo(formData: FormData) {
     .eq("id", acordoId);
   if (updateError) throw new Error(`Erro ao atualizar boletos: ${updateError.message}`);
 
+  const now = new Date().toISOString();
+  const supabaseAdmin = createAdminClient();
+  const { error: pendenciaError } = await supabaseAdmin
+    .from("central_pendencias")
+    .update({
+      status: "resolvida",
+      resolvido_em: now,
+      updated_at: now,
+    })
+    .eq("acordo_id", acordoId)
+    .eq("carteira_id", (acordo as any).carteira_id)
+    .eq("tipo", "emissao_boletos_acordo")
+    .not("status", "in", "(resolvida,cancelada)");
+  if (pendenciaError) throw new Error(`Erro ao resolver pendência de boletos: ${pendenciaError.message}`);
+
   await registrarEventoOperacional(supabase as any, {
     carteiraId: (acordo as any).carteira_id,
     entidadeTipo: "acordo",
@@ -2758,6 +2745,7 @@ export async function atualizarStatusBoletosAcordo(formData: FormData) {
 
   revalidatePath("/app/acordos/boletos");
   revalidatePath("/app/gestao/acionamentos-acordos");
+  revalidatePath("/app/pendencias");
   revalidatePath(`/app/acordos/${acordoId}`);
 }
 

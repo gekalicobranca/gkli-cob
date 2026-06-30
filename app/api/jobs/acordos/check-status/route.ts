@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { checkAcordosStatus } from '@/features/acordos/status-service'
 import { requireCronSecret } from '@/app/api/_lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   const unauthorized = requireCronSecret(request)
   if (unauthorized) return unauthorized

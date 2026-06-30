@@ -6,7 +6,23 @@ import {
   COBRANCA_STATUS_JUDICIALIZACAO,
 } from "@/lib/constants/cobrancas";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
+import { checkAcordosStatus } from "@/features/acordos/status-service";
 
+let statusSyncPromise: Promise<unknown> | null = null;
+let statusSyncStartedAt = 0;
+const STATUS_SYNC_TTL_MS = 60_000;
+
+async function ensureAcordosStatusAtualizados() {
+  const now = Date.now();
+  if (statusSyncPromise && now - statusSyncStartedAt < STATUS_SYNC_TTL_MS) {
+    await statusSyncPromise;
+    return;
+  }
+
+  statusSyncStartedAt = now;
+  statusSyncPromise = checkAcordosStatus({ diasParaRomper: 15 });
+  await statusSyncPromise;
+}
 
 function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean) as string[]));
@@ -112,6 +128,8 @@ export async function listAcordos(scope?: CarteiraScope) {
 }
 
 export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
+  await ensureAcordosStatusAtualizados();
+
   const supabase = await createClient();
 
   let query = supabase
@@ -756,12 +774,16 @@ function attachAgreementHealth(acordos: any[], parcelas: any[]) {
 }
 
 export async function listAcordosComSaude(scope?: CarteiraScope) {
+  await ensureAcordosStatusAtualizados();
+
   const acordos = await listAcordos(scope);
   const parcelas = await getParcelasDosAcordos(acordos.map((acordo: any) => acordo.id));
   return attachAgreementHealth(acordos as any[], parcelas);
 }
 
 export async function listFilaParcelasOperadorAcordos(scope?: CarteiraScope) {
+  await ensureAcordosStatusAtualizados();
+
   // Hardening 5.6: evita carregar parcelas duas vezes.
   // Antes, listAcordosComSaude() já buscava parcelas e esta função buscava novamente.
   const acordosBase = await listAcordos(scope);
@@ -796,6 +818,8 @@ export async function listFilaParcelasOperadorAcordos(scope?: CarteiraScope) {
 }
 
 export async function listParcelasAcordosOperacionais(scope?: CarteiraScope) {
+  await ensureAcordosStatusAtualizados();
+
   const acordosBase = await listAcordos(scope);
   const parcelas = await getParcelasDosAcordos(acordosBase.map((acordo: any) => acordo.id));
   const acordos = attachAgreementHealth(acordosBase as any[], parcelas);
@@ -1250,6 +1274,7 @@ export async function listAgreementBoletoInbox(scope?: CarteiraScope) {
   return (acordos as any[])
     .filter((acordo) => {
       const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();
+      if (fluxo.includes("boletos_enviados")) return false;
       return fluxo.includes("boleto") || Boolean(acordo.boletos_solicitados_em);
     })
     .map((acordo) => {

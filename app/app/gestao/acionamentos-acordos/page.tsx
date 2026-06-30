@@ -148,12 +148,12 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
         </form>
       ) : null}
       {canal === "devedor" ? (
-        <details className="w-full rounded-xl border border-emerald-100 bg-emerald-50/60 p-2 text-left">
-          <summary className="flex cursor-pointer list-none items-center justify-end gap-2 text-xs font-medium text-emerald-800">
-            <CheckCircle2 size={14} />
-            Registrar aceite
-          </summary>
-          <form action={registrarAceiteManualTermoAcordo} className="mt-3 grid gap-2">
+        <div className="mt-2 w-full rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-left">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">
+            <CheckCircle2 size={14} aria-hidden="true" />
+            Confirmar aceite do devedor
+          </div>
+          <form action={registrarAceiteManualTermoAcordo} className="grid gap-2">
             <input type="hidden" name="acordo_id" value={row.acordoId} />
             <input type="hidden" name="termo_id" value={row.termoId} />
             <input type="hidden" name="tipo_aceite" value="devedor" />
@@ -188,7 +188,7 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
               </PendingSubmitButton>
             </div>
           </form>
-        </details>
+        </div>
       ) : null}
     </div>
   );
@@ -315,6 +315,9 @@ function SindicoDecisionRow({ row, term, returnTo }: { row: any; term?: Agreemen
 }
 
 function BoletoRow({ row }: { row: any }) {
+  const boletosRecebidos = row.etapa_boleto === "Boletos recebidos" || row.etapa_boleto === "Boletos enviados";
+  const boletosEnviados = row.etapa_boleto === "Boletos enviados";
+
   return (
     <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_150px_240px] xl:items-center">
       <div className="min-w-0">
@@ -341,9 +344,10 @@ function BoletoRow({ row }: { row: any }) {
           size="sm"
           className="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100"
           icon={<CheckCircle2 size={14} />}
+          disabled={boletosRecebidos}
           pendingLabel="Confirmando..."
         >
-          Recebidos
+          {boletosRecebidos ? "Recebimento confirmado" : "Confirmar recebimento"}
         </PendingSubmitButton>
         <PendingSubmitButton
           name="status_boletos"
@@ -351,9 +355,10 @@ function BoletoRow({ row }: { row: any }) {
           size="sm"
           className="bg-emerald-600 hover:bg-emerald-700"
           icon={<Mail size={14} />}
+          disabled={boletosEnviados}
           pendingLabel="Confirmando..."
         >
-          Enviados
+          {boletosEnviados ? "Envio confirmado" : "Confirmar envio"}
         </PendingSubmitButton>
       </form>
     </div>

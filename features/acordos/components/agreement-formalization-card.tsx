@@ -245,11 +245,11 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
                   variant="secondary"
                   size="sm"
                   className="w-full"
-                  disabled={!boletosSolicitados}
+                  disabled={!boletosSolicitados || boletosRecebidos}
                   icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                   pendingLabel="Confirmando..."
                 >
-                  Boletos recebidos
+                  {boletosRecebidos ? "Recebimento confirmado" : "Confirmar recebimento"}
                 </PendingSubmitButton>
               </form>
               <form action={atualizarStatusBoletosAcordo}>
@@ -258,11 +258,11 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
                 <PendingSubmitButton
                   size="sm"
                   className="w-full"
-                  disabled={!boletosRecebidos}
+                  disabled={!boletosRecebidos || boletosEnviados}
                   icon={<Send className="h-3.5 w-3.5" />}
                   pendingLabel="Confirmando..."
                 >
-                  Boletos enviados
+                  {boletosEnviados ? "Envio confirmado" : "Confirmar envio"}
                 </PendingSubmitButton>
               </form>
             </div>

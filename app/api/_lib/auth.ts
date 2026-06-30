@@ -22,7 +22,7 @@ export async function requireAuthenticatedApiUser() {
 }
 
 export function requireCronSecret(request: Request) {
-  const secret = process.env.REGUA_CRON_SECRET
+  const secret = process.env.CRON_SECRET || process.env.REGUA_CRON_SECRET
 
   if (!secret) {
     return NextResponse.json(
