@@ -4,7 +4,7 @@ import { type ChangeEvent, useActionState, useMemo, useState } from "react";
 import { AlertTriangle, Mail, Phone, Save, UserRound } from "lucide-react";
 import {
   createAcordoComEstado,
-  salvarContatoResponsavelAcordo,
+  salvarContatoResponsavelAcordoComEstado,
   solicitarAprovacaoSindicoAcordo,
 } from "@/features/acordos/actions";
 import { Button } from "@/components/ui/button";
@@ -122,6 +122,10 @@ export function AcordoSimulatorForm({
     createAcordoComEstado,
     { error: null },
   );
+  const [contatoState, salvarContatoAction, isSavingContato] = useActionState(
+    salvarContatoResponsavelAcordoComEstado,
+    { error: null },
+  );
   const initial =
     cobrancas.find((item) => item.id === initialCobrancaId) ?? cobrancas[0];
   const [cobrancaId, setCobrancaId] = useState(initial?.id ?? "");
@@ -153,6 +157,10 @@ export function AcordoSimulatorForm({
     email: cobrancaSelecionada?.unidades?.email ?? "E-mail não informado",
     telefone: cobrancaSelecionada?.unidades?.telefone ?? "Celular não informado",
   };
+  const contatoAcionavel =
+    responsavelAcionado.nome !== "Responsável não informado" &&
+    (responsavelAcionado.email !== "E-mail não informado" ||
+      responsavelAcionado.telefone !== "Celular não informado");
   const limiteParcelasSemSindico = Number(
     cobrancaSelecionada?.condominios?.parcelas_acordo_sem_aprovacao_sindico ?? 0,
   );
@@ -707,6 +715,18 @@ export function AcordoSimulatorForm({
             Contato do devedor
           </h2>
 
+          <div
+            className={`mt-4 rounded-2xl border p-3 text-sm ${
+              contatoAcionavel
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border-amber-200 bg-amber-50 text-amber-900"
+            }`}
+          >
+            {contatoAcionavel
+              ? "Contato acionável salvo para seguir com o acordo."
+              : "Informe nome e e-mail ou celular para liberar o fluxo do acordo."}
+          </div>
+
           <div className="mt-5 grid gap-3">
             <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
               <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gkli-primary)]" aria-hidden="true" />
@@ -746,12 +766,19 @@ export function AcordoSimulatorForm({
               </div>
             </div>
           </div>
+          {contatoState.error ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+              {contatoState.error}
+            </div>
+          ) : null}
           <div className="mt-4 flex justify-end">
             <Button
               type="submit"
               variant="secondary"
-              formAction={salvarContatoResponsavelAcordo}
+              formAction={salvarContatoAction}
               disabled={!responsavelAcionado.unidadeId}
+              loading={isSavingContato}
+              loadingLabel="Salvando contato..."
             >
               <Save size={16} />
               Salvar contato

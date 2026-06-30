@@ -195,7 +195,7 @@ async function criarTermoAcordo(supabase: any, params: {
     .eq("acordo_id", params.acordoId)
     .eq("tipo_aceite", params.tipoAceite)
     .in("status", ["pendente", "visualizado", "aceito"])
-    .order("criado_em", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -523,12 +523,76 @@ function assertContatoResponsavelAcordo(unidade: any) {
   return contato;
 }
 
+async function sincronizarContatoResponsavelApoioAcordo(
+  supabase: any,
+  unidade: any,
+  patch: { responsavel_nome: string | null; email: string | null; telefone: string | null },
+) {
+  const condominioId = String(unidade?.condominio_id ?? "").trim();
+  const identificacao = String(unidade?.identificacao ?? "").trim();
+
+  if (!condominioId || !identificacao) return null;
+
+  const blocoUnidade = String(unidade?.bloco ?? "").trim().toLowerCase();
+  const { data: responsaveis, error } = await supabase
+    .from("responsaveis_unidades")
+    .select("id, bloco")
+    .eq("condominio_id", condominioId)
+    .eq("unidade", identificacao)
+    .eq("ativo", true)
+    .limit(20);
+
+  if (error) {
+    throw new Error(`Erro ao localizar contato de apoio: ${error.message}`);
+  }
+
+  const responsavelApoio =
+    ((responsaveis ?? []) as any[]).find((item) =>
+      String(item.bloco ?? "").trim().toLowerCase() === blocoUnidade,
+    ) ?? (responsaveis ?? [])[0] ?? null;
+
+  if (!responsavelApoio?.id) return null;
+
+  const { error: updateError } = await supabase
+    .from("responsaveis_unidades")
+    .update({
+      responsavel_nome: patch.responsavel_nome,
+      email: patch.email,
+      telefone: patch.telefone,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", responsavelApoio.id);
+
+  if (updateError) {
+    throw new Error(`Erro ao atualizar contato de apoio: ${updateError.message}`);
+  }
+
+  return responsavelApoio.id as string;
+}
+
 export async function createAcordoComEstado(
   _state: AcordoActionState,
   formData: FormData,
 ): Promise<AcordoActionState> {
   try {
     await createAcordo(formData);
+    return { error: null };
+  } catch (error) {
+    rethrowNextNavigationError(error);
+    return { error: getErrorMessage(error) };
+  }
+}
+
+export type SalvarContatoResponsavelAcordoState = {
+  error: string | null;
+};
+
+export async function salvarContatoResponsavelAcordoComEstado(
+  _state: SalvarContatoResponsavelAcordoState,
+  formData: FormData,
+): Promise<SalvarContatoResponsavelAcordoState> {
+  try {
+    await salvarContatoResponsavelAcordo(formData);
     return { error: null };
   } catch (error) {
     rethrowNextNavigationError(error);
@@ -555,7 +619,7 @@ export async function salvarContatoResponsavelAcordo(formData: FormData) {
 
   const { data: unidadeAtual, error: unidadeError } = await supabase
     .from("unidades")
-    .select("id, carteira_id, responsavel_nome, email, telefone")
+    .select("id, carteira_id, condominio_id, identificacao, bloco, responsavel_nome, email, telefone")
     .eq("id", unidadeId)
     .maybeSingle();
 
@@ -570,6 +634,12 @@ export async function salvarContatoResponsavelAcordo(formData: FormData) {
     telefone: telefone || null,
   };
 
+  if (!getContatoResponsavelAcordo(patch).acionavel) {
+    throw new Error(
+      "Informe o nome do responsável e pelo menos um canal acionável: e-mail ou celular.",
+    );
+  }
+
   const { error: updateError } = await supabase
     .from("unidades")
     .update(patch)
@@ -579,6 +649,12 @@ export async function salvarContatoResponsavelAcordo(formData: FormData) {
     throw new Error(`Erro ao salvar contato do responsável: ${updateError.message}`);
   }
 
+  const responsavelApoioId = await sincronizarContatoResponsavelApoioAcordo(
+    supabase as any,
+    unidadeAtual,
+    patch,
+  );
+
   await registrarEventoOperacional(supabase as any, {
     carteiraId: (unidadeAtual as any).carteira_id ?? null,
     entidadeTipo: "unidade",
@@ -587,13 +663,14 @@ export async function salvarContatoResponsavelAcordo(formData: FormData) {
     titulo: "Contato do responsável atualizado no acordo",
     descricao: responsavelNome || "Contato ajustado durante a criação do acordo.",
     severidade: "info",
-    payload: { antes: unidadeAtual, depois: patch, origem: "novo_acordo" },
+    payload: { antes: unidadeAtual, depois: patch, origem: "novo_acordo", responsavel_apoio_id: responsavelApoioId },
     origem: "manual",
     auditavel: true,
     userId: user?.id ?? null,
   });
 
   revalidatePath("/app/acordos/novo");
+  revalidatePath("/app/acordos");
   revalidatePath(`/app/unidades/${unidadeId}`);
   redirect(safeReturnTo);
 }
@@ -1753,7 +1830,7 @@ export async function registrarAjusteReemissaoParcelaAcordo(formData: FormData) 
       cobranca_id,
       valor_acordado,
       condominios:condominio_id (id, nome),
-      unidades:unidade_id (id, identificacao, bloco, responsavel_nome, email)
+      unidades:unidade_id (id, identificacao, bloco, responsavel_nome, email, telefone)
     `)
     .eq("id", acordoId)
     .maybeSingle();
@@ -2148,7 +2225,7 @@ export async function registrarAceitePublicoTermo(formData: FormData) {
   const { data: termo, error: termoError } = await supabase
     .from("acordos_termos")
     .select(
-      `*, acordos:acordo_id (*, condominios:condominio_id (id, nome, administradora_id), unidades:unidade_id (id, identificacao, bloco, responsavel_nome, email))`,
+      `*, acordos:acordo_id (*, condominios:condominio_id (id, nome, administradora_id), unidades:unidade_id (id, identificacao, bloco, responsavel_nome, email, telefone))`,
     )
     .eq("token", token)
     .maybeSingle();
