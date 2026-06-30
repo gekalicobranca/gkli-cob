@@ -11,12 +11,20 @@ import { getPermittedCarteiras, type CarteiraScope } from "@/utils/auth/get-perm
 import { registrarEventoOperacional } from "@/features/operacional/service";
 import { checkAcordosStatus } from "@/features/acordos/status-service";
 import {
+  PRE_JURIDICO_EVENT_CODES,
+  criarPreJuridicoSteps,
+  etapaPreJuridicoPorEvento,
+  preJuridicoStepsCompletos,
+  type PreJuridicoStepKey,
+} from "@/features/acordos/pre-juridico";
+import {
   ACORDO_STATUS,
   COBRANCA_STATUS,
   COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO,
   COBRANCA_STATUS_JUDICIALIZACAO,
   PARCELA_ACORDO_STATUS,
 } from "@/lib/core/status";
+import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from "@/lib/constants/cobrancas";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 function toNumber(value: FormDataEntryValue | null) {
@@ -2881,6 +2889,256 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
   revalidatePath("/app/acordos/gestao");
   revalidatePath("/app/gestao/acionamentos-acordos");
   revalidatePath(`/app/acordos/${acordoId}`);
+}
+
+function getAcordoIdsFromForm(formData: FormData) {
+  const ids = formData
+    .getAll("acordo_id")
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean);
+  return Array.from(new Set(ids));
+}
+
+function uniqueNonEmpty(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.filter(Boolean) as string[]));
+}
+
+function todayISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function carregarAcordosSelecionadosParaPreJuridico(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  acordoIds: string[],
+  scope: CarteiraScope,
+) {
+  if (acordoIds.length === 0) throw new Error("Selecione ao menos um acordo.");
+
+  const { data, error } = await supabase
+    .from("acordos")
+    .select("id, carteira_id, condominio_id, unidade_id, cobranca_id, status, status_financeiro, fluxo_status, valor_acordado")
+    .in("id", acordoIds);
+
+  if (error) throw new Error(`Erro ao carregar acordos selecionados: ${error.message}`);
+
+  const acordos = (data ?? []) as any[];
+  if (acordos.length !== acordoIds.length) throw new Error("Um ou mais acordos selecionados não foram encontrados.");
+
+  for (const acordo of acordos) {
+    assertCarteiraPermitida(scope, acordo.carteira_id);
+  }
+
+  return acordos;
+}
+
+async function getPreJuridicoStepsSelecionados(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  acordoIds: string[],
+) {
+  const stepsPorAcordo = new Map<string, ReturnType<typeof criarPreJuridicoSteps>>();
+  for (const id of acordoIds) stepsPorAcordo.set(id, criarPreJuridicoSteps());
+
+  const eventos = Object.values(PRE_JURIDICO_EVENT_CODES);
+  const marcar = (row: any, field: string) => {
+    const acordoId = row?.acordo_id;
+    const step = etapaPreJuridicoPorEvento(row?.[field] ?? row?.payload?.evento_codigo);
+    if (!acordoId || !step) return;
+    const steps = stepsPorAcordo.get(acordoId) ?? criarPreJuridicoSteps();
+    steps[step] = true;
+    stepsPorAcordo.set(acordoId, steps);
+  };
+
+  const [timelineResult, eventosResult] = await Promise.all([
+    supabase
+      .from("timeline_operacional")
+      .select("acordo_id,evento_tipo,payload")
+      .in("acordo_id", acordoIds)
+      .in("evento_tipo", eventos),
+    supabase
+      .from("eventos_operacionais")
+      .select("acordo_id,tipo,payload")
+      .in("acordo_id", acordoIds)
+      .in("tipo", eventos),
+  ]);
+
+  if (timelineResult.error && timelineResult.error.code !== "42P01") {
+    throw new Error(`Erro ao validar etapas pré-jurídicas: ${timelineResult.error.message}`);
+  }
+  if (eventosResult.error && eventosResult.error.code !== "42P01") {
+    throw new Error(`Erro ao validar eventos pré-jurídicos: ${eventosResult.error.message}`);
+  }
+
+  for (const row of (timelineResult.data ?? []) as any[]) marcar(row, "evento_tipo");
+  for (const row of (eventosResult.data ?? []) as any[]) marcar(row, "tipo");
+
+  return stepsPorAcordo;
+}
+
+async function registrarEtapaPreJuridico(formData: FormData, step: PreJuridicoStepKey) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const scope = await getPermittedCarteiras();
+  const supabase = await createClient();
+  const acordoIds = getAcordoIdsFromForm(formData);
+  const acordos = await carregarAcordosSelecionadosParaPreJuridico(supabase, acordoIds, scope);
+
+  const titulos: Record<PreJuridicoStepKey, string> = {
+    historico: "Histórico do acordo gerado para o jurídico",
+    listaAdministradora: "Lista para administradora gerada",
+    procuracao: "Procuração gerada para encaminhamento",
+  };
+
+  const descricoes: Record<PreJuridicoStepKey, string> = {
+    historico: "Relatório do acordo preparado para análise jurídica.",
+    listaAdministradora: "Lista de cobrança preparada para solicitação ou conferência junto à administradora.",
+    procuracao: "Procuração preparada como etapa obrigatória do encaminhamento pré-jurídico.",
+  };
+
+  for (const acordo of acordos) {
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: acordo.carteira_id,
+      entidadeTipo: "acordo",
+      entidadeId: acordo.id,
+      eventoCodigo: PRE_JURIDICO_EVENT_CODES[step],
+      titulo: titulos[step],
+      descricao: descricoes[step],
+      severidade: "info",
+      payload: {
+        acordo_id: acordo.id,
+        condominio_id: acordo.condominio_id ?? null,
+        unidade_id: acordo.unidade_id ?? null,
+        etapa: step,
+      },
+      origem: "manual",
+      auditavel: true,
+      required: true,
+      userId: user.id,
+    });
+  }
+
+  revalidatePath("/app/acordos");
+  revalidatePath("/app/acordos/gestao");
+  for (const acordoId of acordoIds) revalidatePath(`/app/acordos/${acordoId}`);
+}
+
+export async function gerarHistoricoAcordosPreJuridico(formData: FormData) {
+  await registrarEtapaPreJuridico(formData, "historico");
+}
+
+export async function gerarListaAdministradoraPreJuridico(formData: FormData) {
+  await registrarEtapaPreJuridico(formData, "listaAdministradora");
+}
+
+export async function gerarProcuracaoPreJuridico(formData: FormData) {
+  await registrarEtapaPreJuridico(formData, "procuracao");
+}
+
+export async function alterarStatusAcordosPreJuridico(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const user = await requireUser();
+  const scope = await getPermittedCarteiras();
+  const supabase = await createClient();
+  const acordoIds = getAcordoIdsFromForm(formData);
+  const acordos = await carregarAcordosSelecionadosParaPreJuridico(supabase, acordoIds, scope);
+  const stepsPorAcordo = await getPreJuridicoStepsSelecionados(supabase, acordoIds);
+
+  const faltantes = acordos.filter((acordo) => !preJuridicoStepsCompletos(stepsPorAcordo.get(acordo.id)));
+  if (faltantes.length > 0) {
+    throw new Error("Antes de alterar para pré-jurídico, gere o histórico do acordo, a lista para administradora e a procuração de todos os acordos selecionados.");
+  }
+
+  const { data: vinculos, error: vinculosError } = await supabase
+    .from("acordo_cobrancas")
+    .select("acordo_id,cobranca_id")
+    .in("acordo_id", acordoIds);
+
+  if (vinculosError && vinculosError.code !== "42P01") {
+    throw new Error(`Erro ao carregar cobranças vinculadas: ${vinculosError.message}`);
+  }
+
+  const cobrancaIdsSet = new Set<string>([
+    ...acordos.map((acordo) => acordo.cobranca_id).filter(Boolean),
+    ...(((vinculos ?? []) as any[]).map((item) => item.cobranca_id).filter(Boolean)),
+  ]);
+
+  const unidadeIds = uniqueNonEmpty(acordos.map((acordo) => acordo.unidade_id));
+  const condominioIds = uniqueNonEmpty(acordos.map((acordo) => acordo.condominio_id));
+
+  if (unidadeIds.length > 0 && condominioIds.length > 0) {
+    const { data: cobrancasVincendas, error: cobrancasVincendasError } = await supabase
+      .from("cobrancas")
+      .select("id,condominio_id,unidade_id,vencimento,status,status_operacional,status_financeiro")
+      .in("unidade_id", unidadeIds)
+      .in("condominio_id", condominioIds)
+      .gte("vencimento", todayISODate());
+
+    if (cobrancasVincendasError) {
+      throw new Error(`Erro ao carregar cotas vincendas fora do acordo: ${cobrancasVincendasError.message}`);
+    }
+
+    for (const cobranca of (cobrancasVincendas ?? []) as any[]) {
+      const status = String(cobranca.status ?? "").toLowerCase();
+      const financeiro = String(cobranca.status_financeiro ?? "").toLowerCase();
+      if (["pago", "paga", "quitado", "quitada", "baixado", "baixada", "cancelado", "cancelada"].includes(status)) continue;
+      if (["pago", "paga", "quitado", "quitada", "baixado", "baixada", "cancelado", "cancelada"].includes(financeiro)) continue;
+      if (!(COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[]).includes(getCobrancaStatusOperacional(cobranca))) continue;
+      cobrancaIdsSet.add(cobranca.id);
+    }
+  }
+
+  const cobrancaIds = Array.from(cobrancaIdsSet);
+
+  const { error: acordosError } = await supabase
+    .from("acordos")
+    .update({ status: "rompido", status_financeiro: "vencido", fluxo_status: "rompido_pre_juridico" })
+    .in("id", acordoIds);
+  if (acordosError) throw new Error(`Erro ao encaminhar acordos ao pré-jurídico: ${acordosError.message}`);
+
+  if (cobrancaIds.length > 0) {
+    const { error: cobrancasError } = await supabase
+      .from("cobrancas")
+      .update({ status: COBRANCA_STATUS.PRE_JURIDICO, status_operacional: COBRANCA_STATUS.PRE_JURIDICO })
+      .in("id", cobrancaIds);
+    if (cobrancasError) throw new Error(`Erro ao atualizar cobranças vinculadas: ${cobrancasError.message}`);
+  }
+
+  for (const acordo of acordos) {
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: acordo.carteira_id,
+      entidadeTipo: "acordo",
+      entidadeId: acordo.id,
+      eventoCodigo: "acordo.pre_juridico.status_alterado",
+      titulo: "Acordo encaminhado ao pré-jurídico",
+      descricao: "Etapas obrigatórias conferidas e status alterado para pré-jurídico.",
+      severidade: "alerta",
+      payload: {
+        acordo_id: acordo.id,
+        condominio_id: acordo.condominio_id ?? null,
+        unidade_id: acordo.unidade_id ?? null,
+        cobranca_ids: cobrancaIds,
+      },
+      antes: {
+        status: acordo.status ?? null,
+        status_financeiro: acordo.status_financeiro ?? null,
+        fluxo_status: acordo.fluxo_status ?? null,
+      },
+      depois: {
+        status: "rompido",
+        status_financeiro: "vencido",
+        fluxo_status: "rompido_pre_juridico",
+        status_cobranca: COBRANCA_STATUS.PRE_JURIDICO,
+      },
+      origem: "manual",
+      auditavel: true,
+      required: true,
+      userId: user.id,
+    });
+  }
+
+  revalidatePath("/app/acordos");
+  revalidatePath("/app/acordos/gestao");
+  revalidatePath("/app/acordos/rompimentos");
+  for (const acordoId of acordoIds) revalidatePath(`/app/acordos/${acordoId}`);
 }
 
 export async function romperAcordoAssistido(formData: FormData) {

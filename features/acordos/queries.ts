@@ -7,6 +7,11 @@ import {
   COBRANCA_STATUS_JUDICIALIZACAO,
 } from "@/lib/constants/cobrancas";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
+import {
+  PRE_JURIDICO_EVENT_CODES,
+  criarPreJuridicoSteps,
+  etapaPreJuridicoPorEvento,
+} from "@/features/acordos/pre-juridico";
 
 function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean) as string[]));
@@ -863,6 +868,52 @@ function isCobrancaAtivaParaVincenda(cobranca: any) {
   return (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[]).includes(getCobrancaStatusOperacional(cobranca))
 }
 
+async function getPreJuridicoStepsDosAcordos(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  acordoIds: string[],
+) {
+  const stepsPorAcordo = new Map<string, ReturnType<typeof criarPreJuridicoSteps>>()
+  const ids = uniqueStrings(acordoIds)
+  for (const id of ids) stepsPorAcordo.set(id, criarPreJuridicoSteps())
+  if (ids.length === 0) return stepsPorAcordo
+
+  const eventos = Object.values(PRE_JURIDICO_EVENT_CODES)
+
+  const marcar = (row: any, field: string) => {
+    const acordoId = row?.acordo_id
+    const step = etapaPreJuridicoPorEvento(row?.[field] ?? row?.payload?.evento_codigo)
+    if (!acordoId || !step) return
+    const steps = stepsPorAcordo.get(acordoId) ?? criarPreJuridicoSteps()
+    steps[step] = true
+    stepsPorAcordo.set(acordoId, steps)
+  }
+
+  const [timelineResult, eventosResult] = await Promise.all([
+    supabase
+      .from('timeline_operacional')
+      .select('acordo_id,evento_tipo,payload')
+      .in('acordo_id', ids)
+      .in('evento_tipo', eventos),
+    supabase
+      .from('eventos_operacionais')
+      .select('acordo_id,tipo,payload')
+      .in('acordo_id', ids)
+      .in('tipo', eventos),
+  ])
+
+  if (timelineResult.error && timelineResult.error.code !== '42P01') {
+    throw new Error(`Erro ao carregar etapas pré-jurídicas: ${timelineResult.error.message}`)
+  }
+  if (eventosResult.error && eventosResult.error.code !== '42P01') {
+    throw new Error(`Erro ao carregar eventos pré-jurídicos: ${eventosResult.error.message}`)
+  }
+
+  for (const row of (timelineResult.data ?? []) as any[]) marcar(row, 'evento_tipo')
+  for (const row of (eventosResult.data ?? []) as any[]) marcar(row, 'tipo')
+
+  return stepsPorAcordo
+}
+
 export async function listAcordosQuebradosParaGestao(scope?: CarteiraScope) {
   const acordos = (await listAcordos(scope) as any[]).filter((acordo) => {
     const status = String(acordo.status ?? '').toLowerCase()
@@ -924,7 +975,7 @@ export async function listAcordosQuebradosParaGestao(scope?: CarteiraScope) {
 
   const hoje = todayDateOnly()
 
-  return acordos
+  const quebrados = acordos
     .map((acordo) => {
       const diasReemissao = Number(acordo.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0)
       const parcelasAbertas = (parcelasPorAcordo.get(acordo.id) ?? []).filter((parcela) => !isParcelaEncerrada(parcela))
@@ -960,6 +1011,16 @@ export async function listAcordosQuebradosParaGestao(scope?: CarteiraScope) {
       }
     })
     .filter((acordo) => acordo.motivo_quebra_parcela || acordo.motivo_quebra_vincendas)
+
+  const stepsPorAcordo = await getPreJuridicoStepsDosAcordos(
+    supabase,
+    quebrados.map((acordo) => acordo.id),
+  )
+
+  return quebrados.map((acordo) => ({
+    ...acordo,
+    pre_juridico_steps: stepsPorAcordo.get(acordo.id) ?? criarPreJuridicoSteps(),
+  }))
 }
 
 export type AgreementOperationalIntelligence = {
