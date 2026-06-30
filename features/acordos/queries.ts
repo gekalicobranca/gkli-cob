@@ -1274,8 +1274,11 @@ export async function listAgreementBoletoInbox(scope?: CarteiraScope) {
   return (acordos as any[])
     .filter((acordo) => {
       const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();
-      if (fluxo.includes("boletos_enviados")) return false;
-      return fluxo.includes("boleto") || Boolean(acordo.boletos_solicitados_em);
+      return [
+        "aceito_aguardando_boletos",
+        "boletos_solicitados",
+        "boletos_recebidos",
+      ].includes(fluxo);
     })
     .map((acordo) => {
       const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();

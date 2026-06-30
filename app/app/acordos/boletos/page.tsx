@@ -13,6 +13,9 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listAgreementBoletoInbox } from '@/features/acordos/queries'
 import { atualizarStatusBoletosAcordo } from '@/features/acordos/actions'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 function etapaClass(etapa: string) {
   if (etapa === 'Boletos enviados') return 'bg-emerald-50 text-emerald-700'
   if (etapa === 'Boletos recebidos') return 'bg-sky-50 text-sky-700'

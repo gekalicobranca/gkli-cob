@@ -42,6 +42,9 @@ import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type SearchParams = Promise<{ tipo?: string }>;
 
 const activationFilters = [
