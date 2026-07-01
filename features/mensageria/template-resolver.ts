@@ -29,6 +29,9 @@ const DEFAULTS: Record<string, string> = {
   vencimento_acordo: 'Olá, {{primeiro_nome}}. Sua parcela {{parcela}} do acordo vence hoje. Valor: {{valor_parcela}}. Evite a quebra do acordo.',
   atraso_acordo: 'Olá, {{primeiro_nome}}. Identificamos atraso na parcela {{parcela}} do acordo da unidade {{unidade}}. Podemos ajudar na regularização?',
   quebra_acordo: 'Olá, {{primeiro_nome}}. O acordo da unidade {{unidade}} está em risco de rompimento. Regularize a parcela em aberto para manter as condições pactuadas.',
+  pre_juridico_carteira: 'Olá, {{primeiro_nome}}. O pacote pré-jurídico da unidade {{unidade}} do {{condominio}} está pronto. Laudo: {{link_laudo}}. Procuração: {{link_procuracao}}.',
+  pre_juridico_administradora: 'Olá, {{primeiro_nome}}. Segue a lista pré-jurídica dos acordos quebrados vinculados à administradora {{administradora}}. Lista: {{link_lista_administradora}}.',
+  pre_juridico_sindico: 'Olá, {{primeiro_nome}}. Segue a procuração para assinatura referente à unidade {{unidade}} do {{condominio}}. Procuração: {{link_procuracao}}.',
   manual: 'Olá, {{primeiro_nome}}. Entramos em contato pela {{carteira}} sobre a unidade {{unidade}} do {{condominio}}.',
 }
 

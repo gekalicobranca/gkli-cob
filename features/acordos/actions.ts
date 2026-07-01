@@ -17,6 +17,7 @@ import {
   preJuridicoStepsCompletos,
   type PreJuridicoStepKey,
 } from "@/features/acordos/pre-juridico";
+import { criarLotesPreJuridico } from "@/features/acordos/pre-juridico-lote";
 import {
   ACORDO_STATUS,
   COBRANCA_STATUS,
@@ -3144,6 +3145,18 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
   revalidatePath("/app/acordos/gestao");
   revalidatePath("/app/acordos/rompimentos");
   for (const acordoId of acordoIds) revalidatePath(`/app/acordos/${acordoId}`);
+
+  const loteResult = await criarLotesPreJuridico({
+    acordoIds,
+    scope,
+    userId: user.id,
+  });
+
+  revalidatePath("/app/lotes");
+
+  if (loteResult.loteId) {
+    redirect(`/app/lotes/${loteResult.loteId}?pre_juridico=1`);
+  }
 }
 
 export async function romperAcordoAssistido(formData: FormData) {

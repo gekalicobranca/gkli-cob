@@ -42,6 +42,7 @@ export default async function NovoTemplateMensageriaPage() {
               <Select id="tipo_regua" name="tipo_regua" defaultValue="cobranca">
                 <option value="cobranca">Cobrança</option>
                 <option value="acordo">Acordo</option>
+                <option value="juridico">Jurídico</option>
               </Select>
               <input type="hidden" name="tipo" value="cobranca" />
             </div>

@@ -8,6 +8,9 @@ export const TEMPLATE_CATEGORIES = [
   'vencimento_acordo',
   'atraso_acordo',
   'quebra_acordo',
+  'pre_juridico_carteira',
+  'pre_juridico_administradora',
+  'pre_juridico_sindico',
   'manual',
 ] as const
 
@@ -42,6 +45,10 @@ export const SAMPLE_TEMPLATE_VARIABLES: TemplateVariables = {
   linha_digitavel: '00000.00000 00000.000000 00000.000000 0 00000000000000',
   link_boleto: 'https://gkli.com.br/boleto-exemplo',
   link_acordo: 'https://gkli.com.br/acordo-exemplo',
+  link_laudo: 'https://gkli.com.br/laudo-pre-juridico.pdf',
+  link_procuracao: 'https://gkli.com.br/procuracao.pdf',
+  link_lista_administradora: 'https://gkli.com.br/lista-administradora.pdf',
+  administradora: 'Administradora Modelo',
   parcela: '2',
   parcela_numero: '2',
   quantidade_parcelas: '6',
@@ -68,6 +75,9 @@ export function categoryLabel(value?: string | null) {
     vencimento_acordo: 'Vencimento de acordo',
     atraso_acordo: 'Atraso de acordo',
     quebra_acordo: 'Quebra de acordo',
+    pre_juridico_carteira: 'Pré-jurídico · Carteira',
+    pre_juridico_administradora: 'Pré-jurídico · Administradora',
+    pre_juridico_sindico: 'Pré-jurídico · Síndico',
     manual: 'Manual',
   }
   return labels[value ?? ''] ?? 'Manual'

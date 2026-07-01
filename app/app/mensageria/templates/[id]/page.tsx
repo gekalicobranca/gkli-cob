@@ -49,6 +49,7 @@ export default async function EditarTemplateMensageriaPage({ params }: { params:
               <Select id="tipo_regua" name="tipo_regua" defaultValue={template.tipo_regua ?? template.tipo ?? 'cobranca'}>
                 <option value="cobranca">Cobrança</option>
                 <option value="acordo">Acordo</option>
+                <option value="juridico">Jurídico</option>
               </Select>
               <input type="hidden" name="tipo" value={template.tipo ?? 'cobranca'} />
             </div>
