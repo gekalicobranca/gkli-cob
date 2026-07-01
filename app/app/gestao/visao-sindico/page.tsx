@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Building2, CalendarDays, CircleDollarSign, ExternalLink, Handshake, KeyRound, ListChecks } from "lucide-react";
+import { Building2, CalendarDays, CircleDollarSign, ExternalLink, Handshake, ListChecks } from "lucide-react";
 
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -345,10 +344,6 @@ export default async function VisaoSindicoPage({
               <ExternalLink className="h-4 w-4" />
               Portal do síndico
             </ButtonLink>
-            <ButtonLink href="/app/gestao/visao-sindico/acessos" variant="secondary">
-              <KeyRound className="h-4 w-4" />
-              Acessos
-            </ButtonLink>
           </div>
         }
       />
@@ -491,10 +486,6 @@ export default async function VisaoSindicoPage({
           Exibição resumida para leitura do síndico. As listas completas continuam disponíveis nas telas operacionais.
         </p>
       ) : null}
-
-      <div className="sr-only">
-        <Link href="/app/gestao/visao-sindico/acessos">Gerenciar acessos do síndico</Link>
-      </div>
     </div>
   );
 }

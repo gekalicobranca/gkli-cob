@@ -114,6 +114,13 @@ const groups: Array<{
         tag: 'Segurança',
       },
       {
+        title: 'Acessos dos síndicos',
+        description: 'Crie logins do portal do síndico e vincule condomínios liberados.',
+        href: '/app/configuracoes/acessos-sindicos',
+        icon: KeyRound,
+        tag: 'Portal',
+      },
+      {
         title: 'Chaves e ambiente',
         description: 'Área reservada para integrações e parâmetros técnicos.',
         href: '/app/configuracoes/ambiente',

@@ -180,6 +180,6 @@ export async function createSindicoAccess(formData: FormData) {
   }
 
   revalidatePath("/app/gestao/visao-sindico");
-  revalidatePath("/app/gestao/visao-sindico/acessos");
-  redirect("/app/gestao/visao-sindico/acessos?criado=1");
+  revalidatePath("/app/configuracoes/acessos-sindicos");
+  redirect("/app/configuracoes/acessos-sindicos?criado=1");
 }

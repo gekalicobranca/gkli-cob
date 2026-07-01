@@ -89,6 +89,7 @@ const settingsGroups: SidebarSection[] = [
     items: [
       { label: 'Central de configurações', href: '/app/configuracoes', icon: 'gear' },
       { label: 'Carteiras x Usuários', href: '/app/carteiras-usuarios', icon: 'users' },
+      { label: 'Acessos síndicos', href: '/app/configuracoes/acessos-sindicos', icon: 'home' },
       { label: 'Solicitações ADM', href: '/app/administradoras/solicitacoes', icon: 'clipboard' },
       { label: 'Mensageria ADM', href: '/app/administradoras/mensageria', icon: 'message' },
     ],
