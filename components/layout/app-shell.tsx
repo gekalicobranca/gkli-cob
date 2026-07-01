@@ -28,8 +28,8 @@ type AppShellUser = {
   perfil?: string | null
 }
 
-const SIDEBAR_STORAGE_KEY = 'gkli:cobranca:sidebar:v13-lite'
-const GROUPS_STORAGE_KEY = 'gkli:cobranca:sidebar-groups:v2-lite'
+const SIDEBAR_STORAGE_KEY = 'gkli:cobranca:sidebar:v14-lite'
+const GROUPS_STORAGE_KEY = 'gkli:cobranca:sidebar-groups:v3-lite'
 
 const featuredItem: SidebarItem = {
   label: 'Inbox operacional',
@@ -75,9 +75,9 @@ const sections: SidebarSection[] = [
     id: 'gestao',
     title: 'Gestão',
     items: [
+      { label: 'Visão do síndico', href: '/app/gestao/visao-sindico/acessos', icon: 'home' },
       { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
       { label: 'Gestão acordos', href: '/app/acordos/gestao', icon: 'chart' },
-      { label: 'Visão do síndico', href: '/app/gestao/visao-sindico/acessos', icon: 'home' },
     ],
   },
 ]
