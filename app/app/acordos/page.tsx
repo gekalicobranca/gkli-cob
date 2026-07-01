@@ -5,6 +5,8 @@ import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StatusBadge } from '@/components/data/status-badge'
 import {
   ClearFiltersLink,
@@ -23,12 +25,15 @@ import {
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+import { listCondominiosForSelect, listUnidadesForSelect } from '@/features/cadastros/queries'
 import { listAcordosComSaude } from '@/features/acordos/queries'
 import { AgreementHealthBadge } from '@/features/acordos/components/agreement-health-badge'
 
 type AcordosPageProps = {
   searchParams?: Promise<{
     q?: string
+    condominio_id?: string
+    unidade_id?: string
     status?: string
     tipo?: string
     data_de?: string
@@ -92,6 +97,8 @@ function sortAcordos(rows: any[], ordenar: string) {
 
 function filterAcordos(rows: any[], filters: Awaited<NonNullable<AcordosPageProps['searchParams']>>) {
   const termo = normalizeText(filters.q)
+  const condominioId = clean(filters.condominio_id)
+  const unidadeId = clean(filters.unidade_id)
   const status = clean(filters.status)
   const tipo = clean(filters.tipo)
   const dataDe = dateFilter(filters.data_de)
@@ -99,6 +106,8 @@ function filterAcordos(rows: any[], filters: Awaited<NonNullable<AcordosPageProp
 
   return rows.filter((row) => {
     const data = clean(row.data_acordo).slice(0, 10)
+    if (condominioId && row.condominio_id !== condominioId) return false
+    if (unidadeId && row.unidade_id !== unidadeId) return false
     if (status && row.status !== status) return false
     if (tipo && row.tipo !== tipo) return false
     if (dataDe && data < dataDe) return false
@@ -142,10 +151,16 @@ function groupAcordos(rows: any[]) {
 export default async function AcordosPage({ searchParams }: AcordosPageProps) {
   const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
-  const allRows = await listAcordosComSaude(scope)
+  const [allRows, condominios, unidades] = await Promise.all([
+    listAcordosComSaude(scope),
+    listCondominiosForSelect(scope),
+    clean(params.condominio_id)
+      ? listUnidadesForSelect(scope, { condominioId: clean(params.condominio_id) })
+      : Promise.resolve([]),
+  ])
   const rows = sortAcordos(filterAcordos(allRows, params), clean(params.ordenar) || 'condominio')
   const groups = groupAcordos(rows)
-  const hasFilters = Boolean(params.q || params.status || params.tipo || params.data_de || params.data_ate || params.ordenar)
+  const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.status || params.tipo || params.data_de || params.data_ate || params.ordenar)
 
   const ativos = rows.filter((row: any) => row.status === 'ativo').length
   const atraso = rows.filter((row: any) => row.status === 'em atraso').length
@@ -194,8 +209,36 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
             <ClearFiltersLink href="/app/acordos" show={hasFilters} />
           </ListTitleBar>
 
-          <ListFiltersForm className="xl:grid-cols-[minmax(220px,1.2fr)_150px_150px_155px_155px_210px_auto]">
+          <ListFiltersForm className="xl:grid-cols-[minmax(220px,1.2fr)_minmax(210px,.9fr)_minmax(190px,.85fr)_150px_150px_155px_155px_210px_auto]">
             <ListSearchField defaultValue={clean(params.q)} placeholder="Condomínio, unidade, responsável..." />
+            <ListFilterField label="CondomÃ­nio">
+              <CondominioSearchSelect
+                name="condominio_id"
+                options={condominios.map((condominio: any) => ({
+                  id: condominio.id,
+                  nome: condominio.nome,
+                  administradora: null,
+                }))}
+                selectedId={clean(params.condominio_id)}
+                defaultToFirst={false}
+                inputClassName=""
+              />
+            </ListFilterField>
+            <ListFilterField label="Unidade">
+              <SearchableSelect
+                name="unidade_id"
+                options={unidades.map((unidade: any) => ({
+                  value: unidade.id,
+                  label: [
+                    unidade.bloco ? `Bloco ${unidade.bloco}` : null,
+                    unidade.identificacao ? `Unidade ${unidade.identificacao}` : null,
+                    unidade.responsavel_nome,
+                  ].filter(Boolean).join(" - "),
+                }))}
+                selectedValue={clean(params.unidade_id)}
+                placeholder={clean(params.condominio_id) ? "Digite unidade ou responsavel" : "Selecione um condominio primeiro"}
+              />
+            </ListFilterField>
             <ListFilterField label="Status">
               <Select name="status" defaultValue={clean(params.status)}>
                 <option value="">Todos</option>

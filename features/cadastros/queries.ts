@@ -42,16 +42,18 @@ export async function listCondominiosForSelect(scope: CarteiraScope) {
   return data ?? []
 }
 
-export async function listUnidadesForSelect(scope: CarteiraScope) {
+export async function listUnidadesForSelect(scope: CarteiraScope, filters: { condominioId?: string | null } = {}) {
   const supabase = await createClient()
+  const condominioId = String(filters.condominioId ?? '').trim()
 
   let query = supabase
     .from('unidades')
-    .select('id, identificacao, responsavel_nome, condominio_id, carteira_id')
+    .select('id, identificacao, bloco, responsavel_nome, condominio_id, carteira_id')
     .eq('status', 'ativa')
     .order('identificacao')
 
   query = applyCarteiraScope(query, scope.carteiraIds)
+  if (condominioId) query = query.eq('condominio_id', condominioId)
 
   const { data, error } = await query
 
