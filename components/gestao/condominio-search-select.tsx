@@ -1,8 +1,4 @@
-"use client";
-
-import { useMemo, useState } from "react";
-
-import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 type CondominioOption = {
   id: string;
@@ -10,69 +6,36 @@ type CondominioOption = {
   administradora: string | null;
 };
 
-function normalize(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
 export function CondominioSearchSelect({
   name,
+  id,
   options,
   selectedId,
+  className,
+  inputClassName = "mt-2",
+  defaultToFirst = true,
+  required = false,
 }: {
   name: string;
+  id?: string;
   options: CondominioOption[];
   selectedId?: string | null;
+  className?: string;
+  inputClassName?: string;
+  defaultToFirst?: boolean;
+  required?: boolean;
 }) {
-  const selected = options.find((option) => option.id === selectedId) ?? options[0] ?? null;
-  const [typedValue, setTypedValue] = useState(selected?.nome ?? "");
-  const [selectedValue, setSelectedValue] = useState(selected?.id ?? "");
-  const listId = `${name}-options`;
-
-  const normalizedOptions = useMemo(
-    () => options.map((option) => ({ ...option, normalizedName: normalize(option.nome) })),
-    [options],
-  );
-
-  function resolveSelection(value: string) {
-    const normalizedValue = normalize(value);
-    const exact = normalizedOptions.find((option) => option.normalizedName === normalizedValue);
-    if (exact) {
-      setSelectedValue(exact.id);
-      setTypedValue(exact.nome);
-      return;
-    }
-
-    const partialMatches = normalizedOptions.filter((option) => option.normalizedName.includes(normalizedValue));
-    if (partialMatches.length === 1) {
-      setSelectedValue(partialMatches[0].id);
-    }
-  }
-
   return (
-    <>
-      <Input
-        className="mt-2"
-        list={listId}
-        value={typedValue}
-        onChange={(event) => {
-          const value = event.target.value;
-          setTypedValue(value);
-          resolveSelection(value);
-        }}
-        onBlur={() => resolveSelection(typedValue)}
-        placeholder="Digite parte do nome do condomínio"
-        autoComplete="off"
-      />
-      <input type="hidden" name={name} value={selectedValue} />
-      <datalist id={listId}>
-        {options.map((option) => (
-          <option key={option.id} value={option.nome} />
-        ))}
-      </datalist>
-    </>
+    <SearchableSelect
+      name={name}
+      id={id}
+      options={options.map((option) => ({ value: option.id, label: option.nome }))}
+      selectedValue={selectedId}
+      placeholder="Digite parte do nome do condomínio"
+      className={className}
+      inputClassName={inputClassName}
+      defaultToFirst={defaultToFirst}
+      required={required}
+    />
   );
 }

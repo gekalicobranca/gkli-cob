@@ -5,6 +5,8 @@ import { ButtonLink } from '@/components/ui/button'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Textarea } from '@/components/ui/textarea'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
@@ -40,26 +42,27 @@ export default async function NovoResponsavelPage() {
         <form action={createResponsavelUnidade} className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-1.5 xl:col-span-1">
             <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Carteira</span>
-            <Select name="carteira_id" required defaultValue="">
-              <option value="">Selecione</option>
-              {carteiras.map((carteira: any) => (
-                <option key={carteira.id} value={carteira.id}>
-                  {carteira.nome}
-                </option>
-              ))}
-            </Select>
+            <SearchableSelect
+              name="carteira_id"
+              options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
+              placeholder="Digite parte da carteira"
+              required
+            />
           </label>
 
           <label className="space-y-1.5 xl:col-span-2">
             <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Condomínio</span>
-            <Select name="condominio_id" required defaultValue="">
-              <option value="">Selecione</option>
-              {condominios.map((condominio: any) => (
-                <option key={condominio.id} value={condominio.id}>
-                  {condominio.nome}
-                </option>
-              ))}
-            </Select>
+            <CondominioSearchSelect
+              name="condominio_id"
+              options={condominios.map((condominio: any) => ({
+                id: condominio.id,
+                nome: condominio.nome,
+                administradora: condominio.administradora ?? null,
+              }))}
+              defaultToFirst={false}
+              inputClassName=""
+              required
+            />
           </label>
 
           <label className="space-y-1.5">

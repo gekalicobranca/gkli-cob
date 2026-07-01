@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
 import { StatusBadge } from '@/components/data/status-badge'
@@ -94,7 +95,7 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Carteira"><Select name="carteira_id" defaultValue={condominio.carteira_id ?? ''} required><option value="">Selecione...</option>{carteiras.map((carteira: any) => (<option key={carteira.id} value={carteira.id}>{carteira.nome}</option>))}</Select></FormField>
+            <FormField label="Carteira"><SearchableSelect name="carteira_id" options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))} selectedValue={condominio.carteira_id ?? ''} placeholder="Digite parte da carteira" required /></FormField>
             <FormField label="Status"><Select name="status" defaultValue={condominio.status ?? 'ativo'}><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="pausado">Pausado</option></Select></FormField>
             <FormField label="Nome oficial do condomínio"><Input name="nome" defaultValue={condominio.nome ?? ''} required /></FormField>
             <FormField label="Nome operacional"><Input name="nome_operacional" defaultValue={condominio.nome_operacional ?? ''} placeholder="Como a operação identifica este condomínio" /></FormField>

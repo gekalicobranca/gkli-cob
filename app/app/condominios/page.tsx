@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StatusBadge } from '@/components/data/status-badge'
 import {
   ClearFiltersLink,
@@ -150,20 +151,20 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
               defaultValue={filters.search ?? ''}
             />
             <ListFilterField label="Carteira">
-              <Select name="carteira_id" defaultValue={filters.carteiraId ?? ''}>
-                <option value="">Todas</option>
-                {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
-                ))}
-              </Select>
+              <SearchableSelect
+                name="carteira_id"
+                options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
+                selectedValue={filters.carteiraId ?? ''}
+                placeholder="Digite parte da carteira"
+              />
             </ListFilterField>
             <ListFilterField label="Administradora">
-              <Select name="administradora" defaultValue={filters.administradora ?? ''}>
-                <option value="">Todas</option>
-                {administradoras.map((administradora) => (
-                  <option key={administradora} value={administradora}>{administradora}</option>
-                ))}
-              </Select>
+              <SearchableSelect
+                name="administradora"
+                options={administradoras.map((administradora) => ({ value: administradora, label: administradora }))}
+                selectedValue={filters.administradora ?? ''}
+                placeholder="Digite parte da administradora"
+              />
             </ListFilterField>
             <ListFilterField label="Status">
               <Select name="status" defaultValue={filters.status ?? ''}>

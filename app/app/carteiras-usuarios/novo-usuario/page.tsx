@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { FormField } from '@/components/ui/form-field'
 import { requireAdmin } from '@/utils/auth/require-admin'
 import { listAllCarteirasForAdmin } from '@/features/carteiras/queries'
@@ -48,14 +49,11 @@ export default async function NovoUsuarioPage() {
             </FormField>
 
             <FormField label="Carteira inicial" hint="Opcional. Admin enxerga tudo mesmo sem vínculo.">
-              <Select name="carteira_id" defaultValue="">
-                <option value="">Sem vínculo inicial</option>
-                {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>
-                    {carteira.nome}
-                  </option>
-                ))}
-              </Select>
+              <SearchableSelect
+                name="carteira_id"
+                options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
+                placeholder="Digite parte da carteira"
+              />
             </FormField>
           </div>
 

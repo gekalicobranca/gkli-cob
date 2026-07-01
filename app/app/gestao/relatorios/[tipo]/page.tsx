@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -148,10 +149,12 @@ export default async function RelatorioDetalhePage({ params, searchParams }: Rel
 
             <label className="space-y-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Carteira</span>
-              <Select name="carteira_id" defaultValue={filters.carteiraId ?? ''}>
-                <option value="">Todas</option>
-                {carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}
-              </Select>
+              <SearchableSelect
+                name="carteira_id"
+                options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
+                selectedValue={filters.carteiraId ?? ''}
+                placeholder="Digite parte da carteira"
+              />
             </label>
 
             <label className="space-y-1.5">

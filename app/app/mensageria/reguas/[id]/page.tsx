@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
@@ -54,7 +55,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
             <div className="grid gap-4 lg:grid-cols-[minmax(260px,1.3fr)_150px_minmax(220px,1fr)_150px_160px_120px_150px]">
               <FormField label="Nome"><Input name="nome" defaultValue={regua.nome} required /></FormField>
               <FormField label="Tipo"><Select name="tipo" defaultValue={regua.tipo}><option value="cobranca">Cobrança</option><option value="acordo">Acordos</option></Select></FormField>
-              <FormField label="Carteira"><Select name="carteira_id" defaultValue={regua.carteira_id ?? ''}><option value="">Global / fallback</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></FormField>
+              <FormField label="Carteira"><SearchableSelect name="carteira_id" options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))} selectedValue={regua.carteira_id ?? ''} placeholder="Global / fallback" /></FormField>
               <FormField label="Status"><Select name="status" defaultValue={regua.status ?? 'ativa'}><option value="ativa">Ativa</option><option value="rascunho">Rascunho</option><option value="inativa">Inativa</option></Select></FormField>
               <FormField label="Destinatário"><Select name="destinatario_preferencial" defaultValue={regua.destinatario_preferencial ?? 'proprietario'}><option value="proprietario">Proprietário</option><option value="inquilino">Inquilino</option><option value="qualquer">Qualquer contato</option></Select></FormField>
               <FormField label="Prioridade"><Input name="prioridade" type="number" defaultValue={String(regua.prioridade ?? 0)} /></FormField>
@@ -138,7 +139,7 @@ function EtapaForm({ reguaId, tipo, templates, etapa, compact = false }: { regua
         <FormField label="Intensidade"><Select name="tom" defaultValue={etapa?.tom ?? 'medio'}><option value="leve">Leve</option><option value="medio">Médio</option><option value="agressivo">Agressivo</option></Select></FormField>
         <FormField label="Ação"><Select name="acao" defaultValue={etapa?.acao ?? 'enviar_mensagem'}><option value="enviar_mensagem">Enviar mensagem</option><option value="gerar_pendencia">Gerar pendência</option><option value="acao_humana">Ação humana</option><option value="follow_up">Follow-up</option></Select></FormField>
         <FormField label="Situação do template"><Select name="categoria_template" defaultValue={etapa?.categoria_template ?? (tipo === 'acordo' ? 'lembrete_acordo' : 'cobranca_inicial')}>{TEMPLATE_CATEGORIES.map((categoria) => <option key={categoria} value={categoria}>{categoryLabel(categoria)}</option>)}</Select></FormField>
-        <FormField label="Template fixo opcional"><Select name="template_id" defaultValue={etapa?.template_id ?? ''}><option value="">Resolver automático por carteira/situação</option>{templates.map((tpl: any) => <option key={tpl.id} value={tpl.id}>{tpl.nome} · {tpl.canal}</option>)}</Select></FormField>
+        <FormField label="Template fixo opcional"><SearchableSelect name="template_id" options={templates.map((tpl: any) => ({ value: tpl.id, label: `${tpl.nome} - ${tpl.canal}` }))} selectedValue={etapa?.template_id ?? ''} placeholder="Resolver automatico por carteira/situacao" /></FormField>
         <FormField label="Horário início"><Input name="horario_inicio" type="time" defaultValue={etapa?.horario_inicio ?? '09:00'} /></FormField>
         <FormField label="Horário fim"><Input name="horario_fim" type="time" defaultValue={etapa?.horario_fim ?? '18:00'} /></FormField>
       </div>

@@ -2,9 +2,10 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
+import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import {
   listCarteirasForSelect,
@@ -33,32 +34,38 @@ export default async function NovaCobrancaPage() {
         <form action={createCobranca} className="space-y-5">
           <div className="grid gap-5 md:grid-cols-2">
             <FormField label="Carteira">
-              <Select name="carteira_id" required>
-                <option value="">Selecione...</option>
-                {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
-                ))}
-              </Select>
+              <SearchableSelect
+                name="carteira_id"
+                options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
+                placeholder="Digite parte do nome da carteira"
+                required
+              />
             </FormField>
 
             <FormField label="Condomínio">
-              <Select name="condominio_id" required>
-                <option value="">Selecione...</option>
-                {condominios.map((condominio: any) => (
-                  <option key={condominio.id} value={condominio.id}>{condominio.nome}</option>
-                ))}
-              </Select>
+              <CondominioSearchSelect
+                name="condominio_id"
+                options={condominios.map((condominio: any) => ({
+                  id: condominio.id,
+                  nome: condominio.nome,
+                  administradora: condominio.administradora ?? null,
+                }))}
+                defaultToFirst={false}
+                inputClassName=""
+                required
+              />
             </FormField>
 
             <FormField label="Unidade">
-              <Select name="unidade_id" required>
-                <option value="">Selecione...</option>
-                {unidades.map((unidade: any) => (
-                  <option key={unidade.id} value={unidade.id}>
-                    {unidade.identificacao} · {unidade.responsavel_nome ?? 'sem responsável'}
-                  </option>
-                ))}
-              </Select>
+              <SearchableSelect
+                name="unidade_id"
+                options={unidades.map((unidade: any) => ({
+                  value: unidade.id,
+                  label: `${unidade.identificacao} - ${unidade.responsavel_nome ?? 'sem responsável'}`,
+                }))}
+                placeholder="Digite unidade ou responsável"
+                required
+              />
             </FormField>
 
             <FormField label="Competência">

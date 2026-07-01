@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { Select } from "@/components/ui/select";
+import { CondominioSearchSelect } from "@/components/gestao/condominio-search-select";
 import { createSindicoAccess } from "@/features/sindico/actions";
 import { requireAdmin } from "@/utils/auth/require-admin";
 import { createAdminClient } from "@/utils/supabase/admin";
@@ -97,14 +97,17 @@ export default async function SindicoAccessPage({
               </FormField>
             </div>
             <FormField label="Condominio liberado">
-              <Select name="condominio_id" required defaultValue="">
-                <option value="">Selecione</option>
-                {condominios.map((condominio) => (
-                  <option key={condominio.id} value={condominio.id}>
-                    {condominio.nome} {condominio.status ? `- ${condominio.status}` : ""}
-                  </option>
-                ))}
-              </Select>
+              <CondominioSearchSelect
+                name="condominio_id"
+                options={condominios.map((condominio) => ({
+                  id: condominio.id,
+                  nome: `${condominio.nome}${condominio.status ? ` - ${condominio.status}` : ""}`,
+                  administradora: condominio.administradora ?? null,
+                }))}
+                defaultToFirst={false}
+                inputClassName=""
+                required
+              />
             </FormField>
 
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">

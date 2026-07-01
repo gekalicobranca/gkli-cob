@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { TemplatePreview } from '@/features/mensageria/components/template-preview'
 import { TEMPLATE_CATEGORIES, categoryLabel } from '@/features/mensageria/render-template'
 import { criarTemplateMensagem } from '@/features/mensageria/actions'
@@ -58,16 +59,13 @@ export default async function NovoTemplateMensageriaPage() {
           <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.8fr)_1fr_150px_140px_160px] xl:items-end">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700" htmlFor="carteira_id">Carteira autorizada</label>
-              <Select id="carteira_id" name="carteira_id" defaultValue="" required={!scope.isAdmin}>
-                {scope.isAdmin ? (
-                  <option value="">Global — todas as carteiras</option>
-                ) : (
-                  <option value="">Selecione uma carteira</option>
-                )}
-                {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
-                ))}
-              </Select>
+              <SearchableSelect
+                id="carteira_id"
+                name="carteira_id"
+                options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
+                placeholder={scope.isAdmin ? "Global - todas as carteiras" : "Digite parte da carteira"}
+                required={!scope.isAdmin}
+              />
               <p className="text-xs text-slate-500">
                 Escolha uma carteira específica ou deixe global quando o template puder ser usado por todas.
               </p>

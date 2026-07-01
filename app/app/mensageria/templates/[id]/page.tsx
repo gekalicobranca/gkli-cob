@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getTemplateDetalhe } from '@/features/mensageria/queries'
 import { atualizarTemplateMensagem } from '@/features/mensageria/actions'
@@ -65,16 +66,14 @@ export default async function EditarTemplateMensageriaPage({ params }: { params:
           <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.8fr)_1fr_150px_140px_160px] xl:items-end">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700" htmlFor="carteira_id">Carteira autorizada</label>
-              <Select id="carteira_id" name="carteira_id" defaultValue={template.carteira_id ?? ''} required={!scope.isAdmin}>
-                {scope.isAdmin ? (
-                  <option value="">Global — todas as carteiras</option>
-                ) : (
-                  <option value="">Selecione uma carteira</option>
-                )}
-                {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
-                ))}
-              </Select>
+              <SearchableSelect
+                id="carteira_id"
+                name="carteira_id"
+                options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
+                selectedValue={template.carteira_id ?? ''}
+                placeholder={scope.isAdmin ? "Global - todas as carteiras" : "Digite parte da carteira"}
+                required={!scope.isAdmin}
+              />
               <p className="text-xs text-slate-500">
                 Altere a carteira para limitar quem pode usar este template.
               </p>

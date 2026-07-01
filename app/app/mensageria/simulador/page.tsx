@@ -3,6 +3,8 @@ import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
 import { AlertTriangle } from 'lucide-react'
@@ -231,17 +233,26 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
           </label>
           <label className="space-y-1.5">
             <span className="text-xs font-semibold uppercase text-slate-400">Carteira</span>
-            <Select name="carteira_id" defaultValue={filters.carteira_id}>
-              <option value="">Todas</option>
-              {carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}
-            </Select>
+            <SearchableSelect
+              name="carteira_id"
+              options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
+              selectedValue={filters.carteira_id}
+              placeholder="Digite parte da carteira"
+            />
           </label>
           <label className="space-y-1.5">
             <span className="text-xs font-semibold uppercase text-slate-400">Condomínio</span>
-            <Select name="condominio_id" defaultValue={filters.condominio_id}>
-              <option value="">Todos</option>
-              {condominios.map((condominio: any) => <option key={condominio.id} value={condominio.id}>{condominio.nome}</option>)}
-            </Select>
+            <CondominioSearchSelect
+              name="condominio_id"
+              options={condominios.map((condominio: any) => ({
+                id: condominio.id,
+                nome: condominio.nome,
+                administradora: condominio.administradora ?? null,
+              }))}
+              selectedId={filters.condominio_id}
+              defaultToFirst={false}
+              inputClassName=""
+            />
           </label>
           <label className="space-y-1.5">
             <span className="text-xs font-semibold uppercase text-slate-400">Contato</span>

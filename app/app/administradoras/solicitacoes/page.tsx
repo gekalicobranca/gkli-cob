@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/data/status-badge'
@@ -37,7 +38,7 @@ export default async function SolicitacoesAdmPage() {
       <Card className="space-y-4">
         <div><h2 className="text-base font-medium text-slate-950">Nova solicitação rápida</h2><p className="mt-1 text-sm text-slate-500">Use para testar o fluxo sem entrar no detalhe da administradora.</p></div>
         <form action={createSolicitacaoAdm} className="grid gap-3 lg:grid-cols-4">
-          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Administradora</span><Select name="administradora_id" required><option value="">Selecione</option>{administradoras.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}</Select></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Administradora</span><SearchableSelect name="administradora_id" options={administradoras.map((a) => ({ value: a.id, label: a.nome }))} placeholder="Digite parte da administradora" required /></label>
           <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Tipo</span><Select name="tipo" defaultValue="pedido_planilha_debitos"><option value="pedido_planilha_debitos">Planilha de débitos</option><option value="pedido_boleto_acordo">Boleto de acordo</option><option value="registro_acordo_realizado">Registro de acordo</option><option value="outros">Outros</option></Select></label>
           <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Prazo</span><Input name="prazo_resposta" type="datetime-local" /></label>
           <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Assunto</span><Input name="assunto" /></label>

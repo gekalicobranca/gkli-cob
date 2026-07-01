@@ -4,6 +4,8 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StatusBadge } from '@/components/data/status-badge'
 import {
   ClearFiltersLink,
@@ -195,20 +197,25 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
               defaultValue={filters.search ?? ''}
             />
             <ListFilterField label="Carteira">
-              <Select name="carteira_id" defaultValue={filters.carteiraId ?? ''}>
-                <option value="">Todas</option>
-                {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
-                ))}
-              </Select>
+              <SearchableSelect
+                name="carteira_id"
+                options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
+                selectedValue={filters.carteiraId ?? ''}
+                placeholder="Digite parte da carteira"
+              />
             </ListFilterField>
             <ListFilterField label="Condomínio">
-              <Select name="condominio_id" defaultValue={filters.condominioId ?? ''}>
-                <option value="">Todos</option>
-                {condominios.map((condominio: any) => (
-                  <option key={condominio.id} value={condominio.id}>{condominio.nome}</option>
-                ))}
-              </Select>
+              <CondominioSearchSelect
+                name="condominio_id"
+                options={condominios.map((condominio: any) => ({
+                  id: condominio.id,
+                  nome: condominio.nome,
+                  administradora: condominio.administradora ?? null,
+                }))}
+                selectedId={filters.condominioId ?? ''}
+                defaultToFirst={false}
+                inputClassName=""
+              />
             </ListFilterField>
             <ListFilterField label="Status">
               <Select name="status" defaultValue={filters.status ?? ''}>

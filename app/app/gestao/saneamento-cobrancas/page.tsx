@@ -8,7 +8,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
-import { Select } from "@/components/ui/select";
+import { CondominioSearchSelect } from "@/components/gestao/condominio-search-select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { alterarUnidadeCobrancaPeloSaneamento } from "@/features/saneamento-cobrancas/actions";
 import {
   listCobrancasParaCorrecaoUnidade,
@@ -110,14 +111,17 @@ export default async function SaneamentoCobrancasPage({ searchParams }: Props) {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input name="q" defaultValue={q} placeholder="Buscar por Rio Negro, unidade, responsável, status..." className="pl-9" />
           </div>
-          <Select name="condominio_id" defaultValue={condominioId}>
-            <option value="">Todos os condomínios</option>
-            {condominios.map((condominio) => (
-              <option key={condominio.id} value={condominio.id}>
-                {condominio.nome}
-              </option>
-            ))}
-          </Select>
+          <CondominioSearchSelect
+            name="condominio_id"
+            options={condominios.map((condominio) => ({
+              id: condominio.id,
+              nome: condominio.nome,
+              administradora: null,
+            }))}
+            selectedId={condominioId}
+            defaultToFirst={false}
+            inputClassName=""
+          />
           <Button type="submit" variant="secondary" className="lg:w-auto">
             Filtrar
           </Button>
@@ -187,14 +191,19 @@ export default async function SaneamentoCobrancasPage({ searchParams }: Props) {
                 <label className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400" htmlFor="unidade_destino_id">
                   Nova unidade
                 </label>
-                <Select id="unidade_destino_id" name="unidade_destino_id" required className="mt-2">
-                  <option value="">Selecione a unidade correta</option>
-                  {unidadesDestino.map((unidade: any) => (
-                    <option key={unidade.id} value={unidade.id} disabled={unidade.id === selectedCobranca.unidade_id}>
-                      {unidadeCompleta(unidade)}
-                    </option>
-                  ))}
-                </Select>
+                <SearchableSelect
+                  id="unidade_destino_id"
+                  name="unidade_destino_id"
+                  options={unidadesDestino
+                    .filter((unidade: any) => unidade.id !== selectedCobranca.unidade_id)
+                    .map((unidade: any) => ({
+                      value: unidade.id,
+                      label: unidadeCompleta(unidade),
+                    }))}
+                  placeholder="Digite parte da unidade correta"
+                  inputClassName="mt-2"
+                  required
+                />
               </div>
 
               <div>

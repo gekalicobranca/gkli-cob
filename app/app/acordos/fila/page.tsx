@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { StatusBadge } from '@/components/data/status-badge'
 import { AgreementHealthBadge } from '@/features/acordos/components/agreement-health-badge'
@@ -233,12 +234,17 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
           </label>
           <label className="space-y-1">
             <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Condomínio</span>
-            <Select name="condominio_id" defaultValue={params.condominio_id ?? ''}>
-              <option value="">Todos</option>
-              {condominios.map((condominio) => (
-                <option key={condominio.id} value={condominio.id}>{condominio.nome}</option>
-              ))}
-            </Select>
+            <CondominioSearchSelect
+              name="condominio_id"
+              options={condominios.map((condominio) => ({
+                id: condominio.id,
+                nome: condominio.nome,
+                administradora: null,
+              }))}
+              selectedId={params.condominio_id ?? ''}
+              defaultToFirst={false}
+              inputClassName=""
+            />
           </label>
           <label className="space-y-1">
             <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Status</span>

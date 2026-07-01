@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
@@ -26,12 +26,12 @@ export default async function NovoCondominioPage() {
         <form action={createCondominio} className="space-y-5">
           <div className="grid gap-5 md:grid-cols-2">
             <FormField label="Carteira">
-              <Select name="carteira_id" required>
-                <option value="">Selecione...</option>
-                {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
-                ))}
-              </Select>
+              <SearchableSelect
+                name="carteira_id"
+                options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
+                placeholder="Digite parte da carteira"
+                required
+              />
             </FormField>
 
             <FormField label="Nome oficial do condomínio">
