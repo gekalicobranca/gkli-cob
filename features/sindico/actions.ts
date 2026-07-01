@@ -14,6 +14,10 @@ function validateEmail(value: string) {
   return value.includes("@") && value.includes(".");
 }
 
+function isUndefinedColumnError(error: { code?: string; message?: string } | null | undefined) {
+  return error?.code === "42703" || String(error?.message ?? "").toLowerCase().includes("column");
+}
+
 async function findAuthUserIdByEmail(email: string) {
   const admin = createAdminClient();
   let page = 1;
@@ -108,7 +112,7 @@ export async function createSindicoAccess(formData: FormData) {
     throw new Error(`Erro ao salvar perfil do sindico: ${profileError.message}`);
   }
 
-  const { data: portalUser, error: portalUserError } = await admin
+  let portalUserResult = await admin
     .from("portal_sindico_usuarios")
     .upsert(
       {
@@ -124,11 +128,30 @@ export async function createSindicoAccess(formData: FormData) {
     .select("id")
     .single();
 
+  if (isUndefinedColumnError(portalUserResult.error)) {
+    portalUserResult = await admin
+      .from("portal_sindico_usuarios")
+      .upsert(
+        {
+          user_id: userId,
+          nome,
+          email,
+          telefone,
+          documento,
+        },
+        { onConflict: "user_id" },
+      )
+      .select("id")
+      .single();
+  }
+
+  const { data: portalUser, error: portalUserError } = portalUserResult;
+
   if (portalUserError) {
     throw new Error(`Erro ao salvar usuario do portal: ${portalUserError.message}`);
   }
 
-  const { error: vinculoError } = await admin.from("portal_sindico_condominios").upsert(
+  let vinculoResult = await admin.from("portal_sindico_condominios").upsert(
     {
       portal_usuario_id: portalUser.id,
       condominio_id: condominioId,
@@ -138,6 +161,19 @@ export async function createSindicoAccess(formData: FormData) {
     },
     { onConflict: "portal_usuario_id,condominio_id" },
   );
+
+  if (isUndefinedColumnError(vinculoResult.error)) {
+    vinculoResult = await admin.from("portal_sindico_condominios").upsert(
+      {
+        portal_usuario_id: portalUser.id,
+        condominio_id: condominioId,
+        carteira_id: (condominio as any).carteira_id ?? null,
+      },
+      { onConflict: "portal_usuario_id,condominio_id" },
+    );
+  }
+
+  const { error: vinculoError } = vinculoResult;
 
   if (vinculoError) {
     throw new Error(`Erro ao vincular condominio ao sindico: ${vinculoError.message}`);

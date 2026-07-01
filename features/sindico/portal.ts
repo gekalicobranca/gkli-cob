@@ -145,7 +145,7 @@ export async function getSindicoPortalOverview(mode: SindicoPortalMode = "ativos
 
   const { data: portalUser, error: portalUserError } = await admin
     .from("portal_sindico_usuarios")
-    .select("id, nome, email, status")
+    .select("id, nome, email")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -153,10 +153,12 @@ export async function getSindicoPortalOverview(mode: SindicoPortalMode = "ativos
     throw new Error(`Erro ao carregar acesso do sindico: ${portalUserError.message}`);
   }
 
-  if (!portalUser || portalUser.status !== "ativo") {
+  const portalUserStatus = (portalUser as any)?.status ?? "ativo";
+
+  if (!portalUser || portalUserStatus !== "ativo") {
     return {
       user,
-      portalUser: portalUser as any,
+      portalUser: portalUser ? { ...(portalUser as any), status: portalUserStatus } : null,
       mode,
       condominios: [],
       aceites: [],
@@ -174,9 +176,8 @@ export async function getSindicoPortalOverview(mode: SindicoPortalMode = "ativos
 
   const { data: vinculos, error: vinculosError } = await admin
     .from("portal_sindico_condominios")
-    .select("id, perfil, status, condominio_id, condominios:condominio_id (id, nome, administradora)")
+    .select("id, condominio_id, condominios:condominio_id (id, nome, administradora)")
     .eq("portal_usuario_id", portalUser.id)
-    .eq("status", "ativo")
     .order("created_at", { ascending: true });
 
   if (vinculosError) {
@@ -294,7 +295,7 @@ export async function getSindicoPortalOverview(mode: SindicoPortalMode = "ativos
 
   return {
     user,
-    portalUser: portalUser as any,
+    portalUser: { ...(portalUser as any), status: portalUserStatus },
     mode,
     condominios,
     aceites: termosRows

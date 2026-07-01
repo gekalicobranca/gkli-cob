@@ -25,7 +25,7 @@ async function listSindicoAccesses() {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("portal_sindico_usuarios")
-    .select("id, nome, email, telefone, status, portal_sindico_condominios (id, status, perfil, condominios:condominio_id (nome))")
+    .select("id, nome, email, telefone, portal_sindico_condominios (id, condominios:condominio_id (nome))")
     .order("created_at", { ascending: false })
     .limit(30);
 
@@ -143,7 +143,7 @@ export default async function SindicoAccessPage({
                     </div>
                     <div>
                       <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                        {acesso.status}
+                        {acesso.status ?? "ativo"}
                       </span>
                     </div>
                   </div>

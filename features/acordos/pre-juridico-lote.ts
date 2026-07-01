@@ -295,14 +295,13 @@ async function carregarContatosSindico(
 
   const { data } = await supabase
     .from("portal_sindico_condominios")
-    .select("condominio_id, status, portal_sindico_usuarios(nome,email,status)")
-    .in("condominio_id", condominioIds)
-    .eq("status", "ativo");
+    .select("condominio_id, portal_sindico_usuarios(nome,email)")
+    .in("condominio_id", condominioIds);
 
   for (const row of (data ?? []) as any[]) {
     const usuario = firstRelation((row as any).portal_sindico_usuarios);
     const email = String(usuario?.email ?? "").trim();
-    if (!row.condominio_id || !email || usuario?.status === "inativo") continue;
+    if (!row.condominio_id || !email) continue;
     const list = result.get(row.condominio_id) ?? [];
     list.push({ nome: usuario?.nome ?? email, email });
     result.set(row.condominio_id, list);
