@@ -431,7 +431,7 @@ export default async function VisaoSindicoPage({
             className={cn(
               "inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition",
               activeTab === "acordos"
-                ? "bg-[#04799a] text-white shadow-sm"
+                ? "bg-[#04799a] !text-white shadow-sm [&_*]:!text-white"
                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
             )}
           >
@@ -446,7 +446,7 @@ export default async function VisaoSindicoPage({
             className={cn(
               "inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition",
               activeTab === "cobrancas"
-                ? "bg-[#04799a] text-white shadow-sm"
+                ? "bg-[#04799a] !text-white shadow-sm [&_*]:!text-white"
                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
             )}
           >
