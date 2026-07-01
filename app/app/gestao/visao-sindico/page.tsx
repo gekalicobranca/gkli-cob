@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Building2, CalendarDays, CircleDollarSign, ExternalLink, Handshake, ListChecks } from "lucide-react";
 
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -15,7 +16,10 @@ type SearchParams = {
   condominio?: string;
   inicio?: string;
   fim?: string;
+  aba?: string;
 };
+
+type DashboardTab = "acordos" | "cobrancas";
 
 type CondominioOption = {
   id: string;
@@ -72,6 +76,19 @@ function one<T>(value: T | T[] | null | undefined): T | null {
 function normalizeDate(value?: string | null) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   return value;
+}
+
+function normalizeTab(value?: string | null): DashboardTab {
+  return value === "cobrancas" ? "cobrancas" : "acordos";
+}
+
+function tabHref(tab: DashboardTab, data: { selectedCondominio?: CondominioOption | null; inicio: string; fim: string }) {
+  const params = new URLSearchParams();
+  params.set("aba", tab);
+  if (data.selectedCondominio?.id) params.set("condominio", data.selectedCondominio.id);
+  params.set("inicio", data.inicio);
+  params.set("fim", data.fim);
+  return `/app/gestao/visao-sindico?${params.toString()}`;
 }
 
 function todayIso() {
@@ -331,6 +348,7 @@ export default async function VisaoSindicoPage({
   await requireAdmin();
   const params = searchParams ? await searchParams : {};
   const data = await getDashboardData(params);
+  const activeTab = normalizeTab(params.aba);
 
   return (
     <div className="space-y-5">
@@ -350,6 +368,7 @@ export default async function VisaoSindicoPage({
 
       <Card className="p-5">
         <form className="grid gap-4 lg:grid-cols-[minmax(280px,1fr)_160px_160px_auto] lg:items-end">
+          <input type="hidden" name="aba" value={activeTab} />
           <label className="block">
             <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Condomínio</span>
             <Select name="condominio" defaultValue={data.selectedCondominio?.id ?? ""} className="mt-2">
@@ -405,7 +424,41 @@ export default async function VisaoSindicoPage({
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
+      <section className="space-y-5">
+        <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          <Link
+            href={tabHref("acordos", data)}
+            className={cn(
+              "inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition",
+              activeTab === "acordos"
+                ? "bg-[#04799a] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
+            )}
+          >
+            <Handshake className="h-4 w-4" />
+            Acordos
+            <span className={cn("rounded-full px-2 py-0.5 text-xs", activeTab === "acordos" ? "bg-white/18 text-white" : "bg-slate-100 text-slate-600")}>
+              {new Intl.NumberFormat("pt-BR").format(data.acordos.length)}
+            </span>
+          </Link>
+          <Link
+            href={tabHref("cobrancas", data)}
+            className={cn(
+              "inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition",
+              activeTab === "cobrancas"
+                ? "bg-[#04799a] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
+            )}
+          >
+            <Building2 className="h-4 w-4" />
+            Cobranças sem acordo
+            <span className={cn("rounded-full px-2 py-0.5 text-xs", activeTab === "cobrancas" ? "bg-white/18 text-white" : "bg-slate-100 text-slate-600")}>
+              {new Intl.NumberFormat("pt-BR").format(data.cobrancasAtivas.length)}
+            </span>
+          </Link>
+        </div>
+
+        {activeTab === "acordos" ? (
         <Card className="overflow-hidden p-0">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-base font-semibold text-slate-950">Acordos do condomínio</h2>
@@ -442,7 +495,9 @@ export default async function VisaoSindicoPage({
             </div>
           )}
         </Card>
+        ) : null}
 
+        {activeTab === "cobrancas" ? (
         <Card className="overflow-hidden p-0">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-base font-semibold text-slate-950">Cobranças ativas sem acordo</h2>
@@ -479,9 +534,10 @@ export default async function VisaoSindicoPage({
             </div>
           )}
         </Card>
+        ) : null}
       </section>
 
-      {data.acordos.length > 12 || data.cobrancasAtivas.length > 14 ? (
+      {(activeTab === "acordos" && data.acordos.length > 12) || (activeTab === "cobrancas" && data.cobrancasAtivas.length > 14) ? (
         <p className="text-center text-xs text-slate-500">
           Exibição resumida para leitura do síndico. As listas completas continuam disponíveis nas telas operacionais.
         </p>
