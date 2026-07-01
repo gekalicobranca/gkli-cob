@@ -75,7 +75,7 @@ const sections: SidebarSection[] = [
     id: 'gestao',
     title: 'Gestão',
     items: [
-      { label: 'Visão do síndico', href: '/app/gestao/visao-sindico/acessos', icon: 'home' },
+      { label: 'Visão do síndico', href: '/app/gestao/visao-sindico', icon: 'home' },
       { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
       { label: 'Gestão acordos', href: '/app/acordos/gestao', icon: 'chart' },
     ],
