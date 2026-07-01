@@ -5,7 +5,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { Select } from "@/components/ui/select";
+import { CondominioSearchSelect } from "@/components/gestao/condominio-search-select";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
@@ -371,13 +371,11 @@ export default async function VisaoSindicoPage({
           <input type="hidden" name="aba" value={activeTab} />
           <label className="block">
             <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Condomínio</span>
-            <Select name="condominio" defaultValue={data.selectedCondominio?.id ?? ""} className="mt-2">
-              {data.condominios.map((condominio) => (
-                <option key={condominio.id} value={condominio.id}>
-                  {condominio.nome}
-                </option>
-              ))}
-            </Select>
+            <CondominioSearchSelect
+              name="condominio"
+              options={data.condominios}
+              selectedId={data.selectedCondominio?.id}
+            />
           </label>
           <label className="block">
             <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Início</span>
