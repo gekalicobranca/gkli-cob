@@ -118,7 +118,7 @@ async function exportUnidades(id: string) {
 
   let query = supabase
     .from("unidades")
-    .select("identificacao, bloco, tipo, responsavel_nome, responsavel_documento, telefone, email, status, observacoes, carteira_id, condominio_id")
+    .select("identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email, status, observacoes, carteira_id, condominio_id")
     .eq("condominio_id", condominio.id)
     .order("identificacao", { ascending: true });
 
