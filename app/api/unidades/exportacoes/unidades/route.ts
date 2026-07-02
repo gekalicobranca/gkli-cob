@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
-import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
+import { listUnidades, normalizeUnidadeFilters } from "@/features/unidades/queries";
 
 const UNIDADES_HEADERS = ["condominio", "unidade", "bloco", "carteira", "responsavel"];
 
@@ -32,47 +31,41 @@ function createWorkbook(rows: Record<string, unknown>[]) {
   return workbook;
 }
 
+function normalizeText(value: unknown) {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function sortUnidades(rows: any[], ordenar: string) {
+  const field = ordenar || "condominio";
+  return [...rows].sort((a, b) => {
+    const getValue = (row: any) => {
+      if (field === "unidade") return normalizeText(row.identificacao);
+      if (field === "responsavel") return normalizeText(row.responsavel_nome);
+      if (field === "status") return normalizeText(row.status);
+      if (field === "carteira") return normalizeText(row.carteiras?.nome);
+      return normalizeText(row.condominios?.nome);
+    };
+
+    return getValue(a).localeCompare(getValue(b), "pt-BR", { numeric: true });
+  });
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const carteiraId = url.searchParams.get("carteira_id")?.trim() || undefined;
-    const condominioId = url.searchParams.get("condominio_id")?.trim() || undefined;
-
-    const supabase = await createClient();
     const scope = await getPermittedCarteiras();
-
-    let query = supabase
-      .from("unidades")
-      .select(`
-        id,
-        carteira_id,
-        condominio_id,
-        identificacao,
-        bloco,
-        responsavel_nome,
-        condominios(nome),
-        carteiras(nome)
-      `)
-      .order("identificacao", { ascending: true });
-
-    query = applyCarteiraScope(query, scope.carteiraIds);
-
-    if (carteiraId) {
-      query = query.eq("carteira_id", carteiraId);
-    }
-
-    if (condominioId) {
-      query = query.eq("condominio_id", condominioId);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      return NextResponse.json(
-        { ok: false, error: `Erro ao exportar unidades: ${error.message}` },
-        { status: 500 },
-      );
-    }
+    const filters = normalizeUnidadeFilters({
+      search: url.searchParams.get("q"),
+      carteiraId: url.searchParams.get("carteira_id"),
+      condominioId: url.searchParams.get("condominio_id"),
+      status: url.searchParams.get("status"),
+      contato: url.searchParams.get("contato"),
+    });
+    const ordenar = url.searchParams.get("ordenar")?.trim() || "condominio";
+    const data = sortUnidades(await listUnidades(scope, filters), ordenar);
 
     const carteiraNames = new Set<string>();
     const rows = (data ?? []).map((row: any) => {

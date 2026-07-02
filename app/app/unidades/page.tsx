@@ -131,8 +131,12 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
     ordenar !== 'condominio'
   const exportParams = new URLSearchParams()
 
+  if (filters.search) exportParams.set('q', filters.search)
   if (filters.carteiraId) exportParams.set('carteira_id', filters.carteiraId)
   if (filters.condominioId) exportParams.set('condominio_id', filters.condominioId)
+  if (filters.status) exportParams.set('status', filters.status)
+  if (filters.contato) exportParams.set('contato', filters.contato)
+  if (ordenar) exportParams.set('ordenar', ordenar)
 
   const exportUnidadesHref = `/api/unidades/exportacoes/unidades${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
   const paginationParams = {
@@ -191,12 +195,13 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
             <ClearFiltersLink href="/app/unidades" show={filtrosAtivos} />
           </ListTitleBar>
 
-          <ListFiltersForm className="xl:grid-cols-[minmax(220px,1.3fr)_minmax(180px,.85fr)_minmax(220px,1fr)_140px_170px_180px_auto]">
+          <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
             <ListSearchField
               placeholder="Unidade, condomínio, bloco, responsável, CPF/CNPJ, telefone ou e-mail"
               defaultValue={filters.search ?? ''}
+              className="xl:col-span-4"
             />
-            <ListFilterField label="Carteira">
+            <ListFilterField label="Carteira" className="xl:col-span-2">
               <SearchableSelect
                 name="carteira_id"
                 options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
@@ -204,7 +209,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                 placeholder="Digite parte da carteira"
               />
             </ListFilterField>
-            <ListFilterField label="Condomínio">
+            <ListFilterField label="Condomínio" className="xl:col-span-4">
               <CondominioSearchSelect
                 name="condominio_id"
                 options={condominios.map((condominio: any) => ({
@@ -217,7 +222,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                 inputClassName=""
               />
             </ListFilterField>
-            <ListFilterField label="Status">
+            <ListFilterField label="Status" className="xl:col-span-2">
               <Select name="status" defaultValue={filters.status ?? ''}>
                 <option value="">Todos</option>
                 <option value="ativa">Ativa</option>
@@ -225,7 +230,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                 <option value="suspensa">Suspensa</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Contato">
+            <ListFilterField label="Contato" className="xl:col-span-2">
               <Select name="contato" defaultValue={filters.contato ?? ''}>
                 <option value="">Todos</option>
                 <option value="sem_telefone">Sem telefone</option>
@@ -233,7 +238,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                 <option value="incompleto">Cadastro incompleto</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Ordenar por">
+            <ListFilterField label="Ordenar por" className="xl:col-span-3">
               <Select name="ordenar" defaultValue={ordenar}>
                 <option value="condominio">Condomínio</option>
                 <option value="unidade">Unidade</option>
@@ -242,7 +247,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                 <option value="carteira">Carteira</option>
               </Select>
             </ListFilterField>
-            <Button type="submit" className="xl:w-auto">
+            <Button type="submit" className="w-full xl:col-span-1">
               <Filter size={16} />
               Filtrar
             </Button>
