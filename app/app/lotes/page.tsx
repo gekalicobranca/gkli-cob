@@ -112,9 +112,9 @@ export default async function LotesPage({ searchParams }: LotesPageProps) {
           <ListTitle title="Filtros" description="Localize lotes por texto, tipo, status ou resultado." />
           <ClearFiltersLink href="/app/lotes" show={hasFilters} />
         </ListTitleBar>
-        <ListFiltersForm className="xl:grid-cols-[minmax(260px,1.2fr)_170px_170px_190px_auto]">
-          <ListSearchField defaultValue={filters.q} placeholder="ID, observação, tipo ou status" />
-          <ListFilterField label="Tipo">
+        <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
+          <ListSearchField defaultValue={filters.q} placeholder="ID, observação, tipo ou status" className="xl:col-span-4" />
+          <ListFilterField label="Tipo" className="xl:col-span-3">
             <Select name="tipo" defaultValue={filters.tipo}>
               <option value="">Todos</option>
               <option value="regua_cobranca">Régua cobrança</option>
@@ -122,7 +122,7 @@ export default async function LotesPage({ searchParams }: LotesPageProps) {
               <option value="mensageria">Mensageria</option>
             </Select>
           </ListFilterField>
-          <ListFilterField label="Status">
+          <ListFilterField label="Status" className="xl:col-span-2">
             <Select name="status" defaultValue={filters.status}>
               <option value="">Todos</option>
               <option value="processando">Processando</option>
@@ -132,7 +132,7 @@ export default async function LotesPage({ searchParams }: LotesPageProps) {
               <option value="erro">Erro</option>
             </Select>
           </ListFilterField>
-          <ListFilterField label="Resultado">
+          <ListFilterField label="Resultado" className="xl:col-span-2">
             <Select name="resultado" defaultValue={filters.resultado}>
               <option value="">Todos</option>
               <option value="com_criadas">Com mensagens</option>
@@ -140,7 +140,9 @@ export default async function LotesPage({ searchParams }: LotesPageProps) {
               <option value="com_erros">Com erros</option>
             </Select>
           </ListFilterField>
-          <Button type="submit">Filtrar</Button>
+          <Button type="submit" className="w-full xl:col-span-1">
+            Filtrar
+          </Button>
         </ListFiltersForm>
       </Card>
 

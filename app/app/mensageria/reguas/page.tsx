@@ -131,16 +131,16 @@ export default async function ReguasPage({ searchParams }: ReguasPageProps) {
           <ListTitle title="Filtros" description="Refine por tipo, status, escopo e régua padrão." />
           <ClearFiltersLink href="/app/mensageria/reguas" show={hasFilters} />
         </ListTitleBar>
-        <ListFiltersForm className="xl:grid-cols-[minmax(240px,1.2fr)_150px_150px_140px_140px_auto]">
-          <ListSearchField defaultValue={filters.q} placeholder="Nome, descrição ou carteira" />
-          <ListFilterField label="Tipo">
+        <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
+          <ListSearchField defaultValue={filters.q} placeholder="Nome, descrição ou carteira" className="xl:col-span-4" />
+          <ListFilterField label="Tipo" className="xl:col-span-2">
             <Select name="tipo" defaultValue={filters.tipo}>
               <option value="">Todas</option>
               <option value="cobranca">Cobrança</option>
               <option value="acordo">Acordo</option>
             </Select>
           </ListFilterField>
-          <ListFilterField label="Status">
+          <ListFilterField label="Status" className="xl:col-span-2">
             <Select name="status" defaultValue={filters.status}>
               <option value="">Todos</option>
               <option value="ativa">Ativa</option>
@@ -148,21 +148,23 @@ export default async function ReguasPage({ searchParams }: ReguasPageProps) {
               <option value="inativa">Inativa</option>
             </Select>
           </ListFilterField>
-          <ListFilterField label="Escopo">
+          <ListFilterField label="Escopo" className="xl:col-span-2">
             <Select name="escopo" defaultValue={filters.escopo}>
               <option value="">Todos</option>
               <option value="global">Global</option>
               <option value="carteira">Carteira</option>
             </Select>
           </ListFilterField>
-          <ListFilterField label="Padrão">
+          <ListFilterField label="Padrão" className="xl:col-span-1">
             <Select name="padrao" defaultValue={filters.padrao}>
               <option value="">Todas</option>
               <option value="sim">Sim</option>
               <option value="nao">Não</option>
             </Select>
           </ListFilterField>
-          <Button type="submit">Filtrar</Button>
+          <Button type="submit" className="w-full xl:col-span-1">
+            Filtrar
+          </Button>
         </ListFiltersForm>
       </Card>
 

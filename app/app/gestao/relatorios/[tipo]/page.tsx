@@ -137,7 +137,7 @@ export default async function RelatorioDetalhePage({ params, searchParams }: Rel
             ) : null}
           </div>
 
-          <form className="mt-4 grid gap-3 xl:grid-cols-[minmax(220px,1.4fr)_minmax(180px,.9fr)_150px_180px_150px_auto] xl:items-end">
+          <form className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6 2xl:items-end [&>label]:min-w-0 [&_button]:whitespace-nowrap [&_input]:min-w-0 [&_input]:text-[13px] [&_select]:min-w-0 [&_select]:text-[13px]">
             <input type="hidden" name="modo" value={modo} />
             <label className="space-y-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>

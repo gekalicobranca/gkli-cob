@@ -224,7 +224,7 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
       </section>
 
       <Card className="p-3">
-        <form className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_220px_140px_140px_160px_160px_190px_auto_auto] xl:items-end">
+        <form className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6 2xl:items-end [&>label]:min-w-0 [&_button]:whitespace-nowrap [&_input]:min-w-0 [&_input]:text-[13px] [&_select]:min-w-0 [&_select]:text-[13px]">
           <label className="space-y-1">
             <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Busca</span>
             <div className="relative">

@@ -10,6 +10,12 @@ type ActionState = {
   message: string
 }
 
+function revalidatePendenciasOperacionais() {
+  revalidatePath('/app/pendencias')
+  revalidatePath('/app/inbox')
+  revalidatePath('/app')
+}
+
 async function updatePendenciaStatus(formData: FormData, status: 'aberta' | 'em_tratamento' | 'resolvida' | 'cancelada'): Promise<ActionState> {
   await requireRole(['admin', 'gestor', 'operador'])
 
@@ -43,7 +49,7 @@ async function updatePendenciaStatus(formData: FormData, status: 'aberta' | 'em_
     }
   }
 
-  revalidatePath('/app/pendencias')
+  revalidatePendenciasOperacionais()
   return { ok: true, message: 'Pendência atualizada.' }
 }
 
@@ -81,7 +87,7 @@ async function updatePendenciasStatusEmLote(formData: FormData, status: 'resolvi
     }
   }
 
-  revalidatePath('/app/pendencias')
+  revalidatePendenciasOperacionais()
   return { ok: true, message: `${data?.length ?? 0} pendência(s) atualizada(s).` }
 }
 

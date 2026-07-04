@@ -105,23 +105,23 @@ export default async function AdministradorasPage({ searchParams }: Props) {
             <ClearFiltersLink href="/app/administradoras" show={filtrosAtivos} />
           </ListTitleBar>
 
-          <ListFiltersForm className="md:grid-cols-[minmax(220px,1fr)_160px_180px_190px_auto] md:items-end">
-            <ListSearchField defaultValue={filters.search ?? ''} placeholder="Nome, CNPJ ou e-mail" />
-            <ListFilterField label="Status">
+          <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
+            <ListSearchField defaultValue={filters.search ?? ''} placeholder="Nome, CNPJ ou e-mail" className="xl:col-span-4" />
+            <ListFilterField label="Status" className="xl:col-span-2">
               <Select name="status" defaultValue={filters.status ?? ''}>
                 <option value="">Todos</option>
                 <option value="ativo">Ativo</option>
                 <option value="inativo">Inativo</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Acesso acordos">
+            <ListFilterField label="Acesso acordos" className="xl:col-span-2">
               <Select name="acesso_acordo" defaultValue={getParam(params?.acesso_acordo) ?? ''}>
                 <option value="">Todos</option>
                 <option value="sim">Liberado</option>
                 <option value="nao">Sem acesso</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Ordenar por">
+            <ListFilterField label="Ordenar por" className="xl:col-span-3">
               <Select name="ordenar" defaultValue={ordenar}>
                 <option value="nome">Nome</option>
                 <option value="status">Status</option>
@@ -129,7 +129,9 @@ export default async function AdministradorasPage({ searchParams }: Props) {
                 <option value="contato">Contato</option>
               </Select>
             </ListFilterField>
-            <Button type="submit"><Filter size={16} />Filtrar</Button>
+            <Button type="submit" className="w-full xl:col-span-1">
+              <Filter size={16} />Filtrar
+            </Button>
           </ListFiltersForm>
         </ListPanelHeader>
 

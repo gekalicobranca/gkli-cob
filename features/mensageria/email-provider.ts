@@ -20,8 +20,17 @@ type SmtpConfig = {
   ehloDomain: string
 }
 
+type SmtpConfigScope = 'carteira' | 'global' | 'fallback_global' | 'environment' | 'missing'
+
+type SmtpSendOptions = {
+  carteiraId?: string | null
+  overrideConfig?: SmtpConfig
+}
+
 export type PublicSmtpConfigStatus = {
   source: 'database' | 'environment' | 'missing'
+  configScope: SmtpConfigScope
+  carteiraId: string | null
   configured: boolean
   active: boolean
   host: string | null
@@ -52,17 +61,12 @@ function getEnvConfig(): SmtpConfig {
   return { host, port, user, pass, from, secure, starttls, ehloDomain }
 }
 
-async function getDatabaseConfig(): Promise<SmtpConfig | null> {
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('integracoes_smtp_config')
-    .select('ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
-    .eq('ativo', true)
-    .order('atualizado_em', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+function normalizeCarteiraId(carteiraId?: string | null) {
+  const value = String(carteiraId ?? '').trim()
+  return value || null
+}
 
-  if (error) return null
+function rowToConfig(data: any): SmtpConfig | null {
   if (!data?.ativo || !data.host) return null
 
   const from = data.remetente || data.usuario
@@ -80,32 +84,91 @@ async function getDatabaseConfig(): Promise<SmtpConfig | null> {
   }
 }
 
-export async function getSmtpConfigStatus(): Promise<PublicSmtpConfigStatus> {
-  try {
-    const supabase = createAdminClient()
-    const { data, error } = await supabase
+async function getDatabaseConfig(carteiraId?: string | null): Promise<SmtpConfig | null> {
+  const supabase = createAdminClient()
+
+  const normalizedCarteiraId = normalizeCarteiraId(carteiraId)
+
+  if (normalizedCarteiraId) {
+    const scopedQuery = supabase
       .from('integracoes_smtp_config')
-      .select('ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
+      .select('ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
+      .eq('ativo', true)
+      .eq('carteira_id', normalizedCarteiraId)
       .order('atualizado_em', { ascending: false })
       .limit(1)
-      .maybeSingle()
 
-    if (!error && data) {
-      const from = data.remetente || data.usuario || null
-      return {
-        source: 'database',
-        configured: Boolean(data.host && from),
-        active: Boolean(data.ativo),
-        host: data.host ?? null,
-        port: Number(data.porta ?? 587),
-        user: data.usuario ?? null,
-        from,
-        secure: Boolean(data.secure),
-        starttls: !data.secure && data.starttls !== false,
-        ehloDomain: data.ehlo_domain || 'gkli.local',
-        hasPassword: Boolean(data.senha),
-        updatedAt: data.atualizado_em ?? null,
+    const { data, error } = await scopedQuery.maybeSingle()
+    if (!error) {
+      const config = rowToConfig(data)
+      if (config) return config
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('integracoes_smtp_config')
+    .select('ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
+    .eq('ativo', true)
+    .is('carteira_id', null)
+    .order('atualizado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return null
+  return rowToConfig(data)
+}
+
+function databaseStatus(data: any, configScope: SmtpConfigScope, carteiraId: string | null): PublicSmtpConfigStatus {
+  const from = data.remetente || data.usuario || null
+  return {
+    source: 'database',
+    configScope,
+    carteiraId,
+    configured: Boolean(data.host && from),
+    active: Boolean(data.ativo),
+    host: data.host ?? null,
+    port: Number(data.porta ?? 587),
+    user: data.usuario ?? null,
+    from,
+    secure: Boolean(data.secure),
+    starttls: !data.secure && data.starttls !== false,
+    ehloDomain: data.ehlo_domain || 'gkli.local',
+    hasPassword: Boolean(data.senha),
+    updatedAt: data.atualizado_em ?? null,
+  }
+}
+
+export async function getSmtpConfigStatus(carteiraId?: string | null): Promise<PublicSmtpConfigStatus> {
+  const normalizedCarteiraId = normalizeCarteiraId(carteiraId)
+
+  try {
+    const supabase = createAdminClient()
+
+    if (normalizedCarteiraId) {
+      const scopedQuery = supabase
+        .from('integracoes_smtp_config')
+        .select('carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
+        .eq('carteira_id', normalizedCarteiraId)
+        .order('atualizado_em', { ascending: false })
+        .limit(1)
+
+      const { data, error } = await scopedQuery.maybeSingle()
+
+      if (!error && data) {
+        return databaseStatus(data, 'carteira', normalizedCarteiraId)
       }
+    }
+
+    const globalQuery = supabase
+      .from('integracoes_smtp_config')
+      .select('carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
+      .is('carteira_id', null)
+      .order('atualizado_em', { ascending: false })
+      .limit(1)
+
+    const { data, error } = await globalQuery.maybeSingle()
+    if (!error && data) {
+      return databaseStatus(data, normalizedCarteiraId ? 'fallback_global' : 'global', null)
     }
 
     if (error) return envStatus(error.message)
@@ -124,6 +187,8 @@ function envStatus(unavailableReason?: string): PublicSmtpConfigStatus {
 
   return {
     source: host && from ? 'environment' : 'missing',
+    configScope: host && from ? 'environment' : 'missing',
+    carteiraId: null,
     configured: Boolean(host && from),
     active: Boolean(host && from),
     host,
@@ -139,10 +204,17 @@ function envStatus(unavailableReason?: string): PublicSmtpConfigStatus {
   }
 }
 
-async function getConfig(override?: SmtpConfig): Promise<SmtpConfig> {
-  if (override) return override
+function normalizeSendOptions(options?: SmtpConfig | SmtpSendOptions): SmtpSendOptions {
+  if (!options) return {}
+  if ('host' in options) return { overrideConfig: options }
+  return options
+}
 
-  const databaseConfig = await getDatabaseConfig()
+async function getConfig(options?: SmtpConfig | SmtpSendOptions): Promise<SmtpConfig> {
+  const normalizedOptions = normalizeSendOptions(options)
+  if (normalizedOptions.overrideConfig) return normalizedOptions.overrideConfig
+
+  const databaseConfig = await getDatabaseConfig(normalizedOptions.carteiraId)
   if (databaseConfig) return databaseConfig
 
   return getEnvConfig()
@@ -258,8 +330,8 @@ async function upgradeToTls(socket: net.Socket, config: SmtpConfig) {
   })
 }
 
-export async function sendSmtpEmail(payload: EmailPayload, overrideConfig?: SmtpConfig) {
-  const config = await getConfig(overrideConfig)
+export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig | SmtpSendOptions) {
+  const config = await getConfig(options)
   const from = sanitizeAddress(payload.from || config.from)
   const to = sanitizeAddress(payload.to)
   const subject = payload.subject?.trim() || 'Mensagem GKLI Cobrança'

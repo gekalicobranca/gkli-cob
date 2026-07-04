@@ -209,9 +209,13 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
             <ClearFiltersLink href="/app/acordos" show={hasFilters} />
           </ListTitleBar>
 
-          <ListFiltersForm className="xl:grid-cols-[minmax(220px,1.2fr)_minmax(210px,.9fr)_minmax(190px,.85fr)_150px_150px_155px_155px_210px_auto]">
-            <ListSearchField defaultValue={clean(params.q)} placeholder="Condomínio, unidade, responsável..." />
-            <ListFilterField label="CondomÃ­nio">
+          <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
+            <ListSearchField
+              defaultValue={clean(params.q)}
+              placeholder="Condomínio, unidade, responsável..."
+              className="xl:col-span-3"
+            />
+            <ListFilterField label="CondomÃ­nio" className="xl:col-span-5">
               <CondominioSearchSelect
                 name="condominio_id"
                 options={condominios.map((condominio: any) => ({
@@ -224,7 +228,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                 inputClassName=""
               />
             </ListFilterField>
-            <ListFilterField label="Unidade">
+            <ListFilterField label="Unidade" className="xl:col-span-4">
               <SearchableSelect
                 name="unidade_id"
                 options={unidades.map((unidade: any) => ({
@@ -239,7 +243,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                 placeholder={clean(params.condominio_id) ? "Digite unidade ou responsavel" : "Selecione um condominio primeiro"}
               />
             </ListFilterField>
-            <ListFilterField label="Status">
+            <ListFilterField label="Status" className="xl:col-span-2">
               <Select name="status" defaultValue={clean(params.status)}>
                 <option value="">Todos</option>
                 <option value="ativo">Ativo</option>
@@ -250,20 +254,20 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                 <option value="cancelado">Cancelado</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Tipo">
+            <ListFilterField label="Tipo" className="xl:col-span-2">
               <Select name="tipo" defaultValue={clean(params.tipo)}>
                 <option value="">Todos</option>
                 <option value="extrajudicial">Extrajudicial</option>
                 <option value="judicial">Judicial</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Data início">
+            <ListFilterField label="Data início" className="xl:col-span-2">
               <Input name="data_de" type="date" defaultValue={dateFilter(params.data_de)} />
             </ListFilterField>
-            <ListFilterField label="Data fim">
+            <ListFilterField label="Data fim" className="xl:col-span-2">
               <Input name="data_ate" type="date" defaultValue={dateFilter(params.data_ate)} />
             </ListFilterField>
-            <ListFilterField label="Ordenar por">
+            <ListFilterField label="Ordenar por" className="xl:col-span-3">
               <Select name="ordenar" defaultValue={clean(params.ordenar) || 'condominio'}>
                 <option value="condominio">Condomínio</option>
                 <option value="unidade">Unidade</option>
@@ -275,7 +279,9 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                 <option value="valor_asc">Menor valor</option>
               </Select>
             </ListFilterField>
-            <Button type="submit">Filtrar</Button>
+            <Button type="submit" className="w-full xl:col-span-1">
+              Filtrar
+            </Button>
           </ListFiltersForm>
         </ListPanelHeader>
 

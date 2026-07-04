@@ -146,12 +146,13 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
           />
           <ClearFiltersLink href="/app/mensageria/templates" show={hasFilters} />
         </ListTitleBar>
-        <ListFiltersForm className="xl:grid-cols-[minmax(230px,1.2fr)_140px_190px_140px_130px_130px_130px_auto]">
+        <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
           <ListSearchField
             defaultValue={filters.q}
             placeholder="Nome, assunto, conteÃºdo ou carteira"
+            className="xl:col-span-4"
           />
-          <ListFilterField label="Tipo">
+          <ListFilterField label="Tipo" className="xl:col-span-2">
             <Select name="tipo" defaultValue={filters.tipo}>
               <option value="">Todos</option>
               <option value="cobranca">CobranÃ§a</option>
@@ -159,7 +160,7 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
               <option value="juridico">Jurídico</option>
             </Select>
           </ListFilterField>
-          <ListFilterField label="Categoria">
+          <ListFilterField label="Categoria" className="xl:col-span-3">
             <Select name="categoria" defaultValue={filters.categoria}>
               <option value="">Todas</option>
               {TEMPLATE_CATEGORIES.map((categoria) => (
@@ -167,7 +168,7 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
               ))}
             </Select>
           </ListFilterField>
-          <ListFilterField label="Intensidade">
+          <ListFilterField label="Intensidade" className="xl:col-span-2">
             <Select name="intensidade" defaultValue={filters.intensidade}>
               <option value="">Todas</option>
               {TEMPLATE_INTENSITIES.map((intensidade) => (
@@ -175,7 +176,7 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
               ))}
             </Select>
           </ListFilterField>
-          <ListFilterField label="Canal">
+          <ListFilterField label="Canal" className="xl:col-span-2">
             <Select name="canal" defaultValue={filters.canal}>
               <option value="">Todos</option>
               {TEMPLATE_CHANNELS.map((canal) => (
@@ -183,21 +184,23 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
               ))}
             </Select>
           </ListFilterField>
-          <ListFilterField label="Status">
+          <ListFilterField label="Status" className="xl:col-span-2">
             <Select name="status" defaultValue={filters.status}>
               <option value="">Todos</option>
               <option value="ativo">Ativos</option>
               <option value="inativo">Inativos</option>
             </Select>
           </ListFilterField>
-          <ListFilterField label="Escopo">
+          <ListFilterField label="Escopo" className="xl:col-span-2">
             <Select name="escopo" defaultValue={filters.escopo}>
               <option value="">Todos</option>
               <option value="global">Globais</option>
               <option value="carteira">Carteira</option>
             </Select>
           </ListFilterField>
-          <Button type="submit">Filtrar</Button>
+          <Button type="submit" className="w-full xl:col-span-1">
+            Filtrar
+          </Button>
         </ListFiltersForm>
       </Card>
 

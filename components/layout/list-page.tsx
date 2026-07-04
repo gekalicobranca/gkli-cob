@@ -88,7 +88,13 @@ export function ListTitle({ title, description }: { title: string; description?:
 
 export function ListFiltersForm({ className, children, ...props }: FormHTMLAttributes<HTMLFormElement>) {
   return (
-    <form className={cn('mt-3 grid min-w-0 gap-3 xl:items-end', className)} {...props}>
+    <form
+      className={cn(
+        'mt-3 grid min-w-0 gap-3 xl:items-end [&>div]:min-w-0 [&>label]:min-w-0 [&_button]:whitespace-nowrap [&_input]:min-w-0 [&_input]:text-[13px] [&_select]:min-w-0 [&_select]:text-[13px]',
+        className
+      )}
+      {...props}
+    >
       {children}
     </form>
   )

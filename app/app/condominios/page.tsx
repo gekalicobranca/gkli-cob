@@ -145,12 +145,13 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
             <ClearFiltersLink href="/app/condominios" show={filtrosAtivos} />
           </ListTitleBar>
 
-          <ListFiltersForm className="lg:grid-cols-[minmax(220px,1.4fr)_minmax(180px,.9fr)_minmax(180px,.9fr)_150px_190px_auto] lg:items-end">
+          <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
             <ListSearchField
               placeholder="Nome, nome operacional, CNPJ ou administradora"
               defaultValue={filters.search ?? ''}
+              className="xl:col-span-4"
             />
-            <ListFilterField label="Carteira">
+            <ListFilterField label="Carteira" className="xl:col-span-2">
               <SearchableSelect
                 name="carteira_id"
                 options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
@@ -158,7 +159,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                 placeholder="Digite parte da carteira"
               />
             </ListFilterField>
-            <ListFilterField label="Administradora">
+            <ListFilterField label="Administradora" className="xl:col-span-3">
               <SearchableSelect
                 name="administradora"
                 options={administradoras.map((administradora) => ({ value: administradora, label: administradora }))}
@@ -166,7 +167,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                 placeholder="Digite parte da administradora"
               />
             </ListFilterField>
-            <ListFilterField label="Status">
+            <ListFilterField label="Status" className="xl:col-span-1">
               <Select name="status" defaultValue={filters.status ?? ''}>
                 <option value="">Todos</option>
                 <option value="ativo">Ativo</option>
@@ -174,7 +175,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                 <option value="suspenso">Suspenso</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Ordenar por">
+            <ListFilterField label="Ordenar por" className="xl:col-span-2">
               <Select name="ordenar" defaultValue={ordenar}>
                 <option value="nome">Nome</option>
                 <option value="administradora">Administradora</option>
@@ -186,7 +187,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                 <option value="cota_asc">Menor cota</option>
               </Select>
             </ListFilterField>
-            <Button type="submit" className="lg:w-auto">
+            <Button type="submit" className="w-full xl:col-span-1">
               <Filter size={16} />
               Filtrar
             </Button>

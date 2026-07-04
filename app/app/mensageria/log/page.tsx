@@ -171,27 +171,31 @@ export default async function MensageriaLogPage({ searchParams }: MensageriaLogP
           <ListTitle title="Filtros" description="Pesquise eventos por texto, tipo de evento, período e transição de status." />
           <ClearFiltersLink href="/app/mensageria/log" show={hasFilters} />
         </ListTitleBar>
-        <ListFiltersForm className="xl:grid-cols-[minmax(260px,1.2fr)_220px_160px_160px_150px_150px_auto]">
-          <ListSearchField defaultValue={filters.q} placeholder="Evento, descrição, lote ou mensagem" />
-          <ListFilterField label="Evento">
+        <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
+          <ListSearchField
+            defaultValue={filters.q}
+            placeholder="Evento, descrição, lote ou mensagem"
+            className="xl:col-span-4"
+          />
+          <ListFilterField label="Evento" className="xl:col-span-3">
             <Select name="evento" defaultValue={filters.evento}>
               <option value="">Todos</option>
               {eventos.map((evento) => <option key={evento} value={evento}>{eventLabel(evento)}</option>)}
             </Select>
           </ListFilterField>
-          <ListFilterField label="De">
+          <ListFilterField label="De" className="xl:col-span-2">
             <Select name="status_anterior" defaultValue={filters.status_anterior}>
               <option value="">Todos</option>
               {statusAnteriores.map((status) => <option key={status} value={status}>{status}</option>)}
             </Select>
           </ListFilterField>
-          <ListFilterField label="Para">
+          <ListFilterField label="Para" className="xl:col-span-2">
             <Select name="status_novo" defaultValue={filters.status_novo}>
               <option value="">Todos</option>
               {statusNovos.map((status) => <option key={status} value={status}>{status}</option>)}
             </Select>
           </ListFilterField>
-          <ListFilterField label="Início">
+          <ListFilterField label="Início" className="xl:col-span-2">
             <input
               type="date"
               name="data_inicio"
@@ -199,7 +203,7 @@ export default async function MensageriaLogPage({ searchParams }: MensageriaLogP
               className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--gkli-primary)] focus:ring-4 focus:ring-[var(--gkli-primary)]/10"
             />
           </ListFilterField>
-          <ListFilterField label="Fim">
+          <ListFilterField label="Fim" className="xl:col-span-2">
             <input
               type="date"
               name="data_fim"
@@ -207,7 +211,9 @@ export default async function MensageriaLogPage({ searchParams }: MensageriaLogP
               className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--gkli-primary)] focus:ring-4 focus:ring-[var(--gkli-primary)]/10"
             />
           </ListFilterField>
-          <Button type="submit">Filtrar</Button>
+          <Button type="submit" className="w-full xl:col-span-1">
+            Filtrar
+          </Button>
         </ListFiltersForm>
       </Card>
 

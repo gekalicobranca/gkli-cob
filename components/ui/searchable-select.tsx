@@ -3,6 +3,7 @@
 import { useId, useMemo, useState } from "react";
 
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export type SearchableSelectOption = {
   value: string;
@@ -74,7 +75,7 @@ export function SearchableSelect({
   }
 
   return (
-    <div className={className}>
+    <div className={cn("min-w-0", className)}>
       <Input
         id={id}
         className={inputClassName}

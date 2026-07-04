@@ -372,9 +372,12 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
 
 export default async function CentralPendenciasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
+  const hasSituacaoParam = Object.prototype.hasOwnProperty.call(params, 'situacao')
+  const situacaoAtual = hasSituacaoParam ? clean(params.situacao) || 'todas' : 'ativas'
+  const effectiveParams = { ...params, situacao: situacaoAtual }
   const scope = await getPermittedCarteiras()
-  const basePendencias = await listPendenciasOperacionais(scope, params)
-  const pendencias = sortPendencias(filterPendencias(basePendencias, params), clean(params.ordenar) || 'prazo_asc')
+  const basePendencias = await listPendenciasOperacionais(scope, effectiveParams)
+  const pendencias = sortPendencias(filterPendencias(basePendencias, effectiveParams), clean(params.ordenar) || 'prazo_asc')
   const resumo = getPendenciasResumo(pendencias)
   const statusAtual = params.status ?? 'todos'
   const origemAtual = params.origem ?? 'todos'
@@ -414,9 +417,13 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
             <ClearFiltersLink href="/app/pendencias" show={hasFilters} />
           </ListTitleBar>
 
-          <ListFiltersForm className="xl:grid-cols-[minmax(240px,1fr)_155px_150px_160px_170px_170px_150px_150px_180px_auto]">
-            <ListSearchField defaultValue={clean(params.q)} placeholder="Título, tipo, unidade, cobrança, acordo..." />
-            <ListFilterField label="Status">
+          <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
+            <ListSearchField
+              defaultValue={clean(params.q)}
+              placeholder="Título, tipo, unidade, cobrança, acordo..."
+              className="xl:col-span-4"
+            />
+            <ListFilterField label="Status" className="xl:col-span-2">
               <Select name="status" defaultValue={clean(params.status)}>
                 <option value="">Todos</option>
                 <option value="aberta">Aberta</option>
@@ -425,7 +432,7 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
                 <option value="cancelada">Cancelada</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Prioridade">
+            <ListFilterField label="Prioridade" className="xl:col-span-2">
               <Select name="prioridade" defaultValue={clean(params.prioridade)}>
                 <option value="">Todas</option>
                 <option value="critica">Crítica</option>
@@ -434,21 +441,21 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
                 <option value="baixa">Baixa</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Origem">
+            <ListFilterField label="Origem" className="xl:col-span-2">
               <Select name="origem" defaultValue={clean(params.origem)}>
                 <option value="">Todas</option>
                 {Object.entries(origemLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </Select>
             </ListFilterField>
-            <ListFilterField label="Tipo">
+            <ListFilterField label="Tipo" className="xl:col-span-2">
               <Select name="tipo" defaultValue={clean(params.tipo)}>
                 <option value="">Todos</option>
                 {tipos.map((tipo) => <option key={tipo} value={tipo}>{formatTipo(tipo)}</option>)}
               </Select>
             </ListFilterField>
-            <ListFilterField label="Situação">
-              <Select name="situacao" defaultValue={clean(params.situacao)}>
-                <option value="">Todas</option>
+            <ListFilterField label="Situação" className="xl:col-span-2">
+              <Select name="situacao" defaultValue={situacaoAtual}>
+                <option value="todas">Todas</option>
                 <option value="ativas">Ativas</option>
                 <option value="atrasadas">Atrasadas</option>
                 <option value="com_prazo">Com prazo</option>
@@ -456,13 +463,13 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
                 <option value="sem_responsavel">Sem responsável</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Data início">
+            <ListFilterField label="Data início" className="xl:col-span-2">
               <Input name="data_de" type="date" defaultValue={dateValue(params.data_de)} />
             </ListFilterField>
-            <ListFilterField label="Data fim">
+            <ListFilterField label="Data fim" className="xl:col-span-2">
               <Input name="data_ate" type="date" defaultValue={dateValue(params.data_ate)} />
             </ListFilterField>
-            <ListFilterField label="Ordenar por">
+            <ListFilterField label="Ordenar por" className="xl:col-span-3">
               <Select name="ordenar" defaultValue={clean(params.ordenar) || 'prazo_asc'}>
                 <option value="prazo_asc">Prazo mais próximo</option>
                 <option value="prazo_desc">Prazo mais distante</option>
@@ -474,12 +481,14 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
                 <option value="tipo">Tipo</option>
               </Select>
             </ListFilterField>
-            <Button type="submit"><Filter size={16} />Filtrar</Button>
+            <Button type="submit" className="w-full xl:col-span-1">
+              <Filter size={16} />Filtrar
+            </Button>
           </ListFiltersForm>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <FilterLink href="/app/pendencias" active={statusAtual === 'todos' && origemAtual === 'todos'}>Todas</FilterLink>
-            <FilterLink href="/app/pendencias?situacao=ativas" active={params.situacao === 'ativas'}>Ativas</FilterLink>
+            <FilterLink href="/app/pendencias?situacao=todas" active={situacaoAtual === 'todas' && statusAtual === 'todos' && origemAtual === 'todos'}>Todas</FilterLink>
+            <FilterLink href="/app/pendencias" active={situacaoAtual === 'ativas' && statusAtual === 'todos' && origemAtual === 'todos'}>Ativas</FilterLink>
             <FilterLink href="/app/pendencias?status=aberta" active={statusAtual === 'aberta'}>Abertas</FilterLink>
             <FilterLink href="/app/pendencias?status=em_tratamento" active={statusAtual === 'em_tratamento'}>Em tratamento</FilterLink>
             <FilterLink href="/app/pendencias?prioridade=critica" active={params.prioridade === 'critica'}>Críticas</FilterLink>

@@ -147,9 +147,13 @@ export default async function MensageriaSaneamentoPage({ searchParams }: Mensage
           <ListTitle title="Filtros" description="Refine a fila por texto, tipo, severidade e status." />
           <ClearFiltersLink href="/app/mensageria/saneamento" show={hasFilters} />
         </ListTitleBar>
-        <ListFiltersForm className="xl:grid-cols-[minmax(260px,1.2fr)_150px_160px_180px_auto]">
-          <ListSearchField defaultValue={filters.q} placeholder="Título, ação sugerida, tipo ou status" />
-          <ListFilterField label="Tipo">
+        <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
+          <ListSearchField
+            defaultValue={filters.q}
+            placeholder="Título, ação sugerida, tipo ou status"
+            className="xl:col-span-5"
+          />
+          <ListFilterField label="Tipo" className="xl:col-span-2">
             <Select name="tipo" defaultValue={filters.tipo}>
               <option value="">Todos</option>
               <option value="mensagem">Mensagem</option>
@@ -157,7 +161,7 @@ export default async function MensageriaSaneamentoPage({ searchParams }: Mensage
               <option value="log">Log</option>
             </Select>
           </ListFilterField>
-          <ListFilterField label="Severidade">
+          <ListFilterField label="Severidade" className="xl:col-span-2">
             <Select name="severity" defaultValue={filters.severity}>
               <option value="">Todas</option>
               <option value="danger">Crítica</option>
@@ -166,13 +170,15 @@ export default async function MensageriaSaneamentoPage({ searchParams }: Mensage
               <option value="neutral">Neutra</option>
             </Select>
           </ListFilterField>
-          <ListFilterField label="Status">
+          <ListFilterField label="Status" className="xl:col-span-2">
             <Select name="status" defaultValue={filters.status}>
               <option value="">Todos</option>
               {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
             </Select>
           </ListFilterField>
-          <Button type="submit">Filtrar</Button>
+          <Button type="submit" className="w-full xl:col-span-1">
+            Filtrar
+          </Button>
         </ListFiltersForm>
       </Card>
 

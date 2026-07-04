@@ -183,12 +183,13 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
             <ClearFiltersLink href="/app/responsaveis" show={filtrosAtivos} />
           </ListTitleBar>
 
-          <ListFiltersForm className="md:grid-cols-2 xl:grid-cols-4">
+          <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
             <ListSearchField
               placeholder="Condomínio, unidade, responsável ou contato"
               defaultValue={filters.search ?? ''}
+              className="xl:col-span-4"
             />
-            <ListFilterField label="Carteira">
+            <ListFilterField label="Carteira" className="xl:col-span-2">
               <SearchableSelect
                 name="carteira_id"
                 options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
@@ -196,7 +197,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                 placeholder="Digite parte da carteira"
               />
             </ListFilterField>
-            <ListFilterField label="Condomínio">
+            <ListFilterField label="Condomínio" className="xl:col-span-4">
               <CondominioSearchSelect
                 name="condominio_id"
                 options={condominios.map((condominio: any) => ({
@@ -209,14 +210,14 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                 inputClassName=""
               />
             </ListFilterField>
-            <ListFilterField label="Status">
+            <ListFilterField label="Status" className="xl:col-span-2">
               <Select name="ativo" defaultValue={filters.ativo ?? ''}>
                 <option value="">Todos</option>
                 <option value="ativo">Ativos</option>
                 <option value="inativo">Inativos</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Contato">
+            <ListFilterField label="Contato" className="xl:col-span-2">
               <Select name="contato" defaultValue={filters.contato ?? ''}>
                 <option value="">Todos</option>
                 <option value="sem_telefone">Sem telefone</option>
@@ -224,7 +225,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                 <option value="incompleto">Cadastro incompleto</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Tipo">
+            <ListFilterField label="Tipo" className="xl:col-span-2">
               <Select name="tipo_responsavel" defaultValue={filters.tipoResponsavel ?? ''}>
                 <option value="">Todos</option>
                 <option value="proprietario">Proprietário</option>
@@ -232,7 +233,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                 <option value="nao_informado">Não informado</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Ordenar por">
+            <ListFilterField label="Ordenar por" className="xl:col-span-3">
               <Select name="ordenar" defaultValue={ordenar}>
                 <option value="condominio">Condomínio</option>
                 <option value="unidade">Unidade</option>
@@ -242,7 +243,9 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                 <option value="carteira">Carteira</option>
               </Select>
             </ListFilterField>
-            <Button type="submit" className="md:w-fit">Filtrar</Button>
+            <Button type="submit" className="w-full xl:col-span-1">
+              Filtrar
+            </Button>
           </ListFiltersForm>
         </ListPanelHeader>
 

@@ -2,6 +2,8 @@ import { Mail, Save, Send, Server, ShieldCheck } from "lucide-react";
 import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import { getSmtpConfigStatus } from "@/features/mensageria/email-provider";
 import { salvarConfiguracaoSmtp, testarConfiguracaoSmtp } from "@/features/configuracoes/smtp-actions";
+import { listCarteiras } from "@/features/carteiras/queries";
+import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -91,19 +93,67 @@ function StatusCard({ title, value, detail, icon: Icon }: { title: string; value
   );
 }
 
+function CarteiraSelector({
+  carteiras,
+  selectedCarteiraId,
+}: {
+  carteiras: any[];
+  selectedCarteiraId: string;
+}) {
+  return (
+    <form className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <label className="grid gap-2 text-sm text-slate-700">
+        <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Carteira de envio</span>
+        <select
+          name="carteira"
+          defaultValue={selectedCarteiraId || "global"}
+          className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-[#04799a] focus:ring-2 focus:ring-[#04799a]/15"
+        >
+          <option value="global">Fallback global do app</option>
+          {carteiras.map((carteira) => (
+            <option key={carteira.id} value={carteira.id}>
+              {carteira.nome}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs leading-5 text-slate-500">
+          A regua usa primeiro o SMTP da carteira da mensagem. Se nao houver conta ativa, usa o fallback global.
+        </span>
+      </label>
+      <button className="mt-4 rounded-lg bg-[#04799a] px-4 py-2 text-sm font-medium text-white shadow-sm" type="submit">
+        Carregar configuracao
+      </button>
+    </form>
+  );
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function IntegracoesPage({ searchParams }: PageProps) {
   const emptyParams: Record<string, string | string[] | undefined> = {};
-  const [status, params] = await Promise.all([
-    getSmtpConfigStatus(),
-    searchParams ? searchParams : Promise.resolve(emptyParams),
+  const params = searchParams ? await searchParams : emptyParams;
+  const selectedCarteiraId = singleParam(params.carteira) === "global" ? "" : singleParam(params.carteira) || "";
+  const scope = await getPermittedCarteiras();
+  const [status, carteiras] = await Promise.all([
+    getSmtpConfigStatus(selectedCarteiraId),
+    listCarteiras(scope),
   ]);
   const resultType = singleParam(params.smtp);
   const resultMessage = singleParam(params.msg);
+  const selectedCarteira = carteiras.find((carteira: any) => carteira.id === selectedCarteiraId);
+  const selectedCarteiraValue = selectedCarteiraId || "global";
+  const editingDatabaseRecord = status.source === "database" && status.configScope !== "fallback_global";
 
   const sourceLabel =
-    status.source === "database" ? "Banco de dados" : status.source === "environment" ? "Ambiente" : "Não configurado";
+    status.configScope === "carteira"
+      ? "Carteira"
+      : status.configScope === "fallback_global"
+        ? "Fallback global"
+        : status.source === "database"
+          ? "Banco de dados"
+          : status.source === "environment"
+            ? "Ambiente"
+            : "Não configurado";
   const statusLabel = status.configured && status.active ? "Pronto" : status.configured ? "Inativo" : "Pendente";
 
   return (
@@ -133,14 +183,32 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
         </div>
       ) : null}
 
+      <CarteiraSelector carteiras={carteiras} selectedCarteiraId={selectedCarteiraValue} />
+
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+        Configurando:{" "}
+        <span className="font-medium text-slate-950">
+          {selectedCarteira ? selectedCarteira.nome : "Fallback global do app"}
+        </span>
+        {status.configScope === "fallback_global" ? (
+          <span className="ml-2 text-amber-700">Esta carteira ainda usa o SMTP global.</span>
+        ) : null}
+      </div>
+
       <section className="grid gap-4 lg:grid-cols-3">
         <StatusCard title="Status" value={statusLabel} detail={status.configured ? "Servidor e remetente informados." : "Informe os dados para liberar testes."} icon={ShieldCheck} />
-        <StatusCard title="Origem" value={sourceLabel} detail={status.source === "database" ? "Configuração gerenciada nesta tela." : "Fallback por variáveis de ambiente."} icon={Server} />
+        <StatusCard
+          title="Origem"
+          value={sourceLabel}
+          detail={status.source === "database" ? "Configuração gerenciada nesta tela." : "Fallback por variáveis de ambiente."}
+          icon={Server}
+        />
         <StatusCard title="Servidor" value={status.host || "-"} detail={`${status.port || 587} · ${status.secure ? "SSL direto" : status.starttls ? "STARTTLS" : "sem TLS"}`} icon={Mail} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <form action={salvarConfiguracaoSmtp} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <input type="hidden" name="carteira_id" value={selectedCarteiraValue} />
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">SMTP</span>
@@ -155,9 +223,9 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
           </div>
 
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <Field label="Servidor SMTP" name="host" defaultValue={status.source === "database" ? status.host : ""} placeholder="smtp.seudominio.com.br" />
-            <Field label="Porta" name="porta" type="number" defaultValue={status.source === "database" ? status.port : 587} />
-            <Field label="Usuário" name="usuario" defaultValue={status.source === "database" ? status.user : ""} placeholder="usuario@dominio.com.br" />
+            <Field label="Servidor SMTP" name="host" defaultValue={editingDatabaseRecord ? status.host : ""} placeholder="smtp.seudominio.com.br" />
+            <Field label="Porta" name="porta" type="number" defaultValue={editingDatabaseRecord ? status.port : 587} />
+            <Field label="Usuário" name="usuario" defaultValue={editingDatabaseRecord ? status.user : ""} placeholder="usuario@dominio.com.br" />
             <Field
               label="Senha"
               name="senha"
@@ -165,18 +233,19 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
               placeholder={status.hasPassword ? "Senha já cadastrada" : "Senha do SMTP"}
               helper={status.hasPassword ? "Deixe em branco para manter a senha atual." : "Será usada somente no servidor."}
             />
-            <Field label="Remetente" name="remetente" defaultValue={status.source === "database" ? status.from : ""} placeholder="cobranca@dominio.com.br" />
-            <Field label="Domínio EHLO" name="ehlo_domain" defaultValue={status.source === "database" ? status.ehloDomain : "gkli.local"} />
+            <Field label="Remetente" name="remetente" defaultValue={editingDatabaseRecord ? status.from : ""} placeholder="cobranca@dominio.com.br" />
+            <Field label="Domínio EHLO" name="ehlo_domain" defaultValue={editingDatabaseRecord ? status.ehloDomain : "gkli.local"} />
           </div>
 
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            <Toggle label="Ativar envio por SMTP" name="ativo" defaultChecked={status.source === "database" ? status.active : false} helper="Quando ativo, lotes e testes usam esta configuração." />
-            <Toggle label="SSL direto" name="secure" defaultChecked={status.source === "database" ? status.secure : false} helper="Normalmente usado na porta 465. Não use junto com STARTTLS." />
-            <Toggle label="STARTTLS" name="starttls" defaultChecked={status.source === "database" ? status.starttls : true} helper="Normalmente usado nas portas 587 ou 25. Se SSL direto estiver ligado, esta opção é ignorada." />
+            <Toggle label="Ativar envio por SMTP" name="ativo" defaultChecked={editingDatabaseRecord ? status.active : false} helper="Quando ativo, lotes e testes usam esta configuração." />
+            <Toggle label="SSL direto" name="secure" defaultChecked={editingDatabaseRecord ? status.secure : false} helper="Normalmente usado na porta 465. Não use junto com STARTTLS." />
+            <Toggle label="STARTTLS" name="starttls" defaultChecked={editingDatabaseRecord ? status.starttls : true} helper="Normalmente usado nas portas 587 ou 25. Se SSL direto estiver ligado, esta opção é ignorada." />
           </div>
         </form>
 
         <form action={testarConfiguracaoSmtp} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <input type="hidden" name="carteira_id" value={selectedCarteiraValue} />
           <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Teste</span>
           <h2 className="mt-2 text-xl font-semibold text-slate-950">Enviar e-mail de teste</h2>
           <p className="mt-1 text-sm leading-6 text-slate-500">

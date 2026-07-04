@@ -154,7 +154,7 @@ export default async function GestaoAcordosPage({ searchParams }: { searchParams
           ) : null}
         </div>
 
-        <form className="mt-4 grid gap-3 xl:grid-cols-[minmax(240px,1fr)_180px_180px_180px_auto] xl:items-end">
+        <form className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 xl:items-end [&>label]:min-w-0 [&_button]:whitespace-nowrap [&_input]:min-w-0 [&_input]:text-[13px] [&_select]:min-w-0 [&_select]:text-[13px]">
           <label className="space-y-1.5">
             <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>
             <div className="relative">

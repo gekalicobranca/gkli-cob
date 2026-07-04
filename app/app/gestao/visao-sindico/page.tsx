@@ -713,9 +713,9 @@ export default async function VisaoSindicoPage({
       />
 
       <Card className="p-5">
-        <form className="grid gap-4 lg:grid-cols-[minmax(280px,1fr)_160px_160px_auto] lg:items-end">
+        <form className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end [&>label]:min-w-0 [&_button]:whitespace-nowrap [&_input]:min-w-0 [&_input]:text-[13px] [&_select]:min-w-0 [&_select]:text-[13px]">
           <input type="hidden" name="aba" value={activeTab} />
-          <label className="block">
+          <label className="block xl:col-span-6">
             <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Condomínio</span>
             <CondominioSearchSelect
               name="condominio"
@@ -723,15 +723,15 @@ export default async function VisaoSindicoPage({
               selectedId={data.selectedCondominio?.id}
             />
           </label>
-          <label className="block">
+          <label className="block xl:col-span-2">
             <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Início</span>
             <Input name="inicio" type="date" defaultValue={data.inicio} className="mt-2" />
           </label>
-          <label className="block">
+          <label className="block xl:col-span-2">
             <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Fim</span>
             <Input name="fim" type="date" defaultValue={data.fim} className="mt-2" />
           </label>
-          <Button type="submit">
+          <Button type="submit" className="w-full xl:col-span-2">
             <CalendarDays className="h-4 w-4" />
             Filtrar
           </Button>

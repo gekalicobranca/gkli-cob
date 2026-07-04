@@ -366,9 +366,14 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 </div>
               </ListTitleBar>
 
-              <ListFiltersForm className="mt-0 xl:grid-cols-[minmax(220px,1fr)_minmax(210px,.9fr)_minmax(190px,.85fr)_180px_170px_170px_210px_190px_110px]">
-                <ListSearchField defaultValue={filters.search} placeholder="Buscar responsável, unidade, bloco..." />
-                <ListFilterField label="CondomÃ­nio">
+              <ListFiltersForm className="mt-0 grid-cols-1">
+                <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
+                <ListSearchField
+                  defaultValue={filters.search}
+                  placeholder="Buscar responsável, unidade, bloco..."
+                  className="xl:col-span-3"
+                />
+                <ListFilterField label="CondomÃ­nio" className="xl:col-span-5">
                   <CondominioSearchSelect
                     name="condominio_id"
                     options={condominios.map((condominio: any) => ({
@@ -381,7 +386,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                     inputClassName=""
                   />
                 </ListFilterField>
-                <ListFilterField label="Unidade">
+                <ListFilterField label="Unidade" className="xl:col-span-4">
                   <SearchableSelect
                     name="unidade_id"
                     options={unidades.map((unidade: any) => ({
@@ -396,7 +401,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                     placeholder={filters.condominioId ? "Digite unidade ou responsavel" : "Selecione um condominio primeiro"}
                   />
                 </ListFilterField>
-                <ListFilterField label="Status">
+                </div>
+
+                <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
+                <ListFilterField label="Status" className="xl:col-span-2">
                   <Select name="status" defaultValue={statusFilter.statusSelect}>
                     <option value="operacionais">Fila operacional</option>
                     <option value="todos">Todos os status</option>
@@ -407,20 +415,20 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                     ))}
                   </Select>
                 </ListFilterField>
-                <ListFilterField label="Vencimento de">
+                <ListFilterField label="Vencimento de" className="xl:col-span-2">
                   <Input name="vencimento_de" type="date" defaultValue={filters.vencimentoDe} />
                 </ListFilterField>
-                <ListFilterField label="Vencimento até">
+                <ListFilterField label="Vencimento até" className="xl:col-span-2">
                   <Input name="vencimento_ate" type="date" defaultValue={filters.vencimentoAte} />
                 </ListFilterField>
-                <ListFilterField label="Judicialização">
+                <ListFilterField label="Judicialização" className="xl:col-span-2">
                   <Select name="judicializacao_unidade" defaultValue={filters.judicializacaoUnidade}>
                     <option value="nao">Extrajudicial</option>
                     <option value="todos">Incluir judicialização</option>
                     <option value="sim">Somente judicialização</option>
                   </Select>
                 </ListFilterField>
-                <ListFilterField label="Ordenar por">
+                <ListFilterField label="Ordenar por" className="xl:col-span-3">
                   <Select name="ordenar" defaultValue={filters.ordenar}>
                     <option value="vencimento_asc">Vencimento antigo</option>
                     <option value="vencimento_desc">Vencimento recente</option>
@@ -432,7 +440,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                     <option value="status">Status</option>
                   </Select>
                 </ListFilterField>
-                <Button type="submit" variant="secondary">Filtrar</Button>
+                <Button type="submit" variant="secondary" className="w-full xl:col-span-1">
+                  Filtrar
+                </Button>
+                </div>
               </ListFiltersForm>
             </div>
           </ListPanelHeader>

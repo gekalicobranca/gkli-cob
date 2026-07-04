@@ -123,7 +123,7 @@ export default async function RompimentosAcordosPage({ searchParams }: { searchP
             {hasFilters ? <ButtonLink href="/app/acordos/rompimentos" variant="secondary" size="sm"><X size={15} />Limpar</ButtonLink> : null}
           </div>
 
-          <form className="mt-3 grid gap-3 xl:grid-cols-[minmax(220px,1fr)_150px_155px_155px_190px_auto] xl:items-end">
+          <form className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 xl:items-end [&>label]:min-w-0 [&_button]:whitespace-nowrap [&_input]:min-w-0 [&_input]:text-[13px] [&_select]:min-w-0 [&_select]:text-[13px]">
             <label className="space-y-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Busca</span>
               <div className="relative">

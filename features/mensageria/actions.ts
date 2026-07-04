@@ -414,6 +414,8 @@ export async function enviarMensagemEmail(id: string) {
       to: mensagem.destinatario || "",
       subject: assunto || "Mensagem GKLI Cobrança",
       text: conteudo,
+    }, {
+      carteiraId: mensagem.carteira_id,
     });
 
     const { error } = await supabase

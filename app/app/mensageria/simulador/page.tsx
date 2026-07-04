@@ -225,7 +225,7 @@ export default async function SimuladorReguaPage({ searchParams }: PageProps) {
       </div>
 
       <Card className="p-5">
-        <form className="grid gap-3 xl:grid-cols-[minmax(220px,1.2fr)_minmax(180px,.8fr)_minmax(220px,1fr)_180px_auto_auto] xl:items-end">
+        <form className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6 2xl:items-end [&>label]:min-w-0 [&_button]:whitespace-nowrap [&_input]:min-w-0 [&_input]:text-[13px] [&_select]:min-w-0 [&_select]:text-[13px]">
           {filters.regua_id ? <input type="hidden" name="regua_id" value={filters.regua_id} /> : null}
           <label className="space-y-1.5">
             <span className="text-xs font-semibold uppercase text-slate-400">Busca</span>
