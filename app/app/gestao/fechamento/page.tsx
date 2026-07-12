@@ -30,14 +30,14 @@ export default async function FechamentoMensalPage() {
 
   const aberto = periodos.filter((periodo) => ['aberto', 'reaberto', 'em_conferencia'].includes(periodo.status)).length
   const faturado = periodos.filter((periodo) => periodo.status === 'faturado').length
-  const totalOmie = periodos.reduce((sum, periodo) => sum + Number(periodo.total_faturamento_omie ?? 0), 0)
+  const totalFiscal = periodos.reduce((sum, periodo) => sum + Number(periodo.total_faturamento_omie ?? 0), 0)
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Gestão"
         title="Fechamento mensal"
-        description="Processamento de acordos realizados, repasses de despesas, apuração por operador e comissão por carteira."
+        description="Processamento de acordos realizados, repasses de despesas, apuracao por operador, comissao por carteira e base fiscal para NFS-e."
         actions={<ButtonLink href="/app/gestao" variant="secondary">Voltar</ButtonLink>}
       />
 
@@ -63,8 +63,8 @@ export default async function FechamentoMensalPage() {
         <Card className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Base Omie</p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{formatCurrency(totalOmie)}</p>
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">Base NFS-e</p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{formatCurrency(totalFiscal)}</p>
             </div>
             <ReceiptText size={18} className="text-[var(--gkli-primary)]" />
           </div>
@@ -105,7 +105,7 @@ export default async function FechamentoMensalPage() {
                   <p className="text-sm font-medium text-slate-800">{formatCurrency(Number(periodo.total_despesas_cobranca ?? 0))} · {formatCurrency(Number(periodo.total_comissoes ?? 0))}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-slate-400">Omie</p>
+                  <p className="text-xs text-slate-400">NFS-e</p>
                   <p className="text-sm font-semibold text-slate-950">{formatCurrency(Number(periodo.total_faturamento_omie ?? 0))}</p>
                 </div>
               </Link>

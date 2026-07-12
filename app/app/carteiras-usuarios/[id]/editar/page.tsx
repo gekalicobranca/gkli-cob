@@ -51,6 +51,44 @@ export default async function EditarCarteiraPage({ params }: EditarCarteiraPageP
             <Input name="logo_url" defaultValue={carteira.logo_url ?? ''} placeholder="https://..." />
           </FormField>
 
+          <div className="border-t border-slate-100 pt-5">
+            <h2 className="text-sm font-semibold text-slate-950">Emissao de NFS-e</h2>
+            <p className="mt-1 text-sm text-slate-500">Dados fiscais usados para montar a base de notas no fechamento mensal.</p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField label="CNPJ emissor">
+              <Input name="nfse_emissor_cnpj" defaultValue={carteira.nfse_emissor_cnpj ?? ''} placeholder="Somente numeros" inputMode="numeric" />
+            </FormField>
+
+            <FormField label="Razao social emissora">
+              <Input name="nfse_emissor_razao_social" defaultValue={carteira.nfse_emissor_razao_social ?? ''} placeholder="Ex.: Genske Sociedade Individual de Advocacia" />
+            </FormField>
+
+            <FormField label="Inscricao municipal">
+              <Input name="nfse_emissor_inscricao_municipal" defaultValue={carteira.nfse_emissor_inscricao_municipal ?? ''} placeholder="Ex.: 61958131" />
+            </FormField>
+
+            <FormField label="Municipio / UF">
+              <div className="grid gap-2 sm:grid-cols-[1fr_90px]">
+                <Input name="nfse_emissor_municipio" defaultValue={carteira.nfse_emissor_municipio ?? ''} placeholder="Sao Paulo" />
+                <Input name="nfse_emissor_uf" defaultValue={carteira.nfse_emissor_uf ?? ''} placeholder="SP" maxLength={2} />
+              </div>
+            </FormField>
+
+            <FormField label="Codigo do servico">
+              <Input name="nfse_codigo_servico" defaultValue={carteira.nfse_codigo_servico ?? ''} placeholder="03220" />
+            </FormField>
+
+            <FormField label="Codigo LC 116">
+              <Input name="nfse_codigo_lc116" defaultValue={carteira.nfse_codigo_lc116 ?? ''} placeholder="17.14" />
+            </FormField>
+
+            <FormField label="Serie RPS">
+              <Input name="nfse_serie_rps" defaultValue={carteira.nfse_serie_rps ?? ''} placeholder="NFSE" />
+            </FormField>
+          </div>
+
           <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <input
               type="checkbox"

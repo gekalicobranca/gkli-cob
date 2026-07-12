@@ -37,12 +37,41 @@ async function findAuthUserIdByEmail(email: string) {
   return null;
 }
 
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function optionalText(formData: FormData, key: string) {
+  const value = String(formData.get(key) ?? "").trim();
+  return value || null;
+}
+
+function getCarteiraFiscalPayload(formData: FormData) {
+  const emissorCnpj = onlyDigits(String(formData.get("nfse_emissor_cnpj") ?? ""));
+
+  if (emissorCnpj && emissorCnpj.length !== 14) {
+    throw new Error("CNPJ emissor da NFS-e deve ter 14 digitos.");
+  }
+
+  return {
+    nfse_emissor_cnpj: emissorCnpj || null,
+    nfse_emissor_razao_social: optionalText(formData, "nfse_emissor_razao_social"),
+    nfse_emissor_inscricao_municipal: optionalText(formData, "nfse_emissor_inscricao_municipal"),
+    nfse_emissor_municipio: optionalText(formData, "nfse_emissor_municipio"),
+    nfse_emissor_uf: optionalText(formData, "nfse_emissor_uf")?.toUpperCase() ?? null,
+    nfse_codigo_servico: optionalText(formData, "nfse_codigo_servico"),
+    nfse_codigo_lc116: optionalText(formData, "nfse_codigo_lc116"),
+    nfse_serie_rps: optionalText(formData, "nfse_serie_rps"),
+  };
+}
+
 export async function createCarteira(formData: FormData) {
   await requireAdmin();
 
   const nome = String(formData.get("nome") ?? "").trim();
   const descricao = String(formData.get("descricao") ?? "").trim();
   const logoUrl = String(formData.get("logo_url") ?? "").trim();
+  const fiscalPayload = getCarteiraFiscalPayload(formData);
 
   if (nome.length < 2) {
     throw new Error("Nome da carteira obrigatório.");
@@ -74,6 +103,7 @@ export async function createCarteira(formData: FormData) {
     descricao: descricao || null,
     logo_url: logoUrl || null,
     ativo: true,
+    ...fiscalPayload,
   });
 
   if (error) {
@@ -96,6 +126,7 @@ export async function updateCarteira(formData: FormData) {
   const descricao = String(formData.get("descricao") ?? "").trim();
   const logoUrl = String(formData.get("logo_url") ?? "").trim();
   const ativo = formData.get("ativo") === "on";
+  const fiscalPayload = getCarteiraFiscalPayload(formData);
 
   if (!id) {
     throw new Error("Carteira obrigatória.");
@@ -133,6 +164,7 @@ export async function updateCarteira(formData: FormData) {
       descricao: descricao || null,
       logo_url: logoUrl || null,
       ativo,
+      ...fiscalPayload,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

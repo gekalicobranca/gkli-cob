@@ -1,6 +1,6 @@
 import type { ElementType } from 'react'
 import { notFound } from 'next/navigation'
-import { AlertTriangle, Calculator, ClipboardList, RefreshCcw, TrendingUp, Users, WalletCards } from 'lucide-react'
+import { AlertTriangle, Calculator, ClipboardList, ReceiptText, RefreshCcw, TrendingUp, Users, WalletCards } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { requireGestor } from '@/utils/auth/require-gestor'
 import {
   apurarFechamentoPeriodo,
   abrirPeriodoFechamento,
+  atualizarFaturamentoNfse,
   atualizarFechamentoPeriodo,
   cancelarPeriodo,
   enviarPeriodoParaConferencia,
@@ -47,6 +48,24 @@ function statusClass(status: string) {
   if (status === 'fechado') return 'bg-slate-900 text-white'
   if (status === 'em_conferencia') return 'bg-amber-50 text-amber-700'
   if (status === 'aberto' || status === 'reaberto') return 'bg-sky-50 text-sky-700'
+  if (status === 'cancelado') return 'bg-rose-50 text-rose-700'
+  return 'bg-slate-100 text-slate-600'
+}
+
+const nfseStatusLabel: Record<string, string> = {
+  pendente_dados: 'Pendente dados',
+  pronto_emissao: 'Pronto emissao',
+  enviado: 'Enviado',
+  autorizado: 'Autorizado',
+  erro: 'Erro',
+  cancelado: 'Cancelado',
+}
+
+function nfseStatusClass(status?: string | null) {
+  if (status === 'autorizado') return 'bg-emerald-50 text-emerald-700'
+  if (status === 'pronto_emissao') return 'bg-sky-50 text-sky-700'
+  if (status === 'enviado') return 'bg-indigo-50 text-indigo-700'
+  if (status === 'erro' || status === 'pendente_dados') return 'bg-amber-50 text-amber-700'
   if (status === 'cancelado') return 'bg-rose-50 text-rose-700'
   return 'bg-slate-100 text-slate-600'
 }
@@ -103,6 +122,9 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
 
   const podeEditarDatas = !['fechado', 'faturado'].includes(periodo.status)
   const podeApurar = ['rascunho', 'aberto', 'reaberto', 'em_conferencia'].includes(periodo.status)
+  const nfseProntas = faturamentos.filter((row: any) => row.nfse_status === 'pronto_emissao').length
+  const nfsePendentes = faturamentos.filter((row: any) => row.nfse_status === 'pendente_dados').length
+  const nfseAutorizadas = faturamentos.filter((row: any) => row.nfse_status === 'autorizado').length
 
   return (
     <div className="space-y-5">
@@ -148,7 +170,7 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
         <ReportCard title="Acordos no período" value={`${acordos.length} acordo(s)`} description="Lista de acordos pagos à vista, entrada ou primeira parcela." icon={ClipboardList} />
         <ReportCard title="Repasses por condomínio" value={formatCurrency(resumo.despesas)} description={`${despesas.length} agrupamento(s) para despesas de cobrança.`} icon={Calculator} />
         <ReportCard title="Apuração por operador" value={`${operadores.length} operador(es)`} description="Acordos, base, recuperado e despesa à vista/parcelada." icon={Users} />
-        <ReportCard title="Comissão por carteira" value={`${carteiras.length} carteira(s)`} description="Base para cálculo da comissão da carteira." icon={WalletCards} />
+        <ReportCard title="Base NFS-e" value={`${faturamentos.length} nota(s)`} description={`${nfseProntas} pronta(s), ${nfsePendentes} pendente(s), ${nfseAutorizadas} autorizada(s).`} icon={ReceiptText} />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -255,11 +277,74 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
 
       <section className="grid gap-4 xl:grid-cols-2">
         <Card className="p-5">
-          <h2 className="text-base font-medium text-slate-950">Base Omie</h2>
+          <h2 className="text-base font-medium text-slate-950">Base NFS-e</h2>
           <div className="mt-4 space-y-3">
-            {faturamentos.length === 0 ? <p className="text-sm text-slate-500">Sem base Omie apurada.</p> : faturamentos.map((row: any) => (
+            {faturamentos.length === 0 ? <p className="text-sm text-slate-500">Sem base fiscal apurada.</p> : faturamentos.map((row: any) => (
               <div key={row.id} className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{row.condominios?.nome ?? 'Cliente Omie'}</p><p className="text-xs text-slate-500">Repasse de cobrança extrajudicial</p></div>
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-medium text-slate-800">{row.tomador_razao_social ?? row.condominios?.nome ?? 'Tomador'}</p>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${nfseStatusClass(row.nfse_status)}`}>{nfseStatusLabel[row.nfse_status] ?? row.nfse_status ?? 'Pendente'}</span>
+                  </div>
+                  <p className="text-xs text-slate-500">Emissor {row.emissor_cnpj ?? row.carteiras?.nfse_emissor_cnpj ?? '-'} · Servico {row.nfse_codigo_servico ?? '-'}</p>
+                  {Array.isArray(row.nfse_pendencias) && row.nfse_pendencias.length > 0 ? (
+                    <p className="text-xs text-amber-700">Pendencias: {row.nfse_pendencias.join(', ')}</p>
+                  ) : (
+                    <p className="text-xs text-slate-500">Repasse de cobranca extrajudicial pronto para emissao.</p>
+                  )}
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs font-medium text-[var(--gkli-primary)]">Registrar emissao</summary>
+                    <form action={atualizarFaturamentoNfse} className="mt-3 grid gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 md:grid-cols-2">
+                      <input type="hidden" name="periodo_id" value={id} />
+                      <input type="hidden" name="faturamento_id" value={row.id} />
+                      <label className="text-xs font-medium text-slate-600">
+                        Status
+                        <select name="nfse_status" defaultValue={row.nfse_status ?? 'pendente_dados'} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-800">
+                          <option value="pendente_dados">Pendente dados</option>
+                          <option value="pronto_emissao">Pronto emissao</option>
+                          <option value="enviado">Enviado</option>
+                          <option value="autorizado">Autorizado</option>
+                          <option value="erro">Erro</option>
+                          <option value="cancelado">Cancelado</option>
+                        </select>
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">
+                        Numero NFS-e
+                        <Input name="nfse_numero" defaultValue={row.nfse_numero ?? ''} className="mt-1" />
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">
+                        Codigo verificacao
+                        <Input name="nfse_codigo_verificacao" defaultValue={row.nfse_codigo_verificacao ?? ''} className="mt-1" />
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">
+                        RPS
+                        <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                          <Input name="nfse_rps_numero" defaultValue={row.nfse_rps_numero ?? ''} placeholder="Numero" />
+                          <Input name="nfse_rps_serie" defaultValue={row.nfse_rps_serie ?? ''} placeholder="Serie" />
+                        </div>
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">
+                        PDF NFS-e
+                        <Input name="nfse_pdf_url" defaultValue={row.nfse_pdf_url ?? ''} className="mt-1" placeholder="URL do PDF" />
+                      </label>
+                      <label className="text-xs font-medium text-slate-600">
+                        XML NFS-e
+                        <Input name="nfse_xml_url" defaultValue={row.nfse_xml_url ?? ''} className="mt-1" placeholder="URL do XML" />
+                      </label>
+                      <label className="text-xs font-medium text-slate-600 md:col-span-2">
+                        Demonstrativo
+                        <Input name="demonstrativo_pdf_url" defaultValue={row.demonstrativo_pdf_url ?? ''} className="mt-1" placeholder="URL do demonstrativo" />
+                      </label>
+                      <label className="text-xs font-medium text-slate-600 md:col-span-2">
+                        Erro/observacao fiscal
+                        <Input name="nfse_erro" defaultValue={row.nfse_erro ?? ''} className="mt-1" />
+                      </label>
+                      <div className="md:col-span-2">
+                        <Button type="submit" size="sm" variant="secondary">Salvar NFS-e</Button>
+                      </div>
+                    </form>
+                  </details>
+                </div>
                 <p className="shrink-0 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_faturamento ?? 0))}</p>
               </div>
             ))}

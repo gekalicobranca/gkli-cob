@@ -8,6 +8,7 @@ import type { FechamentoPeriodo, FechamentoStatus } from './types'
 
 const STATUS_BLOQUEIA_EDICAO = new Set<FechamentoStatus>(['fechado', 'faturado'])
 const STATUS_BLOQUEIA_APURACAO = new Set<FechamentoStatus>(['fechado', 'faturado', 'cancelado'])
+const NFSE_STATUS = new Set(['pendente_dados', 'pronto_emissao', 'enviado', 'autorizado', 'erro', 'cancelado'])
 
 const FIELD_LABELS: Record<string, string> = {
   competencia: 'competência',
@@ -240,5 +241,70 @@ export async function apurarFechamentoPeriodo(formData: FormData) {
   await registrarAuditoria(periodoId, 'apuracao_executada', 'Apuração de pagamentos, despesas, comissões e base Omie executada.')
 
   revalidatePath('/app/gestao/fechamento')
+  revalidatePath(`/app/gestao/fechamento/${periodoId}`)
+}
+
+export async function atualizarFaturamentoNfse(formData: FormData) {
+  const user = await requireGestor()
+  const supabase = await createClient()
+  const id = getRequiredString(formData, 'faturamento_id')
+  const periodoId = getRequiredString(formData, 'periodo_id')
+  const nfseStatus = getRequiredString(formData, 'nfse_status')
+
+  if (!NFSE_STATUS.has(nfseStatus)) {
+    throw new Error('Status da NFS-e invalido.')
+  }
+
+  const payload: Record<string, unknown> = {
+    nfse_status: nfseStatus,
+    nfse_numero: getOptionalString(formData, 'nfse_numero'),
+    nfse_codigo_verificacao: getOptionalString(formData, 'nfse_codigo_verificacao'),
+    nfse_rps_numero: getOptionalString(formData, 'nfse_rps_numero'),
+    nfse_rps_serie: getOptionalString(formData, 'nfse_rps_serie'),
+    nfse_pdf_url: getOptionalString(formData, 'nfse_pdf_url'),
+    nfse_xml_url: getOptionalString(formData, 'nfse_xml_url'),
+    demonstrativo_pdf_url: getOptionalString(formData, 'demonstrativo_pdf_url'),
+    nfse_erro: getOptionalString(formData, 'nfse_erro'),
+  }
+
+  if (nfseStatus === 'enviado') {
+    payload.nfse_enviado_em = new Date().toISOString()
+    payload.status = 'gerado'
+  }
+
+  if (nfseStatus === 'autorizado') {
+    payload.nfse_autorizado_em = new Date().toISOString()
+    payload.status = 'faturado'
+  }
+
+  if (nfseStatus === 'cancelado') {
+    payload.status = 'cancelado'
+  }
+
+  if (nfseStatus === 'erro') {
+    payload.status = 'pendente'
+  }
+
+  const { data, error } = await supabase
+    .from('fechamento_faturamentos_omie')
+    .update(payload)
+    .eq('id', id)
+    .eq('periodo_id', periodoId)
+    .select('id')
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`Erro ao atualizar NFS-e do fechamento: ${error.message}`)
+  }
+  if (!data) throw new Error('Faturamento fiscal nao encontrado.')
+
+  await supabase.from('fechamento_auditoria').insert({
+    periodo_id: periodoId,
+    user_id: user.id,
+    acao: 'nfse_atualizada',
+    descricao: `NFS-e atualizada para ${nfseStatus}.`,
+    dados: { faturamento_id: id, ...payload },
+  })
+
   revalidatePath(`/app/gestao/fechamento/${periodoId}`)
 }

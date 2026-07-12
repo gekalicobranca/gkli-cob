@@ -72,7 +72,7 @@ export default async function CarteirasUsuariosPage() {
             <div className="divide-y divide-slate-100">
               {carteiras.map((carteira: any) => (
                 <div key={carteira.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_220px] md:items-center">
-                  <div><p className="text-sm font-medium text-slate-950">{carteira.nome}</p><p className="mt-1 text-xs text-slate-500">{carteira.descricao ?? 'Sem descrição'}</p></div>
+                  <div><p className="text-sm font-medium text-slate-950">{carteira.nome}</p><p className="mt-1 text-xs text-slate-500">{carteira.descricao ?? 'Sem descrição'} · CNPJ emissor {carteira.nfse_emissor_cnpj ?? '-'}</p></div>
                   <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
                     <StatusBadge status={carteira.ativo ? 'ativo' : 'inativo'} />
                     <ButtonLink href={`/app/carteiras-usuarios/${carteira.id}/editar`} variant="secondary" size="sm"><Edit3 size={14} />Editar</ButtonLink>

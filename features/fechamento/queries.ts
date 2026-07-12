@@ -239,7 +239,7 @@ export async function listFechamentoFaturamentosOmie(periodoId: string, limit = 
 
   const { data, error } = await supabase
     .from('fechamento_faturamentos_omie')
-    .select('*, condominios:condominio_id (id, nome, cnpj), carteiras:carteira_id (id, nome)')
+    .select('*, condominios:condominio_id (id, nome, cnpj), carteiras:carteira_id (id, nome, nfse_emissor_cnpj)')
     .eq('periodo_id', periodoId)
     .order('valor_faturamento', { ascending: false })
     .limit(limit)
