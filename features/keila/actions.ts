@@ -159,16 +159,6 @@ function formatDate(value?: string | null) {
   }).format(new Date(String(value).includes("T") ? value : `${value}T00:00:00`));
 }
 
-function getPublicBaseUrl() {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`) ||
-    (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
-    "http://localhost:3000"
-  ).replace(/\/$/, "");
-}
-
 function makeToken() {
   return randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
 }
@@ -354,13 +344,13 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
       p_despesa_cobranca_valor: despesaCobrancaValor,
       p_data_acordo: toISODate(new Date()),
       p_status: ACORDO_STATUS.ATIVO,
-      p_fluxo_status: "aguardando_aceite_devedor",
+      p_fluxo_status: "boletos_solicitados",
       p_exige_aprovacao_sindico: false,
       p_documento_url: null,
       p_observacoes: "Acordo preparado pela Keila em modo supervisionado.",
       p_itens: itensAcordo,
       p_parcelas: parcelas,
-      p_cobranca_status: COBRANCA_STATUS.ACORDO_FIRMADO,
+      p_cobranca_status: COBRANCA_STATUS.EM_NEGOCIACAO,
     } as any,
   );
 
@@ -391,17 +381,16 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
     carteiraId: cobranca.carteira_id,
     destinatarioNome: responsavelNome,
     destinatarioEmail: contatoResponsavel.email || null,
-    titulo: "Termo de acordo para aceite digital",
+    titulo: "Formalizacao do acordo",
     corpo: resumo,
   });
-  const linkAceite = `${getPublicBaseUrl()}/aceite-acordo/${termo.token}`;
 
   const mensagemId = await inserirMensagemAcordoKeila(supabase as any, {
     carteira_id: cobranca.carteira_id,
     acordo_id: acordoId,
     cobranca_id: cobranca.id,
     destinatario: contatoResponsavel.email || null,
-    assunto: "Proposta de acordo para aceite digital",
+    assunto: "Formalizacao do acordo",
     conteudo: [
       `Prezado(a) ${responsavelNome},`,
       "",
@@ -409,7 +398,7 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
       "",
       resumo,
       "",
-      `Link para aceite digital: ${linkAceite}`,
+      "O acordo sera considerado firmado apos a identificacao do pagamento da entrada ou da primeira parcela.",
       "",
       "Atenciosamente,",
       "GKLI Cobrança",
@@ -417,7 +406,7 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
     payload: {
       origem: "app",
       termo_id: termo.id,
-      link_aceite: linkAceite,
+      regra_firmamento: "primeiro_pagamento",
       lote_id: item.lote_id,
       lote_item_id: item.id,
       retorno_tipo: item.retorno_tipo,
@@ -462,11 +451,11 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
       carteiraId: cobranca.carteira_id,
       entidadeTipo: "cobranca",
       entidadeId: cobranca.id,
-      eventoCodigo: "keila.cobranca_vinculada_acordo",
+      eventoCodigo: "keila.cobranca_em_negociacao_acordo",
       estadoAnterior: getCobrancaStatusOperacional(cobranca),
-      estadoNovo: COBRANCA_STATUS.ACORDO_FIRMADO,
-      titulo: "Keila vinculou cobrança a acordo",
-      descricao: `Cobrança vinculada ao acordo supervisionado ${acordoId}.`,
+      estadoNovo: COBRANCA_STATUS.EM_NEGOCIACAO,
+      titulo: "Keila vinculou cobrança a negociação de acordo",
+      descricao: `Cobrança vinculada ao acordo supervisionado ${acordoId}. O acordo será firmado pelo primeiro pagamento.`,
       severidade: "sucesso",
       origem: "app",
       auditavel: true,
@@ -476,7 +465,7 @@ async function criarAcordoKeilaParaItem(supabase: ReturnType<typeof createAdminC
         lote_item_id: item.id,
       },
       antes: { status_operacional: getCobrancaStatusOperacional(cobranca) },
-      depois: { status_operacional: COBRANCA_STATUS.ACORDO_FIRMADO, acordo_id: acordoId },
+      depois: { status_operacional: COBRANCA_STATUS.EM_NEGOCIACAO, acordo_id: acordoId },
     }),
   ]);
 

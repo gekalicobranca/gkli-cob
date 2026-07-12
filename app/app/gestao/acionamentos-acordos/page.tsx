@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   CheckCircle2,
-  ExternalLink,
   Mail,
   MessageCircle,
   PlayCircle,
@@ -25,7 +24,6 @@ import {
   decidirAprovacaoSindicoAcordo,
   marcarBoletoReemissaoEnviado,
   registrarAcionamentoManualAcordo,
-  registrarAceiteManualTermoAcordo,
   registrarAjusteReemissaoParcelaAcordo,
   solicitarBoletoReemissaoAcordo,
 } from "@/features/acordos/actions";
@@ -85,8 +83,9 @@ function activationBody(row: AgreementManualActivationRow) {
   return row.mensagemConteudo || [
     "Prezado(a),",
     "",
-    "Segue o link para conferência e aceite digital:",
-    row.linkAceite,
+    "Segue a formalização do acordo para conferência.",
+    "",
+    "O acordo será considerado firmado após a identificação do pagamento da entrada ou da primeira parcela.",
     "",
     "Atenciosamente,",
     "GKLI Cobrança",
@@ -96,15 +95,11 @@ function activationBody(row: AgreementManualActivationRow) {
 function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActivationRow; canal: string; returnTo: string }) {
   const body = activationBody(row);
   const whatsapp = whatsappHref(row.destinatarioTelefone, body);
-  const mailto = mailtoHref(row.destinatarioEmail, row.mensagemAssunto ?? "Termo de acordo para aceite digital", body);
+  const mailto = mailtoHref(row.destinatarioEmail, row.mensagemAssunto ?? "Formalização do acordo", body);
   const acionado = isManuallyTriggered(row);
 
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      <ButtonLink href={row.linkAceite} target="_blank" rel="noreferrer" variant="secondary" size="sm">
-        <ExternalLink size={14} />
-        Termo
-      </ButtonLink>
       {mailto ? (
         <ButtonLink href={mailto} variant="secondary" size="sm">
           <Mail size={14} />
@@ -137,7 +132,7 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
       {canal === "devedor" ? (
         <form action={cancelarFormalizacaoAcordo}>
           <input type="hidden" name="acordo_id" value={row.acordoId} />
-          <input type="hidden" name="motivo" value="Devedor não confirmou o aceite" />
+          <input type="hidden" name="motivo" value="Primeiro pagamento não foi identificado" />
           <input type="hidden" name="observacao" value="Cancelado pela central de acionamentos durante a implantação." />
           <PendingSubmitButton
             size="sm"
@@ -149,49 +144,6 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
             Cancelar formalização
           </PendingSubmitButton>
         </form>
-      ) : null}
-      {canal === "devedor" ? (
-        <div className="mt-2 w-full rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-left">
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">
-            <CheckCircle2 size={14} aria-hidden="true" />
-            Confirmar aceite do devedor
-          </div>
-          <form action={registrarAceiteManualTermoAcordo} className="grid gap-2">
-            <input type="hidden" name="acordo_id" value={row.acordoId} />
-            <input type="hidden" name="termo_id" value={row.termoId} />
-            <input type="hidden" name="tipo_aceite" value="devedor" />
-            <div className="grid gap-2 sm:grid-cols-2">
-              <input
-                name="nome"
-                defaultValue={row.destinatarioNome ?? ""}
-                required
-                placeholder="Nome do devedor"
-                className="h-9 rounded-lg border border-emerald-100 bg-white px-3 text-xs text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
-              />
-              <input
-                name="documento"
-                placeholder="Documento, se houver"
-                className="h-9 rounded-lg border border-emerald-100 bg-white px-3 text-xs text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
-              />
-            </div>
-            <Textarea
-              name="observacao"
-              required
-              placeholder="Evidência do aceite manual"
-              className="min-h-[68px] border-emerald-100 bg-white text-xs focus:border-emerald-500 focus:ring-emerald-500/15"
-            />
-            <div className="flex justify-end">
-              <PendingSubmitButton
-                size="sm"
-                variant="secondary"
-                icon={<CheckCircle2 size={14} />}
-                pendingLabel="Registrando..."
-              >
-                Confirmar aceite
-              </PendingSubmitButton>
-            </div>
-          </form>
-        </div>
       ) : null}
     </div>
   );
@@ -544,7 +496,7 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
       <PageHeader
         eyebrow="Gestão"
         title="Acionamentos de implantação"
-        description="Central temporária para aprovações, aceites, boletos e pendências enquanto a automação está sendo implantada."
+        description="Central temporária para formalizações, boletos e pendências enquanto a automação está sendo implantada."
         actions={
           <>
             <ButtonLink href="/app/dashboard" variant="secondary">Voltar</ButtonLink>
@@ -595,11 +547,11 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
 
       {shouldShowSection(tipoFiltro, "devedor") ? (
         <SectionShell
-          title="Aceite do devedor"
-          description="Termos de devedor pendentes, com link público, e-mail, WhatsApp e registro manual de contato."
+          title="Formalização ao devedor"
+          description="Termos de devedor pendentes, com e-mail, WhatsApp e registro manual de contato."
           icon={Send}
-          emptyTitle="Sem aceite de devedor pendente"
-          emptyDescription="Todos os termos de devedor foram aceitos ou ainda não foram gerados."
+          emptyTitle="Sem formalização de devedor pendente"
+          emptyDescription="Todos os termos de devedor foram acionados ou ainda não foram gerados."
           hasRows={devedorTerms.length > 0}
         >
           {devedorTerms.map((row) => <ActivationRow key={row.termoId} row={row} canal="devedor" returnTo={currentPath} />)}
@@ -609,7 +561,7 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
       {shouldShowSection(tipoFiltro, "boletos") ? (
         <SectionShell
           title="Administradora e boletos"
-          description="Acordos aceitos que estão aguardando emissão, recebimento ou envio dos boletos."
+          description="Acordos formalizados que estão aguardando emissão, recebimento ou envio dos boletos."
           icon={ReceiptText}
           emptyTitle="Sem boletos em acompanhamento"
           emptyDescription="Nenhum acordo está parado nesta etapa agora."

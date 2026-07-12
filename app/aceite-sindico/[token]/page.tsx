@@ -1,100 +1,17 @@
-import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
-import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
-import { Input } from "@/components/ui/input";
-import { FormField } from "@/components/ui/form-field";
-import { createAdminClient } from "@/utils/supabase/admin";
-import { registrarAceitePublicoTermo } from "@/features/acordos/actions";
 
 type PageProps = {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ aceito?: string }>;
 };
 
-async function getTermo(token: string, tipo: "devedor" | "sindico") {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("acordos_termos")
-    .select("*, acordos:acordo_id (id, fluxo_status, condominios:condominio_id (nome), unidades:unidade_id (identificacao, bloco, responsavel_nome))")
-    .eq("token", token)
-    .eq("tipo_aceite", tipo)
-    .maybeSingle();
-
-  if (error) throw new Error(`Erro ao carregar termo: ${error.message}`);
-  return data as any;
-}
-
-async function getTipoTermo(token: string) {
-  const supabase = createAdminClient();
-  const { data } = await supabase
-    .from("acordos_termos")
-    .select("tipo_aceite")
-    .eq("token", token)
-    .maybeSingle();
-
-  return (data as any)?.tipo_aceite as string | null;
-}
-
-export default async function AceiteSindicoPage({ params, searchParams }: PageProps) {
-  const { token } = await params;
-  const query = await searchParams;
-  const termo = await getTermo(token, "sindico");
-  const aceito = query.aceito === "1" || termo?.status === "aceito";
-
-  if (!termo) {
-    const tipoTermo = await getTipoTermo(token);
-    if (tipoTermo === "devedor") redirect(`/aceite-acordo/${token}`);
-    return <PublicShell title="Link inválido" description="Não encontramos este termo de acordo." />;
-  }
-
-  if (!["pendente", "visualizado", "aceito"].includes(String(termo.status ?? ""))) {
-    return <PublicShell title="Termo indisponível" description="Este termo foi encerrado e não permite novo aceite." />;
-  }
+export default async function AceiteSindicoPage({ params }: PageProps) {
+  await params;
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div className="text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--gkli-primary)]">GKLI Cobrança</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Aprovação do acordo</h1>
-          <p className="mt-2 text-sm text-slate-600">Aprovação digital do síndico antes do envio do termo ao devedor.</p>
-        </div>
-
-        <Card className="space-y-5">
-          {aceito ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
-              <p className="font-semibold">Aceite registrado com sucesso.</p>
-              <p className="mt-1 text-sm">O sistema já gerou o retorno operacional para envio do termo ao devedor.</p>
-            </div>
-          ) : null}
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm font-semibold text-slate-950">{termo.titulo}</p>
-            <pre className="mt-4 whitespace-pre-wrap font-sans text-sm leading-6 text-slate-700">{termo.corpo}</pre>
-          </div>
-
-          {!aceito ? (
-            <form action={registrarAceitePublicoTermo} className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <input type="hidden" name="token" value={token} />
-              <input type="hidden" name="tipo_aceite" value="sindico" />
-              <FormField label="Nome completo de quem aceita">
-                <Input name="nome" required defaultValue={termo.destinatario_nome ?? ""} />
-              </FormField>
-              <FormField label="CPF/CNPJ ou documento">
-                <Input name="documento" placeholder="Opcional, mas recomendado" />
-              </FormField>
-              <label className="flex gap-3 rounded-xl bg-white p-3 text-sm text-slate-700">
-                <input type="checkbox" required className="mt-1" />
-                <span>Declaro que li, aprovo as condições do acordo acima para posterior envio ao devedor.</span>
-              </label>
-              <PendingSubmitButton className="w-full" pendingLabel="Registrando aprovação...">
-                Aprovar acordo digitalmente
-              </PendingSubmitButton>
-            </form>
-          ) : null}
-        </Card>
-      </div>
-    </main>
+    <PublicShell
+      title="Aprovação digital indisponível"
+      description="A formalização de acordo não usa mais link público. A cobrança permanece em negociação até a identificação do pagamento da entrada ou da primeira parcela."
+    />
   );
 }
 

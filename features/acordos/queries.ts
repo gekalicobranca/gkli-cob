@@ -693,16 +693,6 @@ function todayDateOnly() {
   return date;
 }
 
-function getPublicBaseUrl() {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null) ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-    "http://localhost:3000"
-  ).replace(/\/$/, "");
-}
-
 function diffDaysFromToday(value?: string | null) {
   const date = normalizeDateOnly(value);
   if (!date) return null;
@@ -1290,7 +1280,6 @@ export type AgreementManualActivationRow = {
   fluxoStatus: string | null;
   termoStatus: string | null;
   token: string;
-  linkAceite: string;
   destinatarioNome: string | null;
   destinatarioEmail: string | null;
   destinatarioTelefone: string | null;
@@ -1377,9 +1366,6 @@ export async function listAgreementManualActivationInbox(
     }
   }
 
-  const baseUrl = getPublicBaseUrl();
-  const aceitePath = tipoAceite === "sindico" ? "aceite-sindico" : "aceite-acordo";
-
   return ((termos ?? []) as any[]).map((termo) => {
     const acordo = Array.isArray(termo.acordos) ? termo.acordos[0] : termo.acordos;
     const condominio = Array.isArray(acordo?.condominios) ? acordo?.condominios[0] : acordo?.condominios;
@@ -1398,7 +1384,6 @@ export async function listAgreementManualActivationInbox(
       fluxoStatus: acordo?.fluxo_status ?? null,
       termoStatus: termo.status ?? null,
       token: termo.token,
-      linkAceite: `${baseUrl}/${aceitePath}/${termo.token}`,
       destinatarioNome: termo.destinatario_nome ?? unidade?.responsavel_nome ?? null,
       destinatarioEmail: termo.destinatario_email ?? unidade?.email ?? mensagem?.email_destinatario ?? mensagem?.destinatario ?? null,
       destinatarioTelefone: unidade?.telefone ?? null,
@@ -1412,7 +1397,7 @@ export async function listAgreementManualActivationInbox(
         || ["visualizado"].includes(String(termo.status ?? ""))
         || ["enviada"].includes(String(mensagem?.status_operacional ?? mensagem?.status ?? "")),
       mensagemAcionadaEm: termo.visualizado_em ?? mensagem?.enviada_manual_em ?? mensagem?.ultima_tentativa_em ?? null,
-      mensagemAssunto: mensagem?.email_assunto ?? "Termo de acordo para aceite digital",
+      mensagemAssunto: mensagem?.email_assunto ?? "Formalização do acordo",
       mensagemConteudo: mensagem?.conteudo_renderizado ?? mensagem?.conteudo ?? null,
     };
   });

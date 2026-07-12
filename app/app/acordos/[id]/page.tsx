@@ -248,9 +248,6 @@ export default async function AcordoDetalhePage({ params }: Props) {
   const diasReemissao = Number(acordo.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0);
   const health = calculateAgreementHealth(parcelas);
   const termos = Array.isArray(acordo.termos) ? acordo.termos : [];
-  const devedorAceito = Boolean(acordo.devedor_aceito_em) || termos.some((termo: any) =>
-    termo.tipo_aceite === "devedor" && termo.status === "aceito",
-  );
   const possuiPagamentoRegistrado = parcelas.some((parcela: any) =>
     parcela.data_pagamento || ["paga", "pago", "quitada", "quitado"].includes(String(parcela.status ?? "").toLowerCase()),
   );
@@ -258,7 +255,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
   const possuiFormalizacaoPendente = termos.some((termo: any) =>
     ["pendente", "visualizado"].includes(String(termo.status ?? "")),
   ) || ["aguardando_aprovacao_sindico", "aprovado_sindico_aguardando_aceite_devedor", "aguardando_aceite_devedor"].includes(String(acordo.fluxo_status ?? ""));
-  const podeCancelarFormalizacao = possuiFormalizacaoPendente && !devedorAceito && !possuiPagamentoRegistrado && !statusFechado;
+  const podeCancelarFormalizacao = possuiFormalizacaoPendente && !possuiPagamentoRegistrado && !statusFechado;
 
   return (
     <div className="space-y-6">
@@ -592,14 +589,14 @@ export default async function AcordoDetalhePage({ params }: Props) {
               <CardContent className="space-y-4 p-6">
                 <SectionTitle
                   title="Cancelar formalização"
-                  description="Use quando o devedor não confirmou o aceite e a cobrança deve voltar para o fluxo extrajudicial."
+                  description="Use quando o primeiro pagamento não foi identificado e a cobrança deve voltar para o fluxo extrajudicial."
                 />
                 <form action={cancelarFormalizacaoAcordo} className="space-y-3">
                   <input type="hidden" name="acordo_id" value={acordo.id} />
                   <label className="block space-y-1.5">
                     <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Motivo</span>
-                    <select name="motivo" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" defaultValue="Devedor não confirmou o aceite">
-                      <option value="Devedor não confirmou o aceite">Devedor não confirmou o aceite</option>
+                    <select name="motivo" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" defaultValue="Primeiro pagamento não foi identificado">
+                      <option value="Primeiro pagamento não foi identificado">Primeiro pagamento não foi identificado</option>
                       <option value="Devedor desistiu da negociação">Devedor desistiu da negociação</option>
                       <option value="Prazo interno expirado">Prazo interno expirado</option>
                       <option value="Nova negociação necessária">Nova negociação necessária</option>
