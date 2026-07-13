@@ -121,7 +121,7 @@ begin
       p.data_pagamento::date as primeira_data_pagamento,
       coalesce(p.valor, 0) as primeiro_valor_pago,
       coalesce(p.tipo_parcela, '') as primeiro_tipo_parcela,
-      coalesce(a.quantidade_parcelas, (select count(*) from public.parcelas_acordo px where px.acordo_id = a.id), 0) as total_parcelas,
+      coalesce(nullif(a.quantidade_parcelas, 0), (select count(*) from public.parcelas_acordo px where px.acordo_id = a.id), 0) as total_parcelas,
       coalesce((
         select sum(coalesce(ac.valor_atualizado_no_acordo, 0))
         from public.acordo_cobrancas ac

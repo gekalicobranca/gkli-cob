@@ -71,8 +71,11 @@ async function destinatarioBloqueado(supabase: ReturnType<typeof createAdminClie
 function applyEscopoMesmoDebito(query: any, ctx: ReguaComplianceContext) {
   let scoped = query
 
-  scoped = ctx.condominioId ? scoped.eq('condominio_id', ctx.condominioId) : scoped.is('condominio_id', null)
-  scoped = ctx.unidadeId ? scoped.eq('unidade_id', ctx.unidadeId) : scoped.is('unidade_id', null)
+  if (ctx.cobrancaId) {
+    scoped = scoped.eq('cobranca_id', ctx.cobrancaId)
+  } else if (ctx.acordoId) {
+    scoped = scoped.eq('acordo_id', ctx.acordoId)
+  }
 
   return scoped
 }
