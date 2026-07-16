@@ -106,7 +106,7 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
       <PageHeader
         eyebrow="Mensageria"
         title="Templates"
-        description="Modelos oficiais usados pelas rÃ©guas, lotes e mensagens renderizadas. O histÃ³rico salva snapshot do texto gerado."
+        description="Modelos oficiais usados pelas réguas, lotes e mensagens renderizadas. O histórico salva snapshot do texto gerado."
         actions={<ButtonLink href="/app/mensageria/templates/novo" variant="header">Novo template</ButtonLink>}
       />
 
@@ -119,12 +119,12 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
         <Card>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Ativos</p>
           <p className="mt-3 text-3xl font-semibold text-slate-950">{ativos}</p>
-          <p className="mt-1 text-sm text-slate-500">disponÃ­veis para rÃ©gua</p>
+          <p className="mt-1 text-sm text-slate-500">disponíveis para régua</p>
         </Card>
         <Card>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">CobranÃ§a</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Cobrança</p>
           <p className="mt-3 text-3xl font-semibold text-slate-950">{cobranca}</p>
-          <p className="mt-1 text-sm text-slate-500">modelos de cobranÃ§a</p>
+          <p className="mt-1 text-sm text-slate-500">modelos de cobrança</p>
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Acordo</p>
@@ -149,13 +149,13 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
         <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
           <ListSearchField
             defaultValue={filters.q}
-            placeholder="Nome, assunto, conteÃºdo ou carteira"
+            placeholder="Nome, assunto, conteúdo ou carteira"
             className="xl:col-span-4"
           />
           <ListFilterField label="Tipo" className="xl:col-span-2">
             <Select name="tipo" defaultValue={filters.tipo}>
               <option value="">Todos</option>
-              <option value="cobranca">CobranÃ§a</option>
+              <option value="cobranca">Cobrança</option>
               <option value="acordo">Acordo</option>
               <option value="juridico">Jurídico</option>
             </Select>
@@ -205,12 +205,12 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
       </Card>
 
       {templates.length === 0 ? (
-        <EmptyState title="Nenhum template encontrado" description={hasFilters ? 'Ajuste os filtros para ampliar a busca.' : 'Crie o primeiro modelo para alimentar a rÃ©gua de mensagens.'} />
+        <EmptyState title="Nenhum template encontrado" description={hasFilters ? 'Ajuste os filtros para ampliar a busca.' : 'Crie o primeiro modelo para alimentar a régua de mensagens.'} />
       ) : (
         <Card className="overflow-hidden p-0">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="text-sm font-semibold text-slate-950">Biblioteca de templates</h2>
-            <p className="mt-1 text-xs text-slate-500">Clique em um template para editar conteÃºdo, canal, tipo e preview.</p>
+            <p className="mt-1 text-xs text-slate-500">Clique em um template para editar conteúdo, canal, tipo e preview.</p>
           </div>
 
           <div className="divide-y divide-slate-100">
@@ -226,7 +226,7 @@ export default async function TemplatesMensageriaPage({ searchParams }: Template
                     <p className="text-sm font-semibold text-slate-950">{template.nome}</p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{preview || template.conteudo}</p>
                   </div>
-                  <div>{badge(template.carteira_id ? String(template.carteira_nome ?? 'Carteira especÃ­fica') : 'Global', template.carteira_id ? 'blue' : 'green')}</div>
+                  <div>{badge(template.carteira_id ? String(template.carteira_nome ?? 'Carteira específica') : 'Global', template.carteira_id ? 'blue' : 'green')}</div>
                   <div>{badge(categoryLabel(template.categoria ?? template.tipo), (template.tipo_regua ?? template.tipo) === 'acordo' ? 'amber' : (template.tipo_regua ?? template.tipo) === 'juridico' ? 'green' : 'blue')}</div>
                   <div>{badge(intensityLabel(template.intensidade), template.intensidade === 'agressivo' ? 'amber' : 'slate')}</div>
                   <div>{badge(String(template.canal ?? 'whatsapp'))}</div>

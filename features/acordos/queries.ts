@@ -98,6 +98,11 @@ export async function listAcordos(scope?: CarteiraScope) {
         status_operacional,
         status_financeiro
       ),
+      carteiras:carteira_id (
+        id,
+        nome,
+        pre_juridico_habilitado
+      ),
       termos:acordos_termos (*)
     `,
     )
@@ -907,7 +912,8 @@ async function getPreJuridicoStepsDosAcordos(
 export async function listAcordosQuebradosParaGestao(scope?: CarteiraScope) {
   const acordos = (await listAcordos(scope) as any[]).filter((acordo) => {
     const status = String(acordo.status ?? '').toLowerCase()
-    return !['quitado', 'cancelado', 'renegociado'].includes(status)
+    const carteira = Array.isArray(acordo.carteiras) ? acordo.carteiras[0] : acordo.carteiras
+    return Boolean(carteira?.pre_juridico_habilitado) && !['quitado', 'cancelado', 'renegociado'].includes(status)
   })
   const acordoIds = acordos.map((acordo) => acordo.id).filter(Boolean)
   if (acordoIds.length === 0) return []

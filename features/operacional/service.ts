@@ -18,6 +18,7 @@ export function estadoLegadoParaCodigo(status: string | null | undefined) {
     em_cobranca_ativa: "em_cobranca_ativa",
     em_cobranca: "em_cobranca_ativa",
     em_negociacao: "em_negociacao",
+    possivel_acordo: "possivel_acordo",
     acordo_firmado: "acordo_firmado",
     acordo_efetivado: "acordo_efetivado",
     pre_juridico: "pre_juridico",

@@ -215,7 +215,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
               placeholder="Condomínio, unidade, responsável..."
               className="xl:col-span-3"
             />
-            <ListFilterField label="CondomÃ­nio" className="xl:col-span-5">
+            <ListFilterField label="Condomínio" className="xl:col-span-5">
               <CondominioSearchSelect
                 name="condominio_id"
                 options={condominios.map((condominio: any) => ({
@@ -240,7 +240,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                   ].filter(Boolean).join(" - "),
                 }))}
                 selectedValue={clean(params.unidade_id)}
-                placeholder={clean(params.condominio_id) ? "Digite unidade ou responsavel" : "Selecione um condominio primeiro"}
+                placeholder={clean(params.condominio_id) ? "Digite unidade ou responsável" : "Selecione um condomínio primeiro"}
               />
             </ListFilterField>
             <ListFilterField label="Status" className="xl:col-span-2">

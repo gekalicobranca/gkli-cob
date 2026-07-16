@@ -72,11 +72,11 @@ function MetricCard({ metric }: { metric: { label: string; value: number; descri
     <Card className="p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{metric.label}</p>
+          <p className="text-xs font-semibold uppercase tracking-normal text-slate-400">{metric.label}</p>
           <p className="mt-3 text-3xl font-semibold text-slate-950">{metric.value}</p>
           <p className="mt-1 text-sm text-slate-500">{metric.description}</p>
         </div>
-        <div className={`rounded-2xl border p-2 ${severityClass(metric.severity)}`}>
+        <div className={`rounded-lg border p-2 ${severityClass(metric.severity)}`}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -89,7 +89,7 @@ function DistributionCard({ title, data }: { title: string; data: Record<string,
 
   return (
     <Card className="p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{title}</p>
+      <p className="text-xs font-semibold uppercase tracking-normal text-slate-400">{title}</p>
       <div className="mt-4 space-y-3">
         {entries.length === 0 ? (
           <p className="text-sm text-slate-500">Sem dados no recorte atual.</p>
@@ -128,7 +128,7 @@ export default async function MensageriaSaneamentoPage({ searchParams }: Mensage
         actions={
           <Link
             href="/app/mensageria"
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-white/20"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-white/20"
           >
             <ArrowLeft size={16} />
             Voltar para mensageria
@@ -199,7 +199,7 @@ export default async function MensageriaSaneamentoPage({ searchParams }: Mensage
 
         {!hasAlerts ? (
           <div className="p-6">
-            <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-sm text-emerald-700">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 text-sm text-emerald-700">
               Nenhuma inconsistência operacional relevante encontrada nas mensagens e lotes monitorados.
             </div>
           </div>

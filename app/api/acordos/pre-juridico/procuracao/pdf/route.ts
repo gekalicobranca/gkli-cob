@@ -5,6 +5,7 @@ import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { requireRole } from "@/utils/auth/require-role";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
@@ -15,8 +16,73 @@ const MARGIN = 48;
 const LINE_HEIGHT = 14;
 const BLUE = "0.02 0.31 0.54";
 
+type SindicoInfo = {
+  nome?: string | null;
+  email?: string | null;
+  documento?: string | null;
+  telefone?: string | null;
+};
+
 function unique(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean) as string[]));
+}
+
+function firstRelation<T = any>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return (value[0] ?? null) as T | null;
+  return (value ?? null) as T | null;
+}
+
+function onlyDigits(value: string | null | undefined) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function normalizeKey(value: string | null | undefined) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function fallback(value: unknown, empty = "nao cadastrado no sistema") {
+  const stringValue = String(value ?? "").trim();
+  return stringValue || empty;
+}
+
+function formatDocumento(value: string | null | undefined, empty = "nao cadastrado no sistema") {
+  const raw = String(value ?? "").trim();
+  const digits = onlyDigits(raw);
+
+  if (digits.length === 11) {
+    return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  }
+
+  if (digits.length === 14) {
+    return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  }
+
+  return raw || empty;
+}
+
+function formatCep(value: string | null | undefined) {
+  const digits = onlyDigits(value);
+  if (digits.length === 8) return digits.replace(/(\d{5})(\d{3})/, "$1-$2");
+  return String(value ?? "").trim();
+}
+
+function formatEnderecoCondominio(condominio: any) {
+  const logradouro = fallback(condominio?.endereco_logradouro, "");
+  if (!logradouro) return "nao cadastrado no sistema";
+
+  const partes = [
+    logradouro,
+    condominio?.endereco_numero ? `n. ${condominio.endereco_numero}` : null,
+    condominio?.endereco_complemento,
+    condominio?.endereco_bairro,
+    [condominio?.endereco_cidade, condominio?.endereco_uf].filter(Boolean).join(" - "),
+    condominio?.endereco_cep ? `CEP: ${formatCep(condominio.endereco_cep)}` : null,
+  ];
+
+  return partes.filter(Boolean).join(", ");
 }
 
 function text(value: unknown) {
@@ -173,6 +239,74 @@ function section(lines: PdfLine[], title: string) {
   lines.push(line(title.toUpperCase(), 10, true, BLUE));
 }
 
+function getCarteira(acordo: any) {
+  return firstRelation(acordo.carteiras);
+}
+
+function assertCarteirasPreJuridicoHabilitadas(acordos: any[]) {
+  const desabilitados = acordos.filter((acordo) => !Boolean(getCarteira(acordo)?.pre_juridico_habilitado));
+
+  if (desabilitados.length > 0) {
+    throw new Error("Uma ou mais carteiras nao estao habilitadas para gerar pre-juridico.");
+  }
+}
+
+function assertCarteirasGenske(acordos: any[]) {
+  const outrasCarteiras = acordos.filter((acordo) => {
+    const nome = normalizeKey(getCarteira(acordo)?.nome);
+    return !nome.includes("genske");
+  });
+
+  if (outrasCarteiras.length > 0) {
+    throw new Error("Esta procuracao e exclusiva da carteira Genske Advogados.");
+  }
+}
+
+async function carregarSindicos(condominioIds: string[]) {
+  const result = new Map<string, SindicoInfo>();
+  if (!condominioIds.length) return result;
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("portal_sindico_condominios")
+    .select(`
+      condominio_id,
+      perfil,
+      status,
+      portal_sindico_usuarios (
+        nome,
+        email,
+        documento,
+        telefone,
+        status
+      )
+    `)
+    .in("condominio_id", condominioIds)
+    .eq("perfil", "sindico")
+    .eq("status", "ativo");
+
+  if (error) {
+    throw new Error(`Erro ao carregar sindicos para procuracao: ${error.message}`);
+  }
+
+  for (const row of (data ?? []) as any[]) {
+    const condominioId = String(row.condominio_id ?? "");
+    if (!condominioId || result.has(condominioId)) continue;
+
+    const usuario = firstRelation(row.portal_sindico_usuarios);
+    if (!usuario || usuario.status === "inativo") continue;
+
+    result.set(condominioId, {
+      nome: usuario.nome,
+      email: usuario.email,
+      documento: usuario.documento,
+      telefone: usuario.telefone,
+    });
+  }
+
+  return result;
+}
+
 async function carregarAcordos(ids: string[]) {
   const supabase = await createClient();
   const scope = await getPermittedCarteiras();
@@ -191,10 +325,18 @@ async function carregarAcordos(ids: string[]) {
       quantidade_parcelas,
       data_acordo,
       created_at,
+      carteiras:carteira_id (id,nome,pre_juridico_habilitado),
       condominios:condominio_id (
         id,
         nome,
         cnpj,
+        endereco_logradouro,
+        endereco_numero,
+        endereco_complemento,
+        endereco_bairro,
+        endereco_cidade,
+        endereco_uf,
+        endereco_cep,
         administradora_id
       ),
       unidades:unidade_id (
@@ -213,40 +355,59 @@ async function carregarAcordos(ids: string[]) {
   query = applyCarteiraScope(query, scope.carteiraIds);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Erro ao carregar acordos para procuração: ${error.message}`);
-  return (data ?? []) as any[];
+  if (error) throw new Error(`Erro ao carregar acordos para procuracao: ${error.message}`);
+
+  const acordos = ((data ?? []) as any[]).map((row) => ({
+    ...row,
+    carteiras: firstRelation(row.carteiras),
+    condominios: firstRelation(row.condominios),
+    unidades: firstRelation(row.unidades),
+  }));
+
+  assertCarteirasPreJuridicoHabilitadas(acordos);
+  assertCarteirasGenske(acordos);
+
+  const sindicos = await carregarSindicos(unique(acordos.map((acordo) => acordo.condominio_id)));
+  return acordos.map((acordo) => ({
+    ...acordo,
+    sindico: sindicos.get(acordo.condominio_id) ?? null,
+  }));
 }
 
 function montarPartes(acordo: any) {
   const lines: PdfLine[] = [];
   const condominio = acordo.condominios ?? {};
   const unidade = acordo.unidades ?? {};
+  const sindico = (acordo.sindico ?? {}) as SindicoInfo;
+  const sindicoNome = fallback(sindico.nome, "sindico nao cadastrado no sistema");
+  const sindicoDocumento = formatDocumento(sindico.documento);
 
   lines.push(line("PROCURAÇÃO PARA AÇÃO DE COBRANÇA OU EXECUÇÃO", 13, true, BLUE));
   lines.push(line(`Acordo ${acordo.id} - gerado em ${formatDateBR(new Date())}`, 8));
 
   section(lines, "Outorgante");
-  addWrapped(lines, `NOME: ${condominio.nome ?? "Condomínio não informado"}`, 10, true);
-  addWrapped(lines, `CNPJ: ${condominio.cnpj ?? "não informado"}`);
-  addWrapped(lines, "Endereço: não informado");
-  addWrapped(lines, "Representado por seu síndico: [nome completo + CPF]");
-  addWrapped(lines, "Nome: ________________________________________________");
-  addWrapped(lines, "CPF: _________________________________________________");
-  addWrapped(lines, "E-mail: ______________________________________________");
+  addWrapped(lines, `Nome: ${fallback(condominio.nome, "condominio nao informado")}`, 10, true);
+  addWrapped(lines, `CNPJ: ${formatDocumento(condominio.cnpj)}`);
+  addWrapped(lines, `Endereco: ${formatEnderecoCondominio(condominio)}`);
+  addWrapped(lines, `Representado por seu sindico: ${sindicoNome} - CPF/documento ${sindicoDocumento}`);
+  addWrapped(lines, `Nome: ${sindicoNome}`);
+  addWrapped(lines, `CPF/documento: ${sindicoDocumento}`);
+  addWrapped(lines, `E-mail: ${fallback(sindico.email)}`);
+  addWrapped(lines, `Telefone: ${fallback(sindico.telefone)}`);
 
-  section(lines, "Unidade e acordo de referência");
-  addWrapped(lines, `Unidade: ${unidade.identificacao ?? "-"}${unidade.bloco ? ` - Bloco ${unidade.bloco}` : ""}`);
-  addWrapped(lines, `Responsável/devedor: ${unidade.responsavel_nome ?? "não informado"}`);
-  addWrapped(lines, `Documento: ${unidade.responsavel_documento ?? "não informado"}`);
-  addWrapped(lines, `E-mail: ${unidade.email ?? "não informado"} | Telefone: ${unidade.telefone ?? "não informado"}`);
+  section(lines, "Unidade e acordo de referencia");
+  addWrapped(lines, `Unidade: ${fallback(unidade.identificacao, "-")}${unidade.bloco ? ` - Bloco ${unidade.bloco}` : ""}`);
+  addWrapped(lines, `Responsavel/devedor: ${fallback(unidade.responsavel_nome)}`);
+  addWrapped(lines, `Documento: ${formatDocumento(unidade.responsavel_documento)}`);
+  addWrapped(lines, `E-mail: ${fallback(unidade.email)} | Telefone: ${fallback(unidade.telefone)}`);
   addWrapped(lines, `Valor do acordo: ${formatCurrency(Number(acordo.valor_acordado ?? 0))} | Parcelas: ${acordo.quantidade_parcelas ?? "-"} | Data: ${formatDateBR(acordo.data_acordo ?? acordo.created_at)}`);
   addWrapped(lines, `Status operacional: ${acordo.status ?? "-"} / ${acordo.fluxo_status ?? "-"}`);
 
   section(lines, "Outorgado");
   addWrapped(lines, "GENSKE SOCIEDADE INDIVIDUAL DE ADVOCACIA", 10, true);
   addWrapped(lines, "CNPJ: 32.814.704/0001-94");
-  addWrapped(lines, "Endereço: Rua Jandiatuba, n. 506, conj. 140, Bloco B, CEP: 05716-150, São Paulo - SP");
-  addWrapped(lines, "Representado por: Lidiane Genske Baia, OAB/SP nº 203.523");
+  addWrapped(lines, "Endereco: Rua Jandiatuba, n. 506, conj. 140, Bloco B, CEP: 05716-150, Sao Paulo - SP");
+  addWrapped(lines, "Representado por: Lidiane Genske Baia, OAB/SP n. 203.523");
   addWrapped(lines, "CPF: 283.344.978-06");
   addWrapped(lines, "E-mail: contencioso@genskeadvogados.com.br");
 
@@ -255,8 +416,11 @@ function montarPartes(acordo: any) {
 
 function montarPoderes(acordo: any) {
   const lines: PdfLine[] = [];
-  const condominioNome = acordo.condominios?.nome ?? "Condomínio";
+  const condominioNome = acordo.condominios?.nome ?? "Condominio";
   const unidade = acordo.unidades ?? {};
+  const sindico = (acordo.sindico ?? {}) as SindicoInfo;
+  const sindicoNome = fallback(sindico.nome, "sindico nao cadastrado no sistema");
+  const sindicoDocumento = formatDocumento(sindico.documento);
 
   lines.push(line("PODERES", 13, true, BLUE));
   addWrapped(
@@ -268,29 +432,29 @@ function montarPoderes(acordo: any) {
   );
   addWrapped(
     lines,
-    "São conferidos poderes para o foro em geral, com cláusula ad judicia et extra, podendo propor ações, acompanhar processos, apresentar documentos, requerer diligências, assinar petições, receber intimações, celebrar acordos, dar quitação, substabelecer, praticar atos perante repartições públicas e privadas e adotar as providências necessárias à defesa dos interesses do outorgante.",
+    "Sao conferidos poderes para o foro em geral, com clausula ad judicia et extra, podendo propor acoes, acompanhar processos, apresentar documentos, requerer diligencias, assinar peticoes, receber intimacoes, celebrar acordos, dar quitacao, substabelecer, praticar atos perante reparticoes publicas e privadas e adotar as providencias necessarias a defesa dos interesses do outorgante.",
     9,
     false,
     88,
   );
   addWrapped(
     lines,
-    "A presente procuração é emitida para o encaminhamento jurídico de cobrança condominial, inclusive cobrança de valores vencidos, parcelas de acordo inadimplidas, cotas vincendas relacionadas e demais encargos legais, contratuais e condominiais aplicáveis.",
+    "A presente procuracao e emitida para o encaminhamento juridico de cobranca condominial, inclusive cobranca de valores vencidos, parcelas de acordo inadimplidas, cotas vincendas relacionadas e demais encargos legais, contratuais e condominiais aplicaveis.",
     9,
     false,
     88,
   );
 
   section(lines, "Assinatura");
-  addWrapped(lines, "São Paulo, ____ de ______________________ de ______.", 10);
+  addWrapped(lines, "Sao Paulo, ____ de ______________________ de ______.", 10);
   lines.push(line("", 12));
   lines.push(line("____________________________________________________", 10));
   addWrapped(lines, `${condominioNome}`, 9, true);
-  addWrapped(lines, "Síndico(a): ________________________________________");
-  addWrapped(lines, "CPF: _______________________________________________");
+  addWrapped(lines, `Sindico(a): ${sindicoNome}`);
+  addWrapped(lines, `CPF/documento: ${sindicoDocumento}`);
 
   lines.push(line("", 8));
-  addWrapped(lines, "Documento gerado automaticamente pelo GKLI Cobrança para conferência e coleta de assinatura.", 7);
+  addWrapped(lines, "Documento gerado automaticamente pelo GKLI Cobranca para conferencia e coleta de assinatura.", 7);
 
   return lines;
 }
@@ -311,7 +475,7 @@ export async function GET(request: Request) {
 
     const acordos = await carregarAcordos(ids);
     if (acordos.length === 0) {
-      return NextResponse.json({ ok: false, error: "Nenhum acordo encontrado para gerar procuração." }, { status: 404 });
+      return NextResponse.json({ ok: false, error: "Nenhum acordo encontrado para gerar procuracao." }, { status: 404 });
     }
 
     const pages = acordos.flatMap((acordo) => [
@@ -330,7 +494,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro ao gerar procuração.";
+    const message = error instanceof Error ? error.message : "Erro ao gerar procuracao.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

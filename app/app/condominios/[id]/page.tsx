@@ -103,6 +103,22 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <FormField label="Administradora"><Input name="administradora" defaultValue={condominio.administradora ?? ''} /></FormField>
           </div>
 
+          <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <div>
+              <p className="text-sm font-medium text-slate-950">Endereço do condomínio</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Usado em documentos operacionais e jurídicos, como a procuração pré-jurídica.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-6">
+              <FormField label="Logradouro"><Input name="endereco_logradouro" defaultValue={condominio.endereco_logradouro ?? ''} /></FormField>
+              <FormField label="Número"><Input name="endereco_numero" defaultValue={condominio.endereco_numero ?? ''} /></FormField>
+              <FormField label="Complemento"><Input name="endereco_complemento" defaultValue={condominio.endereco_complemento ?? ''} /></FormField>
+              <FormField label="Bairro"><Input name="endereco_bairro" defaultValue={condominio.endereco_bairro ?? ''} /></FormField>
+              <FormField label="Cidade"><Input name="endereco_cidade" defaultValue={condominio.endereco_cidade ?? ''} /></FormField>
+              <FormField label="UF"><Input name="endereco_uf" defaultValue={condominio.endereco_uf ?? ''} maxLength={2} /></FormField>
+              <FormField label="CEP"><Input name="endereco_cep" defaultValue={condominio.endereco_cep ?? ''} /></FormField>
+            </div>
+          </div>
+
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <ClassificacaoOperacionalField defaultValue={condominio.classificacao_operacional ?? 'prata'} />
           </div>
@@ -123,6 +139,7 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <FormField label="Dia de vencimento da cota"><Input name="vencimento_cota_dia" type="number" min="1" max="31" defaultValue={condominio.vencimento_cota_dia ?? 10} /></FormField>
             <FormField label="Valor médio da cota"><Input name="valor_cota_condominial" defaultValue={String(condominio.valor_cota_condominial ?? 0).replace('.', ',')} /></FormField>
             <FormField label="Início da cobrança após X dias"><Input name="inicio_cobranca_dias" type="number" min="0" max="365" defaultValue={condominio.inicio_cobranca_dias ?? 30} /></FormField>
+            <FormField label="Expirar para pré-jurídico após a régua" hint="Em branco desativa. Ex.: régua 30 + expiração 60 = pré-jurídico em D+90."><Input name="dias_expiracao_regua_pre_juridico" type="number" min="0" max="3650" defaultValue={condominio.dias_expiracao_regua_pre_juridico ?? ''} placeholder="Sem expiração automática" /></FormField>
             <FormField label="Parcelas permitidas sem aprovação do síndico"><Input name="parcelas_acordo_sem_aprovacao_sindico" type="number" min="0" max="120" defaultValue={condominio.parcelas_acordo_sem_aprovacao_sindico ?? 0} /></FormField>
             <FormField label="Dias para reemissão de parcela de acordo em atraso"><Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" max="365" defaultValue={condominio.dias_reemissao_parcela_acordo_atrasada ?? 0} /></FormField>
           </div>

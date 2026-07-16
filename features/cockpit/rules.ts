@@ -142,6 +142,10 @@ export function buildCobrancaItem(cobranca: any): CockpitItem {
     score += 45;
     acao = "Fechar acordo";
     motivo = "Negociação aberta tem maior chance de conversão.";
+  } else if (status === COBRANCA_STATUS.POSSIVEL_ACORDO) {
+    score += 38;
+    acao = "Validar acordo";
+    motivo = "Origem indica acordo extrajudicial ainda não localizado na base.";
   } else if (status === COBRANCA_STATUS.EM_COBRANCA_ATIVA) {
     score += 30;
     acao = "Propor acordo";

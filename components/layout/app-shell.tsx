@@ -4,6 +4,36 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import {
+  AlertTriangle,
+  Bot,
+  Building2,
+  CalendarDays,
+  ChartNoAxesColumn,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleDot,
+  ClipboardList,
+  DollarSign,
+  FileText,
+  FlaskConical,
+  Gauge,
+  Handshake,
+  Home,
+  Inbox,
+  Layers,
+  MessageSquare,
+  Network,
+  PanelTop,
+  Settings,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  Target,
+  Upload,
+  Users,
+} from 'lucide-react'
 import { LogoutButton } from '@/components/auth/logout-button'
 import { GlobalOperationalSearch } from '@/components/search/global-operational-search'
 
@@ -133,38 +163,37 @@ const settingsGroups: SidebarSection[] = [
 ]
 
 function getIcon(icon?: string) {
-  switch (icon) {
-    case 'chart': return '◢'
-    case 'money': return '$'
-    case 'handshake': return '↔'
-    case 'document': return '◫'
-    case 'nodes': return '◎'
-    case 'layers': return '▦'
-    case 'message': return '▱'
-    case 'building': return '▣'
-    case 'unit': return '□'
-    case 'home': return '⌂'
-    case 'upload': return '↑'
-    case 'bot': return '◉'
-    case 'spark': return '✦'
-    case 'gear': return '⚙'
-    case 'robot': return '⬢'
-    case 'dashboard': return '◫'
-    case 'users': return '◌'
-    case 'repeat': return '↻'
-    case 'log': return '☰'
-    case 'shield': return '◇'
-    case 'funnel': return '▽'
-    case 'clipboard': return '☰'
-    case 'calendar': return '◷'
-    case 'timeline': return '◫'
-    case 'alert': return '⚠'
-    case 'beaker': return '⚗'
-    case 'mobile': return '▯'
-    case 'target': return '◎'
-    case 'inbox': return '▤'
-    default: return '•'
-  }
+  const icons = {
+    alert: AlertTriangle,
+    beaker: FlaskConical,
+    bot: Bot,
+    building: Building2,
+    calendar: CalendarDays,
+    chart: ChartNoAxesColumn,
+    clipboard: ClipboardList,
+    dashboard: Gauge,
+    document: FileText,
+    gear: Settings,
+    handshake: Handshake,
+    home: Home,
+    inbox: Inbox,
+    layers: Layers,
+    log: PanelTop,
+    message: MessageSquare,
+    mobile: Smartphone,
+    money: DollarSign,
+    nodes: Network,
+    robot: Bot,
+    shield: ShieldCheck,
+    spark: Sparkles,
+    target: Target,
+    timeline: CircleDot,
+    unit: Home,
+    upload: Upload,
+    users: Users,
+  } as const
+  const Icon = icons[icon as keyof typeof icons] ?? CircleDot
+  return <Icon size={16} strokeWidth={2} aria-hidden="true" />
 }
 
 function safeParseGroups(value: string | null) {
@@ -369,7 +398,7 @@ export function AppShell({
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-sm text-slate-400 transition hover:bg-white hover:text-[#04799a] hover:shadow-sm hover:ring-1 hover:ring-slate-200"
                 aria-label="Recolher menu"
               >
-                ‹
+                <ChevronLeft size={16} aria-hidden="true" />
               </button>
             )}
           </div>
@@ -382,7 +411,7 @@ export function AppShell({
                 className="mx-auto flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-sm text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-[#04799a]"
                 aria-label="Expandir menu"
               >
-                ›
+                <ChevronRight size={16} aria-hidden="true" />
               </button>
             </div>
           )}
@@ -422,7 +451,7 @@ export function AppShell({
                             groupCollapsed ? '-rotate-90' : 'rotate-0',
                           ].join(' ')}
                         >
-                          ⌄
+                          <ChevronDown size={14} aria-hidden="true" />
                         </span>
                       </button>
                     )}
@@ -490,7 +519,7 @@ export function AppShell({
                   aria-expanded={settingsOpen}
                   aria-label="Abrir configurações"
                 >
-                  <span>⚙</span>
+                  <Settings size={16} aria-hidden="true" />
                   <span className="hidden sm:inline">Configurações</span>
                 </button>
 

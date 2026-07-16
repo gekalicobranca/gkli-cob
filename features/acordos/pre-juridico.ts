@@ -7,9 +7,10 @@ export const PRE_JURIDICO_EVENT_CODES = {
 export type PreJuridicoStepKey = keyof typeof PRE_JURIDICO_EVENT_CODES;
 export type PreJuridicoSteps = Record<PreJuridicoStepKey, boolean>;
 
-export const PRE_JURIDICO_REQUIRED_STEPS = Object.keys(
-  PRE_JURIDICO_EVENT_CODES,
-) as PreJuridicoStepKey[];
+export const PRE_JURIDICO_REQUIRED_STEPS = [
+  "historico",
+  "listaAdministradora",
+] as const satisfies PreJuridicoStepKey[];
 
 export function criarPreJuridicoSteps(): PreJuridicoSteps {
   return {

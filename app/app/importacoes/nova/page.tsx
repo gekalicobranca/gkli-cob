@@ -16,7 +16,7 @@ import { getCondominioIntegral } from "@/features/condominios/queries";
 import { GerarPreviewButton } from "./gerar-preview-button";
 
 type NovaImportacaoPageProps = {
-  searchParams?: Promise<{ tipo?: string; condominio_id?: string }>;
+  searchParams?: Promise<{ tipo?: string; condominio_id?: string; erro?: string }>;
 };
 
 const importTypes = [
@@ -33,7 +33,7 @@ const importTypes = [
     label: "Condomínios",
     templateHref: "/templates/importacao-condominios.xlsx",
     header:
-      "carteira;nome;cnpj;administradora;vencimento_cota_dia;valor_cota_condominial;inicio_cobranca_dias;observacoes",
+      "carteira;nome;cnpj;administradora;vencimento_cota_dia;valor_cota_condominial;inicio_cobranca_dias;dias_expiracao_regua_pre_juridico;observacoes",
     rule: "Condomínios entram como cadastro base sempre vinculados à carteira informada no XLSX. O CNPJ é obrigatório; duplicidade no arquivo mantém a primeira linha e bloqueia as demais.",
   },
   {
@@ -110,6 +110,15 @@ export default async function NovaImportacaoPage({
                 name="condominio_id_padrao"
                 value={condominioPadrao.id}
               />
+            ) : null}
+
+            {params?.erro ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                  <p>{params.erro}</p>
+                </div>
+              </div>
             ) : null}
 
             <div className="rounded-2xl border border-[var(--gkli-primary)]/20 bg-[var(--gkli-primary-light)]/45 p-4">

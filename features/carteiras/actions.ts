@@ -65,6 +65,12 @@ function getCarteiraFiscalPayload(formData: FormData) {
   };
 }
 
+function getCarteiraOperacionalPayload(formData: FormData) {
+  return {
+    pre_juridico_habilitado: formData.get("pre_juridico_habilitado") === "on",
+  };
+}
+
 export async function createCarteira(formData: FormData) {
   await requireAdmin();
 
@@ -72,6 +78,7 @@ export async function createCarteira(formData: FormData) {
   const descricao = String(formData.get("descricao") ?? "").trim();
   const logoUrl = String(formData.get("logo_url") ?? "").trim();
   const fiscalPayload = getCarteiraFiscalPayload(formData);
+  const operacionalPayload = getCarteiraOperacionalPayload(formData);
 
   if (nome.length < 2) {
     throw new Error("Nome da carteira obrigatório.");
@@ -104,6 +111,7 @@ export async function createCarteira(formData: FormData) {
     logo_url: logoUrl || null,
     ativo: true,
     ...fiscalPayload,
+    ...operacionalPayload,
   });
 
   if (error) {
@@ -127,6 +135,7 @@ export async function updateCarteira(formData: FormData) {
   const logoUrl = String(formData.get("logo_url") ?? "").trim();
   const ativo = formData.get("ativo") === "on";
   const fiscalPayload = getCarteiraFiscalPayload(formData);
+  const operacionalPayload = getCarteiraOperacionalPayload(formData);
 
   if (!id) {
     throw new Error("Carteira obrigatória.");
@@ -165,6 +174,7 @@ export async function updateCarteira(formData: FormData) {
       logo_url: logoUrl || null,
       ativo,
       ...fiscalPayload,
+      ...operacionalPayload,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

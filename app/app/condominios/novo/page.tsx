@@ -62,6 +62,10 @@ export default async function NovoCondominioPage() {
               <Input name="inicio_cobranca_dias" type="number" min="0" defaultValue="30" />
             </FormField>
 
+            <FormField label="Expirar para pré-jurídico após a régua" hint="Em branco desativa. Ex.: régua 30 + expiração 60 = pré-jurídico em D+90.">
+              <Input name="dias_expiracao_regua_pre_juridico" type="number" min="0" placeholder="Sem expiração automática" />
+            </FormField>
+
             <FormField label="Parcelas permitidas sem aprovação do síndico" hint="0 deixa sempre livre; acima deste número o acordo fica bloqueado até aprovação pública do síndico.">
               <Input name="parcelas_acordo_sem_aprovacao_sindico" type="number" min="0" defaultValue="0" />
             </FormField>
@@ -69,6 +73,22 @@ export default async function NovoCondominioPage() {
             <FormField label="Dias para reemissão de parcela de acordo em atraso" hint="0 não permite reemissão pelo acompanhamento de parcelas.">
               <Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" defaultValue="0" />
             </FormField>
+          </div>
+
+          <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <div>
+              <p className="text-sm font-medium text-slate-950">Endereço do condomínio</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Usado em documentos operacionais e jurídicos, como a procuração pré-jurídica.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-6">
+              <FormField label="Logradouro"><Input name="endereco_logradouro" placeholder="Rua, avenida..." /></FormField>
+              <FormField label="Número"><Input name="endereco_numero" /></FormField>
+              <FormField label="Complemento"><Input name="endereco_complemento" /></FormField>
+              <FormField label="Bairro"><Input name="endereco_bairro" /></FormField>
+              <FormField label="Cidade"><Input name="endereco_cidade" defaultValue="São Paulo" /></FormField>
+              <FormField label="UF"><Input name="endereco_uf" defaultValue="SP" maxLength={2} /></FormField>
+              <FormField label="CEP"><Input name="endereco_cep" placeholder="00000-000" /></FormField>
+            </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

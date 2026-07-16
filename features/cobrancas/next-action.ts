@@ -67,6 +67,11 @@ export function calcularProximaAcaoCobranca(params: {
     titulo = 'Fechar negociação'
     descricao = 'Negociação aberta tem maior chance de conversão. Priorize proposta objetiva.'
     acao = 'Agrupar cobranças ou registrar retorno'
+  } else if (status === COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO) {
+    score += 24
+    titulo = 'Validar possível acordo'
+    descricao = 'A origem indica acordo extrajudicial fora da base. Confirme o histórico antes de iniciar nova cobrança.'
+    acao = 'Conferir acordo ou criar registro'
   } else if (status === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA) {
     score += 18
     titulo = 'Propor acordo'

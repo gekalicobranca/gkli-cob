@@ -33,7 +33,7 @@ export function ModuleHeader({
   return (
     <section
       className={cn(
-        'gkli-page-header relative overflow-hidden rounded-[22px] border shadow-[0_16px_42px_-34px_rgba(15,23,42,.50)]',
+        'gkli-page-header relative overflow-hidden rounded-lg border shadow-[0_16px_42px_-34px_rgba(15,23,42,.50)]',
         isSubtle
           ? 'border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50 text-slate-950'
           : 'border-white/10 bg-[linear-gradient(135deg,#03658C_0%,#025170_56%,#073044_100%)] text-white',
@@ -41,18 +41,11 @@ export function ModuleHeader({
         className,
       )}
     >
-      {!isSubtle ? (
-        <>
-          <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-          <div className="pointer-events-none absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-cyan-200/10 blur-2xl" />
-        </>
-      ) : null}
-
       <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="max-w-3xl">
           <p
             className={cn(
-              'text-[11px] font-semibold uppercase tracking-[0.26em]',
+              'text-[11px] font-semibold uppercase tracking-normal',
               isSubtle ? 'text-slate-400' : 'text-white/62',
             )}
           >

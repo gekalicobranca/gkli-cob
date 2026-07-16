@@ -2,6 +2,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import {
   ACORDO_STATUS_VIGENTES,
+  COBRANCA_STATUS,
   COBRANCA_STATUS_FINANCEIRO,
   COBRANCA_STATUS_OPERACIONAIS_ATIVOS,
   LOTE_ITEM_STATUS,
@@ -63,6 +64,7 @@ type CobrancaReguaRow = {
     nome?: string | null;
     inicio_cobranca_dias?: number | null;
     dias_apos_vencimento_regua?: number | null;
+    dias_expiracao_regua_pre_juridico?: number | null;
     intensidade_regua?: string | null;
     regua_cobranca_id?: string | null;
   } | null;
@@ -133,6 +135,27 @@ function getInicioRegua(row: CobrancaReguaRow) {
       condominio?.inicio_cobranca_dias ??
       30,
   );
+}
+
+function getDiasExpiracaoPreJuridico(row: CobrancaReguaRow) {
+  const value = Number(row.condominios?.dias_expiracao_regua_pre_juridico ?? 0);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return Math.trunc(value);
+}
+
+function avaliarExpiracaoPreJuridico(row: CobrancaReguaRow) {
+  const inicio = getInicioRegua(row);
+  const diasExpiracao = getDiasExpiracaoPreJuridico(row);
+  const diasAtraso = diasDesdeVencimento(row.vencimento);
+  const limite = diasExpiracao === null ? null : inicio + diasExpiracao;
+
+  return {
+    expirada: limite !== null && diasAtraso >= limite,
+    diasAtraso,
+    inicio,
+    diasExpiracao,
+    limite,
+  };
 }
 
 function getLastInteraction(row: CobrancaReguaRow) {
@@ -589,7 +612,7 @@ export async function processarReguaCobranca(
         ultima_interacao_at,
         ultima_interacao_em,
         proxima_acao_em,
-        condominios(id, nome, inicio_cobranca_dias, dias_apos_vencimento_regua, intensidade_regua, regua_cobranca_id),
+        condominios(id, nome, inicio_cobranca_dias, dias_apos_vencimento_regua, dias_expiracao_regua_pre_juridico, intensidade_regua, regua_cobranca_id),
         unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
       `,
       )
@@ -662,6 +685,63 @@ export async function processarReguaCobranca(
       try {
         const condominio = row.condominios;
         const unidade = row.unidades;
+        const expiracaoPreJuridico = avaliarExpiracaoPreJuridico(row);
+        const podeExpirarParaPreJuridico =
+          !row.automacao_bloqueada &&
+          row.status_financeiro !== COBRANCA_STATUS_FINANCEIRO.QUITADO &&
+          !acordosAtivos.has(row.id);
+
+        if (expiracaoPreJuridico.expirada && podeExpirarParaPreJuridico) {
+          const motivo = "Cobrança expirada após a régua e movida automaticamente para pré-jurídico.";
+          const payloadExpiracao = {
+            origem: "expiracao_regua_pre_juridico",
+            dias_atraso: expiracaoPreJuridico.diasAtraso,
+            inicio_cobranca_dias: expiracaoPreJuridico.inicio,
+            dias_expiracao_regua_pre_juridico: expiracaoPreJuridico.diasExpiracao,
+            limite_pre_juridico_dias: expiracaoPreJuridico.limite,
+            ciclo,
+          };
+
+          const { error: updateError } = await supabase
+            .from("cobrancas")
+            .update({
+              status: COBRANCA_STATUS.PRE_JURIDICO,
+              status_operacional: COBRANCA_STATUS.PRE_JURIDICO,
+            } as any)
+            .eq("id", row.id);
+
+          if (updateError) throw new Error(updateError.message);
+
+          await registrarEventoOperacional(supabase as any, {
+            carteiraId: row.carteira_id,
+            entidadeTipo: "cobranca",
+            entidadeId: row.id,
+            eventoCodigo: "cobranca.pre_juridico_expiracao_regua",
+            titulo: "Cobrança movida para pré-jurídico",
+            descricao: motivo,
+            severidade: "alerta",
+            payload: payloadExpiracao,
+          });
+
+          total.puladas += 1;
+          lote.contadores.puladas += 1;
+          itens.push({
+            cobrancaId: row.id,
+            status: LOTE_ITEM_STATUS.PULADA,
+            motivo,
+          });
+
+          await criarItemLote({
+            supabase,
+            loteId: lote.id,
+            row,
+            status: LOTE_ITEM_STATUS.PULADA,
+            motivo,
+            payload: payloadExpiracao,
+          });
+          continue;
+        }
+
         const avaliacao = avaliarElegibilidade({
           row,
           acordosAtivos,

@@ -93,7 +93,7 @@ function createWorkbook(filters: CobrancaListFilters & { ordenar: string }, rows
   const filterRows = [
     ["Gerado em", generatedAt.toLocaleString("pt-BR")],
     ["Busca", filters.search || "Sem filtro"],
-    ["CondomÃ­nio", filters.condominioId || "Sem filtro"],
+    ["Condomínio", filters.condominioId || "Sem filtro"],
     ["Unidade", filters.unidadeId || "Sem filtro"],
     ["Status", filters.status ? statusLabel(filters.status) : "Todos"],
     ["Vencimento de", filters.vencimentoDe || "Sem filtro"],

@@ -4,7 +4,20 @@ import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 
-const CONDOMINIOS_HEADERS = ["condominio", "cnpj", "carteira"];
+const CONDOMINIOS_HEADERS = [
+  "condominio",
+  "cnpj",
+  "endereco_logradouro",
+  "endereco_numero",
+  "endereco_complemento",
+  "endereco_bairro",
+  "endereco_cidade",
+  "endereco_uf",
+  "endereco_cep",
+  "inicio_cobranca_dias",
+  "dias_expiracao_regua_pre_juridico",
+  "carteira",
+];
 
 function sanitizeFileName(value: string) {
   return String(value || "condominios")
@@ -23,6 +36,15 @@ function createWorkbook(rows: Record<string, unknown>[]) {
   dados["!cols"] = [
     { wch: 42 },
     { wch: 20 },
+    { wch: 36 },
+    { wch: 14 },
+    { wch: 24 },
+    { wch: 24 },
+    { wch: 22 },
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 20 },
+    { wch: 34 },
     { wch: 28 },
   ];
 
@@ -45,6 +67,15 @@ export async function GET(request: Request) {
         carteira_id,
         nome,
         cnpj,
+        endereco_logradouro,
+        endereco_numero,
+        endereco_complemento,
+        endereco_bairro,
+        endereco_cidade,
+        endereco_uf,
+        endereco_cep,
+        inicio_cobranca_dias,
+        dias_expiracao_regua_pre_juridico,
         carteiras(nome)
       `)
       .order("nome", { ascending: true });
@@ -73,6 +104,15 @@ export async function GET(request: Request) {
       return {
         condominio: row.nome ?? "",
         cnpj: row.cnpj ?? "",
+        endereco_logradouro: row.endereco_logradouro ?? "",
+        endereco_numero: row.endereco_numero ?? "",
+        endereco_complemento: row.endereco_complemento ?? "",
+        endereco_bairro: row.endereco_bairro ?? "",
+        endereco_cidade: row.endereco_cidade ?? "",
+        endereco_uf: row.endereco_uf ?? "",
+        endereco_cep: row.endereco_cep ?? "",
+        inicio_cobranca_dias: row.inicio_cobranca_dias ?? "",
+        dias_expiracao_regua_pre_juridico: row.dias_expiracao_regua_pre_juridico ?? "",
         carteira: carteiraNome,
       };
     });

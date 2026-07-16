@@ -148,6 +148,17 @@ function addWrapped(lines: PdfLine[], value: string, size = 8, bold = false, max
   }
 }
 
+function assertCarteirasPreJuridicoHabilitadas(acordos: any[]) {
+  const desabilitados = acordos.filter((acordo) => {
+    const carteira = Array.isArray(acordo.carteiras) ? acordo.carteiras[0] : acordo.carteiras;
+    return !Boolean(carteira?.pre_juridico_habilitado);
+  });
+
+  if (desabilitados.length > 0) {
+    throw new Error("Uma ou mais carteiras nao estao habilitadas para gerar pre-juridico.");
+  }
+}
+
 async function carregarDados(ids: string[]) {
   const supabase = await createClient();
   const scope = await getPermittedCarteiras();
@@ -166,6 +177,7 @@ async function carregarDados(ids: string[]) {
       valor_acordado,
       data_acordo,
       created_at,
+      carteiras:carteira_id (id,nome,pre_juridico_habilitado),
       condominios:condominio_id (
         id,
         nome,
@@ -183,6 +195,7 @@ async function carregarDados(ids: string[]) {
 
   const acordos = (acordosRaw ?? []) as any[];
   if (acordos.length === 0) return [];
+  assertCarteirasPreJuridicoHabilitadas(acordos);
 
   const acordoIds = acordos.map((acordo) => acordo.id);
   const { data: vinculosRaw, error: vinculosError } = await supabase

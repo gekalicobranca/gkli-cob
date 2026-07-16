@@ -12,6 +12,11 @@ import {
   validarArquivoAgente,
 } from '@/features/agente-automatico/actions'
 import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 
 function statusTone(status: string) {
@@ -42,47 +47,47 @@ export default async function AgenteAutomaticoPage() {
       <PageHeader
         eyebrow="Inteligência"
         title="Agente automático"
-        description="Coleta assistida de planilhas e relatórios de inadimplência em portais de administradoras. Nesta primeira fase, o agente baixa e organiza os arquivos para validação humana."
+        description="Coleta assistida de planilhas e relatórios de inadimplência em portais de administradoras."
       />
 
       <section className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <Card className="p-5">
           <p className="text-sm text-slate-500">Administradoras</p>
           <p className="mt-2 text-3xl text-slate-900">{administradoras.length}</p>
-        </div>
+        </Card>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <Card className="p-5">
           <p className="text-sm text-slate-500">Receitas de coleta</p>
           <p className="mt-2 text-3xl text-slate-900">{receitas.length}</p>
-        </div>
+        </Card>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <Card className="p-5">
           <p className="text-sm text-slate-500">Pendentes</p>
           <p className="mt-2 text-3xl text-slate-900">{totalPendentes}</p>
-        </div>
+        </Card>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <Card className="p-5">
           <p className="text-sm text-slate-500">Sucesso / Falha</p>
           <p className="mt-2 text-3xl text-slate-900">
             {totalSucesso}/{totalFalha}
           </p>
-        </div>
+        </Card>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <Card className="p-6">
           <h2 className="text-lg text-slate-900">Nova administradora</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Cadastre o portal que o agente deverá acessar futuramente.
+            Cadastre o portal da administradora.
           </p>
 
           <form action={criarAgenteAdministradora} className="mt-5 space-y-4">
             <label className="block">
               <span className="text-sm text-slate-600">Carteira</span>
-              <select
+              <Select
                 name="carteira_id"
                 required
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                className="mt-1"
               >
                 <option value="">Selecione</option>
                 {carteiras.map((carteira) => (
@@ -90,37 +95,35 @@ export default async function AgenteAutomaticoPage() {
                     {carteira.nome}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
 
             <label className="block">
               <span className="text-sm text-slate-600">Administradora</span>
-              
-
-<input
+              <Input
                 name="nome"
                 required
                 placeholder="Ex.: Administradora Modelo"
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1"
               />
             </label>
 
             <label className="block">
               <span className="text-sm text-slate-600">URL do portal</span>
-              <input
+              <Input
                 name="url_portal"
                 required
                 placeholder="https://portal..."
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1"
               />
             </label>
 
             <label className="block">
               <span className="text-sm text-slate-600">Tipo de portal</span>
-              <input
+              <Input
                 name="tipo_portal"
                 defaultValue="portal_web"
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1"
               />
             </label>
 
@@ -138,20 +141,20 @@ export default async function AgenteAutomaticoPage() {
 
             <label className="block">
               <span className="text-sm text-slate-600">Observações</span>
-              <textarea
+              <Textarea
                 name="observacoes"
                 rows={3}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1"
               />
             </label>
 
-            <button className="rounded-xl bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800">
+            <Button type="submit">
               Salvar administradora
-            </button>
+            </Button>
           </form>
-        </div>
+        </Card>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <Card className="p-6">
           <h2 className="text-lg text-slate-900">Nova receita de coleta</h2>
           <p className="mt-1 text-sm text-slate-500">
             A receita representa o roteiro operacional do robô.
@@ -160,10 +163,10 @@ export default async function AgenteAutomaticoPage() {
           <form action={criarAgenteReceita} className="mt-5 space-y-4">
             <label className="block">
               <span className="text-sm text-slate-600">Carteira</span>
-              <select
+              <Select
                 name="carteira_id"
                 required
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                className="mt-1"
               >
                 <option value="">Selecione</option>
                 {carteiras.map((carteira) => (
@@ -171,15 +174,15 @@ export default async function AgenteAutomaticoPage() {
                     {carteira.nome}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
 
             <label className="block">
               <span className="text-sm text-slate-600">Administradora</span>
-              <select
+              <Select
                 name="administradora_id"
                 required
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                className="mt-1"
               >
                 <option value="">Selecione</option>
                 {administradoras.map((adm) => (
@@ -187,68 +190,68 @@ export default async function AgenteAutomaticoPage() {
                     {adm.nome}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
 
             <label className="block">
               <span className="text-sm text-slate-600">Nome da receita</span>
-              <input
+              <Input
                 name="nome"
                 required
                 placeholder="Ex.: Baixar inadimplência mensal"
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1"
               />
             </label>
 
             <label className="block">
               <span className="text-sm text-slate-600">Tipo de arquivo esperado</span>
-              <select
+              <Select
                 name="tipo_arquivo_esperado"
                 defaultValue="xlsx"
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                className="mt-1"
               >
                 <option value="xlsx">XLSX</option>
                 <option value="csv">CSV</option>
                 <option value="pdf">PDF</option>
                 <option value="zip">ZIP</option>
-              </select>
+              </Select>
             </label>
 
             <label className="block">
               <span className="text-sm text-slate-600">Script key</span>
-              <input
+              <Input
                 name="script_key"
                 placeholder="Ex.: adm_modelo_inadimplencia"
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1"
               />
             </label>
 
             <label className="block">
               <span className="text-sm text-slate-600">Descrição operacional</span>
-              <textarea
+              <Textarea
                 name="descricao"
                 rows={4}
                 placeholder="Ex.: Entrar no portal, acessar financeiro, exportar inadimplência..."
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-1"
               />
             </label>
 
-            <button className="rounded-xl bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800">
+            <Button type="submit">
               Salvar receita
-            </button>
+            </Button>
           </form>
-        </div>
+        </Card>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <Card className="p-6">
         <h2 className="text-lg text-slate-900">Receitas disponíveis</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Nesta versão, o botão cria uma execução pendente. O worker Playwright será plugado depois.
+          Receitas configuradas para coleta e validação.
         </p>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {receitas.map((receita) => (
-            <article key={receita.id} className="rounded-2xl border border-slate-200 p-5">
+            <article key={receita.id} className="rounded-lg border border-slate-200 p-5">
               <p className="text-sm text-slate-500">
                 {receita.administradora?.nome ?? 'Administradora'}
               </p>
@@ -264,23 +267,23 @@ export default async function AgenteAutomaticoPage() {
 
                 <form action={executarAgenteReceita}>
                   <input type="hidden" name="receita_id" value={receita.id} />
-                  <button className="rounded-xl bg-emerald-700 px-4 py-2 text-sm text-white hover:bg-emerald-800">
+                  <Button type="submit">
                     Executar coleta
-                  </button>
+                  </Button>
                 </form>
               </div>
             </article>
           ))}
 
           {!receitas.length && (
-            <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
+            <div className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">
               Nenhuma receita cadastrada ainda.
             </div>
           )}
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <Card className="p-6">
         <h2 className="text-lg text-slate-900">Histórico de execuções</h2>
 
         <div className="mt-5 overflow-x-auto">
@@ -319,25 +322,25 @@ export default async function AgenteAutomaticoPage() {
                     <div className="flex flex-wrap gap-2">
                       <form action={marcarExecucaoComoSucessoManual}>
                         <input type="hidden" name="execucao_id" value={execucao.id} />
-                        <button className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                        <Button type="submit" variant="secondary" size="sm">
                           Marcar sucesso
-                        </button>
+                        </Button>
                       </form>
 
                       <form action={validarArquivoAgente}>
                         <input type="hidden" name="execucao_id" value={execucao.id} />
                         <input type="hidden" name="status" value="validado" />
-                        <button className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                        <Button type="submit" variant="secondary" size="sm">
                           Validar
-                        </button>
+                        </Button>
                       </form>
 
                       <form action={validarArquivoAgente}>
                         <input type="hidden" name="execucao_id" value={execucao.id} />
                         <input type="hidden" name="status" value="rejeitado" />
-                        <button className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                        <Button type="submit" variant="danger" size="sm">
                           Rejeitar
-                        </button>
+                        </Button>
                       </form>
                     </div>
                   </td>
@@ -354,7 +357,7 @@ export default async function AgenteAutomaticoPage() {
             </tbody>
           </table>
         </div>
-      </section>
+      </Card>
     </main>
   )
 }

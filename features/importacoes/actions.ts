@@ -26,6 +26,7 @@ import {
   type CobrancaImportadaConciliacao,
 } from "./cobrancas-conciliacao";
 import { formatOrigemImportacao } from "./origem-importacao";
+import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
 import { sincronizarResponsavelComUnidadeOperacional } from "@/features/responsaveis-unidades/sync-unidade";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -36,6 +37,7 @@ type CondominioImportacaoRow = {
   nome: string;
   cnpj: string | null;
   inicio_cobranca_dias?: number | null;
+  dias_expiracao_regua_pre_juridico?: number | null;
 };
 
 type UnidadeImportacaoRow = {
@@ -148,6 +150,12 @@ const INICIO_COBRANCA_KEYS = [
   "dias_regua",
   "inicio_cobranca",
 ];
+const DIAS_EXPIRACAO_PRE_JURIDICO_KEYS = [
+  "dias_expiracao_regua_pre_juridico",
+  "dias_pre_juridico_apos_regua",
+  "expiracao_pre_juridico_dias",
+  "dias_expiracao_pre_juridico",
+];
 const VALOR_COTA_KEYS = [
   "valor_cota_condominial",
   "valor_da_cota",
@@ -156,6 +164,13 @@ const VALOR_COTA_KEYS = [
   "cota_condominial",
 ];
 const NOME_OPERACIONAL_KEYS = ["nome_operacional", "nome_fantasia", "apelido", "nome_curto"];
+const ENDERECO_LOGRADOURO_KEYS = ["endereco_logradouro", "logradouro", "endereco", "endereço"];
+const ENDERECO_NUMERO_KEYS = ["endereco_numero", "numero", "número", "numero_endereco"];
+const ENDERECO_COMPLEMENTO_KEYS = ["endereco_complemento", "complemento", "complemento_endereco"];
+const ENDERECO_BAIRRO_KEYS = ["endereco_bairro", "bairro"];
+const ENDERECO_CIDADE_KEYS = ["endereco_cidade", "cidade", "municipio", "município"];
+const ENDERECO_UF_KEYS = ["endereco_uf", "uf", "estado"];
+const ENDERECO_CEP_KEYS = ["endereco_cep", "cep"];
 const CLASSIFICACAO_OPERACIONAL_KEYS = ["classificacao_operacional", "classificacao", "categoria", "badge"];
 const PARCELAS_ACORDO_KEYS = [
   "parcelas_acordo_sem_aprovacao_sindico",
@@ -173,6 +188,13 @@ function toNonNegativeInteger(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : fallback;
 }
 
+function toOptionalNonNegativeInteger(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : null;
+}
+
 function normalizeClassificacaoOperacional(value: unknown) {
   const key = normalizeKey(String(value || "prata"));
   if (["ouro", "prata", "bronze"].includes(key)) return key;
@@ -184,6 +206,11 @@ function normalizeCondominioStatus(value: unknown) {
   if (["inativo", "inativa", "inactive", "desativado", "desativada"].includes(key)) return "inativo";
   if (["suspenso", "suspensa", "pausado", "pausada"].includes(key)) return "suspenso";
   return "ativo";
+}
+
+function optionalString(value: unknown) {
+  const text = String(value ?? "").trim();
+  return text || null;
 }
 
 function getDocumento(
@@ -301,6 +328,13 @@ function normalizeCondominioPayload(
       getFirst(payload, CONDOMINIO_NOME_KEYS) ||
       payload.nome,
     cnpj: getDocumento(payload, CONDOMINIO_CNPJ_KEYS, 14),
+    endereco_logradouro: optionalString(getFirst(payload, ENDERECO_LOGRADOURO_KEYS) ?? payload.endereco_logradouro),
+    endereco_numero: optionalString(getFirst(payload, ENDERECO_NUMERO_KEYS) ?? payload.endereco_numero),
+    endereco_complemento: optionalString(getFirst(payload, ENDERECO_COMPLEMENTO_KEYS) ?? payload.endereco_complemento),
+    endereco_bairro: optionalString(getFirst(payload, ENDERECO_BAIRRO_KEYS) ?? payload.endereco_bairro),
+    endereco_cidade: optionalString(getFirst(payload, ENDERECO_CIDADE_KEYS) ?? payload.endereco_cidade),
+    endereco_uf: optionalString(getFirst(payload, ENDERECO_UF_KEYS) ?? payload.endereco_uf)?.toUpperCase() ?? null,
+    endereco_cep: onlyDigits(String(getFirst(payload, ENDERECO_CEP_KEYS) ?? payload.endereco_cep ?? "")) || null,
     vencimento_cota_dia: toPositiveNumber(
       getFirst(payload, VENCIMENTO_COTA_KEYS),
       10,
@@ -308,6 +342,9 @@ function normalizeCondominioPayload(
     inicio_cobranca_dias: toPositiveNumber(
       getFirst(payload, INICIO_COBRANCA_KEYS),
       30,
+    ),
+    dias_expiracao_regua_pre_juridico: toOptionalNonNegativeInteger(
+      getFirst(payload, DIAS_EXPIRACAO_PRE_JURIDICO_KEYS) ?? payload.dias_expiracao_regua_pre_juridico,
     ),
     valor_cota_condominial: parseMoney(
       getFirst(payload, VALOR_COTA_KEYS) || payload.valor_cota_condominial,
@@ -457,7 +494,7 @@ async function resolveCondominiosByCnpj(
 
   const { data, error } = await supabase
     .from("condominios")
-    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias")
+    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico")
     .in("cnpj", cnpjsLimpos);
 
   if (error)
@@ -476,7 +513,7 @@ async function resolveCondominioById(supabase: SupabaseClient, id: string) {
 
   const { data, error } = await supabase
     .from("condominios")
-    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias")
+    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico")
     .eq("id", id)
     .maybeSingle();
 
@@ -1208,6 +1245,29 @@ export async function createImportacaoPreview(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
 
   const tipo = String(formData.get("tipo") ?? "");
+  const condominioIdPadrao = String(formData.get("condominio_id_padrao") ?? "").trim();
+  let importacaoId: string;
+
+  try {
+    importacaoId = await createImportacaoPreviewInternal(formData);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Não foi possível gerar o preview da importação.";
+    const params = new URLSearchParams();
+    if (tipo) params.set("tipo", tipo);
+    if (condominioIdPadrao) params.set("condominio_id", condominioIdPadrao);
+    params.set("erro", message);
+    redirect(`/app/importacoes/nova?${params.toString()}`);
+  }
+
+  revalidatePath("/app/importacoes");
+  redirect(`/app/importacoes/${importacaoId}`);
+}
+
+async function createImportacaoPreviewInternal(formData: FormData) {
+  const tipo = String(formData.get("tipo") ?? "");
   const file = formData.get("arquivo");
 
   if (!isValidImportType(tipo)) throw new Error("Tipo de importação inválido.");
@@ -1372,8 +1432,7 @@ export async function createImportacaoPreview(formData: FormData) {
     },
   });
 
-  revalidatePath("/app/importacoes");
-  redirect(`/app/importacoes/${importacao.id}`);
+  return importacao.id as string;
 }
 
 export async function createImportacaoLegadoPreview(formData: FormData) {
@@ -1650,6 +1709,8 @@ async function importarCobrancas(
         continue;
       }
 
+      const statusOperacional = await statusOperacionalParaCobrancaImportada(supabase, payload);
+
       const { error } = await supabase.from("cobrancas").insert({
         carteira_id: payload.carteira_id,
         condominio_id: payload.condominio_id,
@@ -1661,8 +1722,8 @@ async function importarCobrancas(
         multa: Number(payload.multa || 0),
         correcao: Number(payload.correcao || 0),
         juros: Number(payload.juros || 0),
-        status: "novo",
-        status_operacional: "novo",
+        status: statusOperacional,
+        status_operacional: statusOperacional,
         status_financeiro: "em_aberto",
         observacoes: payload.observacoes || null,
         origem_importacao: origemImportacao,
@@ -1751,10 +1812,18 @@ async function importarCondominios(
           .update({
             nome: payload.nome,
             nome_operacional: payload.nome_operacional || payload.nome,
+            endereco_logradouro: payload.endereco_logradouro || null,
+            endereco_numero: payload.endereco_numero || null,
+            endereco_complemento: payload.endereco_complemento || null,
+            endereco_bairro: payload.endereco_bairro || null,
+            endereco_cidade: payload.endereco_cidade || null,
+            endereco_uf: payload.endereco_uf || null,
+            endereco_cep: payload.endereco_cep || null,
             administradora: payload.administradora || null,
             vencimento_cota_dia: Number(payload.vencimento_cota_dia),
             valor_cota_condominial: Number(payload.valor_cota_condominial || 0),
             inicio_cobranca_dias: Number(payload.inicio_cobranca_dias),
+            dias_expiracao_regua_pre_juridico: payload.dias_expiracao_regua_pre_juridico ?? null,
             parcelas_acordo_sem_aprovacao_sindico: Number(payload.parcelas_acordo_sem_aprovacao_sindico || 0),
             dias_reemissao_parcela_acordo_atrasada: Number(payload.dias_reemissao_parcela_acordo_atrasada || 0),
             classificacao_operacional: payload.classificacao_operacional || "prata",
@@ -1773,10 +1842,18 @@ async function importarCondominios(
         nome: payload.nome,
         nome_operacional: payload.nome_operacional || payload.nome,
         cnpj,
+        endereco_logradouro: payload.endereco_logradouro || null,
+        endereco_numero: payload.endereco_numero || null,
+        endereco_complemento: payload.endereco_complemento || null,
+        endereco_bairro: payload.endereco_bairro || null,
+        endereco_cidade: payload.endereco_cidade || null,
+        endereco_uf: payload.endereco_uf || null,
+        endereco_cep: payload.endereco_cep || null,
         administradora: payload.administradora || null,
         vencimento_cota_dia: Number(payload.vencimento_cota_dia),
         valor_cota_condominial: Number(payload.valor_cota_condominial || 0),
         inicio_cobranca_dias: Number(payload.inicio_cobranca_dias),
+        dias_expiracao_regua_pre_juridico: payload.dias_expiracao_regua_pre_juridico ?? null,
         parcelas_acordo_sem_aprovacao_sindico: Number(payload.parcelas_acordo_sem_aprovacao_sindico || 0),
         dias_reemissao_parcela_acordo_atrasada: Number(payload.dias_reemissao_parcela_acordo_atrasada || 0),
         classificacao_operacional: payload.classificacao_operacional || "prata",

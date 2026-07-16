@@ -27,14 +27,14 @@ export default async function SindicoLoginPage({
 
             <div className="mt-10 max-w-[460px]">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#04799a]">
-                Portal do sindico
+                Portal do síndico
               </p>
               <h1 className="mt-4 text-4xl font-light leading-tight text-[#19364a]">
-                Acompanhe seus condominios com
+                Acompanhe seus condomínios com
                 <span className="font-bold text-[#004b63]"> acesso restrito e seguro.</span>
               </h1>
               <p className="mt-5 text-base leading-7 text-slate-500">
-                Consulte acordos, pendencias e informacoes permitidas pela operacao GKLI.
+                Consulte acordos, pendências e informações permitidas pela operação GKLI.
               </p>
             </div>
           </div>

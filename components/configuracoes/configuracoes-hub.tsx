@@ -164,13 +164,13 @@ function ConfigCard({ card }: { card: ConfigCard }) {
   return (
     <Link
       href={card.href}
-      className="group rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#04799a]/40 hover:shadow-md"
+      className="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#04799a]/40 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#edf8fb] text-[#04799a]">
           <Icon size={21} />
         </div>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-normal text-slate-500">
           {card.tag}
         </span>
       </div>
@@ -189,20 +189,18 @@ function ConfigCard({ card }: { card: ConfigCard }) {
 export function ConfiguracoesHub() {
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 p-6 text-white shadow-sm">
-        <div className="pointer-events-none absolute right-8 top-0 h-48 w-48 rounded-full bg-[#04799a]/40 blur-3xl" />
+      <section className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-950 p-6 text-white shadow-sm">
         <div className="relative max-w-4xl">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#d7eef5]">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-normal text-[#d7eef5]">
             Configurações avançadas
           </span>
 
           <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl">
-            A potência do sistema fica aqui. A operação fica limpa.
+            Parâmetros administrativos
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300">
-            Esta central concentra parametrizações, automações, integrações e acessos administrativos.
-            A navegação principal permanece focada no trabalho diário do operador.
+            Automação, integrações, templates e acessos em um só lugar.
           </p>
         </div>
       </section>
@@ -224,13 +222,6 @@ export function ConfiguracoesHub() {
         </section>
       ))}
 
-      <section className="rounded-[2rem] border border-[#d7eef5] bg-[#f5fbfd] p-5">
-        <h2 className="text-base font-semibold text-slate-950">Regra de produto</h2>
-        <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
-          Tudo que for parametrização, integração, template, regra, lote, régua ou permissão deve ficar nesta área.
-          A operação diária deve manter somente aquilo que gera ação imediata.
-        </p>
-      </section>
     </div>
   )
 }

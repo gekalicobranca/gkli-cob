@@ -216,10 +216,10 @@ export async function getCentralAnalitica(scope: CarteiraScope): Promise<Central
   const totalCobrancas = cobrancas.length
   const abertas = cobrancas.filter((cobranca) => status(cobranca.status_financeiro) === 'em_aberto')
   const contato = cobrancas.filter((cobranca) =>
-    ['em_cobranca_ativa', 'em_negociacao', 'acordo_firmado', 'acordo_efetivado'].includes(status(cobranca.status_operacional)),
+    ['em_cobranca_ativa', 'em_negociacao', 'possivel_acordo', 'acordo_firmado', 'acordo_efetivado'].includes(status(cobranca.status_operacional)),
   )
   const negociacao = cobrancas.filter((cobranca) =>
-    ['em_negociacao', 'acordo_firmado', 'acordo_efetivado'].includes(status(cobranca.status_operacional)),
+    ['em_negociacao', 'possivel_acordo', 'acordo_firmado', 'acordo_efetivado'].includes(status(cobranca.status_operacional)),
   )
   const acordo = cobrancas.filter((cobranca) =>
     ['acordo_firmado', 'acordo_efetivado'].includes(status(cobranca.status_operacional)),

@@ -168,8 +168,8 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
           Gerar lista PDF
         </ActionCard>
         <ActionCard
-          title="Procuração"
-          description="Gera uma procuração em PDF para cada acordo selecionado."
+          title="Procuração opcional"
+          description="Gera uma procuração em PDF quando o jurídico solicitar."
           icon={FileSignature}
           action={gerarProcuracaoPreJuridico}
           selectedIds={selectedIds}
@@ -180,7 +180,7 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
         </ActionCard>
         <ActionCard
           title="Alterar status"
-          description="Só libera quando todos os selecionados têm as três etapas cumpridas."
+          description="Libera quando todos os selecionados têm PDF e lista cumpridos."
           icon={BriefcaseBusiness}
           action={alterarStatusAcordosPreJuridico}
           selectedIds={selectedIds}
@@ -270,7 +270,6 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
                       <div className="flex flex-wrap gap-1.5">
                         <StepMark checked={Boolean(steps?.historico)} label="PDF" />
                         <StepMark checked={Boolean(steps?.listaAdministradora)} label="Lista" />
-                        <StepMark checked={Boolean(steps?.procuracao)} label="Procuração" />
                       </div>
                       <div className="flex flex-wrap justify-end gap-2">
                         <ButtonLink href={`/app/acordos/${row.id}`} variant="ghost" size="sm" aria-label="Abrir acordo">

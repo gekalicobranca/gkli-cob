@@ -28,7 +28,7 @@ export default async function AutomacaoReguasPage() {
       <PageHeader
         eyebrow="Mensageria · Réguas · R2"
         title="Automação, compliance e inteligência"
-        description="Painel da segunda camada das réguas: scheduler, pausas inteligentes, compliance operacional e score inicial. Retornos automáticos ficam preparados para webhooks futuros."
+        description="Scheduler, pausas inteligentes, compliance operacional e score inicial das réguas."
         actions={<ButtonLink href="/app/mensageria/reguas" variant="header">Voltar às réguas</ButtonLink>}
       />
 
@@ -41,7 +41,7 @@ export default async function AutomacaoReguasPage() {
 
       <section className="grid gap-5 xl:grid-cols-[1.05fr_.95fr]">
         <Card className="overflow-hidden p-0">
-          <SectionHeader icon={<Activity size={18} />} title="Scheduler das réguas" detail="Endpoint pronto para Vercel Cron: /api/regua/scheduler?tipo=cobranca|acordo" />
+          <SectionHeader icon={<Activity size={18} />} title="Scheduler das réguas" detail="Execuções automáticas de cobrança e acordo." />
           <div className="divide-y divide-slate-100">
             {data.jobs.length ? data.jobs.map((job: any) => (
               <div key={job.id} className="grid gap-3 p-5 md:grid-cols-[1fr_140px_160px] md:items-center">

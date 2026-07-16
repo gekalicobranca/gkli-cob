@@ -238,7 +238,7 @@ export async function getFunilOperacionalPremium(
     const status = normalize(cobranca.status_operacional)
     if (
       cobranca.ultima_interacao_at ||
-      ['em_cobranca_ativa', 'em_negociacao', 'acordo_firmado', 'acordo_efetivado'].includes(status)
+      ['em_cobranca_ativa', 'em_negociacao', 'possivel_acordo', 'acordo_firmado', 'acordo_efetivado'].includes(status)
     ) {
       contatoIds.add(cobranca.id)
     }
@@ -247,7 +247,7 @@ export async function getFunilOperacionalPremium(
   const negociacaoIds = new Set(
     cobrancas
       .filter((cobranca) =>
-        ['em_negociacao', 'acordo_firmado', 'acordo_efetivado'].includes(
+        ['em_negociacao', 'possivel_acordo', 'acordo_firmado', 'acordo_efetivado'].includes(
           normalize(cobranca.status_operacional),
         ),
       )

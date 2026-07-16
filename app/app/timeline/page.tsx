@@ -152,7 +152,7 @@ export default async function TimelinePage({ searchParams }: PageProps) {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Sprint 4.1 · Timeline operacional"
+        eyebrow="Operação"
         title="Timeline operacional global"
         description="Memória viva da operação: cobranças, acordos, mensageria, réguas, lotes e administradoras em uma trilha única."
         actions={
@@ -247,7 +247,7 @@ export default async function TimelinePage({ searchParams }: PageProps) {
           <div className="p-5">
             <EmptyState
               title="Timeline ainda vazia"
-              description="Execute o SQL da Sprint 4.1 e faça movimentos operacionais em cobranças, acordos, mensageria ou administradoras."
+              description="Os eventos aparecerão aqui conforme houver movimentações em cobranças, acordos, mensageria ou administradoras."
             />
           </div>
         ) : (

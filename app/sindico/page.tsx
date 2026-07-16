@@ -190,13 +190,13 @@ export default async function SindicoPortalPage({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-3xl">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7dd3e8]">
-                Portal do sindico
+                Portal do síndico
               </p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
-                Dashboard do condominio
+                Dashboard do condomínio
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/68">
-                Visao consolidada para acompanhar cobrancas, acordos, aceites e indicadores dos condominios vinculados ao seu acesso.
+                Visão consolidada para acompanhar cobranças, acordos, aceites e indicadores dos condomínios vinculados ao seu acesso.
               </p>
             </div>
 
@@ -222,11 +222,11 @@ export default async function SindicoPortalPage({
             </div>
             <div className="rounded-lg border border-white/10 bg-white/8 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-white/45">Cobertura</p>
-              <p className="mt-2 text-sm font-semibold">{formatNumber(data.totals.condominios)} condominio(s)</p>
-              <p className="mt-1 text-xs text-white/55">{data.mode === "todos" ? "Historico completo" : "Somente itens ativos"}</p>
+              <p className="mt-2 text-sm font-semibold">{formatNumber(data.totals.condominios)} condomínio(s)</p>
+              <p className="mt-1 text-xs text-white/55">{data.mode === "todos" ? "Histórico completo" : "Somente itens ativos"}</p>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/8 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Saude geral</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Saúde geral</p>
               <div className="mt-2 flex items-center gap-3">
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/15">
                   <div className="h-full rounded-full bg-[#7dd3e8]" style={{ width: `${healthScore}%` }} />
@@ -244,10 +244,10 @@ export default async function SindicoPortalPage({
             <div className="flex gap-3">
               <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
               <div>
-                <h2 className="font-semibold">Acesso ainda nao configurado</h2>
+                <h2 className="font-semibold">Acesso ainda não configurado</h2>
                 <p className="mt-1 text-sm leading-6">
-                  Seu login existe, mas ainda nao ha condominios liberados para este portal.
-                  Fale com a equipe GKLI para concluir a vinculacao.
+                  Seu login existe, mas ainda não há condomínios liberados para este portal.
+                  Fale com a equipe GKLI para concluir a vinculação.
                 </p>
               </div>
             </div>
@@ -258,14 +258,14 @@ export default async function SindicoPortalPage({
           <MetricCard
             label="Em aberto"
             value={formatCurrency(data.totals.valorEmAberto)}
-            note={`${formatNumber(data.totals.cobrancasAbertas)} cobranca(s) ativa(s)`}
+            note={`${formatNumber(data.totals.cobrancasAbertas)} cobrança(s) ativa(s)`}
             icon={CircleDollarSign}
             tone="primary"
           />
           <MetricCard
             label="Valor vencido"
             value={formatCurrency(valorVencido)}
-            note={`${formatNumber(overdueCobrancas.length)} cobranca(s) vencida(s)`}
+            note={`${formatNumber(overdueCobrancas.length)} cobrança(s) vencida(s)`}
             icon={AlertTriangle}
             tone={overdueCobrancas.length ? "amber" : "green"}
           />
@@ -294,7 +294,7 @@ export default async function SindicoPortalPage({
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,.9fr)]">
           <Card className="overflow-hidden p-0">
-            <PanelHeader eyebrow="Condominios" title="Resumo por condominio" count={data.condominios.length} />
+            <PanelHeader eyebrow="Condomínios" title="Resumo por condomínio" count={data.condominios.length} />
             {data.condominios.length ? (
               <div className="divide-y divide-slate-100">
                 {data.condominios.map((condominio) => {
@@ -309,11 +309,11 @@ export default async function SindicoPortalPage({
                           <Badge tone={condominio.status === "ativo" ? "green" : "slate"}>{condominio.status}</Badge>
                         </div>
                         <p className="mt-2 truncate text-sm font-semibold text-slate-950">{condominio.nome}</p>
-                        <p className="mt-1 truncate text-xs text-slate-500">{condominio.administradora ?? "Administradora nao informada"}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">{condominio.administradora ?? "Administradora não informada"}</p>
                       </div>
 
                       <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Exposicao</p>
+                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Exposição</p>
                         <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(condominio.valorEmAberto)}</p>
                         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
                           <div className="h-full rounded-full bg-[#04799a]" style={{ width: `${exposure}%` }} />
@@ -321,32 +321,32 @@ export default async function SindicoPortalPage({
                       </div>
 
                       <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Saude</p>
+                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Saúde</p>
                         <div className="mt-2 flex items-center gap-2">
                           <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                             <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, localHealth)}%` }} />
                           </div>
                           <span className="text-xs font-semibold text-slate-700">{Math.min(100, localHealth)}%</span>
                         </div>
-                        <p className="mt-1 text-xs text-slate-500">{formatNumber(condominio.cobrancasAbertas)} cobranca(s) / {formatNumber(condominio.acordosAtivos)} acordo(s)</p>
+                        <p className="mt-1 text-xs text-slate-500">{formatNumber(condominio.cobrancasAbertas)} cobrança(s) / {formatNumber(condominio.acordosAtivos)} acordo(s)</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <EmptyPanel text="Nenhum condominio vinculado ao seu acesso." />
+              <EmptyPanel text="Nenhum condomínio vinculado ao seu acesso." />
             )}
           </Card>
 
           <Card className="overflow-hidden p-0">
-            <PanelHeader eyebrow="Atencao" title="Pontos de acompanhamento" />
+            <PanelHeader eyebrow="Atenção" title="Pontos de acompanhamento" />
             <div className="space-y-3 p-5">
               <div className="rounded-lg border border-amber-100 bg-amber-50 p-4">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-700" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-900">Cobrancas vencidas</p>
+                    <p className="text-sm font-semibold text-amber-900">Cobranças vencidas</p>
                     <p className="mt-1 text-sm text-amber-800">{formatNumber(overdueCobrancas.length)} registro(s), totalizando {formatCurrency(valorVencido)}.</p>
                   </div>
                 </div>
@@ -389,7 +389,7 @@ export default async function SindicoPortalPage({
                     <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
                       <span>Valor: {formatCurrency(aceite.valorAcordado)}</span>
                       <span>Criado em: {formatDateBR(aceite.criadoEm)}</span>
-                      <span className="truncate">Destinatario: {aceite.destinatarioNome ?? "-"}</span>
+                      <span className="truncate">Destinatário: {aceite.destinatarioNome ?? "-"}</span>
                       <span>{aceite.aceitoEm ? `Aceito em: ${formatDateBR(aceite.aceitoEm)}` : "Aceite pendente"}</span>
                     </div>
                   </div>
@@ -401,7 +401,7 @@ export default async function SindicoPortalPage({
           </Card>
 
           <Card className="overflow-hidden p-0">
-            <PanelHeader eyebrow="Acordos" title="Acordos do condominio" count={data.acordos.length} />
+            <PanelHeader eyebrow="Acordos" title="Acordos do condomínio" count={data.acordos.length} />
             {data.acordos.length ? (
               <div className="divide-y divide-slate-100">
                 {data.acordos.slice(0, 8).map((acordo) => (
@@ -412,7 +412,7 @@ export default async function SindicoPortalPage({
                         {acordo.fluxoStatus ? <Badge tone="slate">{displayStatus(acordo.fluxoStatus)}</Badge> : null}
                       </div>
                       <p className="mt-2 truncate text-sm font-semibold text-slate-950">{acordo.condominioNome}</p>
-                      <p className="mt-1 truncate text-xs text-slate-500">{acordo.unidadeLabel} - {acordo.responsavelNome ?? "Responsavel nao informado"}</p>
+                      <p className="mt-1 truncate text-xs text-slate-500">{acordo.unidadeLabel} - {acordo.responsavelNome ?? "Responsável não informado"}</p>
                     </div>
                     <div>
                       <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor</p>
@@ -433,7 +433,7 @@ export default async function SindicoPortalPage({
         </section>
 
         <Card className="overflow-hidden p-0">
-          <PanelHeader eyebrow="Cobrancas" title="Cobrancas do condominio" count={data.cobrancas.length} />
+          <PanelHeader eyebrow="Cobranças" title="Cobranças do condomínio" count={data.cobrancas.length} />
           {data.cobrancas.length ? (
             <div className="divide-y divide-slate-100">
               {data.cobrancas.slice(0, 12).map((cobranca) => {
@@ -456,10 +456,10 @@ export default async function SindicoPortalPage({
                         {cobranca.statusFinanceiro ? <Badge tone="slate">{displayStatus(cobranca.statusFinanceiro)}</Badge> : null}
                       </div>
                       <p className="mt-2 truncate text-sm font-semibold text-slate-950">{cobranca.condominioNome}</p>
-                      <p className="mt-1 truncate text-xs text-slate-500">{cobranca.unidadeLabel} - {cobranca.responsavelNome ?? "Responsavel nao informado"}</p>
+                      <p className="mt-1 truncate text-xs text-slate-500">{cobranca.unidadeLabel} - {cobranca.responsavelNome ?? "Responsável não informado"}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Competencia</p>
+                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Competência</p>
                       <p className="mt-1 text-sm font-semibold text-slate-950">{cobranca.competencia ?? "-"}</p>
                     </div>
                     <div>
@@ -477,7 +477,7 @@ export default async function SindicoPortalPage({
               })}
             </div>
           ) : (
-            <EmptyPanel text={data.mode === "todos" ? "Nenhuma cobranca localizada." : "Nenhuma cobranca ativa."} />
+            <EmptyPanel text={data.mode === "todos" ? "Nenhuma cobrança localizada." : "Nenhuma cobrança ativa."} />
           )}
         </Card>
       </div>

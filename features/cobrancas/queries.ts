@@ -33,6 +33,7 @@ export type CobrancaResumo = {
   novas: number
   ativas: number
   emNegociacao: number
+  possiveisAcordo: number
 }
 
 const EMPTY_UUID = '00000000-0000-0000-0000-000000000000'
@@ -403,6 +404,7 @@ export async function summarizeCobrancas(scope: CarteiraScope, filters: Cobranca
     novas: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.NOVO).length,
     ativas: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA).length,
     emNegociacao: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO).length,
+    possiveisAcordo: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO).length,
   }
 }
 

@@ -1,4 +1,4 @@
-export type ReguaTipo = 'cobranca' | 'acordo'
+export type ReguaTipo = 'cobranca' | 'acordo' | 'juridico'
 export type ReguaStatus = 'ativa' | 'rascunho' | 'inativa'
 export type ReguaCanal = 'whatsapp' | 'email' | 'manual'
 export type ReguaIntensidade = 'leve' | 'medio' | 'agressivo'

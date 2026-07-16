@@ -11,6 +11,10 @@ function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
 }
 
+function optionalText(formData: FormData, field: string) {
+  return String(formData.get(field) ?? '').trim() || null
+}
+
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
   if (!carteiraId) throw new Error('Carteira obrigatória.')
   if (scope.carteiraIds !== null && !scope.carteiraIds.includes(carteiraId)) {
@@ -21,6 +25,13 @@ function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null
 function toInteger(value: FormDataEntryValue | null, fallback = 0) {
   const parsed = Number(value ?? fallback)
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : fallback
+}
+
+function toOptionalInteger(value: FormDataEntryValue | null) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : null
 }
 
 function toNumber(value: FormDataEntryValue | null) {
@@ -77,10 +88,18 @@ export async function createCondominio(formData: FormData) {
   const nome = String(formData.get('nome') ?? '').trim()
   const nomeOperacional = String(formData.get('nome_operacional') ?? '').trim()
   const cnpj = onlyDigits(String(formData.get('cnpj') ?? ''))
+  const enderecoLogradouro = optionalText(formData, 'endereco_logradouro')
+  const enderecoNumero = optionalText(formData, 'endereco_numero')
+  const enderecoComplemento = optionalText(formData, 'endereco_complemento')
+  const enderecoBairro = optionalText(formData, 'endereco_bairro')
+  const enderecoCidade = optionalText(formData, 'endereco_cidade')
+  const enderecoUf = optionalText(formData, 'endereco_uf')?.toUpperCase() ?? null
+  const enderecoCep = onlyDigits(String(formData.get('endereco_cep') ?? '')) || null
   const administradora = String(formData.get('administradora') ?? '').trim()
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
   const valorCota = toNumber(formData.get('valor_cota_condominial'))
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
+  const diasExpiracaoReguaPreJuridico = toOptionalInteger(formData.get('dias_expiracao_regua_pre_juridico'))
   const parcelasAcordoSemAprovacaoSindico = toInteger(formData.get('parcelas_acordo_sem_aprovacao_sindico'), 0)
   const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
   const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
@@ -100,10 +119,18 @@ export async function createCondominio(formData: FormData) {
     nome,
     nome_operacional: nomeOperacional || nome,
     cnpj: cnpj || null,
+    endereco_logradouro: enderecoLogradouro,
+    endereco_numero: enderecoNumero,
+    endereco_complemento: enderecoComplemento,
+    endereco_bairro: enderecoBairro,
+    endereco_cidade: enderecoCidade,
+    endereco_uf: enderecoUf,
+    endereco_cep: enderecoCep,
     administradora: administradora || null,
     vencimento_cota_dia: vencimentoCotaDia,
     valor_cota_condominial: valorCota,
     inicio_cobranca_dias: inicioCobrancaDias,
+    dias_expiracao_regua_pre_juridico: diasExpiracaoReguaPreJuridico,
     parcelas_acordo_sem_aprovacao_sindico: parcelasAcordoSemAprovacaoSindico,
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
     classificacao_operacional: classificacaoOperacional,
@@ -144,10 +171,18 @@ export async function updateCondominioIntegral(formData: FormData) {
   const nome = String(formData.get('nome') ?? '').trim()
   const nomeOperacional = String(formData.get('nome_operacional') ?? '').trim()
   const cnpj = onlyDigits(String(formData.get('cnpj') ?? ''))
+  const enderecoLogradouro = optionalText(formData, 'endereco_logradouro')
+  const enderecoNumero = optionalText(formData, 'endereco_numero')
+  const enderecoComplemento = optionalText(formData, 'endereco_complemento')
+  const enderecoBairro = optionalText(formData, 'endereco_bairro')
+  const enderecoCidade = optionalText(formData, 'endereco_cidade')
+  const enderecoUf = optionalText(formData, 'endereco_uf')?.toUpperCase() ?? null
+  const enderecoCep = onlyDigits(String(formData.get('endereco_cep') ?? '')) || null
   const administradora = String(formData.get('administradora') ?? '').trim()
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
   const valorCota = toNumber(formData.get('valor_cota_condominial'))
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
+  const diasExpiracaoReguaPreJuridico = toOptionalInteger(formData.get('dias_expiracao_regua_pre_juridico'))
   const parcelasAcordoSemAprovacaoSindico = toInteger(formData.get('parcelas_acordo_sem_aprovacao_sindico'), 0)
   const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
   const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
@@ -167,7 +202,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, nome_operacional, cnpj, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, regua_cobranca_id, regua_acordo_id, status, observacoes')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, regua_cobranca_id, regua_acordo_id, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -185,10 +220,18 @@ export async function updateCondominioIntegral(formData: FormData) {
     nome,
     nome_operacional: nomeOperacional || nome,
     cnpj: cnpj || null,
+    endereco_logradouro: enderecoLogradouro,
+    endereco_numero: enderecoNumero,
+    endereco_complemento: enderecoComplemento,
+    endereco_bairro: enderecoBairro,
+    endereco_cidade: enderecoCidade,
+    endereco_uf: enderecoUf,
+    endereco_cep: enderecoCep,
     administradora: administradora || null,
     vencimento_cota_dia: vencimentoCotaDia,
     valor_cota_condominial: valorCota,
     inicio_cobranca_dias: inicioCobrancaDias,
+    dias_expiracao_regua_pre_juridico: diasExpiracaoReguaPreJuridico,
     parcelas_acordo_sem_aprovacao_sindico: parcelasAcordoSemAprovacaoSindico,
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
     classificacao_operacional: classificacaoOperacional,

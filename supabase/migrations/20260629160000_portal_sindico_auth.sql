@@ -101,6 +101,15 @@ create table if not exists public.portal_sindico_auditoria (
   created_at timestamptz not null default now()
 );
 
+alter table public.portal_sindico_auditoria
+  add column if not exists portal_usuario_id uuid references public.portal_sindico_usuarios(id) on delete set null,
+  add column if not exists user_id uuid references auth.users(id) on delete set null,
+  add column if not exists acao text,
+  add column if not exists entidade_tipo text,
+  add column if not exists entidade_id uuid,
+  add column if not exists payload jsonb not null default '{}'::jsonb,
+  add column if not exists created_at timestamptz not null default now();
+
 create index if not exists idx_portal_sindico_usuarios_user_id
   on public.portal_sindico_usuarios(user_id);
 

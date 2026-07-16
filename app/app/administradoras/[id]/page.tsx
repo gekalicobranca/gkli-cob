@@ -148,7 +148,7 @@ export default async function AdministradoraDetalhePage({ params }: Props) {
 
       <Card className="space-y-4">
         <div><h2 className="text-base font-medium text-slate-950">Condomínios vinculados</h2><p className="mt-1 text-sm text-slate-500">Usa o vínculo direto por administradora quando disponível no cadastro de condomínios.</p></div>
-        {condominios.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 p-5 text-sm text-slate-500"><AlertTriangle size={18} className="mb-2 text-slate-400" />Nenhum condomínio vinculado por administradora_id. Se sua base usa apenas o nome da administradora no condomínio, fazemos a migração de vínculo na próxima etapa.</div> : <div className="grid gap-3 md:grid-cols-2">{condominios.map((c) => <Link key={c.id} href={`/app/condominios/${c.id}`} className="rounded-2xl border border-slate-100 p-4 transition hover:bg-slate-50"><p className="text-sm font-medium text-slate-950">{c.nome}</p><p className="mt-1 text-xs text-slate-500">CNPJ {c.cnpj ?? '-'} · {c.status ?? '-'}</p></Link>)}</div>}
+        {condominios.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 p-5 text-sm text-slate-500"><AlertTriangle size={18} className="mb-2 text-slate-400" />Nenhum condomínio vinculado a esta administradora.</div> : <div className="grid gap-3 md:grid-cols-2">{condominios.map((c) => <Link key={c.id} href={`/app/condominios/${c.id}`} className="rounded-2xl border border-slate-100 p-4 transition hover:bg-slate-50"><p className="text-sm font-medium text-slate-950">{c.nome}</p><p className="mt-1 text-xs text-slate-500">CNPJ {c.cnpj ?? '-'} · {c.status ?? '-'}</p></Link>)}</div>}
       </Card>
     </div>
   )

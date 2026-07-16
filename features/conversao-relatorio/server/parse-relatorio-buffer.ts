@@ -3885,25 +3885,25 @@ function detectSafiraCobrancas(text: string): DeteccaoPdfCobrancas {
   const sinais = [
     /RELATORIOS\s+DE\s+RECIBOS\s+EM\s+ABERTO/,
     /RELATORIO\s+DE\s+INADIMPLENCIA/,
-    /DATA\s+VENCIMENTO\s+CODIGO\s+RECIBO/,
+    /DATA\s+VENCIMENTO\s*CODIGO\s+RECIBO/,
     /RECIBO:\s*\d{8,}\s*VENCIMENTO:\s*\d{2}\/\d{2}\/\d{4}\s*VALOR\s+TOTAL:\s*R\$/,
     /CONTA\s*HISTORICO\s*SUBCONTA\s*VALOR/,
-    /VALOR\s+DO\s+RECIBO\s+MULTA\s+CALCULADA/,
-    /VALOR\s+CORRECAO\s+JUROS\s+CALCULADO/,
-    /HONORARIOS\s+CUSTAS\s+PROCESSUAIS\s+VALOR\s+TOTAL/,
-    /SUBTOTAL\s+R\$/,
+    /VALOR\s+DO\s+RECIBO\s*MULTA\s+CALCULADA/,
+    /VALOR\s+CORRECAO\s*JUROS\s+CALCULADO/,
+    /HONORARIOS\s*CUSTAS\s+PROCESSUAIS\s*VALOR\s+TOTAL/,
+    /SUBTOTAL\s*R\$/,
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
 
   const linhasRecibosAbertos = countRegexMatches(
     normalized,
-    /(?:^|\n)\s*\d{2}\/\d{2}\/\d{4}\s+\d{8,}\s+R\$\s*/g,
+    /(?:^|\n)\s*\d{2}\/\d{2}\/\d{4}\s*\d{8,}\s*R\$\s*/g,
   );
   const linhasInadimplencia = countRegexMatches(
     normalized,
     /(?:^|\n)\s*Recibo:\s*\d{8,}\s*Vencimento:\s*\d{2}\/\d{2}\/\d{4}\s*Valor\s+Total:\s*R\$\s*/gi,
   );
   const linhasCobranca = linhasRecibosAbertos + linhasInadimplencia;
-  const subtotais = countRegexMatches(normalized, /(?:^|\n)\s*Subtotal\s+R\$\s*/g);
+  const subtotais = countRegexMatches(normalized, /(?:^|\n)\s*Subtotal\s*R\$\s*/g);
 
   return {
     ok: sinais >= 3 && linhasCobranca > 0,
@@ -3946,7 +3946,7 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
       /^Relat[oó]rios de recibos em aberto/i.test(line) ||
       /^\d+\s*-\s*SAFIRA\b/i.test(line) ||
       /^\(relat[oó]rio gerado/i.test(line) ||
-      /^Data Vencimento\s+C[oó]digo Recibo/i.test(line)
+      /^Data Vencimento\s*C[oó]digo Recibo/i.test(line)
     ) {
       continue;
     }
@@ -3959,7 +3959,7 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
       continue;
     }
 
-    if (/^Subtotal\b/i.test(line) || /^Conta\s*Hist/i.test(line)) continue;
+    if (/^Subtotal/i.test(line) || /^Conta\s*Hist/i.test(line)) continue;
 
     const reciboDetalhadoMatch = line.match(
       /^Recibo:\s*(\d{8,})\s*Vencimento:\s*(\d{2}\/\d{2}\/\d{4})\s*Valor\s+Total:\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/i,
@@ -3988,7 +3988,7 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
     }
 
     const rowMatch = line.match(
-      /^(\d{2}\/\d{2}\/\d{4})\s+(\d{8,})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/,
+      /^(\d{2}\/\d{2}\/\d{4})\s*(\d{8,})\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s*R\$\s*((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})$/,
     );
 
     if (!rowMatch || !unidadeAtual) continue;

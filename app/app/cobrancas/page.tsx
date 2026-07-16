@@ -62,6 +62,7 @@ const STATUS_FILTERS = [
   COBRANCA_STATUS_OPERACIONAL.NOVO,
   COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
   COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
+  COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO,
   COBRANCA_STATUS_OPERACIONAL.ACORDO_FIRMADO,
   COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
   COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
@@ -73,6 +74,7 @@ const STATUS_FILA_OPERACIONAL = [
   COBRANCA_STATUS_OPERACIONAL.NOVO,
   COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
   COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
+  COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO,
 ];
 
 const PAGE_SIZE = 50;
@@ -83,6 +85,7 @@ const EMPTY_RESUMO = {
   novas: 0,
   ativas: 0,
   emNegociacao: 0,
+  possiveisAcordo: 0,
 };
 
 function emptyPageData(page: number) {
@@ -297,7 +300,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
         />
       </LitePageHeader>
 
-      <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+      <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
         <Card className="relative overflow-hidden p-3">
           <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
             <WalletCards size={18} />
@@ -318,6 +321,12 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
             "bg-[var(--gkli-primary-light)] text-[var(--gkli-primary)]",
           ],
           ["Ativas", ativas, "cobrança", "bg-blue-50 text-blue-700"],
+          [
+            "Possível acordo",
+            resumo.possiveisAcordo,
+            "AE",
+            "bg-emerald-50 text-emerald-700",
+          ],
           [
             "Negociação",
             resumo.emNegociacao,
@@ -373,7 +382,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                   placeholder="Buscar responsável, unidade, bloco..."
                   className="xl:col-span-3"
                 />
-                <ListFilterField label="CondomÃ­nio" className="xl:col-span-5">
+                <ListFilterField label="Condomínio" className="xl:col-span-5">
                   <CondominioSearchSelect
                     name="condominio_id"
                     options={condominios.map((condominio: any) => ({
@@ -398,7 +407,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                       ].filter(Boolean).join(" - "),
                     }))}
                     selectedValue={filters.unidadeId}
-                    placeholder={filters.condominioId ? "Digite unidade ou responsavel" : "Selecione um condominio primeiro"}
+                    placeholder={filters.condominioId ? "Digite unidade ou responsável" : "Selecione um condomínio primeiro"}
                   />
                 </ListFilterField>
                 </div>

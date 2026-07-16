@@ -39,6 +39,19 @@ function isLegacy(tipo: string) {
   return tipo === 'acordos_extra' || tipo === 'acordos_judiciais'
 }
 
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {}
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => String(item ?? '').trim()).filter(Boolean)
+}
+
+function safeStatus(value: unknown, fallback = 'sem_status') {
+  return String(value ?? fallback).trim() || fallback
+}
+
 function labelTipo(tipo: string) {
   if (tipo === 'unidades') return 'Responsáveis'
   if (tipo === 'cobrancas') return 'Cobranças'
@@ -151,28 +164,30 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
 
   if (!importacao) notFound()
 
-  const resumo = importacao.resumo ?? {}
-  const resultadoFinal = resumo.resultado ?? null
-  const resultadoMensagens = (resultadoFinal?.erros ?? []) as string[]
+  const resumo = asRecord(importacao.resumo)
+  const resultadoFinal = resumo.resultado ? asRecord(resumo.resultado) : null
+  const resultadoMensagens = asStringArray(resultadoFinal?.erros)
   const mensagensDivergentes = resultadoMensagens.filter(isDivergenciaConciliacao)
   const mensagensJaExistentes = resultadoMensagens.filter(isJaExistenteConciliacao)
   const mensagensAusentes = resultadoMensagens.filter(isAusenteRelatorio)
   const mensagensOutras = resultadoMensagens.filter((mensagem) => !isDivergenciaConciliacao(mensagem) && !isJaExistenteConciliacao(mensagem) && !isAusenteRelatorio(mensagem))
   const linhasComAlerta = itens.filter((item: any) =>
-    getAlertas(item.erros ?? []).some((alerta) => !isContatoEncontrado(alerta)),
+    getAlertas(asStringArray(item.erros)).some((alerta) => !isContatoEncontrado(alerta)),
   ).length
   const bloqueadas = itens.filter((item: any) => !item.valido).length
   const totalLinhas = Number(importacao.total_linhas ?? itens.length)
   const previewLimitado = totalLinhas > itens.length
-  const canConfirm = ['preview', 'erro'].includes(importacao.status) && importacao.total_validas > 0
-  const tipoLegado = isLegacy(importacao.tipo)
+  const importacaoStatus = safeStatus(importacao.status)
+  const importacaoTipo = safeStatus(importacao.tipo, 'cobrancas')
+  const canConfirm = ['preview', 'erro'].includes(importacaoStatus) && Number(importacao.total_validas ?? 0) > 0
+  const tipoLegado = isLegacy(importacaoTipo)
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Preview de importação"
         title={importacao.arquivo_nome ?? 'Arquivo sem nome'}
-        description={`${labelTipo(importacao.tipo)} - criada em ${formatDateBR(importacao.created_at)} - preview antes de gravar dados definitivos.`}
+        description={`${labelTipo(importacaoTipo)} - criada em ${formatDateBR(importacao.created_at)} - preview antes de gravar dados definitivos.`}
         actions={
           <>
             <ButtonLink href="/app/importacoes" variant="secondary">Voltar</ButtonLink>
@@ -270,7 +285,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
               Nenhuma linha bloqueada será gravada. Linhas com alerta entram somente se também estiverem válidas. {tipoLegado ? 'Legados criam acordo e parcelas apenas na confirmação.' : 'Cadastros e cobranças são aplicados somente após esta confirmação.'}
             </p>
           </div>
-          <StatusBadge status={importacao.status} />
+          <StatusBadge status={importacaoStatus} />
         </div>
       </Card>
 
@@ -318,11 +333,11 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
 
           <div className="divide-y divide-slate-100">
             {itens.map((item: any) => {
-              const alertas = getAlertas(item.erros ?? [])
+              const alertas = getAlertas(asStringArray(item.erros))
               const alertasPositivos = alertas.filter(isContatoEncontrado)
               const alertasAtencao = alertas.filter((alerta) => !isContatoEncontrado(alerta))
-              const erros = getErrosBloqueantes(item.erros ?? [])
-              const payload = item.payload ?? {}
+              const erros = getErrosBloqueantes(asStringArray(item.erros))
+              const payload = asRecord(item.payload)
               const prioridade = payload.prioridade_estimada ?? (item.valido ? 'baixa' : 'bloqueada')
 
               return (
@@ -347,29 +362,29 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
 
                   <div className="min-w-0">
                     <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Descrição</p>
-                    <p className="mt-2 truncate text-sm font-medium text-slate-950">{descricaoLinha(payload, importacao.tipo)}</p>
+                    <p className="mt-2 truncate text-sm font-medium text-slate-950">{descricaoLinha(payload, importacaoTipo)}</p>
                     <p className="mt-1 truncate text-xs text-slate-500">{payload.condominio_nome || payload.nome || 'Condomínio não localizado'} · CNPJ {payload.condominio_cnpj || payload.cnpj || '-'}</p>
                   </div>
 
                   <div>
                     <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                      {importacao.tipo === 'unidades' ? 'Bloco' : 'Valor'}
+                      {importacaoTipo === 'unidades' ? 'Bloco' : 'Valor'}
                     </p>
                     <p className="mt-2 text-sm font-semibold text-slate-950">
-                      {previewMetaPrimaria(payload, importacao.tipo)}
+                      {previewMetaPrimaria(payload, importacaoTipo)}
                     </p>
                   </div>
 
                   <div>
                     <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                      {importacao.tipo === 'unidades'
+                      {importacaoTipo === 'unidades'
                         ? 'Contato'
-                        : importacao.tipo === 'condominios'
+                        : importacaoTipo === 'condominios'
                           ? 'Dia da cota'
                           : 'Data'}
                     </p>
                     <p className="mt-2 text-sm text-slate-700">
-                      {previewMetaSecundaria(payload, importacao.tipo)}
+                      {previewMetaSecundaria(payload, importacaoTipo)}
                     </p>
                   </div>
 

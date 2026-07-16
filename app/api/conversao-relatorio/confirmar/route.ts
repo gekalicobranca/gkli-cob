@@ -10,6 +10,7 @@ import {
 } from "@/features/importacoes/cobrancas-conciliacao"
 import { formatOrigemImportacao } from "@/features/importacoes/origem-importacao"
 import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
+import { statusOperacionalParaCobrancaImportada } from "@/features/importacoes/status-cobranca-importada"
 import {
   buscarPossivelUnidadePorNormalizacao,
   registrarSaneamentosDaCobrancaImportada,
@@ -263,6 +264,11 @@ export async function POST(request: NextRequest) {
       const observacoes = recibo
         ? `Conversão de relatório - recibo ${recibo}`
         : "Conversão de relatório"
+      const statusOperacional = await statusOperacionalParaCobrancaImportada(supabase as any, {
+        ...item,
+        unidade_id: unidadeId,
+        observacoes,
+      })
 
       const importadaConciliacao: CobrancaImportadaConciliacao = {
         carteira_id: carteiraId,
@@ -345,8 +351,8 @@ export async function POST(request: NextRequest) {
           correcao,
           juros,
           vencimento: vencimentoMaisAntigo,
-          status: "novo",
-          status_operacional: "novo",
+          status: statusOperacional,
+          status_operacional: statusOperacional,
           status_financeiro: "em_aberto",
           observacoes,
           origem_importacao: origemImportacao,

@@ -293,7 +293,9 @@ export async function getCarteiraProdutividadeData(
       carteiraNome: carteiraNome.get(carteira.id) ?? 'Carteira',
       totalCobrancas,
       cobrancasAbertas: abertas.length,
-      emNegociacao: cobrancasCarteira.filter((row) => normalize(row.status_operacional) === 'em_negociacao').length,
+      emNegociacao: cobrancasCarteira.filter((row) =>
+        ['em_negociacao', 'possivel_acordo'].includes(normalize(row.status_operacional)),
+      ).length,
       judicializadas: cobrancasCarteira.filter((row) =>
         (COBRANCA_STATUS_JUDICIALIZACAO as string[]).includes(normalize(row.status_operacional)),
       ).length,
@@ -341,8 +343,8 @@ export async function getCarteiraProdutividadeData(
     current.valorCarteira += money(cobranca.valor_atualizado ?? cobranca.valor_original)
 
     const status = normalize(cobranca.status_operacional)
-    if (cobranca.ultima_interacao_at || ['em_cobranca_ativa', 'em_negociacao', 'acordo_firmado', 'acordo_efetivado'].includes(status)) current.contatos += 1
-    if (['em_negociacao', 'acordo_firmado', 'acordo_efetivado'].includes(status)) current.negociacoes += 1
+    if (cobranca.ultima_interacao_at || ['em_cobranca_ativa', 'em_negociacao', 'possivel_acordo', 'acordo_firmado', 'acordo_efetivado'].includes(status)) current.contatos += 1
+    if (['em_negociacao', 'possivel_acordo', 'acordo_firmado', 'acordo_efetivado'].includes(status)) current.negociacoes += 1
     if (['acordo_firmado', 'acordo_efetivado'].includes(status)) current.acordos += 1
     if (status === 'acordo_efetivado') current.efetivados += 1
 

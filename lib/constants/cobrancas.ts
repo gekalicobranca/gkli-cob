@@ -2,6 +2,7 @@ export const COBRANCA_STATUS_OPERACIONAL = {
   NOVO: 'novo',
   EM_COBRANCA_ATIVA: 'em_cobranca_ativa',
   EM_NEGOCIACAO: 'em_negociacao',
+  POSSIVEL_ACORDO: 'possivel_acordo',
   ACORDO_FIRMADO: 'acordo_firmado',
   ACORDO_EFETIVADO: 'acordo_efetivado',
   PRE_JURIDICO: 'pre_juridico',
@@ -31,6 +32,7 @@ export const COBRANCA_STATUS_OPERACIONAIS_ATIVOS: CobrancaStatusOperacional[] = 
   COBRANCA_STATUS_OPERACIONAL.NOVO,
   COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
   COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
+  COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO,
 ]
 
 export const COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO: CobrancaStatusOperacional[] = [
@@ -57,6 +59,7 @@ export const COBRANCA_STATUS_LABEL: Record<CobrancaStatusOperacional | CobrancaS
   novo: 'Novo',
   em_cobranca_ativa: 'Em cobrança ativa',
   em_negociacao: 'Em negociação',
+  possivel_acordo: 'Possível acordo',
   acordo_firmado: 'Acordo firmado',
   acordo_efetivado: 'Acordo efetivado',
   pre_juridico: 'Pré-jurídico',

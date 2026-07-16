@@ -2895,6 +2895,11 @@ function todayISODate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function carteiraPreJuridicoHabilitado(acordo: any) {
+  const carteira = Array.isArray(acordo?.carteiras) ? acordo.carteiras[0] : acordo?.carteiras;
+  return Boolean(carteira?.pre_juridico_habilitado);
+}
+
 async function carregarAcordosSelecionadosParaPreJuridico(
   supabase: Awaited<ReturnType<typeof createClient>>,
   acordoIds: string[],
@@ -2904,7 +2909,7 @@ async function carregarAcordosSelecionadosParaPreJuridico(
 
   const { data, error } = await supabase
     .from("acordos")
-    .select("id, carteira_id, condominio_id, unidade_id, cobranca_id, status, status_financeiro, fluxo_status, valor_acordado")
+    .select("id, carteira_id, condominio_id, unidade_id, cobranca_id, status, status_financeiro, fluxo_status, valor_acordado, carteiras:carteira_id (id,nome,pre_juridico_habilitado)")
     .in("id", acordoIds);
 
   if (error) throw new Error(`Erro ao carregar acordos selecionados: ${error.message}`);
@@ -2914,6 +2919,11 @@ async function carregarAcordosSelecionadosParaPreJuridico(
 
   for (const acordo of acordos) {
     assertCarteiraPermitida(scope, acordo.carteira_id);
+  }
+
+  const desabilitados = acordos.filter((acordo) => !carteiraPreJuridicoHabilitado(acordo));
+  if (desabilitados.length > 0) {
+    throw new Error("Uma ou mais carteiras selecionadas nao estao habilitadas para gerar pre-juridico.");
   }
 
   return acordos;
@@ -2979,7 +2989,7 @@ async function registrarEtapaPreJuridico(formData: FormData, step: PreJuridicoSt
   const descricoes: Record<PreJuridicoStepKey, string> = {
     historico: "Documento único gerado com uma unidade por página para análise jurídica.",
     listaAdministradora: "Lista de cobrança preparada para solicitação ou conferência junto à administradora.",
-    procuracao: "Procuração preparada como etapa obrigatória do encaminhamento pré-jurídico.",
+    procuracao: "Procuração preparada como documento opcional do encaminhamento pré-jurídico.",
   };
 
   for (const acordo of acordos) {
@@ -3037,7 +3047,7 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
 
   const faltantes = acordos.filter((acordo) => !preJuridicoStepsCompletos(stepsPorAcordo.get(acordo.id)));
   if (faltantes.length > 0) {
-    throw new Error("Antes de alterar para pré-jurídico, gere o PDF consolidado, a lista para administradora e a procuração de todos os acordos selecionados.");
+    throw new Error("Antes de alterar para pré-jurídico, gere o PDF consolidado e a lista para administradora de todos os acordos selecionados.");
   }
 
   const { data: vinculos, error: vinculosError } = await supabase
@@ -3083,7 +3093,7 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
 
   const { error: acordosError } = await supabase
     .from("acordos")
-    .update({ status: "rompido", status_financeiro: "vencido", fluxo_status: "rompido_pre_juridico" })
+    .update({ status: ACORDO_STATUS.QUEBRADO, status_financeiro: "vencido", fluxo_status: "rompido_pre_juridico" })
     .in("id", acordoIds);
   if (acordosError) throw new Error(`Erro ao encaminhar acordos ao pré-jurídico: ${acordosError.message}`);
 
@@ -3116,7 +3126,7 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
         fluxo_status: acordo.fluxo_status ?? null,
       },
       depois: {
-        status: "rompido",
+        status: ACORDO_STATUS.QUEBRADO,
         status_financeiro: "vencido",
         fluxo_status: "rompido_pre_juridico",
         status_cobranca: COBRANCA_STATUS.PRE_JURIDICO,
@@ -3190,7 +3200,7 @@ export async function romperAcordoAssistido(formData: FormData) {
 
   const { error: updateError } = await supabase
     .from("acordos")
-    .update({ status: "rompido", status_financeiro: "vencido", fluxo_status: `rompido_${destino}` })
+    .update({ status: ACORDO_STATUS.QUEBRADO, status_financeiro: "vencido", fluxo_status: `rompido_${destino}` })
     .eq("id", acordoId);
   if (updateError) throw new Error(`Erro ao romper acordo: ${updateError.message}`);
 
@@ -3211,7 +3221,7 @@ export async function romperAcordoAssistido(formData: FormData) {
     severidade: "alerta",
     payload: { motivo, destino, observacao, cobranca_ids: cobrancaIds },
     antes: { status: (acordo as any).status ?? null, status_financeiro: (acordo as any).status_financeiro ?? null },
-    depois: { status: "rompido", status_financeiro: "vencido", fluxo_status: `rompido_${destino}`, status_cobranca: statusCobranca },
+    depois: { status: ACORDO_STATUS.QUEBRADO, status_financeiro: "vencido", fluxo_status: `rompido_${destino}`, status_cobranca: statusCobranca },
     origem: "manual",
     auditavel: true,
     userId: user.id,

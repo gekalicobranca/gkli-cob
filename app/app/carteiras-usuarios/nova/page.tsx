@@ -34,6 +34,18 @@ export default async function NovaCarteiraPage() {
             <Input name="logo_url" placeholder="https://..." />
           </FormField>
 
+          <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              name="pre_juridico_habilitado"
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]"
+            />
+            <span>
+              <span className="block font-medium text-slate-950">Gerar pré-jurídico nesta carteira</span>
+              <span className="mt-1 block text-xs text-slate-500">Quando desligado, acordos da carteira não entram na fila nem geram documentos, lote ou mensagens pré-jurídicas.</span>
+            </span>
+          </label>
+
           <div className="border-t border-slate-100 pt-5">
             <h2 className="text-sm font-semibold text-slate-950">Emissao de NFS-e</h2>
             <p className="mt-1 text-sm text-slate-500">Dados fiscais usados para montar a base de notas no fechamento mensal.</p>

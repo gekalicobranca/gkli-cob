@@ -196,7 +196,7 @@ async function carregarAcordos(
       fluxo_status,
       valor_acordado,
       data_acordo,
-      carteiras:carteira_id (id,nome),
+      carteiras:carteira_id (id,nome,pre_juridico_habilitado),
       condominios:condominio_id (
         id,
         nome,
@@ -564,6 +564,11 @@ async function finalizarLote(
 export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
   const supabase = createAdminClient();
   const acordos = await carregarAcordos(supabase, params.acordoIds, params.scope);
+  const desabilitados = acordos.filter((acordo) => !Boolean(acordo.carteiras?.pre_juridico_habilitado));
+
+  if (desabilitados.length > 0) {
+    throw new Error("Uma ou mais carteiras selecionadas nao estao habilitadas para gerar pre-juridico.");
+  }
 
   await ensureTemplates(supabase);
 

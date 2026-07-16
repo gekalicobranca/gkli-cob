@@ -291,7 +291,7 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
         status,
         status_operacional,
         status_financeiro,
-        condominios(id, nome, inicio_cobranca_dias, intensidade_regua, regua_cobranca_id),
+        condominios(id, nome, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, intensidade_regua, regua_cobranca_id),
         unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
       `,
       )
@@ -330,6 +330,11 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
     const unidade = row.unidades;
     const inicio = Number(condominio?.inicio_cobranca_dias ?? 30);
     const diasAtraso = diasDesdeVencimento(row.vencimento);
+    const diasExpiracaoPreJuridico = Number(condominio?.dias_expiracao_regua_pre_juridico ?? 0);
+    const limitePreJuridicoDias =
+      Number.isFinite(diasExpiracaoPreJuridico) && diasExpiracaoPreJuridico > 0
+        ? inicio + Math.trunc(diasExpiracaoPreJuridico)
+        : null;
     const elegivel = isCobrancaElegivelParaRegua({
       vencimento: row.vencimento,
       inicioCobrancaDias: inicio,
@@ -372,6 +377,12 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
       ...row,
       inicio_cobranca_dias: inicio,
       dias_atraso: diasAtraso,
+      dias_expiracao_regua_pre_juridico:
+        limitePreJuridicoDias === null ? null : Math.trunc(diasExpiracaoPreJuridico),
+      limite_pre_juridico_dias: limitePreJuridicoDias,
+      pre_juridico_expirado: limitePreJuridicoDias !== null && diasAtraso >= limitePreJuridicoDias,
+      expira_pre_juridico_em_dias:
+        limitePreJuridicoDias === null ? null : Math.max(0, limitePreJuridicoDias - diasAtraso),
       elegivel,
       etapa,
       regua_preview: {
