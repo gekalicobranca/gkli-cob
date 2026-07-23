@@ -4017,7 +4017,14 @@ function parseSafiraCobrancasPdf(text: string): ReciboCondopro[] {
 function extractLelloCondominio(text: string) {
   const normalized = normalizePdfText(text);
   const match = normalized.match(/Refer[eê]ncia\s*\d+\s*-\s*([^\n]+)/i);
-  return normalize(match?.[1] ?? "") || null;
+  if (match) return normalize(match[1]) || null;
+
+  // No relatório "Cotas Atrasadas", o PDFium entrega nome e referência
+  // visualmente invertidos e sem separador: "VN CASA TOPAZIO8759".
+  const cotasAtrasadasMatch = normalized.match(
+    /(?:^|\n)\s*(.+?\D)\d{3,}\s*\n\s*\d{2}\/\d{2}\/\d{4}\s*(?:\n|$)/,
+  );
+  return normalize(cotasAtrasadasMatch?.[1] ?? "") || null;
 }
 
 function detectLelloCobrancas(text: string): DeteccaoPdfCobrancas {
@@ -4026,17 +4033,27 @@ function detectLelloCobrancas(text: string): DeteccaoPdfCobrancas {
 
   const sinais = [
     /EMPRESA\s+LELLO\s+CONDOMINIOS\s+LTDA/,
+    /LELLO\s+CONDOMINIOS/,
+    /COTAS\s+ATRASADAS/,
     /REFERENCIA\s*\d+\s*-\s+VN\s+CASA\s+TOPAZIO|REFERENCIA\s*\d+\s*-/,
+    /VN\s+CASA\s+\S.*\d{3,}/,
     /UNIDADE\s*\d{3,}\s*-/,
+    /\d{6,}[A-Z][^\n]+\s*\n\s*UNIDADE/,
     /MULTICONTAS\s+NAO|MULTICONTAS\s+NÃO/,
     /CODIGO\s*VENCIMENTO\s*VALOR\s*ORIGINAL\s*VALOR\s*MULTA\s*CORRECAO\/JUROS\s*TOTAL/,
+    /CODIGOVALOR\s+ORIGINALVALOR\s+MULTACORRECAO\/JUROSTOTALVENCIMENTO/,
     /TOTAL\s+DE\s+DEBITOS/,
   ].reduce((total, regex) => total + (regex.test(loose) ? 1 : 0), 0);
 
-  const linhasDebito = countRegexMatches(
+  const linhasDebitoComEspacos = countRegexMatches(
     normalized,
     /(?:^|\n)\s*\d{7,}\s*\d{2}\/\d{2}\/\d{4}\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g,
   );
+  const linhasDebitoConcatenadas = countRegexMatches(
+    normalized,
+    /(?:^|\n)\s*\d{8}(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s*(?:\n|$)/g,
+  );
+  const linhasDebito = linhasDebitoComEspacos + linhasDebitoConcatenadas;
 
   return {
     ok: sinais >= 4 && linhasDebito > 0,
@@ -4046,7 +4063,103 @@ function detectLelloCobrancas(text: string): DeteccaoPdfCobrancas {
   };
 }
 
+function parseLelloCotasAtrasadasPdf(text: string): ReciboCondopro[] {
+  const lines = normalizePdfText(text)
+    .split("\n")
+    .map((line) => normalize(line))
+    .filter(Boolean);
+  const recibos: ReciboCondopro[] = [];
+  const money = String.raw`((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})`;
+  const linhaDebitoRegex = new RegExp(
+    String.raw`^(\d{8})${money}${money}${money}${money}$`,
+  );
+
+  let pendente:
+    | {
+        recibo: string;
+        valorPrincipal: number;
+        multa: number;
+        correcao: number;
+        valorTotal: number;
+        vencimento: string;
+      }
+    | null = null;
+  let atual: ReciboCondopro | null = null;
+  let composicao: string[] = [];
+
+  function flush() {
+    if (atual) {
+      recibos.push({
+        ...atual,
+        detalhesOrigem: composicao.join("; ") || undefined,
+      });
+    }
+    atual = null;
+    composicao = [];
+  }
+
+  for (const line of lines) {
+    const debitoMatch = line.match(linhaDebitoRegex);
+    if (debitoMatch) {
+      flush();
+      pendente = {
+        recibo: debitoMatch[1],
+        valorPrincipal: parseMoney(debitoMatch[2]),
+        multa: parseMoney(debitoMatch[3]),
+        correcao: parseMoney(debitoMatch[4]),
+        valorTotal: parseMoney(debitoMatch[5]),
+        vencimento: "",
+      };
+      continue;
+    }
+
+    if (pendente && /^\d{2}\/\d{2}\/\d{4}$/.test(line)) {
+      pendente.vencimento = line;
+      continue;
+    }
+
+    const unidadeMatch = pendente
+      ? line.match(/^(\d{6,})([A-ZÀ-Ý].+)$/i)
+      : null;
+    if (pendente && unidadeMatch && pendente.vencimento) {
+      atual = {
+        bloco: "0",
+        unidade: normalize(unidadeMatch[1]),
+        responsavel:
+          normalize(unidadeMatch[2]) || "Responsável não identificado",
+        recibo: pendente.recibo,
+        vencimento: pendente.vencimento,
+        valorPrincipal: pendente.valorPrincipal,
+        multa: pendente.multa,
+        correcao: pendente.correcao,
+        juros: 0,
+        valorTotal: pendente.valorTotal,
+        situacaoOrigem: "normal",
+      };
+      pendente = null;
+      continue;
+    }
+
+    if (atual) {
+      const composicaoMatch = line.match(/^(\d{3,})(.+)$/);
+      if (composicaoMatch) {
+        // O PDF não preserva separador entre histórico e valor. Guardamos a
+        // composição fiel ao texto de origem sem inventar onde o valor começa.
+        composicao.push(`${composicaoMatch[1]} ${normalize(composicaoMatch[2])}`);
+      }
+    }
+  }
+
+  flush();
+  return recibos;
+}
+
 function parseLelloCobrancasPdf(text: string): ReciboCondopro[] {
+  if (/Cotas\s+Atrasadas/i.test(text)) {
+    const recibosCotasAtrasadas = parseLelloCotasAtrasadasPdf(text);
+    if (recibosCotasAtrasadas.length) return recibosCotasAtrasadas;
+  }
+
   const recibos: ReciboCondopro[] = [];
   const lines = normalizePdfText(text)
     .split("\n")
