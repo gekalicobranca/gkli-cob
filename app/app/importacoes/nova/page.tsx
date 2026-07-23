@@ -62,8 +62,12 @@ const importTypes = [
   },
 ];
 
+const activeImportTypes = importTypes.filter(
+  (item) => item.value !== "acordos_extra" && item.value !== "acordos_judiciais",
+);
+
 function getSelectedType(tipo?: string) {
-  return importTypes.find((item) => item.value === tipo) ?? importTypes[0];
+  return activeImportTypes.find((item) => item.value === tipo) ?? activeImportTypes[0];
 }
 
 export default async function NovaImportacaoPage({

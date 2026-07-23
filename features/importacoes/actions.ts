@@ -1270,6 +1270,9 @@ async function createImportacaoPreviewInternal(formData: FormData) {
   const tipo = String(formData.get("tipo") ?? "");
   const file = formData.get("arquivo");
 
+  if (isLegacyImportType(tipo))
+    throw new Error("Importações legadas foram desativadas.");
+
   if (!isValidImportType(tipo)) throw new Error("Tipo de importação inválido.");
   if (!(file instanceof File)) throw new Error("Arquivo obrigatório.");
 
@@ -1435,8 +1438,8 @@ async function createImportacaoPreviewInternal(formData: FormData) {
   return importacao.id as string;
 }
 
-export async function createImportacaoLegadoPreview(formData: FormData) {
-  return createImportacaoPreview(formData);
+export async function createImportacaoLegadoPreview(_formData: FormData) {
+  throw new Error("Importações legadas foram desativadas.");
 }
 
 export async function limparHistoricoImportacoes() {
@@ -2102,6 +2105,9 @@ export async function confirmarImportacao(formData: FormData) {
     throw new Error("Importação já concluída.");
   if (!isValidImportType(importacao.tipo))
     throw new Error("Tipo de importação inválido.");
+
+  if (isLegacyImportType(importacao.tipo))
+    throw new Error("Importações legadas foram desativadas.");
 
   const { data: itens, error: itensError } = await supabase
     .from("importacao_itens")

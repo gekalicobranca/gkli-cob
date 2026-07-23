@@ -81,6 +81,10 @@ const importCards = [
   },
 ];
 
+const activeImportCards = importCards.filter(
+  (card) => card.tipo !== "acordos_extra" && card.tipo !== "acordos_judiciais",
+);
+
 function labelTipo(tipo: string) {
   return importCards.find((card) => card.tipo === tipo)?.title ?? tipo;
 }
@@ -151,7 +155,7 @@ export default async function ImportacoesPage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-        {importCards.map((card) => {
+        {activeImportCards.map((card) => {
           const Icon = card.icon;
           return (
             <Card
