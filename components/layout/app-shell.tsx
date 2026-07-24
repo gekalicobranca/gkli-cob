@@ -108,6 +108,7 @@ const sections: SidebarSection[] = [
       { label: 'Visão do síndico', href: '/app/gestao/visao-sindico', icon: 'home' },
       { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
       { label: 'Gestão acordos', href: '/app/acordos/gestao', icon: 'chart' },
+      { label: 'Fechamento mensal', href: '/app/gestao/fechamento', icon: 'calendar', gestorOnly: true },
     ],
   },
 ]
@@ -143,7 +144,6 @@ const settingsGroups: SidebarSection[] = [
     items: [
       { label: 'Saúde sistema', href: '/app/gestao/saude-sistema', icon: 'alert' },
       { label: 'Saneamento cobranças', href: '/app/gestao/saneamento-cobrancas', icon: 'shield' },
-      { label: 'Fechamento mensal', href: '/app/gestao/fechamento', icon: 'calendar', gestorOnly: true },
     ],
   },
   {
