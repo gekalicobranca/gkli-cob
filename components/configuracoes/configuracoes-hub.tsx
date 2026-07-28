@@ -4,6 +4,7 @@ import {
   BellRing,
   Bot,
   Database,
+  DatabaseBackup,
   FlaskConical,
   FileSpreadsheet,
   KeyRound,
@@ -99,6 +100,13 @@ const groups: Array<{
     title: 'Segurança e acesso',
     description: 'Usuários, permissões e controle administrativo.',
     cards: [
+      {
+        title: 'Backup de segurança',
+        description: 'Exporte dados e esquema para reconstrução de emergência.',
+        href: '/app/configuracoes/backup',
+        icon: DatabaseBackup,
+        tag: 'Admin',
+      },
       {
         title: 'Usuários x Carteiras',
         description: 'Controle acesso operacional por carteira.',
