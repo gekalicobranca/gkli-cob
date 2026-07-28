@@ -15,13 +15,18 @@
     "supabase:pull": "supabase db pull",
     "supabase:push": "supabase db push",
     "supabase:diff": "supabase db diff",
-    "supabase:query": "supabase db query --linked"
+    "supabase:query": "supabase db query --linked",
+    "backup:create": "bash scripts/backup/create-backup.sh",
+    "backup:restore": "bash scripts/backup/restore-backup.sh",
+    "backup:generate-schema": "node scripts/backup/generate-schema-snapshot.mjs",
+    "prebuild": "npm run backup:generate-schema"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.1",
     "clsx": "latest",
     "date-fns": "latest",
+    "fflate": "^0.8.3",
     "lucide-react": "latest",
     "next": "16.2.4",
     "openai": "^6.37.0",
