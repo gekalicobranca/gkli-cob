@@ -9,10 +9,8 @@ required=(
   SUPABASE_STORAGE_ACCESS_KEY_ID
   SUPABASE_STORAGE_SECRET_ACCESS_KEY
   BACKUP_ENCRYPTION_PASSPHRASE
-  BACKUP_S3_BUCKET
-  BACKUP_S3_REGION
-  BACKUP_AWS_ACCESS_KEY_ID
-  BACKUP_AWS_SECRET_ACCESS_KEY
+  BACKUP_RCLONE_CONFIG_BASE64
+  BACKUP_RCLONE_REMOTE
 )
 
 for name in "${required[@]}"; do
@@ -23,17 +21,23 @@ for name in "${required[@]}"; do
 done
 
 command -v aws >/dev/null || { echo "aws CLI não encontrado" >&2; exit 2; }
+command -v rclone >/dev/null || { echo "rclone não encontrado" >&2; exit 2; }
 command -v openssl >/dev/null || { echo "OpenSSL não encontrado" >&2; exit 2; }
 command -v git >/dev/null || { echo "Git não encontrado" >&2; exit 2; }
 
 timestamp="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
 project_ref="${SUPABASE_PROJECT_REF:-unknown-project}"
-prefix="${BACKUP_S3_PREFIX:-gkli-cob}"
+remote="${BACKUP_RCLONE_REMOTE%:}"
+drive_path="${BACKUP_RCLONE_PATH:-gkli-cob/production}"
+drive_path="${drive_path#/}"
+drive_path="${drive_path%/}"
 work_root="$(mktemp -d)"
 backup_dir="${work_root}/${project_ref}_${timestamp}"
 archive="${work_root}/${project_ref}_${timestamp}.tar.gz"
 encrypted="${archive}.backup.enc"
 checksum="${encrypted}.sha256"
+rclone_config="${work_root}/rclone.conf"
+upload_dir="${work_root}/upload"
 
 cleanup() {
   rm -rf -- "${work_root}"
@@ -41,6 +45,8 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "${backup_dir}/database" "${backup_dir}/storage" "${backup_dir}/app"
+printf '%s' "${BACKUP_RCLONE_CONFIG_BASE64}" | base64 --decode > "${rclone_config}"
+chmod 600 "${rclone_config}"
 
 echo "Gerando cópia lógica do banco..."
 npx --no-install supabase db dump --db-url "${SUPABASE_DB_URL}" \
@@ -96,17 +102,13 @@ openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 \
   -pass env:BACKUP_ENCRYPTION_PASSPHRASE
 (cd "${work_root}" && sha256sum "$(basename "${encrypted}")" > "$(basename "${checksum}")")
 
-echo "Enviando backup criptografado ao cofre externo..."
-export AWS_ACCESS_KEY_ID="${BACKUP_AWS_ACCESS_KEY_ID}"
-export AWS_SECRET_ACCESS_KEY="${BACKUP_AWS_SECRET_ACCESS_KEY}"
-destination="s3://${BACKUP_S3_BUCKET}/${prefix}/${timestamp}"
-endpoint_args=()
-if [[ -n "${BACKUP_S3_ENDPOINT:-}" ]]; then
-  endpoint_args=(--endpoint-url "${BACKUP_S3_ENDPOINT}")
-fi
-aws s3 cp "${encrypted}" "${destination}/$(basename "${encrypted}")" \
-  --region "${BACKUP_S3_REGION}" "${endpoint_args[@]}" --only-show-errors
-aws s3 cp "${checksum}" "${destination}/$(basename "${checksum}")" \
-  --region "${BACKUP_S3_REGION}" "${endpoint_args[@]}" --only-show-errors
+echo "Enviando backup criptografado ao Google Drive..."
+mkdir -p "${upload_dir}"
+cp "${encrypted}" "${checksum}" "${upload_dir}/"
+destination="${remote}:${drive_path}/${timestamp}"
+rclone copy "${upload_dir}" "${destination}" \
+  --config "${rclone_config}" --checksum --transfers 2 --checkers 4
+rclone check "${upload_dir}" "${destination}" \
+  --config "${rclone_config}" --checksum --one-way
 
 echo "Backup concluído: ${destination}/$(basename "${encrypted}")"
