@@ -75,6 +75,7 @@ const sections: SidebarSection[] = [
     items: [
       { label: 'Cobranças', href: '/app/cobrancas', icon: 'money' },
       { label: 'Acordos', href: '/app/acordos', icon: 'handshake' },
+      { label: 'Fila de baixas', href: '/app/acordos/fila', icon: 'clipboard' },
       { label: 'Pendências', href: '/app/pendencias', icon: 'alert' },
     ],
   },
