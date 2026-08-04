@@ -3246,3 +3246,61 @@ export async function atualizarAtrasosERompimentosAcordos() {
 
   return result;
 }
+
+export async function revisarParcelaAcordo(formData: FormData) {
+  const user = await requireRole(["admin", "gestor"]);
+  const acordoId = String(formData.get("acordo_id") ?? "").trim();
+  const parcelaId = String(formData.get("parcela_id") ?? "").trim();
+  const valorNovo = roundMoney(toNumber(formData.get("valor_novo")));
+  const vencimentoNovo = String(formData.get("vencimento_novo") ?? "").trim();
+  const motivo = String(formData.get("motivo") ?? "").trim();
+
+  if (!acordoId || !parcelaId) throw new Error("Acordo e parcela são obrigatórios.");
+  if (valorNovo <= 0) throw new Error("Informe um valor maior que zero.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(vencimentoNovo)) throw new Error("Informe um vencimento válido.");
+  if (motivo.length < 10) throw new Error("Informe uma justificativa com pelo menos 10 caracteres.");
+
+  const supabase = await createClient();
+  const { data: acordo, error: acordoError } = await supabase
+    .from("acordos").select("id, carteira_id").eq("id", acordoId).maybeSingle();
+  if (acordoError) throw new Error(`Erro ao carregar acordo: ${acordoError.message}`);
+  if (!acordo) throw new Error("Acordo não encontrado.");
+
+  const { data: parcela, error: parcelaError } = await supabase
+    .from("parcelas_acordo").select("id, numero, valor, vencimento, status")
+    .eq("id", parcelaId).eq("acordo_id", acordoId).maybeSingle();
+  if (parcelaError) throw new Error(`Erro ao carregar parcela: ${parcelaError.message}`);
+  if (!parcela) throw new Error("Parcela não encontrada.");
+
+  const { data: revisaoId, error } = await (supabase.rpc as any)("revisar_parcela_acordo", {
+    p_acordo_id: acordoId,
+    p_parcela_id: parcelaId,
+    p_valor_novo: valorNovo,
+    p_vencimento_novo: vencimentoNovo,
+    p_motivo: motivo,
+  });
+  if (error) throw new Error(`Não foi possível revisar a parcela: ${error.message}`);
+
+  await registrarEventoOperacional(supabase as any, {
+    carteiraId: (acordo as any).carteira_id,
+    entidadeTipo: "acordo",
+    entidadeId: acordoId,
+    eventoCodigo: "acordo.parcela_revisada",
+    titulo: "Parcela do acordo revisada",
+    descricao: `Valor ou vencimento da parcela ${(parcela as any).numero ?? ""} foi atualizado com justificativa.`,
+    severidade: "info",
+    payload: {
+      revisao_id: revisaoId, parcela_id: parcelaId,
+      valor_anterior: Number((parcela as any).valor ?? 0), valor_novo: valorNovo,
+      vencimento_anterior: (parcela as any).vencimento, vencimento_novo: vencimentoNovo, motivo,
+    },
+    origem: "manual",
+    auditavel: true,
+    userId: user.id,
+  });
+
+  revalidatePath("/app/acordos");
+  revalidatePath("/app/acordos/fila");
+  revalidatePath(`/app/acordos/${acordoId}`);
+  revalidatePath("/app/dashboard");
+}
