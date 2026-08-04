@@ -23,7 +23,6 @@ import { calculateAgreementHealth, getAcordoDetalhe } from "@/features/acordos/q
 import { AgreementHealthBadge } from "@/features/acordos/components/agreement-health-badge";
 import { AgreementFormalizationCard } from "@/features/acordos/components/agreement-formalization-card";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
-import { requireUser } from "@/utils/auth/require-user";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 type Props = {
@@ -257,7 +256,6 @@ function SectionTitle({
 
 export default async function AcordoDetalhePage({ params }: Props) {
   const { id } = await params;
-  const user = await requireUser();
   const scope = await getPermittedCarteiras();
   const data = await getAcordoDetalhe(id, scope);
 
@@ -293,7 +291,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
     ["pendente", "visualizado"].includes(String(termo.status ?? "")),
   ) || ["aguardando_aprovacao_sindico", "aprovado_sindico_aguardando_aceite_devedor", "aguardando_aceite_devedor"].includes(String(acordo.fluxo_status ?? ""));
   const podeCancelarFormalizacao = possuiFormalizacaoPendente && !possuiPagamentoRegistrado && !statusFechado;
-  const podeRevisar = ["admin", "gestor"].includes(user.perfil);
+  const podeRevisar = ["admin", "gestor"].includes(scope.perfil);
 
   return (
     <div className="space-y-6">

@@ -1,7 +1,3 @@
-alter table public.acordos_revisoes drop constraint if exists acordos_revisoes_tipo_check;
-alter table public.acordos_revisoes add constraint acordos_revisoes_tipo_check
-  check (tipo in ('reemissao_parcela', 'ajuste_manual_parcela'));
-
 create or replace function public.revisar_parcela_acordo(
   p_acordo_id uuid, p_parcela_id uuid, p_valor_novo numeric,
   p_vencimento_novo date, p_motivo text
@@ -27,24 +23,21 @@ begin
     raise exception 'Não é possível revisar um acordo encerrado.';
   end if;
 
-  select * into v_parcela from public.parcelas_acordo
-  where id = p_parcela_id and acordo_id = p_acordo_id for update;
+  select * into v_parcela from public.parcelas_acordo where id = p_parcela_id and acordo_id = p_acordo_id for update;
   if not found then raise exception 'Parcela não encontrada.'; end if;
   if v_parcela.data_pagamento is not null or lower(coalesce(v_parcela.status, '')) in
     ('paga', 'pago', 'quitada', 'quitado', 'cancelada', 'cancelado') then
     raise exception 'Parcelas pagas ou encerradas não podem ser revisadas.';
   end if;
-  if round(v_parcela.valor::numeric, 2) = round(p_valor_novo, 2)
-     and v_parcela.vencimento = p_vencimento_novo then
+  if round(v_parcela.valor::numeric, 2) = round(p_valor_novo, 2) and v_parcela.vencimento = p_vencimento_novo then
     raise exception 'Altere o valor ou o vencimento para registrar a revisão.';
   end if;
 
-  update public.parcelas_acordo set valor = round(p_valor_novo, 2),
-    vencimento = p_vencimento_novo, updated_at = now() where id = v_parcela.id;
+  update public.parcelas_acordo set valor = round(p_valor_novo, 2), vencimento = p_vencimento_novo,
+    updated_at = now() where id = v_parcela.id;
   update public.acordos set valor_acordado = greatest(0,
     round((coalesce(valor_acordado, 0) + round(p_valor_novo, 2) - coalesce(v_parcela.valor, 0))::numeric, 2)),
     updated_at = now() where id = v_acordo.id;
-
   insert into public.acordos_revisoes (
     carteira_id, acordo_id, parcela_id, tipo, status, valor_anterior, valor_novo,
     vencimento_anterior, vencimento_novo, motivo, criado_por, concluido_em
@@ -57,6 +50,5 @@ begin
 end;
 $$;
 
-revoke execute on function public.revisar_parcela_acordo(uuid, uuid, numeric, date, text) from public;
-revoke execute on function public.revisar_parcela_acordo(uuid, uuid, numeric, date, text) from anon;
+revoke execute on function public.revisar_parcela_acordo(uuid, uuid, numeric, date, text) from public, anon;
 grant execute on function public.revisar_parcela_acordo(uuid, uuid, numeric, date, text) to authenticated;

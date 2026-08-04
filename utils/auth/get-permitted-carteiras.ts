@@ -4,6 +4,7 @@ import { requireUser } from './require-user'
 export type CarteiraScope = {
   userId: string
   isAdmin: boolean
+  perfil: string
   carteiraIds: string[] | null
 }
 
@@ -16,6 +17,7 @@ export async function getPermittedCarteiras(): Promise<CarteiraScope> {
     return {
       userId: user.id,
       isAdmin: true,
+      perfil: user.perfil,
       carteiraIds: null,
     }
   }
@@ -34,6 +36,7 @@ export async function getPermittedCarteiras(): Promise<CarteiraScope> {
   return {
     userId: user.id,
     isAdmin: false,
+    perfil: user.perfil,
     carteiraIds: (data ?? []).map((item: { carteira_id: string }) => item.carteira_id),
   }
 }
