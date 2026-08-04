@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   Bot,
@@ -214,11 +214,6 @@ function isItemActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-function findCurrentItem(pathname: string) {
-  const allItems = [featuredItem, ...sections.flatMap((section) => section.items), ...settingsGroups.flatMap((section) => section.items)]
-  return allItems.find((item) => isItemActive(pathname, item.href))
-}
-
 function isGestorUser(user?: AppShellUser) {
   const perfil = String(user?.perfil ?? '').toLowerCase()
   return ['admin', 'gestor', 'manager', 'owner'].includes(perfil)
@@ -241,8 +236,6 @@ export function AppShell({
   const [collapsedGroups, setCollapsedGroups] = useState<string[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-
-  const currentItem = useMemo(() => findCurrentItem(pathname), [pathname])
 
   useEffect(() => {
     const savedSidebar = window.localStorage.getItem(SIDEBAR_STORAGE_KEY)
@@ -498,16 +491,13 @@ export function AppShell({
       <main className="gkli-app-main min-w-0 flex-1">
         <div className="gkli-app-frame mx-auto max-w-[1480px] p-3 xl:p-4">
           <header className="gkli-app-header z-30 mb-3 rounded-[1rem] border border-slate-200/75 bg-white/88 px-3 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/72">
-            <div className="grid items-center gap-3 lg:grid-cols-[minmax(190px,260px)_minmax(320px,1fr)_auto]">
+            <div className="grid items-center gap-3 lg:grid-cols-[minmax(110px,150px)_minmax(320px,1fr)_auto]">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-[#d7eef5] bg-[#edf8fb] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#04799a]">
                     GKLI Cob
                   </span>
                 </div>
-                <h1 className="mt-0.5 truncate text-base font-semibold text-slate-950">
-                  {currentItem?.label || 'Área operacional'}
-                </h1>
               </div>
 
               <GlobalOperationalSearch />
