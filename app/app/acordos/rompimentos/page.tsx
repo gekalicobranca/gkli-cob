@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { AlertTriangle, ArrowUpRight, Filter, Search, X } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { ListKpiGrid } from '@/components/layout/list-page'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -99,16 +100,16 @@ export default async function RompimentosAcordosPage({ searchParams }: { searchP
         actions={<ButtonLink href="/app/acordos" variant="secondary">Voltar</ButtonLink>}
       />
 
-      <section className="grid gap-2 md:grid-cols-2">
+      <ListKpiGrid className="xl:grid-cols-2">
         <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Rompimentos</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{rows.length}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Rompimentos</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{rows.length}</p>
         </Card>
         <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor em risco</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{formatCurrency(valor)}</p>
+          <p className="text-xs font-medium uppercase text-slate-400">Valor em risco</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{formatCurrency(valor)}</p>
         </Card>
-      </section>
+      </ListKpiGrid>
 
       <Card className="overflow-hidden p-0">
         <div className="border-b border-slate-100 bg-white/80 px-4 py-3">

@@ -8,6 +8,7 @@ import {
   ClearFiltersLink,
   ListFilterField,
   ListFiltersForm,
+  ListKpiGrid,
   ListSearchField,
   ListTitle,
   ListTitleBar,
@@ -143,28 +144,28 @@ export default async function MensageriaLogPage({ searchParams }: MensageriaLogP
         }
       />
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Eventos</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-950">{logs.length}</p>
+      <ListKpiGrid>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase text-slate-400">Eventos</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{logs.length}</p>
           <p className="mt-1 text-sm text-slate-500">no recorte atual</p>
         </Card>
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Envios</p>
-          <p className="mt-2 text-2xl font-semibold text-emerald-700">{totalEnvios}</p>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase text-slate-400">Envios</p>
+          <p className="mt-1.5 text-2xl font-semibold text-emerald-700">{totalEnvios}</p>
           <p className="mt-1 text-sm text-slate-500">e-mail ou WhatsApp</p>
         </Card>
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Aprovações</p>
-          <p className="mt-2 text-2xl font-semibold text-sky-700">{totalAprovacoes}</p>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase text-slate-400">Aprovações</p>
+          <p className="mt-1.5 text-2xl font-semibold text-sky-700">{totalAprovacoes}</p>
           <p className="mt-1 text-sm text-slate-500">mensagens, itens e lotes</p>
         </Card>
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Falhas</p>
-          <p className="mt-2 text-2xl font-semibold text-rose-700">{totalFalhas}</p>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase text-slate-400">Falhas</p>
+          <p className="mt-1.5 text-2xl font-semibold text-rose-700">{totalFalhas}</p>
           <p className="mt-1 text-sm text-slate-500">{totalRetornos} retorno(s) manual(is)</p>
         </Card>
-      </div>
+      </ListKpiGrid>
 
       <Card className="p-5">
         <ListTitleBar>

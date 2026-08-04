@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { CheckCircle2, XCircle, Search, ShieldCheck } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { ListKpiGrid } from '@/components/layout/list-page'
 import { ButtonLink } from '@/components/ui/button'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { Input } from '@/components/ui/input'
@@ -33,20 +34,20 @@ export default async function AprovacoesAcordosPage() {
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-3">
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Pendentes</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{rows.length}</p>
+      <ListKpiGrid className="xl:grid-cols-3">
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase text-slate-400">Pendentes</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{rows.length}</p>
         </Card>
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor em aprovação</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{formatCurrency(rows.reduce((sum: number, row: any) => sum + Number(row.valor_acordado ?? 0), 0))}</p>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase text-slate-400">Valor em aprovação</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{formatCurrency(rows.reduce((sum: number, row: any) => sum + Number(row.valor_acordado ?? 0), 0))}</p>
         </Card>
-        <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Críticos</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{rows.filter((row: any) => row.saude_acordo === 'critico').length}</p>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase text-slate-400">Críticos</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{rows.filter((row: any) => row.saude_acordo === 'critico').length}</p>
         </Card>
-      </section>
+      </ListKpiGrid>
 
       <Card className="overflow-hidden p-0">
         <div className="border-b border-slate-100 bg-white/80 px-5 py-4">

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/data/empty-state'
+import { ListKpiGrid } from '@/components/layout/list-page'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatDateBR } from '@/utils/formatters/date'
 import { listTimelineOperacional, normalizeTimelineFilters } from '@/features/timeline/queries'
@@ -163,7 +164,7 @@ export default async function TimelinePage({ searchParams }: PageProps) {
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <ListKpiGrid>
         {cards.map((card) => {
           const Icon = card.icon
           return (
@@ -171,13 +172,13 @@ export default async function TimelinePage({ searchParams }: PageProps) {
               <div className="absolute right-4 top-4 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
                 <Icon size={18} />
               </div>
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">{card.label}</p>
-              <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{card.value}</p>
+              <p className="text-xs font-medium uppercase text-slate-400">{card.label}</p>
+              <p className="mt-1.5 text-2xl font-semibold text-slate-950">{card.value}</p>
               <p className="mt-1 text-sm text-slate-500">{card.description}</p>
             </Card>
           )
         })}
-      </section>
+      </ListKpiGrid>
 
       <Card className="p-5">
         <form className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5 xl:items-end [&>label]:min-w-0 [&_button]:whitespace-nowrap [&_input]:min-w-0 [&_input]:text-[13px] [&_select]:min-w-0 [&_select]:text-[13px]">

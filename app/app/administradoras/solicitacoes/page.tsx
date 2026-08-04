@@ -2,6 +2,7 @@ import { CheckCircle2, Clock, Filter, Send } from 'lucide-react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { ListKpiGrid } from '@/components/layout/list-page'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -29,11 +30,11 @@ export default async function SolicitacoesAdmPage() {
   return (
     <div className="space-y-5">
       <PageHeader eyebrow="Administradoras" title="Solicitações ADM" description="Fila de pedidos de planilha de débitos, boletos de acordo, registros de acordo e retornos externos." />
-      <section className="grid gap-3 md:grid-cols-3">
-        <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Solicitações</p><p className="mt-3 text-3xl font-semibold text-slate-950">{rows.length}</p><p className="mt-1 text-sm text-slate-500">registradas</p></Card>
-        <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Abertas</p><p className="mt-3 text-3xl font-semibold text-slate-950">{abertas}</p><p className="mt-1 text-sm text-slate-500">aguardando retorno</p></Card>
-        <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Atrasadas</p><p className="mt-3 text-3xl font-semibold text-rose-700">{atrasadas}</p><p className="mt-1 text-sm text-slate-500">fora do prazo</p></Card>
-      </section>
+      <ListKpiGrid className="xl:grid-cols-3">
+        <Card className="p-3"><p className="text-xs font-medium uppercase text-slate-400">Solicitações</p><div className="mt-1.5 flex items-end justify-between gap-3"><p className="text-2xl font-semibold text-slate-950">{rows.length}</p><p className="text-sm text-slate-500">registradas</p></div></Card>
+        <Card className="p-3"><p className="text-xs font-medium uppercase text-slate-400">Abertas</p><div className="mt-1.5 flex items-end justify-between gap-3"><p className="text-2xl font-semibold text-slate-950">{abertas}</p><p className="text-sm text-slate-500">aguardando retorno</p></div></Card>
+        <Card className="p-3"><p className="text-xs font-medium uppercase text-slate-400">Atrasadas</p><div className="mt-1.5 flex items-end justify-between gap-3"><p className="text-2xl font-semibold text-rose-700">{atrasadas}</p><p className="text-sm text-slate-500">fora do prazo</p></div></Card>
+      </ListKpiGrid>
 
       <Card className="space-y-4">
         <div><h2 className="text-base font-medium text-slate-950">Nova solicitação rápida</h2><p className="mt-1 text-sm text-slate-500">Use para testar o fluxo sem entrar no detalhe da administradora.</p></div>

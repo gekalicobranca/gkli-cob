@@ -26,7 +26,7 @@ export default async function AutomacaoReguasPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Mensageria · Réguas · R2"
+        eyebrow="Mensageria · Réguas"
         title="Automação, compliance e inteligência"
         description="Scheduler, pausas inteligentes, compliance operacional e score inicial das réguas."
         actions={<ButtonLink href="/app/mensageria/reguas" variant="header">Voltar às réguas</ButtonLink>}
