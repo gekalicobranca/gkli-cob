@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, FileSpreadsheet, Plus, WalletCards } from "lucide-react";
+import { ArrowUpRight, CalendarDays, ChevronDown, FileSpreadsheet, Plus, WalletCards } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import {
@@ -208,6 +208,30 @@ function getPriority(status: string, vencimento?: string | null) {
   };
 }
 
+function groupCobrancas(rows: any[]) {
+  const groups: Array<{ condominioId: string; condominio: string; cobrancas: any[]; valor: number }> = [];
+
+  for (const row of rows) {
+    const condominioId = row.condominios?.id ?? row.condominio_id ?? "sem-condominio";
+    let group = groups.find((item) => item.condominioId === condominioId);
+
+    if (!group) {
+      group = {
+        condominioId,
+        condominio: row.condominios?.nome ?? "Condomínio não informado",
+        cobrancas: [],
+        valor: 0,
+      };
+      groups.push(group);
+    }
+
+    group.cobrancas.push(row);
+    group.valor += Number(row.valor_atualizado ?? row.valor_original ?? 0);
+  }
+
+  return groups;
+}
+
 export default async function CobrancasPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : {};
   const page = getPageParam(params.page);
@@ -274,6 +298,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
       : Promise.resolve([]),
   ]);
   const rows = pageData.rows;
+  const groups = groupCobrancas(rows);
   const ativas = resumo.ativas;
   const previousHref = page > 1 ? cobrancasHref(queryParams, { page: String(page - 1) }) : undefined;
   const nextHref = page * PAGE_SIZE < pageData.total ? cobrancasHref(queryParams, { page: String(page + 1) }) : undefined;
@@ -465,22 +490,36 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
           ) : (
             <form action={updateCobrancasStatusEmLote} className="flex min-h-0 flex-1 flex-col">
               <CobrancasBulkControls />
-              <LiteScrollArea className="divide-y divide-slate-100">
-                {rows.map((row: any) => {
-                  const status = getCobrancaStatusOperacional(row);
-                  const priority = getPriority(status, row.vencimento);
-                  const unidadeLabel = [
-                    row.unidades?.bloco,
-                    row.unidades?.identificacao,
-                  ]
-                    .filter(Boolean)
-                    .join("/");
+              <LiteScrollArea>
+                {groups.map((group) => (
+                  <details key={group.condominioId} open className="group/condominio bg-white">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-100 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100/80 first:border-t-0 [&::-webkit-details-marker]:hidden">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                        <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-950">{group.condominio}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{group.cobrancas.length} cobrança(s) nesta página</p>
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-700">{formatCurrency(group.valor)}</p>
+                    </summary>
 
-                  return (
-                    <div
-                      key={row.id}
-                      className="group grid gkli-compact-row gap-3 px-4 py-2.5 transition hover:bg-slate-50 xl:grid-cols-[40px_minmax(320px,1.4fr)_150px_150px_170px_120px] xl:items-center"
-                    >
+                    <div className="divide-y divide-slate-100">
+                      {group.cobrancas.map((row: any) => {
+                        const status = getCobrancaStatusOperacional(row);
+                        const priority = getPriority(status, row.vencimento);
+                        const unidadeLabel = [
+                          row.unidades?.bloco ? `Bloco ${row.unidades.bloco}` : null,
+                          row.unidades?.identificacao ? `Unidade ${row.unidades.identificacao}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ");
+
+                        return (
+                          <div
+                            key={row.id}
+                            className="group grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[40px_minmax(320px,1.4fr)_140px_150px_170px_90px] xl:items-center"
+                          >
                       <div className="flex items-center">
                         <input
                           type="checkbox"
@@ -493,26 +532,19 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
 
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${priority.className}`}
-                          >
-                            {priority.label}
-                          </span>
                           <StatusBadge status={status} />
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${priority.className}`}>
+                            Prioridade {priority.label.toLowerCase()}
+                          </span>
                           {row.unidade_bloqueada_por_judicializacao ? (
                             <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
                               Unidade em judicialização
                             </span>
                           ) : null}
                         </div>
-                        <p className="mt-2 truncate text-sm font-medium text-slate-950">
-                          {row.unidades?.responsavel_nome ??
-                            "Responsável não informado"}
-                        </p>
+                        <p className="mt-2 truncate text-sm font-medium text-slate-950">{unidadeLabel || "Unidade não informada"}</p>
                         <p className="mt-1 truncate text-xs text-slate-500">
-                          {row.condominios?.nome ?? "-"} · Unidade{" "}
-                          {unidadeLabel || "-"} · Competência{" "}
-                          {row.competencia ?? "-"}
+                          {row.unidades?.responsavel_nome ?? "Responsável não informado"} · Competência {row.competencia ?? "-"}
                         </p>
                         {row.unidade_bloqueada_por_judicializacao ? (
                           <p className="mt-1 text-xs font-medium text-red-700">
@@ -552,15 +584,18 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                       <div className="flex justify-end">
                         <Link
                           href={`/app/cobrancas/${row.id}`}
-                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm transition group-hover:border-[var(--gkli-primary)] group-hover:text-[var(--gkli-primary)]"
+                          aria-label={`Abrir cobrança da ${unidadeLabel || "unidade"}`}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition group-hover:text-[var(--gkli-primary)]"
                         >
-                          Abrir
                           <ArrowUpRight size={14} />
                         </Link>
                       </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </details>
+                ))}
               </LiteScrollArea>
               <ListPagination
                 page={page}
