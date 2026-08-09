@@ -16,6 +16,7 @@ export type FechamentoPeriodo = {
   data_fechamento_efetivo?: string | null
   status: FechamentoStatus
   observacoes?: string | null
+  percentual_redutor_imposto?: number | null
   total_pagamentos_confirmados?: number | null
   total_base_cobranca?: number | null
   total_despesas_cobranca?: number | null
@@ -33,6 +34,7 @@ export type FechamentoResumo = {
   valorBaseCobranca: number
   despesas: number
   comissoes: number
+  participacoes: number
   faturamento: number
   divergencias: number
 }

@@ -30,7 +30,6 @@ import {
   listFechamentoDespesas,
   listFechamentoFaturamentosOmie,
   listFechamentoOperadores,
-  listFechamentoPagamentos,
 } from '@/features/fechamento/queries'
 
 const statusLabel: Record<string, string> = {
@@ -110,9 +109,8 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
   const periodo = await getFechamentoPeriodo(id)
   if (!periodo) notFound()
 
-  const [resumo, acordos, despesas, operadores, carteiras, faturamentos, auditoria] = await Promise.all([
+  const [resumo, despesas, operadores, carteiras, faturamentos, auditoria] = await Promise.all([
     getFechamentoResumo(id),
-    listFechamentoPagamentos(id),
     listFechamentoDespesas(id),
     listFechamentoOperadores(id),
     listFechamentoCarteiras(id),
@@ -135,16 +133,17 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
         actions={
           <>
             <ButtonLink href="/app/gestao/fechamento" variant="secondary">Voltar</ButtonLink>
+            <ButtonLink href={`/app/gestao/fechamento/${id}/pagamentos`}>Ver pagamentos</ButtonLink>
             <span className={`inline-flex h-10 items-center rounded-xl px-3 text-sm font-semibold ${statusClass(periodo.status)}`}>{statusLabel[periodo.status] ?? periodo.status}</span>
           </>
         }
       />
 
       <section className="grid gap-3 md:grid-cols-5">
-        <Kpi title="Acordos realizados" value={String(resumo.acordos)} detail={`Entradas/pagamentos: ${formatCurrency(resumo.valorPago)}`} icon={ClipboardList} />
+        <Kpi title="Pagamentos recebidos" value={String(resumo.pagamentos)} detail={`${resumo.acordos} acordo(s) · ${formatCurrency(resumo.valorPago)}`} icon={ClipboardList} />
         <Kpi title="Base x recuperado" value={formatCurrency(resumo.valorRecuperado)} detail={`Base: ${formatCurrency(resumo.valorBaseCobranca)}`} icon={TrendingUp} />
         <Kpi title="Despesas" value={formatCurrency(resumo.despesas)} detail="Repasse por condomínio" icon={Calculator} />
-        <Kpi title="Comissão carteira" value={formatCurrency(resumo.comissoes)} detail="Apuração por carteira" icon={WalletCards} />
+        <Kpi title="Participação das carteiras" value={formatCurrency(resumo.participacoes)} detail="Sobre o repasse líquido" icon={WalletCards} />
         <Kpi title="Divergências" value={String(resumo.divergencias)} detail="Para conferência" icon={AlertTriangle} />
       </section>
 
@@ -152,7 +151,7 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <h2 className="text-base font-medium text-slate-950">Processar fechamento</h2>
-            <p className="mt-1 text-sm text-slate-500">Apura acordos cujo primeiro pagamento, entrada ou pagamento à vista caiu dentro do período.</p>
+            <p className="mt-1 text-sm text-slate-500">Apura todas as parcelas efetivamente pagas dentro do período, independentemente da data do acordo.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {periodo.status === 'rascunho' && <form action={abrirPeriodoFechamento}>{hiddenPeriodo(id)}<Button type="submit" size="sm">Abrir</Button></form>}
@@ -167,14 +166,14 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
       </Card>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <ReportCard title="Acordos no período" value={`${acordos.length} acordo(s)`} description="Lista de acordos pagos à vista, entrada ou primeira parcela." icon={ClipboardList} />
+        <ReportCard title="Recebimentos no período" value={`${resumo.pagamentos} pagamento(s)`} description={`Referentes a ${resumo.acordos} acordo(s).`} icon={ClipboardList} />
         <ReportCard title="Repasses por condomínio" value={formatCurrency(resumo.despesas)} description={`${despesas.length} agrupamento(s) para despesas de cobrança.`} icon={Calculator} />
         <ReportCard title="Apuração por operador" value={`${operadores.length} operador(es)`} description="Acordos, base, recuperado e despesa à vista/parcelada." icon={Users} />
         <ReportCard title="Base NFS-e" value={`${faturamentos.length} nota(s)`} description={`${nfseProntas} pronta(s), ${nfsePendentes} pendente(s), ${nfseAutorizadas} autorizada(s).`} icon={ReceiptText} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card className="p-5">
+      <section>
+        <Card className="max-w-xl p-5">
           <h2 className="text-base font-medium text-slate-950">Parâmetros</h2>
           <p className="mt-1 text-sm text-slate-500">A data final pode ser hoje ou uma data anterior informada pelo gestor.</p>
           <form action={atualizarFechamentoPeriodo.bind(null, id)} className="mt-4 space-y-3">
@@ -197,40 +196,16 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
               <Input name="data_limite_conferencia" type="date" defaultValue={periodo.data_limite_conferencia ?? ''} disabled={!podeEditarDatas} className="mt-1" />
             </label>
             <label className="block text-sm font-medium text-slate-700">
+              Redutor de imposto (%)
+              <Input name="percentual_redutor_imposto" type="number" min="0" max="100" step="0.0001" defaultValue={periodo.percentual_redutor_imposto ?? 0} disabled={!podeEditarDatas} required className="mt-1" />
+              <span className="mt-1 block text-xs font-normal text-slate-500">Deduzido do repasse antes da participação de cada carteira.</span>
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
               Observações
               <Textarea name="observacoes" rows={4} defaultValue={periodo.observacoes ?? ''} disabled={!podeEditarDatas} className="mt-1" />
             </label>
             {podeEditarDatas && <Button type="submit" className="w-full" variant="secondary">Salvar parâmetros</Button>}
           </form>
-        </Card>
-
-        <Card className="overflow-hidden p-0">
-          <div className="border-b border-slate-100 bg-white/80 px-5 py-4">
-            <h2 className="text-base font-medium text-slate-950">Acordos realizados no período</h2>
-            <p className="mt-1 text-sm text-slate-500">Inclui acordos efetivados por pagamento à vista, entrada ou primeira parcela.</p>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {acordos.length === 0 ? <div className="px-5 py-8 text-sm text-slate-500">Clique em Processar para preencher esta base.</div> : acordos.map((row: any) => (
-              <div key={row.id} className="grid gap-3 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_130px_150px_150px] lg:items-center">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-950">{row.condominios?.nome ?? 'Condomínio não informado'}</p>
-                  <p className="mt-1 truncate text-xs text-slate-500">Unidade {row.unidades?.identificacao ?? '-'} · {row.tipo_pagamento === 'a_vista' ? 'À vista' : 'Parcelado'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Primeiro pagamento</p>
-                  <p className="text-sm text-slate-700">{formatDateBR(row.data_pagamento)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Base</p>
-                  <p className="text-sm text-slate-700">{formatCurrency(Number(row.valor_base_cobranca ?? 0))}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-400">Recuperado</p>
-                  <p className="text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_recuperado ?? row.acordos?.valor_acordado ?? 0))}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         </Card>
       </section>
 
@@ -253,7 +228,7 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
             {operadores.length === 0 ? <p className="text-sm text-slate-500">Sem operadores apurados.</p> : operadores.map((row: any) => (
               <div key={row.id} className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{row.profiles?.nome ?? row.profiles?.email ?? 'Operador'}</p><p className="text-xs text-slate-500">{row.acordos_realizados} acordo(s) · {row.carteiras?.nome ?? 'Carteira'}</p></div>
+                  <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{row.profiles?.nome ?? row.profiles?.email ?? 'Operador'}</p><p className="text-xs text-slate-500">{row.acordos_realizados} pagamento(s) · {row.carteiras?.nome ?? 'Carteira'}</p></div>
                   <p className="shrink-0 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_recuperado ?? 0))}</p>
                 </div>
                 <p className="mt-2 text-xs text-slate-500">Despesa à vista {formatCurrency(Number(row.valor_despesa_a_vista ?? 0))} · parcelado {formatCurrency(Number(row.valor_despesa_parcelado ?? 0))}</p>
@@ -263,12 +238,12 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
         </Card>
 
         <Card className="p-5">
-          <h2 className="text-base font-medium text-slate-950">Comissão por carteira</h2>
+          <h2 className="text-base font-medium text-slate-950">Participação por carteira</h2>
           <div className="mt-4 space-y-3">
             {carteiras.length === 0 ? <p className="text-sm text-slate-500">Sem carteiras apuradas.</p> : carteiras.map((row: any) => (
               <div key={row.id} className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{row.carteiras?.nome ?? 'Carteira'}</p><p className="text-xs text-slate-500">{row.acordos_realizados} acordo(s) · {Number(row.percentual_comissao ?? 0).toFixed(2)}%</p></div>
-                <p className="shrink-0 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_comissao ?? 0))}</p>
+                <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{row.carteiras?.nome ?? 'Carteira'}</p><p className="text-xs text-slate-500">Repasse {formatCurrency(Number(row.valor_repasse ?? 0))} · imposto {Number(row.percentual_redutor_imposto ?? 0).toFixed(2)}% ({formatCurrency(Number(row.valor_redutor_imposto ?? 0))}) · líquido {formatCurrency(Number(row.valor_repasse_liquido ?? 0))} · participação {Number(row.percentual_participacao ?? 0).toFixed(2)}%</p></div>
+                <p className="shrink-0 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_participacao ?? 0))}</p>
               </div>
             ))}
           </div>

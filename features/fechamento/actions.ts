@@ -28,6 +28,15 @@ function getOptionalString(formData: FormData, key: string) {
   return value || null
 }
 
+function getPercentage(formData: FormData, key: string) {
+  const raw = String(formData.get(key) ?? '0').trim().replace(',', '.')
+  const value = Number(raw || 0)
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    throw new Error('O percentual redutor de imposto deve estar entre 0 e 100.')
+  }
+  return value
+}
+
 function normalizeCompetencia(value: string) {
   if (/^\d{4}-\d{2}$/.test(value)) return value
   if (/^\d{2}\/\d{4}$/.test(value)) {
@@ -100,6 +109,7 @@ export async function criarFechamentoPeriodo(formData: FormData) {
   const dataFechamento = getRequiredString(formData, 'data_fechamento')
   const dataLimiteConferencia = getOptionalString(formData, 'data_limite_conferencia')
   const observacoes = getOptionalString(formData, 'observacoes')
+  const percentualRedutorImposto = getPercentage(formData, 'percentual_redutor_imposto')
 
   assertPeriodoDatas(dataAbertura, dataFechamento)
 
@@ -111,6 +121,7 @@ export async function criarFechamentoPeriodo(formData: FormData) {
       data_fechamento: dataFechamento,
       data_limite_conferencia: dataLimiteConferencia,
       observacoes,
+      percentual_redutor_imposto: percentualRedutorImposto,
       status: 'rascunho',
       created_by: user.id,
       updated_by: user.id,
@@ -126,6 +137,7 @@ export async function criarFechamentoPeriodo(formData: FormData) {
     competencia,
     data_abertura: dataAbertura,
     data_fechamento: dataFechamento,
+    percentual_redutor_imposto: percentualRedutorImposto,
   })
 
   revalidatePath('/app/gestao/fechamento')
@@ -144,6 +156,7 @@ export async function atualizarFechamentoPeriodo(periodoId: string, formData: Fo
     data_fechamento: getRequiredString(formData, 'data_fechamento'),
     data_limite_conferencia: getOptionalString(formData, 'data_limite_conferencia'),
     observacoes: getOptionalString(formData, 'observacoes'),
+    percentual_redutor_imposto: getPercentage(formData, 'percentual_redutor_imposto'),
     updated_by: user.id,
     updated_at: new Date().toISOString(),
   }
@@ -238,7 +251,15 @@ export async function apurarFechamentoPeriodo(formData: FormData) {
     throw new Error(`Erro ao apurar fechamento: ${error.message}`)
   }
 
-  await registrarAuditoria(periodoId, 'apuracao_executada', 'Apuração de pagamentos, despesas, comissões e base Omie executada.')
+  const { error: participacaoError } = await supabase.rpc('apurar_participacao_carteiras', {
+    p_periodo_id: periodoId,
+  })
+
+  if (participacaoError) {
+    throw new Error(`Erro ao apurar participação das carteiras: ${participacaoError.message}`)
+  }
+
+  await registrarAuditoria(periodoId, 'apuracao_executada', 'Apuração de todos os pagamentos recebidos na competência, despesas, participações e base fiscal executada.')
 
   revalidatePath('/app/gestao/fechamento')
   revalidatePath(`/app/gestao/fechamento/${periodoId}`)

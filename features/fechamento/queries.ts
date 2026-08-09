@@ -94,6 +94,15 @@ export async function getFechamentoResumo(periodoId: string): Promise<Fechamento
 
   if (!resumoRpcError && resumoRpc) {
     const resumo = resumoRpc as Record<string, unknown>
+    const { data: participacoesData, error: participacoesError } = await supabase
+      .from('fechamento_carteiras')
+      .select('valor_participacao')
+      .eq('periodo_id', periodoId)
+
+    if (participacoesError && !['42P01', '42703'].includes(participacoesError.code ?? '')) {
+      throw new Error(`Erro ao carregar participações do fechamento: ${participacoesError.message}`)
+    }
+
     return {
       acordos: asNumber(resumo.acordos),
       pagamentos: asNumber(resumo.pagamentos),
@@ -102,6 +111,7 @@ export async function getFechamentoResumo(periodoId: string): Promise<Fechamento
       valorBaseCobranca: asNumber(resumo.valor_base_cobranca),
       despesas: asNumber(resumo.despesas),
       comissoes: asNumber(resumo.comissoes),
+      participacoes: (participacoesData ?? []).reduce((sum: number, row: any) => sum + asNumber(row.valor_participacao), 0),
       faturamento: asNumber(resumo.faturamento),
       divergencias: asNumber(resumo.divergencias),
     }
@@ -111,15 +121,16 @@ export async function getFechamentoResumo(periodoId: string): Promise<Fechamento
     throw new Error(`Erro ao carregar resumo do fechamento: ${resumoRpcError.message}`)
   }
 
-  const [pagamentosResult, despesasResult, comissoesResult, faturamentoResult] = await Promise.all([
-    supabase.from('fechamento_pagamentos').select('valor_pago, valor_recuperado, valor_base_cobranca, divergencia', { count: 'exact' }).eq('periodo_id', periodoId),
+  const [pagamentosResult, despesasResult, comissoesResult, faturamentoResult, carteirasResult] = await Promise.all([
+    supabase.from('fechamento_pagamentos').select('acordo_id, valor_pago, valor_recuperado, valor_base_cobranca, divergencia', { count: 'exact' }).eq('periodo_id', periodoId),
     supabase.from('fechamento_despesas').select('valor_despesa').eq('periodo_id', periodoId),
     supabase.from('fechamento_comissoes').select('valor_comissao').eq('periodo_id', periodoId),
     supabase.from('fechamento_faturamentos_omie').select('valor_faturamento').eq('periodo_id', periodoId),
+    supabase.from('fechamento_carteiras').select('valor_participacao').eq('periodo_id', periodoId),
   ])
 
-  for (const result of [pagamentosResult, despesasResult, comissoesResult, faturamentoResult]) {
-    if (result.error && result.error.code !== '42P01') {
+  for (const result of [pagamentosResult, despesasResult, comissoesResult, faturamentoResult, carteirasResult]) {
+    if (result.error && !['42P01', '42703'].includes(result.error.code ?? '')) {
       throw new Error(`Erro ao carregar resumo do fechamento: ${result.error.message}`)
     }
   }
@@ -130,13 +141,14 @@ export async function getFechamentoResumo(periodoId: string): Promise<Fechamento
   const faturamentos = faturamentoResult.data ?? []
 
   return {
-    acordos: pagamentosResult.count ?? pagamentos.length,
+    acordos: new Set(pagamentos.map((row: any) => row.acordo_id).filter(Boolean)).size,
     pagamentos: pagamentosResult.count ?? pagamentos.length,
     valorPago: pagamentos.reduce((sum: number, row: any) => sum + asNumber(row.valor_pago), 0),
     valorRecuperado: pagamentos.reduce((sum: number, row: any) => sum + asNumber(row.valor_recuperado), 0),
     valorBaseCobranca: pagamentos.reduce((sum: number, row: any) => sum + asNumber(row.valor_base_cobranca), 0),
     despesas: despesas.reduce((sum: number, row: any) => sum + asNumber(row.valor_despesa), 0),
     comissoes: comissoes.reduce((sum: number, row: any) => sum + asNumber(row.valor_comissao), 0),
+    participacoes: (carteirasResult.data ?? []).reduce((sum: number, row: any) => sum + asNumber(row.valor_participacao), 0),
     faturamento: faturamentos.reduce((sum: number, row: any) => sum + asNumber(row.valor_faturamento), 0),
     divergencias: pagamentos.filter((row: any) => Boolean(row.divergencia)).length,
   }

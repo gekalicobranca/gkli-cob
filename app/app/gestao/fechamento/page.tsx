@@ -37,7 +37,7 @@ export default async function FechamentoMensalPage() {
       <PageHeader
         eyebrow="Gestão"
         title="Fechamento mensal"
-        description="Processamento de acordos realizados, repasses de despesas, apuracao por operador, comissao por carteira e base fiscal para NFS-e."
+        description="Processamento dos pagamentos recebidos na competência, repasses de despesas, apuração por operador, participação por carteira e base fiscal para NFS-e."
         actions={<ButtonLink href="/app/gestao" variant="secondary">Voltar</ButtonLink>}
       />
 
@@ -101,7 +101,7 @@ export default async function FechamentoMensalPage() {
                   <p className="mt-1 truncate text-xs text-slate-500">Conferência até {formatDateBR(periodo.data_limite_conferencia)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Despesas / Comissão</p>
+                  <p className="text-xs text-slate-400">Repasse / Participação</p>
                   <p className="text-sm font-medium text-slate-800">{formatCurrency(Number(periodo.total_despesas_cobranca ?? 0))} · {formatCurrency(Number(periodo.total_comissoes ?? 0))}</p>
                 </div>
                 <div className="text-right">
@@ -140,6 +140,10 @@ export default async function FechamentoMensalPage() {
             <label className="block text-sm font-medium text-slate-700">
               Conferência até
               <Input name="data_limite_conferencia" type="date" className="mt-1" />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Redutor de imposto (%)
+              <Input name="percentual_redutor_imposto" type="number" min="0" max="100" step="0.0001" defaultValue="0" required className="mt-1" />
             </label>
             <label className="block text-sm font-medium text-slate-700">
               Observações

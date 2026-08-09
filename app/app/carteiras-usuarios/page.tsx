@@ -72,7 +72,7 @@ export default async function CarteirasUsuariosPage() {
             <div className="divide-y divide-slate-100">
               {carteiras.map((carteira: any) => (
                 <div key={carteira.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_280px] md:items-center">
-                  <div><p className="text-sm font-medium text-slate-950">{carteira.nome}</p><p className="mt-1 text-xs text-slate-500">{carteira.descricao ?? 'Sem descrição'} · CNPJ emissor {carteira.nfse_emissor_cnpj ?? '-'}</p></div>
+                  <div><p className="text-sm font-medium text-slate-950">{carteira.nome}</p><p className="mt-1 text-xs text-slate-500">{carteira.descricao ?? 'Sem descrição'} · Participação {Number(carteira.percentual_participacao_resultado ?? 0).toFixed(2)}% · CNPJ emissor {carteira.nfse_emissor_cnpj ?? '-'}</p></div>
                   <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
                     <StatusBadge status={carteira.ativo ? 'ativo' : 'inativo'} />
                     <StatusBadge status={carteira.pre_juridico_habilitado ? 'pré-jurídico' : 'sem pré-jurídico'} />

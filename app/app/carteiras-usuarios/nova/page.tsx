@@ -34,6 +34,10 @@ export default async function NovaCarteiraPage() {
             <Input name="logo_url" placeholder="https://..." />
           </FormField>
 
+          <FormField label="Participação no resultado (%)" hint="Aplicada sobre o repasse líquido de impostos no fechamento.">
+            <Input name="percentual_participacao_resultado" type="number" min="0" max="100" step="0.0001" defaultValue="0" required />
+          </FormField>
+
           <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <input
               type="checkbox"

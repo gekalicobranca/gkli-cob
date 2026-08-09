@@ -46,6 +46,15 @@ function optionalText(formData: FormData, key: string) {
   return value || null;
 }
 
+function percentage(formData: FormData, key: string) {
+  const raw = String(formData.get(key) ?? "0").trim().replace(",", ".");
+  const value = Number(raw || 0);
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    throw new Error("O percentual de participação deve estar entre 0 e 100.");
+  }
+  return value;
+}
+
 function getCarteiraFiscalPayload(formData: FormData) {
   const emissorCnpj = onlyDigits(String(formData.get("nfse_emissor_cnpj") ?? ""));
 
@@ -68,6 +77,7 @@ function getCarteiraFiscalPayload(formData: FormData) {
 function getCarteiraOperacionalPayload(formData: FormData) {
   return {
     pre_juridico_habilitado: formData.get("pre_juridico_habilitado") === "on",
+    percentual_participacao_resultado: percentage(formData, "percentual_participacao_resultado"),
   };
 }
 
