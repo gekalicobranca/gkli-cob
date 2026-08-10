@@ -27,6 +27,7 @@ import {
   ListPage,
   ListPanel,
   ListPanelHeader,
+  ListPagination,
   ListRow,
   ListRows,
   ListSearchField,
@@ -56,7 +57,24 @@ type SearchParams = Promise<{
   data_de?: string
   data_ate?: string
   ordenar?: string
+  page?: string
 }>
+
+const PAGE_SIZE = 100
+
+function getPageParam(value: unknown) {
+  const page = Number(value ?? 1)
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
+}
+
+function pageHref(params: Record<string, string | undefined>, page: number) {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (key !== 'page' && value) query.set(key, value)
+  }
+  query.set('page', String(page))
+  return `/app/pendencias?${query.toString()}`
+}
 
 const prioridadeLabel: Record<PendenciaPrioridade, string> = {
   baixa: 'Baixa',
@@ -377,8 +395,10 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
   const effectiveParams = { ...params, situacao: situacaoAtual }
   const scope = await getPermittedCarteiras()
   const basePendencias = await listPendenciasOperacionais(scope, effectiveParams)
-  const pendencias = sortPendencias(filterPendencias(basePendencias, effectiveParams), clean(params.ordenar) || 'prazo_asc')
-  const resumo = getPendenciasResumo(pendencias)
+  const pendenciasFiltradas = sortPendencias(filterPendencias(basePendencias, effectiveParams), clean(params.ordenar) || 'prazo_asc')
+  const page = getPageParam(params.page)
+  const pendencias = pendenciasFiltradas.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const resumo = getPendenciasResumo(pendenciasFiltradas)
   const statusAtual = params.status ?? 'todos'
   const origemAtual = params.origem ?? 'todos'
   const tipos = Array.from(new Set(basePendencias.map((pendencia) => pendencia.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
@@ -544,6 +564,13 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
             description="Quando solicitações ADM, acordos, mensagens ou réguas gerarem travas operacionais, elas aparecerão aqui como fila única de trabalho."
           />
         )}
+        <ListPagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={pendenciasFiltradas.length}
+          previousHref={page > 1 ? pageHref(params, page - 1) : undefined}
+          nextHref={page * PAGE_SIZE < pendenciasFiltradas.length ? pageHref(params, page + 1) : undefined}
+        />
       </ListPanel>
     </ListPage>
   )
