@@ -27,6 +27,7 @@ import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCondominiosForSelect, listUnidadesForSelect } from '@/features/cadastros/queries'
 import { listAcordosComSaude } from '@/features/acordos/queries'
+import { listCarteiras } from '@/features/carteiras/queries'
 import { AgreementHealthBadge } from '@/features/acordos/components/agreement-health-badge'
 
 type AcordosPageProps = {
@@ -34,8 +35,8 @@ type AcordosPageProps = {
     q?: string
     condominio_id?: string
     unidade_id?: string
+    carteira_id?: string
     status?: string
-    tipo?: string
     data_de?: string
     data_ate?: string
     ordenar?: string
@@ -99,8 +100,8 @@ function filterAcordos(rows: any[], filters: Awaited<NonNullable<AcordosPageProp
   const termo = normalizeText(filters.q)
   const condominioId = clean(filters.condominio_id)
   const unidadeId = clean(filters.unidade_id)
+  const carteiraId = clean(filters.carteira_id)
   const status = clean(filters.status)
-  const tipo = clean(filters.tipo)
   const dataDe = dateFilter(filters.data_de)
   const dataAte = dateFilter(filters.data_ate)
 
@@ -108,8 +109,8 @@ function filterAcordos(rows: any[], filters: Awaited<NonNullable<AcordosPageProp
     const data = clean(row.data_acordo).slice(0, 10)
     if (condominioId && row.condominio_id !== condominioId) return false
     if (unidadeId && row.unidade_id !== unidadeId) return false
+    if (carteiraId && row.carteira_id !== carteiraId) return false
     if (status && row.status !== status) return false
-    if (tipo && row.tipo !== tipo) return false
     if (dataDe && data < dataDe) return false
     if (dataAte && data > dataAte) return false
 
@@ -121,7 +122,7 @@ function filterAcordos(rows: any[], filters: Awaited<NonNullable<AcordosPageProp
         row.unidades?.responsavel_nome,
         row.numero_processo,
         row.status,
-        row.tipo,
+        row.carteiras?.nome,
       ].filter(Boolean).join(' '))
       if (!haystack.includes(termo)) return false
     }
@@ -151,16 +152,17 @@ function groupAcordos(rows: any[]) {
 export default async function AcordosPage({ searchParams }: AcordosPageProps) {
   const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
-  const [allRows, condominios, unidades] = await Promise.all([
+  const [allRows, condominios, unidades, carteiras] = await Promise.all([
     listAcordosComSaude(scope),
     listCondominiosForSelect(scope),
     clean(params.condominio_id)
       ? listUnidadesForSelect(scope, { condominioId: clean(params.condominio_id) })
       : Promise.resolve([]),
+    listCarteiras(scope),
   ])
   const rows = sortAcordos(filterAcordos(allRows, params), clean(params.ordenar) || 'condominio')
   const groups = groupAcordos(rows)
-  const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.status || params.tipo || params.data_de || params.data_ate || params.ordenar)
+  const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.carteira_id || params.status || params.data_de || params.data_ate || params.ordenar)
 
   const ativos = rows.filter((row: any) => row.status === 'ativo').length
   const atraso = rows.filter((row: any) => row.status === 'em atraso').length
@@ -254,11 +256,12 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                 <option value="cancelado">Cancelado</option>
               </Select>
             </ListFilterField>
-            <ListFilterField label="Tipo" className="xl:col-span-2">
-              <Select name="tipo" defaultValue={clean(params.tipo)}>
-                <option value="">Todos</option>
-                <option value="extrajudicial">Extrajudicial</option>
-                <option value="judicial">Judicial</option>
+            <ListFilterField label="Carteira" className="xl:col-span-2">
+              <Select name="carteira_id" defaultValue={clean(params.carteira_id)}>
+                <option value="">Todas</option>
+                {carteiras.map((carteira: any) => (
+                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
+                ))}
               </Select>
             </ListFilterField>
             <ListFilterField label="Data início" className="xl:col-span-2">
@@ -307,7 +310,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <StatusBadge status={row.status} />
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.tipo}</span>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.carteiras?.nome ?? 'Carteira não informada'}</span>
                         </div>
                         <p className="mt-2 truncate text-sm font-medium text-slate-950">{getUnitLabel(row.unidades)}</p>
                         <p className="mt-1 truncate text-xs text-slate-500">
