@@ -1,8 +1,19 @@
 import Link from 'next/link'
-import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CheckCircle2, ChevronDown, Filter, RotateCcw, Search, X } from 'lucide-react'
+import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CheckCircle2, ChevronDown, RotateCcw } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { ListKpiGrid, ListPagination } from '@/components/layout/list-page'
+import {
+  ClearFiltersLink,
+  ListFilterField,
+  ListFiltersForm,
+  ListKpiGrid,
+  ListPagination,
+  ListPanel,
+  ListPanelHeader,
+  ListSearchField,
+  ListTitle,
+  ListTitleBar,
+} from '@/components/layout/list-page'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -265,24 +276,15 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
         ))}
       </ListKpiGrid>
 
-      <Card className="p-3">
-        <form className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7 2xl:items-end [&>label]:min-w-0 [&_button]:whitespace-nowrap [&_input]:min-w-0 [&_input]:text-[13px] [&_select]:min-w-0 [&_select]:text-[13px]">
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Busca</span>
-            <div className="relative">
-              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <Input name="q" defaultValue={params.q ?? ''} className="pl-9" placeholder="Unidade, responsável, parcela..." />
-            </div>
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Carteira</span>
-            <Select name="carteira_id" defaultValue={params.carteira_id ?? ''}>
-              <option value="">Todas</option>
-              {carteiras.map((carteira) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}
-            </Select>
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Condomínio</span>
+      <ListPanel>
+        <ListPanelHeader className="bg-white/80">
+          <ListTitleBar className="xl:items-center">
+            <ListTitle title="Filtros das parcelas" />
+            <ClearFiltersLink href="/app/acordos/fila" show={hasFilters} />
+          </ListTitleBar>
+          <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
+          <ListSearchField defaultValue={params.q ?? ''} placeholder="Unidade, responsável, parcela..." className="xl:col-span-3" />
+          <ListFilterField label="Condomínio" className="xl:col-span-5">
             <CondominioSearchSelect
               name="condominio_id"
               options={condominios.map((condominio) => ({
@@ -294,9 +296,14 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
               defaultToFirst={false}
               inputClassName=""
             />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Status</span>
+          </ListFilterField>
+          <ListFilterField label="Carteira" className="xl:col-span-4">
+            <Select name="carteira_id" defaultValue={params.carteira_id ?? ''}>
+              <option value="">Todas</option>
+              {carteiras.map((carteira) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Status" className="xl:col-span-2">
             <Select name="status" defaultValue={params.status ?? ''}>
               <option value="">Todos</option>
               <option value="aberta">Aberta</option>
@@ -304,25 +311,21 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
               <option value="paga">Paga</option>
               <option value="cancelada">Cancelada</option>
             </Select>
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Tipo</span>
+          </ListFilterField>
+          <ListFilterField label="Tipo" className="xl:col-span-2">
             <Select name="tipo" defaultValue={params.tipo ?? ''}>
               <option value="">Todos</option>
               <option value="entrada">Entrada</option>
               <option value="parcela">Parcela</option>
             </Select>
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Vencimento de</span>
+          </ListFilterField>
+          <ListFilterField label="Vencimento de" className="xl:col-span-2">
             <Input name="vencimento_de" type="date" defaultValue={dateValue(params.vencimento_de)} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Vencimento até</span>
+          </ListFilterField>
+          <ListFilterField label="Vencimento até" className="xl:col-span-2">
             <Input name="vencimento_ate" type="date" defaultValue={dateValue(params.vencimento_ate)} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ordenar por</span>
+          </ListFilterField>
+          <ListFilterField label="Ordenar por" className="xl:col-span-3">
             <Select name="ordenar" defaultValue={params.ordenar ?? 'vencimento_asc'}>
               <option value="vencimento_asc">Vencimento antigo</option>
               <option value="vencimento_desc">Vencimento recente</option>
@@ -333,19 +336,11 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
               <option value="valor_desc">Maior valor</option>
               <option value="valor_asc">Menor valor</option>
             </Select>
-          </label>
-          <Button type="submit" className="w-full xl:w-auto">
-            <Filter size={16} />
-            Filtrar
-          </Button>
-          {hasFilters ? (
-            <ButtonLink href="/app/acordos/fila" variant="secondary" className="w-full xl:w-auto">
-              <X size={16} />
-              Limpar
-            </ButtonLink>
-          ) : null}
-        </form>
-        </Card>
+          </ListFilterField>
+          <Button type="submit" className="w-full xl:col-span-1">Filtrar</Button>
+          </ListFiltersForm>
+        </ListPanelHeader>
+      </ListPanel>
 
       <Card className="overflow-hidden p-0">
         <div className="border-b border-slate-100 bg-white/80 px-4 py-3">

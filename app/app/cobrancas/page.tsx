@@ -474,7 +474,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                     <option value="status">Status</option>
                   </Select>
                 </ListFilterField>
-                <Button type="submit" variant="secondary" className="w-full xl:col-span-1">
+                <Button type="submit" className="w-full xl:col-span-1">
                   Filtrar
                 </Button>
                 </div>
