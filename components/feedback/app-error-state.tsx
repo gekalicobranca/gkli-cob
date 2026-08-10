@@ -8,21 +8,25 @@ type AppErrorStateProps = {
   title?: string
   description?: string
   error?: Error & { digest?: string }
+  supportCode?: string
   reset?: () => void
   homeHref?: string
   showBackAction?: boolean
+  showRetryAction?: boolean
 }
 
 export function AppErrorState({
   title = 'Não foi possível carregar esta página',
   description = 'Encontramos uma falha temporária ao buscar as informações. Tente novamente; se continuar, acione o suporte com o código abaixo.',
   error,
+  supportCode: supportCodeProp,
   reset,
   homeHref = '/app',
   showBackAction = true,
+  showRetryAction = Boolean(reset),
 }: AppErrorStateProps) {
   const router = useRouter()
-  const supportCode = error?.digest
+  const supportCode = supportCodeProp ?? error?.digest
 
   return (
     <main className="flex min-h-[calc(100vh-5rem)] items-center justify-center px-4 py-10">
@@ -41,8 +45,8 @@ export function AppErrorState({
         ) : null}
 
         <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          {reset ? (
-            <Button type="button" onClick={reset}>
+          {showRetryAction ? (
+            <Button type="button" onClick={() => reset ? reset() : router.refresh()}>
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               Tentar novamente
             </Button>

@@ -10,6 +10,7 @@ import {
 import { notFound } from "next/navigation";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { AppErrorState } from "@/components/feedback/app-error-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import {
@@ -257,7 +258,40 @@ function SectionTitle({
 export default async function AcordoDetalhePage({ params }: Props) {
   const { id } = await params;
   const scope = await getPermittedCarteiras();
-  const data = await getAcordoDetalhe(id, scope);
+  let data;
+
+  try {
+    data = await getAcordoDetalhe(id, scope);
+  } catch (error) {
+    const supportCode = crypto.randomUUID().slice(0, 8).toUpperCase();
+    const message = error instanceof Error ? error.message : "Erro desconhecido";
+
+    console.error(`[acordo:${supportCode}] Falha ao abrir o acordo ${id}:`, error);
+
+    let description = "O acordo foi localizado, mas não foi possível carregar todos os seus dados.";
+
+    if (message.startsWith("Erro ao carregar parcelas")) {
+      description = "O acordo foi localizado, mas houve uma falha ao carregar as parcelas.";
+    } else if (message.startsWith("Erro ao carregar timeline")) {
+      description = "O acordo foi localizado, mas houve uma falha ao carregar o histórico.";
+    } else if (message.startsWith("Erro ao carregar cobranças vinculadas")) {
+      description = "O acordo foi localizado, mas houve uma falha ao carregar as cobranças vinculadas.";
+    } else if (message.startsWith("Erro ao carregar revisões")) {
+      description = "O acordo foi localizado, mas houve uma falha ao carregar as revisões.";
+    } else if (message.startsWith("Erro ao carregar acordo")) {
+      description = "Não foi possível consultar os dados principais do acordo. Verifique o acesso à carteira deste condomínio.";
+    }
+
+    return (
+      <AppErrorState
+        title="Não foi possível abrir este acordo"
+        description={`${description} Tente novamente; se continuar, informe o código abaixo.`}
+        supportCode={supportCode}
+        homeHref="/app/acordos"
+        showRetryAction
+      />
+    );
+  }
 
   if (!data?.acordo) notFound();
 
