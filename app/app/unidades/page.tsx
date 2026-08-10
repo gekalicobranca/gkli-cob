@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowUpRight, Download, Edit3, Filter, Home, Plus } from 'lucide-react'
+import { ArrowUpRight, ChevronDown, Download, Edit3, Filter, Home, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -33,7 +33,7 @@ type UnidadesPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 100
 const EMPTY_RESUMO = {
   total: 0,
   ativas: 0,
@@ -91,6 +91,16 @@ function sortUnidades(rows: any[], ordenar: string) {
   })
 }
 
+function groupUnidades(rows: any[]) {
+  const groups = new Map<string, { id: string; nome: string; unidades: any[] }>()
+  for (const row of rows) {
+    const id = row.condominios?.id ?? row.condominio_id ?? 'sem-condominio'
+    if (!groups.has(id)) groups.set(id, { id, nome: row.condominios?.nome ?? 'Condomínio não informado', unidades: [] })
+    groups.get(id)!.unidades.push(row)
+  }
+  return Array.from(groups.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+}
+
 export default async function UnidadesPage({ searchParams }: UnidadesPageProps) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
@@ -125,6 +135,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
     }),
   ])
   const rows = sortUnidades(pageData.rows, ordenar)
+  const groups = groupUnidades(rows)
 
   const filtrosAtivos =
     Boolean(filters.search || filters.carteiraId || filters.condominioId || filters.contato || (filters.status && filters.status !== 'ativa')) ||
@@ -263,7 +274,14 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
           <form action={updateUnidadesStatusEmLote}>
             <UnidadesBulkControls />
             <ListRows>
-              {rows.map((row: any) => (
+              {groups.map((group) => (
+                <details key={group.id} open className="group/condominio bg-white">
+                  <summary className="flex cursor-pointer list-none items-center gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
+                    <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                    <div><p className="text-sm font-semibold text-slate-950">{group.nome}</p><p className="mt-0.5 text-xs text-slate-500">{group.unidades.length} unidade(s) nesta página</p></div>
+                  </summary>
+                  <div className="divide-y divide-slate-100 border-t border-slate-100">
+                  {group.unidades.map((row: any) => (
                 <ListRow
                   key={row.id}
                   className="xl:grid-cols-[40px_minmax(300px,1.35fr)_120px_170px_220px_170px]"
@@ -311,6 +329,9 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                     </ButtonLink>
                   </div>
                 </ListRow>
+                  ))}
+                  </div>
+                </details>
               ))}
             </ListRows>
           </form>

@@ -15,6 +15,7 @@ import {
   ListPage,
   ListPanel,
   ListPanelHeader,
+  ListPagination,
   ListRow,
   ListRows,
   ListSearchField,
@@ -35,8 +36,23 @@ type CondominiosPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+const PAGE_SIZE = 100
+
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
+}
+
+function getPageParam(value: string | string[] | undefined) {
+  const page = Number(getParam(value) ?? 1)
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
+}
+
+function condominiosHref(params: Record<string, string | undefined>, page: number) {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) if (value) query.set(key, value)
+  if (page > 1) query.set('page', String(page))
+  const qs = query.toString()
+  return qs ? `/app/condominios?${qs}` : '/app/condominios'
 }
 
 function normalizeText(value: unknown) {
@@ -67,6 +83,7 @@ function sortCondominios(rows: any[], ordenar: string) {
 export default async function CondominiosPage({ searchParams }: CondominiosPageProps) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
+  const page = getPageParam(params?.page)
   const statusParam = getParam(params?.status)
 
   const filters = normalizeCondominioFilters({
@@ -83,7 +100,8 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
   ])
 
   const ordenar = getParam(params?.ordenar) ?? 'nome'
-  const rows = sortCondominios(rowsBase, ordenar)
+  const filteredRows = sortCondominios(rowsBase, ordenar)
+  const rows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const filtrosAtivos =
     Boolean(filters.search || filters.carteiraId || filters.administradora || (filters.status && filters.status !== 'ativo')) ||
     ordenar !== 'nome'
@@ -92,13 +110,20 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
   if (filters.carteiraId) exportParams.set('carteira_id', filters.carteiraId)
 
   const exportCondominiosHref = `/api/condominios/exportacoes/condominios${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
-  const ativos = rows.filter((row: any) => row.status === 'ativo').length
-  const mediaRegua = rows.length
-    ? Math.round(rows.reduce((sum: number, row: any) => sum + Number(row.inicio_cobranca_dias ?? 0), 0) / rows.length)
+  const ativos = filteredRows.filter((row: any) => row.status === 'ativo').length
+  const mediaRegua = filteredRows.length
+    ? Math.round(filteredRows.reduce((sum: number, row: any) => sum + Number(row.inicio_cobranca_dias ?? 0), 0) / filteredRows.length)
     : 0
-  const ticketMedio = rows.length
-    ? rows.reduce((sum: number, row: any) => sum + Number(row.valor_cota_condominial ?? 0), 0) / rows.length
+  const ticketMedio = filteredRows.length
+    ? filteredRows.reduce((sum: number, row: any) => sum + Number(row.valor_cota_condominial ?? 0), 0) / filteredRows.length
     : 0
+  const paginationParams = {
+    q: filters.search,
+    carteira_id: filters.carteiraId,
+    administradora: filters.administradora,
+    status: filters.status,
+    ordenar,
+  }
 
   return (
     <ListPage>
@@ -245,6 +270,13 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
             ))}
           </ListRows>
         )}
+        <ListPagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={filteredRows.length}
+          previousHref={page > 1 ? condominiosHref(paginationParams, page - 1) : undefined}
+          nextHref={page * PAGE_SIZE < filteredRows.length ? condominiosHref(paginationParams, page + 1) : undefined}
+        />
       </ListPanel>
     </ListPage>
   )

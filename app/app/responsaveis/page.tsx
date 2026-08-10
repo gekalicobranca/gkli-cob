@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Edit3, Plus, UsersRound } from 'lucide-react'
+import { ChevronDown, Edit3, Plus, UsersRound } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -35,7 +35,7 @@ type ResponsaveisPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 100
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
@@ -76,6 +76,16 @@ function sortResponsaveis(rows: any[], ordenar: string) {
     }
     return getValue(a).localeCompare(getValue(b), 'pt-BR', { numeric: true })
   })
+}
+
+function groupResponsaveis(rows: any[]) {
+  const groups = new Map<string, { id: string; nome: string; responsaveis: any[] }>()
+  for (const row of rows) {
+    const id = row.condominios?.id ?? row.condominio_id ?? 'sem-condominio'
+    if (!groups.has(id)) groups.set(id, { id, nome: row.condominios?.nome ?? 'Condomínio não informado', responsaveis: [] })
+    groups.get(id)!.responsaveis.push(row)
+  }
+  return Array.from(groups.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
 function tipoLabel(value?: string | null) {
@@ -120,6 +130,7 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
   ])
 
   const rows = sortResponsaveis(pageData.rows, ordenar)
+  const groups = groupResponsaveis(rows)
   const filtrosAtivos =
     Boolean(
       filters.search ||
@@ -256,7 +267,14 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
           />
         ) : (
           <ListRows>
-            {rows.map((row: any) => {
+            {groups.map((group) => (
+              <details key={group.id} open className="group/condominio bg-white">
+                <summary className="flex cursor-pointer list-none items-center gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
+                  <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                  <div><p className="text-sm font-semibold text-slate-950">{group.nome}</p><p className="mt-0.5 text-xs text-slate-500">{group.responsaveis.length} responsável(is) nesta página</p></div>
+                </summary>
+                <div className="divide-y divide-slate-100 border-t border-slate-100">
+            {group.responsaveis.map((row: any) => {
               const href = `/app/responsaveis/${row.id}`
               const completo = completenessLabel(row) === 'Completo'
               return (
@@ -265,15 +283,15 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                   className="xl:grid-cols-[minmax(240px,1.2fr)_150px_170px_150px_130px_120px]"
                 >
                   <Link href={href} className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-950">{row.condominios?.nome ?? '-'}</p>
-                    <p className="mt-1 truncate text-xs text-slate-500">{row.carteiras?.nome ?? '-'} - origem {row.origem ?? '-'}</p>
+                    <p className="truncate text-sm font-medium text-slate-950">{row.responsavel_nome || 'Responsável não informado'}</p>
+                    <p className="mt-1 truncate text-xs text-slate-500">{row.carteiras?.nome ?? '-'} · origem {row.origem ?? '-'}</p>
                   </Link>
                   <Link href={href} className="min-w-0 text-sm text-slate-700">
                     <span className="block truncate">Bloco {row.bloco || '-'}</span>
                     <span className="mt-1 block truncate text-xs text-slate-500">Unidade {row.unidade || '-'}</span>
                   </Link>
                   <Link href={href} className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-950">{row.responsavel_nome || 'Responsável não informado'}</p>
+                    <p className="truncate text-sm font-medium text-slate-950">Unidade {row.unidade || '-'}</p>
                     <p className="mt-1 text-xs text-slate-500">{tipoLabel(row.tipo_responsavel)}</p>
                   </Link>
                   <div className="flex flex-wrap gap-2">
@@ -290,6 +308,9 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                 </ListRow>
               )
             })}
+                </div>
+              </details>
+            ))}
           </ListRows>
         )}
         <ListPagination
