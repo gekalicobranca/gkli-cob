@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Activity, ClipboardList, Download, FileClock, History, Home, Landmark, PencilLine, Users } from 'lucide-react'
+import { Activity, ChevronDown, ClipboardList, Download, FileClock, History, Home, Landmark, PencilLine, Users } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -84,15 +84,10 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
         <Tab href="#auditoria" icon={<FileClock size={15} />} label="Auditoria" />
       </div>
 
-      <form action={updateCondominioIntegral} className="grid gap-5 xl:grid-cols-[1.05fr_.95fr]">
+      <form action={updateCondominioIntegral} className="space-y-4">
         <input type="hidden" name="id" value={condominio.id} />
 
-        <Card id="cadastro" className="space-y-5 scroll-mt-24">
-          <div>
-            <Badge tone="primary">Cadastro</Badge>
-            <h2 className="mt-3 text-lg font-medium text-slate-950">Dados principais</h2>
-            <p className="mt-1 text-sm text-slate-500">Edite o cadastro sem depender de uma nova importação CSV.</p>
-          </div>
+        <CollapsibleArea id="cadastro" title="Dados principais" description="Identificação, endereço, classificação e observações do condomínio." defaultOpen>
 
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Carteira"><SearchableSelect name="carteira_id" options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))} selectedValue={condominio.carteira_id ?? ''} placeholder="Digite parte da carteira" required /></FormField>
@@ -126,14 +121,9 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
           <FormField label="Observações internas">
             <Textarea name="observacoes" defaultValue={condominio.observacoes ?? ''} placeholder="Observações do condomínio, regras combinadas, exceções operacionais..." />
           </FormField>
-        </Card>
+        </CollapsibleArea>
 
-        <Card id="cobranca" className="space-y-5 scroll-mt-24">
-          <div>
-            <Badge tone="primary">Cobrança</Badge>
-            <h2 className="mt-3 text-lg font-medium text-slate-950">Parâmetros operacionais</h2>
-            <p className="mt-1 text-sm text-slate-500">Campos usados para importação, régua e leitura operacional.</p>
-          </div>
+        <CollapsibleArea id="cobranca" title="Parâmetros operacionais" description="Cobrança, acordos, automações e réguas vinculadas.">
 
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Dia de vencimento da cota"><Input name="vencimento_cota_dia" type="number" min="1" max="31" defaultValue={condominio.vencimento_cota_dia ?? 10} /></FormField>
@@ -159,7 +149,6 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
                 </span>
               </span>
             </label>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2"><FormField label="Dia do mês" hint="Entre 1 e 28"><Input name="captacao_dia_mes" type="number" min="1" max="28" defaultValue={condominio.captacao_dia_mes ?? 10} /></FormField><FormField label="Horário mensal" hint="Fuso de São Paulo"><Input name="captacao_horario" type="time" defaultValue={String(condominio.captacao_horario ?? '08:00').slice(0, 5)} /></FormField></div>
           </div>
 
           <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
@@ -167,6 +156,7 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
               <input type="checkbox" name="captacao_automatica_habilitada" defaultChecked={Boolean(condominio.captacao_automatica_habilitada)} className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" />
               <span><span className="block font-medium text-slate-950">Habilitar captação automática</span><span className="mt-1 block text-xs leading-5 text-slate-500">O agente coleta e converte o relatório, mas aguarda a validação do operador antes de importar cobranças.</span></span>
             </label>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2"><FormField label="Dia do mês" hint="Entre 1 e 28"><Input name="captacao_dia_mes" type="number" min="1" max="28" defaultValue={condominio.captacao_dia_mes ?? 10} /></FormField><FormField label="Horário mensal" hint="Fuso de São Paulo"><Input name="captacao_horario" type="time" defaultValue={String(condominio.captacao_horario ?? '08:00').slice(0, 5)} /></FormField></div>
           </div>
 
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
@@ -193,11 +183,8 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-            <ButtonLink href="/app/condominios" variant="secondary">Cancelar</ButtonLink>
-            <Button type="submit">Salvar Condomínio Integral</Button>
-          </div>
-        </Card>
+        </CollapsibleArea>
+        <div className="flex justify-end gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><ButtonLink href="/app/condominios" variant="secondary">Cancelar</ButtonLink><Button type="submit">Salvar Condomínio Integral</Button></div>
       </form>
 
       <section id="unidades" className="scroll-mt-24">
@@ -247,6 +234,7 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
 }
 
 function Kpi({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: string; detail: string }) { return <Card className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[0.16em] text-slate-400">{label}</p><p className="mt-3 text-3xl font-medium tracking-tight text-slate-950">{value}</p><p className="mt-1 text-sm text-slate-500">{detail}</p></div><div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">{icon}</div></div></Card> }
+function CollapsibleArea({ id, title, description, defaultOpen = false, children }: { id: string; title: string; description: string; defaultOpen?: boolean; children: React.ReactNode }) { return <details id={id} name="condominio-secoes" open={defaultOpen} className="group scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden"><div><p className="text-base font-semibold text-slate-950">{title}</p><p className="mt-1 text-sm text-slate-500">{description}</p></div><ChevronDown size={19} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" /></summary><div className="space-y-5 border-t border-slate-100 p-5">{children}</div></details> }
 function Tab({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) { return <a href={href} className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-950">{icon}{label}</a> }
 function AuditInfo({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-medium text-slate-900">{title}</p><p className="mt-2 text-sm text-slate-500">{text}</p></div> }
 function TimelineItem({ evento }: { evento: any }) { const changes = Object.entries(evento.diferencas ?? {}); return <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><p className="text-sm font-medium text-slate-950">{evento.titulo}</p><p className="mt-1 text-xs text-slate-500">{formatDateTime(evento.criado_em)} · {evento.usuario_nome || evento.usuario_email || 'Usuário'}</p>{evento.descricao ? <p className="mt-2 text-sm text-slate-600">{evento.descricao}</p> : null}</div><Badge tone="slate">{formatEventoTipo(evento.evento_tipo)}</Badge></div>{changes.length > 0 ? <div className="mt-4 grid gap-2 md:grid-cols-2">{changes.slice(0, 6).map(([field, change]: [string, any]) => <div key={field} className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><p className="uppercase tracking-[0.14em] text-slate-400">{formatField(field)}</p><p className="mt-2"><span className="text-slate-400">Antes:</span> {formatAuditValue(change?.antes)}</p><p className="mt-1"><span className="text-slate-400">Depois:</span> {formatAuditValue(change?.depois)}</p></div>)}</div> : null}</div> }
