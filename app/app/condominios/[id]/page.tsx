@@ -78,8 +78,6 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
         <Tab href="#cadastro" icon={<PencilLine size={15} />} label="Cadastro" />
         <Tab href="#cobranca" icon={<Landmark size={15} />} label="Cobrança" />
         <Tab href="#reguas" icon={<Activity size={15} />} label="Réguas" />
-        <Tab href="#unidades" icon={<Home size={15} />} label="Unidades" />
-        <Tab href="#responsaveis" icon={<Users size={15} />} label="Responsáveis" />
         <Tab href="#historico" icon={<History size={15} />} label="Histórico" />
         <Tab href="#auditoria" icon={<FileClock size={15} />} label="Auditoria" />
       </div>
@@ -186,30 +184,6 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
         </CollapsibleArea>
         <div className="flex justify-end gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><ButtonLink href="/app/condominios" variant="secondary">Cancelar</ButtonLink><Button type="submit">Salvar Condomínio Integral</Button></div>
       </form>
-
-      <section id="unidades" className="scroll-mt-24">
-        <Card className="overflow-hidden p-0">
-          <div className="flex flex-col gap-3 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between">
-            <div><Badge tone="primary">Unidades</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Unidades vinculadas</h2><p className="mt-1 text-sm text-slate-500">Primeira leitura para saneamento cadastral antes da régua.</p></div>
-            <ButtonLink href="/app/unidades/nova" variant="secondary">Nova unidade</ButtonLink>
-          </div>
-          {unidades.length === 0 ? <div className="p-5 text-sm text-slate-500">Nenhuma unidade vinculada a este condomínio.</div> : (
-            <div className="divide-y divide-slate-100">{unidades.slice(0, 12).map((unidade: any) => (<Link key={unidade.id} href={`/app/unidades/${unidade.id}`} className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[1fr_1.2fr_1fr_1fr_90px] lg:items-center"><div><p className="text-sm font-medium text-slate-950">{unidade.identificacao}</p><p className="mt-1 text-xs text-slate-500">Bloco {unidade.bloco || '-'}</p></div><div><p className="text-sm text-slate-700">{unidade.responsavel_nome || 'Responsável não informado'}</p><p className="mt-1 text-xs text-slate-500">{unidade.responsavel_documento || '-'}</p></div><div className="text-sm text-slate-600">{unidade.telefone || '-'}</div><div className="truncate text-sm text-slate-600">{unidade.email || '-'}</div><StatusBadge status={unidade.status} /></Link>))}</div>
-          )}
-        </Card>
-      </section>
-
-      <section id="responsaveis" className="scroll-mt-24">
-        <Card className="overflow-hidden p-0">
-          <div className="flex flex-col gap-3 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between">
-            <div><Badge tone="primary">Responsáveis</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Responsáveis importados</h2><p className="mt-1 text-sm text-slate-500">Base de apoio usada para contato, régua e mensageria. Não altera o total de unidades operacionais.</p></div>
-            <ButtonLink href={`/app/responsaveis?condominio_id=${condominio.id}`} variant="secondary">Ver todos</ButtonLink>
-          </div>
-          {responsaveis.length === 0 ? <div className="p-5 text-sm text-slate-500">Nenhum responsável de apoio vinculado a este condomínio.</div> : (
-            <div className="divide-y divide-slate-100">{responsaveis.slice(0, 12).map((responsavel: any) => (<Link key={responsavel.id} href={`/app/responsaveis/${responsavel.id}`} className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[1fr_1.2fr_1fr_1fr_110px] lg:items-center"><div><p className="text-sm font-medium text-slate-950">{responsavel.unidade}</p><p className="mt-1 text-xs text-slate-500">Bloco {responsavel.bloco || '-'}</p></div><div><p className="text-sm text-slate-700">{responsavel.responsavel_nome || 'Responsável não informado'}</p><p className="mt-1 text-xs text-slate-500">{responsavel.responsavel_documento || '-'}</p></div><div className="text-sm text-slate-600">{responsavel.telefone || '-'}</div><div className="truncate text-sm text-slate-600">{responsavel.email || '-'}</div><Badge tone={responsavel.ativo === false ? 'slate' : 'green'}>{responsavel.ativo === false ? 'Inativo' : 'Ativo'}</Badge></Link>))}</div>
-          )}
-        </Card>
-      </section>
 
       <section id="historico" className="scroll-mt-24">
         <Card className="overflow-hidden p-0">
