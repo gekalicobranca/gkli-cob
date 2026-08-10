@@ -154,6 +154,7 @@ const settingsGroups: SidebarSection[] = [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
       { label: 'Keila', href: '/app/gestao/keila', icon: 'robot' },
       { label: 'Lab experimental', href: '/app/configuracoes/lab', icon: 'beaker' },
+      { label: 'Captação automatizada', href: '/app/configuracoes/lab/captacao-automatizada', icon: 'bot' },
       { label: 'Lite legado', href: '/app/configuracoes/lab/lite', icon: 'spark' },
       { label: 'Mobile', href: '/app/configuracoes/lab/mobile', icon: 'mobile' },
       { label: 'Workspace Focus', href: '/app/configuracoes/lab/workspace/demo/focus', icon: 'target' },

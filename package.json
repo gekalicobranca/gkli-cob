@@ -20,6 +20,7 @@
     "backup:restore": "bash scripts/backup/restore-backup.sh",
     "backup:generate-schema": "node scripts/backup/generate-schema-snapshot.mjs",
     "agente:worker": "node scripts/agente-automatico/worker.mjs",
+    "captacao:worker": "tsx scripts/captacao-automatizada/worker.ts",
     "prebuild": "npm run backup:generate-schema"
   },
   "dependencies": {
@@ -48,6 +49,7 @@
     "playwright": "1.62.1",
     "supabase": "^2.113.0",
     "tailwindcss": "4.2.4",
+    "tsx": "4.20.6",
     "typescript": "5.9.3"
   },
   "description": "GKLI Cobrança - plataforma operacional de cobrança extrajudicial condominial"

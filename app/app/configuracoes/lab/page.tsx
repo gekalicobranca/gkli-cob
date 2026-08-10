@@ -1,8 +1,14 @@
 import Link from 'next/link'
-import { ArrowRight, FlaskConical, MonitorSmartphone, Sparkles, Target } from 'lucide-react'
+import { ArrowRight, Bot, FlaskConical, MonitorSmartphone, Sparkles, Target } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 
 const experiments = [
+  {
+    title: 'Captação automatizada',
+    description: 'Busca o relatório na pasta local, converte, importa e arquiva automaticamente. Piloto BBZ · Clock Vila Romana.',
+    href: '/app/configuracoes/lab/captacao-automatizada',
+    icon: Bot,
+  },
   {
     title: 'Lite legado',
     description: 'Protótipo original da experiência Lite, preservado para referência de produto.',

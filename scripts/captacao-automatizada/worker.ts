@@ -1,0 +1,60 @@
+import { mkdir, readFile, rename, stat } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import process from "node:process"
+import { processarRelatorioCaptado } from "../../features/captacao-automatizada/processar-relatorio"
+
+const raiz = process.cwd()
+async function carregarEnv() {
+  for (const nome of [".env.local", ".env"]) try {
+    for (const linha of (await readFile(path.join(raiz, nome), "utf8")).split(/\r?\n/)) {
+      const texto = linha.trim(), pos = texto.indexOf("=")
+      if (!texto || texto.startsWith("#") || pos < 1) continue
+      const chave = texto.slice(0, pos).trim(), valor = texto.slice(pos + 1).trim().replace(/^(['"])(.*)\1$/, "$2")
+      if (!process.env[chave]) process.env[chave] = valor
+    }
+    return
+  } catch {}
+}
+let entrada = "", processados = "", falhas = ""
+
+async function destinoUnico(pasta: string, nome: string) {
+  const parsed = path.parse(nome)
+  let destino = path.join(pasta, nome), contador = 1
+  while (await stat(destino).then(() => true).catch(() => false)) destino = path.join(pasta, `${parsed.name}_${contador++}${parsed.ext}`)
+  return destino
+}
+
+async function arquivosElegiveis() {
+  const { readdir } = await import("node:fs/promises")
+  return (await readdir(entrada, { withFileTypes: true }))
+    .filter((item) => item.isFile() && /^CLOCK_VILA_ROMANA_.*\.xlsx?$/i.test(item.name))
+    .map((item) => item.name).sort()
+}
+
+async function main() {
+  await carregarEnv()
+  entrada = path.resolve(process.env.CAPTACAO_AUTOMATIZADA_PASTA || process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(), "Downloads"))
+  processados = path.join(entrada, "processados"); falhas = path.join(entrada, "falhas")
+  const intervalo = Math.max(3000, Number(process.env.CAPTACAO_AUTOMATIZADA_INTERVALO_MS || 10000))
+  await mkdir(processados, { recursive: true }); await mkdir(falhas, { recursive: true })
+  console.log(`Captação automatizada ativa em ${entrada}`)
+  for (;;) {
+    for (const nome of await arquivosElegiveis()) {
+      const origem = path.join(entrada, nome)
+      try {
+        const antes = await stat(origem); await new Promise((r) => setTimeout(r, 1500)); const depois = await stat(origem)
+        if (antes.size !== depois.size || antes.mtimeMs !== depois.mtimeMs) continue
+        const resumo = await processarRelatorioCaptado(origem)
+        await rename(origem, await destinoUnico(processados, nome))
+        console.log(`${nome}: concluído (${resumo.criadas} criadas, ${resumo.existentes} já existentes, ${resumo.foraDaRegua} fora da régua).`)
+      } catch (error) {
+        console.error(`${nome}: ${error instanceof Error ? error.message : error}`)
+        if (await stat(origem).then(() => true).catch(() => false)) await rename(origem, await destinoUnico(falhas, nome))
+      }
+    }
+    if (String(process.env.CAPTACAO_RUN_ONCE || "false").toLowerCase() === "true") break
+    await new Promise((r) => setTimeout(r, intervalo))
+  }
+}
+main().catch((error) => { console.error(error); process.exitCode = 1 })
