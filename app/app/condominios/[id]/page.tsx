@@ -161,6 +161,13 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             </label>
           </div>
 
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+            <label className="flex items-start gap-3 text-sm text-slate-700">
+              <input type="checkbox" name="captacao_automatica_habilitada" defaultChecked={Boolean(condominio.captacao_automatica_habilitada)} className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" />
+              <span><span className="block font-medium text-slate-950">Habilitar captação automática</span><span className="mt-1 block text-xs leading-5 text-slate-500">O agente coleta e converte o relatório, mas aguarda a validação do operador antes de importar cobranças.</span></span>
+            </label>
+          </div>
+
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
             <p className="font-semibold">Regras operacionais de acordos</p>
             <p className="mt-1">Acima do limite de parcelas, o sistema envia primeiro a aprovação pública ao síndico. Somente após esse aceite o termo é enviado ao devedor. Se os dias de reemissão forem 0, parcelas vencidas não poderão ser reemitidas pelo acompanhamento.</p>

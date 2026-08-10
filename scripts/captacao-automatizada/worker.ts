@@ -47,7 +47,7 @@ async function main() {
         if (antes.size !== depois.size || antes.mtimeMs !== depois.mtimeMs) continue
         const resumo = await processarRelatorioCaptado(origem)
         await rename(origem, await destinoUnico(processados, nome))
-        console.log(`${nome}: concluído (${resumo.criadas} criadas, ${resumo.existentes} já existentes, ${resumo.foraDaRegua} fora da régua).`)
+        console.log(`${nome}: convertido (${resumo.cobrancas} cobranças); aguardando validação do operador.`)
       } catch (error) {
         console.error(`${nome}: ${error instanceof Error ? error.message : error}`)
         if (await stat(origem).then(() => true).catch(() => false)) await rename(origem, await destinoUnico(falhas, nome))

@@ -25,6 +25,7 @@ const CONDOMINIO_SELECT = `
   dias_reemissao_parcela_acordo_atrasada,
   classificacao_operacional,
   operacao_virtual_habilitada,
+  captacao_automatica_habilitada,
   regua_cobranca_id,
   regua_acordo_id,
   status,

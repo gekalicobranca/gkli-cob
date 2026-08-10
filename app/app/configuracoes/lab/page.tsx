@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card'
 const experiments = [
   {
     title: 'Captação automatizada',
-    description: 'Busca o relatório na pasta local, converte, importa e arquiva automaticamente. Piloto BBZ · Clock Vila Romana.',
+    description: 'Busca o relatório, converte e prepara a prévia para validação humana antes da importação. Piloto BBZ · Clock Vila Romana.',
     href: '/app/configuracoes/lab/captacao-automatizada',
     icon: Bot,
   },

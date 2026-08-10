@@ -104,6 +104,7 @@ export async function createCondominio(formData: FormData) {
   const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
   const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
   const operacaoVirtualHabilitada = checkboxOn(formData.get('operacao_virtual_habilitada'))
+  const captacaoAutomaticaHabilitada = checkboxOn(formData.get('captacao_automatica_habilitada'))
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
   const reguaAcordoId = String(formData.get('regua_acordo_id') ?? '').trim() || null
@@ -135,6 +136,7 @@ export async function createCondominio(formData: FormData) {
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
     classificacao_operacional: classificacaoOperacional,
     operacao_virtual_habilitada: operacaoVirtualHabilitada,
+    captacao_automatica_habilitada: captacaoAutomaticaHabilitada,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
     status: 'ativo',
@@ -187,6 +189,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
   const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
   const operacaoVirtualHabilitada = checkboxOn(formData.get('operacao_virtual_habilitada'))
+  const captacaoAutomaticaHabilitada = checkboxOn(formData.get('captacao_automatica_habilitada'))
   const status = String(formData.get('status') ?? 'ativo')
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
@@ -202,7 +205,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, regua_cobranca_id, regua_acordo_id, status, observacoes')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, regua_cobranca_id, regua_acordo_id, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -236,6 +239,7 @@ export async function updateCondominioIntegral(formData: FormData) {
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
     classificacao_operacional: classificacaoOperacional,
     operacao_virtual_habilitada: operacaoVirtualHabilitada,
+    captacao_automatica_habilitada: captacaoAutomaticaHabilitada,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
     status,
