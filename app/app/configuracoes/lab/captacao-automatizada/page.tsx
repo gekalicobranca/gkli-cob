@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Bot, CalendarClock, CheckCircle2, Clock3, Filter, Settings2, TriangleAlert } from 'lucide-react'
+import { Bot, CalendarClock, CheckCircle2, Clock3, Filter, History, Settings2, TriangleAlert } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -60,7 +60,7 @@ export default async function CaptacaoAutomatizadaPage({ searchParams }: Props) 
   const filtrosAtivos = Boolean(q || administradora || agendaFiltro)
 
   return <ListPage>
-    <PageHeader eyebrow="Configurações · Lab" title="Captação automatizada" description="Agenda mensal, coleta de relatórios e validação humana antes da importação." actions={<ButtonLink href="/app/agente-automatico" variant="secondary"><Bot size={16} />Abrir agente</ButtonLink>} />
+    <PageHeader eyebrow="Configurações · Lab" title="Captação automatizada" description="Agenda mensal, coleta de relatórios e validação humana antes da importação." actions={<><ButtonLink href="/app/configuracoes/lab/captacao-automatizada/historico" variant="secondary"><History size={16} />Histórico</ButtonLink><ButtonLink href="/app/agente-automatico" variant="secondary"><Bot size={16} />Abrir agente</ButtonLink></>} />
 
     <ListKpiGrid>
       <Kpi icon={<CheckCircle2 size={18} />} label="Habilitados" value={(condominiosBase ?? []).length} />
@@ -94,7 +94,6 @@ export default async function CaptacaoAutomatizadaPage({ searchParams }: Props) 
       })}</ListRows>}
     </ListPanel>
 
-    <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 [&::-webkit-details-marker]:hidden"><div><p className="text-sm font-semibold text-slate-950">Log de execuções mensais</p><p className="mt-1 text-xs text-slate-500">Últimos disparos gerados pela agenda</p></div><CalendarClock size={18} className="text-slate-400" /></summary><div className="divide-y divide-slate-100 border-t border-slate-100">{execucoesAgenda?.length ? execucoesAgenda.slice(0, 12).map((item: any) => <div key={item.id} className="flex items-center justify-between gap-4 px-4 py-3"><div><p className="text-sm text-slate-800">Competência {item.competencia}</p><p className="mt-1 text-xs text-slate-500">{formatarData(item.created_at)} · {item.logs?.at(-1)?.mensagem || 'Execução registrada'}</p></div><StatusBadge status={item.status} /></div>) : <p className="px-4 py-6 text-sm text-slate-500">Nenhum disparo mensal registrado.</p>}</div></details>
   </ListPage>
 }
 
