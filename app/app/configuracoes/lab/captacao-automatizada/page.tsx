@@ -16,6 +16,10 @@ export const dynamic = 'force-dynamic'
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> }
 const param = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] ?? '' : value ?? ''
 
+function normalizarNome(value?: string | null) {
+  return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase()
+}
+
 function formatarData(value?: string | null) {
   if (!value) return '—'
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(value))
@@ -39,10 +43,11 @@ export default async function CaptacaoAutomatizadaPage({ searchParams }: Props) 
   const agendaFiltro = param(params?.agenda)
   const supabase = createAdminClient()
 
-  const [{ data: condominiosBase }, { data: conversoes }, { data: execucoesAgenda }] = await Promise.all([
+  const [{ data: condominiosBase }, { data: conversoes }, { data: execucoesAgenda }, { data: receitasAgente }] = await Promise.all([
     supabase.from('condominios').select('id, nome, nome_operacional, cnpj, administradora, status, captacao_dia_mes, captacao_horario, carteiras(nome)').eq('captacao_automatica_habilitada', true).order('nome'),
     supabase.from('conversoes_relatorio').select('id, nome_arquivo, status, total_cobrancas, total_parcelas, inconsistencias_json, criado_em, atualizado_em, preview_json').eq('origem', 'captacao_automatizada:bbz').order('criado_em', { ascending: false }).limit(40),
     supabase.from('agente_execucoes').select('id, condominio_id, status, competencia, created_at, erro_mensagem, logs:agente_logs(step, mensagem, nivel, created_at)').eq('origem', 'agenda_mensal').order('created_at', { ascending: false }).limit(40),
+    supabase.from('agente_receitas').select('id, script_key, config_json, ativo, administradora:agente_administradoras(nome, ativo)').eq('ativo', true),
   ])
 
   const administradoras = [...new Set((condominiosBase ?? []).map((row: any) => row.administradora).filter(Boolean))].sort()
@@ -83,12 +88,21 @@ export default async function CaptacaoAutomatizadaPage({ searchParams }: Props) 
         const ultimaAgenda: any = (execucoesAgenda ?? []).find((item: any) => item.condominio_id === row.id)
         const ultimaConversao: any = (conversoes ?? []).find((item: any) => item.preview_json?.condominioId === row.id)
         const proxima = proximaExecucao(row.captacao_dia_mes, row.captacao_horario)
+        const nomeAdministradora = normalizarNome(row.administradora)
+        const nomesCondominio = [normalizarNome(row.nome), normalizarNome(row.nome_operacional)].filter(Boolean)
+        const temAgenteConfigurado = (receitasAgente ?? []).some((receita: any) => {
+          const nomeAgente = normalizarNome(receita.administradora?.nome)
+          const condominioDaReceita = normalizarNome(receita.config_json?.condominio)
+          const correspondeAdministradora = nomeAdministradora && nomeAgente && (nomeAgente.includes(nomeAdministradora) || nomeAdministradora.includes(nomeAgente))
+          const correspondeCondominio = condominioDaReceita && nomesCondominio.some((nome) => nome.includes(condominioDaReceita) || condominioDaReceita.includes(nome))
+          return Boolean(receita.script_key && receita.administradora?.ativo !== false && (correspondeAdministradora || correspondeCondominio))
+        })
         return <ListRow key={row.id} className="xl:grid-cols-[minmax(300px,1.5fr)_180px_190px_180px_190px]">
           <Link href={`/app/condominios/${row.id}#cobranca`} className="min-w-0"><p className="truncate text-sm font-medium text-slate-950 hover:text-[var(--gkli-primary)]">{row.nome_operacional || row.nome}</p><p className="mt-1 truncate text-xs text-slate-500">{row.administradora || 'Administradora não informada'} · CNPJ {row.cnpj || '—'} · {(row.carteiras as any)?.nome || 'Carteira não informada'}</p></Link>
           <div><p className="text-xs font-medium uppercase text-slate-400">Agenda mensal</p><p className="mt-1 text-sm text-slate-700">{row.captacao_dia_mes ? `Dia ${row.captacao_dia_mes} · ${String(row.captacao_horario ?? '08:00').slice(0, 5)}` : 'Não configurada'}</p></div>
           <div><p className="text-xs font-medium uppercase text-slate-400">Próxima execução</p><p className="mt-1 text-sm text-slate-700">{proxima ? formatarData(proxima.toISOString()) : 'Defina dia e horário'}</p></div>
           <div><p className="text-xs font-medium uppercase text-slate-400">Última coleta</p><div className="mt-1">{ultimaAgenda ? <StatusBadge status={ultimaAgenda.status} /> : <span className="text-sm text-slate-500">Sem execução</span>}</div></div>
-          <div className="flex flex-wrap justify-start gap-2 xl:justify-end">{ultimaConversao?.status === 'aguardando_validacao' && <ButtonLink size="sm" href={`/app/configuracoes/lab/captacao-automatizada/${ultimaConversao.id}`}>Validar</ButtonLink>}<ButtonLink size="sm" variant="secondary" href={`/app/condominios/${row.id}#cobranca`}><Settings2 size={15} />Configurar</ButtonLink></div>
+          <div className="flex flex-wrap justify-start gap-2 xl:justify-end">{ultimaConversao?.status === 'aguardando_validacao' && <ButtonLink size="sm" href={`/app/configuracoes/lab/captacao-automatizada/${ultimaConversao.id}`}>Validar</ButtonLink>}{!temAgenteConfigurado && <ButtonLink size="sm" href="/app/agente-automatico"><Bot size={15} />Configurar agente</ButtonLink>}<ButtonLink size="sm" variant="secondary" href={`/app/condominios/${row.id}#cobranca`}><Settings2 size={15} />Configurar</ButtonLink></div>
         </ListRow>
       })}</ListRows>}
     </ListPanel>
