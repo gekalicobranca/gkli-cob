@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, ArrowUpRight, Handshake, Inbox } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, ChevronDown, Handshake, Inbox } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -293,14 +293,17 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
         ) : (
           <ListRows>
             {groups.map((group) => (
-              <section key={group.condominioId} className="bg-white">
-                <div className="flex items-center justify-between gap-3 bg-slate-50/70 px-4 py-2.5">
-                  <div>
+              <details key={group.condominioId} open className="group/condominio bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                    <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-950">{group.condominio}</p>
                     <p className="mt-0.5 text-xs text-slate-500">{group.acordos.length} acordo(s)</p>
+                    </div>
                   </div>
-                </div>
-                <div className="divide-y divide-slate-100">
+                </summary>
+                <div className="divide-y divide-slate-100 border-t border-slate-100">
                   {group.acordos.map((row: any) => (
                     <Link
                       key={row.id}
@@ -333,7 +336,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                     </Link>
                   ))}
                 </div>
-              </section>
+              </details>
             ))}
           </ListRows>
         )}
