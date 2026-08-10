@@ -81,7 +81,8 @@ async function claimNextExecution() {
       id,
       tentativas,
       receita:agente_receitas!inner(script_key, config_json),
-      administradora:agente_administradoras!inner(url_portal)
+      administradora:agente_administradoras!inner(url_portal),
+      condominio:condominios(nome, nome_operacional)
     `)
     .eq('status', 'pendente')
     .eq('agente_receitas.script_key', SCRIPT_KEY)
@@ -122,7 +123,7 @@ async function agendarCaptacoesMensais() {
   const { data: condominios, error } = await supabase.from('condominios')
     .select('id, carteira_id, nome, captacao_dia_mes, captacao_horario')
     .eq('captacao_automatica_habilitada', true).eq('status', 'ativo')
-    .eq('nome', 'CLOCK VILA ROMANA').not('captacao_dia_mes', 'is', null)
+    .ilike('administradora', 'BBZ').not('captacao_dia_mes', 'is', null)
   if (error) throw error
 
   for (const condominio of condominios ?? []) {
@@ -202,8 +203,10 @@ async function collectClockVilaRomana(execution) {
     await page.goto(execution.administradora.url_portal, { waitUntil: 'domcontentloaded' })
     await waitForPortalReady(page, execution.id)
 
-    await log(execution.id, 'condominio', 'Localizando o condomínio Clock Vila Romana.')
-    const card = page.getByText(/CLOCK VILA ROMANA/i).first()
+    const condominioNome = execution.condominio?.nome_operacional || execution.condominio?.nome || 'CLOCK VILA ROMANA'
+    const nomePortal = condominioNome.replace(/^CONDOM[IÍ]NIO\s+/i, '').trim()
+    await log(execution.id, 'condominio', `Localizando o condomínio ${condominioNome}.`)
+    const card = page.getByText(nomePortal, { exact: false }).first()
     await card.waitFor({ state: 'visible', timeout: 60_000 })
     const cardContainer = card.locator('xpath=ancestor::*[.//a or .//button][1]')
     const acessar = cardContainer.getByText(/Acessar/i).first()
@@ -227,14 +230,15 @@ async function collectClockVilaRomana(execution) {
     const consultar = page.getByRole('button', { name: /Consultar|Avançar/i })
       .or(page.getByText(/Consultar|Avançar/i)).first()
     await consultar.click()
-    await page.getByText(/CLOCK VILA ROMANA/i).last().waitFor({ state: 'visible', timeout: 120_000 })
+    await page.getByText(nomePortal, { exact: false }).last().waitFor({ state: 'visible', timeout: 120_000 })
 
     const exportar = page.getByText(/Exportar Excel/i).first()
     await exportar.waitFor({ state: 'visible', timeout: 60_000 })
     const downloadPromise = page.waitForEvent('download', { timeout: 120_000 })
     await exportar.click()
     const download = await downloadPromise
-    const filename = `CLOCK_VILA_ROMANA_${downloadDate()}.xls`
+    const prefixo = condominioNome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase()
+    const filename = `${prefixo}_${downloadDate()}.xls`
     const localPath = path.join(localDownloadDir, filename)
     await download.saveAs(localPath)
 

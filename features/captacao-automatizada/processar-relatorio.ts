@@ -4,8 +4,15 @@ import * as XLSX from "xlsx"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { parseRelatorioBuffer } from "@/features/conversao-relatorio/server/parse-relatorio-buffer"
 
-const CONDOMINIO_PILOTO = "CLOCK VILA ROMANA"
-const CNPJ_PILOTO = "42216619000188"
+function normalizar(value: unknown) {
+  return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]+/gi, " ").trim().toUpperCase()
+}
+
+function detectarCondominioBbz(buffer: Buffer) {
+  const workbook = XLSX.read(buffer, { type: "buffer", raw: false })
+  const primeira = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "", raw: false })
+  return primeira.flat().join(" ").match(/Condom.nio:\s*\d+\s*-\s*(.+)$/i)?.[1]?.trim() ?? ""
+}
 
 function valorBbz(value: unknown) {
   const digits = String(value ?? "").replace(/\D/g, "")
@@ -67,20 +74,26 @@ export type ResumoCaptacao = {
  */
 export async function processarRelatorioCaptado(arquivo: string): Promise<ResumoCaptacao> {
   const supabase = createAdminClient()
-  const { data: condominio, error: condominioError } = await supabase.from("condominios")
-    .select("id, carteira_id, nome, cnpj, captacao_automatica_habilitada")
-    .ilike("nome", CONDOMINIO_PILOTO).maybeSingle()
+  const buffer = await readFile(arquivo)
+  const nomeDetectado = detectarCondominioBbz(buffer)
+  const { data: candidatos, error: condominioError } = await supabase.from("condominios")
+    .select("id, carteira_id, nome, nome_operacional, cnpj, captacao_automatica_habilitada")
+    .eq("captacao_automatica_habilitada", true).eq("status", "ativo")
+  const detectado = normalizar(nomeDetectado)
+  const condominio = (candidatos ?? []).find((item: any) => {
+    const oficial = normalizar(item.nome), operacional = normalizar(item.nome_operacional)
+    return oficial === detectado || operacional === detectado || (detectado && (oficial.includes(detectado) || detectado.includes(oficial)))
+  })
   if (condominioError || !condominio?.id || !condominio?.carteira_id) {
-    throw new Error(condominioError?.message || `Condomínio ${CONDOMINIO_PILOTO} sem carteira vinculada.`)
+    throw new Error(condominioError?.message || `Condomínio do relatório (${nomeDetectado || "não identificado"}) não está habilitado para captação.`)
   }
   if (!condominio.captacao_automatica_habilitada) {
-    throw new Error(`Captação automática desabilitada no cadastro de ${CONDOMINIO_PILOTO}.`)
+    throw new Error(`Captação automática desabilitada no cadastro de ${condominio.nome}.`)
   }
 
-  const buffer = await readFile(arquivo)
   let preview: any = await parseRelatorioBuffer({
     buffer, filename: path.basename(arquivo), mimeType: "application/vnd.ms-excel",
-    condominioCnpj: CNPJ_PILOTO, tipoConversao: "cobrancas",
+    condominioCnpj: String(condominio.cnpj ?? "").replace(/\D/g, ""), tipoConversao: "cobrancas",
   })
   if (!preview?.ok) throw new Error(preview?.error || "Não foi possível converter o relatório.")
   if (!preview.cobrancas?.length) preview = parseBbzClock(buffer, path.basename(arquivo))
@@ -94,6 +107,8 @@ export async function processarRelatorioCaptado(arquivo: string): Promise<Resumo
     condominio: condominio.nome,
   }
   const { data: conversao, error } = await supabase.from("conversoes_relatorio").insert({
+    carteira_id: condominio.carteira_id,
+    condominio_id: condominio.id,
     origem: "captacao_automatizada:bbz",
     nome_arquivo: path.basename(arquivo),
     status: "aguardando_validacao",

@@ -28,7 +28,7 @@ async function destinoUnico(pasta: string, nome: string) {
 async function arquivosElegiveis() {
   const { readdir } = await import("node:fs/promises")
   return (await readdir(entrada, { withFileTypes: true }))
-    .filter((item) => item.isFile() && /^CLOCK_VILA_ROMANA_.*\.xlsx?$/i.test(item.name))
+    .filter((item) => item.isFile() && /^[A-Z0-9_]+_\d{4}-\d{2}-\d{2}\.xlsx?$/i.test(item.name))
     .map((item) => item.name).sort()
 }
 
