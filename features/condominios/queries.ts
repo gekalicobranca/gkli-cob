@@ -26,6 +26,8 @@ const CONDOMINIO_SELECT = `
   classificacao_operacional,
   operacao_virtual_habilitada,
   captacao_automatica_habilitada,
+  captacao_dia_mes,
+  captacao_horario,
   regua_cobranca_id,
   regua_acordo_id,
   status,

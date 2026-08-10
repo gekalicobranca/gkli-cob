@@ -105,6 +105,7 @@ export default async function NovoCondominioPage() {
                 </span>
               </span>
             </label>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2"><FormField label="Dia do mês" hint="Entre 1 e 28"><Input name="captacao_dia_mes" type="number" min="1" max="28" defaultValue="10" /></FormField><FormField label="Horário mensal" hint="Fuso de São Paulo"><Input name="captacao_horario" type="time" defaultValue="08:00" /></FormField></div>
           </div>
 
           <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">

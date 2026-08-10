@@ -105,12 +105,16 @@ export async function createCondominio(formData: FormData) {
   const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
   const operacaoVirtualHabilitada = checkboxOn(formData.get('operacao_virtual_habilitada'))
   const captacaoAutomaticaHabilitada = checkboxOn(formData.get('captacao_automatica_habilitada'))
+  const captacaoDiaMes = toOptionalInteger(formData.get('captacao_dia_mes'))
+  const captacaoHorario = String(formData.get('captacao_horario') ?? '08:00').trim() || '08:00'
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
   const reguaAcordoId = String(formData.get('regua_acordo_id') ?? '').trim() || null
 
   if (!carteiraId) throw new Error('Carteira obrigatória.')
   if (nome.length < 2) throw new Error('Nome do condomínio obrigatório.')
+
+  if (captacaoAutomaticaHabilitada && (!captacaoDiaMes || captacaoDiaMes < 1 || captacaoDiaMes > 28)) throw new Error('Informe um dia mensal entre 1 e 28 para a captação automática.')
 
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()
@@ -137,6 +141,8 @@ export async function createCondominio(formData: FormData) {
     classificacao_operacional: classificacaoOperacional,
     operacao_virtual_habilitada: operacaoVirtualHabilitada,
     captacao_automatica_habilitada: captacaoAutomaticaHabilitada,
+    captacao_dia_mes: captacaoDiaMes,
+    captacao_horario: captacaoHorario,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
     status: 'ativo',
@@ -190,6 +196,8 @@ export async function updateCondominioIntegral(formData: FormData) {
   const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
   const operacaoVirtualHabilitada = checkboxOn(formData.get('operacao_virtual_habilitada'))
   const captacaoAutomaticaHabilitada = checkboxOn(formData.get('captacao_automatica_habilitada'))
+  const captacaoDiaMes = toOptionalInteger(formData.get('captacao_dia_mes'))
+  const captacaoHorario = String(formData.get('captacao_horario') ?? '08:00').trim() || '08:00'
   const status = String(formData.get('status') ?? 'ativo')
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
@@ -200,12 +208,13 @@ export async function updateCondominioIntegral(formData: FormData) {
   if (nome.length < 2) throw new Error('Nome do condomínio obrigatório.')
   if (!Number.isFinite(vencimentoCotaDia) || vencimentoCotaDia < 1 || vencimentoCotaDia > 31) throw new Error('Dia de vencimento deve ficar entre 1 e 31.')
   if (!Number.isFinite(inicioCobrancaDias) || inicioCobrancaDias < 0 || inicioCobrancaDias > 365) throw new Error('Início da cobrança deve ficar entre 0 e 365 dias.')
+  if (captacaoAutomaticaHabilitada && (!captacaoDiaMes || captacaoDiaMes < 1 || captacaoDiaMes > 28)) throw new Error('Informe um dia mensal entre 1 e 28 para a captação automática.')
 
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, regua_cobranca_id, regua_acordo_id, status, observacoes')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, regua_cobranca_id, regua_acordo_id, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -240,6 +249,8 @@ export async function updateCondominioIntegral(formData: FormData) {
     classificacao_operacional: classificacaoOperacional,
     operacao_virtual_habilitada: operacaoVirtualHabilitada,
     captacao_automatica_habilitada: captacaoAutomaticaHabilitada,
+    captacao_dia_mes: captacaoDiaMes,
+    captacao_horario: captacaoHorario,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
     status,

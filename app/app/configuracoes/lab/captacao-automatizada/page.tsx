@@ -1,4 +1,4 @@
-import { Bot, CheckCircle2, FolderInput, FolderOutput, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { Bot, CalendarClock, CheckCircle2, FolderInput, FolderOutput, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { ButtonLink } from '@/components/ui/button'
@@ -13,9 +13,11 @@ function formatarData(value?: string | null) {
 
 export default async function CaptacaoAutomatizadaPage() {
   const supabase = createAdminClient()
-  const { data: execucoes } = await supabase.from('conversoes_relatorio')
-    .select('id, nome_arquivo, status, total_cobrancas, total_parcelas, inconsistencias_json, criado_em, atualizado_em')
-    .eq('origem', 'captacao_automatizada:bbz').order('criado_em', { ascending: false }).limit(12)
+  const [{ data: execucoes }, { data: agenda }, { data: condominio }] = await Promise.all([
+    supabase.from('conversoes_relatorio').select('id, nome_arquivo, status, total_cobrancas, total_parcelas, inconsistencias_json, criado_em, atualizado_em').eq('origem', 'captacao_automatizada:bbz').order('criado_em', { ascending: false }).limit(12),
+    supabase.from('agente_execucoes').select('id, status, competencia, created_at, iniciado_em, finalizado_em, erro_mensagem, logs:agente_logs(step, mensagem, nivel, created_at)').eq('origem', 'agenda_mensal').order('created_at', { ascending: false }).limit(12),
+    supabase.from('condominios').select('id, nome, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario').eq('nome', 'CLOCK VILA ROMANA').maybeSingle(),
+  ])
 
   return (
     <div className="space-y-5">
@@ -36,6 +38,13 @@ export default async function CaptacaoAutomatizadaPage() {
         <Card className="p-5"><ShieldCheck className="text-[#04799a]" size={22} /><p className="mt-4 text-sm font-semibold text-slate-950">2. Conversão e validação</p><p className="mt-2 text-sm leading-6 text-slate-500">Prepara a prévia; a conciliação, a régua e a gravação aguardam a confirmação do operador.</p></Card>
         <Card className="p-5"><FolderOutput className="text-[#04799a]" size={22} /><p className="mt-4 text-sm font-semibold text-slate-950">3. Arquivamento</p><p className="mt-2 text-sm leading-6 text-slate-500">Move para Downloads/processados; em erro, preserva em Downloads/falhas.</p></Card>
       </section>
+
+      <Card className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3"><CalendarClock className="mt-0.5 text-[#04799a]" size={21} /><div><h2 className="font-semibold text-slate-950">Agenda mensal</h2><p className="mt-1 text-sm text-slate-500">{condominio?.captacao_automatica_habilitada && condominio?.captacao_dia_mes ? `Todo dia ${condominio.captacao_dia_mes}, às ${String(condominio.captacao_horario ?? '08:00').slice(0, 5)} · America/São_Paulo` : 'Sem agendamento ativo. Configure no cadastro do condomínio.'}</p></div></div>
+        {condominio?.id && <ButtonLink href={`/app/condominios/${condominio.id}`} variant="secondary" size="sm">Editar agenda</ButtonLink>}
+      </Card>
+
+      <Card className="overflow-hidden p-0"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-semibold text-slate-950">Log da agenda</h2><p className="mt-1 text-xs text-slate-500">Disparos mensais e resultados da coleta</p></div><div className="divide-y divide-slate-100">{agenda?.length ? agenda.map((item: any) => <div key={item.id} className="flex flex-col gap-2 px-5 py-4 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-medium text-slate-950">Competência {item.competencia}</p><p className="mt-1 text-xs text-slate-500">{formatarData(item.created_at)} · {item.logs?.at(-1)?.mensagem || 'Execução mensal registrada'}</p>{item.erro_mensagem && <p className="mt-1 text-xs text-rose-700">{item.erro_mensagem}</p>}</div><StatusBadge status={item.status} /></div>) : <div className="px-5 py-8 text-center text-sm text-slate-500">Nenhum disparo mensal registrado ainda.</div>}</div></Card>
 
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">

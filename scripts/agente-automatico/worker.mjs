@@ -109,6 +109,51 @@ async function claimNextExecution() {
   return claimed ? execution : null
 }
 
+function saoPauloAgora() {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date()).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]))
+  return { dia: Number(parts.day), horario: `${parts.hour}:${parts.minute}`, competencia: `${parts.year}-${parts.month}` }
+}
+
+async function agendarCaptacoesMensais() {
+  const agora = saoPauloAgora()
+  const { data: condominios, error } = await supabase.from('condominios')
+    .select('id, carteira_id, nome, captacao_dia_mes, captacao_horario')
+    .eq('captacao_automatica_habilitada', true).eq('status', 'ativo')
+    .eq('nome', 'CLOCK VILA ROMANA').not('captacao_dia_mes', 'is', null)
+  if (error) throw error
+
+  for (const condominio of condominios ?? []) {
+    const horario = String(condominio.captacao_horario || '08:00').slice(0, 5)
+    if (agora.dia < Number(condominio.captacao_dia_mes) || (agora.dia === Number(condominio.captacao_dia_mes) && agora.horario < horario)) continue
+    const { data: receita, error: receitaError } = await supabase.from('agente_receitas')
+      .select('id, administradora_id, carteira_id').eq('script_key', SCRIPT_KEY).eq('ativo', true).maybeSingle()
+    if (receitaError) throw receitaError
+    if (!receita) continue
+
+    const { data: existente } = await supabase.from('agente_execucoes').select('id')
+      .eq('condominio_id', condominio.id).eq('receita_id', receita.id)
+      .eq('competencia', agora.competencia).eq('origem', 'agenda_mensal').maybeSingle()
+    if (existente) continue
+
+    const { data: execucao, error: execucaoError } = await supabase.from('agente_execucoes').insert({
+      receita_id: receita.id, administradora_id: receita.administradora_id,
+      carteira_id: condominio.carteira_id || receita.carteira_id, condominio_id: condominio.id,
+      status: 'pendente', tentativas: 0, origem: 'agenda_mensal', competencia: agora.competencia,
+    }).select('id').single()
+    if (execucaoError) {
+      if (execucaoError.code === '23505') continue
+      throw execucaoError
+    }
+    await log(execucao.id, 'agenda_mensal', `Execução mensal criada para ${condominio.nome}, competência ${agora.competencia}.`, 'info', {
+      dia_mes: condominio.captacao_dia_mes, horario, fuso: 'America/Sao_Paulo',
+    })
+    console.log(`Agenda mensal: execução ${execucao.id} criada para ${condominio.nome}.`)
+  }
+}
+
 async function waitForPortalReady(page, execucaoId) {
   const usuario = process.env.AGENTE_BBZ_USUARIO
   const senha = process.env.AGENTE_BBZ_SENHA
@@ -247,6 +292,7 @@ async function run() {
   const runOnce = String(process.env.AGENTE_RUN_ONCE || 'false').toLowerCase() === 'true'
   for (;;) {
     try {
+      await agendarCaptacoesMensais()
       const execution = await claimNextExecution()
       if (execution) await collectClockVilaRomana(execution)
     } catch (error) {
