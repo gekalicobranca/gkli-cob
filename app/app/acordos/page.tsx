@@ -17,6 +17,7 @@ import {
   ListPage,
   ListPanel,
   ListPanelHeader,
+  ListPagination,
   ListRows,
   ListSearchField,
   ListTitle,
@@ -40,7 +41,24 @@ type AcordosPageProps = {
     data_de?: string
     data_ate?: string
     ordenar?: string
+    page?: string
   }>
+}
+
+const PAGE_SIZE = 100
+
+function getPageParam(value: unknown) {
+  const page = Number(value ?? 1)
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
+}
+
+function pageHref(params: Record<string, string | undefined>, page: number) {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (key !== 'page' && value) query.set(key, value)
+  }
+  query.set('page', String(page))
+  return `/app/acordos?${query.toString()}`
 }
 
 function clean(value: unknown) {
@@ -160,14 +178,16 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
       : Promise.resolve([]),
     listCarteiras(scope),
   ])
-  const rows = sortAcordos(filterAcordos(allRows, params), clean(params.ordenar) || 'condominio')
+  const filteredRows = sortAcordos(filterAcordos(allRows, params), clean(params.ordenar) || 'condominio')
+  const page = getPageParam(params.page)
+  const rows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const groups = groupAcordos(rows)
   const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.carteira_id || params.status || params.data_de || params.data_ate || params.ordenar)
 
-  const ativos = rows.filter((row: any) => row.status === 'ativo').length
-  const atraso = rows.filter((row: any) => row.status === 'em atraso').length
-  const rompidos = rows.filter((row: any) => row.status === 'rompido').length
-  const valorAtivo = sumBy(rows, (row: any) => ['ativo', 'em atraso'].includes(row.status))
+  const ativos = filteredRows.filter((row: any) => row.status === 'ativo').length
+  const atraso = filteredRows.filter((row: any) => row.status === 'em atraso').length
+  const rompidos = filteredRows.filter((row: any) => row.status === 'rompido').length
+  const valorAtivo = sumBy(filteredRows, (row: any) => ['ativo', 'em atraso'].includes(row.status))
 
   return (
     <ListPage>
@@ -340,6 +360,13 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
             ))}
           </ListRows>
         )}
+        <ListPagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={filteredRows.length}
+          previousHref={page > 1 ? pageHref(params, page - 1) : undefined}
+          nextHref={page * PAGE_SIZE < filteredRows.length ? pageHref(params, page + 1) : undefined}
+        />
       </ListPanel>
     </ListPage>
   )

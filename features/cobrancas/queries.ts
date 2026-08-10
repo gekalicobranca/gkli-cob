@@ -295,7 +295,7 @@ export async function listCobrancasPage(
   options: CobrancaPageOptions = {},
 ) {
   const supabase = await createClient()
-  const pageSize = Math.max(1, Number(options.pageSize ?? 50))
+  const pageSize = Math.max(1, Number(options.pageSize ?? 100))
   const page = Math.max(1, Number(options.page ?? 1))
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1

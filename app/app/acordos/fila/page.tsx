@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CheckCircle2, ChevronDown, Filter, RotateCcw, Search, X } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { ListKpiGrid } from '@/components/layout/list-page'
+import { ListKpiGrid, ListPagination } from '@/components/layout/list-page'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -26,7 +26,24 @@ type SearchParams = Promise<{
   tipo?: string
   ordenar?: string
   q?: string
+  page?: string
 }>
+
+const PAGE_SIZE = 100
+
+function getPageParam(value: unknown) {
+  const page = Number(value ?? 1)
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
+}
+
+function pageHref(params: Record<string, string | undefined>, page: number) {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (key !== 'page' && value) query.set(key, value)
+  }
+  query.set('page', String(page))
+  return `/app/acordos/fila?${query.toString()}`
+}
 
 function normalizeText(value: unknown) {
   return String(value ?? '')
@@ -203,14 +220,16 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
   const params = await searchParams
   const scope = await getPermittedCarteiras()
   const allRows = await listParcelasAcordosOperacionais(scope)
-  const rows = sortRows(filterRows(allRows, params), String(params.ordenar ?? 'vencimento_asc'))
+  const filteredRows = sortRows(filterRows(allRows, params), String(params.ordenar ?? 'vencimento_asc'))
+  const page = getPageParam(params.page)
+  const rows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const condominios = getCondominios(allRows)
   const carteiras = getCarteiras(allRows)
   const groups = groupRows(rows)
 
-  const pagas = rows.filter(isParcelaPaga)
-  const abertas = rows.filter((row) => !isParcelaPaga(row))
-  const atrasadas = rows.filter((row) => {
+  const pagas = filteredRows.filter(isParcelaPaga)
+  const abertas = filteredRows.filter((row) => !isParcelaPaga(row))
+  const atrasadas = filteredRows.filter((row) => {
     const dias = getDiasAtraso(row.vencimento)
     return !isParcelaPaga(row) && dias !== null && dias > 0
   })
@@ -231,7 +250,7 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
 
       <ListKpiGrid>
         {[
-          ['Parcelas', rows.length, sumRows(rows)],
+          ['Parcelas', filteredRows.length, sumRows(filteredRows)],
           ['Abertas', abertas.length, sumRows(abertas)],
           ['Atrasadas', atrasadas.length, sumRows(atrasadas)],
           ['Pagas', pagas.length, sumRows(pagas)],
@@ -388,6 +407,13 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
             ))}
           </div>
         )}
+        <ListPagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={filteredRows.length}
+          previousHref={page > 1 ? pageHref(params, page - 1) : undefined}
+          nextHref={page * PAGE_SIZE < filteredRows.length ? pageHref(params, page + 1) : undefined}
+        />
         </Card>
     </div>
   )

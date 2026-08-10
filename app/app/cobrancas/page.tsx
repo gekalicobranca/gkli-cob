@@ -77,7 +77,7 @@ const STATUS_FILA_OPERACIONAL = [
   COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO,
 ];
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 const EMPTY_RESUMO = {
   total: 0,
   totalEmAberto: 0,
