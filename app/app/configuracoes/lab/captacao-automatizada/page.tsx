@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Bot, CalendarClock, CheckCircle2, Clock3, Filter, History, Settings2, TriangleAlert } from 'lucide-react'
+import { Bot, CheckCircle2, Clock3, Filter, History, Settings2 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -54,19 +54,18 @@ export default async function CaptacaoAutomatizadaPage({ searchParams }: Props) 
     if (agendaFiltro === 'sem_agenda' && row.captacao_dia_mes) return false
     return true
   })
-  const agendados = (condominiosBase ?? []).filter((row: any) => row.captacao_dia_mes).length
+  const competenciaAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date())
+  const executadosNoMes = (execucoesAgenda ?? []).filter((row: any) => row.competencia === competenciaAtual && row.status === 'sucesso').length
   const aguardando = (conversoes ?? []).filter((row: any) => row.status === 'aguardando_validacao').length
-  const falhas = (execucoesAgenda ?? []).filter((row: any) => ['falha', 'precisa_intervencao'].includes(row.status)).length
   const filtrosAtivos = Boolean(q || administradora || agendaFiltro)
 
   return <ListPage>
     <PageHeader eyebrow="Configurações · Lab" title="Captação automatizada" description="Agenda mensal, coleta de relatórios e validação humana antes da importação." actions={<><ButtonLink href="/app/configuracoes/lab/captacao-automatizada/historico" variant="secondary"><History size={16} />Histórico</ButtonLink><ButtonLink href="/app/agente-automatico" variant="secondary"><Bot size={16} />Abrir agente</ButtonLink></>} />
 
-    <ListKpiGrid>
+    <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
       <Kpi icon={<CheckCircle2 size={18} />} label="Habilitados" value={(condominiosBase ?? []).length} />
-      <Kpi icon={<CalendarClock size={18} />} label="Com agenda" value={agendados} />
-      <Kpi icon={<Clock3 size={18} />} label="Aguardando validação" value={aguardando} />
-      <Kpi icon={<TriangleAlert size={18} />} label="Falhas recentes" value={falhas} />
+      <Kpi icon={<Bot size={18} />} label="Executados no mês" value={executadosNoMes} />
+      <Kpi icon={<Clock3 size={18} />} label="Pendentes de validação" value={aguardando} />
     </ListKpiGrid>
 
     <ListPanel>

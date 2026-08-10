@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, Clock3, Filter, History, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Filter, TriangleAlert } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -38,19 +38,15 @@ export default async function HistoricoCaptacaoPage({ searchParams }: Props) {
     const texto = `${condominio?.nome} ${condominio?.nome_operacional} ${condominio?.administradora} ${row.receita?.nome} ${row.competencia}`.toLowerCase()
     return (!q || texto.includes(q)) && (!status || row.status === status) && (!competencia || row.competencia === competencia)
   })
-  const total = (base ?? []).length
   const sucessos = (base ?? []).filter((row: any) => row.status === 'sucesso').length
-  const emAndamento = (base ?? []).filter((row: any) => ['pendente', 'em_execucao'].includes(row.status)).length
   const falhas = (base ?? []).filter((row: any) => ['falha', 'precisa_intervencao'].includes(row.status)).length
   const filtrosAtivos = Boolean(q || status || competencia)
 
   return <ListPage>
     <PageHeader eyebrow="Configurações · Lab · Captação automatizada" title="Histórico de captações" description="Execuções mensais, resultados e mensagens registradas pelo agente." actions={<ButtonLink href="/app/configuracoes/lab/captacao-automatizada" variant="secondary"><ArrowLeft size={16} />Voltar à agenda</ButtonLink>} />
-    <ListKpiGrid>
-      <Kpi icon={<History size={18} />} label="Execuções" value={total} />
-      <Kpi icon={<CheckCircle2 size={18} />} label="Sucessos" value={sucessos} />
-      <Kpi icon={<Clock3 size={18} />} label="Em andamento" value={emAndamento} />
-      <Kpi icon={<TriangleAlert size={18} />} label="Falhas" value={falhas} />
+    <ListKpiGrid className="md:grid-cols-2 xl:grid-cols-2">
+      <Kpi icon={<CheckCircle2 size={18} />} label="Executados com sucesso" value={sucessos} />
+      <Kpi icon={<TriangleAlert size={18} />} label="Executados com erro" value={falhas} />
     </ListKpiGrid>
     <ListPanel>
       <ListPanelHeader>
