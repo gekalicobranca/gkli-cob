@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+import { Download } from 'lucide-react'
 
 function statusTone(status: string) {
   if (status === 'sucesso') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -320,6 +321,16 @@ export default async function AgenteAutomaticoPage() {
                   </td>
                   <td className="py-4 pr-4">
                     <div className="flex flex-wrap gap-2">
+                      {(execucao.arquivos ?? []).map((arquivo) => (
+                        <a
+                          key={arquivo.id}
+                          href={`/api/agente-automatico/arquivos/${arquivo.id}`}
+                          className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
+                        >
+                          <Download size={14} />
+                          Baixar {arquivo.nome_arquivo}
+                        </a>
+                      ))}
                       <form action={marcarExecucaoComoSucessoManual}>
                         <input type="hidden" name="execucao_id" value={execucao.id} />
                         <Button type="submit" variant="secondary" size="sm">

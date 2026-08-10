@@ -61,4 +61,12 @@ export type AgenteExecucao = {
   administradora?: {
     nome: string
   } | null
+  arquivos?: Array<{
+    id: string
+    nome_arquivo: string
+    tipo_arquivo: string | null
+    tamanho_bytes: number | null
+    status_validacao: AgenteStatusValidacao
+    created_at: string
+  }>
 }

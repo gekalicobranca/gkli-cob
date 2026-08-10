@@ -1,5 +1,6 @@
 node_modules
 .next
+.codex-tmp/
 out
 dist
 .env
@@ -8,6 +9,7 @@ dist
 *.tsbuildinfo
 .DS_Store
 backups/
+outputs/agente-automatico/
 restore-work/
 *.backup.enc
 *.backup.enc.sha256

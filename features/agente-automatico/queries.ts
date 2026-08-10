@@ -46,7 +46,15 @@ export async function listAgenteExecucoes(carteiraIds: string[] | null) {
     .select(`
       *,
       receita:agente_receitas(nome),
-      administradora:agente_administradoras(nome)
+      administradora:agente_administradoras(nome),
+      arquivos:agente_arquivos(
+        id,
+        nome_arquivo,
+        tipo_arquivo,
+        tamanho_bytes,
+        status_validacao,
+        created_at
+      )
     `)
 
   query = applyCarteiraScope(query, carteiraIds)

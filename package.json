@@ -19,6 +19,7 @@
     "backup:create": "bash scripts/backup/create-backup.sh",
     "backup:restore": "bash scripts/backup/restore-backup.sh",
     "backup:generate-schema": "node scripts/backup/generate-schema-snapshot.mjs",
+    "agente:worker": "node scripts/agente-automatico/worker.mjs",
     "prebuild": "npm run backup:generate-schema"
   },
   "dependencies": {
@@ -44,6 +45,7 @@
     "@types/react-dom": "^19",
     "eslint": "latest",
     "eslint-config-next": "latest",
+    "playwright": "1.62.1",
     "supabase": "^2.113.0",
     "tailwindcss": "4.2.4",
     "typescript": "5.9.3"
