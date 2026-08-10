@@ -50,7 +50,7 @@ export default async function InteligenciaPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="P1 · Inteligência operacional"
+        eyebrow="Inteligência operacional"
         title="Cockpit IA e BI preditivo"
         description="Primeira camada de inteligência sobre eventos, estados formais, alertas e priorização operacional."
         actions={

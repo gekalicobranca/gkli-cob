@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CheckCircle2, ChevronDown, Filter, RotateCcw, Search, X } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { ListKpiGrid } from '@/components/layout/list-page'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -228,28 +229,22 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
         }
       />
 
-      <section className="grid gap-2 md:grid-cols-4">
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Parcelas</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{rows.length}</p>
-          <p className="mt-1 text-sm font-semibold text-slate-700">{formatCurrency(sumRows(rows))}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Abertas</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{abertas.length}</p>
-          <p className="mt-1 text-sm font-semibold text-slate-700">{formatCurrency(sumRows(abertas))}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Atrasadas</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{atrasadas.length}</p>
-          <p className="mt-1 text-sm font-semibold text-slate-700">{formatCurrency(sumRows(atrasadas))}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Pagas</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{pagas.length}</p>
-          <p className="mt-1 text-sm font-semibold text-slate-700">{formatCurrency(sumRows(pagas))}</p>
-        </Card>
-      </section>
+      <ListKpiGrid>
+        {[
+          ['Parcelas', rows.length, sumRows(rows)],
+          ['Abertas', abertas.length, sumRows(abertas)],
+          ['Atrasadas', atrasadas.length, sumRows(atrasadas)],
+          ['Pagas', pagas.length, sumRows(pagas)],
+        ].map(([title, quantity, total]) => (
+          <Card key={String(title)} className="p-3">
+            <p className="text-xs font-medium uppercase text-slate-400">{title}</p>
+            <div className="mt-1.5 flex items-end justify-between gap-3">
+              <p className="text-2xl font-semibold text-slate-950">{quantity}</p>
+              <p className="text-sm font-semibold text-slate-700">{formatCurrency(Number(total))}</p>
+            </div>
+          </Card>
+        ))}
+      </ListKpiGrid>
 
       <Card className="p-3">
         <form className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7 2xl:items-end [&>label]:min-w-0 [&_button]:whitespace-nowrap [&_input]:min-w-0 [&_input]:text-[13px] [&_select]:min-w-0 [&_select]:text-[13px]">

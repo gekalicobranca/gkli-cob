@@ -28,7 +28,7 @@ export default async function AutomacoesPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="P1 · Automação visual"
+        eyebrow="Automação operacional"
         title="Automações operacionais"
         description="Camada consolidada de gatilhos, condições e ações cadastradas na tabela automacoes."
         actions={

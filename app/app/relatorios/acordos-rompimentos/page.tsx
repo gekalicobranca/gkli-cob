@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { ListKpiGrid } from '@/components/layout/list-page'
 import { ButtonLink } from '@/components/ui/button'
 import { PrintButton } from '@/components/ui/print-button'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -28,16 +29,16 @@ export default async function RelatorioAcordosRompimentosPage() {
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-2">
-        <Card className="p-5">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Rompimentos</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-950">{rows.reduce((sum, row) => sum + row.qtdRompimentos, 0)}</p>
+      <ListKpiGrid className="xl:grid-cols-2">
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase text-slate-400">Rompimentos</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{rows.reduce((sum, row) => sum + row.qtdRompimentos, 0)}</p>
         </Card>
-        <Card className="p-5">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor rompido</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-950">{formatCurrency(total)}</p>
+        <Card className="p-3">
+          <p className="text-xs font-medium uppercase text-slate-400">Valor rompido</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{formatCurrency(total)}</p>
         </Card>
-      </section>
+      </ListKpiGrid>
 
       <Card className="overflow-hidden p-0">
         <div className="border-b border-slate-100 px-5 py-4">

@@ -15,6 +15,7 @@ import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import {
   cancelarFormalizacaoAcordo,
   marcarParcelaComoPaga,
+  revisarParcelaAcordo,
   romperAcordoAssistido,
   solicitarReemissaoParcelaAcordo,
 } from "@/features/acordos/actions";
@@ -98,13 +99,17 @@ function ParcelaActions({
   parcela,
   acordoId,
   diasReemissao = 0,
+  acordoEncerrado = false,
+  podeRevisar = false,
 }: {
   parcela: any;
   acordoId: string;
   diasReemissao?: number;
+  acordoEncerrado?: boolean;
+  podeRevisar?: boolean;
 }) {
   const status = String(parcela.status || "").toLowerCase();
-  const encerrada = ["paga", "cancelada"].includes(status);
+  const encerrada = acordoEncerrado || ["paga", "pago", "quitada", "quitado", "cancelada", "cancelado"].includes(status) || Boolean(parcela.data_pagamento);
   const vencimento = parcela.vencimento ? new Date(`${parcela.vencimento}T00:00:00`) : null;
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -120,7 +125,8 @@ function ParcelaActions({
   }
 
   return (
-    <div className="flex flex-wrap justify-end gap-2">
+    <div className="flex flex-col items-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
       <form action={marcarParcelaComoPaga}>
         <input type="hidden" name="parcela_id" value={parcela.id} />
         <input type="hidden" name="acordo_id" value={acordoId} />
@@ -149,6 +155,35 @@ function ParcelaActions({
           </PendingSubmitButton>
         </form>
       ) : null}
+      </div>
+
+      {podeRevisar ? <details className="w-full max-w-sm rounded-xl border border-slate-200 bg-slate-50 text-left">
+        <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-[#351b40]">
+          Revisar parcela
+        </summary>
+        <form action={revisarParcelaAcordo} className="space-y-3 border-t border-slate-200 p-3">
+          <input type="hidden" name="parcela_id" value={parcela.id} />
+          <input type="hidden" name="acordo_id" value={acordoId} />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-slate-500">Novo valor</span>
+              <input name="valor_novo" type="number" min="0.01" step="0.01" required defaultValue={Number(parcela.valor || 0).toFixed(2)} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-slate-500">Vencimento</span>
+              <input name="vencimento_novo" type="date" required defaultValue={parcela.vencimento || ""} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm" />
+            </label>
+          </div>
+          <label className="block space-y-1">
+            <span className="text-xs font-semibold text-slate-500">Justificativa obrigatória</span>
+            <textarea name="motivo" required minLength={10} className="min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Explique o motivo da alteração" />
+          </label>
+          <p className="text-xs text-amber-700">Se já existir boleto emitido, providencie uma nova via com os dados revisados.</p>
+          <PendingSubmitButton size="sm" pendingLabel="Salvando revisão..." className="w-full">
+            Salvar revisão
+          </PendingSubmitButton>
+        </form>
+      </details> : null}
     </div>
   );
 }
@@ -256,6 +291,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
     ["pendente", "visualizado"].includes(String(termo.status ?? "")),
   ) || ["aguardando_aprovacao_sindico", "aprovado_sindico_aguardando_aceite_devedor", "aguardando_aceite_devedor"].includes(String(acordo.fluxo_status ?? ""));
   const podeCancelarFormalizacao = possuiFormalizacaoPendente && !possuiPagamentoRegistrado && !statusFechado;
+  const podeRevisar = ["admin", "gestor"].includes(scope.perfil);
 
   return (
     <div className="space-y-6">
@@ -361,7 +397,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
           <CardContent className="space-y-4 p-5">
             <SectionTitle
               title="Revisões do acordo"
-              description="Histórico de ajustes formais por reemissão de parcela."
+              description="Histórico de alterações de valor, vencimento e reemissões."
               count={revisoes.length}
             />
             <div className="grid gap-3 md:grid-cols-2">
@@ -427,7 +463,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
                 </div>
 
                 <div className="mt-5 border-t border-slate-100 pt-4">
-                  <ParcelaActions parcela={entrada} acordoId={acordo.id} diasReemissao={diasReemissao} />
+                  <ParcelaActions parcela={entrada} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />
                 </div>
               </div>
             )}
@@ -574,7 +610,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
                         </div>
                       </div>
 
-                      <ParcelaActions parcela={parcela} acordoId={acordo.id} diasReemissao={diasReemissao} />
+                      <ParcelaActions parcela={parcela} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />
                     </div>
                   </div>
                 ))}

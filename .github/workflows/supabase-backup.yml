@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   backup:
+    environment: Production
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -28,6 +29,11 @@ jobs:
 
       - run: npm ci
 
+      - name: Instalar rclone
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone
+
       - name: Criar e enviar backup criptografado
         run: bash scripts/backup/create-backup.sh
         env:
@@ -38,9 +44,6 @@ jobs:
           SUPABASE_STORAGE_ACCESS_KEY_ID: ${{ secrets.SUPABASE_STORAGE_ACCESS_KEY_ID }}
           SUPABASE_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_STORAGE_SECRET_ACCESS_KEY }}
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
-          BACKUP_S3_PREFIX: production
-          BACKUP_S3_REGION: ${{ secrets.BACKUP_S3_REGION }}
-          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
-          BACKUP_AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
-          BACKUP_AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          BACKUP_RCLONE_CONFIG_BASE64: ${{ secrets.BACKUP_RCLONE_CONFIG_BASE64 }}
+          BACKUP_RCLONE_REMOTE: ${{ vars.BACKUP_RCLONE_REMOTE }}
+          BACKUP_RCLONE_PATH: ${{ vars.BACKUP_RCLONE_PATH }}

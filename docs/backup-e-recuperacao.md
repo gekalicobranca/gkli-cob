@@ -10,8 +10,8 @@
 O workflow `.github/workflows/supabase-backup.yml` executa diariamente às 00:17
 no horário de Brasília (03:17 UTC). Ele gera dumps separados de papéis, schema e
 dados, copia todos os buckets do Storage, inclui um `git bundle`, cria checksums,
-criptografa tudo com AES-256/PBKDF2 e envia somente o pacote criptografado a um
-bucket S3 independente.
+criptografa tudo com AES-256/PBKDF2 e envia somente o pacote criptografado ao
+Google Drive por meio do rclone.
 
 ## Preparação única
 
@@ -20,30 +20,35 @@ bucket S3 independente.
 2. Em Storage > Configuration > S3, habilite S3 e gere credenciais exclusivas
    para backup. Cadastre endpoint, região e chaves nos secrets com prefixo
    `SUPABASE_STORAGE_`.
-3. Crie um bucket em outro provedor ou outra conta, com:
-   - versionamento;
-   - bloqueio contra exclusão/imutabilidade, se disponível;
-   - criptografia do provedor;
-   - regra de retenção: 7 diários, 4 semanais e 12 mensais;
-   - credencial limitada a gravar/listar somente esse bucket.
-4. Cadastre os secrets `BACKUP_S3_BUCKET`, `BACKUP_S3_REGION`,
-   `BACKUP_AWS_ACCESS_KEY_ID` e `BACKUP_AWS_SECRET_ACCESS_KEY`.
-   `BACKUP_S3_ENDPOINT` só é necessário para provedores S3 compatíveis que não
-   sejam AWS.
+3. Em uma máquina confiável, instale o rclone, execute `rclone config` e crie um
+   remote do tipo Google Drive. Use uma conta corporativa dedicada e conceda a
+   ela acesso somente à pasta de backup.
+4. Teste o remote com `rclone lsd NOME_DO_REMOTE:`. Depois transforme o arquivo
+   de configuração em uma linha base64:
+
+   ```bash
+   rclone config file
+   base64 -w 0 ~/.config/rclone/rclone.conf
+   ```
+
+   Cadastre o resultado no secret `BACKUP_RCLONE_CONFIG_BASE64`. Cadastre também
+   as variables `BACKUP_RCLONE_REMOTE` (ex.: `gdrive`) e
+   `BACKUP_RCLONE_PATH` (ex.: `GKLI Backups/production`).
 5. Gere uma frase longa e aleatória para `BACKUP_ENCRYPTION_PASSPHRASE`. Guarde
    uma segunda cópia no gerenciador de senhas corporativo, fora do GitHub.
 6. Execute manualmente o workflow e confirme que os arquivos `.backup.enc` e
-   `.sha256` chegaram ao cofre.
+   `.sha256` chegaram à pasta do Google Drive.
 
-Nunca reutilize as credenciais de produção no bucket de destino. O operador do
-app não deve ter permissão para apagar backups.
+Não use uma conta pessoal no remote. Restrinja o compartilhamento da pasta e
+guarde uma cópia do `rclone.conf` no gerenciador de segredos corporativo.
 
 ## Restauração de emergência
 
 1. Preserve o projeto com falha para investigação; não faça a restauração por
    cima dele.
 2. Crie um projeto Supabase novo na mesma região e versão principal do Postgres.
-3. Baixe do cofre o pacote `.backup.enc` e seu `.sha256`.
+3. Baixe do Google Drive o pacote `.backup.enc` e seu `.sha256`, pelo navegador
+   ou com `rclone copy`.
 4. Instale `psql`, AWS CLI e OpenSSL. Exporte a frase de criptografia.
 5. Execute:
 

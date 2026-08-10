@@ -53,7 +53,7 @@ export default async function MensageriaInteligenciaPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="P3.8 · Inteligência operacional"
+        eyebrow="Inteligência operacional"
         title="Inteligência da mensageria"
         description="Priorize mensagens, antecipe gargalos e receba recomendações de canal, horário e template sem depender de serviço externo."
         actions={

@@ -9,6 +9,7 @@ import {
   ClearFiltersLink,
   ListFilterField,
   ListFiltersForm,
+  ListKpiGrid,
   ListSearchField,
   ListTitle,
   ListTitleBar,
@@ -119,12 +120,12 @@ export default async function ReguasPage({ searchParams }: ReguasPageProps) {
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-4">
-        <Card className="p-4"><Metric label="Réguas" value={reguas.length} detail="cadastradas" /></Card>
-        <Card className="p-4"><Metric label="Ativas" value={ativas} detail="em uso operacional" /></Card>
-        <Card className="p-4"><Metric label="Cobrança" value={cobranca} detail="fluxo extrajudicial" /></Card>
-        <Card className="p-4"><Metric label="Acordos" value={acordos} detail="parcelas e rompimento" /></Card>
-      </section>
+      <ListKpiGrid>
+        <Card className="p-3"><Metric label="Réguas" value={reguas.length} detail="cadastradas" /></Card>
+        <Card className="p-3"><Metric label="Ativas" value={ativas} detail="em uso operacional" /></Card>
+        <Card className="p-3"><Metric label="Cobrança" value={cobranca} detail="fluxo extrajudicial" /></Card>
+        <Card className="p-3"><Metric label="Acordos" value={acordos} detail="parcelas e rompimento" /></Card>
+      </ListKpiGrid>
 
       <Card className="p-5">
         <ListTitleBar>
@@ -240,5 +241,5 @@ export default async function ReguasPage({ searchParams }: ReguasPageProps) {
 }
 
 function Metric({ label, value, detail }: { label: string; value: number; detail: string }) {
-  return <><p className="text-xs uppercase tracking-[0.16em] text-slate-400">{label}</p><p className="mt-3 text-3xl text-slate-950">{value}</p><p className="mt-1 text-sm text-slate-500">{detail}</p></>
+  return <><p className="text-xs font-medium uppercase text-slate-400">{label}</p><div className="mt-1.5 flex items-end justify-between gap-3"><p className="text-2xl font-semibold text-slate-950">{value}</p><p className="text-sm text-slate-500">{detail}</p></div></>
 }

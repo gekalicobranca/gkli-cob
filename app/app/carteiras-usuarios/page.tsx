@@ -1,6 +1,7 @@
 import { Edit3, Plus, ShieldCheck, UserPlus, Users } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { ListKpiGrid } from '@/components/layout/list-page'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
@@ -36,11 +37,11 @@ export default async function CarteirasUsuariosPage() {
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-3">
-        <Card className="relative overflow-hidden p-5"><div className="absolute right-4 top-4 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><ShieldCheck size={18} /></div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Carteiras</p><p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{carteiras.length}</p><p className="mt-1 text-sm text-slate-500">bases operacionais</p></Card>
-        <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Usuários</p><p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{profiles.length}</p><p className="mt-1 text-sm text-slate-500">profiles ativos</p></Card>
-        <Card className="p-5"><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Vínculos</p><p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{vinculos.length}</p><p className="mt-1 text-sm text-slate-500">permissões por carteira</p></Card>
-      </section>
+      <ListKpiGrid className="xl:grid-cols-3">
+        <Card className="relative overflow-hidden p-3"><div className="absolute right-3 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><ShieldCheck size={18} /></div><p className="text-xs font-medium uppercase text-slate-400">Carteiras</p><div className="mt-1.5 flex items-end justify-between gap-3 pr-10"><p className="text-2xl font-semibold text-slate-950">{carteiras.length}</p><p className="text-sm text-slate-500">bases operacionais</p></div></Card>
+        <Card className="p-3"><p className="text-xs font-medium uppercase text-slate-400">Usuários</p><div className="mt-1.5 flex items-end justify-between gap-3"><p className="text-2xl font-semibold text-slate-950">{profiles.length}</p><p className="text-sm text-slate-500">perfis ativos</p></div></Card>
+        <Card className="p-3"><p className="text-xs font-medium uppercase text-slate-400">Vínculos</p><div className="mt-1.5 flex items-end justify-between gap-3"><p className="text-2xl font-semibold text-slate-950">{vinculos.length}</p><p className="text-sm text-slate-500">permissões por carteira</p></div></Card>
+      </ListKpiGrid>
 
       <section className="grid gap-5 xl:grid-cols-2">
         <Card className="overflow-hidden p-0">

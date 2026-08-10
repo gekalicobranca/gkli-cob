@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { CalendarDays, FileSpreadsheet, LockKeyhole, Plus, ReceiptText } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { ListKpiGrid } from '@/components/layout/list-page'
 import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,7 +42,7 @@ export default async function FechamentoMensalPage() {
         actions={<ButtonLink href="/app/gestao" variant="secondary">Voltar</ButtonLink>}
       />
 
-      <section className="grid gap-3 md:grid-cols-3">
+      <ListKpiGrid className="xl:grid-cols-3">
         <Card className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -69,7 +70,7 @@ export default async function FechamentoMensalPage() {
             <ReceiptText size={18} className="text-[var(--gkli-primary)]" />
           </div>
         </Card>
-      </section>
+      </ListKpiGrid>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card className="overflow-hidden p-0">

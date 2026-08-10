@@ -11,12 +11,12 @@ const names = (await readdir(migrationsDir))
 const files = await Promise.all(
   names.map(async (name) => ({
     name: `schema/migrations/${name}`,
-    content: await readFile(join(migrationsDir, name), 'utf8'),
+    content: (await readFile(join(migrationsDir, name), 'utf8')).replace(/\r\n/g, '\n'),
   })),
 )
 files.unshift({
   name: 'schema/config.toml',
-  content: await readFile(join(root, 'supabase', 'config.toml'), 'utf8'),
+  content: (await readFile(join(root, 'supabase', 'config.toml'), 'utf8')).replace(/\r\n/g, '\n'),
 })
 
 const source = `// Gerado automaticamente. Não editar manualmente.
