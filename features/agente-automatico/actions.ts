@@ -82,12 +82,24 @@ export async function executarAgenteReceita(formData: FormData) {
 
   const { data: receita, error: receitaError } = await supabase
     .from('agente_receitas')
-    .select('id, administradora_id, carteira_id')
+    .select('id, administradora_id, carteira_id, config_json')
     .eq('id', receitaId)
     .single()
 
   if (receitaError) throw new Error(receitaError.message)
   if (!receita) throw new Error('Receita não encontrada.')
+
+  const condominioId = (receita.config_json as Record<string, unknown> | null)?.condominio_id
+  let carteiraId = receita.carteira_id
+  if (typeof condominioId === 'string' && condominioId) {
+    const { data: condominio, error: condominioError } = await supabase
+      .from('condominios')
+      .select('carteira_id')
+      .eq('id', condominioId)
+      .single()
+    if (condominioError) throw new Error(condominioError.message)
+    carteiraId = condominio?.carteira_id ?? carteiraId
+  }
 
   const {
     data: { user },
@@ -98,7 +110,8 @@ export async function executarAgenteReceita(formData: FormData) {
     .insert({
       receita_id: receita.id,
       administradora_id: receita.administradora_id,
-      carteira_id: receita.carteira_id,
+      carteira_id: carteiraId,
+      condominio_id: typeof condominioId === 'string' && condominioId ? condominioId : null,
       status: 'pendente',
       solicitado_por: user?.id ?? null,
       tentativas: 0,
