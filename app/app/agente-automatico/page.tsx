@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { Download } from 'lucide-react'
+import { ChevronDown, Download } from 'lucide-react'
 
 function statusTone(status: string) {
   if (status === 'sucesso') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -75,14 +75,17 @@ export default async function AgenteAutomaticoPage() {
         </Card>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <Card className="p-6">
-          <h2 className="text-lg text-slate-900">Nova administradora</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Cadastre o portal da administradora.
-          </p>
+      <section className="space-y-4">
+        <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Nova administradora</h2>
+              <p className="mt-1 text-sm text-slate-500">Cadastre o portal da administradora.</p>
+            </div>
+            <ChevronDown size={20} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+          </summary>
 
-          <form action={criarAgenteAdministradora} className="mt-5 space-y-4">
+          <form action={criarAgenteAdministradora} className="space-y-4 border-t border-slate-100 p-6">
             <label className="block">
               <span className="text-sm text-slate-600">Carteira</span>
               <Select
@@ -153,15 +156,21 @@ export default async function AgenteAutomaticoPage() {
               Salvar administradora
             </Button>
           </form>
-        </Card>
+        </details>
 
-        <Card className="p-6">
-          <h2 className="text-lg text-slate-900">Nova receita de coleta</h2>
+        <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Nova receita de coleta</h2>
           <p className="mt-1 text-sm text-slate-500">
             A receita representa o roteiro operacional do robô.
           </p>
 
-          <form action={criarAgenteReceita} className="mt-5 space-y-4">
+            </div>
+            <ChevronDown size={20} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+          </summary>
+
+          <form action={criarAgenteReceita} className="space-y-4 border-t border-slate-100 p-6">
             <label className="block">
               <span className="text-sm text-slate-600">Carteira</span>
               <Select
@@ -241,7 +250,7 @@ export default async function AgenteAutomaticoPage() {
               Salvar receita
             </Button>
           </form>
-        </Card>
+        </details>
       </section>
 
       <Card className="p-6">
@@ -250,7 +259,7 @@ export default async function AgenteAutomaticoPage() {
           Receitas configuradas para coleta e validação.
         </p>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-5 space-y-3">
           {receitas.map((receita) => (
             <article key={receita.id} className="rounded-lg border border-slate-200 p-5">
               <p className="text-sm text-slate-500">
