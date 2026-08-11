@@ -76,13 +76,19 @@ export async function processarRelatorioCaptado(arquivo: string): Promise<Resumo
   const supabase = createAdminClient()
   const buffer = await readFile(arquivo)
   const nomeDetectado = detectarCondominioBbz(buffer)
+  const nomePeloArquivo = path.basename(arquivo)
+    .replace(/_\d{4}-\d{2}-\d{2}\.xlsx?$/i, "")
+    .replace(/_/g, " ")
   const { data: candidatos, error: condominioError } = await supabase.from("condominios")
     .select("id, carteira_id, nome, nome_operacional, cnpj, captacao_automatica_habilitada")
     .eq("captacao_automatica_habilitada", true).eq("status", "ativo")
   const detectado = normalizar(nomeDetectado)
+  const detectadoPeloArquivo = normalizar(nomePeloArquivo)
   const condominio = (candidatos ?? []).find((item: any) => {
     const oficial = normalizar(item.nome), operacional = normalizar(item.nome_operacional)
-    return oficial === detectado || operacional === detectado || (detectado && (oficial.includes(detectado) || detectado.includes(oficial)))
+    return oficial === detectadoPeloArquivo || operacional === detectadoPeloArquivo
+      || oficial === detectado || operacional === detectado
+      || (detectado && (oficial.includes(detectado) || detectado.includes(oficial)))
   })
   if (condominioError || !condominio?.id || !condominio?.carteira_id) {
     throw new Error(condominioError?.message || `Condomínio do relatório (${nomeDetectado || "não identificado"}) não está habilitado para captação.`)
