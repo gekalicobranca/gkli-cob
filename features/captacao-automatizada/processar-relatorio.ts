@@ -25,6 +25,30 @@ function dataBbz(value: unknown) {
   return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y < 100 ? 2000 + y : y}`
 }
 
+function vencimentoComMaisDeCincoAnos(value: unknown) {
+  const match = String(value ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!match) return false
+  const vencimento = new Date(Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1])))
+  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
+  const [ano, mes, dia] = hoje.split("-").map(Number)
+  return vencimento.getTime() < new Date(Date.UTC(ano - 5, mes - 1, dia)).getTime()
+}
+
+function desprezarCotasComMaisDeCincoAnos(preview: any) {
+  const cobrancas = Array.isArray(preview.cobrancas) ? preview.cobrancas : []
+  const elegiveis = cobrancas.filter((item: any) => !vencimentoComMaisDeCincoAnos(item.vencimento ?? item.vencimentoMaisAntigo))
+  const desprezadas = cobrancas.length - elegiveis.length
+  return {
+    ...preview,
+    cobrancas: elegiveis,
+    totalParcelas: elegiveis.reduce((total: number, item: any) => total + Math.max(1, item.parcelas?.length ?? 0), 0),
+    valorTotal: elegiveis.reduce((total: number, item: any) => total + Number(item.valorTotal ?? 0), 0),
+    inconsistencias: desprezadas
+      ? [...(preview.inconsistencias ?? []), `${desprezadas} cota(s) com vencimento superior a 5 anos foram desprezadas.`]
+      : (preview.inconsistencias ?? []),
+  }
+}
+
 /** Leitor isolado do XLS multipágina exportado pelo Webware/CondoPro. */
 function parseBbzClock(buffer: Buffer, filename: string) {
   const workbook = XLSX.read(buffer, { type: "buffer", raw: false })
@@ -102,8 +126,12 @@ export async function processarRelatorioCaptado(arquivo: string): Promise<Resumo
     condominioCnpj: String(condominio.cnpj ?? "").replace(/\D/g, ""), tipoConversao: "cobrancas",
   })
   if (!preview?.ok) throw new Error(preview?.error || "Não foi possível converter o relatório.")
+  preview = preview.preview
   if (!preview.cobrancas?.length) preview = parseBbzClock(buffer, path.basename(arquivo))
-  if (!preview.cobrancas?.length) throw new Error("O relatório BBZ não contém cobranças reconhecíveis.")
+  preview = desprezarCotasComMaisDeCincoAnos(preview)
+  if (!preview.cobrancas?.length && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos"))) {
+    throw new Error("O relatório não contém cobranças reconhecíveis.")
+  }
 
   const previewComContexto = {
     ...preview,

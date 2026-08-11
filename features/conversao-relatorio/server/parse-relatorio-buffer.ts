@@ -439,6 +439,19 @@ function compareBrDates(a: string, b: string) {
   );
 }
 
+function vencimentoComMaisDeCincoAnos(value: string) {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return false;
+  const vencimento = new Date(Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1])));
+  if (Number.isNaN(vencimento.getTime())) return false;
+  const hoje = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+  const [ano, mes, dia] = hoje.split("-").map(Number);
+  const corte = new Date(Date.UTC(ano - 5, mes - 1, dia));
+  return vencimento.getTime() < corte.getTime();
+}
+
 function rowToText(row: unknown[]) {
   return row
     .map((cell) => normalize(cell))
@@ -1050,7 +1063,9 @@ function buildPreviewFromRecibos({
     };
   }
 
-  const cobrancas = recibos.map(
+  const recibosElegiveis = recibos.filter((recibo) => !vencimentoComMaisDeCincoAnos(recibo.vencimento));
+  const totalDesprezado = recibos.length - recibosElegiveis.length;
+  const cobrancas = recibosElegiveis.map(
     (recibo) =>
       ({
         unidade: recibo.unidade,
@@ -1088,8 +1103,8 @@ function buildPreviewFromRecibos({
       tipoConversao: "cobrancas",
       origem,
       arquivo: filename,
-      totalParcelas: recibos.length,
-      valorTotal: recibos.reduce((sum, recibo) => sum + recibo.valorTotal, 0),
+      totalParcelas: recibosElegiveis.length,
+      valorTotal: recibosElegiveis.reduce((sum, recibo) => sum + recibo.valorTotal, 0),
       padraoDetectado:
         padraoDetectado ??
         buildPadraoDetectado(PADRAO_CONDOPRO_BBZ_COBRANCAS, {
@@ -1097,7 +1112,7 @@ function buildPreviewFromRecibos({
         }),
       cobrancas,
       unidades: [],
-      inconsistencias: [],
+      inconsistencias: totalDesprezado ? [`${totalDesprezado} cota(s) com vencimento superior a 5 anos foram desprezadas.`] : [],
       csv: buildCsvPadraoGkli(cobrancas, condominioCnpj),
       xlsxBase64: buildXlsxBase64PadraoGkli(cobrancas, condominioCnpj),
     },
@@ -1123,9 +1138,11 @@ function buildPreviewFromParcelas({
     };
   }
 
+  const parcelasElegiveis = parcelas.filter((parcela) => !vencimentoComMaisDeCincoAnos(parcela.vencimento));
+  const totalDesprezado = parcelas.length - parcelasElegiveis.length;
   const grouped = new Map<string, CobrancaPreview>();
 
-  for (const parcela of parcelas) {
+  for (const parcela of parcelasElegiveis) {
     const key = parcela.unidade;
 
     const current =
@@ -1161,14 +1178,14 @@ function buildPreviewFromParcelas({
       tipoConversao: "cobrancas",
       origem,
       arquivo: filename,
-      totalParcelas: parcelas.length,
-      valorTotal: parcelas.reduce((sum, parcela) => sum + parcela.valor, 0),
+      totalParcelas: parcelasElegiveis.length,
+      valorTotal: parcelasElegiveis.reduce((sum, parcela) => sum + parcela.valor, 0),
       padraoDetectado: buildPadraoDetectado(PADRAO_CONECTCON_COBRANCAS, {
         confianca: 90,
       }),
       cobrancas,
       unidades: [],
-      inconsistencias: [],
+      inconsistencias: totalDesprezado ? [`${totalDesprezado} cota(s) com vencimento superior a 5 anos foram desprezadas.`] : [],
       csv: buildCsvPadraoGkli(cobrancas, condominioCnpj),
       xlsxBase64: buildXlsxBase64PadraoGkli(cobrancas, condominioCnpj),
     },
