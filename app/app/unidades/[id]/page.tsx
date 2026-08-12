@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowUpRight, FileText, History, Save } from 'lucide-react'
+import { ArrowUpRight, FileSpreadsheet, FileText, History, Save } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -15,9 +15,11 @@ import { StatusBadge } from '@/components/data/status-badge'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
+import { solicitarPlanilhaDebitosIndividual } from '@/features/planilhas-debitos/actions'
 
-export default async function UnidadeDetalhePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function UnidadeDetalhePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ planilha?: string }> }) {
   const { id } = await params
+  const query = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
   const unidade = await getUnidadeIntegral(id, scope)
   const historico = await getHistoricoOperacionalDaUnidade(id, scope)
@@ -35,6 +37,14 @@ export default async function UnidadeDetalhePage({ params }: { params: Promise<{
         actions={
           <>
             <ButtonLink href="/app/unidades" variant="secondary">Voltar</ButtonLink>
+            <form action={solicitarPlanilhaDebitosIndividual}>
+              <input type="hidden" name="origem" value="unidade" />
+              <input type="hidden" name="id" value={id} />
+              <Button type="submit" variant="secondary">
+                <FileSpreadsheet size={16} />
+                Pedir planilha
+              </Button>
+            </form>
             <ButtonLink href={`/app/unidades/${id}/laudo-pre-juridico`} variant="secondary">
               <FileText size={16} />
               Laudo pré-jurídico
@@ -43,6 +53,14 @@ export default async function UnidadeDetalhePage({ params }: { params: Promise<{
           </>
         }
       />
+
+      {query.planilha === 'solicitada' || query.planilha === 'existente' ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
+          {query.planilha === 'solicitada'
+            ? 'Solicitação individual criada. A planilha desta unidade entrou na fila de Pendências.'
+            : 'Já existe uma solicitação de planilha aberta para esta unidade.'}
+        </div>
+      ) : null}
 
 
 

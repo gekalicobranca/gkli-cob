@@ -36,7 +36,7 @@ import {
 
 type PageProps = {
   params: Promise<{ id: string }>
-  searchParams?: Promise<{ acao?: string }>
+  searchParams?: Promise<{ acao?: string; planilha?: string }>
 }
 
 function asNumber(value: unknown) {
@@ -130,6 +130,14 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
         acordoVigenteId={acordoVigente?.id ?? null}
         canCreateAcordo={canCreateAcordo}
       />
+
+      {query.planilha === 'solicitada' || query.planilha === 'existente' ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
+          {query.planilha === 'solicitada'
+            ? 'Solicitação individual criada. A planilha desta cobrança entrou na fila de Pendências.'
+            : 'Já existe uma solicitação de planilha aberta para esta unidade.'}
+        </div>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
