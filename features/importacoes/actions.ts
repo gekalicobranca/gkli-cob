@@ -27,6 +27,11 @@ import {
 } from "./cobrancas-conciliacao";
 import { formatOrigemImportacao } from "./origem-importacao";
 import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
+import {
+  avaliarBloqueioGarantidora,
+  observacaoComBloqueioGarantidora,
+  statusComBloqueioGarantidora,
+} from "./bloqueio-garantidora";
 import { sincronizarResponsavelComUnidadeOperacional } from "@/features/responsaveis-unidades/sync-unidade";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -38,6 +43,9 @@ type CondominioImportacaoRow = {
   cnpj: string | null;
   inicio_cobranca_dias?: number | null;
   dias_expiracao_regua_pre_juridico?: number | null;
+  bloqueio_garantidora_habilitado?: boolean | null;
+  bloqueio_garantidora_inicio?: string | null;
+  bloqueio_garantidora_fim?: string | null;
 };
 
 type UnidadeImportacaoRow = {
@@ -494,7 +502,7 @@ async function resolveCondominiosByCnpj(
 
   const { data, error } = await supabase
     .from("condominios")
-    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico")
+    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
     .in("cnpj", cnpjsLimpos);
 
   if (error)
@@ -513,7 +521,7 @@ async function resolveCondominioById(supabase: SupabaseClient, id: string) {
 
   const { data, error } = await supabase
     .from("condominios")
-    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico")
+    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
     .eq("id", id)
     .maybeSingle();
 
@@ -969,6 +977,13 @@ async function enrichCobrancaPreview(
     if (reguaImportacao.foraRegua && reguaImportacao.motivo) {
       alertas.push(`Fora da régua de cobrança: ${reguaImportacao.motivo} Linha será mantida apenas no histórico da importação.`);
     }
+    const bloqueioGarantidora = avaliarBloqueioGarantidora(condominio, {
+      competencia: payload.competencia,
+      vencimento: payload.vencimento,
+    });
+    if (bloqueioGarantidora.bloqueada) {
+      alertas.push("Bloqueio Garantidora: cobrança será importada como suspensa e ficará fora da régua.");
+    }
 
     const blocked = erros.length > 0;
     const priority = estimatePriority({
@@ -1006,6 +1021,7 @@ async function enrichCobrancaPreview(
         importar_cobranca: !reguaImportacao.foraRegua,
         dias_atraso_importacao: reguaImportacao.diasAtraso,
         inicio_cobranca_dias: reguaImportacao.inicioCobrancaDias,
+        bloqueio_garantidora: bloqueioGarantidora.bloqueada,
       },
       valido: !blocked,
       erros,
@@ -1712,7 +1728,8 @@ async function importarCobrancas(
         continue;
       }
 
-      const statusOperacional = await statusOperacionalParaCobrancaImportada(supabase, payload);
+      const statusCalculado = await statusOperacionalParaCobrancaImportada(supabase, payload);
+      const statusOperacional = statusComBloqueioGarantidora(statusCalculado, Boolean(payload.bloqueio_garantidora));
 
       const { error } = await supabase.from("cobrancas").insert({
         carteira_id: payload.carteira_id,
@@ -1728,7 +1745,7 @@ async function importarCobrancas(
         status: statusOperacional,
         status_operacional: statusOperacional,
         status_financeiro: "em_aberto",
-        observacoes: payload.observacoes || null,
+        observacoes: observacaoComBloqueioGarantidora(payload.observacoes, Boolean(payload.bloqueio_garantidora)),
         origem_importacao: origemImportacao,
         importacao_id: payload.importacao_id || null,
       });

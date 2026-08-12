@@ -115,6 +115,17 @@ export default async function NovoCondominioPage() {
             </label>
           </div>
 
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <label className="flex items-start gap-3 text-sm text-slate-700">
+              <input type="checkbox" name="bloqueio_garantidora_habilitado" className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" />
+              <span><span className="block font-medium text-slate-950">Bloqueio Garantidora</span><span className="mt-1 block text-xs leading-5 text-slate-600">Cotas do período informado serão importadas como suspensas e ficarão fora da régua.</span></span>
+            </label>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <FormField label="Mês inicial"><Input name="bloqueio_garantidora_inicio" type="month" /></FormField>
+              <FormField label="Mês final"><Input name="bloqueio_garantidora_fim" type="month" /></FormField>
+            </div>
+          </div>
+
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <ClassificacaoOperacionalField defaultValue="prata" />
           </div>

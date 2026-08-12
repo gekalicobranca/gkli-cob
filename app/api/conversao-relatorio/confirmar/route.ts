@@ -12,6 +12,11 @@ import { formatOrigemImportacao } from "@/features/importacoes/origem-importacao
 import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
 import { statusOperacionalParaCobrancaImportada } from "@/features/importacoes/status-cobranca-importada"
 import {
+  avaliarBloqueioGarantidora,
+  observacaoComBloqueioGarantidora,
+  statusComBloqueioGarantidora,
+} from "@/features/importacoes/bloqueio-garantidora"
+import {
   buscarPossivelUnidadePorNormalizacao,
   registrarSaneamentosDaCobrancaImportada,
   type UnidadeSaneamentoRow,
@@ -180,7 +185,7 @@ export async function POST(request: NextRequest) {
     const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
     const { data: condominioConfiguracao } = await supabase
       .from("condominios")
-      .select("inicio_cobranca_dias")
+      .select("inicio_cobranca_dias, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
       .eq("id", condominioId)
       .maybeSingle()
 
@@ -261,19 +266,34 @@ export async function POST(request: NextRequest) {
       const juros = Number(item.juros ?? 0)
       const valorTotal = Number(item.valorTotal ?? valorPrincipal + multa + correcao + juros)
       const recibo = String(item.recibo ?? "").trim()
-      const observacoes = recibo
+      const observacoesBase = recibo
         ? `Conversão de relatório - recibo ${recibo}`
         : "Conversão de relatório"
-      const statusOperacional = await statusOperacionalParaCobrancaImportada(supabase as any, {
+      let bloqueioGarantidora = avaliarBloqueioGarantidora(condominioConfiguracao as any, {
+        competencia: item.competencia,
+        vencimento: vencimentoMaisAntigo,
+      })
+      if (!bloqueioGarantidora.bloqueada) {
+        const parcelaBloqueada = vencimentos.find((vencimento: string) =>
+          avaliarBloqueioGarantidora(condominioConfiguracao as any, { vencimento }).bloqueada
+        )
+        if (parcelaBloqueada) {
+          bloqueioGarantidora = avaliarBloqueioGarantidora(condominioConfiguracao as any, { vencimento: parcelaBloqueada })
+        }
+      }
+      const observacoes = observacaoComBloqueioGarantidora(observacoesBase, bloqueioGarantidora.bloqueada)
+      const statusCalculado = await statusOperacionalParaCobrancaImportada(supabase as any, {
         ...item,
         unidade_id: unidadeId,
         observacoes,
       })
+      const statusOperacional = statusComBloqueioGarantidora(statusCalculado, bloqueioGarantidora.bloqueada)
 
       const importadaConciliacao: CobrancaImportadaConciliacao = {
         carteira_id: carteiraId,
         condominio_id: condominioId,
         unidade_id: unidadeId,
+        competencia: item.competencia ?? null,
         vencimento: vencimentoMaisAntigo,
         valor_original: valorPrincipal,
         valor_atualizado: valorTotal,
@@ -345,6 +365,7 @@ export async function POST(request: NextRequest) {
           carteira_id: carteiraId ?? null,
           condominio_id: condominioId,
           unidade_id: unidadeId,
+          competencia: item.competencia ?? null,
           valor_original: valorPrincipal,
           valor_atualizado: valorTotal,
           multa,
@@ -369,6 +390,9 @@ export async function POST(request: NextRequest) {
       }
 
       cobrancasCriadas += 1
+      if (bloqueioGarantidora.bloqueada) {
+        inconsistencias.push(`Unidade ${unidadeLabel}: cobrança importada como suspensa por Bloqueio Garantidora.`)
+      }
 
       await registrarSaneamentoConversao(supabase, {
         carteiraId,
