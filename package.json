@@ -21,6 +21,7 @@
     "backup:generate-schema": "node scripts/backup/generate-schema-snapshot.mjs",
     "agente:worker": "node scripts/agente-automatico/worker.mjs",
     "agente:worker:manager": "node scripts/agente-automatico/worker-manager.mjs",
+    "agente:worker:square-guarulhos": "node scripts/agente-automatico/worker-square-guarulhos.mjs",
     "captacao:worker": "tsx scripts/captacao-automatizada/worker.ts",
     "prebuild": "npm run backup:generate-schema"
   },
