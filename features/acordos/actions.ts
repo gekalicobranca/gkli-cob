@@ -651,6 +651,7 @@ export async function createAcordo(formData: FormData) {
     formData.get("despesa_cobranca_valor"),
   );
   const entrada = toNumber(formData.get("entrada"));
+  const usarCreditoAdministradora = formData.get("usar_credito_administradora") === "on";
   const entradaVencimento = String(formData.get("entrada_vencimento") ?? "");
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
   const primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
@@ -683,7 +684,7 @@ export async function createAcordo(formData: FormData) {
     .select(
       `id, carteira_id, condominio_id, unidade_id, status, status_operacional, valor_atualizado, valor_original, juros, multa, correcao, desconto, vencimento, competencia,
       condominios:condominio_id (id, nome, administradora_id, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada),
-      unidades:unidade_id (id, identificacao, bloco, responsavel_nome, responsavel_documento, email, telefone)`,
+      unidades:unidade_id (id, identificacao, bloco, responsavel_nome, responsavel_documento, email, telefone, credito_administradora)`,
     )
     .in("id", cobrancaIds);
 
@@ -817,12 +818,20 @@ export async function createAcordo(formData: FormData) {
       0,
     ),
   );
+  const unidadePrincipal = Array.isArray((cobrancaPrincipal as any).unidades)
+    ? (cobrancaPrincipal as any).unidades[0]
+    : (cobrancaPrincipal as any).unidades;
+  const creditoDisponivel = Math.max(0, Number(unidadePrincipal?.credito_administradora ?? 0));
+  const creditoAdministradoraUtilizado = usarCreditoAdministradora
+    ? roundMoney(Math.min(creditoDisponivel, valorBaseCobranca))
+    : 0;
+  const valorBaseAposCredito = roundMoney(valorBaseCobranca - creditoAdministradoraUtilizado);
   const despesaCobrancaValor = roundMoney(
     despesaCobrancaValorInformado > 0
       ? despesaCobrancaValorInformado
-      : valorBaseCobranca * (despesaCobrancaPercentual / 100),
+      : valorBaseAposCredito * (despesaCobrancaPercentual / 100),
   );
-  const valorAcordado = roundMoney(valorBaseCobranca + despesaCobrancaValor);
+  const valorAcordado = roundMoney(valorBaseAposCredito + despesaCobrancaValor);
 
   if (valorBaseCobranca <= 0)
     throw new Error("Valor das cobranças deve ser maior que zero.");
@@ -836,9 +845,6 @@ export async function createAcordo(formData: FormData) {
   const condominioPrincipal = Array.isArray((cobrancaPrincipal as any).condominios)
     ? (cobrancaPrincipal as any).condominios[0]
     : (cobrancaPrincipal as any).condominios;
-  const unidadePrincipal = Array.isArray((cobrancaPrincipal as any).unidades)
-    ? (cobrancaPrincipal as any).unidades[0]
-    : (cobrancaPrincipal as any).unidades;
   const contatoResponsavel = assertContatoResponsavelAcordo(unidadePrincipal);
   const parcelasPermitidasSemSindico = Number(
     condominioPrincipal?.parcelas_acordo_sem_aprovacao_sindico ?? 0,
@@ -851,6 +857,7 @@ export async function createAcordo(formData: FormData) {
     const proporcao =
       valorBaseCobranca > 0 ? item.valor_base_acordo / valorBaseCobranca : 0;
     const despesaRateada = roundMoney(despesaCobrancaValor * proporcao);
+    const creditoRateado = roundMoney(creditoAdministradoraUtilizado * proporcao);
 
     return {
       cobranca_id: item.id,
@@ -858,7 +865,7 @@ export async function createAcordo(formData: FormData) {
       valor_atualizado_no_acordo: item.valor_base_acordo,
       encargos_no_acordo: despesaRateada,
       valor_total_no_acordo: roundMoney(
-        item.valor_base_acordo + despesaRateada,
+        item.valor_base_acordo - creditoRateado + despesaRateada,
       ),
     };
   });
@@ -978,6 +985,34 @@ export async function createAcordo(formData: FormData) {
     throw error;
   }
 
+  if (creditoAdministradoraUtilizado > 0) {
+    const { data: creditoRestante, error: creditoError } = await supabase.rpc("consumir_credito_unidade_no_acordo", {
+      p_unidade_id: cobrancaPrincipal.unidade_id,
+      p_acordo_id: acordo.id,
+      p_valor: creditoAdministradoraUtilizado,
+    } as any);
+
+    if (creditoError) {
+      await cleanupAcordoParcial(supabase as any, acordo.id, cobrancas);
+      throw new Error(`Erro ao utilizar crédito da administradora: ${creditoError.message}`);
+    }
+
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: cobrancaPrincipal.carteira_id,
+      entidadeTipo: "unidade",
+      entidadeId: cobrancaPrincipal.unidade_id,
+      eventoCodigo: "unidade.credito_administradora_utilizado",
+      titulo: "Crédito utilizado em acordo",
+      descricao: `Crédito de ${creditoAdministradoraUtilizado.toFixed(2)} abatido no acordo ${acordo.id}.`,
+      antes: { credito_administradora: creditoDisponivel },
+      depois: { credito_administradora: Number(creditoRestante ?? 0), acordo_id: acordo.id },
+      origem: "manual",
+      auditavel: true,
+      userId: user?.id ?? null,
+      payload: { acordo_id: acordo.id, credito_utilizado: creditoAdministradoraUtilizado },
+    });
+  }
+
   await registrarEventoOperacional(supabase as any, {
     carteiraId: cobrancaPrincipal.carteira_id,
     entidadeTipo: "acordo",
@@ -991,6 +1026,8 @@ export async function createAcordo(formData: FormData) {
       cobranca_id: cobrancaPrincipal.id,
       cobranca_ids: cobrancaIds,
       valor_base_cobranca: valorBaseCobranca,
+      credito_administradora_utilizado: creditoAdministradoraUtilizado,
+      valor_base_apos_credito: valorBaseAposCredito,
       valor_acordado: valorAcordado,
       entrada,
       quantidade_parcelas: quantidadeParcelas,
@@ -1004,6 +1041,7 @@ export async function createAcordo(formData: FormData) {
       status_financeiro: "em_aberto",
       fluxo_status: fluxoStatusInicial,
       valor_acordado: valorAcordado,
+      credito_administradora_utilizado: creditoAdministradoraUtilizado,
       entrada,
       quantidade_parcelas: quantidadeParcelas,
       cobranca_ids: cobrancaIds,

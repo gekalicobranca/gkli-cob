@@ -12,6 +12,13 @@ function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
 }
 
+function money(value: FormDataEntryValue | null) {
+  const raw = String(value ?? '').trim().replace(/\s/g, '').replace(/R\$/gi, '')
+  const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw
+  const parsed = Number(normalized || 0)
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0
+}
+
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
   if (!carteiraId) throw new Error('Carteira obrigatória.')
   if (scope.carteiraIds !== null && !scope.carteiraIds.includes(carteiraId)) {
@@ -85,16 +92,18 @@ export async function updateUnidade(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim()
   const status = String(formData.get('status') ?? 'ativa').trim()
   const observacoes = String(formData.get('observacoes') ?? '').trim()
+  const creditoAdministradora = money(formData.get('credito_administradora'))
 
   if (!id) throw new Error('Unidade obrigatória.')
   if (!identificacao) throw new Error('Identificação da unidade obrigatória.')
+  if (creditoAdministradora < 0) throw new Error('Crédito da administradora não pode ser negativo.')
 
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()
 
   const { data: unidadeAtual, error: unidadeAtualError } = await supabase
     .from('unidades')
-    .select('id, carteira_id, condominio_id')
+    .select('id, carteira_id, condominio_id, credito_administradora')
     .eq('id', id)
     .maybeSingle()
 
@@ -130,11 +139,30 @@ export async function updateUnidade(formData: FormData) {
       email: email || null,
       status: status || 'ativa',
       observacoes: observacoes || null,
+      credito_administradora: creditoAdministradora,
     })
     .eq('id', id)
 
   if (error) {
     throw new Error(`Erro ao atualizar unidade: ${error.message}`)
+  }
+
+  const creditoAnterior = Number((unidadeAtual as any).credito_administradora ?? 0)
+  if (creditoAnterior !== creditoAdministradora) {
+    const user = await requireUser()
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: (unidadeAtual as any).carteira_id,
+      entidadeTipo: 'unidade',
+      entidadeId: id,
+      eventoCodigo: 'unidade.credito_administradora_alterado',
+      titulo: 'Crédito da administradora atualizado',
+      descricao: `Crédito alterado de ${creditoAnterior.toFixed(2)} para ${creditoAdministradora.toFixed(2)}.`,
+      antes: { credito_administradora: creditoAnterior },
+      depois: { credito_administradora: creditoAdministradora },
+      origem: 'manual',
+      auditavel: true,
+      userId: user?.id ?? null,
+    })
   }
 
   revalidatePath('/app/unidades')

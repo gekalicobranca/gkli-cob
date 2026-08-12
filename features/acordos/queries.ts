@@ -144,7 +144,8 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
         responsavel_nome,
         responsavel_documento,
         telefone,
-        email
+        email,
+        credito_administradora
       ),
       cobrancas:cobranca_id (
         id,
@@ -340,7 +341,8 @@ export async function listCobrancasElegiveisParaAcordo(scope?: CarteiraScope) {
         responsavel_nome,
         responsavel_documento,
         telefone,
-        email
+        email,
+        credito_administradora
       )
     `,
     )
@@ -515,7 +517,8 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
         responsavel_nome,
         responsavel_documento,
         telefone,
-        email
+        email,
+        credito_administradora
       )
     `,
     )
@@ -585,7 +588,8 @@ export async function listCobrancasSelecionadasParaAcordo(
         responsavel_nome,
         responsavel_documento,
         telefone,
-        email
+        email,
+        credito_administradora
       )
     `,
     )

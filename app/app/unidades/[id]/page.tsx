@@ -183,6 +183,10 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
             <FormField label="E-mail">
               <Input name="email" type="email" defaultValue={unidade.email ?? ''} placeholder="email@exemplo.com" />
             </FormField>
+
+            <FormField label="Crédito na administradora" hint="Saldo disponível para abater de um novo acordo.">
+              <Input name="credito_administradora" inputMode="decimal" defaultValue={Number(unidade.credito_administradora ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} placeholder="0,00" />
+            </FormField>
           </div>
 
           <FormField label="Observações">

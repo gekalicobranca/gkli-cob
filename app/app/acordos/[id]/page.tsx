@@ -406,7 +406,9 @@ export default async function AcordoDetalhePage({ params }: Props) {
         <MetricCard
           label="Valor do acordo"
           value={formatCurrency(acordo.valor_acordado)}
-          helper={`Pago: ${formatCurrency(totalPago)}`}
+          helper={Number(acordo.credito_administradora_utilizado ?? 0) > 0
+            ? `Crédito abatido: ${formatCurrency(acordo.credito_administradora_utilizado)} · Pago: ${formatCurrency(totalPago)}`
+            : `Pago: ${formatCurrency(totalPago)}`}
           icon={WalletCards}
         />
 

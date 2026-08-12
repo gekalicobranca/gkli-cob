@@ -40,6 +40,7 @@ type CobrancaOption = {
     responsavel_nome: string | null;
     email?: string | null;
     telefone?: string | null;
+    credito_administradora?: number | null;
   } | null;
 };
 
@@ -134,6 +135,7 @@ export function AcordoSimulatorForm({
   const [despesaCobrancaPercentual, setDespesaCobrancaPercentual] =
     useState("10,00");
   const [entrada, setEntrada] = useState("0,00");
+  const [usarCreditoAdministradora, setUsarCreditoAdministradora] = useState(false);
   const [entradaVencimento, setEntradaVencimento] = useState(() => toISODate(new Date()));
   const [quantidadeParcelas, setQuantidadeParcelas] = useState("3");
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => {
@@ -197,10 +199,18 @@ export function AcordoSimulatorForm({
       0,
       parsePercent(despesaCobrancaPercentual),
     );
-    const despesaCobranca = roundMoney(
-      valorOriginal * (percentualDespesa / 100),
+    const creditoDisponivel = Math.max(
+      0,
+      Number(cobrancaSelecionada?.unidades?.credito_administradora ?? 0),
     );
-    const total = roundMoney(valorOriginal + despesaCobranca);
+    const creditoUtilizado = usarCreditoAdministradora
+      ? Math.min(creditoDisponivel, valorOriginal)
+      : 0;
+    const valorAposCredito = roundMoney(valorOriginal - creditoUtilizado);
+    const despesaCobranca = roundMoney(
+      valorAposCredito * (percentualDespesa / 100),
+    );
+    const total = roundMoney(valorAposCredito + despesaCobranca);
     const entradaNumber = parseMoney(entrada);
     const parcelasCount = Math.max(1, Number(quantidadeParcelas) || 1);
     const saldo = Math.max(0, roundMoney(total - entradaNumber));
@@ -229,6 +239,9 @@ export function AcordoSimulatorForm({
 
     return {
       valorOriginal,
+      creditoDisponivel,
+      creditoUtilizado,
+      valorAposCredito,
       percentualDespesa,
       despesaCobranca,
       total,
@@ -244,6 +257,8 @@ export function AcordoSimulatorForm({
     entradaVencimento,
     quantidadeParcelas,
     primeiroVencimento,
+    usarCreditoAdministradora,
+    cobrancaSelecionada?.unidades?.credito_administradora,
   ]);
 
   const insight = calculateAgreementInsight({
@@ -529,6 +544,30 @@ export function AcordoSimulatorForm({
             />
           </FormField>
 
+          {preview.creditoDisponivel > 0 ? (
+            <label className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+              <input
+                type="checkbox"
+                name="usar_credito_administradora"
+                className="mt-0.5 size-4 rounded border-emerald-300"
+                checked={usarCreditoAdministradora}
+                onChange={(event) => setUsarCreditoAdministradora(event.currentTarget.checked)}
+              />
+              <span>
+                <span className="block font-semibold">Descontar crédito da dívida</span>
+                <span className="mt-1 block text-xs leading-5 text-emerald-800">
+                  Disponível: {formatCurrency(preview.creditoDisponivel)}. Abatimento nesta simulação: {formatCurrency(preview.creditoUtilizado)}.
+                </span>
+              </span>
+            </label>
+          ) : null}
+
+          <input
+            type="hidden"
+            name="credito_administradora_utilizado"
+            value={formatMoneyInput(preview.creditoUtilizado)}
+          />
+
           <input
             type="hidden"
             name="valor_acordado"
@@ -678,6 +717,12 @@ export function AcordoSimulatorForm({
           </div>
         ) : null}
 
+        {usarCreditoAdministradora && preview.total <= 0 ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+            O crédito cobre integralmente a dívida selecionada. Não é necessário criar um acordo; registre a quitação pelo crédito na administradora.
+          </div>
+        ) : null}
+
         <div className="flex flex-col justify-end gap-2 md:flex-row">
           {!exigeAprovacaoSindico ? (
             <Button
@@ -685,14 +730,14 @@ export function AcordoSimulatorForm({
               variant="secondary"
               formAction={solicitarAprovacaoSindicoAcordo}
               onClick={handleOpenAprovacaoSindicoEmail}
-              disabled={isCreatingAcordo || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico}
+              disabled={isCreatingAcordo || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
             >
               Enviar acordo para aprovação do síndico
             </Button>
           ) : null}
           <Button
             type="submit"
-            disabled={bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico}
+            disabled={bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
             loading={isCreatingAcordo}
             loadingLabel="Criando acordo..."
           >
@@ -803,6 +848,14 @@ export function AcordoSimulatorForm({
                 {formatCurrency(preview.valorOriginal)}
               </strong>
             </div>
+            {preview.creditoUtilizado > 0 ? (
+              <div className="flex justify-between rounded-2xl bg-emerald-50 p-4">
+                <span className="text-sm text-emerald-800">Crédito descontado</span>
+                <strong className="text-sm text-emerald-950">
+                  - {formatCurrency(preview.creditoUtilizado)}
+                </strong>
+              </div>
+            ) : null}
             <div className="flex justify-between rounded-2xl bg-slate-50 p-4">
               <span className="text-sm text-slate-500">
                 Despesa de cobrança (
