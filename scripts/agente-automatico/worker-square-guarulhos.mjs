@@ -137,8 +137,8 @@ async function reivindicarExecucao() {
 }
 
 async function aguardarPortal(page, execucaoId) {
-  const usuario = process.env.AGENTE_SQUARE_GUARULHOS_USUARIO || 'Square Guarulhos'
-  const senha = process.env.AGENTE_SQUARE_GUARULHOS_SENHA
+  const usuario = process.env.AGENTE_SquareG_USUARIO || process.env.AGENTE_SQUARE_GUARULHOS_USUARIO || 'Square Guarulhos'
+  const senha = process.env.AGENTE_SquareG_SENHA || process.env.AGENTE_SQUARE_GUARULHOS_SENHA
   const userInput = page.locator('input[type="text"], input[name*="user" i], input[name*="login" i]').first()
   const passwordInput = page.locator('input[type="password"]').first()
 
