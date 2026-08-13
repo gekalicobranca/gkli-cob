@@ -120,18 +120,30 @@ function saoPauloAgora() {
 
 async function agendarCaptacoesMensais() {
   const agora = saoPauloAgora()
+  const { data: receitas, error: receitasError } = await supabase.from('agente_receitas')
+    .select('id, administradora_id, carteira_id, config_json')
+    .eq('script_key', SCRIPT_KEY).eq('ativo', true)
+  if (receitasError) throw receitasError
+
+  const receitasPorCondominio = new Map(
+    (receitas ?? [])
+      .filter((receita) => receita.config_json?.condominio_id)
+      .map((receita) => [receita.config_json.condominio_id, receita]),
+  )
+  const condominioIds = [...receitasPorCondominio.keys()]
+  if (!condominioIds.length) return
+
   const { data: condominios, error } = await supabase.from('condominios')
     .select('id, carteira_id, nome, captacao_dia_mes, captacao_horario')
+    .in('id', condominioIds)
     .eq('captacao_automatica_habilitada', true).eq('status', 'ativo')
-    .ilike('administradora', 'BBZ').not('captacao_dia_mes', 'is', null)
+    .not('captacao_dia_mes', 'is', null)
   if (error) throw error
 
   for (const condominio of condominios ?? []) {
     const horario = String(condominio.captacao_horario || '08:00').slice(0, 5)
     if (agora.dia < Number(condominio.captacao_dia_mes) || (agora.dia === Number(condominio.captacao_dia_mes) && agora.horario < horario)) continue
-    const { data: receita, error: receitaError } = await supabase.from('agente_receitas')
-      .select('id, administradora_id, carteira_id').eq('script_key', SCRIPT_KEY).eq('ativo', true).maybeSingle()
-    if (receitaError) throw receitaError
+    const receita = receitasPorCondominio.get(condominio.id)
     if (!receita) continue
 
     const { data: existente } = await supabase.from('agente_execucoes').select('id')
@@ -184,7 +196,7 @@ async function waitForPortalReady(page, execucaoId) {
   })
 }
 
-async function collectClockVilaRomana(execution) {
+async function collectBbzCondominio(execution) {
   const outputDir = path.join(rootDir, 'outputs', 'agente-automatico', execution.id)
   await mkdir(outputDir, { recursive: true })
   const localDownloadDir = process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(), 'Downloads')
@@ -204,7 +216,8 @@ async function collectClockVilaRomana(execution) {
     await waitForPortalReady(page, execution.id)
 
     const condominioNome = execution.condominio?.nome_operacional || execution.condominio?.nome || 'CLOCK VILA ROMANA'
-    const nomePortal = condominioNome.replace(/^CONDOM[IÍ]NIO\s+/i, '').trim()
+    const nomePortalConfigurado = execution.receita?.config_json?.condominio_portal || execution.receita?.config_json?.condominio || condominioNome
+    const nomePortal = nomePortalConfigurado.replace(/^(?:CONDOM[IÍ]NIO|COND\.)\s+/i, '').trim()
     await log(execution.id, 'condominio', `Localizando o condomínio ${condominioNome}.`)
     const card = page.getByText(nomePortal, { exact: false }).first()
     await card.waitFor({ state: 'visible', timeout: 60_000 })
@@ -298,7 +311,7 @@ async function run() {
     try {
       await agendarCaptacoesMensais()
       const execution = await claimNextExecution()
-      if (execution) await collectClockVilaRomana(execution)
+      if (execution) await collectBbzCondominio(execution)
     } catch (error) {
       console.error('Erro no worker:', error instanceof Error ? error.message : error)
     }
