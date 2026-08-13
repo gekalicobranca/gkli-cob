@@ -22,6 +22,7 @@
     "agente:worker": "node scripts/agente-automatico/worker.mjs",
     "agente:worker:manager": "node scripts/agente-automatico/worker-manager.mjs",
     "agente:worker:square-guarulhos": "node scripts/agente-automatico/worker-square-guarulhos.mjs",
+    "agente:worker:verti": "node scripts/agente-automatico/worker-verti.mjs",
     "captacao:worker": "tsx scripts/captacao-automatizada/worker.ts",
     "prebuild": "npm run backup:generate-schema"
   },
