@@ -156,8 +156,19 @@ async function aguardarLogin(page, execucaoId) {
     await registrarLog(execucaoId, 'intervencao_login',
       'Navegador aberto. Faça login manualmente no portal Verti para continuar.', 'warning')
   }
-  await page.getByText(/escolha o portal que você quer acessar|VERDANA/i).first()
-    .waitFor({ state: 'visible', timeout: LOGIN_TIMEOUT_MS })
+  const deadline = Date.now() + LOGIN_TIMEOUT_MS
+  while (Date.now() < deadline) {
+    const pages = page.context().pages()
+    for (const candidate of pages.toReversed()) {
+      if (candidate.isClosed()) continue
+      const bodyText = await candidate.locator('body').innerText().catch(() => '')
+      if (/escolha o portal que você quer acessar|VERDANA|Balancete interativo/i.test(bodyText)) {
+        return candidate
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  throw new Error('Tempo excedido aguardando a página de condomínios do portal Verti.')
 }
 
 async function abrirBalancete(page, execucao) {
@@ -165,31 +176,62 @@ async function abrirBalancete(page, execucao) {
   const nomePortal = config.condominio_portal || config.condominio
   if (!nomePortal) throw new Error('Nome do condomínio no portal Verti não configurado.')
 
-  await registrarLog(execucao.id, 'condominio', `Selecionando ${nomePortal} no portal Verti.`)
-  await page.getByText(nomePortal, { exact: false }).first().click()
-  const balanco = page.getByText(/Balanço interativo/i).first()
+  const bodyText = await page.locator('body').innerText().catch(() => '')
+  if (!bodyText.toUpperCase().includes(nomePortal.toUpperCase())) {
+    await registrarLog(execucao.id, 'condominio', `Selecionando ${nomePortal} no portal Verti.`)
+    const condominioLink = page.locator('a').filter({ hasText: nomePortal }).first()
+    const href = await condominioLink.getAttribute('href')
+    if (!href) throw new Error(`Condomínio ${nomePortal} não encontrado no portal Verti.`)
+    await page.goto(new URL(href, page.url()).href, { waitUntil: 'domcontentloaded' })
+  }
+  const balanco = page.locator('a:visible, button:visible').filter({ hasText: /Balan(?:ço|cete) interativo/i }).first()
   await balanco.waitFor({ state: 'visible', timeout: 60_000 })
-
-  const pagesBefore = page.context().pages().length
   await balanco.click()
-  await page.waitForTimeout(2_000)
-  const pages = page.context().pages()
-  const target = pages.length > pagesBefore ? pages.at(-1) : page
-  await target.waitForLoadState('domcontentloaded').catch(() => {})
-  return target
+  const deadline = Date.now() + 60_000
+  while (Date.now() < deadline) {
+    for (const candidate of page.context().pages().toReversed()) {
+      if (candidate.isClosed()) continue
+      for (const frame of candidate.frames().toReversed()) {
+        const bodyText = await frame.locator('body').innerText().catch(() => '')
+        if (/Financeiro/i.test(bodyText)) return { scope: frame, page: candidate }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  throw new Error('Tempo excedido aguardando o módulo financeiro da Verti.')
 }
 
-async function baixarRelatorio(page) {
-  await page.getByText(/Financeiro/i).first().click()
-  const relatorios = page.getByText(/^Relatórios$/i).first()
+async function baixarRelatorio(target) {
+  let { scope, page } = target
+  const context = page.context()
+  await scope.getByText(/Financeiro/i).first().click()
+  const relatorios = scope.getByText(/^Relatórios$/i).first()
   await relatorios.waitFor({ state: 'visible', timeout: 60_000 })
   await relatorios.click()
-  const inadimplentes = page.getByText(/^Inadimplentes$/i).first()
+  const inadimplentes = scope.getByText(/^Inadimplentes$/i).first()
   await inadimplentes.waitFor({ state: 'visible', timeout: 60_000 })
   await inadimplentes.click()
 
-  await page.getByText(/Total de unidades inadimplentes/i).waitFor({ state: 'visible', timeout: 180_000 })
-  const exportar = page.locator([
+  const deadline = Date.now() + 180_000
+  let encontrouRelatorio = false
+  while (Date.now() < deadline && !encontrouRelatorio) {
+    for (const candidate of context.pages().toReversed()) {
+      if (candidate.isClosed()) continue
+      for (const frame of candidate.frames().toReversed()) {
+        const bodyText = await frame.locator('body').innerText().catch(() => '')
+        if (/Total de unidades inadimplentes/i.test(bodyText)) {
+          scope = frame
+          page = candidate
+          encontrouRelatorio = true
+          break
+        }
+      }
+      if (encontrouRelatorio) break
+    }
+    if (!encontrouRelatorio) await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  if (!encontrouRelatorio) throw new Error('Tempo excedido aguardando o relatório de inadimplência da Verti.')
+  const exportar = scope.locator([
     'a[title*="Excel" i]', 'button[title*="Excel" i]',
     'a[aria-label*="Excel" i]', 'button[aria-label*="Excel" i]',
     'a[href*="xlsx" i]', '.fa-file-excel', '.fa-file-excel-o',
@@ -214,11 +256,12 @@ async function coletar(execucao) {
   try {
     await registrarLog(execucao.id, 'navegador', 'Abrindo o portal Verti/Winker.')
     await page.goto(execucao.administradora.url_portal, { waitUntil: 'domcontentloaded' })
+    let portalPage = page
     if (!await page.getByText(/escolha o portal que você quer acessar|VERDANA/i).first().isVisible().catch(() => false)) {
-      await aguardarLogin(page, execucao.id)
+      portalPage = await aguardarLogin(page, execucao.id)
     }
-    const balancetePage = await abrirBalancete(page, execucao)
-    const download = await baixarRelatorio(balancetePage)
+    const balanceteTarget = await abrirBalancete(portalPage, execucao)
+    const download = await baixarRelatorio(balanceteTarget)
 
     const prefixo = condominioNome.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase()
@@ -232,7 +275,7 @@ async function coletar(execucao) {
     const storagePath = `${execucao.id}/${filename}`
     await garantirBucket()
     const { error: uploadError } = await supabase.storage.from(BUCKET).upload(storagePath, bytes, {
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', upsert: true,
+      contentType: 'application/octet-stream', upsert: true,
     })
     if (uploadError) throw uploadError
     const { error: arquivoError } = await supabase.from('agente_arquivos').insert({
