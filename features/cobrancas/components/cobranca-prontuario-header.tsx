@@ -1,4 +1,6 @@
-import { ButtonLink } from "@/components/ui/button";
+import { FileSpreadsheet } from "lucide-react";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { solicitarPlanilhaDebitosIndividual } from "@/features/planilhas-debitos/actions";
 import { formatDateBR } from "@/utils/formatters/date";
 import type { CobrancaNextAction } from "../next-action";
 
@@ -47,6 +49,14 @@ export function CobrancaProntuarioHeader({
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-3">
+          <form action={solicitarPlanilhaDebitosIndividual}>
+            <input type="hidden" name="origem" value="cobranca" />
+            <input type="hidden" name="id" value={cobranca.id} />
+            <Button type="submit" variant="header">
+              <FileSpreadsheet size={16} />
+              Pedir planilha
+            </Button>
+          </form>
           {acordoVigenteId ? (
             <ButtonLink
               href={`/app/acordos/${acordoVigenteId}`}

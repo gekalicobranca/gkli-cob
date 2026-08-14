@@ -51,6 +51,11 @@ function checkboxOn(value: FormDataEntryValue | null) {
   return String(value ?? '').toLowerCase() === 'on'
 }
 
+function monthStart(formData: FormData, field: string) {
+  const value = String(formData.get(field) ?? '').trim()
+  return /^\d{4}-\d{2}$/.test(value) ? `${value}-01` : null
+}
+
 function normalizeComparable(value: unknown) {
   if (value === undefined || value === '') return null
   if (typeof value === 'number' && Number.isNaN(value)) return null
@@ -107,6 +112,9 @@ export async function createCondominio(formData: FormData) {
   const captacaoAutomaticaHabilitada = checkboxOn(formData.get('captacao_automatica_habilitada'))
   const captacaoDiaMes = toOptionalInteger(formData.get('captacao_dia_mes'))
   const captacaoHorario = String(formData.get('captacao_horario') ?? '08:00').trim() || '08:00'
+  const bloqueioGarantidoraHabilitado = checkboxOn(formData.get('bloqueio_garantidora_habilitado'))
+  const bloqueioGarantidoraInicio = monthStart(formData, 'bloqueio_garantidora_inicio')
+  const bloqueioGarantidoraFim = monthStart(formData, 'bloqueio_garantidora_fim')
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
   const reguaAcordoId = String(formData.get('regua_acordo_id') ?? '').trim() || null
@@ -115,6 +123,8 @@ export async function createCondominio(formData: FormData) {
   if (nome.length < 2) throw new Error('Nome do condomínio obrigatório.')
 
   if (captacaoAutomaticaHabilitada && (!captacaoDiaMes || captacaoDiaMes < 1 || captacaoDiaMes > 28)) throw new Error('Informe um dia mensal entre 1 e 28 para a captação automática.')
+  if (bloqueioGarantidoraHabilitado && (!bloqueioGarantidoraInicio || !bloqueioGarantidoraFim)) throw new Error('Informe o mês inicial e o mês final do Bloqueio Garantidora.')
+  if (bloqueioGarantidoraInicio && bloqueioGarantidoraFim && bloqueioGarantidoraInicio > bloqueioGarantidoraFim) throw new Error('O mês inicial do Bloqueio Garantidora deve ser anterior ou igual ao mês final.')
 
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()
@@ -143,6 +153,9 @@ export async function createCondominio(formData: FormData) {
     captacao_automatica_habilitada: captacaoAutomaticaHabilitada,
     captacao_dia_mes: captacaoDiaMes,
     captacao_horario: captacaoHorario,
+    bloqueio_garantidora_habilitado: bloqueioGarantidoraHabilitado,
+    bloqueio_garantidora_inicio: bloqueioGarantidoraInicio,
+    bloqueio_garantidora_fim: bloqueioGarantidoraFim,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
     status: 'ativo',
@@ -198,6 +211,9 @@ export async function updateCondominioIntegral(formData: FormData) {
   const captacaoAutomaticaHabilitada = checkboxOn(formData.get('captacao_automatica_habilitada'))
   const captacaoDiaMes = toOptionalInteger(formData.get('captacao_dia_mes'))
   const captacaoHorario = String(formData.get('captacao_horario') ?? '08:00').trim() || '08:00'
+  const bloqueioGarantidoraHabilitado = checkboxOn(formData.get('bloqueio_garantidora_habilitado'))
+  const bloqueioGarantidoraInicio = monthStart(formData, 'bloqueio_garantidora_inicio')
+  const bloqueioGarantidoraFim = monthStart(formData, 'bloqueio_garantidora_fim')
   const status = String(formData.get('status') ?? 'ativo')
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
@@ -209,12 +225,14 @@ export async function updateCondominioIntegral(formData: FormData) {
   if (!Number.isFinite(vencimentoCotaDia) || vencimentoCotaDia < 1 || vencimentoCotaDia > 31) throw new Error('Dia de vencimento deve ficar entre 1 e 31.')
   if (!Number.isFinite(inicioCobrancaDias) || inicioCobrancaDias < 0 || inicioCobrancaDias > 365) throw new Error('Início da cobrança deve ficar entre 0 e 365 dias.')
   if (captacaoAutomaticaHabilitada && (!captacaoDiaMes || captacaoDiaMes < 1 || captacaoDiaMes > 28)) throw new Error('Informe um dia mensal entre 1 e 28 para a captação automática.')
+  if (bloqueioGarantidoraHabilitado && (!bloqueioGarantidoraInicio || !bloqueioGarantidoraFim)) throw new Error('Informe o mês inicial e o mês final do Bloqueio Garantidora.')
+  if (bloqueioGarantidoraInicio && bloqueioGarantidoraFim && bloqueioGarantidoraInicio > bloqueioGarantidoraFim) throw new Error('O mês inicial do Bloqueio Garantidora deve ser anterior ou igual ao mês final.')
 
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, regua_cobranca_id, regua_acordo_id, status, observacoes')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -251,6 +269,9 @@ export async function updateCondominioIntegral(formData: FormData) {
     captacao_automatica_habilitada: captacaoAutomaticaHabilitada,
     captacao_dia_mes: captacaoDiaMes,
     captacao_horario: captacaoHorario,
+    bloqueio_garantidora_habilitado: bloqueioGarantidoraHabilitado,
+    bloqueio_garantidora_inicio: bloqueioGarantidoraInicio,
+    bloqueio_garantidora_fim: bloqueioGarantidoraFim,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
     status,

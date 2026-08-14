@@ -157,6 +157,17 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <div className="mt-4 grid gap-4 sm:grid-cols-2"><FormField label="Dia do mês" hint="Entre 1 e 28"><Input name="captacao_dia_mes" type="number" min="1" max="28" defaultValue={condominio.captacao_dia_mes ?? 10} /></FormField><FormField label="Horário mensal" hint="Fuso de São Paulo"><Input name="captacao_horario" type="time" defaultValue={String(condominio.captacao_horario ?? '08:00').slice(0, 5)} /></FormField></div>
           </div>
 
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <label className="flex items-start gap-3 text-sm text-slate-700">
+              <input type="checkbox" name="bloqueio_garantidora_habilitado" defaultChecked={Boolean(condominio.bloqueio_garantidora_habilitado)} className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" />
+              <span><span className="block font-medium text-slate-950">Bloqueio Garantidora</span><span className="mt-1 block text-xs leading-5 text-slate-600">Cotas com competência dentro do período serão importadas como suspensas e não entrarão na régua de cobrança.</span></span>
+            </label>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <FormField label="Mês inicial"><Input name="bloqueio_garantidora_inicio" type="month" defaultValue={String(condominio.bloqueio_garantidora_inicio ?? '').slice(0, 7)} /></FormField>
+              <FormField label="Mês final"><Input name="bloqueio_garantidora_fim" type="month" defaultValue={String(condominio.bloqueio_garantidora_fim ?? '').slice(0, 7)} /></FormField>
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
             <p className="font-semibold">Regras operacionais de acordos</p>
             <p className="mt-1">Acima do limite de parcelas, o sistema envia primeiro a aprovação pública ao síndico. Somente após esse aceite o termo é enviado ao devedor. Se os dias de reemissão forem 0, parcelas vencidas não poderão ser reemitidas pelo acompanhamento.</p>

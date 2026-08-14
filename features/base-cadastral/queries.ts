@@ -267,12 +267,20 @@ export async function globalSearch(scope: CarteiraScope, term?: string) {
     .limit(8)
   condominiosQuery = applyCarteiraScope(condominiosQuery, scope.carteiraIds)
 
+  let unidadesExatasQuery = supabase
+    .from('unidades')
+    .select('id, carteira_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email, status, condominios(nome, nome_operacional), carteiras(nome)')
+    .ilike('responsavel_nome', `%${q}%`)
+    .order('identificacao', { ascending: true })
+    .limit(10)
+  unidadesExatasQuery = applyCarteiraScope(unidadesExatasQuery, scope.carteiraIds)
+
   let unidadesQuery = supabase
     .from('unidades')
     .select('id, carteira_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email, status, condominios(nome, nome_operacional), carteiras(nome)')
     .or(unidadeClauses.join(','))
     .order('identificacao', { ascending: true })
-    .limit(10)
+    .limit(20)
   unidadesQuery = applyCarteiraScope(unidadesQuery, scope.carteiraIds)
 
   let cobrancasQuery = supabase
@@ -291,16 +299,22 @@ export async function globalSearch(scope: CarteiraScope, term?: string) {
     .limit(8)
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
 
-  const [condominiosResult, unidadesResult, cobrancasResult, acordosResult] = await Promise.all([
+  const [condominiosResult, unidadesExatasResult, unidadesResult, cobrancasResult, acordosResult] = await Promise.all([
     condominiosQuery,
+    unidadesExatasQuery,
     unidadesQuery,
     cobrancasQuery,
     acordosQuery,
   ])
 
+  const unidadesOrdenadas = [
+    ...((unidadesExatasResult.data ?? []) as any[]),
+    ...((unidadesResult.data ?? []) as any[]),
+  ].filter((row, index, rows) => rows.findIndex((candidate) => candidate.id === row.id) === index).slice(0, 10)
+
   return {
     condominios: condominiosResult.error ? [] : normalizeRelationsList((condominiosResult.data ?? []) as any[], ['carteiras']),
-    unidades: unidadesResult.error ? [] : normalizeRelationsList((unidadesResult.data ?? []) as any[], ['condominios', 'carteiras']),
+    unidades: unidadesExatasResult.error && unidadesResult.error ? [] : normalizeRelationsList(unidadesOrdenadas, ['condominios', 'carteiras']),
     cobrancas: cobrancasResult.error ? [] : normalizeRelationsList((cobrancasResult.data ?? []) as any[], ['condominios', 'unidades']),
     acordos: acordosResult.error ? [] : normalizeRelationsList((acordosResult.data ?? []) as any[], ['condominios', 'unidades']),
   }

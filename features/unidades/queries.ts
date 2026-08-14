@@ -20,6 +20,7 @@ const UNIDADE_SELECT = `
   email,
   status,
   observacoes,
+  credito_administradora,
   created_at,
   condominios(nome, cnpj, administradora),
   carteiras(nome)
