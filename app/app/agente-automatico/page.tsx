@@ -3,6 +3,7 @@ import {
   listAgenteExecucoes,
   listAgenteReceitas,
   listCarteirasParaAgente,
+  getAgenteWorkerStatus,
 } from '@/features/agente-automatico/queries'
 import {
   criarAgenteAdministradora,
@@ -109,12 +110,17 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
   const carteiraIds = scope.carteiraIds
-  const [carteiras, administradoras, receitas, execucoes] = await Promise.all([
+  const [carteiras, administradoras, receitas, execucoes, workerBbz] = await Promise.all([
     listCarteirasParaAgente(carteiraIds),
     listAgenteAdministradoras(carteiraIds),
     listAgenteReceitas(carteiraIds),
     listAgenteExecucoes(carteiraIds),
+    getAgenteWorkerStatus('bbz_condopro_clock_vila_romana'),
   ])
+
+  const workerBbzOnline = Boolean(
+    workerBbz?.ultimo_sinal_em && Date.now() - new Date(workerBbz.ultimo_sinal_em).getTime() < 45_000,
+  )
 
   const totalSucesso = execucoes.filter((item) => item.status === 'sucesso').length
   const totalAtencao = execucoes.filter((item) => ['falha', 'precisa_intervencao'].includes(item.status)).length
@@ -160,9 +166,12 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
         title="Agentes de coleta"
         description="Configure os acessos e roteiros usados para buscar relatórios nos portais das administradoras."
         actions={(
-          <ButtonLink href="/app/configuracoes/lab/captacao-automatizada" variant="secondary">
-            <Settings2 size={16} /> Agenda de captação
-          </ButtonLink>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge tone={workerBbzOnline ? 'green' : 'red'} label={`Worker BBZ ${workerBbzOnline ? 'online' : 'offline'}`} />
+            <ButtonLink href="/app/configuracoes/lab/captacao-automatizada" variant="secondary">
+              <Settings2 size={16} /> Agenda de captação
+            </ButtonLink>
+          </div>
         )}
       />
 
