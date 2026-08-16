@@ -27,9 +27,24 @@ import {
   ExternalLink,
   FileDown,
   Play,
+  Search,
   Settings2,
   TriangleAlert,
 } from 'lucide-react'
+
+type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> }
+
+function getParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0]?.trim() ?? '' : value?.trim() ?? ''
+}
+
+function normalizar(value: string | null | undefined) {
+  return (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
+}
+
+function contem(value: string | null | undefined, busca: string) {
+  return normalizar(value).includes(normalizar(busca))
+}
 
 function formatarData(value: string) {
   return new Intl.DateTimeFormat('pt-BR', {
@@ -90,7 +105,8 @@ function SectionSummary({ title, description, count }: { title: string; descript
   )
 }
 
-export default async function AgenteAutomaticoPage() {
+export default async function AgenteAutomaticoPage({ searchParams }: Props) {
+  const params = await searchParams
   const scope = await getPermittedCarteiras()
   const carteiraIds = scope.carteiraIds
   const [carteiras, administradoras, receitas, execucoes] = await Promise.all([
@@ -103,6 +119,39 @@ export default async function AgenteAutomaticoPage() {
   const totalSucesso = execucoes.filter((item) => item.status === 'sucesso').length
   const totalAtencao = execucoes.filter((item) => ['falha', 'precisa_intervencao'].includes(item.status)).length
   const totalEmAndamento = execucoes.filter((item) => ['pendente', 'em_execucao'].includes(item.status)).length
+
+  const portalBusca = getParam(params?.portal_q)
+  const portalOrdem = getParam(params?.portal_ordem) || 'nome_asc'
+  const portaisFiltrados = administradoras
+    .filter((item) => contem(`${item.nome} ${item.url_portal}`, portalBusca))
+    .sort((a, b) => {
+      const result = a.nome.localeCompare(b.nome, 'pt-BR')
+      return portalOrdem === 'nome_desc' ? -result : result
+    })
+
+  const receitaBusca = getParam(params?.receita_q)
+  const receitaOrdem = getParam(params?.receita_ordem) || 'nome_asc'
+  const receitasFiltradas = receitas
+    .filter((item) => contem(`${item.nome} ${item.administradora?.nome ?? ''} ${item.descricao ?? ''}`, receitaBusca))
+    .sort((a, b) => {
+      if (receitaOrdem === 'administradora') {
+        return (a.administradora?.nome ?? '').localeCompare(b.administradora?.nome ?? '', 'pt-BR')
+      }
+      const result = a.nome.localeCompare(b.nome, 'pt-BR')
+      return receitaOrdem === 'nome_desc' ? -result : result
+    })
+
+  const execucaoBusca = getParam(params?.execucao_q)
+  const execucaoStatus = getParam(params?.execucao_status)
+  const execucaoOrdem = getParam(params?.execucao_ordem) || 'recentes'
+  const execucoesFiltradas = execucoes
+    .filter((item) => !execucaoStatus || item.status === execucaoStatus)
+    .filter((item) => contem(`${item.receita?.nome ?? ''} ${item.administradora?.nome ?? ''}`, execucaoBusca))
+    .sort((a, b) => {
+      if (execucaoOrdem === 'receita') return (a.receita?.nome ?? '').localeCompare(b.receita?.nome ?? '', 'pt-BR')
+      const result = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      return execucaoOrdem === 'antigas' ? result : -result
+    })
 
   return (
     <main className="space-y-6">
@@ -130,12 +179,17 @@ export default async function AgenteAutomaticoPage() {
           <p className="mt-1 text-sm text-slate-500">Abra uma área somente quando precisar cadastrar um novo portal ou roteiro.</p>
         </div>
 
-        <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <details open={Boolean(portalBusca)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <SectionSummary title="Portais de administradoras" description="Acessos disponíveis para os agentes de coleta." count={administradoras.length} />
           <div className="border-t border-slate-100 p-6">
-            {administradoras.length ? (
+            <form method="get" className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px_auto]">
+              <label className="relative"><span className="sr-only">Buscar portal</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="portal_q" defaultValue={portalBusca} placeholder="Buscar administradora ou portal" className="pl-9" /></label>
+              <Select name="portal_ordem" defaultValue={portalOrdem} aria-label="Ordenar portais"><option value="nome_asc">Nome: A–Z</option><option value="nome_desc">Nome: Z–A</option></Select>
+              <div className="flex gap-2"><Button type="submit" variant="secondary">Filtrar</Button>{portalBusca || portalOrdem !== 'nome_asc' ? <ButtonLink href="/app/agente-automatico" variant="ghost">Limpar</ButtonLink> : null}</div>
+            </form>
+            {portaisFiltrados.length ? (
               <div className="mb-6 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
-                {administradoras.map((adm) => (
+                {portaisFiltrados.map((adm) => (
                   <div key={adm.id} className="flex flex-col justify-between gap-2 px-4 py-3 sm:flex-row sm:items-center">
                     <div>
                       <p className="font-medium text-slate-900">{adm.nome}</p>
@@ -151,7 +205,7 @@ export default async function AgenteAutomaticoPage() {
                   </div>
                 ))}
               </div>
-            ) : null}
+            ) : <div className="mb-6 rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">Nenhum portal encontrado.</div>}
 
             <div className="mb-4">
               <h3 className="font-semibold text-slate-900">Cadastrar administradora</h3>
@@ -201,9 +255,14 @@ export default async function AgenteAutomaticoPage() {
           <h2 className="text-lg font-semibold text-slate-950">Receitas disponíveis</h2>
           <p className="mt-1 text-sm text-slate-500">Escolha um roteiro para iniciar uma coleta manual.</p>
         </div>
-        {receitas.length ? (
+        <form method="get" className="grid gap-3 border-b border-slate-100 px-6 py-4 sm:grid-cols-[minmax(0,1fr)_220px_auto]">
+          <label className="relative"><span className="sr-only">Buscar receita</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="receita_q" defaultValue={receitaBusca} placeholder="Buscar receita ou administradora" className="pl-9" /></label>
+          <Select name="receita_ordem" defaultValue={receitaOrdem} aria-label="Ordenar receitas"><option value="nome_asc">Nome: A–Z</option><option value="nome_desc">Nome: Z–A</option><option value="administradora">Administradora</option></Select>
+          <div className="flex gap-2"><Button type="submit" variant="secondary">Filtrar</Button>{receitaBusca || receitaOrdem !== 'nome_asc' ? <ButtonLink href="/app/agente-automatico" variant="ghost">Limpar</ButtonLink> : null}</div>
+        </form>
+        {receitasFiltradas.length ? (
           <div className="divide-y divide-slate-100">
-            {receitas.map((receita) => (
+            {receitasFiltradas.map((receita) => (
               <article key={receita.id} className="flex flex-col justify-between gap-4 px-6 py-5 lg:flex-row lg:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -220,7 +279,7 @@ export default async function AgenteAutomaticoPage() {
               </article>
             ))}
           </div>
-        ) : <div className="p-8 text-center text-sm text-slate-500">Nenhuma receita cadastrada.</div>}
+        ) : <div className="p-8 text-center text-sm text-slate-500">Nenhuma receita encontrada.</div>}
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -231,13 +290,19 @@ export default async function AgenteAutomaticoPage() {
           </div>
           <ButtonLink href="/app/configuracoes/lab/captacao-automatizada/historico" variant="secondary">Ver histórico completo</ButtonLink>
         </div>
+        <form method="get" className="grid gap-3 border-b border-slate-100 px-6 py-4 md:grid-cols-[minmax(0,1fr)_180px_190px_auto]">
+          <label className="relative"><span className="sr-only">Buscar execução</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="execucao_q" defaultValue={execucaoBusca} placeholder="Buscar receita ou administradora" className="pl-9" /></label>
+          <Select name="execucao_status" defaultValue={execucaoStatus} aria-label="Filtrar por status"><option value="">Todos os status</option><option value="pendente">Pendente</option><option value="em_execucao">Em execução</option><option value="sucesso">Sucesso</option><option value="falha">Falha</option><option value="precisa_intervencao">Requer atenção</option></Select>
+          <Select name="execucao_ordem" defaultValue={execucaoOrdem} aria-label="Ordenar execuções"><option value="recentes">Mais recentes</option><option value="antigas">Mais antigas</option><option value="receita">Nome da receita</option></Select>
+          <div className="flex gap-2"><Button type="submit" variant="secondary">Filtrar</Button>{execucaoBusca || execucaoStatus || execucaoOrdem !== 'recentes' ? <ButtonLink href="/app/agente-automatico" variant="ghost">Limpar</ButtonLink> : null}</div>
+        </form>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500">
               <tr><th className="px-6 py-3 font-medium">Execução</th><th className="px-4 py-3 font-medium">Receita</th><th className="px-4 py-3 font-medium">Status</th><th className="px-6 py-3 text-right font-medium">Ações</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {execucoes.slice(0, 15).map((execucao) => (
+              {execucoesFiltradas.slice(0, 15).map((execucao) => (
                 <tr key={execucao.id} className="align-top hover:bg-slate-50/50">
                   <td className="whitespace-nowrap px-6 py-4"><p className="font-medium text-slate-800">{formatarData(execucao.created_at)}</p><p className="mt-1 text-xs text-slate-500">{execucao.administradora?.nome ?? '—'}</p></td>
                   <td className="max-w-sm px-4 py-4 text-slate-700">{execucao.receita?.nome ?? '—'}</td>
@@ -251,7 +316,7 @@ export default async function AgenteAutomaticoPage() {
                   </td>
                 </tr>
               ))}
-              {!execucoes.length ? <tr><td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-500"><FileDown size={22} className="mx-auto mb-2 text-slate-400" />Nenhuma execução registrada.</td></tr> : null}
+              {!execucoesFiltradas.length ? <tr><td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-500"><FileDown size={22} className="mx-auto mb-2 text-slate-400" />Nenhuma execução encontrada.</td></tr> : null}
             </tbody>
           </table>
         </div>
