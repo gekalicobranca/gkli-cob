@@ -6,12 +6,12 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
+import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 
 const SCRIPT_KEY = 'bbz_condopro_clock_vila_romana'
 const BUCKET = 'agente-relatorios'
 const POLL_MS = 10_000
 const LOGIN_TIMEOUT_MS = 10 * 60_000
-const HEARTBEAT_MS = 15_000
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 function downloadDate() {
@@ -52,18 +52,6 @@ if (!supabaseUrl || !serviceRoleKey) {
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 })
-
-async function registrarSinalDeVida() {
-  const agora = new Date().toISOString()
-  const { error } = await supabase.from('agente_workers').upsert({
-    script_key: SCRIPT_KEY,
-    ultimo_sinal_em: agora,
-    versao: '1',
-    metadata_json: { plataforma: process.platform },
-    updated_at: agora,
-  }, { onConflict: 'script_key' })
-  if (error) console.error('Falha ao registrar sinal de vida:', error.message)
-}
 
 async function log(execucaoId, step, mensagem, nivel = 'info', metadata = {}) {
   const { error } = await supabase.from('agente_logs').insert({
@@ -319,9 +307,7 @@ async function collectBbzCondominio(execution) {
 
 async function run() {
   console.log(`Worker ativo para ${SCRIPT_KEY}. Aguardando execuções...`)
-  await registrarSinalDeVida()
-  const heartbeat = setInterval(() => void registrarSinalDeVida(), HEARTBEAT_MS)
-  heartbeat.unref()
+  await startWorkerHeartbeat(supabase, SCRIPT_KEY)
   const runOnce = String(process.env.AGENTE_RUN_ONCE || 'false').toLowerCase() === 'true'
   for (;;) {
     try {

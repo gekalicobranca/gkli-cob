@@ -3,7 +3,7 @@ import {
   listAgenteExecucoes,
   listAgenteReceitas,
   listCarteirasParaAgente,
-  getAgenteWorkerStatus,
+  getAgenteWorkerStatuses,
 } from '@/features/agente-automatico/queries'
 import {
   criarAgenteAdministradora,
@@ -34,6 +34,13 @@ import {
 } from 'lucide-react'
 
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> }
+
+const WORKERS = [
+  { scriptKey: 'bbz_condopro_clock_vila_romana', nome: 'BBZ / CondoPro' },
+  { scriptKey: 'manager_atentum_cotas_pendentes', nome: 'Manager / Atentum' },
+  { scriptKey: 'villagua_condopro_square_guarulhos', nome: 'Square Guarulhos' },
+  { scriptKey: 'verti_winker_inadimplencia', nome: 'Verti / Winker' },
+]
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0]?.trim() ?? '' : value?.trim() ?? ''
@@ -110,17 +117,28 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
   const carteiraIds = scope.carteiraIds
-  const [carteiras, administradoras, receitas, execucoes, workerBbz] = await Promise.all([
+  const [carteiras, administradoras, receitas, execucoes, workerStatuses] = await Promise.all([
     listCarteirasParaAgente(carteiraIds),
     listAgenteAdministradoras(carteiraIds),
     listAgenteReceitas(carteiraIds),
     listAgenteExecucoes(carteiraIds),
-    getAgenteWorkerStatus('bbz_condopro_clock_vila_romana'),
+    getAgenteWorkerStatuses(WORKERS.map((worker) => worker.scriptKey)),
   ])
-
-  const workerBbzOnline = Boolean(
-    workerBbz?.ultimo_sinal_em && Date.now() - new Date(workerBbz.ultimo_sinal_em).getTime() < 45_000,
-  )
+  const workers = WORKERS.map((worker) => {
+    const status = workerStatuses.find((item) => item.script_key === worker.scriptKey)
+    return {
+      ...worker,
+      ultimoSinalEm: status?.ultimo_sinal_em ?? null,
+      online: Boolean(status?.ultimo_sinal_em && Date.now() - new Date(status.ultimo_sinal_em).getTime() < 45_000),
+    }
+  })
+  const workersOnline = workers.filter((worker) => worker.online).length
+  const workerTone = workersOnline === workers.length ? 'green' : workersOnline > 0 ? 'amber' : 'red'
+  const workerLabel = workersOnline === workers.length
+    ? 'Agentes online'
+    : workersOnline > 0
+      ? `Agentes parcialmente online (${workersOnline}/${workers.length})`
+      : 'Agentes offline'
 
   const totalSucesso = execucoes.filter((item) => item.status === 'sucesso').length
   const totalAtencao = execucoes.filter((item) => ['falha', 'precisa_intervencao'].includes(item.status)).length
@@ -167,7 +185,20 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
         description="Configure os acessos e roteiros usados para buscar relatórios nos portais das administradoras."
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone={workerBbzOnline ? 'green' : 'red'} label={`Worker BBZ ${workerBbzOnline ? 'online' : 'offline'}`} />
+            <details className="group relative">
+              <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden"><StatusBadge tone={workerTone} label={workerLabel} /></summary>
+              <div className="absolute right-0 z-20 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Estado dos agentes</p>
+                <div className="space-y-2">
+                  {workers.map((worker) => (
+                    <div key={worker.scriptKey} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-slate-700">{worker.nome}</span>
+                      <StatusBadge tone={worker.online ? 'green' : 'red'} label={worker.online ? 'Online' : 'Offline'} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </details>
             <ButtonLink href="/app/configuracoes/lab/captacao-automatizada" variant="secondary">
               <Settings2 size={16} /> Agenda de captação
             </ButtonLink>

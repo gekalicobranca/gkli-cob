@@ -6,6 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
+import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 
 const SCRIPT_KEY = 'manager_atentum_cotas_pendentes'
 const BUCKET = 'agente-relatorios'
@@ -185,6 +186,7 @@ async function coletar(execucao) {
 }
 
 console.log(`Worker ativo para ${SCRIPT_KEY}. Aguardando execuções...`)
+await startWorkerHeartbeat(supabase, SCRIPT_KEY)
 for (;;) {
   try {
     await agendarCaptacoesMensais()

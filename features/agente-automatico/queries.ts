@@ -87,14 +87,13 @@ export async function listCarteirasParaAgente(carteiraIds: string[] | null) {
   return data ?? []
 }
 
-export async function getAgenteWorkerStatus(scriptKey: string) {
+export async function getAgenteWorkerStatuses(scriptKeys: string[]) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('agente_workers')
     .select('script_key, ultimo_sinal_em, versao')
-    .eq('script_key', scriptKey)
-    .maybeSingle()
+    .in('script_key', scriptKeys)
 
   if (error) throw new Error(error.message)
-  return data
+  return data ?? []
 }
