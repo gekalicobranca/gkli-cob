@@ -60,6 +60,7 @@ export async function listAgenteExecucoes(carteiraIds: string[] | null) {
   query = applyCarteiraScope(query, carteiraIds)
 
   const { data, error } = await query
+    .is('oculto_em', null)
     .order('created_at', { ascending: false })
     .limit(50)
 

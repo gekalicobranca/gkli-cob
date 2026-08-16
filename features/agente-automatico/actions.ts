@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
+import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key)
@@ -195,4 +197,17 @@ export async function validarArquivoAgente(formData: FormData) {
   })
 
   revalidatePath('/app/agente-automatico')
+}
+
+export async function limparAgenteExecucoes() {
+  const scope = await getPermittedCarteiras()
+  const admin = createAdminClient()
+  let query = admin.from('agente_execucoes').update({ oculto_em: new Date().toISOString() }).is('oculto_em', null)
+  if (scope.carteiraIds !== null) query = query.in('carteira_id', scope.carteiraIds)
+  const { error } = await query
+  if (error) throw new Error(error.message)
+
+  revalidatePath('/app/agente-automatico')
+  revalidatePath('/app/configuracoes/lab/captacao-automatizada')
+  revalidatePath('/app/configuracoes/lab/captacao-automatizada/historico')
 }

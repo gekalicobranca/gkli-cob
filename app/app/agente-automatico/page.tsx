@@ -9,9 +9,11 @@ import {
   criarAgenteAdministradora,
   criarAgenteReceita,
   executarAgenteReceita,
+  limparAgenteExecucoes,
   marcarExecucaoComoSucessoManual,
   validarArquivoAgente,
 } from '@/features/agente-automatico/actions'
+import { LimparExecucoesButton } from './limpar-execucoes-button'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -349,7 +351,10 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
             <h2 className="text-lg font-semibold text-slate-950">Execuções recentes</h2>
             <p className="mt-1 text-sm text-slate-500">Últimas coletas, arquivos gerados e validações.</p>
           </div>
-          <ButtonLink href="/app/configuracoes/lab/captacao-automatizada/historico" variant="secondary">Ver histórico completo</ButtonLink>
+          <div className="flex flex-wrap gap-2">
+            <ButtonLink href="/app/configuracoes/lab/captacao-automatizada/historico" variant="secondary">Ver histórico completo</ButtonLink>
+            <form action={limparAgenteExecucoes}><LimparExecucoesButton total={execucoes.length} /></form>
+          </div>
         </div>
         <form method="get" className="grid gap-3 border-b border-slate-100 px-6 py-4 md:grid-cols-[minmax(0,1fr)_180px_190px_auto]">
           <label className="relative"><span className="sr-only">Buscar execução</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="execucao_q" defaultValue={execucaoBusca} placeholder="Buscar receita ou administradora" className="pl-9" /></label>
