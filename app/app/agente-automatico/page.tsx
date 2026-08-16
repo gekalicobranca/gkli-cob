@@ -12,26 +12,87 @@ import {
   validarArquivoAgente,
 } from '@/features/agente-automatico/actions'
 import { PageHeader } from '@/components/ui/page-header'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { ChevronDown, Download } from 'lucide-react'
+import {
+  Activity,
+  Bot,
+  CheckCircle2,
+  ChevronDown,
+  Download,
+  ExternalLink,
+  FileDown,
+  Play,
+  Settings2,
+  TriangleAlert,
+} from 'lucide-react'
 
-function statusTone(status: string) {
-  if (status === 'sucesso') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-  if (status === 'falha') return 'bg-red-50 text-red-700 border-red-200'
-  if (status === 'em_execucao') return 'bg-blue-50 text-blue-700 border-blue-200'
-  if (status === 'precisa_intervencao') return 'bg-amber-50 text-amber-700 border-amber-200'
-  return 'bg-slate-50 text-slate-700 border-slate-200'
+function formatarData(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date(value))
+}
+
+function statusLabel(status: string) {
+  const labels: Record<string, string> = {
+    sucesso: 'Sucesso',
+    falha: 'Falha',
+    em_execucao: 'Em execução',
+    precisa_intervencao: 'Requer atenção',
+    pendente: 'Pendente',
+  }
+  return labels[status] ?? status.replaceAll('_', ' ')
+}
+
+function statusTone(status: string): 'green' | 'red' | 'blue' | 'amber' | 'slate' {
+  if (status === 'sucesso') return 'green'
+  if (status === 'falha') return 'red'
+  if (status === 'em_execucao') return 'blue'
+  if (status === 'precisa_intervencao') return 'amber'
+  return 'slate'
+}
+
+function Kpi({ icon, label, value, helper }: { icon: React.ReactNode; label: string; value: number; helper: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">{label}</p>
+          <p className="mt-2 text-3xl font-semibold text-slate-950">{value}</p>
+          <p className="mt-1 text-xs text-slate-500">{helper}</p>
+        </div>
+        <span className="rounded-xl bg-sky-50 p-2.5 text-sky-700">{icon}</span>
+      </div>
+    </div>
+  )
+}
+
+function SectionSummary({ title, description, count }: { title: string; description: string; count?: number }) {
+  return (
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+          {typeof count === 'number' ? (
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{count}</span>
+          ) : null}
+        </div>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      </div>
+      <ChevronDown size={20} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+    </summary>
+  )
 }
 
 export default async function AgenteAutomaticoPage() {
   const scope = await getPermittedCarteiras()
   const carteiraIds = scope.carteiraIds
-
   const [carteiras, administradoras, receitas, execucoes] = await Promise.all([
     listCarteirasParaAgente(carteiraIds),
     listAgenteAdministradoras(carteiraIds),
@@ -40,344 +101,161 @@ export default async function AgenteAutomaticoPage() {
   ])
 
   const totalSucesso = execucoes.filter((item) => item.status === 'sucesso').length
-  const totalFalha = execucoes.filter((item) => item.status === 'falha').length
-  const totalPendentes = execucoes.filter((item) => item.status === 'pendente').length
+  const totalAtencao = execucoes.filter((item) => ['falha', 'precisa_intervencao'].includes(item.status)).length
+  const totalEmAndamento = execucoes.filter((item) => ['pendente', 'em_execucao'].includes(item.status)).length
 
   return (
     <main className="space-y-6">
       <PageHeader
-        eyebrow="Inteligência"
-        title="Agente automático"
-        description="Coleta assistida de planilhas e relatórios de inadimplência em portais de administradoras."
+        eyebrow="Inteligência · Automação"
+        title="Agentes de coleta"
+        description="Configure os acessos e roteiros usados para buscar relatórios nos portais das administradoras."
+        actions={(
+          <ButtonLink href="/app/configuracoes/lab/captacao-automatizada" variant="secondary">
+            <Settings2 size={16} /> Agenda de captação
+          </ButtonLink>
+        )}
       />
 
-      <section className="grid gap-4 md:grid-cols-4">
-        <Card className="p-5">
-          <p className="text-sm text-slate-500">Administradoras</p>
-          <p className="mt-2 text-3xl text-slate-900">{administradoras.length}</p>
-        </Card>
-
-        <Card className="p-5">
-          <p className="text-sm text-slate-500">Receitas de coleta</p>
-          <p className="mt-2 text-3xl text-slate-900">{receitas.length}</p>
-        </Card>
-
-        <Card className="p-5">
-          <p className="text-sm text-slate-500">Pendentes</p>
-          <p className="mt-2 text-3xl text-slate-900">{totalPendentes}</p>
-        </Card>
-
-        <Card className="p-5">
-          <p className="text-sm text-slate-500">Sucesso / Falha</p>
-          <p className="mt-2 text-3xl text-slate-900">
-            {totalSucesso}/{totalFalha}
-          </p>
-        </Card>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi icon={<Bot size={18} />} label="Receitas ativas" value={receitas.length} helper={`${administradoras.length} administradora(s)`} />
+        <Kpi icon={<Activity size={18} />} label="Em andamento" value={totalEmAndamento} helper="Pendentes ou executando" />
+        <Kpi icon={<CheckCircle2 size={18} />} label="Concluídas" value={totalSucesso} helper="Nas últimas 50 execuções" />
+        <Kpi icon={<TriangleAlert size={18} />} label="Requer atenção" value={totalAtencao} helper="Falhas ou intervenção" />
       </section>
 
-      <section className="space-y-4">
-        <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Nova administradora</h2>
-              <p className="mt-1 text-sm text-slate-500">Cadastre o portal da administradora.</p>
-            </div>
-            <ChevronDown size={20} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
-          </summary>
-
-          <form action={criarAgenteAdministradora} className="space-y-4 border-t border-slate-100 p-6">
-            <label className="block">
-              <span className="text-sm text-slate-600">Carteira</span>
-              <Select
-                name="carteira_id"
-                required
-                className="mt-1"
-              >
-                <option value="">Selecione</option>
-                {carteiras.map((carteira) => (
-                  <option key={carteira.id} value={carteira.id}>
-                    {carteira.nome}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="block">
-              <span className="text-sm text-slate-600">Administradora</span>
-              <Input
-                name="nome"
-                required
-                placeholder="Ex.: Administradora Modelo"
-                className="mt-1"
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-sm text-slate-600">URL do portal</span>
-              <Input
-                name="url_portal"
-                required
-                placeholder="https://portal..."
-                className="mt-1"
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-sm text-slate-600">Tipo de portal</span>
-              <Input
-                name="tipo_portal"
-                defaultValue="portal_web"
-                className="mt-1"
-              />
-            </label>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex items-center gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-600">
-                <input name="exige_captcha" type="checkbox" />
-                Exige captcha
-              </label>
-
-              <label className="flex items-center gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-600">
-                <input name="exige_2fa" type="checkbox" />
-                Exige 2FA
-              </label>
-            </div>
-
-            <label className="block">
-              <span className="text-sm text-slate-600">Observações</span>
-              <Textarea
-                name="observacoes"
-                rows={3}
-                className="mt-1"
-              />
-            </label>
-
-            <Button type="submit">
-              Salvar administradora
-            </Button>
-          </form>
-        </details>
-
-        <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Nova receita de coleta</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            A receita representa o roteiro operacional do robô.
-          </p>
-
-            </div>
-            <ChevronDown size={20} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
-          </summary>
-
-          <form action={criarAgenteReceita} className="space-y-4 border-t border-slate-100 p-6">
-            <label className="block">
-              <span className="text-sm text-slate-600">Carteira</span>
-              <Select
-                name="carteira_id"
-                required
-                className="mt-1"
-              >
-                <option value="">Selecione</option>
-                {carteiras.map((carteira) => (
-                  <option key={carteira.id} value={carteira.id}>
-                    {carteira.nome}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="block">
-              <span className="text-sm text-slate-600">Administradora</span>
-              <Select
-                name="administradora_id"
-                required
-                className="mt-1"
-              >
-                <option value="">Selecione</option>
-                {administradoras.map((adm) => (
-                  <option key={adm.id} value={adm.id}>
-                    {adm.nome}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="block">
-              <span className="text-sm text-slate-600">Nome da receita</span>
-              <Input
-                name="nome"
-                required
-                placeholder="Ex.: Baixar inadimplência mensal"
-                className="mt-1"
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-sm text-slate-600">Tipo de arquivo esperado</span>
-              <Select
-                name="tipo_arquivo_esperado"
-                defaultValue="xlsx"
-                className="mt-1"
-              >
-                <option value="xlsx">XLSX</option>
-                <option value="csv">CSV</option>
-                <option value="pdf">PDF</option>
-                <option value="zip">ZIP</option>
-              </Select>
-            </label>
-
-            <label className="block">
-              <span className="text-sm text-slate-600">Script key</span>
-              <Input
-                name="script_key"
-                placeholder="Ex.: adm_modelo_inadimplencia"
-                className="mt-1"
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-sm text-slate-600">Descrição operacional</span>
-              <Textarea
-                name="descricao"
-                rows={4}
-                placeholder="Ex.: Entrar no portal, acessar financeiro, exportar inadimplência..."
-                className="mt-1"
-              />
-            </label>
-
-            <Button type="submit">
-              Salvar receita
-            </Button>
-          </form>
-        </details>
-      </section>
-
-      <Card className="p-6">
-        <h2 className="text-lg text-slate-900">Receitas disponíveis</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Receitas configuradas para coleta e validação.
-        </p>
-
-        <div className="mt-5 space-y-3">
-          {receitas.map((receita) => (
-            <article key={receita.id} className="rounded-lg border border-slate-200 p-5">
-              <p className="text-sm text-slate-500">
-                {receita.administradora?.nome ?? 'Administradora'}
-              </p>
-              <h3 className="mt-1 text-base text-slate-900">{receita.nome}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {receita.descricao || 'Sem descrição operacional.'}
-              </p>
-
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
-                  {receita.tipo_arquivo_esperado.toUpperCase()}
-                </span>
-
-                <form action={executarAgenteReceita}>
-                  <input type="hidden" name="receita_id" value={receita.id} />
-                  <Button type="submit">
-                    Executar coleta
-                  </Button>
-                </form>
-              </div>
-            </article>
-          ))}
-
-          {!receitas.length && (
-            <div className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-              Nenhuma receita cadastrada ainda.
-            </div>
-          )}
+      <section className="space-y-3">
+        <div className="px-1">
+          <h2 className="text-lg font-semibold text-slate-950">Configuração</h2>
+          <p className="mt-1 text-sm text-slate-500">Abra uma área somente quando precisar cadastrar um novo portal ou roteiro.</p>
         </div>
-      </Card>
 
-      <Card className="p-6">
-        <h2 className="text-lg text-slate-900">Histórico de execuções</h2>
+        <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <SectionSummary title="Portais de administradoras" description="Acessos disponíveis para os agentes de coleta." count={administradoras.length} />
+          <div className="border-t border-slate-100 p-6">
+            {administradoras.length ? (
+              <div className="mb-6 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+                {administradoras.map((adm) => (
+                  <div key={adm.id} className="flex flex-col justify-between gap-2 px-4 py-3 sm:flex-row sm:items-center">
+                    <div>
+                      <p className="font-medium text-slate-900">{adm.nome}</p>
+                      <p className="mt-0.5 truncate text-xs text-slate-500">{adm.url_portal}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      {adm.exige_captcha ? <span>Captcha</span> : null}
+                      {adm.exige_2fa ? <span>2FA</span> : null}
+                      <a href={adm.url_portal} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-sky-700 hover:text-sky-900">
+                        Abrir portal <ExternalLink size={13} />
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
-        <div className="mt-5 overflow-x-auto">
+            <div className="mb-4">
+              <h3 className="font-semibold text-slate-900">Cadastrar administradora</h3>
+              <p className="mt-1 text-sm text-slate-500">Informe os dados básicos do portal. Usuário e senha permanecem no ambiente seguro.</p>
+            </div>
+            <form action={criarAgenteAdministradora} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block"><span className="text-sm text-slate-600">Carteira</span><Select name="carteira_id" required className="mt-1"><option value="">Selecione</option>{carteiras.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</Select></label>
+                <label className="block"><span className="text-sm text-slate-600">Administradora</span><Input name="nome" required placeholder="Ex.: Administradora Modelo" className="mt-1" /></label>
+                <label className="block md:col-span-2"><span className="text-sm text-slate-600">URL do portal</span><Input name="url_portal" required placeholder="https://portal..." className="mt-1" /></label>
+                <label className="block"><span className="text-sm text-slate-600">Tipo de portal</span><Input name="tipo_portal" defaultValue="portal_web" className="mt-1" /></label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-600"><input name="exige_captcha" type="checkbox" /> Exige captcha</label>
+                  <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-600"><input name="exige_2fa" type="checkbox" /> Exige 2FA</label>
+                </div>
+                <label className="block md:col-span-2"><span className="text-sm text-slate-600">Observações</span><Textarea name="observacoes" rows={3} className="mt-1" /></label>
+              </div>
+              <div className="flex justify-end"><Button type="submit">Salvar administradora</Button></div>
+            </form>
+          </div>
+        </details>
+
+        <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <SectionSummary title="Receitas de coleta" description="Roteiros operacionais executados pelos agentes." count={receitas.length} />
+          <div className="border-t border-slate-100 p-6">
+            <div className="mb-4">
+              <h3 className="font-semibold text-slate-900">Cadastrar receita</h3>
+              <p className="mt-1 text-sm text-slate-500">Vincule o roteiro a uma administradora e ao tipo de arquivo esperado.</p>
+            </div>
+            <form action={criarAgenteReceita} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block"><span className="text-sm text-slate-600">Carteira</span><Select name="carteira_id" required className="mt-1"><option value="">Selecione</option>{carteiras.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</Select></label>
+                <label className="block"><span className="text-sm text-slate-600">Administradora</span><Select name="administradora_id" required className="mt-1"><option value="">Selecione</option>{administradoras.map((adm) => <option key={adm.id} value={adm.id}>{adm.nome}</option>)}</Select></label>
+                <label className="block"><span className="text-sm text-slate-600">Nome da receita</span><Input name="nome" required placeholder="Ex.: Baixar inadimplência mensal" className="mt-1" /></label>
+                <label className="block"><span className="text-sm text-slate-600">Arquivo esperado</span><Select name="tipo_arquivo_esperado" defaultValue="xlsx" className="mt-1"><option value="xlsx">XLSX</option><option value="xls">XLS</option><option value="csv">CSV</option><option value="pdf">PDF</option><option value="zip">ZIP</option></Select></label>
+                <label className="block md:col-span-2"><span className="text-sm text-slate-600">Identificador do roteiro</span><Input name="script_key" placeholder="Ex.: adm_modelo_inadimplencia" className="mt-1" /></label>
+                <label className="block md:col-span-2"><span className="text-sm text-slate-600">Descrição operacional</span><Textarea name="descricao" rows={4} placeholder="Ex.: Entrar no portal, acessar financeiro e exportar inadimplência..." className="mt-1" /></label>
+              </div>
+              <div className="flex justify-end"><Button type="submit">Salvar receita</Button></div>
+            </form>
+          </div>
+        </details>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-6 py-5">
+          <h2 className="text-lg font-semibold text-slate-950">Receitas disponíveis</h2>
+          <p className="mt-1 text-sm text-slate-500">Escolha um roteiro para iniciar uma coleta manual.</p>
+        </div>
+        {receitas.length ? (
+          <div className="divide-y divide-slate-100">
+            {receitas.map((receita) => (
+              <article key={receita.id} className="flex flex-col justify-between gap-4 px-6 py-5 lg:flex-row lg:items-center">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-semibold text-slate-900">{receita.nome}</h3>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{receita.tipo_arquivo_esperado.toUpperCase()}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">{receita.administradora?.nome ?? 'Administradora não informada'}</p>
+                  {receita.descricao ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{receita.descricao}</p> : null}
+                </div>
+                <form action={executarAgenteReceita} className="shrink-0">
+                  <input type="hidden" name="receita_id" value={receita.id} />
+                  <Button type="submit"><Play size={15} /> Executar coleta</Button>
+                </form>
+              </article>
+            ))}
+          </div>
+        ) : <div className="p-8 text-center text-sm text-slate-500">Nenhuma receita cadastrada.</div>}
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col justify-between gap-3 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Execuções recentes</h2>
+            <p className="mt-1 text-sm text-slate-500">Últimas coletas, arquivos gerados e validações.</p>
+          </div>
+          <ButtonLink href="/app/configuracoes/lab/captacao-automatizada/historico" variant="secondary">Ver histórico completo</ButtonLink>
+        </div>
+        <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-500">
-                <th className="py-3 pr-4">Data</th>
-                <th className="py-3 pr-4">Administradora</th>
-                <th className="py-3 pr-4">Receita</th>
-                <th className="py-3 pr-4">Status</th>
-                <th className="py-3 pr-4">Ações</th>
-              </tr>
+            <thead className="bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500">
+              <tr><th className="px-6 py-3 font-medium">Execução</th><th className="px-4 py-3 font-medium">Receita</th><th className="px-4 py-3 font-medium">Status</th><th className="px-6 py-3 text-right font-medium">Ações</th></tr>
             </thead>
-            <tbody>
-              {execucoes.map((execucao) => (
-                <tr key={execucao.id} className="border-b border-slate-100">
-                  <td className="py-4 pr-4 text-slate-600">
-                    {new Date(execucao.created_at).toLocaleString('pt-BR')}
-                  </td>
-                  <td className="py-4 pr-4 text-slate-700">
-                    {execucao.administradora?.nome ?? '-'}
-                  </td>
-                  <td className="py-4 pr-4 text-slate-700">
-                    {execucao.receita?.nome ?? '-'}
-                  </td>
-                  <td className="py-4 pr-4">
-                    <span
-                      className={`rounded-full border px-3 py-1 text-xs ${statusTone(
-                        execucao.status,
-                      )}`}
-                    >
-                      {execucao.status.replaceAll('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="py-4 pr-4">
-                    <div className="flex flex-wrap gap-2">
-                      {(execucao.arquivos ?? []).map((arquivo) => (
-                        <a
-                          key={arquivo.id}
-                          href={`/api/agente-automatico/arquivos/${arquivo.id}`}
-                          className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
-                        >
-                          <Download size={14} />
-                          Baixar {arquivo.nome_arquivo}
-                        </a>
-                      ))}
-                      <form action={marcarExecucaoComoSucessoManual}>
-                        <input type="hidden" name="execucao_id" value={execucao.id} />
-                        <Button type="submit" variant="secondary" size="sm">
-                          Marcar sucesso
-                        </Button>
-                      </form>
-
-                      <form action={validarArquivoAgente}>
-                        <input type="hidden" name="execucao_id" value={execucao.id} />
-                        <input type="hidden" name="status" value="validado" />
-                        <Button type="submit" variant="secondary" size="sm">
-                          Validar
-                        </Button>
-                      </form>
-
-                      <form action={validarArquivoAgente}>
-                        <input type="hidden" name="execucao_id" value={execucao.id} />
-                        <input type="hidden" name="status" value="rejeitado" />
-                        <Button type="submit" variant="danger" size="sm">
-                          Rejeitar
-                        </Button>
-                      </form>
+            <tbody className="divide-y divide-slate-100">
+              {execucoes.slice(0, 15).map((execucao) => (
+                <tr key={execucao.id} className="align-top hover:bg-slate-50/50">
+                  <td className="whitespace-nowrap px-6 py-4"><p className="font-medium text-slate-800">{formatarData(execucao.created_at)}</p><p className="mt-1 text-xs text-slate-500">{execucao.administradora?.nome ?? '—'}</p></td>
+                  <td className="max-w-sm px-4 py-4 text-slate-700">{execucao.receita?.nome ?? '—'}</td>
+                  <td className="px-4 py-4"><StatusBadge tone={statusTone(execucao.status)} label={statusLabel(execucao.status)} /></td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {(execucao.arquivos ?? []).map((arquivo) => <a key={arquivo.id} href={`/api/agente-automatico/arquivos/${arquivo.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"><Download size={14} /> Baixar</a>)}
+                      {execucao.status !== 'sucesso' ? <form action={marcarExecucaoComoSucessoManual}><input type="hidden" name="execucao_id" value={execucao.id} /><Button type="submit" variant="secondary" size="sm">Marcar sucesso</Button></form> : null}
+                      {(execucao.arquivos ?? []).length ? <><form action={validarArquivoAgente}><input type="hidden" name="execucao_id" value={execucao.id} /><input type="hidden" name="status" value="validado" /><Button type="submit" variant="secondary" size="sm">Validar</Button></form><form action={validarArquivoAgente}><input type="hidden" name="execucao_id" value={execucao.id} /><input type="hidden" name="status" value="rejeitado" /><Button type="submit" variant="danger" size="sm">Rejeitar</Button></form></> : null}
                     </div>
                   </td>
                 </tr>
               ))}
-
-              {!execucoes.length && (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-sm text-slate-500">
-                    Nenhuma execução registrada ainda.
-                  </td>
-                </tr>
-              )}
+              {!execucoes.length ? <tr><td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-500"><FileDown size={22} className="mx-auto mb-2 text-slate-400" />Nenhuma execução registrada.</td></tr> : null}
             </tbody>
           </table>
         </div>
-      </Card>
+      </section>
     </main>
   )
 }
