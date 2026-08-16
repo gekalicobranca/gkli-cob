@@ -164,6 +164,15 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
       const result = a.nome.localeCompare(b.nome, 'pt-BR')
       return receitaOrdem === 'nome_desc' ? -result : result
     })
+  const receitasPorAdministradora = Array.from(
+    receitasFiltradas.reduce((grupos, receita) => {
+      const nome = receita.administradora?.nome ?? 'Administradora não informada'
+      const grupo = grupos.get(nome) ?? []
+      grupo.push(receita)
+      grupos.set(nome, grupo)
+      return grupos
+    }, new Map<string, typeof receitasFiltradas>()),
+  ).sort(([nomeA], [nomeB]) => nomeA.localeCompare(nomeB, 'pt-BR'))
 
   const execucaoBusca = getParam(params?.execucao_q)
   const execucaoStatus = getParam(params?.execucao_status)
@@ -301,22 +310,34 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
           <div className="flex gap-2"><Button type="submit" variant="secondary">Filtrar</Button>{receitaBusca || receitaOrdem !== 'nome_asc' ? <ButtonLink href="/app/agente-automatico" variant="ghost">Limpar</ButtonLink> : null}</div>
         </form>
         {receitasFiltradas.length ? (
-          <div className="divide-y divide-slate-100">
-            {receitasFiltradas.map((receita) => (
-              <article key={receita.id} className="flex flex-col justify-between gap-4 px-6 py-5 lg:flex-row lg:items-center">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-semibold text-slate-900">{receita.nome}</h3>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{receita.tipo_arquivo_esperado.toUpperCase()}</span>
+          <div className="space-y-3 bg-slate-50/60 p-4 sm:p-6">
+            {receitasPorAdministradora.map(([administradoraNome, receitasDoGrupo]) => (
+              <details key={administradoraNome} open className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <h3 className="truncate font-semibold text-slate-900">{administradoraNome}</h3>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{receitasDoGrupo.length}</span>
                   </div>
-                  <p className="mt-1 text-sm text-slate-500">{receita.administradora?.nome ?? 'Administradora não informada'}</p>
-                  {receita.descricao ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{receita.descricao}</p> : null}
+                  <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="divide-y divide-slate-100 border-t border-slate-100">
+                  {receitasDoGrupo.map((receita) => (
+                    <article key={receita.id} className="flex flex-col justify-between gap-4 px-5 py-4 lg:flex-row lg:items-center">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-medium text-slate-900">{receita.nome}</h4>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{receita.tipo_arquivo_esperado.toUpperCase()}</span>
+                        </div>
+                        {receita.descricao ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{receita.descricao}</p> : null}
+                      </div>
+                      <form action={executarAgenteReceita} className="shrink-0">
+                        <input type="hidden" name="receita_id" value={receita.id} />
+                        <Button type="submit"><Play size={15} /> Executar coleta</Button>
+                      </form>
+                    </article>
+                  ))}
                 </div>
-                <form action={executarAgenteReceita} className="shrink-0">
-                  <input type="hidden" name="receita_id" value={receita.id} />
-                  <Button type="submit"><Play size={15} /> Executar coleta</Button>
-                </form>
-              </article>
+              </details>
             ))}
           </div>
         ) : <div className="p-8 text-center text-sm text-slate-500">Nenhuma receita encontrada.</div>}
