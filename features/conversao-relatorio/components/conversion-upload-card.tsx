@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ImportProgressIndicator } from "@/components/feedback/import-progress-indicator";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type {
   ConversaoPreview,
   TipoConversaoRelatorio,
@@ -81,6 +82,22 @@ function normalizeSearchText(value: string) {
     .toLowerCase();
 }
 
+const CONDOMINIO_NAME_STOP_WORDS = new Set([
+  "condominio",
+  "cond",
+  "edificio",
+  "residencial",
+  "casa",
+]);
+
+function condominioNameTokens(value: string) {
+  return normalizeSearchText(value)
+    .split(" ")
+    .filter(
+      (token) => token.length > 2 && !CONDOMINIO_NAME_STOP_WORDS.has(token),
+    );
+}
+
 function similarityScore(source: string, target: string) {
   const a = normalizeSearchText(source);
   const b = normalizeSearchText(target);
@@ -88,10 +105,8 @@ function similarityScore(source: string, target: string) {
   if (a === b) return 100;
   if (a.includes(b) || b.includes(a)) return 88;
 
-  const sourceTokens = new Set(
-    a.split(" ").filter((token) => token.length > 2),
-  );
-  const targetTokens = b.split(" ").filter((token) => token.length > 2);
+  const sourceTokens = new Set(condominioNameTokens(a));
+  const targetTokens = condominioNameTokens(b);
   if (!sourceTokens.size || !targetTokens.length) return 0;
 
   const hits = targetTokens.filter((token) => sourceTokens.has(token)).length;
@@ -180,6 +195,14 @@ export function ConversionUploadCard({
   const selectedCondominio =
     condominios.find((condominio) => condominio.cnpj === condominioCnpj) ??
     null;
+  const condominioOptions = useMemo(
+    () =>
+      condominios.map((condominio) => ({
+        value: condominio.cnpj,
+        label: `${condominio.nomeOperacional || condominio.nome} · ${condominio.cnpj}`,
+      })),
+    [condominios],
+  );
   const condominioSuggestions = useMemo(
     () =>
       rankedCondominios(
@@ -375,33 +398,25 @@ export function ConversionUploadCard({
         <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
           Condomínio da importação
         </label>
-        <select
-          value={condominioCnpj}
-          onChange={(event) => {
-            const value = event.target.value;
-            if (
-              preview &&
-              selectedFile &&
-              value
-            ) {
+        <SearchableSelect
+          name="condominio_cnpj"
+          selectedValue={condominioCnpj}
+          options={condominioOptions}
+          placeholder="Digite parte do nome do condomínio"
+          className="mt-2"
+          inputClassName="rounded-xl border-slate-200 bg-white text-sm text-slate-700 focus-visible:border-slate-400 focus-visible:ring-0"
+          onValueChange={(value) => {
+            if (preview && selectedFile && value) {
               void reprocessWithCondominio(value);
               return;
             }
             setCondominioCnpj(value);
           }}
-          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-        >
-          <option value="">Identificar automaticamente ou escolher condominio</option>
-          {condominios.map((condominio) => (
-            <option key={condominio.id} value={condominio.cnpj}>
-              {condominio.nomeOperacional || condominio.nome} ·{" "}
-              {condominio.cnpj}
-            </option>
-          ))}
-        </select>
+        />
         <p className="mt-2 text-xs leading-5 text-slate-500">
-          O conversor tenta identificar o condominio pelo relatorio e preenche o
-          CNPJ automaticamente quando encontrar um match seguro.
+          Digite parte do nome para localizar o condomínio. Se deixar em branco,
+          o conversor tenta identificá-lo pelo relatório e preenche o CNPJ
+          automaticamente quando encontrar um match seguro.
         </p>
       </div>
 

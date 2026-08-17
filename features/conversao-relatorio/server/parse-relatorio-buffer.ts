@@ -4283,10 +4283,21 @@ function detectLelloCobrancas(text: string): DeteccaoPdfCobrancas {
     /(?:^|\n)\s*\d{8}(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s*(?:\n|$)/g,
   );
   const linhasDebito = linhasDebitoComEspacos + linhasDebitoConcatenadas;
+  const cotasAtrasadasHubert =
+    /COTAS\s+ATRASADAS/.test(loose) &&
+    /HUBERT\s+CONDOMINIOS/.test(loose) &&
+    /CODIGOVALOR\s+ORIGINALVALOR\s+MULTACORRECAO\/JUROSTOTALVENCIMENTO/.test(
+      loose,
+    ) &&
+    /(?:^|\n)\s*.+?\D\d{3,}\s*\n\s*\d{2}\/\d{2}\/\d{4}\s*(?:\n|$)/.test(
+      normalized,
+    );
 
   return {
-    ok: sinais >= 4 && linhasDebito > 0,
-    confianca: Math.min(99, sinais * 14 + Math.min(40, linhasDebito)),
+    ok: (sinais >= 4 || cotasAtrasadasHubert) && linhasDebito > 0,
+    confianca: cotasAtrasadasHubert
+      ? Math.min(99, 90 + Math.min(9, linhasDebito))
+      : Math.min(99, sinais * 14 + Math.min(40, linhasDebito)),
     condominioDetectado: extractLelloCondominio(normalized),
     semDevedores: false,
   };

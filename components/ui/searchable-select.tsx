@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ export function SearchableSelect({
   inputClassName,
   defaultToFirst = false,
   required = false,
+  onValueChange,
 }: {
   name: string;
   id?: string;
@@ -38,6 +39,7 @@ export function SearchableSelect({
   inputClassName?: string;
   defaultToFirst?: boolean;
   required?: boolean;
+  onValueChange?: (value: string) => void;
 }) {
   const fallback = defaultToFirst ? options[0] ?? null : null;
   const selected = options.find((option) => option.value === selectedValue) ?? fallback;
@@ -51,27 +53,40 @@ export function SearchableSelect({
     [options],
   );
 
+  useEffect(() => {
+    const nextSelected =
+      options.find((option) => option.value === selectedValue) ?? fallback;
+    setTypedValue(nextSelected?.label ?? "");
+    setResolvedValue(nextSelected?.value ?? "");
+  }, [fallback, options, selectedValue]);
+
+  function updateResolvedValue(value: string) {
+    if (value === resolvedValue) return;
+    setResolvedValue(value);
+    onValueChange?.(value);
+  }
+
   function resolveSelection(value: string) {
     const normalizedValue = normalize(value);
     if (!normalizedValue) {
-      setResolvedValue("");
+      updateResolvedValue("");
       return;
     }
 
     const exact = normalizedOptions.find((option) => option.normalizedLabel === normalizedValue);
     if (exact) {
-      setResolvedValue(exact.value);
+      updateResolvedValue(exact.value);
       setTypedValue(exact.label);
       return;
     }
 
     const partialMatches = normalizedOptions.filter((option) => option.normalizedLabel.includes(normalizedValue));
     if (partialMatches.length === 1) {
-      setResolvedValue(partialMatches[0].value);
+      updateResolvedValue(partialMatches[0].value);
       return;
     }
 
-    setResolvedValue("");
+    updateResolvedValue("");
   }
 
   return (
