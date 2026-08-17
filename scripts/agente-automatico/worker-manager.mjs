@@ -62,35 +62,42 @@ async function garantirBucket() {
 
 async function agendarCaptacoesMensais() {
   const agora = agoraSaoPaulo()
-  const { data: receita, error: receitaError } = await supabase.from('agente_receitas')
-    .select('id, administradora_id, carteira_id, config_json').eq('script_key', SCRIPT_KEY).eq('ativo', true).maybeSingle()
-  if (receitaError) throw receitaError
-  if (!receita) return
+  const { data: receitas, error: receitasError } = await supabase.from('agente_receitas')
+    .select('id, administradora_id, carteira_id, config_json').eq('script_key', SCRIPT_KEY).eq('ativo', true)
+  if (receitasError) throw receitasError
 
-  const condominioId = receita.config_json?.condominio_id
-  if (!condominioId) return
-  const { data: condominio, error } = await supabase.from('condominios')
+  const receitasPorCondominio = new Map((receitas ?? [])
+    .filter((receita) => receita.config_json?.condominio_id)
+    .map((receita) => [receita.config_json.condominio_id, receita]))
+  const condominioIds = [...receitasPorCondominio.keys()]
+  if (!condominioIds.length) return
+  const { data: condominios, error } = await supabase.from('condominios')
     .select('id, carteira_id, nome, captacao_dia_mes, captacao_horario')
-    .eq('id', condominioId).eq('captacao_automatica_habilitada', true).eq('status', 'ativo').maybeSingle()
+    .in('id', condominioIds).eq('captacao_automatica_habilitada', true)
+    .eq('status', 'ativo').not('captacao_dia_mes', 'is', null)
   if (error) throw error
-  if (!condominio?.captacao_dia_mes) return
+  for (const condominio of condominios ?? []) {
+    const receita = receitasPorCondominio.get(condominio.id)
+    if (!receita) continue
+    const horario = String(condominio.captacao_horario || '08:00').slice(0, 5)
+    if (agora.dia < Number(condominio.captacao_dia_mes) ||
+      (agora.dia === Number(condominio.captacao_dia_mes) && agora.horario < horario)) continue
+    const { data: existente } = await supabase.from('agente_execucoes').select('id')
+      .eq('condominio_id', condominio.id).eq('receita_id', receita.id)
+      .eq('competencia', agora.competencia).eq('origem', 'agenda_mensal').maybeSingle()
+    if (existente) continue
 
-  const horario = String(condominio.captacao_horario || '08:00').slice(0, 5)
-  if (agora.dia < Number(condominio.captacao_dia_mes) || (agora.dia === Number(condominio.captacao_dia_mes) && agora.horario < horario)) return
-  const { data: existente } = await supabase.from('agente_execucoes').select('id')
-    .eq('condominio_id', condominio.id).eq('receita_id', receita.id).eq('competencia', agora.competencia).eq('origem', 'agenda_mensal').maybeSingle()
-  if (existente) return
-
-  const { data: execucao, error: execucaoError } = await supabase.from('agente_execucoes').insert({
-    receita_id: receita.id, administradora_id: receita.administradora_id,
-    carteira_id: condominio.carteira_id || receita.carteira_id, condominio_id: condominio.id,
-    status: 'pendente', tentativas: 0, origem: 'agenda_mensal', competencia: agora.competencia,
-  }).select('id').single()
-  if (execucaoError) {
-    if (execucaoError.code === '23505') return
-    throw execucaoError
+    const { data: execucao, error: execucaoError } = await supabase.from('agente_execucoes').insert({
+      receita_id: receita.id, administradora_id: receita.administradora_id,
+      carteira_id: condominio.carteira_id || receita.carteira_id, condominio_id: condominio.id,
+      status: 'pendente', tentativas: 0, origem: 'agenda_mensal', competencia: agora.competencia,
+    }).select('id').single()
+    if (execucaoError) {
+      if (execucaoError.code === '23505') continue
+      throw execucaoError
+    }
+    await registrarLog(execucao.id, 'agenda_mensal', `Execução mensal criada para ${condominio.nome}, competência ${agora.competencia}.`, 'info', { dia_mes: condominio.captacao_dia_mes, horario, fuso: 'America/Sao_Paulo' })
   }
-  await registrarLog(execucao.id, 'agenda_mensal', `Execução mensal criada para ${condominio.nome}, competência ${agora.competencia}.`, 'info', { dia_mes: condominio.captacao_dia_mes, horario, fuso: 'America/Sao_Paulo' })
 }
 
 async function reivindicarExecucao() {
