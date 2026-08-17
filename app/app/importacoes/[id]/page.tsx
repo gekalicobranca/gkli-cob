@@ -193,8 +193,6 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
   const totalLinhas = Number(importacao.total_linhas ?? itens.length)
   const previewLimitado = totalLinhas > itens.length
   const canConfirm = ['preview', 'erro'].includes(importacaoStatus) && linhasSelecionadas > 0
-  const tipoLegado = isLegacy(importacaoTipo)
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -205,21 +203,8 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
           <>
             <ButtonLink href="/app/importacoes" variant="secondary">Voltar</ButtonLink>
             {canConfirm ? (
-              <form action={confirmarImportacao} className="flex flex-col items-end gap-2">
+              <form id="confirmar-importacao-form" action={confirmarImportacao}>
                 <input type="hidden" name="importacao_id" value={importacao.id} />
-                {importacaoTipo === 'cobrancas' ? (
-                  <label className="flex max-w-sm cursor-pointer items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-950">
-                    <input
-                      type="checkbox"
-                      name="limpar_cobrancas_anteriores"
-                      className="mt-0.5 size-4 rounded border-amber-300 accent-amber-700"
-                    />
-                    <span>
-                      <strong className="block font-semibold">Limpar cobranças anteriores</strong>
-                      Remove apenas cobranças com status Novo destes condomínios antes da importação.
-                    </span>
-                  </label>
-                ) : null}
                 <ConfirmarImportacaoButton />
               </form>
             ) : null}
@@ -303,17 +288,27 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
         </Card>
       ) : null}
 
-      <Card className="border-[var(--gkli-primary)]/20 bg-[var(--gkli-primary-light)]/40 p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--gkli-primary)]">Protocolo de segurança</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Nenhuma linha bloqueada será gravada. Linhas com alerta entram somente se também estiverem válidas. {tipoLegado ? 'Legados criam acordo e parcelas apenas na confirmação.' : 'Cadastros e cobranças são aplicados somente após esta confirmação.'}
-            </p>
-          </div>
-          <StatusBadge status={importacaoStatus} />
-        </div>
-      </Card>
+      {canConfirm && importacaoTipo === 'cobrancas' ? (
+        <Card className="border-amber-200 bg-amber-50/80 p-5">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              name="limpar_cobrancas_anteriores"
+              form="confirmar-importacao-form"
+              className="mt-1 size-4 rounded border-amber-300 accent-amber-700"
+            />
+            <span className="flex-1">
+              <span className="flex items-center gap-2 text-sm font-semibold text-amber-950">
+                <AlertTriangle size={17} />
+                Limpar cobranças anteriores
+              </span>
+              <span className="mt-1 block text-sm leading-6 text-amber-900/80">
+                Remove apenas cobranças com status Novo destes condomínios antes da importação.
+              </span>
+            </span>
+          </label>
+        </Card>
+      ) : null}
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Card className="relative overflow-hidden p-5">
