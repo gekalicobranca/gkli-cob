@@ -219,6 +219,19 @@ const PADRAO_CONDOPRO_BBZ_COBRANCAS: Omit<
   ativo: true,
 };
 
+const PADRAO_MANAGER_ATENTUM_COBRANCAS: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "manager-atentum-cotas-pendentes-cobrancas-v1",
+  nome: "Manager / Atentum · Cobranças",
+  tipoConversao: "cobrancas",
+  fornecedor: "Manager",
+  sistema: "Atentum / Webware",
+  relatorio: "Cotas Pendentes",
+  ativo: true,
+};
+
 const PADRAO_SLAVIERO_COBRANCAS: Omit<
   PadraoConversaoDetectado,
   "condominioDetectado" | "confianca"
@@ -457,6 +470,19 @@ function rowToText(row: unknown[]) {
     .map((cell) => normalize(cell))
     .filter(Boolean)
     .join(" ");
+}
+
+function extractCondominioHeaderFromRows(rows: unknown[][]) {
+  for (const rawRow of rows.slice(0, 30)) {
+    const text = rowToText(rawRow);
+    const match = text.match(/\bcondom[ií]nio\s*:\s*(.+)$/i);
+    if (!match) continue;
+
+    const detected = normalize(match[1]).replace(/^\d+\s*[-–—]\s*/, "");
+    return detected || normalize(match[1]);
+  }
+
+  return null;
 }
 
 function readWorkbook(buffer: Buffer) {
@@ -4760,9 +4786,18 @@ export async function parseRelatorioBuffer(
   }
 
   const fullText = allRows.map(rowToText).join("\n").toLowerCase();
+  const condominioDetectado = extractCondominioHeaderFromRows(allRows);
+  const looksManagerAtentum =
+    Boolean(condominioDetectado) &&
+    fullText.includes("bloco:") &&
+    fullText.includes("unidade:") &&
+    fullText.includes("total do recibo") &&
+    fullText.includes("valor principal") &&
+    fullText.includes("total geral da unidade");
 
   const looksCondoproBbz =
     fullText.includes("condopro") ||
+    looksManagerAtentum ||
     (fullText.includes("total do recibo") &&
       fullText.includes("valor principal") &&
       fullText.includes("total geral da unidade"));
@@ -4771,11 +4806,27 @@ export async function parseRelatorioBuffer(
     const recibos = parseCondoproBbz(allRows);
 
     if (recibos.length) {
+      const padraoDetectado = looksManagerAtentum
+        ? buildPadraoDetectado(PADRAO_MANAGER_ATENTUM_COBRANCAS, {
+            condominioDetectado,
+            confianca: 98,
+          })
+        : condominioDetectado
+          ? buildPadraoDetectado(PADRAO_CONDOPRO_BBZ_COBRANCAS, {
+              condominioDetectado,
+              confianca: 96,
+            })
+          : undefined;
+
       return buildPreviewFromRecibos({
-        origem: "Condopro / BBZ - Recibos por Unidade",
+        origem: looksManagerAtentum
+          ? "Manager / Atentum - Cotas Pendentes"
+          : "Condopro / BBZ - Recibos por Unidade",
         filename: input.filename,
         recibos,
         condominioCnpj: input.condominioCnpj,
+        origemSistema: looksManagerAtentum ? "Manager / Atentum" : undefined,
+        padraoDetectado,
       });
     }
   }

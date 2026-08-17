@@ -71,6 +71,15 @@ const templates: RecognizedTemplate[] = [
     exemplos: "Panorama Vila Romana",
   },
   {
+    nome: "Manager / Atentum · Cobranças",
+    categoria: "Cobranças",
+    status: "Homologado",
+    cobertura: "XLS / HTML · Cotas Pendentes",
+    descricao:
+      "Reconhece o cabeçalho do condomínio, agrupa linhas por recibo/unidade e gera uma cobrança única por recibo no padrão GKLI.",
+    exemplos: "Caroline Mahal, Alpha Stay e Reserva Butantã",
+  },
+  {
     nome: "Slaviero · Cobranças",
     categoria: "Cobranças",
     status: "Homologado",
