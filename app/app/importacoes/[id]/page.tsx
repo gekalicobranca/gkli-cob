@@ -354,6 +354,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                       <Badge tone={priorityTone(prioridade) as any}>{prioridade}</Badge>
                       {payload.unidade_nova ? <Badge tone="yellow">unidade nova</Badge> : null}
                       {payload.fora_regua_cobranca ? <Badge tone="slate">fora da régua</Badge> : null}
+                      {payload.importar_cobranca === false ? <Badge tone="slate">somente histórico</Badge> : null}
                     </div>
                     {erros.length > 0 ? <div className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-xs text-red-700">{erros.join(' · ')}</div> : null}
                     {alertasPositivos.length > 0 ? <div className="mt-3 rounded-2xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{alertasPositivos.join(' · ')}</div> : null}

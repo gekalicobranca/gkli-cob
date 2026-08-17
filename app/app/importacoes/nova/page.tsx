@@ -171,6 +171,25 @@ export default async function NovaImportacaoPage({
               </div>
             </FormField>
 
+            {selected.value === "cobrancas" ? (
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                <input
+                  name="recorte_regua"
+                  type="checkbox"
+                  value="mais_recentes"
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-slate-950">
+                    Importar somente cobranças mais recentes que o início da régua
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    Considera o vencimento e o D+ configurado em cada condomínio. Cobranças que já alcançaram a régua permanecem apenas no histórico desta importação.
+                  </span>
+                </span>
+              </label>
+            ) : null}
+
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
               <div className="flex items-start gap-2">
                 <AlertTriangle size={16} className="mt-0.5 shrink-0" />
