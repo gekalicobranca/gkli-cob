@@ -33,6 +33,7 @@ import {
   statusComBloqueioGarantidora,
 } from "./bloqueio-garantidora";
 import { sincronizarResponsavelComUnidadeOperacional } from "@/features/responsaveis-unidades/sync-unidade";
+import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -101,6 +102,38 @@ type ImportExecutionResult = {
   ignorados: number;
   erros: string[];
 };
+
+async function limparCobrancasNovasAnteriores(
+  supabase: SupabaseClient,
+  payloads: Record<string, any>[],
+) {
+  const condominioIds = Array.from(
+    new Set(
+      payloads
+        .map((payload) => String(payload.condominio_id ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (condominioIds.length === 0) {
+    throw new Error(
+      "Não foi possível identificar os condomínios para limpar as cobranças anteriores.",
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("cobrancas")
+    .delete()
+    .in("condominio_id", condominioIds)
+    .eq("status_operacional", COBRANCA_STATUS_OPERACIONAL.NOVO)
+    .select("id");
+
+  if (error) {
+    throw new Error(`Erro ao limpar cobranças anteriores: ${error.message}`);
+  }
+
+  return data?.length ?? 0;
+}
 
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
   if (!carteiraId) throw new Error("Carteira obrigatória.");
@@ -2139,6 +2172,8 @@ export async function confirmarImportacao(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
 
   const importacaoId = String(formData.get("importacao_id") ?? "");
+  const limparCobrancasAnteriores =
+    formData.get("limpar_cobrancas_anteriores") === "on";
   if (!importacaoId) throw new Error("Importação obrigatória.");
 
   const supabase = await createClient();
@@ -2187,8 +2222,15 @@ export async function confirmarImportacao(formData: FormData) {
 
   let execucao = emptyImportExecutionResult();
   const origemImportacao = formatOrigemImportacao("importacao_cobrancas");
+  let cobrancasAnterioresRemovidas = 0;
 
   if (importacao.tipo === "cobrancas") {
+    if (limparCobrancasAnteriores) {
+      cobrancasAnterioresRemovidas = await limparCobrancasNovasAnteriores(
+        supabase,
+        payloads,
+      );
+    }
     execucao = await importarCobrancas(supabase, payloads, origemImportacao);
   }
 
@@ -2229,9 +2271,15 @@ export async function confirmarImportacao(formData: FormData) {
     destino: destinoPorTipo(importacao.tipo),
   };
 
+  if (cobrancasAnterioresRemovidas > 0) {
+    resultado.mensagem += ` ${cobrancasAnterioresRemovidas} cobrança(s) anterior(es) com status Novo foram removidas.`;
+  }
+
   (resultado as any).atualizados = execucao.atualizados;
   (resultado as any).divergentes = execucao.divergentes;
   (resultado as any).ausentes = execucao.ausentes;
+  (resultado as any).cobrancas_anteriores_removidas =
+    cobrancasAnterioresRemovidas;
 
   await finalizarImportacao({
     supabase,

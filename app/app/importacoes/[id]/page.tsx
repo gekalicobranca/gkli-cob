@@ -205,8 +205,21 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
           <>
             <ButtonLink href="/app/importacoes" variant="secondary">Voltar</ButtonLink>
             {canConfirm ? (
-              <form action={confirmarImportacao}>
+              <form action={confirmarImportacao} className="flex flex-col items-end gap-2">
                 <input type="hidden" name="importacao_id" value={importacao.id} />
+                {importacaoTipo === 'cobrancas' ? (
+                  <label className="flex max-w-sm cursor-pointer items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-950">
+                    <input
+                      type="checkbox"
+                      name="limpar_cobrancas_anteriores"
+                      className="mt-0.5 size-4 rounded border-amber-300 accent-amber-700"
+                    />
+                    <span>
+                      <strong className="block font-semibold">Limpar cobranças anteriores</strong>
+                      Remove apenas cobranças com status Novo destes condomínios antes da importação.
+                    </span>
+                  </label>
+                ) : null}
                 <ConfirmarImportacaoButton />
               </form>
             ) : null}
