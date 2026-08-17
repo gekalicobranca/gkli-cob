@@ -1385,6 +1385,15 @@ async function createImportacaoPreviewInternal(formData: FormData) {
   const totalAlertas = itens.filter(
     (item) => (item.alertas ?? []).length > 0,
   ).length;
+  const itensSelecionados = itens.filter(
+    (item) => item.valido && item.payload.importar_cobranca !== false,
+  );
+  const totalSelecionadas = tipo === "cobrancas"
+    ? itensSelecionados.length
+    : totalValidas;
+  const totalSomenteHistorico = tipo === "cobrancas"
+    ? itens.filter((item) => item.valido && item.payload.importar_cobranca === false).length
+    : 0;
   const valorTotalValido = itens
     .filter((item) => item.valido)
     .reduce(
@@ -1399,6 +1408,10 @@ async function createImportacaoPreviewInternal(formData: FormData) {
         ),
       0,
     );
+  const valorTotalSelecionado = itensSelecionados.reduce(
+    (sum, item) => sum + Number(item.payload.valor_atualizado ?? item.payload.valor_original ?? 0),
+    0,
+  );
   const prioridadeAlta = itens.filter(
     (item) => item.payload.prioridade_estimada === "alta",
   ).length;
@@ -1420,6 +1433,9 @@ async function createImportacaoPreviewInternal(formData: FormData) {
         formato: "xlsx",
         aba_processada: parsedFile.sheetName,
         valor_total_valido: valorTotalValido,
+        valor_total_selecionado: tipo === "cobrancas" ? valorTotalSelecionado : valorTotalValido,
+        linhas_selecionadas: totalSelecionadas,
+        linhas_somente_historico: totalSomenteHistorico,
         prioridade_alta: prioridadeAlta,
         unidades_novas: unidadesNovas,
         linhas_com_alerta: totalAlertas,

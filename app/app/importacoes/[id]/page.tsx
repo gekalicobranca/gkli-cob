@@ -165,6 +165,8 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
   if (!importacao) notFound()
 
   const resumo = asRecord(importacao.resumo)
+  const importacaoStatus = safeStatus(importacao.status)
+  const importacaoTipo = safeStatus(importacao.tipo, 'cobrancas')
   const resultadoFinal = resumo.resultado ? asRecord(resumo.resultado) : null
   const resultadoMensagens = asStringArray(resultadoFinal?.erros)
   const mensagensDivergentes = resultadoMensagens.filter(isDivergenciaConciliacao)
@@ -175,11 +177,22 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
     getAlertas(asStringArray(item.erros)).some((alerta) => !isContatoEncontrado(alerta)),
   ).length
   const bloqueadas = itens.filter((item: any) => !item.valido).length
+  const selecionadasCarregadas = itens.filter((item: any) => {
+    const payload = asRecord(item.payload)
+    return item.valido && (importacaoTipo !== 'cobrancas' || payload.importar_cobranca !== false)
+  })
+  const somenteHistoricoCarregadas = itens.filter((item: any) =>
+    item.valido && importacaoTipo === 'cobrancas' && asRecord(item.payload).importar_cobranca === false,
+  ).length
+  const linhasSelecionadas = Number(resumo.linhas_selecionadas ?? selecionadasCarregadas.length)
+  const linhasSomenteHistorico = Number(resumo.linhas_somente_historico ?? somenteHistoricoCarregadas)
+  const valorSelecionado = Number(
+    resumo.valor_total_selecionado
+      ?? selecionadasCarregadas.reduce((total: number, item: any) => total + valorPreview(asRecord(item.payload)), 0),
+  )
   const totalLinhas = Number(importacao.total_linhas ?? itens.length)
   const previewLimitado = totalLinhas > itens.length
-  const importacaoStatus = safeStatus(importacao.status)
-  const importacaoTipo = safeStatus(importacao.tipo, 'cobrancas')
-  const canConfirm = ['preview', 'erro'].includes(importacaoStatus) && Number(importacao.total_validas ?? 0) > 0
+  const canConfirm = ['preview', 'erro'].includes(importacaoStatus) && linhasSelecionadas > 0
   const tipoLegado = isLegacy(importacaoTipo)
 
   return (
@@ -289,12 +302,19 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
         </div>
       </Card>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Card className="relative overflow-hidden p-5">
           <div className="absolute right-4 top-4 rounded-2xl bg-emerald-50 p-2 text-emerald-700"><CheckCircle2 size={18} /></div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Válidas</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{importacao.total_validas}</p>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Selecionadas</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{linhasSelecionadas}</p>
           <p className="mt-1 text-sm text-slate-500">linhas prontas para importar</p>
+        </Card>
+
+        <Card className="relative overflow-hidden p-5">
+          <div className="absolute right-4 top-4 rounded-2xl bg-slate-100 p-2 text-slate-600"><FileCheck2 size={18} /></div>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Somente histórico</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{linhasSomenteHistorico}</p>
+          <p className="mt-1 text-sm text-slate-500">fora do recorte escolhido</p>
         </Card>
 
         <Card className="relative overflow-hidden p-5">
@@ -308,13 +328,13 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
           <div className="absolute right-4 top-4 rounded-2xl bg-amber-50 p-2 text-amber-700"><AlertTriangle size={18} /></div>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Alertas</p>
           <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{linhasComAlerta}</p>
-          <p className="mt-1 text-sm text-slate-500">importam, mas pedem atenção</p>
+          <p className="mt-1 text-sm text-slate-500">pedem atenção no preview</p>
         </Card>
 
         <Card className="relative overflow-hidden p-5">
           <div className="absolute right-4 top-4 rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><WalletCards size={18} /></div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor válido</p>
-          <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">{formatCurrency(Number(resumo.valor_total_valido ?? 0))}</p>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor selecionado</p>
+          <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">{formatCurrency(valorSelecionado)}</p>
           <p className="mt-1 text-sm text-slate-500">impacto financeiro previsto</p>
         </Card>
       </section>
