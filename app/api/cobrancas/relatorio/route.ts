@@ -64,15 +64,171 @@ function statusLabel(status: string) {
   return COBRANCA_STATUS_LABEL[status as keyof typeof COBRANCA_STATUS_LABEL] ?? status;
 }
 
+function text(value: unknown, fallback = "") {
+  const parsed = String(value ?? "").trim();
+  return parsed || fallback;
+}
+
+function unidadeDisplay(row: any) {
+  return [row.unidades?.bloco, row.unidades?.identificacao].filter(Boolean).join("/") || "Sem unidade";
+}
+
+function reportHierarchyKey(row: any) {
+  return [
+    text(row.carteiras?.nome, "Sem carteira"),
+    text(row.condominios?.administradora, "Sem administradora"),
+    text(row.condominios?.nome, "Sem condomínio"),
+    text(row.unidades?.bloco),
+    text(row.unidades?.identificacao, "Sem unidade"),
+    row.vencimento ?? "",
+    row.id ?? "",
+  ].join("|");
+}
+
+function sortByReportHierarchy(rows: any[]) {
+  return [...rows].sort((a, b) => reportHierarchyKey(a).localeCompare(reportHierarchyKey(b), "pt-BR", {
+    numeric: true,
+    sensitivity: "base",
+  }));
+}
+
+function compactStatusCounts(statusCounts: Map<string, number>) {
+  return Array.from(statusCounts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))
+    .map(([status, count]) => `${status} (${count})`)
+    .join(", ");
+}
+
+function buildGroupedRows(rows: any[]) {
+  const grouped = new Map<string, {
+    carteira: string;
+    administradora: string;
+    condominio: string;
+    unidade: string;
+    bloco: string;
+    responsavel: string;
+    qtd: number;
+    primeiroVencimento: string;
+    ultimoVencimento: string;
+    totalOriginal: number;
+    totalAtualizado: number;
+    totalJuros: number;
+    totalMulta: number;
+    totalCorrecao: number;
+    totalDesconto: number;
+    judicializada: boolean;
+    statusCounts: Map<string, number>;
+  }>();
+
+  for (const row of rows) {
+    const key = [
+      row.carteira_id ?? text(row.carteiras?.nome, "Sem carteira"),
+      text(row.condominios?.administradora, "Sem administradora"),
+      row.condominio_id ?? text(row.condominios?.nome, "Sem condomínio"),
+      row.unidade_id ?? unidadeDisplay(row),
+    ].join("|");
+    const status = statusLabel(getCobrancaStatusOperacional(row));
+    const current = grouped.get(key) ?? {
+      carteira: text(row.carteiras?.nome, "Sem carteira"),
+      administradora: text(row.condominios?.administradora, "Sem administradora"),
+      condominio: text(row.condominios?.nome, "Sem condomínio"),
+      unidade: text(row.unidades?.identificacao, "Sem unidade"),
+      bloco: text(row.unidades?.bloco),
+      responsavel: text(row.unidades?.responsavel_nome, "Responsável não informado"),
+      qtd: 0,
+      primeiroVencimento: row.vencimento ?? "",
+      ultimoVencimento: row.vencimento ?? "",
+      totalOriginal: 0,
+      totalAtualizado: 0,
+      totalJuros: 0,
+      totalMulta: 0,
+      totalCorrecao: 0,
+      totalDesconto: 0,
+      judicializada: false,
+      statusCounts: new Map<string, number>(),
+    };
+
+    current.qtd += 1;
+    current.primeiroVencimento = [current.primeiroVencimento, row.vencimento].filter(Boolean).sort()[0] ?? "";
+    current.ultimoVencimento = [current.ultimoVencimento, row.vencimento].filter(Boolean).sort().at(-1) ?? "";
+    current.totalOriginal += money(row.valor_original);
+    current.totalAtualizado += money(row.valor_atualizado);
+    current.totalJuros += money(row.juros);
+    current.totalMulta += money(row.multa);
+    current.totalCorrecao += money(row.correcao);
+    current.totalDesconto += money(row.desconto);
+    current.judicializada = current.judicializada || Boolean(row.unidade_bloqueada_por_judicializacao);
+    current.statusCounts.set(status, (current.statusCounts.get(status) ?? 0) + 1);
+    grouped.set(key, current);
+  }
+
+  return Array.from(grouped.values()).sort((a, b) => [
+    a.carteira,
+    a.administradora,
+    a.condominio,
+    a.bloco,
+    a.unidade,
+  ].join("|").localeCompare([
+    b.carteira,
+    b.administradora,
+    b.condominio,
+    b.bloco,
+    b.unidade,
+  ].join("|"), "pt-BR", { numeric: true, sensitivity: "base" }));
+}
+
 function createWorkbook(filters: CobrancaListFilters & { ordenar: string }, rows: any[]) {
   const generatedAt = new Date();
-  const reportRows = rows.map((row) => {
+  const sortedRows = sortByReportHierarchy(rows);
+  const groupedRows = buildGroupedRows(sortedRows);
+  const totalOriginal = rows.reduce((sum, row) => sum + money(row.valor_original), 0);
+  const totalAtualizado = rows.reduce((sum, row) => sum + money(row.valor_atualizado), 0);
+
+  const resumoRows = [
+    ["Gerado em", generatedAt.toLocaleString("pt-BR")],
+    ["Busca", filters.search || "Sem filtro"],
+    ["Condomínio", filters.condominioId || "Sem filtro"],
+    ["Unidade", filters.unidadeId || "Sem filtro"],
+    ["Status", filters.status ? statusLabel(filters.status) : "Todos"],
+    ["Vencimento de", filters.vencimentoDe || "Sem filtro"],
+    ["Vencimento até", filters.vencimentoAte || "Sem filtro"],
+    ["Judicialização", judicializacaoLabel(filters.judicializacaoUnidade)],
+    ["Ordenação solicitada na tela", ordenacaoLabel(filters.ordenar)],
+    ["Ordenação do arquivo", "Carteira / Administradora / Condomínio / Unidade / Vencimento"],
+    ["Total de unidades agrupadas", groupedRows.length],
+    ["Total de cobranças", rows.length],
+    ["Valor original total", totalOriginal],
+    ["Valor atualizado total", totalAtualizado],
+  ];
+
+  const groupedReportRows = groupedRows.map((row) => ({
+    "Carteira": row.carteira,
+    "Administradora": row.administradora,
+    "Condomínio": row.condominio,
+    "Unidade": row.unidade,
+    "Bloco": row.bloco,
+    "Responsável": row.responsavel,
+    "Qtde cobranças": row.qtd,
+    "Primeiro vencimento": row.primeiroVencimento ? formatDateBR(row.primeiroVencimento) : "",
+    "Último vencimento": row.ultimoVencimento ? formatDateBR(row.ultimoVencimento) : "",
+    "Total original": row.totalOriginal,
+    "Total atualizado": row.totalAtualizado,
+    "Juros": row.totalJuros,
+    "Multa": row.totalMulta,
+    "Correção": row.totalCorrecao,
+    "Desconto": row.totalDesconto,
+    "Status": compactStatusCounts(row.statusCounts),
+    "Judicialização da unidade": row.judicializada ? "Sim" : "Não",
+  }));
+
+  const detailedReportRows = sortedRows.map((row) => {
     const status = getCobrancaStatusOperacional(row);
-    const unidadeLabel = [row.unidades?.bloco, row.unidades?.identificacao].filter(Boolean).join("/");
 
     return {
+      "Carteira": text(row.carteiras?.nome, "Sem carteira"),
+      "Administradora": text(row.condominios?.administradora, "Sem administradora"),
       "Condomínio": row.condominios?.nome ?? "",
-      "Unidade": unidadeLabel,
+      "Unidade": unidadeDisplay(row),
       "Responsável": row.unidades?.responsavel_nome ?? "",
       "Competência": row.competencia ?? "",
       "Vencimento": row.vencimento ? formatDateBR(row.vencimento) : "",
@@ -90,27 +246,35 @@ function createWorkbook(filters: CobrancaListFilters & { ordenar: string }, rows
     };
   });
 
-  const filterRows = [
-    ["Gerado em", generatedAt.toLocaleString("pt-BR")],
-    ["Busca", filters.search || "Sem filtro"],
-    ["Condomínio", filters.condominioId || "Sem filtro"],
-    ["Unidade", filters.unidadeId || "Sem filtro"],
-    ["Status", filters.status ? statusLabel(filters.status) : "Todos"],
-    ["Vencimento de", filters.vencimentoDe || "Sem filtro"],
-    ["Vencimento até", filters.vencimentoAte || "Sem filtro"],
-    ["Judicialização", judicializacaoLabel(filters.judicializacaoUnidade)],
-    ["Ordenação", ordenacaoLabel(filters.ordenar)],
-    ["Total de cobranças", rows.length],
-    ["Valor original total", rows.reduce((sum, row) => sum + money(row.valor_original), 0)],
-    ["Valor atualizado total", rows.reduce((sum, row) => sum + money(row.valor_atualizado), 0)],
-  ];
-
   const workbook = XLSX.utils.book_new();
-  const filtrosSheet = XLSX.utils.aoa_to_sheet([["GKLI Cobrança - Relatório de cobranças"], [], ...filterRows]);
-  const dadosSheet = XLSX.utils.json_to_sheet(reportRows);
+  const resumoSheet = XLSX.utils.aoa_to_sheet([["GKLI Cobrança - Relatório de cobranças"], [], ...resumoRows]);
+  const agrupadoSheet = XLSX.utils.json_to_sheet(groupedReportRows);
+  const detalhadoSheet = XLSX.utils.json_to_sheet(detailedReportRows);
 
-  dadosSheet["!cols"] = [
-    { wch: 32 },
+  resumoSheet["!cols"] = [{ wch: 34 }, { wch: 46 }];
+  agrupadoSheet["!cols"] = [
+    { wch: 22 },
+    { wch: 24 },
+    { wch: 34 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 30 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 34 },
+    { wch: 22 },
+  ];
+  detalhadoSheet["!cols"] = [
+    { wch: 22 },
+    { wch: 24 },
+    { wch: 34 },
     { wch: 14 },
     { wch: 30 },
     { wch: 14 },
@@ -124,12 +288,16 @@ function createWorkbook(filters: CobrancaListFilters & { ordenar: string }, rows
     { wch: 22 },
     { wch: 18 },
     { wch: 18 },
-    { wch: 20 },
+    { wch: 22 },
     { wch: 38 },
   ];
 
-  XLSX.utils.book_append_sheet(workbook, filtrosSheet, "FILTROS");
-  XLSX.utils.book_append_sheet(workbook, dadosSheet, "DADOS");
+  if (agrupadoSheet["!ref"]) agrupadoSheet["!autofilter"] = { ref: agrupadoSheet["!ref"] };
+  if (detalhadoSheet["!ref"]) detalhadoSheet["!autofilter"] = { ref: detalhadoSheet["!ref"] };
+
+  XLSX.utils.book_append_sheet(workbook, resumoSheet, "RESUMO");
+  XLSX.utils.book_append_sheet(workbook, agrupadoSheet, "AGRUPADO");
+  XLSX.utils.book_append_sheet(workbook, detalhadoSheet, "DETALHADO");
   return workbook;
 }
 

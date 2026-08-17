@@ -85,7 +85,7 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
       <form action={updateCondominioIntegral} className="space-y-4">
         <input type="hidden" name="id" value={condominio.id} />
 
-        <CollapsibleArea id="cadastro" title="Dados principais" description="Identificação, endereço, classificação e observações do condomínio." defaultOpen>
+        <CollapsibleArea id="cadastro" title="Dados principais" description="Identificação, endereço, classificação e observações do condomínio.">
 
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Carteira"><SearchableSelect name="carteira_id" options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))} selectedValue={condominio.carteira_id ?? ''} placeholder="Digite parte da carteira" required /></FormField>

@@ -313,7 +313,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
         ) : (
           <ListRows>
             {groups.map((group) => (
-              <details key={group.condominioId} open className="group/condominio bg-white">
+              <details key={group.condominioId} className="group/condominio bg-white">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
                     <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />

@@ -14,6 +14,11 @@ function getBoolean(formData: FormData, key: string) {
   return formData.get(key) === 'on'
 }
 
+function getCondominioId(configJson: unknown) {
+  const condominioId = (configJson as Record<string, unknown> | null)?.condominio_id
+  return typeof condominioId === 'string' && condominioId ? condominioId : null
+}
+
 export async function criarAgenteAdministradora(formData: FormData) {
   const supabase = await createClient()
 
@@ -91,9 +96,9 @@ export async function executarAgenteReceita(formData: FormData) {
   if (receitaError) throw new Error(receitaError.message)
   if (!receita) throw new Error('Receita não encontrada.')
 
-  const condominioId = (receita.config_json as Record<string, unknown> | null)?.condominio_id
+  const condominioId = getCondominioId(receita.config_json)
   let carteiraId = receita.carteira_id
-  if (typeof condominioId === 'string' && condominioId) {
+  if (condominioId) {
     const { data: condominio, error: condominioError } = await supabase
       .from('condominios')
       .select('carteira_id')
@@ -113,7 +118,7 @@ export async function executarAgenteReceita(formData: FormData) {
       receita_id: receita.id,
       administradora_id: receita.administradora_id,
       carteira_id: carteiraId,
-      condominio_id: typeof condominioId === 'string' && condominioId ? condominioId : null,
+      condominio_id: condominioId,
       status: 'pendente',
       solicitado_por: user?.id ?? null,
       tentativas: 0,
@@ -130,6 +135,98 @@ export async function executarAgenteReceita(formData: FormData) {
     mensagem:
       'Execução criada. Aguardando worker externo Playwright processar a coleta.',
   })
+
+  revalidatePath('/app/agente-automatico')
+}
+
+export async function executarAgenteAdministradoraAgora(formData: FormData) {
+  const supabase = await createClient()
+  const scope = await getPermittedCarteiras()
+
+  const administradoraId = getString(formData, 'administradora_id')
+  if (!administradoraId) throw new Error('Administradora não informada.')
+
+  let receitasQuery = supabase
+    .from('agente_receitas')
+    .select('id, administradora_id, carteira_id, config_json')
+    .eq('administradora_id', administradoraId)
+    .eq('ativo', true)
+
+  if (scope.carteiraIds !== null) receitasQuery = receitasQuery.in('carteira_id', scope.carteiraIds)
+
+  const { data: receitas, error: receitasError } = await receitasQuery
+  if (receitasError) throw new Error(receitasError.message)
+  if (!receitas?.length) throw new Error('Nenhuma receita ativa encontrada para esta administradora.')
+
+  const receitaIds = receitas.map((receita) => receita.id)
+  const { data: execucoesAbertas, error: abertasError } = await supabase
+    .from('agente_execucoes')
+    .select('receita_id')
+    .in('receita_id', receitaIds)
+    .in('status', ['pendente', 'em_execucao'])
+
+  if (abertasError) throw new Error(abertasError.message)
+
+  const receitasEmFila = new Set((execucoesAbertas ?? []).map((execucao) => execucao.receita_id))
+  const receitasParaExecutar = receitas.filter((receita) => !receitasEmFila.has(receita.id))
+
+  if (!receitasParaExecutar.length) {
+    revalidatePath('/app/agente-automatico')
+    return
+  }
+
+  const condominioIds = Array.from(new Set(receitasParaExecutar.map((receita) => getCondominioId(receita.config_json)).filter(Boolean) as string[]))
+  const condominiosPorId = new Map<string, { carteira_id: string | null }>()
+
+  if (condominioIds.length) {
+    const { data: condominios, error: condominiosError } = await supabase
+      .from('condominios')
+      .select('id, carteira_id')
+      .in('id', condominioIds)
+
+    if (condominiosError) throw new Error(condominiosError.message)
+    for (const condominio of condominios ?? []) {
+      condominiosPorId.set(condominio.id, { carteira_id: condominio.carteira_id })
+    }
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const payloads = receitasParaExecutar.map((receita) => {
+    const condominioId = getCondominioId(receita.config_json)
+    const carteiraId = condominioId ? condominiosPorId.get(condominioId)?.carteira_id ?? receita.carteira_id : receita.carteira_id
+
+    return {
+      receita_id: receita.id,
+      administradora_id: receita.administradora_id,
+      carteira_id: carteiraId,
+      condominio_id: condominioId,
+      status: 'pendente',
+      solicitado_por: user?.id ?? null,
+      tentativas: 0,
+      origem: 'manual_administradora',
+    }
+  })
+
+  const { data: execucoesCriadas, error } = await supabase
+    .from('agente_execucoes')
+    .insert(payloads)
+    .select('id')
+
+  if (error) throw new Error(error.message)
+
+  if (execucoesCriadas?.length) {
+    await supabase.from('agente_logs').insert(
+      execucoesCriadas.map((execucao) => ({
+        execucao_id: execucao.id,
+        nivel: 'info',
+        step: 'fila',
+        mensagem: 'Execução criada por acionamento manual da administradora.',
+      })),
+    )
+  }
 
   revalidatePath('/app/agente-automatico')
 }

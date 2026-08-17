@@ -8,12 +8,14 @@ import {
 import {
   criarAgenteAdministradora,
   criarAgenteReceita,
+  executarAgenteAdministradoraAgora,
   executarAgenteReceita,
   limparAgenteExecucoes,
   marcarExecucaoComoSucessoManual,
   validarArquivoAgente,
 } from '@/features/agente-automatico/actions'
 import { LimparExecucoesButton } from './limpar-execucoes-button'
+import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -175,6 +177,11 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
       return grupos
     }, new Map<string, typeof receitasFiltradas>()),
   ).sort(([nomeA], [nomeB]) => nomeA.localeCompare(nomeB, 'pt-BR'))
+  const receitasPorAdministradoraComAcao = receitasPorAdministradora.map(([administradoraNome, receitasDoGrupo]) => ({
+    administradoraNome,
+    administradoraId: receitasDoGrupo[0]?.administradora_id ?? '',
+    receitasDoGrupo,
+  }))
 
   const execucaoBusca = getParam(params?.execucao_q)
   const execucaoStatus = getParam(params?.execucao_status)
@@ -230,7 +237,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
           <p className="mt-1 text-sm text-slate-500">Abra uma área somente quando precisar cadastrar um novo portal ou roteiro.</p>
         </div>
 
-        <details open={Boolean(portalBusca)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <SectionSummary title="Portais de administradoras" description="Acessos disponíveis para os agentes de coleta." count={administradoras.length} />
           <div className="border-t border-slate-100 p-6">
             <form method="get" className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px_auto]">
@@ -313,8 +320,8 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
         </form>
         {receitasFiltradas.length ? (
           <div className="space-y-3 bg-slate-50/60 p-4 sm:p-6">
-            {receitasPorAdministradora.map(([administradoraNome, receitasDoGrupo]) => (
-              <details key={administradoraNome} open className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            {receitasPorAdministradoraComAcao.map(({ administradoraNome, administradoraId, receitasDoGrupo }) => (
+              <details key={administradoraId || administradoraNome} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
                     <h3 className="truncate font-semibold text-slate-900">{administradoraNome}</h3>
@@ -322,6 +329,15 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
                   </div>
                   <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
                 </summary>
+                <div className="flex flex-col justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3 sm:flex-row sm:items-center">
+                  <p className="text-sm text-slate-600">Enfileira as receitas ativas desta administradora que ainda não estão pendentes ou em execução.</p>
+                  <form action={executarAgenteAdministradoraAgora} className="shrink-0">
+                    <input type="hidden" name="administradora_id" value={administradoraId} />
+                    <PendingSubmitButton type="submit" variant="secondary" pendingLabel="Enfileirando..." icon={<Play size={15} />} disabled={!administradoraId}>
+                      Executar agora
+                    </PendingSubmitButton>
+                  </form>
+                </div>
                 <div className="divide-y divide-slate-100 border-t border-slate-100">
                   {receitasDoGrupo.map((receita) => (
                     <article key={receita.id} className="flex flex-col justify-between gap-4 px-5 py-4 lg:flex-row lg:items-center">

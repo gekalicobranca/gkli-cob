@@ -292,7 +292,8 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
       unidade_id,
       created_at,
       ultima_interacao_at,
-      condominios(nome),
+      carteiras(nome),
+      condominios(nome, administradora),
       unidades(identificacao, bloco, responsavel_nome)
     `)
 
@@ -310,7 +311,7 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
     throw new Error(`Erro ao carregar cobranças: ${error.message}`)
   }
 
-  const rowsBase = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+  const rowsBase = normalizeRelationsList((data ?? []) as any[], ['carteiras', 'condominios', 'unidades']) as any[]
   const unidadesJudicializadas = await getUnidadeIdsComJudicializacaoAtiva(
     supabase,
     rowsBase.map((row: any) => row.unidade_id),
