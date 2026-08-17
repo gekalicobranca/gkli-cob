@@ -8,6 +8,8 @@
     "start": "next start -p 3000",
     "lint": "eslint",
     "typecheck": "tsc --noEmit --pretty false --incremental false",
+    "test:conversao-lello": "tsx scripts/validate-conversao-lello.ts",
+    "test:conversao-habitacional": "tsx scripts/validate-conversao-habitacional.ts",
     "supabase": "supabase",
     "supabase:login": "supabase login",
     "supabase:link": "supabase link --project-ref vjcmotflmcczoepflhwc",

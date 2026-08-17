@@ -109,10 +109,19 @@ const templates: RecognizedTemplate[] = [
     nome: "Lello · Cobranças",
     categoria: "Cobranças",
     status: "Homologado",
-    cobertura: "PDF · Cota / Débitos",
+    cobertura: "PDF · Cota / Débitos · XLSX Cotas Atrasadas",
     descricao:
-      "Trata Código como recibo, gera uma cobrança por código e preserva a composição das contas em observações para conferência.",
-    exemplos: "VN Casa Topázio",
+      "Gera uma cobrança por débito e preserva unidade, responsável, vencimento, principal, multa, correção/juros e composição das contas para conferência.",
+    exemplos: "VN Casa Topázio · Bosque Marajoara",
+  },
+  {
+    nome: "Habitacional · Cobranças",
+    categoria: "Cobranças",
+    status: "Homologado",
+    cobertura: "PDF · Inadimplência Atualizada",
+    descricao:
+      "Converte cada boleto em uma cobrança, preservando principal, multa, atualização monetária, juros, contatos, marcadores e composição das contas.",
+    exemplos: "Habita Administração de Condomínios",
   },
   {
     nome: "Conectcon · Cobranças",

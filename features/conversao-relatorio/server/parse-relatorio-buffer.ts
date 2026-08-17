@@ -24,6 +24,9 @@ export type CobrancaPreview = {
   unidade: string;
   bloco?: string;
   responsavel: string;
+  responsavelDocumento?: string;
+  telefone?: string;
+  email?: string;
   recibo?: string;
   vencimento?: string | null;
   valorPrincipal?: number;
@@ -112,6 +115,9 @@ type ReciboCondopro = {
   bloco: string;
   unidade: string;
   responsavel: string;
+  responsavelDocumento?: string;
+  telefone?: string;
+  email?: string;
   recibo: string;
   vencimento: string;
   valorPrincipal: number;
@@ -283,6 +289,32 @@ const PADRAO_LELLO_COBRANCAS: Omit<
   fornecedor: "Lello Condomínios",
   sistema: "Lello Condomínios",
   relatorio: "Cota / Débitos",
+  ativo: true,
+};
+
+const PADRAO_LELLO_COTAS_ATRASADAS_XLSX: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "lello-cotas-atrasadas-xlsx-cobrancas-v1",
+  nome: "Lello · Cobranças",
+  tipoConversao: "cobrancas",
+  fornecedor: "Lello Condomínios",
+  sistema: "Lello Condomínios",
+  relatorio: "Cotas Atrasadas",
+  ativo: true,
+};
+
+const PADRAO_HABITACIONAL_INADIMPLENCIA_COBRANCAS: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "habitacional-inadimplencia-atualizada-cobrancas-v1",
+  nome: "Habitacional · Cobranças",
+  tipoConversao: "cobrancas",
+  fornecedor: "Habitacional",
+  sistema: "Habita Administração de Condomínios",
+  relatorio: "Inadimplência Atualizada",
   ativo: true,
 };
 
@@ -1006,9 +1038,9 @@ function buildRowsPadraoGkli(
       cobranca.responsavel && cobranca.responsavel !== "Responsável não identificado"
         ? cobranca.responsavel
         : "",
-      "",
-      "",
-      "",
+      cobranca.responsavelDocumento ?? "",
+      cobranca.telefone ?? "",
+      cobranca.email ?? "",
       competenciaFromVencimento(
         cobranca.vencimento ?? cobranca.vencimentoMaisAntigo,
       ),
@@ -1097,6 +1129,9 @@ function buildPreviewFromRecibos({
         unidade: recibo.unidade,
         bloco: recibo.bloco,
         responsavel: recibo.responsavel,
+        responsavelDocumento: recibo.responsavelDocumento,
+        telefone: recibo.telefone,
+        email: recibo.email,
         recibo: recibo.recibo,
         vencimento: recibo.vencimento,
         valorPrincipal: recibo.valorPrincipal,
@@ -4070,6 +4105,157 @@ function extractLelloCondominio(text: string) {
   return normalize(cotasAtrasadasMatch?.[1] ?? "") || null;
 }
 
+function findCellIndex(row: unknown[], pattern: RegExp) {
+  return row.findIndex((cell) => pattern.test(normalizeForLooseMatch(normalize(cell))));
+}
+
+function nextNonEmptyCell(row: unknown[], startIndex: number) {
+  for (let index = Math.max(0, startIndex); index < row.length; index += 1) {
+    const value = normalize(row[index]);
+    if (value) return { index, value };
+  }
+  return null;
+}
+
+function detectLelloCotasAtrasadasRows(rows: unknown[][]) {
+  const sample = rows.slice(0, 80).map(rowToText).join("\n");
+  const loose = normalizeForLooseMatch(sample);
+  const sinais = [
+    /COTAS ATRASADAS/,
+    /LELLO CONDOMINIOS/,
+    /REFERENCIA/,
+    /UNIDADE/,
+    /VENCIMENTO/,
+    /VALOR ORIGINAL/,
+    /VALOR MULTA/,
+    /CORRECAO\/JUROS/,
+  ].reduce((total, pattern) => total + (pattern.test(loose) ? 1 : 0), 0);
+
+  const linhasUnidade = rows.filter((row) => findCellIndex(row, /^UNIDADE$/) >= 0).length;
+  const linhasDebito = rows.filter((row) =>
+    row.some((cell) => /^\d{2}\/\d{2}\/\d{4}$/.test(normalize(cell))),
+  ).length;
+
+  return {
+    ok: sinais >= 7 && linhasUnidade > 0 && linhasDebito > 0,
+    confianca: Math.min(99, sinais * 11 + Math.min(11, linhasDebito)),
+  };
+}
+
+function extractLelloCondominioFromRows(rows: unknown[][]) {
+  for (const row of rows.slice(0, 80)) {
+    const referenciaIndex = findCellIndex(row, /^REFERENCIA$/);
+    if (referenciaIndex < 0) continue;
+    const referencia = nextNonEmptyCell(row, referenciaIndex + 1);
+    if (!referencia) continue;
+    const condominio = nextNonEmptyCell(row, referencia.index + 1);
+    if (condominio?.value) return condominio.value;
+  }
+  return null;
+}
+
+function extractLelloReferenciaFromRows(rows: unknown[][]) {
+  for (const row of rows.slice(0, 80)) {
+    const referenciaIndex = findCellIndex(row, /^REFERENCIA$/);
+    if (referenciaIndex < 0) continue;
+    const referencia = nextNonEmptyCell(row, referenciaIndex + 1);
+    if (referencia?.value) return referencia.value;
+  }
+  return "sem-referencia";
+}
+
+function parseLelloCotasAtrasadasRows(rows: unknown[][]): ReciboCondopro[] {
+  const recibos: ReciboCondopro[] = [];
+  const referencia = extractLelloReferenciaFromRows(rows);
+
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const unidadeRow = rows[rowIndex] ?? [];
+    const unidadeLabelIndex = findCellIndex(unidadeRow, /^UNIDADE$/);
+    if (unidadeLabelIndex < 0) continue;
+
+    const unidadeCell = nextNonEmptyCell(unidadeRow, unidadeLabelIndex + 1);
+    const responsavelCell = unidadeCell
+      ? nextNonEmptyCell(unidadeRow, unidadeCell.index + 1)
+      : null;
+    if (!unidadeCell?.value) continue;
+
+    const headerRow = rows[rowIndex + 1] ?? [];
+    const valueRow = rows[rowIndex + 2] ?? [];
+    const vencimentoIndex = findCellIndex(headerRow, /^VENCIMENTO$/);
+    const valorOriginalIndex = findCellIndex(headerRow, /^VALOR ORIGINAL$/);
+    const multaIndex = findCellIndex(headerRow, /^VALOR MULTA$/);
+    const correcaoIndex = findCellIndex(headerRow, /^CORRECAO\/JUROS$/);
+    const totalIndex = findCellIndex(headerRow, /^TOTAL$/);
+
+    if (
+      vencimentoIndex < 0 ||
+      valorOriginalIndex < 0 ||
+      multaIndex < 0 ||
+      correcaoIndex < 0 ||
+      totalIndex < 0
+    ) {
+      continue;
+    }
+
+    const vencimento = normalizeDate(valueRow[vencimentoIndex]);
+    const valorPrincipal = parseMoney(valueRow[valorOriginalIndex]);
+    const multa = parseMoney(valueRow[multaIndex]);
+    const correcao = parseMoney(valueRow[correcaoIndex]);
+    const valorTotal = parseMoney(valueRow[totalIndex]);
+    if (!vencimento || valorTotal <= 0) continue;
+
+    const composicao: string[] = [];
+    const composicaoHeader = rows[rowIndex + 3] ?? [];
+    const contaIndex = findCellIndex(composicaoHeader, /^CONTA$/);
+    const historicoIndex = findCellIndex(composicaoHeader, /^HISTORICO$/);
+    const valorComposicaoIndex = findCellIndex(composicaoHeader, /^CORRECAO\/JUROS$/);
+
+    if (contaIndex >= 0 && historicoIndex >= 0 && valorComposicaoIndex >= 0) {
+      for (let detailIndex = rowIndex + 4; detailIndex < rows.length; detailIndex += 1) {
+        const detailRow = rows[detailIndex] ?? [];
+        if (
+          findCellIndex(detailRow, /^EMPRESA$/) >= 0 ||
+          findCellIndex(detailRow, /^UNIDADE$/) >= 0 ||
+          findCellIndex(detailRow, /^VENCIMENTO$/) >= 0
+        ) {
+          break;
+        }
+
+        const conta = normalize(detailRow[contaIndex]);
+        const historico = normalize(detailRow[historicoIndex]);
+        if (!/^\d+$/.test(conta) || !historico) continue;
+        const valor = parseMoney(detailRow[valorComposicaoIndex]);
+        composicao.push(`${conta} ${historico}: R$ ${moneyToCsv(valor)}`);
+      }
+    }
+
+    const unidade = normalize(unidadeCell.value);
+    const recibo = [
+      "LELLO",
+      normalizeRecibo(referencia),
+      unidade,
+      vencimento.split("/").reverse().join(""),
+    ].join("-");
+
+    recibos.push({
+      bloco: "0",
+      unidade,
+      responsavel: responsavelCell?.value || "Responsável não identificado",
+      recibo,
+      vencimento,
+      valorPrincipal,
+      multa,
+      correcao,
+      juros: 0,
+      valorTotal,
+      situacaoOrigem: "normal",
+      detalhesOrigem: composicao.join("; ") || undefined,
+    });
+  }
+
+  return recibos;
+}
+
 function detectLelloCobrancas(text: string): DeteccaoPdfCobrancas {
   const normalized = normalizePdfText(text);
   const loose = normalizeForLooseMatch(normalized);
@@ -4299,6 +4485,145 @@ function parseLelloCobrancasPdf(text: string): ReciboCondopro[] {
   }
 
   flushRecibo();
+  return recibos;
+}
+
+function detectHabitacionalCobrancas(text: string): DeteccaoPdfCobrancas {
+  const normalized = normalizePdfText(text);
+  const loose = normalizeForLooseMatch(normalized);
+  const sinais = [
+    /INADIMPLENCIA ATUALIZADA/,
+    /HABITA(?:CIONAL)?|ADM DE CONDOMINIOS/,
+    /BLOCO:.*UNIDADE:/,
+    /BOLETOVENCIMENTOEMISSAOCONTAHISTORICO|BOLETO\s+VENCIMENTO\s+EMISSAO\s+CONTA\s+HISTORICO/,
+    /ATUALIZACAO MONETARIA/,
+    /TOTAL DO BOLETO:/,
+    /TOTAL DA UNIDADE:/,
+  ].reduce((total, pattern) => total + (pattern.test(loose) ? 1 : 0), 0);
+  const boletos = countRegexMatches(normalized, /TOTAL\s+DO\s+BOLETO\s*:/gi);
+
+  return {
+    ok: sinais >= 5 && boletos > 0,
+    confianca: Math.min(99, sinais * 13 + Math.min(8, boletos)),
+    condominioDetectado:
+      normalize(
+        normalized.match(/Condom[ií]nio:\s*\d+\s*-\s*(.+?)CNPJ:/i)?.[1] ?? "",
+      ) || null,
+    semDevedores: false,
+  };
+}
+
+export function parseHabitacionalCobrancasPdf(text: string): ReciboCondopro[] {
+  const lines = normalizePdfText(text)
+    .split("\n")
+    .map((line) => normalize(line))
+    .filter(Boolean);
+  const recibos: ReciboCondopro[] = [];
+
+  let blocoAtual = "0";
+  let unidadeAtual = "";
+  let responsavelAtual = "Responsável não identificado";
+  let documentoAtual = "";
+  let telefonesAtuais: string[] = [];
+  let emailsAtuais: string[] = [];
+  let boletoAtual = "";
+  let vencimentoAtual = "";
+  let marcadorAtual: string | undefined;
+  let composicaoAtual: string[] = [];
+
+  function resetBoleto() {
+    boletoAtual = "";
+    vencimentoAtual = "";
+    marcadorAtual = undefined;
+    composicaoAtual = [];
+  }
+
+  function addComposicao(line: string) {
+    if (!boletoAtual || moneyMatchesFromText(line).length < 5) return;
+    const matches = [...line.matchAll(/(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g)];
+    const last = matches.at(-1);
+    if (!last || last.index === undefined) return;
+    const tail = line.slice(last.index + last[0].length);
+    const detail = tail.match(/^(?:(AE|AJ|A|J|P))?\d+(.+)$/i);
+    const historico = normalize(detail?.[2] ?? "");
+    if (historico && !composicaoAtual.includes(historico)) composicaoAtual.push(historico);
+  }
+
+  for (const line of lines) {
+    const unidadeMatch = line.match(
+      /^Bloco:\s*(\S+).*?Unidade:\s*(\S+)\s+(.+?)\s+CPF:\s*([\d.-]+)/i,
+    );
+    if (unidadeMatch) {
+      const mesmaUnidade =
+        blocoAtual === unidadeMatch[1] && unidadeAtual === unidadeMatch[2];
+      blocoAtual = unidadeMatch[1] || "0";
+      unidadeAtual = unidadeMatch[2] || "SEM-UNIDADE";
+      responsavelAtual = normalize(unidadeMatch[3]) || "Responsável não identificado";
+      documentoAtual = normalize(unidadeMatch[4]);
+      if (!mesmaUnidade) {
+        telefonesAtuais = [];
+        emailsAtuais = [];
+        resetBoleto();
+      }
+      continue;
+    }
+
+    for (const match of line.matchAll(/Celular:\s*([()\d\s-]+)/gi)) {
+      const telefone = normalize(match[1]);
+      if (telefone && !telefonesAtuais.includes(telefone)) telefonesAtuais.push(telefone);
+    }
+    for (const match of line.matchAll(/E-mail:\s*(.+?)(?=E-mail:|$)/gi)) {
+      const email = normalize(match[1]);
+      if (email && !emailsAtuais.includes(email)) emailsAtuais.push(email);
+    }
+
+    const vencimentoMatch = line.match(/\d{2}\/\d{2}\/\d{2}/);
+    const boletoMatch = line.match(/^(\d{8})/);
+    if (unidadeAtual && boletoMatch && vencimentoMatch) {
+      resetBoleto();
+      boletoAtual = boletoMatch[1];
+      vencimentoAtual = normalizeDate(vencimentoMatch[0]);
+      const moneyMatches = [...line.matchAll(/(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g)];
+      const lastMoney = moneyMatches.at(-1);
+      if (lastMoney?.index !== undefined) {
+        const tail = line.slice(lastMoney.index + lastMoney[0].length);
+        marcadorAtual = normalizeMarcadorOrigem(
+          tail.match(/^(AE|AJ|A|J|P)/i)?.[1],
+        );
+      }
+      addComposicao(line);
+      continue;
+    }
+
+    if (boletoAtual && /Total\s+do\s+boleto\s*:/i.test(line)) {
+      const totais = totaisFromMoneyList(moneyMatchesFromText(line));
+      if (totais && unidadeAtual && vencimentoAtual) {
+        recibos.push({
+          bloco: blocoAtual,
+          unidade: unidadeAtual,
+          responsavel: responsavelAtual,
+          responsavelDocumento: documentoAtual,
+          telefone: telefonesAtuais.join(" | ") || undefined,
+          email: emailsAtuais.join(" | ") || undefined,
+          recibo: boletoAtual,
+          vencimento: vencimentoAtual,
+          valorPrincipal: totais.valorPrincipal,
+          multa: totais.multa,
+          correcao: totais.correcao,
+          juros: totais.juros,
+          valorTotal: totais.valorTotal,
+          marcadorOrigem: marcadorAtual,
+          situacaoOrigem: situacaoOrigemFromMarcador(marcadorAtual),
+          detalhesOrigem: composicaoAtual.join("; ") || undefined,
+        });
+      }
+      resetBoleto();
+      continue;
+    }
+
+    addComposicao(line);
+  }
+
   return recibos;
 }
 
@@ -4602,6 +4927,29 @@ export async function parseRelatorioBuffer(
     const deteccaoMoemaFlat = detectMoemaFlatCobrancas(text);
     const deteccaoSafira = detectSafiraCobrancas(text);
     const deteccaoLello = detectLelloCobrancas(text);
+    const deteccaoHabitacional = detectHabitacionalCobrancas(text);
+
+    if (deteccaoHabitacional.ok) {
+      const recibos = parseHabitacionalCobrancasPdf(text);
+      const padraoDetectado = buildPadraoDetectado(
+        PADRAO_HABITACIONAL_INADIMPLENCIA_COBRANCAS,
+        {
+          condominioDetectado: deteccaoHabitacional.condominioDetectado,
+          confianca: deteccaoHabitacional.confianca,
+        },
+      );
+
+      if (recibos.length) {
+        return buildPreviewFromRecibos({
+          origem: "Habitacional - Inadimplência Atualizada",
+          filename: input.filename,
+          recibos,
+          condominioCnpj: input.condominioCnpj,
+          origemSistema: "Habita Administração de Condomínios",
+          padraoDetectado,
+        });
+      }
+    }
 
     if (deteccaoMoemaFlat.ok) {
       const recibos = parseSlavieroCobrancasPdf(text);
@@ -4762,7 +5110,7 @@ export async function parseRelatorioBuffer(
     return {
       ok: false,
       error:
-        "PDF lido, mas nenhum padrão ativo de Cobranças foi reconhecido com segurança. Nesta versão, os parsers PDF ativos são Superlógica - Relação Analítica de Pendentes, Hflex / LiveFacilities - Devedores Detalhado, CondoPro/BBZ, Slaviero - Inadimplentes, Safira - Recibos em Aberto e Lello - Cota/Débitos. Para os demais padrões, envie XLS, XLSX, CSV ou HTML.",
+        "PDF lido, mas nenhum padrão ativo de Cobranças foi reconhecido com segurança. Nesta versão, os parsers PDF ativos são Superlógica - Relação Analítica de Pendentes, Hflex / LiveFacilities - Devedores Detalhado, CondoPro/BBZ, Slaviero - Inadimplentes, Safira - Recibos em Aberto, Lello - Cota/Débitos e Habitacional - Inadimplência Atualizada. Para os demais padrões, envie XLS, XLSX, CSV ou HTML.",
     };
   }
 
@@ -4787,6 +5135,30 @@ export async function parseRelatorioBuffer(
 
   const fullText = allRows.map(rowToText).join("\n").toLowerCase();
   const condominioDetectado = extractCondominioHeaderFromRows(allRows);
+  const deteccaoLelloCotasAtrasadas = detectLelloCotasAtrasadasRows(allRows);
+
+  if (deteccaoLelloCotasAtrasadas.ok) {
+    const recibos = parseLelloCotasAtrasadasRows(allRows);
+    const condominioLello = extractLelloCondominioFromRows(allRows);
+
+    if (recibos.length) {
+      return buildPreviewFromRecibos({
+        origem: "Lello Condomínios - Cotas Atrasadas",
+        filename: input.filename,
+        recibos,
+        condominioCnpj: input.condominioCnpj,
+        origemSistema: "Lello Condomínios",
+        padraoDetectado: buildPadraoDetectado(
+          PADRAO_LELLO_COTAS_ATRASADAS_XLSX,
+          {
+            condominioDetectado: condominioLello,
+            confianca: deteccaoLelloCotasAtrasadas.confianca,
+          },
+        ),
+      });
+    }
+  }
+
   const looksManagerAtentum =
     Boolean(condominioDetectado) &&
     fullText.includes("bloco:") &&
