@@ -900,7 +900,7 @@ async function enrichCobrancaPreview(
   supabase: SupabaseClient,
   rows: Array<{ linha: number; payload: Record<string, any> }>,
   condominioPadrao?: CondominioImportacaoRow | null,
-  somenteMaisRecentesQueRegua = false,
+  somenteValidasNaRegua = true,
 ) {
   const cnpjs = rows
     .map((row) => cnpjKeyFromPayload(row.payload))
@@ -975,17 +975,14 @@ async function enrichCobrancaPreview(
       vencimento: payload.vencimento,
       inicioCobrancaDias: condominio?.inicio_cobranca_dias,
     });
-    const importarPeloRecorte = somenteMaisRecentesQueRegua
-      ? reguaImportacao.foraRegua
-      : !reguaImportacao.foraRegua;
-    const motivoRecorte = somenteMaisRecentesQueRegua && !reguaImportacao.foraRegua
-      ? `Cobrança já alcançou o início da régua (D+${reguaImportacao.inicioCobrancaDias}).`
-      : reguaImportacao.motivo;
-    if (!somenteMaisRecentesQueRegua && reguaImportacao.foraRegua && reguaImportacao.motivo) {
+    const importarPeloRecorte = somenteValidasNaRegua
+      ? !reguaImportacao.foraRegua
+      : true;
+    const motivoRecorte = somenteValidasNaRegua && reguaImportacao.foraRegua
+      ? reguaImportacao.motivo
+      : null;
+    if (somenteValidasNaRegua && reguaImportacao.foraRegua && reguaImportacao.motivo) {
       alertas.push(`Fora da régua de cobrança: ${reguaImportacao.motivo} Linha será mantida apenas no histórico da importação.`);
-    }
-    if (somenteMaisRecentesQueRegua && !reguaImportacao.foraRegua && payload.vencimento) {
-      alertas.push(`Fora do recorte selecionado: cobrança já alcançou o início da régua (D+${reguaImportacao.inicioCobrancaDias}). Linha será mantida apenas no histórico da importação.`);
     }
     const bloqueioGarantidora = avaliarBloqueioGarantidora(condominio, {
       competencia: payload.competencia,
@@ -1029,7 +1026,7 @@ async function enrichCobrancaPreview(
         motivo_prioridade: motivoRecorte ?? priority.motivo,
         fora_regua_cobranca: reguaImportacao.foraRegua,
         importar_cobranca: importarPeloRecorte,
-        recorte_regua: somenteMaisRecentesQueRegua ? "mais_recentes" : "ja_na_regua",
+        recorte_regua: somenteValidasNaRegua ? "ja_na_regua" : "todos",
         dias_atraso_importacao: reguaImportacao.diasAtraso,
         inicio_cobranca_dias: reguaImportacao.inicioCobrancaDias,
         bloqueio_garantidora: bloqueioGarantidora.bloqueada,
@@ -1296,8 +1293,10 @@ export async function createImportacaoPreview(formData: FormData) {
 async function createImportacaoPreviewInternal(formData: FormData) {
   const tipo = String(formData.get("tipo") ?? "");
   const file = formData.get("arquivo");
-  const somenteMaisRecentesQueRegua =
-    tipo === "cobrancas" && formData.get("recorte_regua") === "mais_recentes";
+  const recorteRegua = String(formData.get("recorte_regua") ?? "");
+  const somenteValidasNaRegua =
+    tipo === "cobrancas" &&
+    (recorteRegua === "validas_na_regua" || recorteRegua === "mais_recentes");
 
   if (isLegacyImportType(tipo))
     throw new Error("Importações legadas foram desativadas.");
@@ -1336,7 +1335,7 @@ async function createImportacaoPreviewInternal(formData: FormData) {
       supabase,
       rows,
       condominioPadrao,
-      somenteMaisRecentesQueRegua,
+      somenteValidasNaRegua,
     );
   } else {
     const rows = parsedRows.map((row) => {
@@ -1442,7 +1441,7 @@ async function createImportacaoPreviewInternal(formData: FormData) {
         condominio_padrao_id: condominioPadrao?.id ?? null,
         condominio_padrao_nome: condominioPadrao?.nome ?? null,
         recorte_regua: tipo === "cobrancas"
-          ? somenteMaisRecentesQueRegua ? "mais_recentes" : "ja_na_regua"
+          ? somenteValidasNaRegua ? "ja_na_regua" : "todos"
           : null,
         regra_chave: isLegacyImportType(tipo)
           ? "Legados exigem condomínio e unidade existentes; acordo e parcelas são criados somente na confirmação."

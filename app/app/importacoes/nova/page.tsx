@@ -176,15 +176,16 @@ export default async function NovaImportacaoPage({
                 <input
                   name="recorte_regua"
                   type="checkbox"
-                  value="mais_recentes"
+                  value="validas_na_regua"
+                  defaultChecked
                   className="mt-1 h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]"
                 />
                 <span>
                   <span className="block text-sm font-medium text-slate-950">
-                    Importar somente cobranças mais recentes que o início da régua
+                    Importar somente cobranças válidas na régua
                   </span>
                   <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    Considera o vencimento e o D+ configurado em cada condomínio. Cobranças que já alcançaram a régua permanecem apenas no histórico desta importação.
+                    Considera o vencimento e o D+ configurado em cada condomínio. Cobranças que ainda não alcançaram a régua permanecem apenas no histórico desta importação.
                   </span>
                 </span>
               </label>
