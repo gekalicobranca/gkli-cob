@@ -153,8 +153,14 @@ async function aguardarPortal(page, execucaoId) {
       'Navegador aberto. Faça login manualmente para continuar a coleta.', 'warning')
   }
 
-  await page.getByText(/Cotas Pendentes|Condomínio Square Guarulhos/i).first()
-    .waitFor({ state: 'visible', timeout: LOGIN_TIMEOUT_MS })
+  await cardCotasPendentes(page).waitFor({ state: 'visible', timeout: LOGIN_TIMEOUT_MS })
+  await registrarLog(execucaoId, 'portal_pronto', 'Página inicial do Square Guarulhos carregada; acessando Cotas Pendentes.')
+}
+
+function cardCotasPendentes(page) {
+  return page.getByText(/^Cotas\s+Pendentes$/i)
+    .filter({ visible: true })
+    .first()
 }
 
 async function coletar(execucao) {
@@ -175,7 +181,7 @@ async function coletar(execucao) {
     await registrarLog(execucao.id, 'navegador', 'Abrindo o portal Villágua/Webware.')
     await page.goto(execucao.administradora.url_portal, { waitUntil: 'domcontentloaded' })
     if (!/rtPendentes\.asp/i.test(page.url()) &&
-        !await page.getByText(/Cotas Pendentes|Condomínio Square Guarulhos/i).first().isVisible().catch(() => false)) {
+        !await cardCotasPendentes(page).isVisible().catch(() => false)) {
       await aguardarPortal(page, execucao.id)
     }
 
