@@ -132,7 +132,7 @@ async function coletar(execucao) {
   await mkdir(downloads, { recursive: true })
   const context = await chromium.launchPersistentContext(path.join(rootDir, '.codex-tmp', 'agente-browser-profile-manager'), {
     channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
-    headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true', acceptDownloads: true, viewport: null,
+    headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true', chromiumSandbox: true, acceptDownloads: true, viewport: null,
   })
   const page = context.pages()[0] || await context.newPage()
   try {

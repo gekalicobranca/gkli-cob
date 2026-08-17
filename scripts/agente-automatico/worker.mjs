@@ -207,7 +207,7 @@ async function collectBbzCondominio(execution) {
   const headless = String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true'
   const context = await chromium.launchPersistentContext(
     path.join(rootDir, '.codex-tmp', 'agente-browser-profile'),
-    { channel, headless, acceptDownloads: true, viewport: null },
+    { channel, headless, chromiumSandbox: true, acceptDownloads: true, viewport: null },
   )
   const page = context.pages()[0] || (await context.newPage())
 
