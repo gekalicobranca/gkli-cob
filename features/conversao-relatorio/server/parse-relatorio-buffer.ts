@@ -633,6 +633,148 @@ function htmlRows(buffer: Buffer) {
   return rows;
 }
 
+function hflexRowsHeader(row: unknown[]) {
+  const header = row.map((cell) =>
+    normalizeForLooseMatch(normalize(cell)).toLowerCase(),
+  );
+
+  const corrigidoIndexes = header
+    .map((cell, index) => (cell.includes("corrigido") ? index : -1))
+    .filter((index) => index >= 0);
+
+  return {
+    recibo: header.findIndex((cell) => cell === "recibo"),
+    cobranca: header.findIndex((cell) => cell.includes("cobranca")),
+    advogado: header.findIndex((cell) => cell.includes("advogado")),
+    acordo: header.findIndex((cell) => cell === "acordo"),
+    vencimento: header.findIndex((cell) => cell.includes("vencimento")),
+    valorPrincipal: header.findIndex(
+      (cell) => cell === "valor" || cell.includes("vl verba"),
+    ),
+    multa: header.findIndex((cell) => cell.includes("multa")),
+    juros: header.findIndex((cell) => cell.includes("juros")),
+    correcao: header.findIndex((cell) => cell.includes("corre")),
+    total: corrigidoIndexes.at(-1) ?? -1,
+  };
+}
+
+function detectHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
+  let cabecalhos = 0;
+  let unidades = 0;
+  let recibos = 0;
+  let condominioDetectado: string | null = null;
+  let header: ReturnType<typeof hflexRowsHeader> | null = null;
+
+  for (const row of rows) {
+    const normalized = row.map((cell) => normalize(cell));
+    const candidateHeader = hflexRowsHeader(normalized);
+    if (
+      candidateHeader.recibo >= 0 &&
+      candidateHeader.vencimento >= 0 &&
+      candidateHeader.valorPrincipal >= 0 &&
+      candidateHeader.total >= 0
+    ) {
+      cabecalhos += 1;
+      header = candidateHeader;
+      continue;
+    }
+
+    if (
+      normalized.length >= 3 &&
+      /^\d{3,}$/.test(normalized[1] ?? "") &&
+      /[A-ZÀ-Ý]/i.test(normalized[2] ?? "")
+    ) {
+      unidades += 1;
+      condominioDetectado ||= normalized[0] || null;
+      continue;
+    }
+
+    if (
+      header &&
+      /^\d{6,}$/.test(normalized[header.recibo] ?? "") &&
+      /^\d{2}\/\d{2}\/\d{4}$/.test(normalized[header.vencimento] ?? "") &&
+      parseMoney(normalized[header.total]) > 0
+    ) {
+      recibos += 1;
+    }
+  }
+
+  return {
+    ok: cabecalhos > 0 && unidades > 0 && recibos > 0,
+    confianca: Math.min(99, 80 + Math.min(9, unidades) + Math.min(10, recibos)),
+    condominioDetectado,
+  };
+}
+
+function parseHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
+  const recibos: ReciboCondopro[] = [];
+  let unidadeAtual = "";
+  let responsavelAtual = "Responsável não identificado";
+  let header: ReturnType<typeof hflexRowsHeader> | null = null;
+
+  for (const row of rows) {
+    const normalized = row.map((cell) => normalize(cell));
+    const candidateHeader = hflexRowsHeader(normalized);
+
+    if (
+      candidateHeader.recibo >= 0 &&
+      candidateHeader.vencimento >= 0 &&
+      candidateHeader.valorPrincipal >= 0 &&
+      candidateHeader.total >= 0
+    ) {
+      header = candidateHeader;
+      continue;
+    }
+
+    if (
+      normalized.length >= 3 &&
+      /^\d{3,}$/.test(normalized[1] ?? "") &&
+      /[A-ZÀ-Ý]/i.test(normalized[2] ?? "")
+    ) {
+      unidadeAtual = normalized[1];
+      responsavelAtual = normalized[2];
+      continue;
+    }
+
+    if (!header || !unidadeAtual) continue;
+
+    const recibo = normalizeRecibo(normalized[header.recibo]);
+    const vencimento = normalizeDate(normalized[header.vencimento]);
+    const valorTotal = parseMoney(normalized[header.total]);
+    if (!/^\d{6,}$/.test(recibo) || !vencimento || valorTotal <= 0) continue;
+
+    const acordo = header.acordo >= 0 ? normalized[header.acordo] : "";
+    const advogado =
+      header.advogado >= 0 ? normalized[header.advogado] : "";
+    const cobranca =
+      header.cobranca >= 0 ? normalized[header.cobranca] : "";
+    const situacaoOrigem: SituacaoOrigemCobranca = acordo
+      ? "acordo"
+      : advogado
+        ? "juridico"
+        : "normal";
+
+    recibos.push({
+      bloco: "0",
+      unidade: unidadeAtual,
+      responsavel: responsavelAtual,
+      recibo,
+      vencimento,
+      valorPrincipal: parseMoney(normalized[header.valorPrincipal]),
+      multa: header.multa >= 0 ? parseMoney(normalized[header.multa]) : 0,
+      correcao:
+        header.correcao >= 0 ? parseMoney(normalized[header.correcao]) : 0,
+      juros: header.juros >= 0 ? parseMoney(normalized[header.juros]) : 0,
+      valorTotal,
+      marcadorOrigem: acordo ? "A" : advogado ? "J" : undefined,
+      situacaoOrigem,
+      detalhesOrigem: cobranca ? `Cobrança ${cobranca}` : undefined,
+    });
+  }
+
+  return recibos;
+}
+
 function readAllRows(input: ParseInput) {
   if (looksLikeHtmlSpreadsheet(input.buffer)) {
     const rows = htmlRows(input.buffer);
@@ -5146,7 +5288,28 @@ export async function parseRelatorioBuffer(
 
   const fullText = allRows.map(rowToText).join("\n").toLowerCase();
   const condominioDetectado = extractCondominioHeaderFromRows(allRows);
+  const deteccaoHflexRows = detectHflexLiveFacilitiesCobrancasRows(allRows);
   const deteccaoLelloCotasAtrasadas = detectLelloCotasAtrasadasRows(allRows);
+
+  if (deteccaoHflexRows.ok) {
+    const recibos = parseHflexLiveFacilitiesCobrancasRows(allRows);
+    if (recibos.length) {
+      return buildPreviewFromRecibos({
+        origem: "Hflex / LiveFacilities - Devedores Detalhado",
+        filename: input.filename,
+        recibos,
+        condominioCnpj: input.condominioCnpj,
+        origemSistema: "Hflex / LiveFacilities",
+        padraoDetectado: buildPadraoDetectado(
+          PADRAO_HFLEX_LIVEFACILITIES_COBRANCAS,
+          {
+            condominioDetectado: deteccaoHflexRows.condominioDetectado,
+            confianca: deteccaoHflexRows.confianca,
+          },
+        ),
+      });
+    }
+  }
 
   if (deteccaoLelloCotasAtrasadas.ok) {
     const recibos = parseLelloCotasAtrasadasRows(allRows);
