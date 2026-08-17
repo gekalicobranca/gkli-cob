@@ -29,16 +29,24 @@ async function getUnidadeIdsComJudicializacaoAtiva(
   if (ids.length === 0) return new Set<string>();
 
   const { data, error } = await supabase
-    .from("cobrancas")
-    .select("unidade_id, status, status_operacional")
-    .in("unidade_id", ids)
-    .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")})`);
+    .from("unidades")
+    .select("id")
+    .in("id", ids)
+    .eq("acao_judicial", true);
 
   if (error) {
     throw new Error(`Erro ao verificar judicialização por unidade: ${error.message}`);
   }
 
-  return new Set((data ?? []).map((row: any) => row.unidade_id).filter(Boolean));
+  const unidadesMarcadas = new Set((data ?? []).map((row: any) => row.id).filter(Boolean));
+  const { data: cobrancas, error: cobrancasError } = await supabase
+    .from("cobrancas")
+    .select("unidade_id, status, status_operacional")
+    .in("unidade_id", ids)
+    .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")})`);
+  if (cobrancasError) throw new Error(`Erro ao verificar judicialização por unidade: ${cobrancasError.message}`);
+  for (const row of cobrancas ?? []) if (row.unidade_id) unidadesMarcadas.add(row.unidade_id);
+  return unidadesMarcadas;
 }
 
 async function marcarBloqueioJudicializacaoUnidade(

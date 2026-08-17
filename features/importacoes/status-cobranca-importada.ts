@@ -59,6 +59,17 @@ export async function statusOperacionalParaCobrancaImportada(
   supabase: SupabaseLike,
   payload: Record<string, any>,
 ) {
+  const unidadeId = String(payload.unidade_id ?? "");
+  if (unidadeId) {
+    const { data: unidade, error } = await supabase
+      .from("unidades")
+      .select("acao_judicial")
+      .eq("id", unidadeId)
+      .maybeSingle();
+    if (error) throw new Error(`Erro ao verificar ação judicial da unidade: ${error.message}`);
+    if (unidade?.acao_judicial) return COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO;
+  }
+
   if (!isImportacaoPossivelAcordo(payload)) return COBRANCA_STATUS_OPERACIONAL.NOVO;
 
   const temAcordo = await unidadeTemAcordoVigente(supabase, String(payload.unidade_id ?? ""));

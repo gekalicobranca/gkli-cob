@@ -193,6 +193,11 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
             <Textarea name="observacoes" defaultValue={unidade.observacoes ?? ''} placeholder="Observações internas..." />
           </FormField>
 
+          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-950">
+            <input name="acao_judicial" type="checkbox" defaultChecked={Boolean(unidade.acao_judicial)} className="mt-1 h-4 w-4 accent-red-700" />
+            <span><strong className="block">Unidade com ação judicial</strong><span className="mt-1 block text-red-800">Ao marcar, cobranças operacionais ficam judicializadas e novos acordos são bloqueados. Ao desmarcar, cobranças não são reativadas automaticamente.</span></span>
+          </label>
+
           <div className="flex justify-end gap-2">
             <ButtonLink href="/app/unidades" variant="secondary">Cancelar</ButtonLink>
             <Button type="submit"><Save size={16} />Salvar alterações</Button>

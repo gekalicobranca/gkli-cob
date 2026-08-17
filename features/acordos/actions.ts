@@ -720,6 +720,18 @@ export async function createAcordo(formData: FormData) {
   const carteiraScope = await getPermittedCarteiras();
   assertCarteiraPermitida(carteiraScope, cobrancaPrincipal.carteira_id);
 
+  const { data: unidadeJudicial, error: unidadeJudicialError } = await supabase
+    .from("unidades")
+    .select("acao_judicial")
+    .eq("id", cobrancaPrincipal.unidade_id)
+    .maybeSingle();
+  if (unidadeJudicialError) {
+    throw new Error(`Erro ao verificar ação judicial da unidade: ${unidadeJudicialError.message}`);
+  }
+  if (unidadeJudicial?.acao_judicial) {
+    throw new Error("Esta unidade está marcada com ação judicial e não pode receber novos acordos.");
+  }
+
   const { data: pendenciaPlanilha, error: pendenciaPlanilhaError } = await supabase
     .from("central_pendencias")
     .select("id")

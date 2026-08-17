@@ -38,6 +38,7 @@ export async function createUnidade(formData: FormData) {
   const telefone = onlyDigits(String(formData.get('telefone') ?? ''))
   const email = String(formData.get('email') ?? '').trim()
   const observacoes = String(formData.get('observacoes') ?? '').trim()
+  const acaoJudicial = formData.get('acao_judicial') === 'on'
 
   if (!carteiraId) throw new Error('Carteira obrigatória.')
   if (!condominioId) throw new Error('Condomínio obrigatório.')
@@ -70,6 +71,7 @@ export async function createUnidade(formData: FormData) {
     email: email || null,
     status: 'ativa',
     observacoes: observacoes || null,
+    acao_judicial: acaoJudicial,
   })
 
   if (error) {
@@ -93,6 +95,7 @@ export async function updateUnidade(formData: FormData) {
   const status = String(formData.get('status') ?? 'ativa').trim()
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const creditoAdministradora = money(formData.get('credito_administradora'))
+  const acaoJudicial = formData.get('acao_judicial') === 'on'
 
   if (!id) throw new Error('Unidade obrigatória.')
   if (!identificacao) throw new Error('Identificação da unidade obrigatória.')
@@ -103,7 +106,7 @@ export async function updateUnidade(formData: FormData) {
 
   const { data: unidadeAtual, error: unidadeAtualError } = await supabase
     .from('unidades')
-    .select('id, carteira_id, condominio_id, credito_administradora')
+    .select('id, carteira_id, condominio_id, credito_administradora, acao_judicial')
     .eq('id', id)
     .maybeSingle()
 
@@ -140,6 +143,7 @@ export async function updateUnidade(formData: FormData) {
       status: status || 'ativa',
       observacoes: observacoes || null,
       credito_administradora: creditoAdministradora,
+      acao_judicial: acaoJudicial,
     })
     .eq('id', id)
 
@@ -159,6 +163,25 @@ export async function updateUnidade(formData: FormData) {
       descricao: `Crédito alterado de ${creditoAnterior.toFixed(2)} para ${creditoAdministradora.toFixed(2)}.`,
       antes: { credito_administradora: creditoAnterior },
       depois: { credito_administradora: creditoAdministradora },
+      origem: 'manual',
+      auditavel: true,
+      userId: user?.id ?? null,
+    })
+  }
+
+  if (Boolean((unidadeAtual as any).acao_judicial) !== acaoJudicial) {
+    const user = await requireUser()
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: (unidadeAtual as any).carteira_id,
+      entidadeTipo: 'unidade',
+      entidadeId: id,
+      eventoCodigo: acaoJudicial ? 'unidade.acao_judicial_ativada' : 'unidade.acao_judicial_desativada',
+      titulo: acaoJudicial ? 'Ação judicial ativada' : 'Ação judicial desativada',
+      descricao: acaoJudicial
+        ? 'Cobranças da unidade foram bloqueadas e novos acordos não poderão ser criados.'
+        : 'Bloqueio cadastral removido. Cobranças judicializadas não foram reativadas automaticamente.',
+      antes: { acao_judicial: Boolean((unidadeAtual as any).acao_judicial) },
+      depois: { acao_judicial: acaoJudicial },
       origem: 'manual',
       auditavel: true,
       userId: user?.id ?? null,
