@@ -10,4 +10,5 @@ export function normalizeCondominioName(value: string) {
       if (word[0] === word[0]?.toUpperCase()) return 'Edifício'
       return 'edifício'
     })
+    .toLocaleUpperCase('pt-BR')
 }
