@@ -18,7 +18,7 @@ export default async function MonitorPreJuridicoPage({ searchParams }: { searchP
   const params = await searchParams
   const scope = await getPermittedCarteiras()
   const [casos, lotes] = await Promise.all([listPreJuridicoCasos(scope), listLotesRegua(scope)])
-  const baseRows = lotes.filter((row: any) => row.resumo?.contexto === 'pre_juridico')
+  const baseRows = lotes.filter((row: any) => row.tipo === 'pre_juridico' || row.resumo?.contexto === 'pre_juridico')
   const rows = baseRows.filter((row: any) => (!params.status || row.status === params.status) && (!params.q || norm([row.id, row.status, row.observacoes].join(' ')).includes(norm(params.q))))
   const emPreparacao = casos.filter((caso: any) => ['aguardando_documentos', 'aguardando_administradora', 'aguardando_sindico'].includes(caso.etapa)).length
   const noJuridico = casos.filter((caso: any) => ['enviado_juridico', 'analise_juridica', 'pendencia_juridica', 'autorizado_ajuizamento'].includes(caso.etapa)).length

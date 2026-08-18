@@ -1,6 +1,7 @@
 export const LOTE_TIPO = {
   REGUA_COBRANCA: 'regua_cobranca',
   REGUA_ACORDO: 'regua_acordo',
+  PRE_JURIDICO: 'pre_juridico',
   MENSAGERIA: 'mensageria',
   IMPORTACAO: 'importacao',
 } as const
@@ -39,6 +40,7 @@ export type LoteItemStatus = (typeof LOTE_ITEM_STATUS)[keyof typeof LOTE_ITEM_ST
 export const LOTE_STATUS_LABEL: Record<string, string> = {
   regua_cobranca: 'Régua de cobrança',
   regua_acordo: 'Régua de acordo',
+  pre_juridico: 'Pré-Jurídico',
   mensageria: 'Mensageria',
   importacao: 'Importação',
   gerado: 'Gerado',

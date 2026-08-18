@@ -46,7 +46,7 @@ function buildReguaPayload(formData: FormData, carteiraId: string | null) {
   const status = s(formData, 'status') || 'ativa'
 
   if (!nome) throw new Error('Informe o nome da régua.')
-  if (!['cobranca', 'acordo'].includes(tipo)) throw new Error('Tipo de régua inválido.')
+  if (!['cobranca', 'acordo', 'juridico'].includes(tipo)) throw new Error('Tipo de régua inválido.')
 
   return {
     carteira_id: carteiraId,
@@ -90,6 +90,7 @@ export async function criarReguaOperacional(formData: FormData) {
   })
 
   revalidatePath('/app/mensageria/reguas')
+  revalidatePath('/app/pre-juridico/regua')
   redirect(`/app/mensageria/reguas/${(data as any).id}`)
 }
 
@@ -127,6 +128,7 @@ export async function atualizarReguaOperacional(id: string, formData: FormData) 
   })
 
   revalidatePath('/app/mensageria/reguas')
+  revalidatePath('/app/pre-juridico/regua')
   revalidatePath(`/app/mensageria/reguas/${id}`)
 }
 
@@ -225,7 +227,11 @@ export async function excluirReguaOperacional(id: string) {
     throw new Error('Esta régua já possui etapas. Inative a régua ou remova as etapas antes de excluir.')
   }
 
-  const coluna = (regua as any).tipo === 'acordo' ? 'regua_acordo_id' : 'regua_cobranca_id'
+  const coluna = (regua as any).tipo === 'acordo'
+    ? 'regua_acordo_id'
+    : (regua as any).tipo === 'juridico'
+      ? 'regua_pre_juridico_id'
+      : 'regua_cobranca_id'
   const { count: vinculosCount, error: vinculosError } = await supabase
     .from('condominios')
     .select('id', { count: 'exact', head: true })

@@ -134,7 +134,22 @@ async function ensureTemplates(supabase: ReturnType<typeof createAdminClient>) {
 async function ensureReguaPreJuridico(
   supabase: ReturnType<typeof createAdminClient>,
   carteiraId: string,
+  preferredId?: string | null,
 ) {
+  if (preferredId) {
+    const { data: preferred } = await supabase
+      .from("reguas")
+      .select("id")
+      .eq("id", preferredId)
+      .eq("tipo", JURIDICO_TIPO_REGUA)
+      .eq("ativo", true)
+      .or(`carteira_id.is.null,carteira_id.eq.${carteiraId}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (preferred?.id) return { id: preferred.id as string, origem: "condominio" as const };
+  }
+
   const { data: specific } = await supabase
     .from("reguas")
     .select("id")
@@ -200,6 +215,7 @@ async function carregarAcordos(
       condominios:condominio_id (
         id,
         nome,
+        regua_pre_juridico_id,
         administradora_id,
         administradoras:administradora_id (id,nome,email)
       ),
@@ -323,7 +339,7 @@ async function criarLote(params: {
     .insert({
       carteira_id: params.carteiraId,
       regua_id: params.reguaId,
-      tipo: LOTE_TIPO.REGUA_ACORDO,
+      tipo: LOTE_TIPO.PRE_JURIDICO,
       status: LOTE_STATUS.PROCESSANDO,
       operador_id: params.userId ?? null,
       observacoes: "Lote gerado pela régua pré-jurídico.",
@@ -583,16 +599,21 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
   ]);
 
   const lotes: string[] = [];
-  const acordosPorCarteira = new Map<string, any[]>();
+  const acordosPorRegua = new Map<string, { carteiraId: string; regua: Awaited<ReturnType<typeof ensureReguaPreJuridico>>; rows: any[] }>();
   for (const acordo of acordos) {
     if (!acordo.carteira_id) continue;
-    const list = acordosPorCarteira.get(acordo.carteira_id) ?? [];
-    list.push(acordo);
-    acordosPorCarteira.set(acordo.carteira_id, list);
+    const regua = await ensureReguaPreJuridico(
+      supabase,
+      acordo.carteira_id,
+      acordo.condominios?.regua_pre_juridico_id,
+    );
+    const key = `${acordo.carteira_id}:${regua.id}`;
+    const group = acordosPorRegua.get(key) ?? { carteiraId: acordo.carteira_id, regua, rows: [] };
+    group.rows.push(acordo);
+    acordosPorRegua.set(key, group);
   }
 
-  for (const [carteiraId, rows] of acordosPorCarteira) {
-    const regua = await ensureReguaPreJuridico(supabase, carteiraId);
+  for (const { carteiraId, regua, rows } of acordosPorRegua.values()) {
     const loteId = await criarLote({
       supabase,
       carteiraId,

@@ -33,6 +33,7 @@ const CONDOMINIO_SELECT = `
   bloqueio_garantidora_fim,
   regua_cobranca_id,
   regua_acordo_id,
+  regua_pre_juridico_id,
   status,
   observacoes,
   created_at,

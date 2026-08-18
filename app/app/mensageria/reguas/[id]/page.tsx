@@ -28,7 +28,8 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
   if (!regua) notFound()
 
   const templates = await listTemplatesParaLote(scope, regua.carteira_id)
-  const previewHref = `/app/mensageria/simulador?aba=${regua.tipo === 'acordo' ? 'acordos' : 'cobrancas'}&regua_id=${regua.id}`
+  const previewHref = regua.tipo === 'juridico' ? '/app/pre-juridico/monitor' : `/app/mensageria/simulador?aba=${regua.tipo === 'acordo' ? 'acordos' : 'cobrancas'}&regua_id=${regua.id}`
+  const backHref = regua.tipo === 'juridico' ? '/app/pre-juridico/regua' : '/app/mensageria/reguas'
 
   return (
     <div className="space-y-6">
@@ -38,8 +39,8 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
         description="Configure dados principais, etapas, delays, canal, template e ação operacional."
         actions={
           <>
-            <ButtonLink href="/app/mensageria/reguas" variant="header"><ArrowLeft size={16} /> Voltar</ButtonLink>
-            <ButtonLink href={previewHref} variant="header"><Eye size={16} /> Simular esta régua</ButtonLink>
+            <ButtonLink href={backHref} variant="header"><ArrowLeft size={16} /> Voltar</ButtonLink>
+            <ButtonLink href={previewHref} variant="header"><Eye size={16} /> {regua.tipo === 'juridico' ? 'Abrir monitor' : 'Simular esta régua'}</ButtonLink>
           </>
         }
       />
@@ -48,13 +49,13 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
         <form action={atualizarReguaOperacional.bind(null, regua.id)}>
           <Card className="space-y-5">
             <div>
-              <Badge tone={regua.tipo === 'acordo' ? 'blue' : 'primary'}>{regua.tipo === 'acordo' ? 'Acordos' : 'Cobrança'}</Badge>
+              <Badge tone={regua.tipo === 'acordo' ? 'blue' : regua.tipo === 'juridico' ? 'green' : 'primary'}>{regua.tipo === 'acordo' ? 'Acordos' : regua.tipo === 'juridico' ? 'Pré-Jurídico' : 'Cobrança'}</Badge>
               <h2 className="mt-3 text-lg font-semibold text-slate-950">Dados da régua</h2>
               <p className="mt-1 text-sm text-slate-500">Essa configuração pode ser usada como fallback ou vinculada ao condomínio.</p>
             </div>
             <div className="grid gap-4 lg:grid-cols-[minmax(260px,1.3fr)_150px_minmax(220px,1fr)_150px_160px_120px_150px]">
               <FormField label="Nome"><Input name="nome" defaultValue={regua.nome} required /></FormField>
-              <FormField label="Tipo"><Select name="tipo" defaultValue={regua.tipo}><option value="cobranca">Cobrança</option><option value="acordo">Acordos</option></Select></FormField>
+              <FormField label="Tipo"><Select name="tipo" defaultValue={regua.tipo}><option value="cobranca">Cobrança</option><option value="acordo">Acordos</option><option value="juridico">Pré-Jurídico</option></Select></FormField>
               <FormField label="Carteira"><SearchableSelect name="carteira_id" options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))} selectedValue={regua.carteira_id ?? ''} placeholder="Global / fallback" /></FormField>
               <FormField label="Status"><Select name="status" defaultValue={regua.status ?? 'ativa'}><option value="ativa">Ativa</option><option value="rascunho">Rascunho</option><option value="inativa">Inativa</option></Select></FormField>
               <FormField label="Destinatário"><Select name="destinatario_preferencial" defaultValue={regua.destinatario_preferencial ?? 'proprietario'}><option value="proprietario">Proprietário</option><option value="inquilino">Inquilino</option><option value="qualquer">Qualquer contato</option></Select></FormField>
