@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/server'
 import { requireUser } from '@/utils/auth/require-user'
 import { requireRole } from '@/utils/auth/require-role'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
+import { normalizeCondominioName } from '@/features/condominios/normalize-name'
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
@@ -98,8 +99,8 @@ export async function createCondominio(formData: FormData) {
   const user = await requireUser()
 
   const carteiraId = String(formData.get('carteira_id') ?? '')
-  const nome = String(formData.get('nome') ?? '').trim()
-  const nomeOperacional = String(formData.get('nome_operacional') ?? '').trim()
+  const nome = normalizeCondominioName(String(formData.get('nome') ?? '').trim())
+  const nomeOperacional = normalizeCondominioName(String(formData.get('nome_operacional') ?? '').trim())
   const cnpj = onlyDigits(String(formData.get('cnpj') ?? ''))
   const enderecoLogradouro = optionalText(formData, 'endereco_logradouro')
   const enderecoNumero = optionalText(formData, 'endereco_numero')
@@ -197,8 +198,8 @@ export async function updateCondominioIntegral(formData: FormData) {
 
   const id = String(formData.get('id') ?? '')
   const carteiraId = String(formData.get('carteira_id') ?? '')
-  const nome = String(formData.get('nome') ?? '').trim()
-  const nomeOperacional = String(formData.get('nome_operacional') ?? '').trim()
+  const nome = normalizeCondominioName(String(formData.get('nome') ?? '').trim())
+  const nomeOperacional = normalizeCondominioName(String(formData.get('nome_operacional') ?? '').trim())
   const cnpj = onlyDigits(String(formData.get('cnpj') ?? ''))
   const enderecoLogradouro = optionalText(formData, 'endereco_logradouro')
   const enderecoNumero = optionalText(formData, 'endereco_numero')

@@ -33,6 +33,7 @@ import {
   statusComBloqueioGarantidora,
 } from "./bloqueio-garantidora";
 import { sincronizarResponsavelComUnidadeOperacional } from "@/features/responsaveis-unidades/sync-unidade";
+import { normalizeCondominioName } from "@/features/condominios/normalize-name";
 import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -360,14 +361,16 @@ function normalizeEmail(value: unknown) {
 function normalizeCondominioPayload(
   payload: Record<string, any>,
 ): Record<string, any> {
+  const nome = String(getFirst(payload, CONDOMINIO_NOME_KEYS) || payload.nome || "");
+  const nomeOperacional = String(
+    getFirst(payload, NOME_OPERACIONAL_KEYS) ||
+    payload.nome_operacional ||
+    nome,
+  );
   return {
     ...payload,
-    nome: getFirst(payload, CONDOMINIO_NOME_KEYS) || payload.nome,
-    nome_operacional:
-      getFirst(payload, NOME_OPERACIONAL_KEYS) ||
-      payload.nome_operacional ||
-      getFirst(payload, CONDOMINIO_NOME_KEYS) ||
-      payload.nome,
+    nome: normalizeCondominioName(nome),
+    nome_operacional: normalizeCondominioName(nomeOperacional),
     cnpj: getDocumento(payload, CONDOMINIO_CNPJ_KEYS, 14),
     endereco_logradouro: optionalString(getFirst(payload, ENDERECO_LOGRADOURO_KEYS) ?? payload.endereco_logradouro),
     endereco_numero: optionalString(getFirst(payload, ENDERECO_NUMERO_KEYS) ?? payload.endereco_numero),
