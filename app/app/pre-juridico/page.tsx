@@ -1,13 +1,17 @@
 import { AlertTriangle, CheckCircle2, Clock3, Scale } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
+import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
+import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListPanel, ListPanelHeader, ListSearchField, ListTitle, ListTitleBar } from '@/components/layout/list-page'
 import { PreJuridicoWorkbench } from '@/app/app/acordos/gestao/pre-juridico-workbench'
 import { listAcordosQuebradosParaGestao } from '@/features/acordos/queries'
 import { preJuridicoStepsCompletos } from '@/features/acordos/pre-juridico'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatCurrency } from '@/utils/formatters/currency'
 
-type Params = Promise<{ q?: string; etapa?: string }>
+type Params = Promise<{ q?: string; etapa?: string; condominio_id?: string }>
 
 function normalize(value: unknown) {
   return String(value ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -30,7 +34,9 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
   const baseRows = await listAcordosQuebradosParaGestao(scope)
   const termo = normalize(params.q)
   const etapaFiltro = normalize(params.etapa)
+  const condominios = Array.from(new Map(baseRows.map((row: any) => [row.condominio_id, { id: row.condominio_id, nome: row.condominios?.nome ?? 'Condomínio não informado', administradora: null }])).values()).filter((row: any) => row.id).sort((a: any, b: any) => a.nome.localeCompare(b.nome, 'pt-BR'))
   const rows = baseRows.filter((row: any) => {
+    if (params.condominio_id && row.condominio_id !== params.condominio_id) return false
     if (etapaFiltro && etapa(row) !== etapaFiltro) return false
     if (!termo) return true
     return normalize([row.condominios?.nome, row.unidades?.identificacao, row.unidades?.responsavel_nome].filter(Boolean).join(' ')).includes(termo)
@@ -59,14 +65,17 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
         ))}
       </section>
 
-      <Card className="p-4">
-        <form className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_220px_auto] md:items-end">
-          <label className="space-y-1.5"><span className="text-xs font-medium text-slate-600">Buscar caso</span><input name="q" defaultValue={params.q ?? ''} placeholder="Condomínio, unidade ou responsável" className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--gkli-primary)]" /></label>
-          <label className="space-y-1.5"><span className="text-xs font-medium text-slate-600">Etapa</span><select name="etapa" defaultValue={params.etapa ?? ''} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"><option value="">Todas as etapas</option><option value="documentacao">Em documentação</option><option value="pronto">Prontos</option><option value="encaminhado">Encaminhados</option></select></label>
-          <button className="h-9 rounded-lg bg-[var(--gkli-primary)] px-4 text-sm font-medium text-white">Aplicar filtros</button>
-        </form>
-        {(params.q || params.etapa) ? <a href="/app/pre-juridico" className="mt-3 inline-flex text-xs font-medium text-[var(--gkli-primary)] hover:underline">Limpar filtros</a> : null}
-      </Card>
+      <ListPanel>
+        <ListPanelHeader className="bg-white/80">
+          <ListTitleBar className="xl:items-center"><ListTitle title="Filtros" description="Localize os casos por condomínio, unidade, responsável ou etapa." /><ClearFiltersLink href="/app/pre-juridico" show={Boolean(params.q || params.etapa || params.condominio_id)} /></ListTitleBar>
+          <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
+            <ListSearchField defaultValue={params.q} placeholder="Unidade ou responsável..." className="xl:col-span-4" />
+            <ListFilterField label="Condomínio" className="xl:col-span-5"><CondominioSearchSelect name="condominio_id" options={condominios as any[]} selectedId={params.condominio_id ?? ''} defaultToFirst={false} inputClassName="" /></ListFilterField>
+            <ListFilterField label="Etapa" className="xl:col-span-2"><Select name="etapa" defaultValue={params.etapa ?? ''}><option value="">Todas</option><option value="documentacao">Em documentação</option><option value="pronto">Prontos</option><option value="encaminhado">Encaminhados</option></Select></ListFilterField>
+            <Button type="submit" className="w-full xl:col-span-1">Filtrar</Button>
+          </ListFiltersForm>
+        </ListPanelHeader>
+      </ListPanel>
 
       <PreJuridicoWorkbench rows={rows} />
     </div>
