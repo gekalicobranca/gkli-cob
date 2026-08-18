@@ -81,7 +81,15 @@ async function registrarAuditoria(supabase: Awaited<ReturnType<typeof createClie
   const { error } = await supabase.from('auditoria_eventos').insert(payload)
 
   if (error && error.code !== '42P01' && !error.message?.includes('auditoria_eventos')) {
-    throw new Error(`Falha ao registrar auditoria: ${error.message}`)
+    // A alteração principal já foi persistida neste ponto. Uma indisponibilidade
+    // da trilha de auditoria não deve transformar um salvamento bem-sucedido em
+    // erro para o usuário nem incentivar o reenvio do mesmo formulário.
+    console.error('Falha ao registrar auditoria de condomínio.', {
+      code: error.code,
+      message: error.message,
+      entidadeId: payload.entidade_id,
+      eventoTipo: payload.evento_tipo,
+    })
   }
 }
 
@@ -240,10 +248,6 @@ export async function updateCondominioIntegral(formData: FormData) {
   if (!before) throw new Error('Condomínio não encontrado.')
   assertCarteiraPermitida(scope, (before as any).carteira_id)
   assertCarteiraPermitida(scope, carteiraId)
-
-  if ((before as any).carteira_id !== carteiraId) {
-    throw new Error('A carteira do condomínio não pode ser alterada pela edição do cadastro.')
-  }
 
   const payload = {
     carteira_id: carteiraId,

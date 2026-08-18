@@ -43,6 +43,7 @@ type SidebarItem = {
   icon?: string
   description?: string
   gestorOnly?: boolean
+  exact?: boolean
 }
 
 type SidebarSection = {
@@ -103,12 +104,20 @@ const sections: SidebarSection[] = [
     ],
   },
   {
+    id: 'pre-juridico',
+    title: 'Pré-Jurídico',
+    items: [
+      { label: 'Painel Pré', href: '/app/pre-juridico', icon: 'shield', exact: true },
+      { label: 'Régua', href: '/app/pre-juridico/regua', icon: 'nodes' },
+      { label: 'Monitor', href: '/app/pre-juridico/monitor', icon: 'chart' },
+    ],
+  },
+  {
     id: 'gestao',
     title: 'Gestão',
     items: [
       { label: 'Visão do síndico', href: '/app/gestao/visao-sindico', icon: 'home' },
       { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
-      { label: 'Gestão acordos', href: '/app/acordos/gestao', icon: 'chart' },
       { label: 'Fechamento mensal', href: '/app/gestao/fechamento', icon: 'calendar', gestorOnly: true },
     ],
   },
@@ -210,9 +219,10 @@ function safeParseGroups(value: string | null) {
   }
 }
 
-function isItemActive(pathname: string, href: string) {
-  if (href === '/app') return pathname === '/app'
-  return pathname === href || pathname.startsWith(`${href}/`)
+function isItemActive(pathname: string, href: string, exact = false) {
+  const hrefPath = href.split('?')[0]
+  if (hrefPath === '/app' || exact) return pathname === hrefPath
+  return pathname === hrefPath || pathname.startsWith(`${hrefPath}/`)
 }
 
 function isGestorUser(user?: AppShellUser) {
@@ -259,7 +269,7 @@ export function AppShell({
 
   useEffect(() => {
     const activeGroup = sections.find((section) =>
-      section.items.some((item) => isItemActive(pathname, item.href)),
+      section.items.some((item) => isItemActive(pathname, item.href, item.exact)),
     )
 
     if (!activeGroup) return
@@ -283,7 +293,7 @@ export function AppShell({
   }
 
   function renderItem(item: SidebarItem, options?: { featured?: boolean; compact?: boolean }) {
-    const active = isItemActive(pathname, item.href)
+    const active = isItemActive(pathname, item.href, item.exact)
 
     if (options?.featured) {
       return (
@@ -420,7 +430,7 @@ export function AppShell({
                 if (visibleItems.length === 0) return null
                 const groupCollapsed = collapsedGroups.includes(section.id)
                 const groupActive = visibleItems.some((item) =>
-                  isItemActive(pathname, item.href),
+                  isItemActive(pathname, item.href, item.exact),
                 )
 
                 return (

@@ -2688,6 +2688,7 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
   revalidatePath("/app/gestao/acionamentos-acordos");
   revalidatePath(`/app/acordos/${acordoId}`);
   revalidatePath("/app/acordos/gestao");
+  revalidatePath("/app/pre-juridico");
   redirect(safeReturnTo);
 }
 
@@ -2925,6 +2926,7 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
 
   revalidatePath("/app/acordos");
   revalidatePath("/app/acordos/gestao");
+  revalidatePath("/app/pre-juridico");
   revalidatePath("/app/gestao/acionamentos-acordos");
   revalidatePath(`/app/acordos/${acordoId}`);
 }
@@ -3155,6 +3157,22 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
     if (cobrancasError) throw new Error(`Erro ao atualizar cobranças vinculadas: ${cobrancasError.message}`);
   }
 
+  const { error: casosError } = await supabase
+    .from("pre_juridico_casos")
+    .upsert(
+      acordos.map((acordo) => ({
+        carteira_id: acordo.carteira_id,
+        acordo_id: acordo.id,
+        condominio_id: acordo.condominio_id ?? null,
+        unidade_id: acordo.unidade_id ?? null,
+        cobranca_id: acordo.cobranca_id ?? null,
+        responsavel_id: user.id,
+        etapa: "aguardando_administradora",
+      })),
+      { onConflict: "acordo_id", ignoreDuplicates: true },
+    );
+  if (casosError) throw new Error(`Erro ao criar acompanhamento pré-jurídico: ${casosError.message}`);
+
   for (const acordo of acordos) {
     await registrarEventoOperacional(supabase as any, {
       carteiraId: acordo.carteira_id,
@@ -3200,6 +3218,7 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
   });
 
   revalidatePath("/app/lotes");
+  revalidatePath("/app/pre-juridico/monitor");
 
   if (loteResult.loteId) {
     redirect(`/app/lotes/${loteResult.loteId}?pre_juridico=1`);

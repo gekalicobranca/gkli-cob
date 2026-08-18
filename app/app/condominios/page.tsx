@@ -177,12 +177,12 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
               className="xl:col-span-4"
             />
             <ListFilterField label="Carteira" className="xl:col-span-2">
-              <SearchableSelect
-                name="carteira_id"
-                options={carteiras.map((carteira: any) => ({ value: carteira.id, label: carteira.nome }))}
-                selectedValue={filters.carteiraId ?? ''}
-                placeholder="Digite parte da carteira"
-              />
+              <Select name="carteira_id" defaultValue={filters.carteiraId ?? ''}>
+                <option value="">Todas</option>
+                {carteiras.map((carteira: any) => (
+                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
+                ))}
+              </Select>
             </ListFilterField>
             <ListFilterField label="Administradora" className="xl:col-span-3">
               <SearchableSelect

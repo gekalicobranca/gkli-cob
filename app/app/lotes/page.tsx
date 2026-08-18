@@ -119,6 +119,7 @@ export default async function LotesPage({ searchParams }: LotesPageProps) {
               <option value="">Todos</option>
               <option value="regua_cobranca">Régua cobrança</option>
               <option value="regua_acordo">Régua acordo</option>
+              <option value="pre_juridico">Pré-jurídico</option>
               <option value="mensageria">Mensageria</option>
             </Select>
           </ListFilterField>

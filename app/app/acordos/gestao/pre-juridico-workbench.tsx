@@ -33,6 +33,7 @@ type Row = {
   condominio_id?: string | null
   unidade_id?: string | null
   cobranca_id?: string | null
+  cobrancas?: { status?: string | null; status_operacional?: string | null } | null
   status?: string | null
   status_financeiro?: string | null
   fluxo_status?: string | null
@@ -50,7 +51,9 @@ type Row = {
 }
 
 function isEncaminhado(row: Row) {
-  return String(row.fluxo_status ?? "").toLowerCase().includes("pre_juridico")
+  const fluxo = String(row.fluxo_status ?? "").toLowerCase()
+  const cobranca = String(row.cobrancas?.status_operacional ?? row.cobrancas?.status ?? "").toLowerCase()
+  return fluxo.includes("pre_juridico") || cobranca.includes("pre_juridico")
 }
 
 function etapaLabel(row: Row) {
@@ -94,6 +97,7 @@ function ActionCard({
   pendingLabel,
   children,
   variant = "secondary",
+  confirmMessage,
 }: {
   title: string
   description: string
@@ -104,6 +108,7 @@ function ActionCard({
   pendingLabel: string
   children: ReactNode
   variant?: "primary" | "secondary"
+  confirmMessage?: string
 }) {
   return (
     <Card className="p-4">
@@ -117,7 +122,9 @@ function ActionCard({
             <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
           </div>
         </div>
-        <form action={action} className="mt-auto">
+        <form action={action} className="mt-auto" onSubmit={(event) => {
+          if (confirmMessage && !window.confirm(confirmMessage)) event.preventDefault()
+        }}>
           <SelectedInputs selectedIds={selectedIds} />
           <PendingSubmitButton className="w-full" variant={variant} disabled={disabled} pendingLabel={pendingLabel}>
             {children}
@@ -132,10 +139,13 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const selectedRows = useMemo(() => rows.filter((row) => selectedIds.includes(row.id)), [rows, selectedIds])
   const selectedReady = selectedRows.length > 0 && selectedRows.every((row) => preJuridicoStepsCompletos(row.pre_juridico_steps))
-  const allSelected = rows.length > 0 && selectedIds.length === rows.length
+  const selectableRows = useMemo(() => rows.filter((row) => !isEncaminhado(row)), [rows])
+  const allSelected = selectableRows.length > 0 && selectableRows.every((row) => selectedIds.includes(row.id))
+  const missingPdf = selectedRows.filter((row) => !row.pre_juridico_steps?.historico).length
+  const missingList = selectedRows.filter((row) => !row.pre_juridico_steps?.listaAdministradora).length
 
   const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : rows.map((row) => row.id))
+    setSelectedIds(allSelected ? [] : selectableRows.map((row) => row.id))
   }
 
   const toggleOne = (id: string) => {
@@ -146,8 +156,8 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
     <div className="space-y-4">
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <ActionCard
-          title="Documento único"
-          description="Gera o PDF pré-jurídico, com uma unidade por página."
+          title="Dossiê dos casos"
+          description="Gera o histórico pré-jurídico, com uma unidade por página."
           icon={FileText}
           action={gerarHistoricoAcordosPreJuridico}
           selectedIds={selectedIds}
@@ -157,8 +167,8 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
           Gerar PDF
         </ActionCard>
         <ActionCard
-          title="Lista para administradora"
-          description="Gera um PDF com uma administradora por página e resumo por condomínio."
+          title="Relação para administradora"
+          description="Prepara a relação por administradora e o resumo por condomínio."
           icon={ClipboardList}
           action={gerarListaAdministradoraPreJuridico}
           selectedIds={selectedIds}
@@ -179,18 +189,29 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
           Gerar procuração PDF
         </ActionCard>
         <ActionCard
-          title="Alterar status"
-          description="Libera quando todos os selecionados têm PDF e lista cumpridos."
+          title="Encaminhar ao jurídico"
+          description="Altera os casos, reúne as cobranças e prepara as comunicações."
           icon={BriefcaseBusiness}
           action={alterarStatusAcordosPreJuridico}
           selectedIds={selectedIds}
           disabled={!selectedReady}
           pendingLabel="Encaminhando..."
           variant="primary"
+          confirmMessage={`Encaminhar ${selectedIds.length} caso(s) ao pré-jurídico? Os status serão alterados e as comunicações para carteira, administradora e síndico serão preparadas.`}
         >
-          Pré-jurídico
+          Encaminhar casos prontos
         </ActionCard>
       </section>
+
+      {selectedIds.length > 0 ? (
+        <div className="sticky top-3 z-20 flex flex-col gap-2 rounded-2xl border border-[#d7eef5] bg-[#edf8fb]/95 px-4 py-3 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between" role="status">
+          <div>
+            <p className="text-sm font-semibold text-slate-950">{selectedIds.length} caso(s) selecionado(s) · {selectedRows.filter((row) => preJuridicoStepsCompletos(row.pre_juridico_steps)).length} pronto(s)</p>
+            <p className="mt-0.5 text-xs text-slate-600">{missingPdf} sem dossiê · {missingList} sem relação da administradora</p>
+          </div>
+          <button type="button" onClick={() => setSelectedIds([])} className="text-left text-xs font-semibold text-[var(--gkli-primary)] hover:underline">Limpar seleção</button>
+        </div>
+      ) : null}
 
       <Card className="overflow-hidden p-0">
         {rows.length === 0 ? (
@@ -205,6 +226,7 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
                   type="checkbox"
                   className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]"
                   checked={allSelected}
+                  disabled={selectableRows.length === 0}
                   onChange={toggleAll}
                 />
                 Selecionar todos
@@ -221,10 +243,11 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
                   <div key={row.id} className="grid gap-4 px-5 py-4 xl:grid-cols-[32px_minmax(300px,1.2fr)_170px_220px_160px] xl:items-center">
                     <div className="flex items-start">
                       <input
-                        aria-label="Selecionar acordo"
+                        aria-label={`Selecionar acordo de ${row.condominios?.nome ?? "condomínio não informado"}, unidade ${row.unidades?.identificacao ?? "não informada"}`}
                         type="checkbox"
                         className="mt-1 h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]"
                         checked={selectedIds.includes(row.id)}
+                        disabled={isEncaminhado(row)}
                         onChange={() => toggleOne(row.id)}
                       />
                     </div>

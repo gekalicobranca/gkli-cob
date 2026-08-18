@@ -1,0 +1,705 @@
+{
+  "backup_path": "C:\\Users\\Gekali\\gkli-cob\\outputs\\rio-negro-consolidacao-20260818\\backup-enxuto-antes-2026-08-18T12-19-45-269Z.json",
+  "grupos_consolidados": 69,
+  "unidades_duplicadas_removidas": 69,
+  "referencias_migradas": {
+    "cobrancas.unidade_id": 12,
+    "timeline_operacional.unidade_id": 3
+  },
+  "blocos_limpos": 96,
+  "total_unidades_final": 639,
+  "unidades_com_bloco_final": 0,
+  "identificacoes_duplicadas_final": 0,
+  "decisions": [
+    {
+      "identificacao": "000113",
+      "manter_id": "fba3e305-948c-4d26-8650-309bdb4f5ee7",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "7a017ace-64a1-42ec-929a-016879a426aa"
+      ],
+      "referencias_no_mantido": 5,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000209",
+      "manter_id": "6a59078e-7d87-4bd0-a7a3-8f041a47cbc3",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "649d85f9-bc75-47fd-ba8a-a85431e16539"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000720",
+      "manter_id": "23fe3b02-5f71-4879-bb75-3dd47dd4d699",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "5bc6a486-84c9-4ee1-8432-b33a9dfb567e"
+      ],
+      "referencias_no_mantido": 11,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001401",
+      "manter_id": "578c13e2-25ed-491e-84db-d82e4204edcc",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "dcfd2b55-e368-47ae-af31-7535031de512"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000214",
+      "manter_id": "b7fa026b-d46f-499f-b947-3d7c1b590903",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "a169effa-f187-4251-a334-20cad5693a9e"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000518",
+      "manter_id": "8c4fdad8-daea-4a2a-82f2-0d0375a8aca2",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "80eab8ee-f7aa-41be-a14d-fbb2ec0d6eab"
+      ],
+      "referencias_no_mantido": 33,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000215",
+      "manter_id": "702f8341-c38c-4fdf-8f35-c4a23bdc630f",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "5f0871d0-afb6-4d4f-a583-62861cb42cca"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000117",
+      "manter_id": "edec694d-e1b0-410c-b753-f9cb8d8e3738",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "368041f2-689c-4c6a-8e17-d56a682389a3"
+      ],
+      "referencias_no_mantido": 4,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000212",
+      "manter_id": "c62f9366-0fc5-4fbb-a76f-171f88c63065",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "26bd3e4d-f642-498d-9e83-42d03be7a53e"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000218",
+      "manter_id": "d9dfdfdc-5674-4443-b672-637ecf44bf84",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "30f7f7dc-6726-4c0d-b9b8-9fe53e9dc1f1"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000307",
+      "manter_id": "ee4366c0-c8cb-478b-a500-ea418ff9b6c2",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "56a893c1-571e-42a5-986f-a0bd8ffc1c8f"
+      ],
+      "referencias_no_mantido": 20,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001413",
+      "manter_id": "1a49cc67-c6c6-4d5e-9d0c-4cd93750eb93",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "db06437f-4da9-4836-a30f-233497560a5e"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000210",
+      "manter_id": "88d8962f-92ab-41bd-9817-d60bbd01d4d0",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "c1d15251-574a-4ca6-8f66-cd98bd45846f"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000213",
+      "manter_id": "a6187985-b2ec-426b-81a1-ba0f4c8958b5",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "e91eaef3-e897-4236-8fe4-7269af757d78"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000410",
+      "manter_id": "86fe6f57-0ba7-4cd7-b96d-89d9d2bbd2df",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "efa6362f-8132-4712-af74-d61dc257a0ec"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000503",
+      "manter_id": "a297d4db-63af-4a16-943f-be5edf7f01c6",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "942701e4-efef-49f3-b1ea-09843766bf60"
+      ],
+      "referencias_no_mantido": 0,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000519",
+      "manter_id": "cd72d602-0192-4f1d-a82d-08b6f8f9cfb6",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "989fc3a1-8fc9-40f4-a8d6-32c8e0be8874"
+      ],
+      "referencias_no_mantido": 33,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000712",
+      "manter_id": "310ea5fe-ece2-4851-a179-972b429ccc03",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "94092594-a05c-4e93-a208-2284c3f97769"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "000911",
+      "manter_id": "62f37b94-5f96-4acc-842e-29cc7e56edd8",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "20a6f331-d448-4817-9c4b-0ba1f5f9643e"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001409",
+      "manter_id": "b79836a5-7113-47a0-91fb-df9147bd3ac6",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "c3dba7d6-f3c8-41e1-a835-f2620ed70267"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001420",
+      "manter_id": "34acc18b-c761-4dd4-bf2d-45954a520bbf",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "ca7c7ef3-166e-4d25-bb97-8e8ef51c990b"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001502",
+      "manter_id": "5d3f5233-f8de-4916-a8dc-85d3e8778c0a",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "03dd9c15-72a8-421b-b70b-0cc86f3ed20f"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001508",
+      "manter_id": "3425a043-b15f-46c6-a611-9db449862260",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "f27837e5-ee41-4ae6-93a0-9152e596e899"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001509",
+      "manter_id": "ec3d8d1a-524f-457a-ab1f-54ae221aaea3",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "a5ce0396-7569-4cd9-bd50-bd97f2ffc678"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001513",
+      "manter_id": "eb49761f-4395-4039-a1a1-df96c54c5af4",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "52b9851a-979c-47da-b526-38c43eac3930"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001517",
+      "manter_id": "5251410f-6fd2-415c-aa47-04a89fb26957",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "de92d033-92cf-42a6-adad-eb5357e22043"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001716",
+      "manter_id": "43a9bec0-f580-4590-9575-65899e51ff92",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "17521ad5-1cbc-4869-b5ce-1b67f19cf833"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001720",
+      "manter_id": "01a545d1-b8cf-4d79-8280-8f970e0fcc72",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "229a7fc2-6346-4a80-ae3a-90948bf3bc28"
+      ],
+      "referencias_no_mantido": 0,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001001",
+      "manter_id": "68fc44dd-6a80-4726-8bd5-ff2eb2590545",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "2e09eb29-c60b-400a-886f-1df77b347895"
+      ],
+      "referencias_no_mantido": 29,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001405",
+      "manter_id": "37709e26-1a6d-4afa-af63-6c12e3587ca6",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "7cf6dc7b-74ba-4b12-a9d1-b92b924c1564"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001406",
+      "manter_id": "60088e13-8794-468e-bed2-e6f5b0e15326",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "07c6c725-916d-4999-a25b-e648cc21a26f"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001410",
+      "manter_id": "2ed872a5-354d-4bf3-826b-43cd25519d16",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "5b201cb8-e664-4d1b-80d0-b1918ebcd827"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001412",
+      "manter_id": "9c590132-70a0-4d3d-80c2-e3404c902e5a",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "4128ad26-f178-43be-8237-6d7b381cccc0"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001418",
+      "manter_id": "aad69a8a-424c-4994-a2d1-f18960d7ea8d",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "f3fbef30-b66b-4e7f-9ec4-898c3156a769"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001505",
+      "manter_id": "e48b9067-7641-4303-98d6-e9f22886fa55",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "912b009b-e70c-4163-aa7e-9807644db756"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001512",
+      "manter_id": "b0bd38bc-7425-4657-a5d9-f565c2484d23",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "08ca2606-aabd-4358-b860-7602a7912f54"
+      ],
+      "referencias_no_mantido": 4,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001514",
+      "manter_id": "cddea3f2-d71a-46f8-bac2-deee8171c270",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "198fee4d-1d39-4c0a-9a67-09e45d3374a4"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001519",
+      "manter_id": "e7cd0b41-861d-4351-a9e2-ae3e83d926d1",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "a295e0b5-4238-4a2c-a7c1-e067182bba09"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "002216",
+      "manter_id": "62a31732-6d29-4fe3-a818-a79144e0cd11",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "365eea69-076b-426d-9fa1-abc444b5a462"
+      ],
+      "referencias_no_mantido": 0,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001403",
+      "manter_id": "d0bbeeec-4053-47eb-a430-9bf4cc804f2e",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "e6851997-dffc-4a88-b4f2-28d701fc9b98"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001407",
+      "manter_id": "033edea8-aec9-4a6b-8ded-96bcc2738ff3",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "777bf5a9-4dc8-4057-9673-78d0efe1e7c1"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001411",
+      "manter_id": "4782a659-d273-44e5-98ee-e49bc935ba0c",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "77c8f42c-071d-48f4-905d-ca090dda2d77"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001109",
+      "manter_id": "bea51c17-e97e-43e5-947d-57a3d2e17fa7",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "a552a02f-f35c-46fc-bd58-4dddcc34b459"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001404",
+      "manter_id": "261ea2be-cd58-45a6-9b04-d66ce46fcb6d",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "3773a1d5-e3af-4222-9292-b7018f476c2b"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001017",
+      "manter_id": "d6668052-5a8a-4f62-8124-6dc9d67589d0",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "92ef65fe-256c-41ae-a05a-2cc69c01554d"
+      ],
+      "referencias_no_mantido": 16,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001117",
+      "manter_id": "2401d2b3-3524-4304-8e32-c4338c91db7d",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "681cff5e-70e2-410c-8ef0-b54bea327ee0"
+      ],
+      "referencias_no_mantido": 3,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001206",
+      "manter_id": "e60d88c7-079d-4b8d-85e4-89d44d96d017",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "5901fc91-15a3-43e6-a408-5c6141973088"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001313",
+      "manter_id": "87fc35df-8001-45f1-b74e-2398a6d45d18",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "a3642b6e-b401-4e73-8901-02493f59ddf5"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001402",
+      "manter_id": "0ae84212-ca90-4424-9fa2-d6691be989dd",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "1055c519-074f-4b54-ad15-f18e2e39bbef"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001408",
+      "manter_id": "5416194a-5a8c-4b3f-aa16-3b5c5923fd02",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "e92dc469-47ec-49f5-a030-1555a789d4fa"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001414",
+      "manter_id": "c93a335a-b062-46cc-b8df-cf8fbe91254c",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "c798c9ab-caff-467f-a842-87054c239b1c"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001415",
+      "manter_id": "75c94fe7-4b39-4a87-a5b3-bd9d784b3d9e",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "94789bc0-652b-4019-a726-9aff6153a4fc"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001416",
+      "manter_id": "b26eace6-d665-4dcc-8a38-175318d01c8f",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "daf40837-f65a-4ea9-af17-6caa3eaf2a6a"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001417",
+      "manter_id": "3fde2f59-7d86-4348-abc5-cb47a08f59fc",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "6461e0cd-5a2a-4ccd-abac-8e1fcf775ada"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001419",
+      "manter_id": "1621e138-5fb8-4f4f-8772-2c390984da74",
+      "manter_bloco_original": "0",
+      "remover_ids": [
+        "5ec9af56-2bfe-4547-8af9-78c8e763290c"
+      ],
+      "referencias_no_mantido": 2,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "001501",
+      "manter_id": "48edd816-0523-4388-837b-1ee38431c432",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "d2e0221b-a121-4caf-98b6-7ed8e08676e7"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001504",
+      "manter_id": "707036b9-72e5-4c57-94cf-149308da339a",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "fa80d690-3cdd-4bb0-9ced-12405dbf3baf"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001507",
+      "manter_id": "aa8c9f4a-0d35-4c02-b5c3-816c0dc665b3",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "6ec7837e-8b59-4a23-90b1-bdd3d7719312"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001511",
+      "manter_id": "23c66d53-9593-4324-bd45-355063b5724d",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "7e7d1478-9e33-4dcf-9f11-13693b850185"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001503",
+      "manter_id": "2c8b5124-9de4-4333-8be1-da874638e0d3",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "2d0f8bbe-0733-4b29-ae74-b716435535cc"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001506",
+      "manter_id": "aa6d141f-79f6-4019-9dfc-c3d101117a4f",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "aa87c77d-3dac-4708-b667-28abd9c9245c"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001510",
+      "manter_id": "29c24023-83a6-410e-a2cc-b12401b7c096",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "5816b980-1c87-4254-9f93-0603e5c7de0b"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001518",
+      "manter_id": "627fe17f-3e45-4957-bbbb-cae0862d2515",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "e2d78209-e73c-4cdb-8307-dac1d7247ddf"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001515",
+      "manter_id": "79d5b9b1-0b0a-41cc-8dbd-2a65531cb61b",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "9ec658fb-6471-4728-a564-ed882a40d762"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001516",
+      "manter_id": "e88b65ec-fa57-4d59-aae1-84e73b923d4c",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "ed2d99d8-3b10-4b3c-a519-e01d65af4aa1"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001520",
+      "manter_id": "a5292c57-a13a-4260-881d-fbdbe91573e9",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "239b8b3c-2a83-4540-a418-2e8e57ca9838"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "001806",
+      "manter_id": "1720ff15-2b36-4bc0-b0e8-705f4c293941",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "15ad6478-01c5-49ed-8ff1-501ee9062687"
+      ],
+      "referencias_no_mantido": 1,
+      "referencias_removidas": 1
+    },
+    {
+      "identificacao": "002208",
+      "manter_id": "6dc545ac-b827-470b-bb85-73531b52a930",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "b9890888-ecf5-4057-86ac-be5423cd0f5b"
+      ],
+      "referencias_no_mantido": 0,
+      "referencias_removidas": 0
+    },
+    {
+      "identificacao": "002217",
+      "manter_id": "2e49c45f-6eed-4ff7-a35b-ca7635425d0d",
+      "manter_bloco_original": "RIO NEGRO",
+      "remover_ids": [
+        "e957906e-9cbe-44bf-b6d6-26fd890222d3"
+      ],
+      "referencias_no_mantido": 0,
+      "referencias_removidas": 0
+    }
+  ]
+}
