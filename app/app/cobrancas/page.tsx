@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, ChevronDown, FileSpreadsheet, Plus, WalletCards } from "lucide-react";
+import { ArrowUpRight, CalendarDays, ChevronDown, FileSpreadsheet, FileText, Plus, WalletCards } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import {
@@ -161,6 +161,18 @@ function cobrancasRelatorioHref(params: Record<string, string>) {
   return qs ? `/api/cobrancas/relatorio?${qs}` : "/api/cobrancas/relatorio";
 }
 
+function cobrancasRelatorioExecutivoHref(params: Record<string, string>) {
+  const query = new URLSearchParams();
+
+  for (const key of ["q", "condominio_id", "unidade_id", "vencimento_de", "vencimento_ate", "ordenar"]) {
+    const value = params[key];
+    if (value) query.set(key, value);
+  }
+
+  const qs = query.toString();
+  return qs ? `/api/cobrancas/relatorio-executivo?${qs}` : "/api/cobrancas/relatorio-executivo";
+}
+
 function getPriority(status: string, vencimento?: string | null) {
   const normalized = normalizeStatus(status);
 
@@ -275,6 +287,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   });
   const exibirTodasHref = cobrancasHref(queryParams, { status: "todos", judicializacao_unidade: "todos" });
   const relatorioHref = cobrancasRelatorioHref(queryParams);
+  const relatorioExecutivoHref = cobrancasRelatorioExecutivoHref(queryParams);
 
   const scope = await getPermittedCarteiras();
   const [pageData, resumo, condominios, unidades] = await Promise.all([
@@ -315,6 +328,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
               <ButtonLink href={relatorioHref} variant="secondary">
                 <FileSpreadsheet size={16} />
                 Relatório
+              </ButtonLink>
+              <ButtonLink href={relatorioExecutivoHref} variant="secondary">
+                <FileText size={16} />
+                Executivo
               </ButtonLink>
               <ButtonLink href="/app/cobrancas/nova">
                 <Plus size={16} />

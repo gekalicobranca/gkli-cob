@@ -293,8 +293,8 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
       created_at,
       ultima_interacao_at,
       carteiras(nome),
-      condominios(nome, administradora),
-      unidades(identificacao, bloco, responsavel_nome)
+      condominios(nome, cnpj, administradora, vencimento_cota_dia, inicio_cobranca_dias, regua_cobranca_id),
+      unidades(identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email)
     `)
 
   query = applyCarteiraScope(query, scope.carteiraIds)
