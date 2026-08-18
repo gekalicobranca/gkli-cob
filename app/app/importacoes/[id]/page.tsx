@@ -295,6 +295,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
               type="checkbox"
               name="limpar_cobrancas_anteriores"
               form="confirmar-importacao-form"
+              defaultChecked
               className="mt-1 size-4 rounded border-amber-300 accent-amber-700"
             />
             <span className="flex-1">
