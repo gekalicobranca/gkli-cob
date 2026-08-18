@@ -6,6 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
+import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 
 const SCRIPT_KEY = 'manager_atentum_cotas_pendentes'
@@ -101,12 +102,13 @@ async function agendarCaptacoesMensais() {
 }
 
 async function reivindicarExecucao() {
-  const { data, error } = await supabase.from('agente_execucoes').select(`
+  const query = supabase.from('agente_execucoes').select(`
     id, tentativas,
     receita:agente_receitas!inner(script_key, config_json),
     administradora:agente_administradoras!inner(url_portal),
     condominio:condominios(nome, nome_operacional)
-  `).eq('status', 'pendente').eq('agente_receitas.script_key', SCRIPT_KEY).order('created_at').limit(1)
+  `).eq('status', 'pendente').eq('agente_receitas.script_key', SCRIPT_KEY)
+  const { data, error } = await somenteExecucoesLiberadas(query).order('created_at').limit(1)
   if (error) throw error
   const execucao = data?.[0]
   if (!execucao) return null

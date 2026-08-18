@@ -6,6 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
+import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 
 const SCRIPT_KEY = 'bbz_condopro_clock_vila_romana'
@@ -76,7 +77,7 @@ async function ensureBucket() {
 }
 
 async function claimNextExecution() {
-  const { data: candidates, error } = await supabase
+  const query = supabase
     .from('agente_execucoes')
     .select(`
       id,
@@ -87,6 +88,8 @@ async function claimNextExecution() {
     `)
     .eq('status', 'pendente')
     .eq('agente_receitas.script_key', SCRIPT_KEY)
+
+  const { data: candidates, error } = await somenteExecucoesLiberadas(query)
     .order('created_at', { ascending: true })
     .limit(1)
 
