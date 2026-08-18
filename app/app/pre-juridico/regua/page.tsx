@@ -1,8 +1,10 @@
 import Link from 'next/link'
-import { AlertTriangle, CheckCircle2, Clock3, GitBranch, Plus, Settings2 } from 'lucide-react'
-import { PreJuridicoModuleNav } from '@/components/pre-juridico/module-nav'
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock3, GitBranch, Plus, Settings2 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
+import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListPanel, ListPanelHeader, ListSearchField, ListTitle, ListTitleBar } from '@/components/layout/list-page'
 import { StatusBadge } from '@/components/data/status-badge'
 import { listCondominios } from '@/features/condominios/queries'
 import { listReguasOperacionais } from '@/features/reguas/queries'
@@ -36,7 +38,6 @@ export default async function ReguaPreJuridicoPage({ searchParams }: { searchPar
   return (
     <div className="space-y-5">
       <PageHeader eyebrow="Pré-Jurídico" title="Régua de encaminhamento" description="Revise quando cada condomínio sai da cobrança extrajudicial e entra na preparação pré-jurídica." />
-      <PreJuridicoModuleNav active="regua" />
       <Card className="p-5">
         <div className="flex items-start gap-3"><GitBranch className="mt-0.5 text-violet-600" size={20} /><div><h2 className="font-semibold text-slate-950">Réguas exclusivas do Pré-Jurídico</h2><p className="mt-1 text-sm text-slate-500">Essas réguas não aparecem misturadas às rotinas de cobrança e acordo. A prioridade é: condomínio, carteira e, por último, régua global.</p></div></div>
         <form action={criarReguaOperacional} className="mt-5 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(200px,1fr)_120px_minmax(260px,1.4fr)_auto] lg:items-end">
@@ -54,29 +55,21 @@ export default async function ReguaPreJuridicoPage({ searchParams }: { searchPar
         <Card className="p-4"><AlertTriangle className="text-amber-600" size={19} /><p className="mt-3 text-2xl font-semibold">{pendentes.length}</p><p className="text-sm text-slate-500">sem encaminhamento automático</p></Card>
         <Card className="p-4"><Clock3 className="text-[#04799a]" size={19} /><p className="mt-3 text-2xl font-semibold">D+{media}</p><p className="text-sm text-slate-500">prazo total médio até o pré-jurídico</p></Card>
       </section>
-      <Card className="p-4">
-        <form className="grid gap-3 md:grid-cols-[1fr_220px_auto] md:items-end">
-          <label className="space-y-1.5"><span className="text-xs font-medium text-slate-600">Buscar configuração</span><input name="q" defaultValue={params.q ?? ''} placeholder="Condomínio, administradora ou carteira" className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm" /></label>
-          <label className="space-y-1.5"><span className="text-xs font-medium text-slate-600">Situação</span><select name="configuracao" defaultValue={params.configuracao ?? ''} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"><option value="">Todas</option><option value="ativa">Configurada</option><option value="pendente">Não configurada</option></select></label>
-          <button className="h-9 rounded-lg bg-[var(--gkli-primary)] px-4 text-sm font-medium text-white">Filtrar</button>
-        </form>
-      </Card>
-      <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 px-5 py-4"><h2 className="font-semibold text-slate-950">Configuração por condomínio</h2><p className="mt-1 text-xs text-slate-500">Defina o prazo de entrada e, opcionalmente, uma régua exclusiva. Sem vínculo, vale a régua da carteira ou a global.</p></div>
+      <ListPanel>
+        <ListPanelHeader className="bg-white/80"><ListTitleBar className="xl:items-center"><ListTitle title="Configuração por condomínio" description="Defina o prazo de entrada e uma régua exclusiva quando necessário." /><ClearFiltersLink href="/app/pre-juridico/regua" show={Boolean(params.q || params.configuracao)} /></ListTitleBar><ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12"><ListSearchField defaultValue={params.q} placeholder="Condomínio, administradora ou carteira..." className="xl:col-span-9" /><ListFilterField label="Situação" className="xl:col-span-2"><Select name="configuracao" defaultValue={params.configuracao ?? ''}><option value="">Todas</option><option value="ativa">Configurada</option><option value="pendente">Não configurada</option></Select></ListFilterField><Button type="submit" className="w-full xl:col-span-1">Filtrar</Button></ListFiltersForm></ListPanelHeader>
         {rows.length ? <div className="divide-y divide-slate-100">{rows.map((row: any) => {
           const extra = row.dias_expiracao_regua_pre_juridico
           const total = Number(row.inicio_cobranca_dias ?? 0) + Number(extra ?? 0)
           const disponiveis = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === row.carteira_id)
-          return <div key={row.id} className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(240px,1fr)_120px_140px_130px_minmax(250px,1fr)_auto] xl:items-center">
-            <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-950">{row.nome_operacional || row.nome}</p><p className="mt-1 truncate text-xs text-slate-500">{row.administradora || 'Sem administradora'} · {row.carteiras?.nome || 'Sem carteira'}</p></div>
+          return <details key={row.id} className="group/condominio bg-white"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden"><div className="flex min-w-0 items-center gap-3"><ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" /><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-950">{row.nome_operacional || row.nome}</p><p className="mt-0.5 truncate text-xs text-slate-500">{row.administradora || 'Sem administradora'} · {row.carteiras?.nome || 'Sem carteira'}</p></div></div><StatusBadge status={configured(row) ? `D+${total}` : 'desativado'} /></summary><div className="grid gap-4 border-t border-slate-100 px-4 py-3 xl:grid-cols-[120px_140px_130px_minmax(250px,1fr)_auto] xl:items-center">
             <div><p className="text-xs text-slate-400">Início da cobrança</p><p className="mt-1 text-sm font-semibold">D+{Number(row.inicio_cobranca_dias ?? 0)}</p></div>
             <div><p className="text-xs text-slate-400">Expiração adicional</p><p className="mt-1 text-sm font-semibold">{configured(row) ? `${Number(extra)} dias` : 'Não definida'}</p></div>
             <div><p className="text-xs text-slate-400">Entrada prevista</p><div className="mt-1"><StatusBadge status={configured(row) ? `D+${total}` : 'desativado'} /></div></div>
             <form action={vincularReguaPreJuridico} className="flex gap-2"><input type="hidden" name="condominio_id" value={row.id} /><select name="regua_pre_juridico_id" defaultValue={row.regua_pre_juridico_id ?? ''} className="h-9 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 text-xs"><option value="">Automática (carteira/global)</option>{disponiveis.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}</option>)}</select><button className="h-9 rounded-lg border border-violet-200 px-3 text-xs font-medium text-violet-700 hover:bg-violet-50">Salvar</button></form>
             <Link href={`/app/condominios/${row.id}`} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"><Settings2 size={14} /> Ajustar</Link>
-          </div>
+          </div></details>
         })}</div> : <div className="p-8 text-center text-sm text-slate-500">Nenhuma configuração encontrada.</div>}
-      </Card>
+      </ListPanel>
     </div>
   )
 }
