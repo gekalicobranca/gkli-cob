@@ -1,7 +1,6 @@
 import { AlertTriangle, CheckCircle2, Clock3, Scale } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
-import { PreJuridicoModuleNav } from '@/components/pre-juridico/module-nav'
 import { PreJuridicoWorkbench } from '@/app/app/acordos/gestao/pre-juridico-workbench'
 import { listAcordosQuebradosParaGestao } from '@/features/acordos/queries'
 import { preJuridicoStepsCompletos } from '@/features/acordos/pre-juridico'
@@ -44,8 +43,6 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
   return (
     <div className="space-y-5">
       <PageHeader eyebrow="Pré-Jurídico" title="Painel de preparação" description="Organize documentos, valide impedimentos e encaminhe somente os casos prontos para o jurídico." />
-      <PreJuridicoModuleNav active="painel" />
-
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Em documentação', value: entrada.length, detail: 'casos com etapa obrigatória pendente', icon: Clock3, tone: 'text-amber-700 bg-amber-50' },
