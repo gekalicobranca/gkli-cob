@@ -603,15 +603,31 @@ function stripHtml(value: string) {
   );
 }
 
+function decodeHtmlSpreadsheet(buffer: Buffer) {
+  const hasUtf16LeBom =
+    buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe;
+  const sample = buffer.subarray(0, Math.min(buffer.length, 600));
+  let oddNulls = 0;
+  for (let index = 1; index < sample.length; index += 2) {
+    if (sample[index] === 0) oddNulls += 1;
+  }
+  const looksUtf16Le =
+    hasUtf16LeBom || oddNulls >= Math.max(8, sample.length / 6);
+
+  return buffer
+    .toString(looksUtf16Le ? "utf16le" : "latin1")
+    .replace(/^\uFEFF/, "");
+}
+
 function looksLikeHtmlSpreadsheet(buffer: Buffer) {
-  const head = buffer.subarray(0, 600).toString("latin1").toLowerCase();
+  const head = decodeHtmlSpreadsheet(buffer).slice(0, 600).toLowerCase();
   return (
     head.includes("<table") || head.includes("<html") || head.includes("<tr")
   );
 }
 
 function htmlRows(buffer: Buffer) {
-  const html = buffer.toString("latin1");
+  const html = decodeHtmlSpreadsheet(buffer);
   const rows: unknown[][] = [];
   const rowRegex = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
   const cellRegex = /<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi;
@@ -649,12 +665,51 @@ function hflexRowsHeader(row: unknown[]) {
     acordo: header.findIndex((cell) => cell === "acordo"),
     vencimento: header.findIndex((cell) => cell.includes("vencimento")),
     valorPrincipal: header.findIndex(
-      (cell) => cell === "valor" || cell.includes("vl verba"),
+      (cell) =>
+        cell === "valor" ||
+        cell.includes("vl verba") ||
+        cell.includes("vl. verba"),
+    ),
+    valorRecibo: header.findIndex(
+      (cell) =>
+        (cell.includes("vl recibo") || cell.includes("vl. recibo")) &&
+        !cell.includes("corrigido"),
     ),
     multa: header.findIndex((cell) => cell.includes("multa")),
     juros: header.findIndex((cell) => cell.includes("juros")),
     correcao: header.findIndex((cell) => cell.includes("corre")),
     total: corrigidoIndexes.at(-1) ?? -1,
+  };
+}
+
+function hflexUnitRow(row: string[]) {
+  const unidadeIndex = /^\d{3,}$/.test(row[0] ?? "")
+    ? 0
+    : /^\d{3,}$/.test(row[1] ?? "")
+      ? 1
+      : -1;
+  const responsavelIndex = unidadeIndex >= 0 ? unidadeIndex + 1 : -1;
+  const responsavel = responsavelIndex >= 0 ? row[responsavelIndex] ?? "" : "";
+
+  const hasResponsavel = /[A-ZÀ-Ý]/i.test(responsavel);
+  const hasUnitLabel = /PROPRIETÁRIO:|INQUILINO:/i.test(responsavel);
+  if (
+    unidadeIndex < 0 ||
+    !hasResponsavel ||
+    (unidadeIndex === 0 && !hasUnitLabel)
+  ) {
+    return null;
+  }
+
+  return {
+    condominio: unidadeIndex === 1 ? row[0] ?? "" : "",
+    unidade: row[unidadeIndex],
+    responsavel: responsavel
+      .replace(/^PROPRIETÁRIO:\s*/i, "")
+      .split(/\s*\|?\s*INQUILINO:/i)[0]
+      .replace(/\s+\(,.+$/, "")
+      .replace(/\s*\|\s*$/, "")
+      .trim(),
   };
 }
 
@@ -664,10 +719,18 @@ function detectHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
   let recibos = 0;
   let condominioDetectado: string | null = null;
   let header: ReturnType<typeof hflexRowsHeader> | null = null;
+  let ultimoCondominio = "";
 
   for (const row of rows) {
     const normalized = row.map((cell) => normalize(cell));
     const candidateHeader = hflexRowsHeader(normalized);
+    if (
+      normalized.length === 1 &&
+      /^[A-ZÀ-Ý][A-ZÀ-Ý\d .&'/-]{2,}$/.test(normalized[0] ?? "") &&
+      !/^(RESUMO|RECIBO|TOTAL|PROPRIET)/i.test(normalized[0] ?? "")
+    ) {
+      ultimoCondominio = normalized[0];
+    }
     if (
       candidateHeader.recibo >= 0 &&
       candidateHeader.vencimento >= 0 &&
@@ -679,13 +742,10 @@ function detectHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
       continue;
     }
 
-    if (
-      normalized.length >= 3 &&
-      /^\d{3,}$/.test(normalized[1] ?? "") &&
-      /[A-ZÀ-Ý]/i.test(normalized[2] ?? "")
-    ) {
+    const unitRow = hflexUnitRow(normalized);
+    if (unitRow) {
       unidades += 1;
-      condominioDetectado ||= normalized[0] || null;
+      condominioDetectado ||= unitRow.condominio || ultimoCondominio || null;
       continue;
     }
 
@@ -726,13 +786,10 @@ function parseHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
       continue;
     }
 
-    if (
-      normalized.length >= 3 &&
-      /^\d{3,}$/.test(normalized[1] ?? "") &&
-      /[A-ZÀ-Ý]/i.test(normalized[2] ?? "")
-    ) {
-      unidadeAtual = normalized[1];
-      responsavelAtual = normalized[2];
+    const unitRow = hflexUnitRow(normalized);
+    if (unitRow) {
+      unidadeAtual = unitRow.unidade;
+      responsavelAtual = unitRow.responsavel || "Responsável não identificado";
       continue;
     }
 
@@ -760,7 +817,11 @@ function parseHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
       responsavel: responsavelAtual,
       recibo,
       vencimento,
-      valorPrincipal: parseMoney(normalized[header.valorPrincipal]),
+      valorPrincipal: parseMoney(
+        normalized[
+          header.valorRecibo >= 0 ? header.valorRecibo : header.valorPrincipal
+        ],
+      ),
       multa: header.multa >= 0 ? parseMoney(normalized[header.multa]) : 0,
       correcao:
         header.correcao >= 0 ? parseMoney(normalized[header.correcao]) : 0,

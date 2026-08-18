@@ -55,6 +55,35 @@ async function main() {
     ],
   );
 
+  const utf16Html = `
+    <tr><th colspan="13">RIO NEGRO</th></tr>
+    <tr><th>000113</th><th colspan="12">PROPRIETÁRIO: JOSE RUBENS CORDEIRO LEITE JUNIOR (, contato@example.com)</th></tr>
+    <tr><th>Recibo</th><th>Cobrança</th><th>Advogado</th><th>Acordo</th><th>Vencimento</th><th>Histórico</th><th>Vl. Verba</th><th>Multa Verba</th><th>Juros Verba</th><th>Correção Verba</th><th>Vl. Corrigido Verba</th><th>Vl. Recibo</th><th>Vl. Corrigido Recibo</th></tr>
+    <tr><td>3218496</td><td></td><td></td><td>193334</td><td>05/04/2026</td><td>ENERGIA ELÉTRICA</td><td>0,00</td><td>-1,34</td><td>-2,53</td><td>-2,45</td><td>-6,32</td><td>311,62</td><td>249,26</td></tr>
+    <tr><td>3238700</td><td>ADV</td><td></td><td></td><td>05/05/2026</td><td>CONDOMÍNIO MAIO/2026</td><td>991,56</td><td>0,00</td><td>0,00</td><td>0,00</td><td>991,56</td><td>991,56</td><td>991,56</td></tr>
+  `;
+  const utf16Result = await parseRelatorioBuffer({
+    buffer: Buffer.concat([
+      Buffer.from([0xff, 0xfe]),
+      Buffer.from(utf16Html, "utf16le"),
+    ]),
+    filename: "RelatorioDevedores.xls",
+    mimeType: "application/vnd.ms-excel",
+    tipoConversao: "cobrancas",
+  });
+
+  assert.equal(utf16Result.ok, true);
+  if (!utf16Result.ok) return;
+  assert.equal(utf16Result.preview.padraoDetectado?.condominioDetectado, "RIO NEGRO");
+  assert.equal(utf16Result.preview.totalParcelas, 2);
+  assert.equal(utf16Result.preview.valorTotal, 1240.82);
+  assert.equal(utf16Result.preview.cobrancas[0]?.valorPrincipal, 311.62);
+  assert.equal(
+    utf16Result.preview.cobrancas[0]?.responsavel,
+    "JOSE RUBENS CORDEIRO LEITE JUNIOR",
+  );
+  assert.equal(utf16Result.preview.cobrancas[1]?.unidade, "000113");
+
   console.log("Conversão Hflex HTML/XLS validada com sucesso.");
 }
 
