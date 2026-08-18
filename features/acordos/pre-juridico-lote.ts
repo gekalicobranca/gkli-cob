@@ -26,9 +26,53 @@ type LoteCounters = {
   erros: number;
 };
 
+type JuridicoEtapa = {
+  id: string | null;
+  ordem: number;
+  nome: string;
+  delay_dias: number;
+  canal: string;
+  template_id: string | null;
+  categoria_template: "pre_juridico_carteira" | "pre_juridico_administradora" | "pre_juridico_sindico";
+  tom: string;
+  template: string | null;
+};
+
 const JURIDICO_TIPO_REGUA = "juridico";
 const JURIDICO_INTENSIDADE = "medio";
 const JURIDICO_CANAL = "email";
+
+const DEFAULT_JURIDICO_ETAPAS: JuridicoEtapa[] = [
+  { id: null, ordem: 1, nome: "Pacote para carteira", delay_dias: 0, canal: "email", template_id: null, categoria_template: "pre_juridico_carteira", tom: "medio", template: null },
+  { id: null, ordem: 2, nome: "Lista para administradora", delay_dias: 0, canal: "email", template_id: null, categoria_template: "pre_juridico_administradora", tom: "medio", template: null },
+  { id: null, ordem: 3, nome: "Procuração para síndico", delay_dias: 0, canal: "email", template_id: null, categoria_template: "pre_juridico_sindico", tom: "medio", template: null },
+];
+
+async function carregarEtapasJuridico(
+  supabase: ReturnType<typeof createAdminClient>,
+  reguaId: string,
+) {
+  const { data, error } = await supabase
+    .from("regua_etapas")
+    .select("id,ordem,nome,delay_dias,canal,template_id,categoria_template,tom,template,ativo")
+    .eq("regua_id", reguaId)
+    .in("categoria_template", ["pre_juridico_carteira", "pre_juridico_administradora", "pre_juridico_sindico"])
+    .order("ordem", { ascending: true });
+
+  if (error) throw new Error(`Erro ao carregar etapas da régua pré-jurídica: ${error.message}`);
+  if (!data?.length) return DEFAULT_JURIDICO_ETAPAS;
+  return data.filter((row: any) => row.ativo !== false).map((row: any) => ({
+    id: row.id,
+    ordem: Number(row.ordem ?? 0),
+    nome: row.nome || `Etapa ${row.ordem}`,
+    delay_dias: Number(row.delay_dias ?? 0),
+    canal: row.canal || JURIDICO_CANAL,
+    template_id: row.template_id ?? null,
+    categoria_template: row.categoria_template,
+    tom: row.tom || JURIDICO_INTENSIDADE,
+    template: row.template ?? null,
+  })) as JuridicoEtapa[];
+}
 
 const TEMPLATE_DEFINITIONS = [
   {
@@ -396,6 +440,7 @@ async function criarMensagem(params: {
   links: ReturnType<typeof pdfLinks>;
   payload?: Record<string, unknown>;
   counters: LoteCounters;
+  etapa: JuridicoEtapa;
 }) {
   const { supabase, acordo, counters } = params;
   counters.avaliadas += 1;
@@ -409,9 +454,10 @@ async function criarMensagem(params: {
       acordo_id: acordo.id,
       unidade_id: unidade?.id ?? acordo.unidade_id ?? null,
       condominio_id: condominio?.id ?? acordo.condominio_id ?? null,
+      regua_etapa_id: params.etapa.id,
       status: LOTE_ITEM_STATUS.PULADA,
       motivo: params.motivoSemContato,
-      payload: { finalidade: params.finalidade, ...(params.payload ?? {}) },
+      payload: { finalidade: params.finalidade, etapa: params.etapa, ...(params.payload ?? {}) },
     } as any);
     if (itemError) throw new Error(`Erro ao criar item pulado do lote pré-jurídico: ${itemError.message}`);
     counters.puladas += 1;
@@ -429,8 +475,10 @@ async function criarMensagem(params: {
     carteiraId: acordo.carteira_id,
     tipoRegua: JURIDICO_TIPO_REGUA,
     categoria: params.categoria,
-    intensidade: JURIDICO_INTENSIDADE,
-    canal: JURIDICO_CANAL,
+    intensidade: params.etapa.tom,
+    canal: params.etapa.canal,
+    templateId: params.etapa.template_id,
+    fallbackText: params.etapa.template,
     variables,
   });
 
@@ -441,6 +489,7 @@ async function criarMensagem(params: {
   const fingerprint = [
     "pre_juridico",
     params.finalidade,
+    params.etapa.id ?? `default-${params.etapa.ordem}`,
     acordo.id,
     params.contato.email.toLowerCase(),
     todayKey(),
@@ -459,23 +508,25 @@ async function criarMensagem(params: {
       acordo_id: acordo.id,
       unidade_id: unidade?.id ?? acordo.unidade_id ?? null,
       condominio_id: condominio?.id ?? acordo.condominio_id ?? null,
+      regua_etapa_id: params.etapa.id,
       mensagem_id: existente.id,
       status: LOTE_ITEM_STATUS.DUPLICADA,
       motivo: "Mensagem pré-jurídica já existia para esta finalidade/destinatário hoje.",
       fingerprint,
-      payload: { finalidade: params.finalidade, ...(params.payload ?? {}) },
+      payload: { finalidade: params.finalidade, etapa: params.etapa, ...(params.payload ?? {}) },
     } as any);
     counters.duplicadas += 1;
     return existente.id as string;
   }
 
+  const scheduledAt = new Date(Date.now() + Math.max(0, params.etapa.delay_dias) * 86_400_000).toISOString();
   const { data: mensagem, error: mensagemError } = await supabase
     .from("mensagens")
     .insert({
       carteira_id: acordo.carteira_id,
       contexto: "pre_juridico",
       acordo_id: acordo.id,
-      canal: JURIDICO_CANAL,
+      canal: params.etapa.canal,
       destinatario: params.contato.email,
       email_destinatario: params.contato.email,
       email_assunto: assunto,
@@ -483,8 +534,8 @@ async function criarMensagem(params: {
       conteudo_renderizado: conteudo,
       status: MENSAGEM_STATUS.PENDENTE_APROVACAO,
       status_operacional: MENSAGEM_STATUS.PENDENTE_APROVACAO,
-      scheduled_at: new Date().toISOString(),
-      agendada_para: new Date().toISOString(),
+      scheduled_at: scheduledAt,
+      agendada_para: scheduledAt,
       lote_id: params.loteId,
       fingerprint,
       template_id: template.templateId,
@@ -492,6 +543,7 @@ async function criarMensagem(params: {
         contexto: variables,
         template_resolvido: template,
         finalidade: params.finalidade,
+        etapa: params.etapa,
         links: params.links,
         ...(params.payload ?? {}),
       },
@@ -508,6 +560,7 @@ async function criarMensagem(params: {
     .from("lote_itens")
     .insert({
       lote_id: params.loteId,
+      regua_etapa_id: params.etapa.id,
       acordo_id: acordo.id,
       unidade_id: unidade?.id ?? acordo.unidade_id ?? null,
       condominio_id: condominio?.id ?? acordo.condominio_id ?? null,
@@ -515,7 +568,7 @@ async function criarMensagem(params: {
       status: LOTE_ITEM_STATUS.CRIADO,
       motivo: "Mensagem pré-jurídica criada.",
       fingerprint,
-      payload: { finalidade: params.finalidade, links: params.links, ...(params.payload ?? {}) },
+      payload: { finalidade: params.finalidade, etapa: params.etapa, links: params.links, ...(params.payload ?? {}) },
     } as any)
     .select("id")
     .single();
@@ -543,6 +596,7 @@ async function finalizarLote(
   loteId: string,
   reguaId: string,
   counters: LoteCounters,
+  etapas: JuridicoEtapa[],
 ) {
   const status = counters.erros > 0
     ? LOTE_STATUS.CONCLUIDO_COM_FALHAS
@@ -570,6 +624,14 @@ async function finalizarLote(
         total_puladas: counters.puladas,
         total_duplicadas: counters.duplicadas,
         total_erros: counters.erros,
+        etapas: etapas.map((etapa) => ({
+          id: etapa.id,
+          ordem: etapa.ordem,
+          nome: etapa.nome,
+          categoria: etapa.categoria_template,
+          canal: etapa.canal,
+          delay_dias: etapa.delay_dias,
+        })),
       },
     } as any)
     .eq("id", loteId);
@@ -614,6 +676,10 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
   }
 
   for (const { carteiraId, regua, rows } of acordosPorRegua.values()) {
+    const etapas = await carregarEtapasJuridico(supabase, regua.id);
+    if (!etapas.length) {
+      throw new Error("A régua pré-jurídica selecionada não possui etapas ativas.");
+    }
     const loteId = await criarLote({
       supabase,
       carteiraId,
@@ -625,38 +691,6 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
     lotes.push(loteId);
 
     const counters: LoteCounters = { avaliadas: 0, criadas: 0, puladas: 0, duplicadas: 0, erros: 0 };
-
-    for (const acordo of rows) {
-      const links = pdfLinks([acordo.id]);
-      const carteiraContato = contatosCarteira.get(carteiraId)?.[0] ?? null;
-      await criarMensagem({
-        supabase,
-        loteId,
-        acordo,
-        contato: carteiraContato,
-        categoria: "pre_juridico_carteira",
-        finalidade: "carteira",
-        assuntoFallback: "Pacote pré-jurídico - {{condominio}} - unidade {{unidade}}",
-        motivoSemContato: "Carteira sem usuário com e-mail vinculado para receber laudo/procuração.",
-        links,
-        counters,
-      });
-
-      const sindicoContato = contatosSindico.get(acordo.condominio_id)?.[0] ?? null;
-      await criarMensagem({
-        supabase,
-        loteId,
-        acordo,
-        contato: sindicoContato,
-        categoria: "pre_juridico_sindico",
-        finalidade: "sindico",
-        assuntoFallback: "Procuração para assinatura - {{condominio}} - unidade {{unidade}}",
-        motivoSemContato: "Condomínio sem síndico ativo com e-mail para receber procuração.",
-        links,
-        counters,
-      });
-    }
-
     const porAdministradora = new Map<string, any[]>();
     for (const acordo of rows) {
       const admId = acordo.condominios?.administradora_id;
@@ -666,33 +700,44 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
       porAdministradora.set(admId, list);
     }
 
-    for (const [administradoraId, admRows] of porAdministradora) {
-      const primeiro = admRows[0];
-      const contato = contatosAdministradora.get(administradoraId)?.[0]
-        ?? (primeiro.condominios?.administradoras?.email
-          ? { nome: primeiro.condominios?.administradoras?.nome ?? "Administradora", email: primeiro.condominios.administradoras.email }
-          : null);
-      const links = pdfLinks(admRows.map((row) => row.id));
-      await criarMensagem({
-        supabase,
-        loteId,
-        acordo: primeiro,
-        contato,
-        categoria: "pre_juridico_administradora",
-        finalidade: "administradora",
-        assuntoFallback: "Lista pré-jurídica de acordos quebrados - {{administradora}}",
-        motivoSemContato: "Administradora sem contato ativo com e-mail para receber a lista.",
-        links,
-        payload: {
-          administradora_id: administradoraId,
-          acordo_ids: admRows.map((row) => row.id),
-          total_acordos: admRows.length,
-        },
-        counters,
-      });
+    for (const etapa of etapas) {
+      if (etapa.categoria_template === "pre_juridico_administradora") {
+        for (const [administradoraId, admRows] of porAdministradora) {
+          const primeiro = admRows[0];
+          const contato = contatosAdministradora.get(administradoraId)?.[0]
+            ?? (primeiro.condominios?.administradoras?.email
+              ? { nome: primeiro.condominios?.administradoras?.nome ?? "Administradora", email: primeiro.condominios.administradoras.email }
+              : null);
+          await criarMensagem({
+            supabase, loteId, acordo: primeiro, contato, etapa,
+            categoria: etapa.categoria_template,
+            finalidade: "administradora",
+            assuntoFallback: "Lista pré-jurídica de acordos quebrados - {{administradora}}",
+            motivoSemContato: "Administradora sem contato ativo com e-mail para receber a lista.",
+            links: pdfLinks(admRows.map((row) => row.id)),
+            payload: { administradora_id: administradoraId, acordo_ids: admRows.map((row) => row.id), total_acordos: admRows.length },
+            counters,
+          });
+        }
+        continue;
+      }
+
+      for (const acordo of rows) {
+        const paraCarteira = etapa.categoria_template === "pre_juridico_carteira";
+        await criarMensagem({
+          supabase, loteId, acordo, etapa,
+          contato: paraCarteira ? contatosCarteira.get(carteiraId)?.[0] ?? null : contatosSindico.get(acordo.condominio_id)?.[0] ?? null,
+          categoria: etapa.categoria_template,
+          finalidade: paraCarteira ? "carteira" : "sindico",
+          assuntoFallback: paraCarteira ? "Pacote pré-jurídico - {{condominio}} - unidade {{unidade}}" : "Procuração para assinatura - {{condominio}} - unidade {{unidade}}",
+          motivoSemContato: paraCarteira ? "Carteira sem usuário com e-mail vinculado para receber laudo/procuração." : "Condomínio sem síndico ativo com e-mail para receber procuração.",
+          links: pdfLinks([acordo.id]),
+          counters,
+        });
+      }
     }
 
-    await finalizarLote(supabase, loteId, regua.id, counters);
+    await finalizarLote(supabase, loteId, regua.id, counters, etapas);
 
     await registrarEventoOperacional(supabase as any, {
       carteiraId,
@@ -700,12 +745,13 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
       entidadeId: loteId,
       eventoCodigo: "acordo.pre_juridico.lote_criado",
       titulo: "Lote pré-jurídico criado",
-      descricao: "Régua pré-jurídica preparada com mensagens para carteira, administradora e síndico.",
+      descricao: "Lote montado conforme as etapas ativas da régua pré-jurídica.",
       severidade: counters.erros > 0 ? "alerta" : "info",
       payload: {
         lote_id: loteId,
         regua_id: regua.id,
         acordo_ids: rows.map((row) => row.id),
+        etapas: etapas.map((etapa) => ({ id: etapa.id, ordem: etapa.ordem, nome: etapa.nome, categoria: etapa.categoria_template, canal: etapa.canal, delay_dias: etapa.delay_dias })),
         counters,
       },
       origem: "manual",

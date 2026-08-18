@@ -128,6 +128,10 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
 function EtapaForm({ reguaId, tipo, templates, etapa, compact = false }: { reguaId: string; tipo: string; templates: any[]; etapa?: any; compact?: boolean }) {
   const action = salvarEtapaRegua.bind(null, reguaId)
   const defaultReferencia = tipo === 'acordo' ? 'parcela' : 'vencimento'
+  const categorias = tipo === 'juridico'
+    ? TEMPLATE_CATEGORIES.filter((categoria) => categoria.startsWith('pre_juridico_'))
+    : TEMPLATE_CATEGORIES
+  const defaultCategoria = tipo === 'juridico' ? 'pre_juridico_carteira' : tipo === 'acordo' ? 'lembrete_acordo' : 'cobranca_inicial'
   return (
     <form action={action} className="space-y-4">
       {etapa?.id ? <input type="hidden" name="etapa_id" value={etapa.id} /> : null}
@@ -136,10 +140,10 @@ function EtapaForm({ reguaId, tipo, templates, etapa, compact = false }: { regua
         <FormField label="Ordem"><Input name="ordem" type="number" defaultValue={String(etapa?.ordem ?? 1)} /></FormField>
         <FormField label="Delay"><Input name="delay_dias" type="number" defaultValue={String(etapa?.delay_dias ?? 0)} /></FormField>
         <FormField label="Referência"><Select name="delay_referencia" defaultValue={etapa?.delay_referencia ?? defaultReferencia}><option value="vencimento">Vencimento da cobrança</option><option value="atraso">Dias em atraso</option><option value="parcela">Vencimento da parcela</option><option value="acordo">Data do acordo</option></Select></FormField>
-        <FormField label="Canal"><Select name="canal" defaultValue={etapa?.canal ?? 'whatsapp'}><option value="whatsapp">WhatsApp</option><option value="email">E-mail</option><option value="manual">Ação manual</option></Select></FormField>
+        <FormField label="Canal"><Select name="canal" defaultValue={etapa?.canal ?? (tipo === 'juridico' ? 'email' : 'whatsapp')}>{tipo !== 'juridico' ? <option value="whatsapp">WhatsApp</option> : null}<option value="email">E-mail</option><option value="manual">Ação manual</option></Select></FormField>
         <FormField label="Intensidade"><Select name="tom" defaultValue={etapa?.tom ?? 'medio'}><option value="leve">Leve</option><option value="medio">Médio</option><option value="agressivo">Agressivo</option></Select></FormField>
         <FormField label="Ação"><Select name="acao" defaultValue={etapa?.acao ?? 'enviar_mensagem'}><option value="enviar_mensagem">Enviar mensagem</option><option value="gerar_pendencia">Gerar pendência</option><option value="acao_humana">Ação humana</option><option value="follow_up">Follow-up</option></Select></FormField>
-        <FormField label="Situação do template"><Select name="categoria_template" defaultValue={etapa?.categoria_template ?? (tipo === 'acordo' ? 'lembrete_acordo' : 'cobranca_inicial')}>{TEMPLATE_CATEGORIES.map((categoria) => <option key={categoria} value={categoria}>{categoryLabel(categoria)}</option>)}</Select></FormField>
+        <FormField label={tipo === 'juridico' ? 'Destinatário e documento' : 'Situação do template'}><Select name="categoria_template" defaultValue={etapa?.categoria_template ?? defaultCategoria}>{categorias.map((categoria) => <option key={categoria} value={categoria}>{categoryLabel(categoria)}</option>)}</Select></FormField>
         <FormField label="Template fixo opcional"><SearchableSelect name="template_id" options={templates.map((tpl: any) => ({ value: tpl.id, label: `${tpl.nome} - ${tpl.canal}` }))} selectedValue={etapa?.template_id ?? ''} placeholder="Resolver automatico por carteira/situacao" /></FormField>
         <FormField label="Horário início"><Input name="horario_inicio" type="time" defaultValue={etapa?.horario_inicio ?? '09:00'} /></FormField>
         <FormField label="Horário fim"><Input name="horario_fim" type="time" defaultValue={etapa?.horario_fim ?? '18:00'} /></FormField>
