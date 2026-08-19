@@ -1,10 +1,10 @@
-# Manual operacional - Inbox, Cadastros e Operação
+# Manual operacional - GKLI Cobrança
 
-Data desta versão: 2026-06-11
+Data desta versão: 2026-08-19
 
-Este manual orienta o uso da etapa operacional já disponível para implantação assistida. O foco é o trabalho diário do operador: iniciar pelo Inbox, consultar ou ajustar cadastros e executar a operação manual de cobranças, acordos, parcelas e pendências.
+Este manual orienta o uso operacional do GKLI Cobrança. O foco é o trabalho diário do operador: iniciar pelo Inbox, consultar ou ajustar cadastros, executar cobranças e acordos e preparar casos para encaminhamento jurídico.
 
-Não fazem parte deste manual: Mensageria automatizada, Gestão gerencial, dashboards executivos, réguas automáticas definitivas e integrações externas futuras.
+Não fazem parte deste manual: integrações externas futuras e configurações técnicas de infraestrutura.
 
 ## 1. Visão geral
 
@@ -21,6 +21,7 @@ O app está organizado para que o operador crie um hábito simples:
 - Inbox operacional: fila única do dia.
 - Operação: cobranças, acordos, parcelas de acordo e pendências.
 - Cadastros: condomínios, unidades, responsáveis e administradoras.
+- Pré-Jurídico: preparação documental, réguas exclusivas, lotes e monitoramento até a judicialização.
 
 ## 2. Padrão comum das telas
 
@@ -565,9 +566,125 @@ O e-mail geral da administradora não deve bloquear o cadastro. Quando não houv
 - preencha contatos específicos quando disponíveis;
 - marque quais contatos recebem planilha, boleto ou cobrança.
 
-## 13. Fluxos práticos
+## 13. Pré-Jurídico
 
-### 13.1 Cobrar caso priorizado pelo Inbox
+O módulo Pré-Jurídico organiza a passagem entre a cobrança extrajudicial e o tratamento judicial. Ele fica no menu lateral, abaixo de Comunicação e antes de Gestão.
+
+### 13.1 Habilitação e elegibilidade
+
+Antes de usar o módulo, confirme:
+
+- a carteira está com "Gerar pré-jurídico nesta carteira" habilitado;
+- o condomínio possui prazo de expiração configurado quando houver encaminhamento automático;
+- o acordo não está quitado, cancelado ou renegociado;
+- existe parcela aberta vencida além da tolerância de reemissão do condomínio ou cobrança vincenda ativa fora do acordo.
+
+O Painel trabalha com casos originados de acordos e parcelas. A cobrança principal pode não estar vinculada em bases antigas; revise os vínculos antes do envio quando necessário.
+
+### 13.2 Painel Pré
+
+Rota: `/app/pre-juridico`
+
+O Painel Pré apresenta os casos elegíveis agrupados por condomínio. Abra ou recolha cada condomínio para consultar as unidades.
+
+Indicadores:
+
+- Em documentação: falta uma ou mais etapas obrigatórias.
+- Prontos para envio: dossiê e relação necessários já foram gerados.
+- Encaminhados: casos que saíram da preparação.
+- Valor em tratamento: acordo mais eventuais cobranças vincendas fora dele.
+
+Fluxo recomendado:
+
+1. Filtre por condomínio, unidade, responsável ou etapa.
+2. Abra o condomínio desejado.
+3. Selecione casos individualmente ou pelo cabeçalho do condomínio.
+4. Gere o dossiê dos casos.
+5. Gere a relação para a administradora.
+6. Gere a procuração quando solicitada.
+7. Confira se os casos ficaram prontos.
+8. Use "Encaminhar casos prontos" e confirme a operação.
+
+### 13.3 Documentos
+
+- Dossiê dos casos: histórico pré-jurídico, com uma unidade por página.
+- Relação para administradora: relação consolidada por administradora e condomínio.
+- Procuração: documento opcional para assinatura do síndico.
+
+Gerar um documento registra a etapa correspondente. Não encaminhe casos sem conferir nomes, unidade, valores, endereço, administradora e contatos.
+
+### 13.4 Régua Pré-Jurídica
+
+Rota: `/app/pre-juridico/regua`
+
+As réguas pré-jurídicas são separadas das réguas de cobrança e de acordos. A escolha segue esta prioridade:
+
+1. régua vinculada diretamente ao condomínio;
+2. régua da carteira;
+3. régua global.
+
+Na tela de Régua:
+
+- crie réguas globais ou por carteira;
+- abra uma régua para editar suas etapas;
+- configure o prazo de entrada de cada condomínio;
+- vincule uma régua específica ao condomínio, se necessário;
+- deixe em "Automática" para usar o fallback da carteira ou global.
+
+Cada etapa ativa da régua define:
+
+- ordem de execução;
+- destinatário e documento: carteira, administradora ou síndico;
+- canal: e-mail ou ação manual;
+- template fixo ou resolução automática;
+- intervalo em dias para agendamento.
+
+Etapas inativas não entram no lote. Uma régua sem etapas ativas não pode gerar o encaminhamento.
+
+### 13.5 Montagem e aprovação do lote
+
+Ao encaminhar os casos, o sistema agrupa os registros pela combinação de carteira e régua. Condôminos que usam réguas diferentes podem gerar lotes separados.
+
+O lote pode preparar, conforme as etapas configuradas:
+
+- pacote com laudo e procuração para a carteira;
+- lista consolidada para a administradora;
+- procuração para o síndico.
+
+Mensagens sem destinatário são marcadas como puladas. Mensagens repetidas para a mesma finalidade, destinatário e data são marcadas como duplicadas. As mensagens criadas ficam pendentes de aprovação antes do envio.
+
+### 13.6 Monitor
+
+Rota: `/app/pre-juridico/monitor`
+
+O Monitor mostra os casos nas etapas:
+
+1. aguardando documentos;
+2. aguardando administradora;
+3. aguardando síndico;
+4. pronto para o jurídico;
+5. enviado ao jurídico;
+6. análise jurídica;
+7. pendência jurídica;
+8. autorizado para ajuizamento;
+9. judicializado.
+
+Abra um cartão para atualizar etapa, escritório jurídico, número do processo e observações. O número do processo é obrigatório ao marcar como judicializado.
+
+Na parte inferior, o Histórico de comunicações mostra os lotes, mensagens preparadas e falhas. Abra o lote para revisar itens e aprovar comunicações.
+
+### 13.7 Cuidados do fluxo
+
+- Não judicialize sem autorização e documentação conferida.
+- Corrija contatos ausentes antes de repetir um lote com itens pulados.
+- Não recrie mensagens no mesmo dia para contornar uma duplicidade.
+- Confirme o vínculo entre acordo e cobrança nas bases antigas.
+- Use observações do caso para registrar pendências devolvidas pelo jurídico.
+- Ao judicializar, retire a unidade do fluxo extrajudicial comum.
+
+## 14. Fluxos práticos
+
+### 14.1 Cobrar caso priorizado pelo Inbox
 
 1. Abra `/app/inbox`.
 2. Escolha "Hoje" ou "Críticos".
@@ -576,7 +693,7 @@ O e-mail geral da administradora não deve bloquear o cadastro. Quando não houv
 5. Aguarde o processamento do botão.
 6. Confirme se status, pendência ou timeline foram atualizados.
 
-### 13.2 Criar acordo a partir de cobrança
+### 14.2 Criar acordo a partir de cobrança
 
 1. Localize a cobrança em `/app/cobrancas`.
 2. Abra a cobrança/workspace.
@@ -586,7 +703,7 @@ O e-mail geral da administradora não deve bloquear o cadastro. Quando não houv
 6. Simule e crie o acordo.
 7. Acompanhe aceite, boleto e parcelas.
 
-### 13.3 Confirmar pagamento de parcela
+### 14.3 Confirmar pagamento de parcela
 
 1. Acesse `/app/acordos/fila`.
 2. Filtre por condomínio, vencimento ou status.
@@ -595,7 +712,7 @@ O e-mail geral da administradora não deve bloquear o cadastro. Quando não houv
 5. Aguarde a confirmação.
 6. Verifique se a parcela e o acordo foram atualizados.
 
-### 13.4 Solicitar reemissão de parcela
+### 14.4 Solicitar reemissão de parcela
 
 1. Acesse `/app/acordos/fila`.
 2. Filtre parcelas vencidas.
@@ -604,7 +721,7 @@ O e-mail geral da administradora não deve bloquear o cadastro. Quando não houv
 5. Acompanhe a pendência gerada.
 6. Se o valor mudar, ajuste o acordo e envie novo resumo ao devedor.
 
-### 13.5 Tratar pendência operacional
+### 14.5 Tratar pendência operacional
 
 1. Acesse `/app/pendencias`.
 2. Filtre por status aberta/em tratamento ou prioridade.
@@ -612,7 +729,7 @@ O e-mail geral da administradora não deve bloquear o cadastro. Quando não houv
 4. Execute a ação fora ou dentro do app.
 5. Clique em "Resolver" somente depois do efeito confirmado.
 
-### 13.6 Ajustar responsável de unidade
+### 14.6 Ajustar responsável de unidade
 
 1. Acesse `/app/responsaveis`.
 2. Busque por condomínio, unidade ou nome.
@@ -621,17 +738,17 @@ O e-mail geral da administradora não deve bloquear o cadastro. Quando não houv
 5. Complete telefone, e-mail e documento quando disponíveis.
 6. Salve e confira se o cadastro saiu de incompleto quando aplicável.
 
-## 14. Cuidados e exceções
+## 15. Cuidados e exceções
 
-### 14.1 Judicialização
+### 15.1 Judicialização
 
 O app prioriza cobrança extrajudicial. Judicializadas devem ficar fora do fluxo comum, salvo quando o operador solicitar explicitamente.
 
-### 14.2 Duplicidade de clique
+### 15.2 Duplicidade de clique
 
 Se um botão estiver processando, aguarde. Repetir clique em ação sensível pode gerar duplicidade de pendência, status ou registro operacional.
 
-### 14.3 Dados incompletos
+### 15.3 Dados incompletos
 
 Nem todo cadastro incompleto impede a operação. Priorize completar o que afeta contato, acordo e boleto:
 
@@ -643,11 +760,11 @@ Nem todo cadastro incompleto impede a operação. Priorize completar o que afeta
 - permissão de reemissão;
 - acesso para gerar acordo.
 
-### 14.4 Pendência resolvida
+### 15.4 Pendência resolvida
 
 Resolver pendência deve significar que o bloqueio foi removido de verdade. Não use "Resolver" apenas para limpar a fila.
 
-### 14.5 Reemissão com valor alterado
+### 15.5 Reemissão com valor alterado
 
 Quando a reemissão muda o valor, o fluxo precisa voltar para ajuste do acordo:
 
@@ -657,7 +774,7 @@ Quando a reemissão muda o valor, o fluxo precisa voltar para ajuste do acordo:
 4. solicitar ou reemitir boleto;
 5. registrar envio/retorno.
 
-## 15. Checklist de implantação assistida
+## 16. Checklist de implantação assistida
 
 Use este checklist para validar a etapa manual:
 
@@ -673,10 +790,16 @@ Use este checklist para validar a etapa manual:
 - Unidades possuem status e contatos revisáveis.
 - Responsáveis possuem tipo proprietário/inquilino/não informado.
 - Administradoras possuem flag de acesso para gerar acordo.
+- Carteiras habilitadas exibem casos elegíveis no Painel Pré.
+- Casos do Pré-Jurídico aparecem agrupados por condomínio.
+- Dossiê, relação da administradora e procuração registram suas etapas.
+- Réguas pré-jurídicas estão separadas das réguas de cobrança e acordo.
+- O lote respeita as etapas ativas e a prioridade condomínio, carteira e global.
+- O Monitor permite acompanhar o caso até a judicialização.
 - Botões exibem processamento perceptível.
 - Erros de módulo mostram código para suporte.
 
-## 16. Glossário rápido
+## 17. Glossário rápido
 
 - Inbox: fila priorizada do que precisa de ação agora.
 - Workspace: tela de trabalho de uma cobrança.
@@ -687,3 +810,7 @@ Use este checklist para validar a etapa manual:
 - Proprietário: responsável dono da unidade.
 - Inquilino: responsável ocupante/contratual.
 - Acesso acordos: permissão/condição da administradora para gerar acordo.
+- Caso pré-jurídico: acordo elegível em preparação para análise jurídica.
+- Régua pré-jurídica: sequência configurável que determina destinatários, documentos, canais e ordem do lote.
+- Lote pré-jurídico: conjunto de documentos e comunicações gerado para casos que usam a mesma carteira e régua.
+- Judicializado: caso autorizado que recebeu número de processo e saiu do fluxo extrajudicial.
