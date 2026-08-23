@@ -1,5 +1,5 @@
 import { ClipboardCheck, FileText, Hourglass, Scale } from 'lucide-react'
-import { PreJuridicoCasosBoard } from '@/components/pre-juridico/casos-board'
+import { ProcessamentoEtapas } from '@/components/pre-juridico/processamento-etapas'
 import { IniciarProcessamento } from '@/components/pre-juridico/iniciar-processamento'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
@@ -38,6 +38,6 @@ export default async function ProcessamentoPreJuridicoPage({ searchParams }: { s
       <ListPanelHeader className="bg-white/80"><ListTitleBar className="xl:items-center"><ListTitle title="Localizar processamento" description="Busque por condomínio, unidade ou responsável." /><ClearFiltersLink href="/app/pre-juridico/processamento" show={Boolean(params.q)} /></ListTitleBar><ListFiltersForm className="grid-cols-1 md:grid-cols-[1fr_120px]"><ListSearchField defaultValue={params.q} placeholder="Condomínio, unidade ou responsável..." /><Button type="submit" className="w-full">Filtrar</Button></ListFiltersForm></ListPanelHeader>
     </ListPanel>
     <ListPanel><ListPanelHeader><ListTitle title="Aguardando início" description="Cobranças encaminhadas que ainda não possuem um andamento operacional." /></ListPanelHeader><IniciarProcessamento rows={aguardandoInicio as any[]} /></ListPanel>
-    <ListPanel><ListPanelHeader><ListTitle title="Etapas de preparação" description="Fluxo obrigatório: Documentos → procuração assinada pelo Síndico → validação da Administradora → Pronto para o jurídico." /></ListPanelHeader><div className="p-3"><PreJuridicoCasosBoard casos={emPreparacao as any[]} etapas={PREPARACAO} /></div></ListPanel>
+    <ListPanel><ListPanelHeader><ListTitle title="Etapas de preparação" description="Fluxo obrigatório: Documentos → procuração assinada pelo Síndico → validação da Administradora → Pronto para o jurídico." /></ListPanelHeader><div className="p-4"><ProcessamentoEtapas casos={emPreparacao as any[]} etapas={PREPARACAO} /></div></ListPanel>
   </div>
 }
