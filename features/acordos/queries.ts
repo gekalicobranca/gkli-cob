@@ -985,11 +985,11 @@ export async function listAcordosQuebradosParaGestao(scope?: CarteiraScope) {
 
   const quebrados = acordos
     .map((acordo) => {
-      const diasReemissao = Number(acordo.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0)
+      const diasReemissao = 7
       const parcelasAbertas = (parcelasPorAcordo.get(acordo.id) ?? []).filter((parcela) => !isParcelaEncerrada(parcela))
       const parcelasForaJanela = parcelasAbertas
         .map((parcela) => ({ ...parcela, dias_atraso: diasAtrasoParcela(parcela.vencimento), dias_reemissao_permitidos: diasReemissao }))
-        .filter((parcela) => parcela.dias_atraso > diasReemissao)
+        .filter((parcela) => parcela.dias_atraso >= diasReemissao)
         .sort((a, b) => b.dias_atraso - a.dias_atraso)
 
       const vinculadas = cobrancaIdsPorAcordo.get(acordo.id) ?? new Set<string>()

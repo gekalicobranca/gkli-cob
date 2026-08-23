@@ -6,6 +6,8 @@ import { requireUser } from '@/utils/auth/require-user'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { createClient } from '@/utils/supabase/server'
 import { PRE_JURIDICO_ETAPAS, type PreJuridicoEtapa } from './etapas'
+import { listPreJuridicoCobrancas } from './queries'
+import { registrarEventoOperacional } from '@/features/operacional/service'
 
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
   if (!carteiraId || (scope.carteiraIds !== null && !scope.carteiraIds.includes(carteiraId))) {
@@ -59,6 +61,66 @@ export async function atualizarEtapaPreJuridico(formData: FormData) {
 
   const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', casoId)
   if (error) throw new Error(`Erro ao atualizar etapa pré-jurídica: ${error.message}`)
+
+  revalidatePath('/app/pre-juridico')
+  revalidatePath('/app/pre-juridico/monitor')
+}
+
+export async function encaminharCobrancasPreJuridico(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+  const supabase = await createClient()
+  const ids = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
+  if (ids.length === 0) throw new Error('Selecione ao menos uma cobrança.')
+
+  const elegiveis = (await listPreJuridicoCobrancas(scope)).filter((row: any) => row.situacao_pre_juridico === 'elegivel' && ids.includes(row.id))
+  if (elegiveis.length !== ids.length) throw new Error('Uma ou mais cobranças não estão elegíveis para o pré-jurídico.')
+
+  const { error: updateError } = await supabase
+    .from('cobrancas')
+    .update({ status: 'pre_juridico', status_operacional: 'pre_juridico' })
+    .in('id', ids)
+  if (updateError) throw new Error(`Erro ao encaminhar cobranças: ${updateError.message}`)
+
+  const { data: existentes, error: existentesError } = await supabase
+    .from('pre_juridico_casos')
+    .select('cobranca_id')
+    .in('cobranca_id', ids)
+  if (existentesError) throw new Error(`Erro ao conferir casos existentes: ${existentesError.message}`)
+  const existentesIds = new Set((existentes ?? []).map((row: any) => row.cobranca_id))
+  const novos = elegiveis.filter((row: any) => !existentesIds.has(row.id)).map((row: any) => ({
+    carteira_id: row.carteira_id,
+    acordo_id: null,
+    condominio_id: row.condominio_id,
+    unidade_id: row.unidade_id,
+    cobranca_id: row.id,
+    responsavel_id: user.id,
+    etapa: 'aguardando_documentos',
+  }))
+  if (novos.length > 0) {
+    const { error: casosError } = await supabase.from('pre_juridico_casos').insert(novos)
+    if (casosError) throw new Error(`Erro ao criar acompanhamento pré-jurídico: ${casosError.message}`)
+  }
+
+  for (const row of elegiveis as any[]) {
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: row.carteira_id,
+      entidadeTipo: 'cobranca',
+      entidadeId: row.id,
+      eventoCodigo: 'cobranca.pre_juridico.encaminhada',
+      titulo: 'Cobrança encaminhada ao pré-jurídico',
+      descricao: `Cobrança vencida há ${row.dias_atraso} dias; regra D+${row.prazo_total}.`,
+      severidade: 'alerta',
+      payload: { cobranca_id: row.id, condominio_id: row.condominio_id, unidade_id: row.unidade_id },
+      antes: { status_operacional: row.status_operacional ?? row.status ?? null },
+      depois: { status_operacional: 'pre_juridico' },
+      origem: 'manual',
+      auditavel: true,
+      required: true,
+      userId: user.id,
+    })
+  }
 
   revalidatePath('/app/pre-juridico')
   revalidatePath('/app/pre-juridico/monitor')

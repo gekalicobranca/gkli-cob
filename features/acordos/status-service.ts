@@ -45,7 +45,7 @@ function diffDays(from: Date, to: Date) {
 export async function checkAcordosStatus(
   options: CheckAcordosStatusOptions = {},
 ) {
-  const diasParaRomper = options.diasParaRomper ?? 15;
+  const diasParaRomper = options.diasParaRomper ?? 7;
   const hoje = new Date();
   const hojeISO = toISODate(hoje);
 
@@ -101,7 +101,7 @@ export async function checkAcordosStatus(
       vencidas
         .filter(
           (parcela) =>
-            diffDays(new Date(`${parcela.vencimento}T00:00:00`), hoje) >
+            diffDays(new Date(`${parcela.vencimento}T00:00:00`), hoje) >=
             diasParaRomper,
         )
         .map((parcela) => parcela.acordo_id),

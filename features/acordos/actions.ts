@@ -3116,31 +3116,6 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
     ...(((vinculos ?? []) as any[]).map((item) => item.cobranca_id).filter(Boolean)),
   ]);
 
-  const unidadeIds = uniqueNonEmpty(acordos.map((acordo) => acordo.unidade_id));
-  const condominioIds = uniqueNonEmpty(acordos.map((acordo) => acordo.condominio_id));
-
-  if (unidadeIds.length > 0 && condominioIds.length > 0) {
-    const { data: cobrancasVincendas, error: cobrancasVincendasError } = await supabase
-      .from("cobrancas")
-      .select("id,condominio_id,unidade_id,vencimento,status,status_operacional,status_financeiro")
-      .in("unidade_id", unidadeIds)
-      .in("condominio_id", condominioIds)
-      .gte("vencimento", todayISODate());
-
-    if (cobrancasVincendasError) {
-      throw new Error(`Erro ao carregar cotas vincendas fora do acordo: ${cobrancasVincendasError.message}`);
-    }
-
-    for (const cobranca of (cobrancasVincendas ?? []) as any[]) {
-      const status = String(cobranca.status ?? "").toLowerCase();
-      const financeiro = String(cobranca.status_financeiro ?? "").toLowerCase();
-      if (["pago", "paga", "quitado", "quitada", "baixado", "baixada", "cancelado", "cancelada"].includes(status)) continue;
-      if (["pago", "paga", "quitado", "quitada", "baixado", "baixada", "cancelado", "cancelada"].includes(financeiro)) continue;
-      if (!(COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[]).includes(getCobrancaStatusOperacional(cobranca))) continue;
-      cobrancaIdsSet.add(cobranca.id);
-    }
-  }
-
   const cobrancaIds = Array.from(cobrancaIdsSet);
 
   const { error: acordosError } = await supabase
@@ -3306,7 +3281,7 @@ export async function atualizarAtrasosERompimentosAcordos() {
   await requireRole(["admin", "gestor"]);
 
   const result = await checkAcordosStatus({
-    diasParaRomper: 15,
+    diasParaRomper: 7,
   });
 
   revalidatePath("/app/acordos");
