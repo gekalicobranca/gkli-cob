@@ -100,6 +100,8 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <FormField label="Nome operacional"><Input name="nome_operacional" defaultValue={condominio.nome_operacional ?? ''} placeholder="Como a operação identifica este condomínio" /></FormField>
             <FormField label="CNPJ"><Input name="cnpj" defaultValue={condominio.cnpj ?? ''} /></FormField>
             <FormField label="Administradora"><Input name="administradora" defaultValue={condominio.administradora ?? ''} /></FormField>
+            <FormField label="Máscara da unidade" hint="0 = número, A = letra, * = qualquer caractere. Em branco não bloqueia."><Input name="mascara_unidade" defaultValue={condominio.mascara_unidade ?? ''} placeholder="Ex.: 000000" className="uppercase" /></FormField>
+            <FormField label="Máscara do bloco" hint="Será exigida na criação manual e na importação."><Input name="mascara_bloco" defaultValue={condominio.mascara_bloco ?? ''} placeholder="Ex.: 0 ou A" className="uppercase" /></FormField>
           </div>
 
           <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">

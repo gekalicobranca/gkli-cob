@@ -7,6 +7,7 @@ import { requireRole } from '@/utils/auth/require-role'
 import { requireUser } from '@/utils/auth/require-user'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { registrarEventoOperacional } from '@/features/operacional/service'
+import { assertUnidadeMatchesMasks } from '@/features/unidades/mask'
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
@@ -50,7 +51,7 @@ export async function createUnidade(formData: FormData) {
 
   const { data: condominio, error: condominioError } = await supabase
     .from('condominios')
-    .select('id, carteira_id')
+    .select('id, carteira_id, mascara_unidade, mascara_bloco')
     .eq('id', condominioId)
     .maybeSingle()
 
@@ -59,6 +60,12 @@ export async function createUnidade(formData: FormData) {
   if ((condominio as any).carteira_id !== carteiraId) {
     throw new Error('Condomínio não pertence à carteira informada.')
   }
+  assertUnidadeMatchesMasks({
+    identificacao,
+    bloco,
+    mascaraUnidade: (condominio as any).mascara_unidade,
+    mascaraBloco: (condominio as any).mascara_bloco,
+  })
 
   const { error } = await supabase.from('unidades').insert({
     carteira_id: carteiraId,
@@ -106,7 +113,7 @@ export async function updateUnidade(formData: FormData) {
 
   const { data: unidadeAtual, error: unidadeAtualError } = await supabase
     .from('unidades')
-    .select('id, carteira_id, condominio_id, credito_administradora, acao_judicial')
+    .select('id, carteira_id, condominio_id, credito_administradora, acao_judicial, condominios(mascara_unidade, mascara_bloco)')
     .eq('id', id)
     .maybeSingle()
 
@@ -168,6 +175,13 @@ export async function updateUnidade(formData: FormData) {
       userId: user?.id ?? null,
     })
   }
+  const mascaras = (unidadeAtual as any).condominios
+  assertUnidadeMatchesMasks({
+    identificacao,
+    bloco,
+    mascaraUnidade: mascaras?.mascara_unidade,
+    mascaraBloco: mascaras?.mascara_bloco,
+  })
 
   if (Boolean((unidadeAtual as any).acao_judicial) !== acaoJudicial) {
     const user = await requireUser()

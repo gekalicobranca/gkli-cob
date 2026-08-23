@@ -94,6 +94,14 @@ async function registrarAuditoria(supabase: Awaited<ReturnType<typeof createClie
   }
 }
 
+function cadastroMask(formData: FormData, field: string) {
+  const value = String(formData.get(field) ?? '').trim().toUpperCase()
+  if (value && !/^[0A*._/-]+$/.test(value)) {
+    throw new Error('Máscara inválida. Use 0 para número, A para letra e * para qualquer caractere.')
+  }
+  return value || null
+}
+
 export async function createCondominio(formData: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
@@ -128,6 +136,8 @@ export async function createCondominio(formData: FormData) {
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
   const reguaAcordoId = String(formData.get('regua_acordo_id') ?? '').trim() || null
+  const mascaraUnidade = cadastroMask(formData, 'mascara_unidade')
+  const mascaraBloco = cadastroMask(formData, 'mascara_bloco')
 
   if (!carteiraId) throw new Error('Carteira obrigatória.')
   if (nome.length < 2) throw new Error('Nome do condomínio obrigatório.')
@@ -171,6 +181,8 @@ export async function createCondominio(formData: FormData) {
     bloqueio_garantidora_fim: bloqueioGarantidoraFim,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
+    mascara_unidade: mascaraUnidade,
+    mascara_bloco: mascaraBloco,
     status: 'ativo',
     observacoes: observacoes || null,
   }
@@ -232,6 +244,8 @@ export async function updateCondominioIntegral(formData: FormData) {
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
   const reguaAcordoId = String(formData.get('regua_acordo_id') ?? '').trim() || null
+  const mascaraUnidade = cadastroMask(formData, 'mascara_unidade')
+  const mascaraBloco = cadastroMask(formData, 'mascara_bloco')
 
   if (!id) throw new Error('Condomínio obrigatório.')
   if (!carteiraId) throw new Error('Carteira obrigatória.')
@@ -247,7 +261,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, status, observacoes')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, mascara_unidade, mascara_bloco, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -287,6 +301,8 @@ export async function updateCondominioIntegral(formData: FormData) {
     bloqueio_garantidora_fim: bloqueioGarantidoraFim,
     regua_cobranca_id: reguaCobrancaId,
     regua_acordo_id: reguaAcordoId,
+    mascara_unidade: mascaraUnidade,
+    mascara_bloco: mascaraBloco,
     status,
     observacoes: observacoes || null,
   }

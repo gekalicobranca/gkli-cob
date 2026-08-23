@@ -35,6 +35,7 @@ import {
 import { sincronizarResponsavelComUnidadeOperacional } from "@/features/responsaveis-unidades/sync-unidade";
 import { normalizeCondominioName } from "@/features/condominios/normalize-name";
 import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
+import { assertUnidadeMatchesMasks } from "@/features/unidades/mask";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -1671,6 +1672,21 @@ async function garantirUnidadeDaImportacao(
   if (!payload.condominio_id || !identificacao) {
     throw new Error("Linha sem condomínio ou identificação de unidade.");
   }
+
+  const { data: condominioMascara, error: mascaraError } = await supabase
+    .from("condominios")
+    .select("mascara_unidade, mascara_bloco")
+    .eq("id", payload.condominio_id)
+    .maybeSingle();
+  if (mascaraError) {
+    throw new Error(`Erro ao validar a máscara do condomínio: ${mascaraError.message}`);
+  }
+  assertUnidadeMatchesMasks({
+    identificacao,
+    bloco: payload.bloco,
+    mascaraUnidade: condominioMascara?.mascara_unidade,
+    mascaraBloco: condominioMascara?.mascara_bloco,
+  });
 
   const existente = await buscarUnidadeExistente(supabase, {
     condominioId: payload.condominio_id,

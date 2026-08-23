@@ -50,6 +50,14 @@ export default async function NovoCondominioPage() {
               <Input name="administradora" placeholder="Ex.: Administradora Alfa" />
             </FormField>
 
+            <FormField label="Máscara da unidade" hint="0 = número, A = letra, * = qualquer caractere. Em branco não bloqueia.">
+              <Input name="mascara_unidade" placeholder="Ex.: 000000" className="uppercase" />
+            </FormField>
+
+            <FormField label="Máscara do bloco" hint="Será exigida na criação manual e na importação.">
+              <Input name="mascara_bloco" placeholder="Ex.: 0 ou A" className="uppercase" />
+            </FormField>
+
             <FormField label="Dia de vencimento da cota">
               <Input name="vencimento_cota_dia" type="number" min="1" max="31" defaultValue="10" />
             </FormField>
