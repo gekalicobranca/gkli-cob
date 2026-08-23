@@ -14,7 +14,7 @@ import { listCarteirasForSelect } from '@/features/cadastros/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { PreJuridicoModuleNav } from '@/components/pre-juridico/module-nav'
 
-type Params = Promise<{ q?: string; configuracao?: string }>
+type Params = Promise<{ q?: string; carteira_id?: string; vencimento_dia?: string; configuracao?: string }>
 const norm = (value: unknown) => String(value ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 export default async function ReguaPreJuridicoPage({ searchParams }: { searchParams: Params }) {
@@ -26,15 +26,24 @@ export default async function ReguaPreJuridicoPage({ searchParams }: { searchPar
     listCarteirasForSelect(scope),
   ])
   const termo = norm(params.q)
+  const carteiraId = String(params.carteira_id ?? '').trim()
+  const vencimentoDia = Number(params.vencimento_dia)
+  const filtraVencimento = Number.isInteger(vencimentoDia) && vencimentoDia >= 1 && vencimentoDia <= 31
   const configured = (row: any) => row.dias_expiracao_regua_pre_juridico !== null && row.dias_expiracao_regua_pre_juridico !== undefined
-  const rows = baseRows.filter((row: any) => {
-    if (params.configuracao === 'ativa' && !configured(row)) return false
-    if (params.configuracao === 'pendente' && configured(row)) return false
+  const filteredBase = baseRows.filter((row: any) => {
+    if (carteiraId && row.carteira_id !== carteiraId) return false
+    if (filtraVencimento && Number(row.vencimento_cota_dia) !== vencimentoDia) return false
     return !termo || norm([row.nome_operacional, row.nome, row.administradora, row.carteiras?.nome].join(' ')).includes(termo)
   })
-  const ativos = baseRows.filter(configured)
-  const pendentes = baseRows.filter((row: any) => !configured(row))
+  const rows = filteredBase.filter((row: any) => {
+    if (params.configuracao === 'ativa' && !configured(row)) return false
+    if (params.configuracao === 'pendente' && configured(row)) return false
+    return true
+  })
+  const ativos = filteredBase.filter(configured)
+  const pendentes = filteredBase.filter((row: any) => !configured(row))
   const media = ativos.length ? Math.round(ativos.reduce((sum: number, row: any) => sum + Number(row.inicio_cobranca_dias ?? 0) + Number(row.dias_expiracao_regua_pre_juridico ?? 0), 0) / ativos.length) : 0
+  const vencimentosDisponiveis = Array.from(new Set(baseRows.map((row: any) => Number(row.vencimento_cota_dia)).filter((dia) => Number.isInteger(dia) && dia >= 1 && dia <= 31))).sort((a, b) => a - b)
 
   return (
     <div className="space-y-5">
@@ -58,7 +67,7 @@ export default async function ReguaPreJuridicoPage({ searchParams }: { searchPar
         <Card className="p-4"><Clock3 className="text-[#04799a]" size={19} /><p className="mt-3 text-2xl font-semibold">D+{media}</p><p className="text-sm text-slate-500">prazo total médio até o pré-jurídico</p></Card>
       </section>
       <ListPanel>
-        <ListPanelHeader className="bg-white/80"><ListTitleBar className="xl:items-center"><ListTitle title="Configuração por condomínio" description="Defina o prazo de entrada e uma régua exclusiva quando necessário." /><ClearFiltersLink href="/app/pre-juridico/regua" show={Boolean(params.q || params.configuracao)} /></ListTitleBar><ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12"><ListSearchField defaultValue={params.q} placeholder="Condomínio, administradora ou carteira..." className="xl:col-span-9" /><ListFilterField label="Situação" className="xl:col-span-2"><Select name="configuracao" defaultValue={params.configuracao ?? ''}><option value="">Todas</option><option value="ativa">Configurada</option><option value="pendente">Não configurada</option></Select></ListFilterField><Button type="submit" className="w-full xl:col-span-1">Filtrar</Button></ListFiltersForm></ListPanelHeader>
+        <ListPanelHeader className="bg-white/80"><ListTitleBar className="xl:items-center"><ListTitle title="Configuração por condomínio" description="Defina o prazo de entrada e uma régua exclusiva quando necessário." /><ClearFiltersLink href="/app/pre-juridico/regua" show={Boolean(params.q || params.carteira_id || params.vencimento_dia || params.configuracao)} /></ListTitleBar><ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12"><ListSearchField defaultValue={params.q} placeholder="Condomínio ou administradora..." className="xl:col-span-4" /><ListFilterField label="Carteira" className="xl:col-span-3"><Select name="carteira_id" defaultValue={params.carteira_id ?? ''}><option value="">Todas as carteiras</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></ListFilterField><ListFilterField label="Vencimento da cota" className="xl:col-span-2"><Select name="vencimento_dia" defaultValue={params.vencimento_dia ?? ''}><option value="">Todos os dias</option>{vencimentosDisponiveis.map((dia) => <option key={dia} value={dia}>Dia {dia}</option>)}</Select></ListFilterField><ListFilterField label="Situação" className="xl:col-span-2"><Select name="configuracao" defaultValue={params.configuracao ?? ''}><option value="">Todas</option><option value="ativa">Configurada</option><option value="pendente">Não configurada</option></Select></ListFilterField><Button type="submit" className="w-full xl:col-span-1">Filtrar</Button></ListFiltersForm></ListPanelHeader>
         {rows.length ? <div className="divide-y divide-slate-100">{rows.map((row: any) => {
           const extra = row.dias_expiracao_regua_pre_juridico
           const total = Number(row.inicio_cobranca_dias ?? 0) + Number(extra ?? 0)
