@@ -168,7 +168,7 @@ export async function atualizarProcuracaoPreJuridico(formData: FormData) {
   const agora = new Date().toISOString()
   const payload: Record<string, unknown> = { procuracao_status: status, observacoes, responsavel_id: user.id }
   if (status === 'gerada' && !caso.procuracao_gerada_em) payload.procuracao_gerada_em = agora
-  if (status === 'assinada') { payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora; payload.procuracao_assinada_em = caso.procuracao_assinada_em ?? agora; payload.etapa = 'aguardando_administradora' }
+  if (status === 'assinada') { payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora; payload.procuracao_assinada_em = caso.procuracao_assinada_em ?? agora; payload.etapa = 'confirmar_juridico' }
   const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', casoId)
   if (error) throw new Error(`Erro ao atualizar procuração: ${error.message}`)
   revalidatePath('/app/pre-juridico/processamento')

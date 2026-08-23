@@ -9,7 +9,7 @@ import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 
 const tones: Record<string, string> = {
-  aguardando_documentos: 'border-slate-200 bg-slate-50', aguardando_administradora: 'border-amber-200 bg-amber-50/60',
+  aguardando_documentos: 'border-slate-200 bg-slate-50', confirmar_juridico: 'border-amber-200 bg-amber-50/60',
   aguardando_sindico: 'border-orange-200 bg-orange-50/60', pronto_juridico: 'border-emerald-200 bg-emerald-50/60',
   enviado_juridico: 'border-sky-200 bg-sky-50/60', analise_juridica: 'border-blue-200 bg-blue-50/60',
   pendencia_juridica: 'border-rose-200 bg-rose-50/60', autorizado_ajuizamento: 'border-violet-200 bg-violet-50/60', judicializado: 'border-slate-300 bg-slate-100',

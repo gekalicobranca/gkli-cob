@@ -64,7 +64,7 @@ function CasoProcessamento({ caso, selectable = false, selected = false, onToggl
       <Field label="Andamento da procuração"><select name="procuracao_status" defaultValue={caso.procuracao_status ?? 'pendente'} className={controlClass}><option value="pendente">Pendente</option><option value="gerada">Gerada</option><option value="assinada">Assinada</option></select></Field>
       <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
       <PendingSubmitButton pendingLabel="Atualizando...">Salvar andamento</PendingSubmitButton>
-      <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, o caso avançará automaticamente para Administradora.</p>
+      <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, o caso avançará automaticamente para Confirmar jurídico.</p>
     </form> : <form action={atualizarEtapaPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={(event) => { if (!window.confirm('Confirmar a atualização deste caso?')) event.preventDefault() }}>
       <input type="hidden" name="caso_id" value={caso.id} />
       <Field label="Nova etapa"><select name="etapa" defaultValue={caso.etapa} className={controlClass}>{PRE_JURIDICO_ETAPAS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></Field>
@@ -89,7 +89,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function descricaoEtapa(etapa: PreJuridicoEtapa) {
   if (etapa === 'aguardando_documentos') return 'Solicite a certidão e confirme a propriedade antes de avançar.'
   if (etapa === 'aguardando_sindico') return 'Geração, envio e confirmação da procuração assinada pelo síndico.'
-  if (etapa === 'aguardando_administradora') return 'Validação da administradora após a assinatura do síndico.'
+  if (etapa === 'confirmar_juridico') return 'Confirmação do recebimento e aceite do caso pelo jurídico.'
   if (etapa === 'pronto_juridico') return 'Pacote revisado e pronto para envio ao jurídico.'
   return etapaPreJuridicoLabel(etapa)
 }
