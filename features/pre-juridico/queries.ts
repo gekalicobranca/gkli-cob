@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 
@@ -16,7 +17,9 @@ function daysBetween(from: Date, to: Date) {
 }
 
 export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
-  const supabase = await createClient()
+  // A fila é calculada no servidor. O escopo do usuário continua sendo
+  // aplicado explicitamente por carteira, sem depender do estado da sessão RLS.
+  const supabase = createAdminClient()
   let query = supabase
     .from('cobrancas')
     .select(`
