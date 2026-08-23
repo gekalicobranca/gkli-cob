@@ -115,6 +115,7 @@ export async function listPreJuridicoCasos(scope: CarteiraScope) {
       condominio:condominios(nome,nome_operacional,administradora),
       unidade:unidades(identificacao,bloco,responsavel_nome),
       acordo:acordos(valor_acordado,data_acordo,status,status_financeiro),
+      cobranca:cobrancas(valor_original,valor_atualizado,vencimento,status_financeiro),
       responsavel:profiles(nome,email)
     `)
     .order('updated_at', { ascending: false })

@@ -59,7 +59,7 @@ export function PreJuridicoCobrancasWorkbench({ rows }: { rows: Row[] }) {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><Scale size={18} /></div>
-            <div><h2 className="text-sm font-semibold text-slate-950">Encaminhar cobranças selecionadas</h2><p className="mt-1 text-xs text-slate-500">Cada cobrança será encaminhada individualmente e ganhará seu próprio acompanhamento.</p></div>
+            <div><h2 className="text-sm font-semibold text-slate-950">Encaminhar cobranças selecionadas</h2><p className="mt-1 text-xs text-slate-500">Depois do encaminhamento, inicie o andamento na tela Processamento.</p></div>
           </div>
           <form action={encaminharCobrancasPreJuridico} onSubmit={(event) => { if (!window.confirm(`Encaminhar ${selectedIds.length} cobrança(s) ao pré-jurídico?`)) event.preventDefault() }}>
             {selectedIds.map((id) => <input key={id} type="hidden" name="cobranca_id" value={id} />)}

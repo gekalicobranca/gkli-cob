@@ -63,6 +63,7 @@ export async function atualizarEtapaPreJuridico(formData: FormData) {
   if (error) throw new Error(`Erro ao atualizar etapa pré-jurídica: ${error.message}`)
 
   revalidatePath('/app/pre-juridico')
+  revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/monitor')
 }
 
@@ -82,26 +83,6 @@ export async function encaminharCobrancasPreJuridico(formData: FormData) {
     .update({ status: 'pre_juridico', status_operacional: 'pre_juridico' })
     .in('id', ids)
   if (updateError) throw new Error(`Erro ao encaminhar cobranças: ${updateError.message}`)
-
-  const { data: existentes, error: existentesError } = await supabase
-    .from('pre_juridico_casos')
-    .select('cobranca_id')
-    .in('cobranca_id', ids)
-  if (existentesError) throw new Error(`Erro ao conferir casos existentes: ${existentesError.message}`)
-  const existentesIds = new Set((existentes ?? []).map((row: any) => row.cobranca_id))
-  const novos = elegiveis.filter((row: any) => !existentesIds.has(row.id)).map((row: any) => ({
-    carteira_id: row.carteira_id,
-    acordo_id: null,
-    condominio_id: row.condominio_id,
-    unidade_id: row.unidade_id,
-    cobranca_id: row.id,
-    responsavel_id: user.id,
-    etapa: 'aguardando_documentos',
-  }))
-  if (novos.length > 0) {
-    const { error: casosError } = await supabase.from('pre_juridico_casos').insert(novos)
-    if (casosError) throw new Error(`Erro ao criar acompanhamento pré-jurídico: ${casosError.message}`)
-  }
 
   for (const row of elegiveis as any[]) {
     await registrarEventoOperacional(supabase as any, {
@@ -123,5 +104,42 @@ export async function encaminharCobrancasPreJuridico(formData: FormData) {
   }
 
   revalidatePath('/app/pre-juridico')
+  revalidatePath('/app/pre-juridico/processamento')
+  revalidatePath('/app/pre-juridico/monitor')
+}
+
+export async function iniciarProcessamentoPreJuridico(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+  const supabase = await createClient()
+  const ids = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
+  if (ids.length === 0) throw new Error('Selecione ao menos uma cobrança encaminhada.')
+
+  const encaminhadas = (await listPreJuridicoCobrancas(scope))
+    .filter((row: any) => row.situacao_pre_juridico === 'encaminhado' && ids.includes(row.id))
+  if (encaminhadas.length !== ids.length) throw new Error('Uma ou mais cobranças não estão encaminhadas ao pré-jurídico.')
+
+  const { data: existentes, error: existentesError } = await supabase
+    .from('pre_juridico_casos')
+    .select('cobranca_id')
+    .in('cobranca_id', ids)
+  if (existentesError) throw new Error(`Erro ao conferir processamentos existentes: ${existentesError.message}`)
+  const existentesIds = new Set((existentes ?? []).map((row: any) => row.cobranca_id))
+  const novos = encaminhadas.filter((row: any) => !existentesIds.has(row.id)).map((row: any) => ({
+    carteira_id: row.carteira_id,
+    acordo_id: null,
+    condominio_id: row.condominio_id,
+    unidade_id: row.unidade_id,
+    cobranca_id: row.id,
+    responsavel_id: user.id,
+    etapa: 'aguardando_documentos',
+  }))
+  if (novos.length === 0) throw new Error('As cobranças selecionadas já possuem processamento iniciado.')
+  const { error } = await supabase.from('pre_juridico_casos').insert(novos)
+  if (error) throw new Error(`Erro ao iniciar o processamento: ${error.message}`)
+
+  revalidatePath('/app/pre-juridico')
+  revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/monitor')
 }
