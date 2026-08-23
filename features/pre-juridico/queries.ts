@@ -4,6 +4,7 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 
 const STATUS_ELEGIVEIS = new Set(['novo', 'em_cobranca_ativa', 'em_negociacao', 'possivel_acordo'])
+const STATUS_VISIVEIS = [...STATUS_ELEGIVEIS, 'pre_juridico']
 
 function dateOnly(value: unknown) {
   const normalized = String(value ?? '').slice(0, 10)
@@ -14,6 +15,17 @@ function dateOnly(value: unknown) {
 
 function daysBetween(from: Date, to: Date) {
   return Math.floor((to.getTime() - from.getTime()) / 86_400_000)
+}
+
+function todaySaoPaulo() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return dateOnly(`${values.year}-${values.month}-${values.day}`)!
 }
 
 export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
@@ -29,6 +41,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
       condominio:condominios(nome,nome_operacional,administradora,inicio_cobranca_dias,dias_cobranca_ativa,pre_juridico_habilitado),
       unidade:unidades(identificacao,bloco,responsavel_nome)
     `)
+    .in('status_operacional', STATUS_VISIVEIS)
     .order('vencimento', { ascending: true })
     .limit(5000)
 
@@ -54,7 +67,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
     for (const row of (acordosResult.data ?? []) as any[]) if (row.cobranca_id) cobrancasEmAcordo.add(row.cobranca_id)
   }
 
-  const today = dateOnly(new Date().toISOString())!
+  const today = todaySaoPaulo()
   return (data ?? []).flatMap((row: any) => {
     const carteira = Array.isArray(row.carteira) ? row.carteira[0] : row.carteira
     const condominio = Array.isArray(row.condominio) ? row.condominio[0] : row.condominio
