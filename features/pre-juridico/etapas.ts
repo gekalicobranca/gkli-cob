@@ -1,7 +1,7 @@
 export const PRE_JURIDICO_ETAPAS = [
   { id: 'aguardando_documentos', label: 'Documentos', shortLabel: 'Documentos' },
-  { id: 'aguardando_administradora', label: 'Validação ADM', shortLabel: 'ADM' },
   { id: 'aguardando_sindico', label: 'Autorização do síndico', shortLabel: 'Síndico' },
+  { id: 'aguardando_administradora', label: 'Validação ADM', shortLabel: 'ADM' },
   { id: 'pronto_juridico', label: 'Pronto para o jurídico', shortLabel: 'Pronto' },
   { id: 'enviado_juridico', label: 'Enviado ao jurídico', shortLabel: 'Enviado' },
   { id: 'analise_juridica', label: 'Análise jurídica', shortLabel: 'Análise' },
