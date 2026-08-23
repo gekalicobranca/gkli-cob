@@ -64,7 +64,8 @@ type CobrancaReguaRow = {
     nome?: string | null;
     inicio_cobranca_dias?: number | null;
     dias_apos_vencimento_regua?: number | null;
-    dias_expiracao_regua_pre_juridico?: number | null;
+    dias_cobranca_ativa?: number | null;
+    pre_juridico_habilitado?: boolean | null;
     intensidade_regua?: string | null;
     regua_cobranca_id?: string | null;
   } | null;
@@ -138,8 +139,9 @@ function getInicioRegua(row: CobrancaReguaRow) {
 }
 
 function getDiasExpiracaoPreJuridico(row: CobrancaReguaRow) {
-  const value = Number(row.condominios?.dias_expiracao_regua_pre_juridico ?? 0);
-  if (!Number.isFinite(value) || value <= 0) return null;
+  if (!row.condominios?.pre_juridico_habilitado) return null;
+  const value = Number(row.condominios?.dias_cobranca_ativa ?? 60);
+  if (!Number.isFinite(value) || value < 0) return null;
   return Math.trunc(value);
 }
 
@@ -612,7 +614,7 @@ export async function processarReguaCobranca(
         ultima_interacao_at,
         ultima_interacao_em,
         proxima_acao_em,
-        condominios(id, nome, inicio_cobranca_dias, dias_apos_vencimento_regua, dias_expiracao_regua_pre_juridico, intensidade_regua, regua_cobranca_id),
+        condominios(id, nome, inicio_cobranca_dias, dias_apos_vencimento_regua, dias_cobranca_ativa, pre_juridico_habilitado, intensidade_regua, regua_cobranca_id),
         unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
       `,
       )

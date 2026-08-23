@@ -23,7 +23,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
       id, carteira_id, condominio_id, unidade_id, competencia, vencimento,
       valor_original, valor_atualizado, status, status_operacional, status_financeiro,
       carteira:carteiras(nome,pre_juridico_habilitado),
-      condominio:condominios(nome,nome_operacional,administradora,inicio_cobranca_dias,dias_expiracao_regua_pre_juridico),
+      condominio:condominios(nome,nome_operacional,administradora,inicio_cobranca_dias,dias_cobranca_ativa,pre_juridico_habilitado),
       unidade:unidades(identificacao,bloco,responsavel_nome)
     `)
     .order('vencimento', { ascending: true })
@@ -59,14 +59,13 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
     const operational = String(row.status_operacional ?? row.status ?? '').trim().toLowerCase()
     const financial = String(row.status_financeiro ?? '').trim().toLowerCase()
     const due = dateOnly(row.vencimento)
-    const prazoExtra = condominio?.dias_expiracao_regua_pre_juridico
-    const prazoConfigurado = prazoExtra !== null && prazoExtra !== undefined
-    const prazoTotal = Number(condominio?.inicio_cobranca_dias ?? 0) + Number(prazoExtra ?? 0)
+    const prazoAtivo = Number(condominio?.dias_cobranca_ativa ?? 60)
+    const prazoTotal = Number(condominio?.inicio_cobranca_dias ?? 0) + prazoAtivo
     const diasAtraso = due ? daysBetween(due, today) : 0
     const encaminhado = operational === 'pre_juridico'
     const elegivel = Boolean(
       carteira?.pre_juridico_habilitado &&
-      prazoConfigurado &&
+      condominio?.pre_juridico_habilitado &&
       due &&
       diasAtraso >= prazoTotal &&
       STATUS_ELEGIVEIS.has(operational) &&

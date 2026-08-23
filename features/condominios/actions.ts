@@ -113,7 +113,8 @@ export async function createCondominio(formData: FormData) {
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
   const valorCota = toNumber(formData.get('valor_cota_condominial'))
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
-  const diasExpiracaoReguaPreJuridico = toOptionalInteger(formData.get('dias_expiracao_regua_pre_juridico'))
+  const diasCobrancaAtiva = toInteger(formData.get('dias_cobranca_ativa'), 60)
+  const preJuridicoHabilitado = checkboxOn(formData.get('pre_juridico_habilitado'))
   const parcelasAcordoSemAprovacaoSindico = toInteger(formData.get('parcelas_acordo_sem_aprovacao_sindico'), 0)
   const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
   const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
@@ -130,6 +131,7 @@ export async function createCondominio(formData: FormData) {
 
   if (!carteiraId) throw new Error('Carteira obrigatória.')
   if (nome.length < 2) throw new Error('Nome do condomínio obrigatório.')
+  if (diasCobrancaAtiva < 0 || diasCobrancaAtiva > 3650) throw new Error('Prazo de cobrança ativa deve ficar entre 0 e 3650 dias.')
 
   if (captacaoAutomaticaHabilitada && (!captacaoDiaMes || captacaoDiaMes < 1 || captacaoDiaMes > 28)) throw new Error('Informe um dia mensal entre 1 e 28 para a captação automática.')
   if (bloqueioGarantidoraHabilitado && (!bloqueioGarantidoraInicio || !bloqueioGarantidoraFim)) throw new Error('Informe o mês inicial e o mês final do Bloqueio Garantidora.')
@@ -154,7 +156,9 @@ export async function createCondominio(formData: FormData) {
     vencimento_cota_dia: vencimentoCotaDia,
     valor_cota_condominial: valorCota,
     inicio_cobranca_dias: inicioCobrancaDias,
-    dias_expiracao_regua_pre_juridico: diasExpiracaoReguaPreJuridico,
+    dias_cobranca_ativa: diasCobrancaAtiva,
+    pre_juridico_habilitado: preJuridicoHabilitado,
+    dias_expiracao_regua_pre_juridico: preJuridicoHabilitado ? diasCobrancaAtiva : null,
     parcelas_acordo_sem_aprovacao_sindico: parcelasAcordoSemAprovacaoSindico,
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
     classificacao_operacional: classificacaoOperacional,
@@ -212,7 +216,8 @@ export async function updateCondominioIntegral(formData: FormData) {
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
   const valorCota = toNumber(formData.get('valor_cota_condominial'))
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
-  const diasExpiracaoReguaPreJuridico = toOptionalInteger(formData.get('dias_expiracao_regua_pre_juridico'))
+  const diasCobrancaAtiva = toInteger(formData.get('dias_cobranca_ativa'), 60)
+  const preJuridicoHabilitado = checkboxOn(formData.get('pre_juridico_habilitado'))
   const parcelasAcordoSemAprovacaoSindico = toInteger(formData.get('parcelas_acordo_sem_aprovacao_sindico'), 0)
   const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
   const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
@@ -233,6 +238,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   if (nome.length < 2) throw new Error('Nome do condomínio obrigatório.')
   if (!Number.isFinite(vencimentoCotaDia) || vencimentoCotaDia < 1 || vencimentoCotaDia > 31) throw new Error('Dia de vencimento deve ficar entre 1 e 31.')
   if (!Number.isFinite(inicioCobrancaDias) || inicioCobrancaDias < 0 || inicioCobrancaDias > 365) throw new Error('Início da cobrança deve ficar entre 0 e 365 dias.')
+  if (diasCobrancaAtiva < 0 || diasCobrancaAtiva > 3650) throw new Error('Prazo de cobrança ativa deve ficar entre 0 e 3650 dias.')
   if (captacaoAutomaticaHabilitada && (!captacaoDiaMes || captacaoDiaMes < 1 || captacaoDiaMes > 28)) throw new Error('Informe um dia mensal entre 1 e 28 para a captação automática.')
   if (bloqueioGarantidoraHabilitado && (!bloqueioGarantidoraInicio || !bloqueioGarantidoraFim)) throw new Error('Informe o mês inicial e o mês final do Bloqueio Garantidora.')
   if (bloqueioGarantidoraInicio && bloqueioGarantidoraFim && bloqueioGarantidoraInicio > bloqueioGarantidoraFim) throw new Error('O mês inicial do Bloqueio Garantidora deve ser anterior ou igual ao mês final.')
@@ -241,7 +247,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, status, observacoes')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -266,7 +272,9 @@ export async function updateCondominioIntegral(formData: FormData) {
     vencimento_cota_dia: vencimentoCotaDia,
     valor_cota_condominial: valorCota,
     inicio_cobranca_dias: inicioCobrancaDias,
-    dias_expiracao_regua_pre_juridico: diasExpiracaoReguaPreJuridico,
+    dias_cobranca_ativa: diasCobrancaAtiva,
+    pre_juridico_habilitado: preJuridicoHabilitado,
+    dias_expiracao_regua_pre_juridico: preJuridicoHabilitado ? diasCobrancaAtiva : null,
     parcelas_acordo_sem_aprovacao_sindico: parcelasAcordoSemAprovacaoSindico,
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
     classificacao_operacional: classificacaoOperacional,

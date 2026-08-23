@@ -29,7 +29,7 @@ export default async function ReguaPreJuridicoPage({ searchParams }: { searchPar
   const carteiraId = String(params.carteira_id ?? '').trim()
   const vencimentoDia = Number(params.vencimento_dia)
   const filtraVencimento = Number.isInteger(vencimentoDia) && vencimentoDia >= 1 && vencimentoDia <= 31
-  const configured = (row: any) => row.dias_expiracao_regua_pre_juridico !== null && row.dias_expiracao_regua_pre_juridico !== undefined
+  const configured = (row: any) => Boolean(row.pre_juridico_habilitado)
   const filteredBase = baseRows.filter((row: any) => {
     if (carteiraId && row.carteira_id !== carteiraId) return false
     if (filtraVencimento && Number(row.vencimento_cota_dia) !== vencimentoDia) return false
@@ -42,7 +42,7 @@ export default async function ReguaPreJuridicoPage({ searchParams }: { searchPar
   })
   const ativos = filteredBase.filter(configured)
   const pendentes = filteredBase.filter((row: any) => !configured(row))
-  const media = ativos.length ? Math.round(ativos.reduce((sum: number, row: any) => sum + Number(row.inicio_cobranca_dias ?? 0) + Number(row.dias_expiracao_regua_pre_juridico ?? 0), 0) / ativos.length) : 0
+  const media = ativos.length ? Math.round(ativos.reduce((sum: number, row: any) => sum + Number(row.inicio_cobranca_dias ?? 0) + Number(row.dias_cobranca_ativa ?? 60), 0) / ativos.length) : 0
   const vencimentosDisponiveis = Array.from(new Set(baseRows.map((row: any) => Number(row.vencimento_cota_dia)).filter((dia) => Number.isInteger(dia) && dia >= 1 && dia <= 31))).sort((a, b) => a - b)
 
   return (
@@ -69,7 +69,7 @@ export default async function ReguaPreJuridicoPage({ searchParams }: { searchPar
       <ListPanel>
         <ListPanelHeader className="bg-white/80"><ListTitleBar className="xl:items-center"><ListTitle title="Configuração por condomínio" description="Defina o prazo de entrada e uma régua exclusiva quando necessário." /><ClearFiltersLink href="/app/pre-juridico/regua" show={Boolean(params.q || params.carteira_id || params.vencimento_dia || params.configuracao)} /></ListTitleBar><ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12"><ListSearchField defaultValue={params.q} placeholder="Condomínio ou administradora..." className="xl:col-span-4" /><ListFilterField label="Carteira" className="xl:col-span-3"><Select name="carteira_id" defaultValue={params.carteira_id ?? ''}><option value="">Todas as carteiras</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></ListFilterField><ListFilterField label="Vencimento da cota" className="xl:col-span-2"><Select name="vencimento_dia" defaultValue={params.vencimento_dia ?? ''}><option value="">Todos os dias</option>{vencimentosDisponiveis.map((dia) => <option key={dia} value={dia}>Dia {dia}</option>)}</Select></ListFilterField><ListFilterField label="Situação" className="xl:col-span-2"><Select name="configuracao" defaultValue={params.configuracao ?? ''}><option value="">Todas</option><option value="ativa">Configurada</option><option value="pendente">Não configurada</option></Select></ListFilterField><Button type="submit" className="w-full xl:col-span-1">Filtrar</Button></ListFiltersForm></ListPanelHeader>
         {rows.length ? <div className="divide-y divide-slate-100">{rows.map((row: any) => {
-          const extra = row.dias_expiracao_regua_pre_juridico
+          const extra = row.dias_cobranca_ativa ?? 60
           const total = Number(row.inicio_cobranca_dias ?? 0) + Number(extra ?? 0)
           const disponiveis = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === row.carteira_id)
           return <details key={row.id} className="group/condominio bg-white"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden"><div className="flex min-w-0 items-center gap-3"><ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" /><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-950">{row.nome_operacional || row.nome}</p><p className="mt-0.5 truncate text-xs text-slate-500">{row.administradora || 'Sem administradora'} · {row.carteiras?.nome || 'Sem carteira'}</p></div></div><StatusBadge status={configured(row) ? `D+${total}` : 'desativado'} /></summary><div className="grid gap-4 border-t border-slate-100 px-4 py-3 xl:grid-cols-[120px_140px_130px_minmax(250px,1fr)_auto] xl:items-center">

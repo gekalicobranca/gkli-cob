@@ -62,8 +62,8 @@ export default async function NovoCondominioPage() {
               <Input name="inicio_cobranca_dias" type="number" min="0" defaultValue="30" />
             </FormField>
 
-            <FormField label="Expirar para pré-jurídico após a régua" hint="Em branco desativa. Ex.: régua 30 + expiração 60 = pré-jurídico em D+90.">
-              <Input name="dias_expiracao_regua_pre_juridico" type="number" min="0" placeholder="Sem expiração automática" />
+            <FormField label="Dias de cobrança ativa" hint="Período em que a cobrança permanece disponível para acordos.">
+              <Input name="dias_cobranca_ativa" type="number" min="0" max="3650" defaultValue="60" />
             </FormField>
 
             <FormField label="Parcelas permitidas sem aprovação do síndico" hint="0 deixa sempre livre; acima deste número o acordo fica bloqueado até aprovação pública do síndico.">
@@ -73,6 +73,10 @@ export default async function NovoCondominioPage() {
             <FormField label="Dias para reemissão de parcela de acordo em atraso" hint="0 não permite reemissão pelo acompanhamento de parcelas.">
               <Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" defaultValue="0" />
             </FormField>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <label className="flex items-start gap-3 text-sm text-slate-700"><input type="checkbox" name="pre_juridico_habilitado" className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" /><span><span className="block font-medium text-slate-950">Enviar automaticamente ao Pré-Jurídico</span><span className="mt-1 block text-xs leading-5 text-slate-500">Após o prazo de cobrança ativa, envia cobranças sem acordo. Desmarcado, nenhuma mudança automática acontece.</span></span></label>
           </div>
 
           <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">

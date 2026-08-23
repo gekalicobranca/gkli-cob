@@ -133,9 +133,13 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <FormField label="Dia de vencimento da cota"><Input name="vencimento_cota_dia" type="number" min="1" max="31" defaultValue={condominio.vencimento_cota_dia ?? 10} /></FormField>
             <FormField label="Valor médio da cota"><Input name="valor_cota_condominial" defaultValue={String(condominio.valor_cota_condominial ?? 0).replace('.', ',')} /></FormField>
             <FormField label="Início da cobrança após X dias"><Input name="inicio_cobranca_dias" type="number" min="0" max="365" defaultValue={condominio.inicio_cobranca_dias ?? 30} /></FormField>
-            <FormField label="Expirar para pré-jurídico após a régua" hint="Em branco desativa. Ex.: régua 30 + expiração 60 = pré-jurídico em D+90."><Input name="dias_expiracao_regua_pre_juridico" type="number" min="0" max="3650" defaultValue={condominio.dias_expiracao_regua_pre_juridico ?? ''} placeholder="Sem expiração automática" /></FormField>
+            <FormField label="Dias de cobrança ativa" hint="Período em que a cobrança permanece disponível para acordos."><Input name="dias_cobranca_ativa" type="number" min="0" max="3650" defaultValue={condominio.dias_cobranca_ativa ?? 60} /></FormField>
             <FormField label="Parcelas permitidas sem aprovação do síndico"><Input name="parcelas_acordo_sem_aprovacao_sindico" type="number" min="0" max="120" defaultValue={condominio.parcelas_acordo_sem_aprovacao_sindico ?? 0} /></FormField>
             <FormField label="Dias para reemissão de parcela de acordo em atraso"><Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" max="365" defaultValue={condominio.dias_reemissao_parcela_acordo_atrasada ?? 0} /></FormField>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <label className="flex items-start gap-3 text-sm text-slate-700"><input type="checkbox" name="pre_juridico_habilitado" defaultChecked={Boolean(condominio.pre_juridico_habilitado)} className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" /><span><span className="block font-medium text-slate-950">Enviar automaticamente ao Pré-Jurídico</span><span className="mt-1 block text-xs leading-5 text-slate-500">Após o prazo, envia apenas cobranças sem acordo. Desmarcado, a cobrança permanece como está.</span></span></label>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
