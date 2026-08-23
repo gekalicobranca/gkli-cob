@@ -20,7 +20,7 @@ export default async function LaudosGeradosPage({ searchParams }: { searchParams
   }
 
   return <div className="space-y-3">
-    <PageHeader eyebrow="Pré-Jurídico · Processamento" title="Laudos gerados" description="Abra e confira o laudo de cada unidade antes de seguir para a autorização do síndico." actions={<ButtonLink href="/app/pre-juridico/processamento" variant="secondary"><ArrowLeft size={16} />Voltar ao processamento</ButtonLink>} />
+    <PageHeader eyebrow="Pré-Jurídico · Processamento" title="Laudos gerados" description="Abra e confira os laudos. Os casos agora aguardam a certidão para confirmar a propriedade." actions={<ButtonLink href="/app/pre-juridico/processamento" variant="secondary"><ArrowLeft size={16} />Voltar ao processamento</ButtonLink>} />
     <ListPanel>
       <ListPanelHeader><ListTitle title="Laudos por unidade" description={`${groups.size} laudo(s) preparado(s) a partir de ${rows.length} cobrança(s).`} /></ListPanelHeader>
       {groups.size ? <ListRows>{Array.from(groups.entries()).map(([unidadeId, cobrancas]) => {

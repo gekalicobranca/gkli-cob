@@ -68,6 +68,64 @@ export async function atualizarEtapaPreJuridico(formData: FormData) {
   revalidatePath('/app/pre-juridico/monitor')
 }
 
+export async function atualizarCertidaoPreJuridico(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+  const supabase = await createClient()
+  const casoId = String(formData.get('caso_id') ?? '').trim()
+  const status = String(formData.get('certidao_status') ?? '').trim()
+  const observacoes = String(formData.get('observacoes') ?? '').trim() || null
+  if (!casoId) throw new Error('Caso pré-jurídico obrigatório.')
+  if (!['pendente', 'solicitada', 'recebida'].includes(status)) throw new Error('Andamento da certidão inválido.')
+
+  const { data: caso, error: casoError } = await supabase
+    .from('pre_juridico_casos')
+    .select('id,carteira_id,cobranca_id,condominio_id,unidade_id,etapa,certidao_status,certidao_solicitada_em,certidao_recebida_em')
+    .eq('id', casoId)
+    .maybeSingle()
+  if (casoError) throw new Error(`Erro ao carregar a confirmação de propriedade: ${casoError.message}`)
+  if (!caso) throw new Error('Caso pré-jurídico não encontrado.')
+  assertCarteiraPermitida(scope, caso.carteira_id)
+  if (caso.etapa !== 'aguardando_documentos') throw new Error('Este caso não está na etapa de confirmação de propriedade.')
+
+  const agora = new Date().toISOString()
+  const payload: Record<string, unknown> = {
+    certidao_status: status,
+    observacoes,
+    responsavel_id: user.id,
+  }
+  if (status === 'solicitada' && !caso.certidao_solicitada_em) payload.certidao_solicitada_em = agora
+  if (status === 'recebida') {
+    payload.certidao_solicitada_em = caso.certidao_solicitada_em ?? agora
+    payload.certidao_recebida_em = caso.certidao_recebida_em ?? agora
+    payload.etapa = 'aguardando_sindico'
+  }
+
+  const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', casoId)
+  if (error) throw new Error(`Erro ao atualizar o andamento da certidão: ${error.message}`)
+
+  if (caso.cobranca_id) {
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: caso.carteira_id,
+      entidadeTipo: 'cobranca',
+      entidadeId: caso.cobranca_id,
+      eventoCodigo: status === 'recebida' ? 'cobranca.pre_juridico.certidao_recebida' : 'cobranca.pre_juridico.certidao_atualizada',
+      titulo: status === 'recebida' ? 'Certidão recebida' : `Certidão ${status}`,
+      descricao: status === 'recebida' ? 'Propriedade confirmada; caso encaminhado para Procuração.' : `Andamento da confirmação de propriedade atualizado para ${status}.`,
+      severidade: 'info',
+      payload: { caso_id: caso.id, certidao_status: status, condominio_id: caso.condominio_id, unidade_id: caso.unidade_id },
+      origem: 'manual',
+      auditavel: true,
+      required: true,
+      userId: user.id,
+    })
+  }
+
+  revalidatePath('/app/pre-juridico/processamento')
+  revalidatePath('/app/pre-juridico/monitor')
+}
+
 export async function encaminharCobrancasPreJuridico(formData: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()

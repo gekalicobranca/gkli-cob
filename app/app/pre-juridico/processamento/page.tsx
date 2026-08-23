@@ -47,7 +47,7 @@ export default async function ProcessamentoPreJuridicoPage({ searchParams }: { s
   const hasFilters = Boolean(params.q || params.carteira_id || params.condominio_id || params.etapa)
   const kpis: Array<{ label: string; value: number; icon: LucideIcon; tone: string }> = [
     { label: 'Aguardando início', value: aguardandoInicio.length, icon: Hourglass, tone: 'bg-amber-50 text-amber-700' },
-    { label: 'Documentos', value: emPreparacao.filter((row: any) => row.etapa === 'aguardando_documentos').length, icon: FileText, tone: 'bg-slate-100 text-slate-700' },
+    { label: 'Confirmar propriedade', value: emPreparacao.filter((row: any) => row.etapa === 'aguardando_documentos').length, icon: FileText, tone: 'bg-slate-100 text-slate-700' },
     { label: 'Em validação', value: emPreparacao.filter((row: any) => ['aguardando_administradora', 'aguardando_sindico'].includes(row.etapa)).length, icon: ClipboardCheck, tone: 'bg-orange-50 text-orange-700' },
     { label: 'Prontas para envio', value: emPreparacao.filter((row: any) => row.etapa === 'pronto_juridico').length, icon: Scale, tone: 'bg-emerald-50 text-emerald-700' },
   ]
@@ -64,7 +64,7 @@ export default async function ProcessamentoPreJuridicoPage({ searchParams }: { s
           <ListSearchField defaultValue={params.q} placeholder="Unidade ou responsável..." className="xl:col-span-4" />
           <ListFilterField label="Carteira" className="xl:col-span-2"><Select name="carteira_id" defaultValue={params.carteira_id ?? ''}><option value="">Todas</option>{carteiras.map(([id, nome]) => <option key={String(id)} value={String(id)}>{String(nome || 'Sem nome')}</option>)}</Select></ListFilterField>
           <ListFilterField label="Condomínio" className="xl:col-span-3"><Select name="condominio_id" defaultValue={params.condominio_id ?? ''}><option value="">Todos</option>{condominios.map(([id, nome]) => <option key={String(id)} value={String(id)}>{String(nome || 'Sem nome')}</option>)}</Select></ListFilterField>
-          <ListFilterField label="Etapa" className="xl:col-span-2"><Select name="etapa" defaultValue={params.etapa ?? ''}><option value="">Todas</option><option value="aguardando_inicio">Aguardando início</option><option value="aguardando_documentos">Documentos</option><option value="aguardando_sindico">Síndico</option><option value="aguardando_administradora">Administradora</option><option value="pronto_juridico">Pronto para o jurídico</option></Select></ListFilterField>
+          <ListFilterField label="Etapa" className="xl:col-span-2"><Select name="etapa" defaultValue={params.etapa ?? ''}><option value="">Todas</option><option value="aguardando_inicio">Aguardando início</option><option value="aguardando_documentos">Confirmar propriedade</option><option value="aguardando_sindico">Procuração</option><option value="aguardando_administradora">Administradora</option><option value="pronto_juridico">Pronto para o jurídico</option></Select></ListFilterField>
           <Button type="submit" className="w-full xl:col-span-1">Filtrar</Button>
         </ListFiltersForm>
       </ListPanelHeader>

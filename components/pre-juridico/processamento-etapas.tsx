@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
-import { atualizarEtapaPreJuridico } from '@/features/pre-juridico/actions'
+import { atualizarCertidaoPreJuridico, atualizarEtapaPreJuridico } from '@/features/pre-juridico/actions'
 import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -49,7 +49,13 @@ function CasoProcessamento({ caso }: { caso: any }) {
       <div><p className="text-xs text-slate-400">Atualização</p><p className="mt-1 text-sm">{formatDateBR(caso.updated_at)}</p></div>
       <ChevronRight size={17} className="text-slate-400 transition group-open/caso:rotate-90" />
     </ListRow></summary>
-    <form action={atualizarEtapaPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={(event) => { if (!window.confirm('Confirmar a atualização deste caso?')) event.preventDefault() }}>
+    {caso.etapa === 'aguardando_documentos' ? <form action={atualizarCertidaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar o andamento da certidão?')) event.preventDefault() }}>
+      <input type="hidden" name="caso_id" value={caso.id} />
+      <Field label="Andamento da certidão"><select name="certidao_status" defaultValue={caso.certidao_status ?? 'pendente'} className={controlClass}><option value="pendente">Pendente</option><option value="solicitada">Solicitada</option><option value="recebida">Recebida</option></select></Field>
+      <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
+      <PendingSubmitButton pendingLabel="Atualizando...">Salvar andamento</PendingSubmitButton>
+      <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Recebida, o caso avançará automaticamente para Procuração.</p>
+    </form> : <form action={atualizarEtapaPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={(event) => { if (!window.confirm('Confirmar a atualização deste caso?')) event.preventDefault() }}>
       <input type="hidden" name="caso_id" value={caso.id} />
       <Field label="Nova etapa"><select name="etapa" defaultValue={caso.etapa} className={controlClass}>{PRE_JURIDICO_ETAPAS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></Field>
       <Field label="Escritório jurídico"><input name="escritorio_juridico" defaultValue={caso.escritorio_juridico ?? ''} className={controlClass} /></Field>
@@ -60,7 +66,7 @@ function CasoProcessamento({ caso }: { caso: any }) {
       <Field label="Foro"><input name="foro" defaultValue={caso.foro ?? ''} className={controlClass} /></Field>
       <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
       <div className="md:col-span-2 xl:col-span-4 flex justify-end"><PendingSubmitButton pendingLabel="Atualizando...">Salvar etapa</PendingSubmitButton></div>
-    </form>
+    </form>}
   </details>
 }
 
@@ -71,8 +77,8 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function descricaoEtapa(etapa: PreJuridicoEtapa) {
-  if (etapa === 'aguardando_documentos') return 'Laudos gerados; confira os documentos antes do envio ao síndico.'
-  if (etapa === 'aguardando_sindico') return 'Envio e confirmação da procuração assinada pelo síndico.'
+  if (etapa === 'aguardando_documentos') return 'Solicite a certidão e confirme a propriedade antes de avançar.'
+  if (etapa === 'aguardando_sindico') return 'Geração, envio e confirmação da procuração assinada pelo síndico.'
   if (etapa === 'aguardando_administradora') return 'Validação da administradora após a assinatura do síndico.'
   if (etapa === 'pronto_juridico') return 'Pacote revisado e pronto para envio ao jurídico.'
   return etapaPreJuridicoLabel(etapa)
