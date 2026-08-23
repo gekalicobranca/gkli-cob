@@ -43,4 +43,3 @@ Atualizado em 22/08/2026.
 - [x] Navegação direta entre Painel Pré, Régua e Monitor.
 - [x] Escopo de acesso por carteira nas consultas e alterações.
 - [x] Perfis autorizados para movimentar casos e configurar réguas.
-
