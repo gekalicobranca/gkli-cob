@@ -1,11 +1,11 @@
-import { AlertTriangle, CheckCircle2, Scale, WalletCards } from 'lucide-react'
+import { WalletCards } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
-import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListPanel, ListPanelHeader, ListSearchField, ListTitle, ListTitleBar } from '@/components/layout/list-page'
+import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListKpiGrid, ListPanel, ListPanelHeader, ListSearchField, ListTitle, ListTitleBar } from '@/components/layout/list-page'
 import { PreJuridicoCobrancasWorkbench } from '@/components/pre-juridico/cobrancas-workbench'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
 import { listPreJuridicoCobrancas } from '@/features/pre-juridico/queries'
@@ -58,12 +58,26 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
   return (
     <div className="space-y-5">
       <PageHeader eyebrow="Pré-Jurídico" title="Painel de cobranças" description="Revise cobranças que atingiram a regra de vencimento e encaminhe cada uma individualmente ao pré-jurídico." />
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="p-4"><CheckCircle2 className="text-emerald-600" size={19} /><p className="mt-3 text-2xl font-semibold">{elegiveis.length}</p><p className="text-sm text-slate-500">cobranças elegíveis</p></Card>
-        <Card className="p-4"><Scale className="text-violet-600" size={19} /><p className="mt-3 text-2xl font-semibold">{encaminhadas.length}</p><p className="text-sm text-slate-500">já encaminhadas</p></Card>
-        <Card className="p-4"><WalletCards className="text-[#04799a]" size={19} /><p className="mt-3 text-2xl font-semibold">{unidades}</p><p className="text-sm text-slate-500">unidades no recorte</p></Card>
-        <Card className="p-4"><AlertTriangle className="text-rose-600" size={19} /><p className="mt-3 text-2xl font-semibold">{formatCurrency(valorElegivel)}</p><p className="text-sm text-slate-500">valor elegível</p></Card>
-      </section>
+      <ListKpiGrid>
+        <Card className="relative overflow-hidden p-3">
+          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><WalletCards size={18} /></div>
+          <p className="text-xs font-medium uppercase text-slate-400">Valor elegível</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{formatCurrency(valorElegivel)}</p>
+        </Card>
+        {[
+          ['Elegíveis', elegiveis.length, 'aguardando', 'bg-emerald-50 text-emerald-700'],
+          ['Encaminhadas', encaminhadas.length, 'pré-jurídico', 'bg-violet-50 text-violet-700'],
+          ['Unidades', unidades, 'no recorte', 'bg-blue-50 text-blue-700'],
+        ].map(([title, value, tag, tagClass]) => (
+          <Card key={title} className="p-3">
+            <p className="text-xs font-medium uppercase text-slate-400">{title}</p>
+            <div className="mt-1.5 flex items-end justify-between gap-3">
+              <p className="text-2xl font-semibold text-slate-950">{value}</p>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span>
+            </div>
+          </Card>
+        ))}
+      </ListKpiGrid>
       <ListPanel><ListPanelHeader className="bg-white/80">
         <ListTitleBar className="xl:items-center"><ListTitle title="Filtros" description="Localize cobranças por carteira, vencimento, condomínio, unidade ou responsável." /><ClearFiltersLink href="/app/pre-juridico" show={Boolean(params.q || params.carteira_id || params.condominio_id || params.vencimento_de || params.vencimento_ate || params.etapa)} /></ListTitleBar>
         <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
