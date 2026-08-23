@@ -360,6 +360,7 @@ export async function listCobrancasPage(
           unidade_id,
           created_at,
           ultima_interacao_at,
+          carteiras(nome),
           condominios(nome),
           unidades(identificacao, bloco, responsavel_nome)
         `)
@@ -371,7 +372,7 @@ export async function listCobrancasPage(
       const { data, error } = await relatedQuery
       if (error) throw new Error(`Erro ao carregar cobranças para ordenação: ${error.message}`)
 
-      const batch = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+      const batch = normalizeRelationsList((data ?? []) as any[], ['carteiras', 'condominios', 'unidades']) as any[]
       allRows.push(...batch)
       if (batch.length < batchSize) break
     }
@@ -415,6 +416,7 @@ export async function listCobrancasPage(
         unidade_id,
         created_at,
         ultima_interacao_at,
+        carteiras(nome),
         condominios(nome),
         unidades(identificacao, bloco, responsavel_nome)
       `, withCount ? { count: 'planned' } : undefined)
@@ -438,7 +440,7 @@ export async function listCobrancasPage(
     throw new Error(`Erro ao carregar cobranças: ${error.message}`)
   }
 
-  const rowsBase = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+  const rowsBase = normalizeRelationsList((data ?? []) as any[], ['carteiras', 'condominios', 'unidades']) as any[]
   const unidadesJudicializadas = await getUnidadeIdsComJudicializacaoAtiva(
     supabase,
     rowsBase.map((row: any) => row.unidade_id),

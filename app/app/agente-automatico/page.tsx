@@ -8,14 +8,12 @@ import {
 import {
   criarAgenteAdministradora,
   criarAgenteReceita,
-  executarAgenteAdministradoraAgora,
   executarAgenteReceita,
   limparAgenteExecucoes,
   marcarExecucaoComoSucessoManual,
   validarArquivoAgente,
 } from '@/features/agente-automatico/actions'
 import { LimparExecucoesButton } from './limpar-execucoes-button'
-import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -168,18 +166,18 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
       const result = a.nome.localeCompare(b.nome, 'pt-BR')
       return receitaOrdem === 'nome_desc' ? -result : result
     })
-  const receitasPorAdministradora = Array.from(
+  const carteirasPorId = new Map(carteiras.map((carteira) => [carteira.id, carteira.nome]))
+  const receitasPorCarteira = Array.from(
     receitasFiltradas.reduce((grupos, receita) => {
-      const nome = receita.administradora?.nome ?? 'Administradora não informada'
+      const nome = carteirasPorId.get(receita.carteira_id) ?? 'Carteira não informada'
       const grupo = grupos.get(nome) ?? []
       grupo.push(receita)
       grupos.set(nome, grupo)
       return grupos
     }, new Map<string, typeof receitasFiltradas>()),
   ).sort(([nomeA], [nomeB]) => nomeA.localeCompare(nomeB, 'pt-BR'))
-  const receitasPorAdministradoraComAcao = receitasPorAdministradora.map(([administradoraNome, receitasDoGrupo]) => ({
-    administradoraNome,
-    administradoraId: receitasDoGrupo[0]?.administradora_id ?? '',
+  const receitasPorCarteiraComAcao = receitasPorCarteira.map(([carteiraNome, receitasDoGrupo]) => ({
+    carteiraNome,
     receitasDoGrupo,
   }))
 
@@ -308,36 +306,24 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
         </details>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-6 py-5">
-          <h2 className="text-lg font-semibold text-slate-950">Receitas disponíveis</h2>
-          <p className="mt-1 text-sm text-slate-500">Escolha um roteiro para iniciar uma coleta manual.</p>
-        </div>
-        <form method="get" className="grid gap-3 border-b border-slate-100 px-6 py-4 sm:grid-cols-[minmax(0,1fr)_220px_auto]">
+      <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <SectionSummary title="Receitas disponíveis" description="Roteiros agrupados por carteira para iniciar uma coleta manual." count={receitas.length} />
+        <form method="get" className="grid gap-3 border-t border-b border-slate-100 px-6 py-4 sm:grid-cols-[minmax(0,1fr)_220px_auto]">
           <label className="relative"><span className="sr-only">Buscar receita</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="receita_q" defaultValue={receitaBusca} placeholder="Buscar receita ou administradora" className="pl-9" /></label>
           <Select name="receita_ordem" defaultValue={receitaOrdem} aria-label="Ordenar receitas"><option value="nome_asc">Nome: A–Z</option><option value="nome_desc">Nome: Z–A</option><option value="administradora">Administradora</option></Select>
           <div className="flex gap-2"><Button type="submit" variant="secondary">Filtrar</Button>{receitaBusca || receitaOrdem !== 'nome_asc' ? <ButtonLink href="/app/agente-automatico" variant="ghost">Limpar</ButtonLink> : null}</div>
         </form>
         {receitasFiltradas.length ? (
           <div className="space-y-3 bg-slate-50/60 p-4 sm:p-6">
-            {receitasPorAdministradoraComAcao.map(({ administradoraNome, administradoraId, receitasDoGrupo }) => (
-              <details key={administradoraId || administradoraNome} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            {receitasPorCarteiraComAcao.map(({ carteiraNome, receitasDoGrupo }) => (
+              <details key={carteiraNome} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
-                    <h3 className="truncate font-semibold text-slate-900">{administradoraNome}</h3>
+                    <h3 className="truncate font-semibold text-slate-900">{carteiraNome}</h3>
                     <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{receitasDoGrupo.length}</span>
                   </div>
                   <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
                 </summary>
-                <div className="flex flex-col justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-3 sm:flex-row sm:items-center">
-                  <p className="text-sm text-slate-600">Enfileira as receitas ativas desta administradora que ainda não estão pendentes ou em execução.</p>
-                  <form action={executarAgenteAdministradoraAgora} className="shrink-0">
-                    <input type="hidden" name="administradora_id" value={administradoraId} />
-                    <PendingSubmitButton type="submit" variant="secondary" pendingLabel="Enfileirando..." icon={<Play size={15} />} disabled={!administradoraId}>
-                      Executar agora
-                    </PendingSubmitButton>
-                  </form>
-                </div>
                 <div className="divide-y divide-slate-100 border-t border-slate-100">
                   {receitasDoGrupo.map((receita) => (
                     <article key={receita.id} className="flex flex-col justify-between gap-4 px-5 py-4 lg:flex-row lg:items-center">
@@ -346,6 +332,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
                           <h4 className="font-medium text-slate-900">{receita.nome}</h4>
                           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{receita.tipo_arquivo_esperado.toUpperCase()}</span>
                         </div>
+                        <p className="mt-1 text-xs font-medium text-slate-500">{receita.administradora?.nome ?? 'Administradora não informada'}</p>
                         {receita.descricao ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{receita.descricao}</p> : null}
                       </div>
                       <form action={executarAgenteReceita} className="shrink-0">
@@ -358,21 +345,16 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
               </details>
             ))}
           </div>
-        ) : <div className="p-8 text-center text-sm text-slate-500">Nenhuma receita encontrada.</div>}
-      </section>
+        ) : <div className="border-t border-slate-100 p-8 text-center text-sm text-slate-500">Nenhuma receita encontrada.</div>}
+      </details>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col justify-between gap-3 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-950">Execuções recentes</h2>
-            <p className="mt-1 text-sm text-slate-500">Últimas coletas, arquivos gerados e validações.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <ButtonLink href="/app/configuracoes/lab/captacao-automatizada/historico" variant="secondary">Ver histórico completo</ButtonLink>
-            <form action={limparAgenteExecucoes}><LimparExecucoesButton total={execucoes.length} /></form>
-          </div>
+      <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <SectionSummary title="Execuções recentes" description="Últimas coletas, arquivos gerados e validações." count={execucoes.length} />
+        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-6 py-4">
+          <ButtonLink href="/app/configuracoes/lab/captacao-automatizada/historico" variant="secondary">Ver histórico completo</ButtonLink>
+          <form action={limparAgenteExecucoes}><LimparExecucoesButton total={execucoes.length} /></form>
         </div>
-        <form method="get" className="grid gap-3 border-b border-slate-100 px-6 py-4 md:grid-cols-[minmax(0,1fr)_180px_190px_auto]">
+        <form method="get" className="grid gap-3 border-t border-b border-slate-100 px-6 py-4 md:grid-cols-[minmax(0,1fr)_180px_190px_auto]">
           <label className="relative"><span className="sr-only">Buscar execução</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><Input name="execucao_q" defaultValue={execucaoBusca} placeholder="Buscar receita ou administradora" className="pl-9" /></label>
           <Select name="execucao_status" defaultValue={execucaoStatus} aria-label="Filtrar por status"><option value="">Todos os status</option><option value="pendente">Pendente</option><option value="em_execucao">Em execução</option><option value="sucesso">Sucesso</option><option value="falha">Falha</option><option value="precisa_intervencao">Requer atenção</option></Select>
           <Select name="execucao_ordem" defaultValue={execucaoOrdem} aria-label="Ordenar execuções"><option value="recentes">Mais recentes</option><option value="antigas">Mais antigas</option><option value="receita">Nome da receita</option></Select>
@@ -402,7 +384,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
             </tbody>
           </table>
         </div>
-      </section>
+      </details>
     </main>
   )
 }

@@ -221,11 +221,31 @@ function getPriority(status: string, vencimento?: string | null) {
 }
 
 function groupCobrancas(rows: any[]) {
-  const groups: Array<{ condominioId: string; condominio: string; cobrancas: any[]; valor: number }> = [];
+  const carteiraGroups: Array<{
+    carteiraId: string;
+    carteira: string;
+    condominios: Array<{ condominioId: string; condominio: string; cobrancas: any[]; valor: number }>;
+    cobrancasCount: number;
+    valor: number;
+  }> = [];
 
   for (const row of rows) {
+    const carteiraId = row.carteira_id ?? "sem-carteira";
+    let carteiraGroup = carteiraGroups.find((item) => item.carteiraId === carteiraId);
+
+    if (!carteiraGroup) {
+      carteiraGroup = {
+        carteiraId,
+        carteira: row.carteiras?.nome ?? "Carteira não informada",
+        condominios: [],
+        cobrancasCount: 0,
+        valor: 0,
+      };
+      carteiraGroups.push(carteiraGroup);
+    }
+
     const condominioId = row.condominios?.id ?? row.condominio_id ?? "sem-condominio";
-    let group = groups.find((item) => item.condominioId === condominioId);
+    let group = carteiraGroup.condominios.find((item) => item.condominioId === condominioId);
 
     if (!group) {
       group = {
@@ -234,14 +254,17 @@ function groupCobrancas(rows: any[]) {
         cobrancas: [],
         valor: 0,
       };
-      groups.push(group);
+      carteiraGroup.condominios.push(group);
     }
 
     group.cobrancas.push(row);
-    group.valor += Number(row.valor_atualizado ?? row.valor_original ?? 0);
+    const valor = Number(row.valor_atualizado ?? row.valor_original ?? 0);
+    group.valor += valor;
+    carteiraGroup.cobrancasCount += 1;
+    carteiraGroup.valor += valor;
   }
 
-  return groups;
+  return carteiraGroups;
 }
 
 export default async function CobrancasPage({ searchParams }: PageProps) {
@@ -508,21 +531,37 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
             <form action={updateCobrancasStatusEmLote} className="flex min-h-0 flex-1 flex-col">
               <CobrancasBulkControls />
               <LiteScrollArea>
-                {groups.map((group) => (
-                  <details key={group.condominioId} className="group/condominio bg-white">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-100 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100/80 first:border-t-0 [&::-webkit-details-marker]:hidden">
+                {groups.map((carteiraGroup) => (
+                  <details key={carteiraGroup.carteiraId} className="group/carteira bg-white">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-200 bg-slate-100/80 px-4 py-3 transition hover:bg-slate-200/70 first:border-t-0 [&::-webkit-details-marker]:hidden">
                       <div className="flex min-w-0 items-center gap-3">
-                        <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                        <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open/carteira:rotate-180" />
                         <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-950">{group.condominio}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">{group.cobrancas.length} cobrança(s) nesta página</p>
+                          <p className="text-sm font-semibold text-slate-950">{carteiraGroup.carteira}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {carteiraGroup.condominios.length} condomínio(s) · {carteiraGroup.cobrancasCount} cobrança(s) nesta página
+                          </p>
                         </div>
                       </div>
-                      <p className="text-sm font-semibold text-slate-700">{formatCurrency(group.valor)}</p>
+                      <p className="text-sm font-semibold text-slate-800">{formatCurrency(carteiraGroup.valor)}</p>
                     </summary>
 
                     <div className="divide-y divide-slate-100">
-                      {group.cobrancas.map((row: any) => {
+                      {carteiraGroup.condominios.map((group) => (
+                        <details key={group.condominioId} className="group/condominio bg-white">
+                          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/70 px-7 py-2.5 transition hover:bg-slate-100/80 [&::-webkit-details-marker]:hidden">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                              <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-950">{group.condominio}</p>
+                              <p className="mt-0.5 text-xs text-slate-500">{group.cobrancas.length} cobrança(s) nesta página</p>
+                              </div>
+                            </div>
+                            <p className="text-sm font-semibold text-slate-700">{formatCurrency(group.valor)}</p>
+                          </summary>
+
+                          <div className="divide-y divide-slate-100">
+                            {group.cobrancas.map((row: any) => {
                         const status = getCobrancaStatusOperacional(row);
                         const priority = getPriority(status, row.vencimento);
                         const unidadeLabel = [
@@ -607,9 +646,12 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                           <ArrowUpRight size={14} />
                         </Link>
                       </div>
+                              </div>
+                            );
+                          })}
                           </div>
-                        );
-                      })}
+                        </details>
+                      ))}
                     </div>
                   </details>
                 ))}
