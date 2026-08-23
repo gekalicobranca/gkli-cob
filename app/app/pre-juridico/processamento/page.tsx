@@ -69,7 +69,7 @@ export default async function ProcessamentoPreJuridicoPage({ searchParams }: { s
         </ListFiltersForm>
       </ListPanelHeader>
     </ListPanel>
-    <ListPanel><ListPanelHeader><ListTitle title="Aguardando início" description="Cobranças encaminhadas que ainda não possuem um andamento operacional." /></ListPanelHeader><IniciarProcessamento rows={aguardandoInicio as any[]} /></ListPanel>
+    <IniciarProcessamento rows={aguardandoInicio as any[]} />
     <ProcessamentoEtapas casos={emPreparacao as any[]} etapas={PREPARACAO} />
   </ListPage>
 }

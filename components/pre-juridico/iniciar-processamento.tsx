@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { PlayCircle } from 'lucide-react'
+import { ChevronDown, PlayCircle } from 'lucide-react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
-import { ListEmptyState, ListRow, ListRows } from '@/components/layout/list-page'
+import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
 import { iniciarProcessamentoPreJuridico } from '@/features/pre-juridico/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -24,8 +24,14 @@ export function IniciarProcessamento({ rows }: { rows: Row[] }) {
   const toggleAll = () => setSelected(allSelected ? [] : rows.map((row) => row.id))
   const toggle = (id: string) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
 
-  return <div>
-    <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between">
+  return <ListPanel><details open={rows.length > 0} className="group bg-white">
+    <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+      <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
+        <ListTitle title="Aguardando início" description="Cobranças encaminhadas que ainda não possuem um andamento operacional." />
+        <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{rows.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
+      </ListPanelHeader>
+    </summary>
+    <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
       <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700"><input type="checkbox" checked={allSelected} disabled={!rows.length} onChange={toggleAll} className="h-4 w-4 rounded border-slate-300" />Selecionar todas aguardando início</label>
       <form action={iniciarProcessamentoPreJuridico} onSubmit={(event) => { if (!window.confirm(`Iniciar o processamento de ${selected.length} cobrança(s)?`)) event.preventDefault() }}>
         {selected.map((id) => <input key={id} type="hidden" name="cobranca_id" value={id} />)}
@@ -39,5 +45,5 @@ export function IniciarProcessamento({ rows }: { rows: Row[] }) {
       <p className="text-sm font-semibold md:text-right">{formatCurrency(Number(row.valor_atualizado ?? row.valor_original ?? 0))}</p>
     </ListRow>)}</ListRows> : <ListEmptyState title="Nenhuma cobrança aguardando início" description="Não há cobranças encaminhadas sem processamento para os filtros selecionados." />}
     {selected.length ? <div className="border-t border-slate-100 px-5 py-3 text-right text-sm text-slate-600">Valor selecionado: <strong>{formatCurrency(total)}</strong></div> : null}
-  </div>
+  </details></ListPanel>
 }

@@ -9,25 +9,19 @@ import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } fro
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 
-const tones: Record<string, string> = {
-  aguardando_documentos: 'border-slate-200 bg-slate-50/70',
-  aguardando_sindico: 'border-orange-200 bg-orange-50/60',
-  aguardando_administradora: 'border-amber-200 bg-amber-50/60',
-  pronto_juridico: 'border-emerald-200 bg-emerald-50/60',
-}
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
 export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: readonly PreJuridicoEtapa[] }) {
   return <div className="space-y-3">
-    {etapas.map((etapaId, index) => {
+    {etapas.map((etapaId) => {
       const etapa = PRE_JURIDICO_ETAPAS.find((item) => item.id === etapaId)!
       const rows = casos.filter((caso) => caso.etapa === etapaId)
-      return <ListPanel key={etapaId} className={tones[etapaId] ?? 'border-slate-200'}>
-        <details open={index === 0 || rows.length > 0} className="group bg-white">
-          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-            <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80">
-              <div className="flex min-w-0 items-center gap-3"><ChevronDown size={18} className="shrink-0 text-slate-500 transition group-open:rotate-180" /><ListTitle title={etapa.label} description={descricaoEtapa(etapaId)} /></div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{rows.length}</span>
+      return <ListPanel key={etapaId}>
+        <details open={rows.length > 0} className="group bg-white">
+          <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+            <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
+              <ListTitle title={etapa.label} description={descricaoEtapa(etapaId)} />
+              <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{rows.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
             </ListPanelHeader>
           </summary>
           <div>
