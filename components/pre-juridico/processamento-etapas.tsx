@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, FileSignature, PackagePlus } from 'lucide-re
 import { useState, type ReactNode } from 'react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
-import { atualizarCertidaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, criarLoteProcuracoesPreJuridico, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
+import { atualizarCertidaoPreJuridico, atualizarDistribuicaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, confirmarJuridicoPreJuridico, criarLoteProcuracoesPreJuridico, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
 import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -54,7 +54,7 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
   return <details className="group/caso">
     <summary className="list-none [&::-webkit-details-marker]:hidden"><ListRow className={`cursor-pointer bg-white ${selectable ? 'md:grid-cols-[28px_minmax(260px,1fr)_150px_150px_150px_24px]' : 'md:grid-cols-[minmax(260px,1fr)_150px_150px_150px_24px]'}`}>
       {selectable ? <input aria-label={selectionLabel} type="checkbox" checked={selected} onClick={(event) => event.stopPropagation()} onChange={onToggle} className="h-4 w-4 rounded border-slate-300" /> : null}
-      <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'} · {cobrancasUnidade.length || 1} cobrança(s) agrupada(s)</p></div>
+      <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'} · {cobrancasUnidade.length || 1} cobrança(s) agrupada(s){caso.etapa === 'pronto_juridico' ? ` · ${caso.distribuicao_status === 'distribuido' ? 'Distribuído' : 'Solicitado'}` : ''}</p></div>
       <div><p className="text-xs text-slate-400">Valor</p><p className="mt-1 text-sm font-semibold">{formatCurrency(valor)}</p></div>
       <div><p className="text-xs text-slate-400">Responsável interno</p><p className="mt-1 text-sm">{responsavel?.nome || 'Não definido'}</p></div>
       <div><p className="text-xs text-slate-400">Atualização</p><p className="mt-1 text-sm">{formatDateBR(caso.updated_at)}</p></div>
@@ -72,6 +72,18 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
       <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
       <PendingSubmitButton pendingLabel="Atualizando...">Salvar andamento</PendingSubmitButton>
       <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, o caso avançará automaticamente para Confirmar jurídico.</p>
+    </form> : caso.etapa === 'confirmar_juridico' ? <form action={confirmarJuridicoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar o retorno do jurídico?')) event.preventDefault() }}>
+      <input type="hidden" name="caso_id" value={caso.id} />
+      <Field label="Confirmação do jurídico"><select name="confirmacao_juridico" defaultValue="pendente" className={controlClass}><option value="pendente">Pendente</option><option value="pronto">Pronto</option></select></Field>
+      <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
+      <PendingSubmitButton pendingLabel="Confirmando...">Salvar confirmação</PendingSubmitButton>
+      <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Pronto, o caso entrará automaticamente em Distribuição com status Solicitado.</p>
+    </form> : caso.etapa === 'pronto_juridico' ? <form action={atualizarDistribuicaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar o andamento da distribuição?')) event.preventDefault() }}>
+      <input type="hidden" name="caso_id" value={caso.id} />
+      <Field label="Andamento da distribuição"><select name="distribuicao_status" defaultValue={caso.distribuicao_status ?? 'solicitado'} disabled={caso.distribuicao_status === 'distribuido'} className={controlClass}><option value="solicitado">Solicitado</option><option value="distribuido">Distribuído</option></select></Field>
+      <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} disabled={caso.distribuicao_status === 'distribuido'} className={controlClass} /></Field>
+      <PendingSubmitButton disabled={caso.distribuicao_status === 'distribuido'} pendingLabel="Atualizando...">{caso.distribuicao_status === 'distribuido' ? 'Distribuído' : 'Salvar andamento'}</PendingSubmitButton>
+      <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Distribuído, todas as cobranças abertas da unidade serão judicializadas e a unidade ficará marcada com ação judicial.</p>
     </form> : <form action={atualizarEtapaPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={(event) => { if (!window.confirm('Confirmar a atualização deste caso?')) event.preventDefault() }}>
       <input type="hidden" name="caso_id" value={caso.id} />
       <Field label="Nova etapa"><select name="etapa" defaultValue={caso.etapa} className={controlClass}>{PRE_JURIDICO_ETAPAS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></Field>
@@ -97,6 +109,6 @@ function descricaoEtapa(etapa: PreJuridicoEtapa) {
   if (etapa === 'aguardando_documentos') return 'Solicite a certidão e confirme a propriedade antes de avançar.'
   if (etapa === 'aguardando_sindico') return 'Geração, envio e confirmação da procuração assinada pelo síndico.'
   if (etapa === 'confirmar_juridico') return 'Confirmação do recebimento e aceite do caso pelo jurídico.'
-  if (etapa === 'pronto_juridico') return 'Pacote revisado e pronto para envio ao jurídico.'
+  if (etapa === 'pronto_juridico') return 'Distribuição solicitada ao jurídico, aguardando confirmação.'
   return etapaPreJuridicoLabel(etapa)
 }
