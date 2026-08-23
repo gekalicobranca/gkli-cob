@@ -25,7 +25,6 @@ import {
   COBRANCA_STATUS_JUDICIALIZACAO,
   PARCELA_ACORDO_STATUS,
 } from "@/lib/core/status";
-import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from "@/lib/constants/cobrancas";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 function toNumber(value: FormDataEntryValue | null) {
@@ -2943,10 +2942,6 @@ function uniqueNonEmpty(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean) as string[]));
 }
 
-function todayISODate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function carteiraPreJuridicoHabilitado(acordo: any) {
   const carteira = Array.isArray(acordo?.carteiras) ? acordo.carteiras[0] : acordo?.carteiras;
   return Boolean(carteira?.pre_juridico_habilitado);
@@ -3183,7 +3178,7 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
 
   revalidatePath("/app/acordos");
   revalidatePath("/app/acordos/gestao");
-  revalidatePath("/app/acordos/rompimentos");
+  revalidatePath("/app/acordos/gestao");
   for (const acordoId of acordoIds) revalidatePath(`/app/acordos/${acordoId}`);
 
   const loteResult = await criarLotesPreJuridico({
@@ -3216,7 +3211,7 @@ export async function romperAcordoAssistido(formData: FormData) {
 
   const { data: acordo, error } = await supabase
     .from("acordos")
-    .select("id, carteira_id, cobranca_id, status, status_financeiro")
+    .select("id, carteira_id, condominio_id, unidade_id, cobranca_id, status, status_financeiro")
     .eq("id", acordoId)
     .maybeSingle();
   if (error) throw new Error(`Erro ao carregar acordo: ${error.message}`);
@@ -3249,10 +3244,11 @@ export async function romperAcordoAssistido(formData: FormData) {
   if (updateError) throw new Error(`Erro ao romper acordo: ${updateError.message}`);
 
   if (cobrancaIds.length > 0) {
-    await supabase
+    const { error: cobrancasError } = await supabase
       .from("cobrancas")
       .update({ status: statusCobranca, status_operacional: statusCobranca })
       .in("id", cobrancaIds);
+    if (cobrancasError) throw new Error(`Erro ao atualizar cobranças vinculadas: ${cobrancasError.message}`);
   }
 
   await registrarEventoOperacional(supabase as any, {
@@ -3263,7 +3259,7 @@ export async function romperAcordoAssistido(formData: FormData) {
     titulo: "Acordo rompido",
     descricao: [motivo || "Motivo não informado", `Destino: ${destino.replace(/_/g, " ")}`, observacao || null].filter(Boolean).join(" · "),
     severidade: "alerta",
-    payload: { motivo, destino, observacao, cobranca_ids: cobrancaIds },
+    payload: { motivo, destino, observacao, cobranca_ids: cobrancaIds, condominio_id: (acordo as any).condominio_id, unidade_id: (acordo as any).unidade_id },
     antes: { status: (acordo as any).status ?? null, status_financeiro: (acordo as any).status_financeiro ?? null },
     depois: { status: ACORDO_STATUS.QUEBRADO, status_financeiro: "vencido", fluxo_status: `rompido_${destino}`, status_cobranca: statusCobranca },
     origem: "manual",
@@ -3271,9 +3267,28 @@ export async function romperAcordoAssistido(formData: FormData) {
     userId: user.id,
   });
 
+  if ((acordo as any).unidade_id) {
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: (acordo as any).carteira_id,
+      entidadeTipo: "unidade",
+      entidadeId: (acordo as any).unidade_id,
+      eventoCodigo: destino === "retomar_cobranca" ? "unidade.cobranca.liberada" : "unidade.acordo.destino_definido",
+      titulo: destino === "retomar_cobranca" ? "Unidade liberada para cobrança ativa" : "Destino do acordo quebrado definido",
+      descricao: [destino === "retomar_cobranca" ? "Liberação manual realizada pelo operador." : `Destino: ${destino.replace(/_/g, " ")}`, observacao || null].filter(Boolean).join(" · "),
+      severidade: destino === "retomar_cobranca" ? "info" : "alerta",
+      payload: { acordo_id: acordoId, condominio_id: (acordo as any).condominio_id, cobranca_ids: cobrancaIds, destino },
+      estadoAnterior: "aguardando_liberacao",
+      estadoNovo: statusCobranca,
+      origem: "manual",
+      auditavel: true,
+      required: true,
+      userId: user.id,
+    });
+  }
+
   revalidatePath("/app/acordos");
   revalidatePath("/app/acordos/gestao");
-  revalidatePath("/app/acordos/rompimentos");
+  revalidatePath("/app/acordos/gestao");
   revalidatePath(`/app/acordos/${acordoId}`);
 }
 
@@ -3286,7 +3301,7 @@ export async function atualizarAtrasosERompimentosAcordos() {
 
   revalidatePath("/app/acordos");
   revalidatePath("/app/acordos/gestao");
-  revalidatePath("/app/acordos/rompimentos");
+  revalidatePath("/app/acordos/gestao");
 
   return result;
 }

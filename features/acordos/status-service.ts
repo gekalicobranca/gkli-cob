@@ -1,9 +1,9 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import {
   ACORDO_STATUS,
-  COBRANCA_STATUS,
   PARCELA_ACORDO_STATUS,
 } from "@/lib/core/status";
+import { registrarEventoOperacional } from "@/features/operacional/service";
 
 type CheckAcordosStatusOptions = {
   diasParaRomper?: number;
@@ -19,6 +19,9 @@ type ParcelaAcordoStatusRow = {
 type AcordoStatusRow = {
   id: string;
   cobranca_id: string | null;
+  carteira_id: string | null;
+  condominio_id: string | null;
+  unidade_id: string | null;
   status: string;
 };
 
@@ -110,7 +113,7 @@ export async function checkAcordosStatus(
 
   let acordosMarcadosEmAtraso = 0;
   let acordosRompidos = 0;
-  let cobrancasReativadas = 0;
+  let cobrancasAguardandoLiberacao = 0;
 
   if (acordoIdsComAtraso.length > 0) {
     const idsAtraso = acordoIdsComAtraso.filter(
@@ -137,7 +140,7 @@ export async function checkAcordosStatus(
   if (acordoIdsParaRomper.length > 0) {
     const { data: acordosParaRomper, error: acordosError } = await supabase
       .from("acordos")
-      .select("id, cobranca_id, status")
+      .select("id, cobranca_id, carteira_id, condominio_id, unidade_id, status")
       .in("id", acordoIdsParaRomper)
       .in("status", [ACORDO_STATUS.ATIVO, ACORDO_STATUS.EM_ATRASO]);
 
@@ -170,6 +173,25 @@ export async function checkAcordosStatus(
       }
 
       acordosRompidos = count ?? 0;
+
+      for (const acordo of acordos) {
+        if (!acordo.unidade_id) continue;
+        await registrarEventoOperacional(supabase as any, {
+          carteiraId: acordo.carteira_id,
+          entidadeTipo: "unidade",
+          entidadeId: acordo.unidade_id,
+          eventoCodigo: "unidade.acordo.quebrado",
+          titulo: "Acordo quebrado em D+7",
+          descricao: "Unidade aguardando decisão do operador para voltar à cobrança ativa ou seguir para outro destino.",
+          severidade: "alerta",
+          payload: { acordo_id: acordo.id, condominio_id: acordo.condominio_id, cobranca_id: acordo.cobranca_id },
+          estadoAnterior: acordo.status,
+          estadoNovo: ACORDO_STATUS.QUEBRADO,
+          origem: "sistema",
+          auditavel: true,
+          required: true,
+        });
+      }
     }
 
     const { data: vinculosCobrancas, error: vinculosError } = await supabase
@@ -195,26 +217,7 @@ export async function checkAcordosStatus(
       ),
     ];
 
-    if (cobrancaIds.length > 0) {
-      const { error: cobrancasError, count } = await supabase
-        .from("cobrancas")
-        .update(
-          {
-            status: COBRANCA_STATUS.EM_COBRANCA_ATIVA,
-            status_operacional: COBRANCA_STATUS.EM_COBRANCA_ATIVA,
-          },
-          { count: "exact" },
-        )
-        .in("id", cobrancaIds);
-
-      if (cobrancasError) {
-        throw new Error(
-          `Erro ao reativar cobranças: ${cobrancasError.message}`,
-        );
-      }
-
-      cobrancasReativadas = count ?? 0;
-    }
+    cobrancasAguardandoLiberacao = cobrancaIds.length;
   }
 
   return {
@@ -224,6 +227,6 @@ export async function checkAcordosStatus(
     parcelasMarcadasVencidas: parcelasParaVencer.length,
     acordosMarcadosEmAtraso,
     acordosRompidos,
-    cobrancasReativadas,
+    cobrancasAguardandoLiberacao,
   };
 }

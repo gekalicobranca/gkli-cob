@@ -22,6 +22,9 @@ import { PreJuridicoWorkbench } from './pre-juridico-workbench'
 
 type SearchParams = Promise<{
   q?: string
+  status?: string
+  data_de?: string
+  data_ate?: string
   motivo?: string
   etapa?: string
   ordenar?: string
@@ -38,6 +41,11 @@ function normalizeText(value: unknown) {
     .replace(/[\u0300-\u036f]/g, '')
 }
 
+function dateValue(value: unknown) {
+  const text = clean(value)
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
+}
+
 function isPreJuridico(row: any) {
   const fluxo = String(row.fluxo_status ?? '').toLowerCase()
   const cobrancaStatus = String(row.cobrancas?.status_operacional ?? row.cobrancas?.status ?? '').toLowerCase()
@@ -51,10 +59,17 @@ function etapaPreparacao(row: any) {
 
 function filterRows(rows: any[], params: Awaited<SearchParams>) {
   const termo = normalizeText(params.q)
+  const status = clean(params.status)
+  const dataDe = dateValue(params.data_de)
+  const dataAte = dateValue(params.data_ate)
   const motivo = clean(params.motivo)
   const etapa = clean(params.etapa)
 
   return rows.filter((row) => {
+    const dataQuebra = clean(row.data_quebra || row.data_acordo).slice(0, 10)
+    if (status && row.status !== status && row.status_financeiro !== status) return false
+    if (dataDe && dataQuebra < dataDe) return false
+    if (dataAte && dataQuebra > dataAte) return false
     if (motivo === 'parcela' && !row.motivo_quebra_parcela) return false
     if (motivo === 'vincendas' && !row.motivo_quebra_vincendas) return false
     if (motivo === 'ambos' && (!row.motivo_quebra_parcela || !row.motivo_quebra_vincendas)) return false
@@ -117,7 +132,7 @@ export default async function GestaoAcordosPage({ searchParams }: { searchParams
   const comVincendas = rows.filter((row: any) => row.motivo_quebra_vincendas)
   const prontos = rows.filter((row: any) => etapaPreparacao(row) === 'pronto')
   const encaminhados = rows.filter((row: any) => etapaPreparacao(row) === 'encaminhado')
-  const hasFilters = Boolean(params.q || params.motivo || params.etapa || params.ordenar)
+  const hasFilters = Boolean(params.q || params.status || params.data_de || params.data_ate || params.motivo || params.etapa || params.ordenar)
 
   return (
     <div className="space-y-5">
@@ -126,10 +141,7 @@ export default async function GestaoAcordosPage({ searchParams }: { searchParams
         title="Gestão de acordos quebrados"
         description="Fila de acordos com quebra real para preparação documental e encaminhamento ao pré-jurídico."
         actions={
-          <>
-            <ButtonLink href="/app/acordos" variant="secondary">Voltar</ButtonLink>
-            <ButtonLink href="/app/acordos/rompimentos" variant="secondary">Lista antiga</ButtonLink>
-          </>
+          <ButtonLink href="/app/acordos" variant="secondary">Voltar</ButtonLink>
         }
       />
 
@@ -162,6 +174,9 @@ export default async function GestaoAcordosPage({ searchParams }: { searchParams
               <Input name="q" defaultValue={clean(params.q)} className="pl-9" placeholder="Condomínio, unidade, responsável..." />
             </div>
           </label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Status</span><Select name="status" defaultValue={clean(params.status)}><option value="">Todos</option><option value="quebrado">Quebrado</option><option value="rompido">Rompido</option><option value="cancelado">Cancelado</option><option value="vencido">Vencido</option></Select></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Quebra de</span><Input name="data_de" type="date" defaultValue={dateValue(params.data_de)} /></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Quebra até</span><Input name="data_ate" type="date" defaultValue={dateValue(params.data_ate)} /></label>
           <label className="space-y-1.5">
             <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Motivo</span>
             <Select name="motivo" defaultValue={clean(params.motivo)}>

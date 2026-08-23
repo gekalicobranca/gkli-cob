@@ -7,7 +7,7 @@ import { Select } from '@/components/ui/select'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
 import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListPanel, ListPanelHeader, ListSearchField, ListTitle, ListTitleBar } from '@/components/layout/list-page'
 import { PreJuridicoCobrancasWorkbench } from '@/components/pre-juridico/cobrancas-workbench'
-import { listCarteirasForSelect } from '@/features/cadastros/queries'
+import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
 import { listPreJuridicoCobrancas } from '@/features/pre-juridico/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -26,7 +26,11 @@ function dateFilter(value: unknown) {
 export default async function PreJuridicoPage({ searchParams }: { searchParams: Params }) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
-  const [baseRows, carteiras] = await Promise.all([listPreJuridicoCobrancas(scope), listCarteirasForSelect(scope)])
+  const [baseRows, carteiras, condominiosCadastrados] = await Promise.all([
+    listPreJuridicoCobrancas(scope),
+    listCarteirasForSelect(scope),
+    listCondominiosForSelect(scope),
+  ])
   const termo = normalize(params.q)
   const vencimentoDe = dateFilter(params.vencimento_de)
   const vencimentoAte = dateFilter(params.vencimento_ate)
@@ -36,7 +40,10 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
     if (vencimentoAte && String(row.vencimento ?? '') > vencimentoAte) return false
     return true
   })
-  const condominios = Array.from(new Map(filteredScope.map((row: any) => [row.condominio_id, { id: row.condominio_id, nome: row.condominio?.nome_operacional || row.condominio?.nome || 'Condomínio não informado', administradora: row.condominio?.administradora ?? null }])).values()).filter((row: any) => row.id).sort((a: any, b: any) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  const condominios = condominiosCadastrados
+    .filter((row: any) => !params.carteira_id || row.carteira_id === params.carteira_id)
+    .map((row: any) => ({ id: row.id, nome: row.nome || 'Condomínio não informado', administradora: null }))
+    .sort((a: any, b: any) => a.nome.localeCompare(b.nome, 'pt-BR'))
   const rows = filteredScope.filter((row: any) => {
     if (params.condominio_id && row.condominio_id !== params.condominio_id) return false
     if (params.etapa && row.situacao_pre_juridico !== params.etapa) return false

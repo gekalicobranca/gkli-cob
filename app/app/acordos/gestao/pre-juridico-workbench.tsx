@@ -44,6 +44,7 @@ type Row = {
   valor_vincendas_fora_acordo?: number | string | null
   motivo_quebra_parcela?: boolean
   motivo_quebra_vincendas?: boolean
+  pre_juridico_habilitado?: boolean
   pre_juridico_steps?: PreJuridicoSteps
   condominios?: { nome?: string | null } | null
   unidades?: { id?: string | null; identificacao?: string | null; bloco?: string | null; responsavel_nome?: string | null } | null
@@ -55,6 +56,10 @@ function isEncaminhado(row: Row) {
   const fluxo = String(row.fluxo_status ?? "").toLowerCase()
   const cobranca = String(row.cobrancas?.status_operacional ?? row.cobrancas?.status ?? "").toLowerCase()
   return fluxo.includes("pre_juridico") || cobranca.includes("pre_juridico")
+}
+
+function podePrepararPreJuridico(row: Row) {
+  return !isEncaminhado(row) && Boolean(row.pre_juridico_habilitado) && !['cancelado', 'quitado', 'renegociado'].includes(String(row.status ?? '').toLowerCase())
 }
 
 function etapaLabel(row: Row) {
@@ -140,7 +145,7 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const selectedRows = useMemo(() => rows.filter((row) => selectedIds.includes(row.id)), [rows, selectedIds])
   const selectedReady = selectedRows.length > 0 && selectedRows.every((row) => preJuridicoStepsCompletos(row.pre_juridico_steps))
-  const selectableRows = useMemo(() => rows.filter((row) => !isEncaminhado(row)), [rows])
+  const selectableRows = useMemo(() => rows.filter(podePrepararPreJuridico), [rows])
   const allSelected = selectableRows.length > 0 && selectableRows.every((row) => selectedIds.includes(row.id))
   const missingPdf = selectedRows.filter((row) => !row.pre_juridico_steps?.historico).length
   const missingList = selectedRows.filter((row) => !row.pre_juridico_steps?.listaAdministradora).length
@@ -164,7 +169,7 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
   }
 
   const toggleGroup = (groupRows: Row[]) => {
-    const ids = groupRows.filter((row) => !isEncaminhado(row)).map((row) => row.id)
+    const ids = groupRows.filter(podePrepararPreJuridico).map((row) => row.id)
     const selected = ids.length > 0 && ids.every((id) => selectedIds.includes(id))
     setSelectedIds((current) => selected ? current.filter((id) => !ids.includes(id)) : Array.from(new Set([...current, ...ids])))
   }
@@ -233,7 +238,7 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
       <Card className="overflow-hidden p-0">
         {rows.length === 0 ? (
           <div className="p-5">
-            <EmptyState title="Sem acordos quebrados" description="Nenhum acordo com parcela fora da janela ou cotas vincendas fora do acordo foi encontrado neste filtro." />
+            <EmptyState title="Sem acordos quebrados" description="Nenhum acordo quebrado foi encontrado neste filtro." />
           </div>
         ) : (
           <>
@@ -254,7 +259,7 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
             </div>
             <div className="divide-y divide-slate-100">
               {groups.map((group) => {
-                const groupSelectable = group.rows.filter((row) => !isEncaminhado(row))
+                const groupSelectable = group.rows.filter(podePrepararPreJuridico)
                 const groupSelected = groupSelectable.length > 0 && groupSelectable.every((row) => selectedIds.includes(row.id))
                 const groupValue = group.rows.reduce((sum, row) => sum + Number(row.valor_risco_operacional ?? row.valor_acordado ?? 0), 0)
                 return <details key={group.id} className="group/condominio bg-white">
@@ -278,7 +283,7 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
                         type="checkbox"
                         className="mt-1 h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]"
                         checked={selectedIds.includes(row.id)}
-                        disabled={isEncaminhado(row)}
+                        disabled={!podePrepararPreJuridico(row)}
                         onChange={() => toggleOne(row.id)}
                       />
                     </div>

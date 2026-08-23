@@ -924,8 +924,7 @@ async function getPreJuridicoStepsDosAcordos(
 export async function listAcordosQuebradosParaGestao(scope?: CarteiraScope) {
   const acordos = (await listAcordos(scope) as any[]).filter((acordo) => {
     const status = String(acordo.status ?? '').toLowerCase()
-    const carteira = Array.isArray(acordo.carteiras) ? acordo.carteiras[0] : acordo.carteiras
-    return Boolean(carteira?.pre_juridico_habilitado) && !['quitado', 'cancelado', 'renegociado'].includes(status)
+    return !['quitado', 'renegociado'].includes(status)
   })
   const acordoIds = acordos.map((acordo) => acordo.id).filter(Boolean)
   if (acordoIds.length === 0) return []
@@ -1010,6 +1009,7 @@ export async function listAcordosQuebradosParaGestao(scope?: CarteiraScope) {
 
       return {
         ...acordo,
+        pre_juridico_habilitado: Boolean((Array.isArray(acordo.carteiras) ? acordo.carteiras[0] : acordo.carteiras)?.pre_juridico_habilitado),
         parcelas_fora_janela: parcelasForaJanela,
         vincendas_fora_acordo: vincendasForaAcordo,
         valor_vincendas_fora_acordo: valorVincendas,
@@ -1018,7 +1018,7 @@ export async function listAcordosQuebradosParaGestao(scope?: CarteiraScope) {
         motivo_quebra_vincendas: vincendasForaAcordo.length > 0,
       }
     })
-    .filter((acordo) => acordo.motivo_quebra_parcela || acordo.motivo_quebra_vincendas)
+    .filter((acordo) => ['quebrado', 'rompido', 'cancelado'].includes(String(acordo.status ?? '').toLowerCase()) || acordo.motivo_quebra_parcela || acordo.motivo_quebra_vincendas)
 
   const stepsPorAcordo = await getPreJuridicoStepsDosAcordos(
     supabase,

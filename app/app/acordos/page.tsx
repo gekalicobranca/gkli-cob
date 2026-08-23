@@ -198,7 +198,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
         actions={
           <>
             <ButtonLink href="/app/acordos/fila" variant="secondary"><Inbox size={16} />Fila</ButtonLink>
-            <ButtonLink href="/app/acordos/rompimentos" variant="secondary"><AlertTriangle size={16} />Rompimentos</ButtonLink>
+            <ButtonLink href="/app/acordos/gestao" variant="secondary"><AlertTriangle size={16} />Gestão de quebrados</ButtonLink>
           </>
         }
       />
