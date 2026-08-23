@@ -1,9 +1,10 @@
 import { ClipboardCheck, FileText, Hourglass, Scale } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { ProcessamentoEtapas } from '@/components/pre-juridico/processamento-etapas'
 import { IniciarProcessamento } from '@/components/pre-juridico/iniciar-processamento'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
-import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListPanel, ListPanelHeader, ListSearchField, ListTitle, ListTitleBar } from '@/components/layout/list-page'
+import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage, ListPanel, ListPanelHeader, ListSearchField, ListTitle, ListTitleBar } from '@/components/layout/list-page'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { listPreJuridicoCasos, listPreJuridicoCobrancas } from '@/features/pre-juridico/queries'
@@ -44,15 +45,18 @@ export default async function ProcessamentoPreJuridicoPage({ searchParams }: { s
     ...casos.map((row: any) => option(row.condominio_id, relation(row.condominio)?.nome_operacional || relation(row.condominio)?.nome)),
   ].filter(([id]) => id)).entries()).sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'pt-BR'))
   const hasFilters = Boolean(params.q || params.carteira_id || params.condominio_id || params.etapa)
+  const kpis: Array<{ label: string; value: number; icon: LucideIcon; tone: string }> = [
+    { label: 'Aguardando início', value: aguardandoInicio.length, icon: Hourglass, tone: 'bg-amber-50 text-amber-700' },
+    { label: 'Documentos', value: emPreparacao.filter((row: any) => row.etapa === 'aguardando_documentos').length, icon: FileText, tone: 'bg-slate-100 text-slate-700' },
+    { label: 'Em validação', value: emPreparacao.filter((row: any) => ['aguardando_administradora', 'aguardando_sindico'].includes(row.etapa)).length, icon: ClipboardCheck, tone: 'bg-orange-50 text-orange-700' },
+    { label: 'Prontas para envio', value: emPreparacao.filter((row: any) => row.etapa === 'pronto_juridico').length, icon: Scale, tone: 'bg-emerald-50 text-emerald-700' },
+  ]
 
-  return <div className="space-y-5">
+  return <ListPage>
     <PageHeader eyebrow="Pré-Jurídico" title="Processamento" description="Prepare os documentos, obtenha a procuração assinada pelo síndico e só então encaminhe à administradora." />
-    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <Card className="p-4"><Hourglass size={19} className="text-amber-600" /><p className="mt-3 text-2xl font-semibold">{aguardandoInicio.length}</p><p className="text-sm text-slate-500">aguardando início</p></Card>
-      <Card className="p-4"><FileText size={19} className="text-slate-600" /><p className="mt-3 text-2xl font-semibold">{emPreparacao.filter((row: any) => row.etapa === 'aguardando_documentos').length}</p><p className="text-sm text-slate-500">em documentos</p></Card>
-      <Card className="p-4"><ClipboardCheck size={19} className="text-orange-600" /><p className="mt-3 text-2xl font-semibold">{emPreparacao.filter((row: any) => ['aguardando_administradora', 'aguardando_sindico'].includes(row.etapa)).length}</p><p className="text-sm text-slate-500">em validação</p></Card>
-      <Card className="p-4"><Scale size={19} className="text-emerald-600" /><p className="mt-3 text-2xl font-semibold">{emPreparacao.filter((row: any) => row.etapa === 'pronto_juridico').length}</p><p className="text-sm text-slate-500">prontas para envio</p></Card>
-    </section>
+    <ListKpiGrid>
+      {kpis.map(({ label, value, icon: Icon, tone }) => <Card key={label} className="relative overflow-hidden p-3"><div className={`absolute right-4 top-3 rounded-lg p-2 ${tone}`}><Icon size={18} /></div><p className="text-xs font-medium uppercase text-slate-400">{label}</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">{value}</p></Card>)}
+    </ListKpiGrid>
     <ListPanel>
       <ListPanelHeader className="bg-white/80">
         <ListTitleBar className="xl:items-center"><ListTitle title="Processamentos" description="Localize por carteira, condomínio, etapa, unidade ou responsável." /><ClearFiltersLink href="/app/pre-juridico/processamento" show={hasFilters} /></ListTitleBar>
@@ -66,6 +70,6 @@ export default async function ProcessamentoPreJuridicoPage({ searchParams }: { s
       </ListPanelHeader>
     </ListPanel>
     <ListPanel><ListPanelHeader><ListTitle title="Aguardando início" description="Cobranças encaminhadas que ainda não possuem um andamento operacional." /></ListPanelHeader><IniciarProcessamento rows={aguardandoInicio as any[]} /></ListPanel>
-    <ListPanel><ListPanelHeader><ListTitle title="Etapas de preparação" description="Fluxo obrigatório: Documentos → procuração assinada pelo Síndico → validação da Administradora → Pronto para o jurídico." /></ListPanelHeader><div className="p-4"><ProcessamentoEtapas casos={emPreparacao as any[]} etapas={PREPARACAO} /></div></ListPanel>
-  </div>
+    <ProcessamentoEtapas casos={emPreparacao as any[]} etapas={PREPARACAO} />
+  </ListPage>
 }

@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
-import { ListEmptyState, ListRow, ListRows } from '@/components/layout/list-page'
+import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
 import { atualizarEtapaPreJuridico } from '@/features/pre-juridico/actions'
 import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -22,15 +22,19 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
     {etapas.map((etapaId, index) => {
       const etapa = PRE_JURIDICO_ETAPAS.find((item) => item.id === etapaId)!
       const rows = casos.filter((caso) => caso.etapa === etapaId)
-      return <details key={etapaId} open={index === 0 || rows.length > 0} className={`group overflow-hidden rounded-2xl border ${tones[etapaId] ?? 'border-slate-200 bg-white'}`}>
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
-          <div className="flex min-w-0 items-center gap-3"><ChevronDown size={18} className="shrink-0 text-slate-500 transition group-open:rotate-180" /><div><h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-slate-800">{etapa.label}</h2><p className="mt-1 text-xs text-slate-500">{descricaoEtapa(etapaId)}</p></div></div>
-          <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-700 shadow-sm">{rows.length}</span>
-        </summary>
-        <div className="border-t border-current/10 bg-white/80">
+      return <ListPanel key={etapaId} className={tones[etapaId] ?? 'border-slate-200'}>
+        <details open={index === 0 || rows.length > 0} className="group bg-white">
+          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80">
+              <div className="flex min-w-0 items-center gap-3"><ChevronDown size={18} className="shrink-0 text-slate-500 transition group-open:rotate-180" /><ListTitle title={etapa.label} description={descricaoEtapa(etapaId)} /></div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{rows.length}</span>
+            </ListPanelHeader>
+          </summary>
+          <div>
           {rows.length ? <ListRows>{rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} />)}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
-        </div>
-      </details>
+          </div>
+        </details>
+      </ListPanel>
     })}
   </div>
 }
