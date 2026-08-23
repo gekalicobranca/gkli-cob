@@ -15,8 +15,8 @@ export function GKLIloginPage({ errorMessage }: { errorMessage?: string }) {
         <div className="hidden items-center justify-center px-16 lg:flex">
           <div className="max-w-[540px]">
             <Image
-              src="/logo-gkit-tecnologia-aplicada.png"
-              alt="GKIT Tecnologia Aplicada"
+              src="/logo-gkli-cobranca-inteligente.png"
+              alt="GKLI Cobrança Inteligente"
               width={760}
               height={300}
               priority
@@ -40,8 +40,8 @@ export function GKLIloginPage({ errorMessage }: { errorMessage?: string }) {
           <div className="w-full max-w-[520px] rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_25px_80px_rgba(15,23,42,0.10)] backdrop-blur md:p-10">
             <div className="flex justify-center lg:hidden">
               <Image
-                src="/logo-gkit-tecnologia-aplicada.png"
-                alt="GKIT Tecnologia Aplicada"
+                src="/logo-gkli-cobranca-inteligente.png"
+                alt="GKLI Cobrança Inteligente"
                 width={320}
                 height={126}
                 priority
@@ -157,7 +157,7 @@ export function GKLIloginPage({ errorMessage }: { errorMessage?: string }) {
             </div>
 
             <div className="mt-8 text-center text-sm text-slate-400">
-              © 2026 GKIT Tecnologia Aplicada
+              © 2026 GKLI Cobrança Inteligente
             </div>
           </div>
         </div>

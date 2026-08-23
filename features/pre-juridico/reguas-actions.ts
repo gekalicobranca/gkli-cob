@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/utils/auth/require-role'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { createAdminClient } from '@/utils/supabase/admin'
+import { createClient } from '@/utils/supabase/server'
 
 export async function vincularReguaPreJuridico(formData: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
@@ -12,7 +12,7 @@ export async function vincularReguaPreJuridico(formData: FormData) {
   const reguaId = String(formData.get('regua_pre_juridico_id') ?? '').trim() || null
   if (!condominioId) throw new Error('Condomínio obrigatório.')
 
-  const supabase = createAdminClient()
+  const supabase = await createClient()
   const { data: condominio, error: condominioError } = await supabase
     .from('condominios')
     .select('id,carteira_id')
@@ -39,7 +39,7 @@ export async function vincularReguaPreJuridico(formData: FormData) {
 
   const { error } = await supabase
     .from('condominios')
-    .update({ regua_pre_juridico_id: reguaId } as any)
+    .update({ regua_pre_juridico_id: reguaId })
     .eq('id', condominioId)
   if (error) throw new Error(`Erro ao vincular régua pré-jurídica: ${error.message}`)
 

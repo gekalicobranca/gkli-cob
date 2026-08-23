@@ -11,6 +11,7 @@ import { listLotesRegua } from '@/features/lotes/queries'
 import { listPreJuridicoCasos } from '@/features/pre-juridico/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatDateBR } from '@/utils/formatters/date'
+import { PreJuridicoModuleNav } from '@/components/pre-juridico/module-nav'
 
 type Params = Promise<{ q?: string; status?: string }>
 const n = (value: unknown) => Number(value ?? 0) || 0
@@ -29,6 +30,7 @@ export default async function MonitorPreJuridicoPage({ searchParams }: { searchP
 
   return <div className="space-y-5">
     <PageHeader eyebrow="Pré-Jurídico" title="Monitor de casos" description="Acompanhe a passagem de cada caso pela validação, jurídico, autorização e judicialização." />
+    <PreJuridicoModuleNav active="monitor" />
     <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <Card className="p-4"><Layers3 size={19} className="text-[#04799a]" /><p className="mt-3 text-2xl font-semibold">{emPreparacao}</p><p className="text-sm text-slate-500">em preparação e validação</p></Card>
       <Card className="p-4"><Scale size={19} className="text-violet-600" /><p className="mt-3 text-2xl font-semibold">{noJuridico}</p><p className="text-sm text-slate-500">em tratamento pelo jurídico</p></Card>

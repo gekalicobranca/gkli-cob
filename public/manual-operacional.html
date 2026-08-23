@@ -547,7 +547,18 @@
 </ul>
 <h2 id="13-pre-juridico">13. Pré-Jurídico</h2>
 <p>O módulo Pré-Jurídico organiza a passagem entre a cobrança extrajudicial e o tratamento judicial. Ele fica no menu lateral, abaixo de Comunicação e antes de Gestão.</p>
-<h3 id="13-1-habilitacao-e-elegibilidade">13.1 Habilitação e elegibilidade</h3>
+<h3 id="13-1-funcionalidades-disponiveis">13.1 Funcionalidades disponíveis</h3>
+<p>O módulo possui navegação direta entre Painel Pré, Régua e Monitor. Estão disponíveis:</p>
+<ul>
+<li>identificação e seleção dos casos elegíveis;</li>
+<li>geração do dossiê, da relação para administradora e da procuração opcional;</li>
+<li>bloqueio do encaminhamento enquanto os documentos obrigatórios estiverem pendentes;</li>
+<li>réguas exclusivas, lotes e mensagens para carteira, administradora e síndico;</li>
+<li>monitoramento em nove etapas, da preparação até a judicialização;</li>
+<li>registro de escritório, prazo, protocolo, processo, tribunal, foro e observações;</li>
+<li>marcação automática da unidade como ação judicial ao concluir a judicialização.</li>
+</ul>
+<h3 id="13-2-habilitacao-e-elegibilidade">13.2 Habilitação e elegibilidade</h3>
 <p>Antes de usar o módulo, confirme:</p>
 <ul>
 <li>a carteira está com "Gerar pré-jurídico nesta carteira" habilitado;</li>
@@ -556,7 +567,7 @@
 <li>existe parcela aberta vencida além da tolerância de reemissão do condomínio ou cobrança vincenda ativa fora do acordo.</li>
 </ul>
 <p>O Painel trabalha com casos originados de acordos e parcelas. A cobrança principal pode não estar vinculada em bases antigas; revise os vínculos antes do envio quando necessário.</p>
-<h3 id="13-2-painel-pre">13.2 Painel Pré</h3>
+<h3 id="13-3-painel-pre">13.3 Painel Pré</h3>
 <p>Rota: <code>/app/pre-juridico</code></p>
 <p>O Painel Pré apresenta os casos elegíveis agrupados por condomínio. Abra ou recolha cada condomínio para consultar as unidades.</p>
 <p>Indicadores:</p>
@@ -577,14 +588,14 @@
 <li>Confira se os casos ficaram prontos.</li>
 <li>Use "Encaminhar casos prontos" e confirme a operação.</li>
 </ol>
-<h3 id="13-3-documentos">13.3 Documentos</h3>
+<h3 id="13-4-documentos">13.4 Documentos</h3>
 <ul>
 <li>Dossiê dos casos: histórico pré-jurídico, com uma unidade por página.</li>
 <li>Relação para administradora: relação consolidada por administradora e condomínio.</li>
 <li>Procuração: documento opcional para assinatura do síndico.</li>
 </ul>
 <p>Gerar um documento registra a etapa correspondente. Não encaminhe casos sem conferir nomes, unidade, valores, endereço, administradora e contatos.</p>
-<h3 id="13-4-regua-pre-juridica">13.4 Régua Pré-Jurídica</h3>
+<h3 id="13-5-regua-pre-juridica">13.5 Régua Pré-Jurídica</h3>
 <p>Rota: <code>/app/pre-juridico/regua</code></p>
 <p>As réguas pré-jurídicas são separadas das réguas de cobrança e de acordos. A escolha segue esta prioridade:</p>
 <ol>
@@ -609,7 +620,7 @@
 <li>intervalo em dias para agendamento.</li>
 </ul>
 <p>Etapas inativas não entram no lote. Uma régua sem etapas ativas não pode gerar o encaminhamento.</p>
-<h3 id="13-5-montagem-e-aprovacao-do-lote">13.5 Montagem e aprovação do lote</h3>
+<h3 id="13-6-montagem-e-aprovacao-do-lote">13.6 Montagem e aprovação do lote</h3>
 <p>Ao encaminhar os casos, o sistema agrupa os registros pela combinação de carteira e régua. Condôminos que usam réguas diferentes podem gerar lotes separados.</p>
 <p>O lote pode preparar, conforme as etapas configuradas:</p>
 <ul>
@@ -618,7 +629,7 @@
 <li>procuração para o síndico.</li>
 </ul>
 <p>Mensagens sem destinatário são marcadas como puladas. Mensagens repetidas para a mesma finalidade, destinatário e data são marcadas como duplicadas. As mensagens criadas ficam pendentes de aprovação antes do envio.</p>
-<h3 id="13-6-monitor">13.6 Monitor</h3>
+<h3 id="13-7-monitor">13.7 Monitor</h3>
 <p>Rota: <code>/app/pre-juridico/monitor</code></p>
 <p>O Monitor mostra os casos nas etapas:</p>
 <ol>
@@ -632,9 +643,9 @@
 <li>autorizado para ajuizamento;</li>
 <li>judicializado.</li>
 </ol>
-<p>Abra um cartão para atualizar etapa, escritório jurídico, número do processo e observações. O número do processo é obrigatório ao marcar como judicializado.</p>
+<p>Abra um cartão para atualizar etapa, escritório jurídico, prazo, protocolo de envio, número do processo, tribunal, foro e observações. O número do processo é obrigatório ao marcar como judicializado.</p>
 <p>Na parte inferior, o Histórico de comunicações mostra os lotes, mensagens preparadas e falhas. Abra o lote para revisar itens e aprovar comunicações.</p>
-<h3 id="13-7-cuidados-do-fluxo">13.7 Cuidados do fluxo</h3>
+<h3 id="13-8-cuidados-do-fluxo">13.8 Cuidados do fluxo</h3>
 <ul>
 <li>Não judicialize sem autorização e documentação conferida.</li>
 <li>Corrija contatos ausentes antes de repetir um lote com itens pulados.</li>

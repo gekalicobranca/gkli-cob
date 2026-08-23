@@ -570,7 +570,21 @@ O e-mail geral da administradora não deve bloquear o cadastro. Quando não houv
 
 O módulo Pré-Jurídico organiza a passagem entre a cobrança extrajudicial e o tratamento judicial. Ele fica no menu lateral, abaixo de Comunicação e antes de Gestão.
 
-### 13.1 Habilitação e elegibilidade
+### 13.1 Funcionalidades disponíveis
+
+O módulo possui navegação direta entre Painel Pré, Régua e Monitor. Estão disponíveis:
+
+- identificação e seleção dos casos elegíveis;
+- geração do dossiê, da relação para administradora e da procuração opcional;
+- bloqueio do encaminhamento enquanto os documentos obrigatórios estiverem pendentes;
+- réguas exclusivas, lotes e mensagens para carteira, administradora e síndico;
+- monitoramento em nove etapas, da preparação até a judicialização;
+- registro de escritório, prazo, protocolo, processo, tribunal, foro e observações;
+- marcação automática da unidade como ação judicial ao concluir a judicialização.
+
+A lista técnica atualizada fica em `docs/pre-juridico-funcionalidades.md`.
+
+### 13.2 Habilitação e elegibilidade
 
 Antes de usar o módulo, confirme:
 
@@ -581,7 +595,7 @@ Antes de usar o módulo, confirme:
 
 O Painel trabalha com casos originados de acordos e parcelas. A cobrança principal pode não estar vinculada em bases antigas; revise os vínculos antes do envio quando necessário.
 
-### 13.2 Painel Pré
+### 13.3 Painel Pré
 
 Rota: `/app/pre-juridico`
 
@@ -605,7 +619,7 @@ Fluxo recomendado:
 7. Confira se os casos ficaram prontos.
 8. Use "Encaminhar casos prontos" e confirme a operação.
 
-### 13.3 Documentos
+### 13.4 Documentos
 
 - Dossiê dos casos: histórico pré-jurídico, com uma unidade por página.
 - Relação para administradora: relação consolidada por administradora e condomínio.
@@ -613,7 +627,7 @@ Fluxo recomendado:
 
 Gerar um documento registra a etapa correspondente. Não encaminhe casos sem conferir nomes, unidade, valores, endereço, administradora e contatos.
 
-### 13.4 Régua Pré-Jurídica
+### 13.5 Régua Pré-Jurídica
 
 Rota: `/app/pre-juridico/regua`
 
@@ -641,7 +655,7 @@ Cada etapa ativa da régua define:
 
 Etapas inativas não entram no lote. Uma régua sem etapas ativas não pode gerar o encaminhamento.
 
-### 13.5 Montagem e aprovação do lote
+### 13.6 Montagem e aprovação do lote
 
 Ao encaminhar os casos, o sistema agrupa os registros pela combinação de carteira e régua. Condôminos que usam réguas diferentes podem gerar lotes separados.
 
@@ -653,7 +667,7 @@ O lote pode preparar, conforme as etapas configuradas:
 
 Mensagens sem destinatário são marcadas como puladas. Mensagens repetidas para a mesma finalidade, destinatário e data são marcadas como duplicadas. As mensagens criadas ficam pendentes de aprovação antes do envio.
 
-### 13.6 Monitor
+### 13.7 Monitor
 
 Rota: `/app/pre-juridico/monitor`
 
@@ -669,11 +683,11 @@ O Monitor mostra os casos nas etapas:
 8. autorizado para ajuizamento;
 9. judicializado.
 
-Abra um cartão para atualizar etapa, escritório jurídico, número do processo e observações. O número do processo é obrigatório ao marcar como judicializado.
+Abra um cartão para atualizar etapa, escritório jurídico, prazo, protocolo de envio, número do processo, tribunal, foro e observações. O número do processo é obrigatório ao marcar como judicializado.
 
 Na parte inferior, o Histórico de comunicações mostra os lotes, mensagens preparadas e falhas. Abra o lote para revisar itens e aprovar comunicações.
 
-### 13.7 Cuidados do fluxo
+### 13.8 Cuidados do fluxo
 
 - Não judicialize sem autorização e documentação conferida.
 - Corrija contatos ausentes antes de repetir um lote com itens pulados.

@@ -12,6 +12,7 @@ import { criarReguaOperacional } from '@/features/reguas/actions'
 import { vincularReguaPreJuridico } from '@/features/pre-juridico/reguas-actions'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+import { PreJuridicoModuleNav } from '@/components/pre-juridico/module-nav'
 
 type Params = Promise<{ q?: string; configuracao?: string }>
 const norm = (value: unknown) => String(value ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -38,6 +39,7 @@ export default async function ReguaPreJuridicoPage({ searchParams }: { searchPar
   return (
     <div className="space-y-5">
       <PageHeader eyebrow="Pré-Jurídico" title="Régua de encaminhamento" description="Revise quando cada condomínio sai da cobrança extrajudicial e entra na preparação pré-jurídica." />
+      <PreJuridicoModuleNav active="regua" />
       <Card className="p-5">
         <div className="flex items-start gap-3"><GitBranch className="mt-0.5 text-violet-600" size={20} /><div><h2 className="font-semibold text-slate-950">Réguas exclusivas do Pré-Jurídico</h2><p className="mt-1 text-sm text-slate-500">Essas réguas não aparecem misturadas às rotinas de cobrança e acordo. A prioridade é: condomínio, carteira e, por último, régua global.</p></div></div>
         <form action={criarReguaOperacional} className="mt-5 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(200px,1fr)_120px_minmax(260px,1.4fr)_auto] lg:items-end">
