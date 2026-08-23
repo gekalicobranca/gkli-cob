@@ -10,6 +10,7 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import { PRE_JURIDICO_ETAPAS, type PreJuridicoEtapa } from './etapas'
 import { listPreJuridicoCobrancas } from './queries'
 import { registrarEventoOperacional } from '@/features/operacional/service'
+import { criarLotesPreJuridico } from '@/features/acordos/pre-juridico-lote'
 
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
   if (!carteiraId || (scope.carteiraIds !== null && !scope.carteiraIds.includes(carteiraId))) {
@@ -150,6 +151,42 @@ export async function gerarProcuracoesPreJuridico(formData: FormData) {
   }
   revalidatePath('/app/pre-juridico/processamento')
   redirect(`/api/acordos/pre-juridico/procuracao/pdf?cobrancaIds=${encodeURIComponent(casos.map((caso) => caso.cobranca_id).join(','))}`)
+}
+
+export async function criarLoteProcuracoesPreJuridico(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+  const supabase = await createClient()
+  const casoIds = Array.from(new Set(formData.getAll('caso_id').map(String).map((id) => id.trim()).filter(Boolean)))
+  if (!casoIds.length) throw new Error('Selecione ao menos uma procuração gerada para criar o lote.')
+
+  let query = supabase
+    .from('pre_juridico_casos')
+    .select('id,carteira_id,cobranca_id,etapa,procuracao_status,procuracao_lote_id')
+    .in('id', casoIds)
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  const { data, error } = await query
+  if (error) throw new Error(`Erro ao carregar procurações para a régua: ${error.message}`)
+  const casos = (data ?? []) as any[]
+  if (casos.length !== casoIds.length || casos.some((caso) => caso.etapa !== 'aguardando_sindico' || caso.procuracao_status !== 'gerada' || caso.procuracao_lote_id || !caso.cobranca_id)) {
+    throw new Error('Uma ou mais procurações não estão disponíveis para criar lote.')
+  }
+
+  const resultado = await criarLotesPreJuridico({ cobrancaIds: casos.map((caso) => caso.cobranca_id), scope, userId: user.id })
+  const agora = new Date().toISOString()
+  for (const vinculo of resultado.vinculos) {
+    const { error: vinculoError } = await supabase
+      .from('pre_juridico_casos')
+      .update({ procuracao_lote_id: vinculo.loteId, procuracao_lote_criado_em: agora, responsavel_id: user.id })
+      .in('cobranca_id', vinculo.entidadeIds)
+      .in('id', casoIds)
+    if (vinculoError) throw new Error(`Lote criado, mas não foi possível vinculá-lo aos casos: ${vinculoError.message}`)
+  }
+
+  revalidatePath('/app/pre-juridico/processamento')
+  revalidatePath('/app/pre-juridico/monitor')
+  if (resultado.loteId) redirect(`/app/lotes/${resultado.loteId}?pre_juridico=1`)
 }
 
 export async function atualizarProcuracaoPreJuridico(formData: FormData) {

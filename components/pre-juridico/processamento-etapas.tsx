@@ -1,10 +1,10 @@
 'use client'
 
-import { ChevronDown, ChevronRight, FileSignature } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileSignature, PackagePlus } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
-import { atualizarCertidaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
+import { atualizarCertidaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, criarLoteProcuracoesPreJuridico, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
 import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -13,7 +13,9 @@ const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
 export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: readonly PreJuridicoEtapa[] }) {
   const [selectedProcuracoes, setSelectedProcuracoes] = useState<string[]>([])
+  const [selectedLote, setSelectedLote] = useState<string[]>([])
   const toggleProcuracao = (id: string) => setSelectedProcuracoes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  const toggleLote = (id: string) => setSelectedLote((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
   return <div className="space-y-3">
     {etapas.map((etapaId) => {
       const etapa = PRE_JURIDICO_ETAPAS.find((item) => item.id === etapaId)!
@@ -27,8 +29,8 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
             </ListPanelHeader>
           </summary>
           <div>
-          {etapaId === 'aguardando_sindico' && rows.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 md:flex-row md:items-center md:justify-between"><p className="text-sm text-slate-600">Selecione os casos para gerar as procurações em um único PDF.</p><form action={gerarProcuracoesPreJuridico} onSubmit={(event) => { if (!window.confirm(`Gerar ${selectedProcuracoes.length} procuração(ões)?`)) event.preventDefault() }}>{selectedProcuracoes.map((id) => <input key={id} type="hidden" name="caso_id" value={id} />)}<PendingSubmitButton disabled={!selectedProcuracoes.length} pendingLabel="Gerando procurações..."><FileSignature size={16} />Gerar procuração {selectedProcuracoes.length ? `(${selectedProcuracoes.length})` : ''}</PendingSubmitButton></form></div> : null}
-          {rows.length ? <ListRows>{rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} selectable={etapaId === 'aguardando_sindico'} selected={selectedProcuracoes.includes(caso.id)} onToggle={() => toggleProcuracao(caso.id)} />)}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
+          {etapaId === 'aguardando_sindico' && rows.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between"><p className="text-sm text-slate-600">Pendentes podem gerar procuração; procurações geradas podem criar o lote da régua.</p><div className="flex flex-wrap gap-2"><form action={gerarProcuracoesPreJuridico} onSubmit={(event) => { if (!window.confirm(`Gerar ${selectedProcuracoes.length} procuração(ões)?`)) event.preventDefault() }}>{selectedProcuracoes.map((id) => <input key={id} type="hidden" name="caso_id" value={id} />)}<PendingSubmitButton disabled={!selectedProcuracoes.length} pendingLabel="Gerando procurações..."><FileSignature size={16} />Gerar procuração {selectedProcuracoes.length ? `(${selectedProcuracoes.length})` : ''}</PendingSubmitButton></form><form action={criarLoteProcuracoesPreJuridico} onSubmit={(event) => { if (!window.confirm(`Criar lote com ${selectedLote.length} procuração(ões) gerada(s)?`)) event.preventDefault() }}>{selectedLote.map((id) => <input key={id} type="hidden" name="caso_id" value={id} />)}<PendingSubmitButton disabled={!selectedLote.length} pendingLabel="Criando lote..."><PackagePlus size={16} />Criar lote na régua {selectedLote.length ? `(${selectedLote.length})` : ''}</PendingSubmitButton></form></div></div> : null}
+          {rows.length ? <ListRows>{rows.map((caso) => { const loteDisponivel = caso.procuracao_status === 'gerada' && !caso.procuracao_lote_id; const gerarDisponivel = caso.procuracao_status !== 'gerada' && caso.procuracao_status !== 'assinada'; return <CasoProcessamento key={caso.id} caso={caso} selectable={etapaId === 'aguardando_sindico' && (gerarDisponivel || loteDisponivel)} selectionLabel={loteDisponivel ? 'Selecionar procuração gerada para criar lote' : 'Selecionar para gerar procuração'} selected={loteDisponivel ? selectedLote.includes(caso.id) : selectedProcuracoes.includes(caso.id)} onToggle={() => loteDisponivel ? toggleLote(caso.id) : toggleProcuracao(caso.id)} /> })}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
           </div>
         </details>
       </ListPanel>
@@ -36,7 +38,7 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
   </div>
 }
 
-function CasoProcessamento({ caso, selectable = false, selected = false, onToggle }: { caso: any; selectable?: boolean; selected?: boolean; onToggle?: () => void }) {
+function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecionar caso', selected = false, onToggle }: { caso: any; selectable?: boolean; selectionLabel?: string; selected?: boolean; onToggle?: () => void }) {
   const condominio = relation(caso.condominio)
   const unidade = relation(caso.unidade)
   const acordo = relation(caso.acordo)
@@ -46,7 +48,7 @@ function CasoProcessamento({ caso, selectable = false, selected = false, onToggl
 
   return <details className="group/caso">
     <summary className="list-none [&::-webkit-details-marker]:hidden"><ListRow className={`cursor-pointer bg-white ${selectable ? 'md:grid-cols-[28px_minmax(260px,1fr)_150px_150px_150px_24px]' : 'md:grid-cols-[minmax(260px,1fr)_150px_150px_150px_24px]'}`}>
-      {selectable ? <input aria-label="Selecionar para gerar procuração" type="checkbox" checked={selected} onClick={(event) => event.stopPropagation()} onChange={onToggle} className="h-4 w-4 rounded border-slate-300" /> : null}
+      {selectable ? <input aria-label={selectionLabel} type="checkbox" checked={selected} onClick={(event) => event.stopPropagation()} onChange={onToggle} className="h-4 w-4 rounded border-slate-300" /> : null}
       <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'}</p></div>
       <div><p className="text-xs text-slate-400">Valor</p><p className="mt-1 text-sm font-semibold">{formatCurrency(valor)}</p></div>
       <div><p className="text-xs text-slate-400">Responsável interno</p><p className="mt-1 text-sm">{responsavel?.nome || 'Não definido'}</p></div>

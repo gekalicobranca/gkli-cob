@@ -13,7 +13,8 @@ import {
 import { formatCurrency } from "@/utils/formatters/currency";
 
 type PreJuridicoLoteParams = {
-  acordoIds: string[];
+  acordoIds?: string[];
+  cobrancaIds?: string[];
   scope: CarteiraScope;
   userId?: string | null;
 };
@@ -125,13 +126,14 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function pdfLinks(acordoIds: string[]) {
+function pdfLinks(idsSelecionados: string[], origem: "acordo" | "cobranca" = "acordo") {
   const base = getPublicBaseUrl();
-  const ids = encodeURIComponent(acordoIds.join(","));
+  const ids = encodeURIComponent(idsSelecionados.join(","));
+  const procuracaoQuery = origem === "cobranca" ? `cobrancaIds=${ids}` : `ids=${ids}`;
   return {
     laudo: `${base}/api/acordos/pre-juridico/pdf?ids=${ids}`,
     listaAdministradora: `${base}/api/acordos/pre-juridico/lista-administradora/pdf?ids=${ids}`,
-    procuracao: `${base}/api/acordos/pre-juridico/procuracao/pdf?ids=${ids}`,
+    procuracao: `${base}/api/acordos/pre-juridico/procuracao/pdf?${procuracaoQuery}`,
   };
 }
 
@@ -297,6 +299,53 @@ async function carregarAcordos(
   }));
 }
 
+async function carregarCobrancas(
+  supabase: ReturnType<typeof createAdminClient>,
+  cobrancaIds: string[],
+  scope: CarteiraScope,
+) {
+  let query: any = supabase
+    .from("cobrancas")
+    .select(`
+      id, carteira_id, condominio_id, unidade_id, status, status_financeiro,
+      valor_original, valor_atualizado, vencimento,
+      carteiras:carteira_id (id,nome,pre_juridico_habilitado),
+      condominios:condominio_id (
+        id, nome, regua_pre_juridico_id, administradora_id,
+        administradoras:administradora_id (id,nome,email)
+      ),
+      unidades:unidade_id (id,identificacao,bloco,responsavel_nome,email,telefone)
+    `)
+    .in("id", cobrancaIds);
+
+  if (scope.carteiraIds !== null) {
+    query = query.in("carteira_id", scope.carteiraIds.length ? scope.carteiraIds : ["00000000-0000-0000-0000-000000000000"]);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Erro ao carregar cobranças para lote pré-jurídico: ${error.message}`);
+  const rows = (data ?? []) as any[];
+  if (rows.length !== cobrancaIds.length) throw new Error("Uma ou mais cobranças não estão disponíveis para a régua pré-jurídica.");
+
+  return rows.map((row) => ({
+    ...row,
+    origem_pre_juridico: "cobranca" as const,
+    valor_acordado: row.valor_atualizado ?? row.valor_original,
+    carteiras: firstRelation(row.carteiras),
+    condominios: {
+      ...firstRelation(row.condominios),
+      administradoras: firstRelation(firstRelation(row.condominios)?.administradoras),
+    },
+    unidades: firstRelation(row.unidades),
+  }));
+}
+
+function referenciasEntidade(row: any) {
+  return row.origem_pre_juridico === "cobranca"
+    ? { acordo_id: null, cobranca_id: row.id }
+    : { acordo_id: row.id, cobranca_id: null };
+}
+
 async function carregarContatosCarteira(
   supabase: ReturnType<typeof createAdminClient>,
   carteiraIds: string[],
@@ -376,7 +425,8 @@ async function criarLote(params: {
   reguaId: string;
   reguaOrigem: string;
   userId?: string | null;
-  acordoIds: string[];
+  entidadeIds: string[];
+  origem: "acordo" | "cobranca";
 }) {
   const { data, error } = await params.supabase
     .from("lotes")
@@ -393,7 +443,8 @@ async function criarLote(params: {
         regua_id: params.reguaId,
         regua_tipo: JURIDICO_TIPO_REGUA,
         regua_origem: params.reguaOrigem,
-        acordo_ids: params.acordoIds,
+        origem: params.origem,
+        entidade_ids: params.entidadeIds,
       },
     } as any)
     .select("id")
@@ -451,7 +502,7 @@ async function criarMensagem(params: {
   if (!params.contato?.email) {
     const { error: itemError } = await supabase.from("lote_itens").insert({
       lote_id: params.loteId,
-      acordo_id: acordo.id,
+      ...referenciasEntidade(acordo),
       unidade_id: unidade?.id ?? acordo.unidade_id ?? null,
       condominio_id: condominio?.id ?? acordo.condominio_id ?? null,
       regua_etapa_id: params.etapa.id,
@@ -505,7 +556,7 @@ async function criarMensagem(params: {
   if (existente?.id) {
     await supabase.from("lote_itens").insert({
       lote_id: params.loteId,
-      acordo_id: acordo.id,
+      ...referenciasEntidade(acordo),
       unidade_id: unidade?.id ?? acordo.unidade_id ?? null,
       condominio_id: condominio?.id ?? acordo.condominio_id ?? null,
       regua_etapa_id: params.etapa.id,
@@ -525,7 +576,7 @@ async function criarMensagem(params: {
     .insert({
       carteira_id: acordo.carteira_id,
       contexto: "pre_juridico",
-      acordo_id: acordo.id,
+      ...referenciasEntidade(acordo),
       canal: params.etapa.canal,
       destinatario: params.contato.email,
       email_destinatario: params.contato.email,
@@ -561,7 +612,7 @@ async function criarMensagem(params: {
     .insert({
       lote_id: params.loteId,
       regua_etapa_id: params.etapa.id,
-      acordo_id: acordo.id,
+      ...referenciasEntidade(acordo),
       unidade_id: unidade?.id ?? acordo.unidade_id ?? null,
       condominio_id: condominio?.id ?? acordo.condominio_id ?? null,
       mensagem_id: mensagem.id,
@@ -584,7 +635,7 @@ async function criarMensagem(params: {
     evento: "pre_juridico_mensagem_criada",
     status_novo: MENSAGEM_STATUS.PENDENTE_APROVACAO,
     descricao: "Mensagem da régua pré-jurídica criada.",
-    payload: { finalidade: params.finalidade, acordo_id: acordo.id, destinatario: params.contato.email },
+    payload: { finalidade: params.finalidade, ...referenciasEntidade(acordo), destinatario: params.contato.email },
   });
 
   counters.criadas += 1;
@@ -641,7 +692,15 @@ async function finalizarLote(
 
 export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
   const supabase = createAdminClient();
-  const acordos = await carregarAcordos(supabase, params.acordoIds, params.scope);
+  const acordoIds = params.acordoIds ?? [];
+  const cobrancaIds = params.cobrancaIds ?? [];
+  if ((!acordoIds.length && !cobrancaIds.length) || (acordoIds.length && cobrancaIds.length)) {
+    throw new Error("Informe acordos ou cobranças para criar o lote pré-jurídico.");
+  }
+  const origem = cobrancaIds.length ? "cobranca" as const : "acordo" as const;
+  const acordos = origem === "cobranca"
+    ? await carregarCobrancas(supabase, cobrancaIds, params.scope)
+    : await carregarAcordos(supabase, acordoIds, params.scope);
   const desabilitados = acordos.filter((acordo) => !Boolean(acordo.carteiras?.pre_juridico_habilitado));
 
   if (desabilitados.length > 0) {
@@ -661,6 +720,7 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
   ]);
 
   const lotes: string[] = [];
+  const vinculos: Array<{ loteId: string; entidadeIds: string[] }> = [];
   const acordosPorRegua = new Map<string, { carteiraId: string; regua: Awaited<ReturnType<typeof ensureReguaPreJuridico>>; rows: any[] }>();
   for (const acordo of acordos) {
     if (!acordo.carteira_id) continue;
@@ -676,7 +736,10 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
   }
 
   for (const { carteiraId, regua, rows } of acordosPorRegua.values()) {
-    const etapas = await carregarEtapasJuridico(supabase, regua.id);
+    const etapasConfiguradas = await carregarEtapasJuridico(supabase, regua.id);
+    const etapas = origem === "cobranca"
+      ? etapasConfiguradas.filter((etapa) => etapa.categoria_template === "pre_juridico_sindico")
+      : etapasConfiguradas;
     if (!etapas.length) {
       throw new Error("A régua pré-jurídica selecionada não possui etapas ativas.");
     }
@@ -686,9 +749,11 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
       reguaId: regua.id,
       reguaOrigem: regua.origem,
       userId: params.userId,
-      acordoIds: rows.map((row) => row.id),
+      entidadeIds: rows.map((row) => row.id),
+      origem,
     });
     lotes.push(loteId);
+    vinculos.push({ loteId, entidadeIds: rows.map((row) => row.id) });
 
     const counters: LoteCounters = { avaliadas: 0, criadas: 0, puladas: 0, duplicadas: 0, erros: 0 };
     const porAdministradora = new Map<string, any[]>();
@@ -714,7 +779,7 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
             finalidade: "administradora",
             assuntoFallback: "Lista pré-jurídica de acordos quebrados - {{administradora}}",
             motivoSemContato: "Administradora sem contato ativo com e-mail para receber a lista.",
-            links: pdfLinks(admRows.map((row) => row.id)),
+            links: pdfLinks(admRows.map((row) => row.id), origem),
             payload: { administradora_id: administradoraId, acordo_ids: admRows.map((row) => row.id), total_acordos: admRows.length },
             counters,
           });
@@ -731,7 +796,7 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
           finalidade: paraCarteira ? "carteira" : "sindico",
           assuntoFallback: paraCarteira ? "Pacote pré-jurídico - {{condominio}} - unidade {{unidade}}" : "Procuração para assinatura - {{condominio}} - unidade {{unidade}}",
           motivoSemContato: paraCarteira ? "Carteira sem usuário com e-mail vinculado para receber laudo/procuração." : "Condomínio sem síndico ativo com e-mail para receber procuração.",
-          links: pdfLinks([acordo.id]),
+          links: pdfLinks([acordo.id], origem),
           counters,
         });
       }
@@ -760,5 +825,5 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
     });
   }
 
-  return { loteId: lotes[0] ?? null, loteIds: lotes };
+  return { loteId: lotes[0] ?? null, loteIds: lotes, vinculos };
 }

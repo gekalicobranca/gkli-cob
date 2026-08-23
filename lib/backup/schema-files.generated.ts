@@ -271,5 +271,29 @@ export const backupSchemaFiles: ReadonlyArray<{ name: string; content: string }>
   {
     "name": "schema/migrations/20260818230459_etapas_padrao_regua_pre_juridico.sql",
     "content": "insert into public.regua_etapas (\n  regua_id,\n  ordem,\n  nome,\n  delay_dias,\n  delay_referencia,\n  canal,\n  template,\n  categoria_template,\n  tom,\n  acao,\n  ativo\n)\nselect\n  r.id,\n  etapa.ordem,\n  etapa.nome,\n  etapa.delay_dias,\n  'acordo',\n  'email',\n  etapa.template,\n  etapa.categoria_template,\n  'medio',\n  'enviar_mensagem',\n  true\nfrom public.reguas r\ncross join (\n  values\n    (1, 'Pacote para carteira', 0, 'pre_juridico_carteira', 'Olá, {{primeiro_nome}}. O pacote pré-jurídico da unidade {{unidade}} do {{condominio}} está pronto. Laudo: {{link_laudo}}. Procuração: {{link_procuracao}}.'),\n    (2, 'Lista para administradora', 0, 'pre_juridico_administradora', 'Olá, {{primeiro_nome}}. Segue a lista pré-jurídica dos acordos quebrados vinculados à administradora {{administradora}}. Lista: {{link_lista_administradora}}.'),\n    (3, 'Procuração para síndico', 0, 'pre_juridico_sindico', 'Olá, {{primeiro_nome}}. Segue a procuração para assinatura referente à unidade {{unidade}} do {{condominio}}. Procuração: {{link_procuracao}}.')\n) as etapa(ordem, nome, delay_dias, categoria_template, template)\nwhere r.tipo = 'juridico'\n  and not exists (\n    select 1\n    from public.regua_etapas existente\n    where existente.regua_id = r.id\n      and existente.categoria_template = etapa.categoria_template\n  );\n"
+  },
+  {
+    "name": "schema/migrations/20260823012738_permitir_cobrancas_no_pre_juridico.sql",
+    "content": "alter table public.pre_juridico_casos\n  alter column acordo_id drop not null;\n\ncreate unique index pre_juridico_casos_cobranca_id_unique_idx\n  on public.pre_juridico_casos (cobranca_id)\n  where cobranca_id is not null;\n\nalter table public.pre_juridico_casos\n  add constraint pre_juridico_casos_origem_check\n  check (acordo_id is not null or cobranca_id is not null);\n\ncomment on table public.pre_juridico_casos is\n  'Acompanha cobrancas e casos legados de acordos desde o pre-juridico ate a judicializacao.';\n"
+  },
+  {
+    "name": "schema/migrations/20260823022841_condominios_prazo_cobranca_ativa.sql",
+    "content": "alter table public.condominios\n  add column if not exists dias_cobranca_ativa integer not null default 60,\n  add column if not exists pre_juridico_habilitado boolean not null default false;\n\nupdate public.condominios\nset\n  dias_cobranca_ativa = coalesce(dias_expiracao_regua_pre_juridico, 60),\n  pre_juridico_habilitado = dias_expiracao_regua_pre_juridico is not null;\n\nalter table public.condominios\n  add constraint condominios_dias_cobranca_ativa_chk\n  check (dias_cobranca_ativa between 0 and 3650);\n\ncomment on column public.condominios.dias_cobranca_ativa is\n  'Quantidade de dias em que a cobranca permanece ativa e disponivel para acordos apos o inicio da regua.';\n\ncomment on column public.condominios.pre_juridico_habilitado is\n  'Quando verdadeiro, cobrancas sem acordo sao movidas ao pre-juridico ao fim do prazo de cobranca ativa.';\n"
+  },
+  {
+    "name": "schema/migrations/20260823113339_adicionar_andamento_certidao_pre_juridico.sql",
+    "content": "alter table public.pre_juridico_casos\n  add column certidao_status text not null default 'pendente',\n  add column certidao_solicitada_em timestamptz,\n  add column certidao_recebida_em timestamptz;\n\nalter table public.pre_juridico_casos\n  add constraint pre_juridico_casos_certidao_status_check\n  check (certidao_status in ('pendente', 'solicitada', 'recebida'));\n\ncomment on column public.pre_juridico_casos.certidao_status is\n  'Andamento da certidao usada para confirmar a propriedade: pendente, solicitada ou recebida.';\n"
+  },
+  {
+    "name": "schema/migrations/20260823113824_adicionar_andamento_procuracao_pre_juridico.sql",
+    "content": "alter table public.pre_juridico_casos\n  add column procuracao_status text not null default 'pendente',\n  add column procuracao_gerada_em timestamptz,\n  add column procuracao_assinada_em timestamptz;\n\nalter table public.pre_juridico_casos\n  add constraint pre_juridico_casos_procuracao_status_check\n  check (procuracao_status in ('pendente', 'gerada', 'assinada'));\n\ncomment on column public.pre_juridico_casos.procuracao_status is\n  'Andamento da procuracao: pendente, gerada ou assinada.';\n"
+  },
+  {
+    "name": "schema/migrations/20260823115104_substituir_administradora_por_confirmacao_juridico.sql",
+    "content": "alter table public.pre_juridico_casos\n  drop constraint if exists pre_juridico_casos_etapa_check;\n\nupdate public.pre_juridico_casos\nset etapa = 'confirmar_juridico'\nwhere etapa = 'aguardando_administradora';\n\nalter table public.pre_juridico_casos\n  add constraint pre_juridico_casos_etapa_check check (etapa in (\n    'aguardando_documentos', 'aguardando_sindico', 'confirmar_juridico',\n    'pronto_juridico', 'enviado_juridico', 'analise_juridica',\n    'pendencia_juridica', 'autorizado_ajuizamento', 'judicializado'\n  ));\n"
+  },
+  {
+    "name": "schema/migrations/20260823115529_vincular_lote_procuracao_pre_juridico.sql",
+    "content": "alter table public.pre_juridico_casos\n  add column if not exists procuracao_lote_id uuid null references public.lotes(id) on delete set null,\n  add column if not exists procuracao_lote_criado_em timestamptz null;\n\ncreate index if not exists pre_juridico_casos_procuracao_lote_id_idx\n  on public.pre_juridico_casos (procuracao_lote_id)\n  where procuracao_lote_id is not null;\n\ncomment on column public.pre_juridico_casos.procuracao_lote_id is\n  'Lote da régua criado para enviar a procuração gerada ao síndico.';\n"
   }
 ]
