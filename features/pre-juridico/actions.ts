@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { requireRole } from '@/utils/auth/require-role'
 import { requireUser } from '@/utils/auth/require-user'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
@@ -108,13 +109,13 @@ export async function encaminharCobrancasPreJuridico(formData: FormData) {
   revalidatePath('/app/pre-juridico/monitor')
 }
 
-export async function iniciarProcessamentoPreJuridico(formData: FormData) {
+export async function gerarLaudosPreJuridico(formData: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
   const scope = await getPermittedCarteiras()
   const supabase = await createClient()
   const ids = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
-  if (ids.length === 0) throw new Error('Selecione ao menos uma cobrança encaminhada.')
+  if (ids.length === 0) throw new Error('Selecione ao menos uma cobrança para gerar o laudo.')
 
   const encaminhadas = (await listPreJuridicoCobrancas(scope))
     .filter((row: any) => row.situacao_pre_juridico === 'encaminhado' && ids.includes(row.id))
@@ -135,11 +136,29 @@ export async function iniciarProcessamentoPreJuridico(formData: FormData) {
     responsavel_id: user.id,
     etapa: 'aguardando_documentos',
   }))
-  if (novos.length === 0) throw new Error('As cobranças selecionadas já possuem processamento iniciado.')
+  if (novos.length === 0) throw new Error('As cobranças selecionadas já possuem laudo gerado ou processamento iniciado.')
   const { error } = await supabase.from('pre_juridico_casos').insert(novos)
-  if (error) throw new Error(`Erro ao iniciar o processamento: ${error.message}`)
+  if (error) throw new Error(`Erro ao registrar a geração dos laudos: ${error.message}`)
+
+  for (const row of novos) {
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: row.carteira_id,
+      entidadeTipo: 'cobranca',
+      entidadeId: row.cobranca_id,
+      eventoCodigo: 'cobranca.pre_juridico.laudo_gerado',
+      titulo: 'Laudo pré-jurídico gerado',
+      descricao: 'Laudo preparado a partir da cobrança e do histórico extrajudicial da unidade.',
+      severidade: 'info',
+      payload: { cobranca_id: row.cobranca_id, condominio_id: row.condominio_id, unidade_id: row.unidade_id },
+      origem: 'manual',
+      auditavel: true,
+      required: true,
+      userId: user.id,
+    })
+  }
 
   revalidatePath('/app/pre-juridico')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/monitor')
+  redirect(`/app/pre-juridico/processamento/laudos?ids=${encodeURIComponent(ids.join(','))}`)
 }

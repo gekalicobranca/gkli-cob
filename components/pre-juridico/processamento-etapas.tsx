@@ -71,7 +71,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function descricaoEtapa(etapa: PreJuridicoEtapa) {
-  if (etapa === 'aguardando_documentos') return 'Conferência e preparação dos documentos do caso.'
+  if (etapa === 'aguardando_documentos') return 'Laudos gerados; confira os documentos antes do envio ao síndico.'
   if (etapa === 'aguardando_sindico') return 'Envio e confirmação da procuração assinada pelo síndico.'
   if (etapa === 'aguardando_administradora') return 'Validação da administradora após a assinatura do síndico.'
   if (etapa === 'pronto_juridico') return 'Pacote revisado e pronto para envio ao jurídico.'

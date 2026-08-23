@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronDown, PlayCircle } from 'lucide-react'
+import { ChevronDown, FileText } from 'lucide-react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
-import { iniciarProcessamentoPreJuridico } from '@/features/pre-juridico/actions'
+import { gerarLaudosPreJuridico } from '@/features/pre-juridico/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 
@@ -33,9 +33,9 @@ export function IniciarProcessamento({ rows }: { rows: Row[] }) {
     </summary>
     <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
       <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700"><input type="checkbox" checked={allSelected} disabled={!rows.length} onChange={toggleAll} className="h-4 w-4 rounded border-slate-300" />Selecionar todas aguardando início</label>
-      <form action={iniciarProcessamentoPreJuridico} onSubmit={(event) => { if (!window.confirm(`Iniciar o processamento de ${selected.length} cobrança(s)?`)) event.preventDefault() }}>
+      <form action={gerarLaudosPreJuridico} onSubmit={(event) => { if (!window.confirm(`Gerar laudo para ${selected.length} cobrança(s)?`)) event.preventDefault() }}>
         {selected.map((id) => <input key={id} type="hidden" name="cobranca_id" value={id} />)}
-        <PendingSubmitButton disabled={!selected.length} pendingLabel="Iniciando..."><PlayCircle size={16} />Iniciar processamento {selected.length ? `(${selected.length})` : ''}</PendingSubmitButton>
+        <PendingSubmitButton disabled={!selected.length} pendingLabel="Gerando laudos..."><FileText size={16} />Gerar laudo {selected.length ? `(${selected.length})` : ''}</PendingSubmitButton>
       </form>
     </div>
     {rows.length ? <ListRows>{rows.map((row) => <ListRow key={row.id} className="md:grid-cols-[28px_minmax(260px,1fr)_130px_150px]">
