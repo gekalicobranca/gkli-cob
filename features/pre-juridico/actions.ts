@@ -150,7 +150,12 @@ export async function gerarProcuracoesPreJuridico(formData: FormData) {
     await registrarEventoOperacional(supabase as any, { carteiraId: caso.carteira_id, entidadeTipo: 'cobranca', entidadeId: caso.cobranca_id, eventoCodigo: 'cobranca.pre_juridico.procuracao_gerada', titulo: 'Procuração gerada', descricao: 'Procuração preparada para coleta da assinatura do síndico.', severidade: 'info', payload: { caso_id: caso.id, condominio_id: caso.condominio_id, unidade_id: caso.unidade_id }, origem: 'manual', auditavel: true, required: true, userId: user.id })
   }
   revalidatePath('/app/pre-juridico/processamento')
-  redirect(`/api/acordos/pre-juridico/procuracao/pdf?cobrancaIds=${encodeURIComponent(casos.map((caso) => caso.cobranca_id).join(','))}`)
+  const unidadeIds = Array.from(new Set(casos.map((caso) => caso.unidade_id).filter(Boolean)))
+  let cobrancasQuery = supabase.from('cobrancas').select('id').in('unidade_id', unidadeIds)
+  cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
+  const { data: cobrancasUnidades, error: cobrancasError } = await cobrancasQuery
+  if (cobrancasError) throw new Error(`Procurações geradas, mas houve erro ao agrupar as cobranças: ${cobrancasError.message}`)
+  redirect(`/api/acordos/pre-juridico/procuracao/pdf?cobrancaIds=${encodeURIComponent((cobrancasUnidades ?? []).map((row: any) => row.id).join(','))}`)
 }
 
 export async function criarLoteProcuracoesPreJuridico(formData: FormData) {
@@ -258,41 +263,68 @@ export async function gerarLaudosPreJuridico(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const supabase = await createClient()
   const ids = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
-  if (ids.length === 0) throw new Error('Selecione ao menos uma cobrança para gerar o laudo.')
+  if (ids.length === 0) throw new Error('Selecione ao menos uma unidade para gerar o laudo.')
 
   const encaminhadas = (await listPreJuridicoCobrancas(scope))
     .filter((row: any) => row.situacao_pre_juridico === 'encaminhado' && ids.includes(row.id))
   if (encaminhadas.length !== ids.length) throw new Error('Uma ou mais cobranças não estão encaminhadas ao pré-jurídico.')
 
+  const unidadesSelecionadas = Array.from(new Set(encaminhadas.map((row: any) => row.unidade_id).filter(Boolean)))
+  if (!unidadesSelecionadas.length) throw new Error('As cobranças selecionadas não possuem unidade vinculada.')
+
   const { data: existentes, error: existentesError } = await supabase
     .from('pre_juridico_casos')
-    .select('cobranca_id')
-    .in('cobranca_id', ids)
+    .select('unidade_id')
+    .in('unidade_id', unidadesSelecionadas)
   if (existentesError) throw new Error(`Erro ao conferir processamentos existentes: ${existentesError.message}`)
-  const existentesIds = new Set((existentes ?? []).map((row: any) => row.cobranca_id))
-  const novos = encaminhadas.filter((row: any) => !existentesIds.has(row.id)).map((row: any) => ({
-    carteira_id: row.carteira_id,
-    acordo_id: null,
-    condominio_id: row.condominio_id,
-    unidade_id: row.unidade_id,
-    cobranca_id: row.id,
-    responsavel_id: user.id,
-    etapa: 'aguardando_documentos',
-  }))
-  if (novos.length === 0) throw new Error('As cobranças selecionadas já possuem laudo gerado ou processamento iniciado.')
+  const unidadesExistentes = new Set((existentes ?? []).map((row: any) => row.unidade_id))
+  const unidadesNovas = unidadesSelecionadas.filter((unidadeId) => !unidadesExistentes.has(unidadeId))
+  if (!unidadesNovas.length) throw new Error('As unidades selecionadas já possuem laudo gerado ou processamento iniciado.')
+
+  let cobrancasUnidadesQuery = supabase
+    .from('cobrancas')
+    .select('id,carteira_id,condominio_id,unidade_id,status_financeiro')
+    .in('unidade_id', unidadesNovas)
+  cobrancasUnidadesQuery = applyCarteiraScope(cobrancasUnidadesQuery, scope.carteiraIds)
+  const { data: cobrancasUnidades, error: cobrancasError } = await cobrancasUnidadesQuery
+  if (cobrancasError) throw new Error(`Erro ao agrupar cobranças das unidades: ${cobrancasError.message}`)
+  const cobrancasAbertasIds = ((cobrancasUnidades ?? []) as any[])
+    .filter((row) => !['quitado', 'pago', 'cancelado'].includes(String(row.status_financeiro ?? '').toLowerCase()))
+    .map((row) => row.id)
+  if (cobrancasAbertasIds.length) {
+    const { error: statusError } = await supabase
+      .from('cobrancas')
+      .update({ status: 'pre_juridico', status_operacional: 'pre_juridico' })
+      .in('id', cobrancasAbertasIds)
+    if (statusError) throw new Error(`Erro ao encaminhar todas as cobranças abertas das unidades: ${statusError.message}`)
+  }
+
+  const referenciaPorUnidade = new Map(encaminhadas.map((row: any) => [row.unidade_id, row]))
+  const novos = unidadesNovas.map((unidadeId) => {
+    const row: any = referenciaPorUnidade.get(unidadeId)
+    return {
+      carteira_id: row.carteira_id,
+      acordo_id: null,
+      condominio_id: row.condominio_id,
+      unidade_id: unidadeId,
+      cobranca_id: row.id,
+      responsavel_id: user.id,
+      etapa: 'aguardando_documentos',
+    }
+  })
   const { error } = await supabase.from('pre_juridico_casos').insert(novos)
   if (error) throw new Error(`Erro ao registrar a geração dos laudos: ${error.message}`)
 
-  for (const row of novos) {
+  for (const row of (cobrancasUnidades ?? []) as any[]) {
     await registrarEventoOperacional(supabase as any, {
       carteiraId: row.carteira_id,
       entidadeTipo: 'cobranca',
-      entidadeId: row.cobranca_id,
+      entidadeId: row.id,
       eventoCodigo: 'cobranca.pre_juridico.laudo_gerado',
       titulo: 'Laudo pré-jurídico gerado',
-      descricao: 'Laudo preparado a partir da cobrança e do histórico extrajudicial da unidade.',
+      descricao: 'Cobrança agrupada ao caso pré-jurídico único da unidade na geração do laudo.',
       severidade: 'info',
-      payload: { cobranca_id: row.cobranca_id, condominio_id: row.condominio_id, unidade_id: row.unidade_id },
+      payload: { cobranca_id: row.id, condominio_id: row.condominio_id, unidade_id: row.unidade_id },
       origem: 'manual',
       auditavel: true,
       required: true,
@@ -303,5 +335,6 @@ export async function gerarLaudosPreJuridico(formData: FormData) {
   revalidatePath('/app/pre-juridico')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/monitor')
-  redirect(`/app/pre-juridico/processamento/laudos?ids=${encodeURIComponent(ids.join(','))}`)
+  const cobrancasAgrupadasIds = (cobrancasUnidades ?? []).map((row: any) => row.id)
+  redirect(`/app/pre-juridico/processamento/laudos?ids=${encodeURIComponent(cobrancasAgrupadasIds.join(','))}`)
 }

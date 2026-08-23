@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowUpRight, FileText } from 'lucide-react'
 import { ButtonLink } from '@/components/ui/button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
 import { PageHeader } from '@/components/ui/page-header'
-import { listPreJuridicoCobrancas } from '@/features/pre-juridico/queries'
+import { listCobrancasAgrupadasPreJuridico } from '@/features/pre-juridico/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatCurrency } from '@/utils/formatters/currency'
 
@@ -10,9 +10,9 @@ type Params = Promise<{ ids?: string }>
 
 export default async function LaudosGeradosPage({ searchParams }: { searchParams: Params }) {
   const { ids: rawIds } = await searchParams
-  const ids = new Set(String(rawIds ?? '').split(',').map((id) => id.trim()).filter(Boolean))
+  const ids = Array.from(new Set(String(rawIds ?? '').split(',').map((id) => id.trim()).filter(Boolean)))
   const scope = await getPermittedCarteiras()
-  const rows = (await listPreJuridicoCobrancas(scope)).filter((row: any) => ids.has(row.id))
+  const rows = await listCobrancasAgrupadasPreJuridico(scope, ids)
   const groups = new Map<string, any[]>()
   for (const row of rows) {
     const key = row.unidade_id || row.id

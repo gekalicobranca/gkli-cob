@@ -324,20 +324,50 @@ async function carregarCobrancas(
 
   const { data, error } = await query;
   if (error) throw new Error(`Erro ao carregar cobranças para lote pré-jurídico: ${error.message}`);
-  const rows = (data ?? []) as any[];
-  if (rows.length !== cobrancaIds.length) throw new Error("Uma ou mais cobranças não estão disponíveis para a régua pré-jurídica.");
+  const referencias = (data ?? []) as any[];
+  if (referencias.length !== cobrancaIds.length) throw new Error("Uma ou mais cobranças não estão disponíveis para a régua pré-jurídica.");
+  const unidadeIds = unique(referencias.map((row) => row.unidade_id));
 
-  return rows.map((row) => ({
-    ...row,
-    origem_pre_juridico: "cobranca" as const,
-    valor_acordado: row.valor_atualizado ?? row.valor_original,
-    carteiras: firstRelation(row.carteiras),
-    condominios: {
-      ...firstRelation(row.condominios),
-      administradoras: firstRelation(firstRelation(row.condominios)?.administradoras),
-    },
-    unidades: firstRelation(row.unidades),
-  }));
+  let todasQuery: any = supabase
+    .from("cobrancas")
+    .select(`
+      id, carteira_id, condominio_id, unidade_id, status, status_financeiro,
+      valor_original, valor_atualizado, vencimento,
+      carteiras:carteira_id (id,nome,pre_juridico_habilitado),
+      condominios:condominio_id (
+        id, nome, regua_pre_juridico_id, administradora_id,
+        administradoras:administradora_id (id,nome,email)
+      ),
+      unidades:unidade_id (id,identificacao,bloco,responsavel_nome,email,telefone)
+    `)
+    .in("unidade_id", unidadeIds);
+  if (scope.carteiraIds !== null) {
+    todasQuery = todasQuery.in("carteira_id", scope.carteiraIds.length ? scope.carteiraIds : ["00000000-0000-0000-0000-000000000000"]);
+  }
+  const { data: todas, error: todasError } = await todasQuery;
+  if (todasError) throw new Error(`Erro ao agrupar cobranças das unidades no lote: ${todasError.message}`);
+
+  return referencias.map((referencia) => {
+    const cobrancasUnidade = ((todas ?? []) as any[]).filter((row) => row.unidade_id === referencia.unidade_id);
+    return {
+      ...referencia,
+      origem_pre_juridico: "cobranca" as const,
+      cobrancas_pre_juridico_ids: cobrancasUnidade.map((row) => row.id),
+      valor_acordado: cobrancasUnidade.reduce((sum, row) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0),
+      carteiras: firstRelation(referencia.carteiras),
+      condominios: {
+        ...firstRelation(referencia.condominios),
+        administradoras: firstRelation(firstRelation(referencia.condominios)?.administradoras),
+      },
+      unidades: firstRelation(referencia.unidades),
+    };
+  });
+}
+
+function idsDocumento(row: any) {
+  return row.origem_pre_juridico === "cobranca" && Array.isArray(row.cobrancas_pre_juridico_ids)
+    ? row.cobrancas_pre_juridico_ids
+    : [row.id];
 }
 
 function referenciasEntidade(row: any) {
@@ -796,7 +826,7 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
           finalidade: paraCarteira ? "carteira" : "sindico",
           assuntoFallback: paraCarteira ? "Pacote pré-jurídico - {{condominio}} - unidade {{unidade}}" : "Procuração para assinatura - {{condominio}} - unidade {{unidade}}",
           motivoSemContato: paraCarteira ? "Carteira sem usuário com e-mail vinculado para receber laudo/procuração." : "Condomínio sem síndico ativo com e-mail para receber procuração.",
-          links: pdfLinks([acordo.id], origem),
+          links: pdfLinks(idsDocumento(acordo), origem),
           counters,
         });
       }

@@ -44,12 +44,17 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
   const acordo = relation(caso.acordo)
   const cobranca = relation(caso.cobranca)
   const responsavel = relation(caso.responsavel)
-  const valor = Number(acordo?.valor_acordado ?? cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0)
+  const cobrancasUnidade = Array.isArray(caso.cobrancas_unidade) ? caso.cobrancas_unidade : []
+  const valor = acordo?.valor_acordado != null
+    ? Number(acordo.valor_acordado)
+    : cobrancasUnidade.length
+      ? cobrancasUnidade.reduce((sum: number, item: any) => sum + Number(item.valor_atualizado ?? item.valor_original ?? 0), 0)
+      : Number(cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0)
 
   return <details className="group/caso">
     <summary className="list-none [&::-webkit-details-marker]:hidden"><ListRow className={`cursor-pointer bg-white ${selectable ? 'md:grid-cols-[28px_minmax(260px,1fr)_150px_150px_150px_24px]' : 'md:grid-cols-[minmax(260px,1fr)_150px_150px_150px_24px]'}`}>
       {selectable ? <input aria-label={selectionLabel} type="checkbox" checked={selected} onClick={(event) => event.stopPropagation()} onChange={onToggle} className="h-4 w-4 rounded border-slate-300" /> : null}
-      <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'}</p></div>
+      <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'} · {cobrancasUnidade.length || 1} cobrança(s) agrupada(s)</p></div>
       <div><p className="text-xs text-slate-400">Valor</p><p className="mt-1 text-sm font-semibold">{formatCurrency(valor)}</p></div>
       <div><p className="text-xs text-slate-400">Responsável interno</p><p className="mt-1 text-sm">{responsavel?.nome || 'Não definido'}</p></div>
       <div><p className="text-xs text-slate-400">Atualização</p><p className="mt-1 text-sm">{formatDateBR(caso.updated_at)}</p></div>

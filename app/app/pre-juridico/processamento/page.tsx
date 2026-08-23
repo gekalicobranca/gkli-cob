@@ -20,14 +20,20 @@ export default async function ProcessamentoPreJuridicoPage({ searchParams }: { s
   const params = await searchParams
   const scope = await getPermittedCarteiras()
   const [cobrancas, casos] = await Promise.all([listPreJuridicoCobrancas(scope), listPreJuridicoCasos(scope)])
-  const casoPorCobranca = new Map(casos.filter((caso: any) => caso.cobranca_id).map((caso: any) => [caso.cobranca_id, caso]))
+  const unidadesComCaso = new Set(casos.map((caso: any) => caso.unidade_id).filter(Boolean))
   const encaminhadas = cobrancas.filter((row: any) => row.situacao_pre_juridico === 'encaminhado')
-  const aguardandoInicio = encaminhadas.filter((row: any) => !casoPorCobranca.has(row.id)).filter((row: any) => {
+  const aguardandoInicioFiltradas = encaminhadas.filter((row: any) => !unidadesComCaso.has(row.unidade_id)).filter((row: any) => {
     if (params.etapa && params.etapa !== 'aguardando_inicio') return false
     if (params.carteira_id && row.carteira_id !== params.carteira_id) return false
     if (params.condominio_id && row.condominio_id !== params.condominio_id) return false
     return !params.q || norm([row.condominio?.nome, row.condominio?.nome_operacional, row.unidade?.identificacao, row.unidade?.responsavel_nome].join(' ')).includes(norm(params.q))
   })
+  const aguardandoInicio = Array.from(aguardandoInicioFiltradas.reduce((groups: Map<string, any>, row: any) => {
+    const key = row.unidade_id || row.id
+    const current = groups.get(key)
+    if (!current) groups.set(key, { ...row, quantidade_cobrancas: row.quantidade_cobrancas_unidade ?? 1, valor_unidade: Number(row.valor_cobrancas_unidade ?? row.valor_atualizado ?? row.valor_original ?? 0) })
+    return groups
+  }, new Map()).values())
   const emPreparacao = casos.filter((caso: any) => PREPARACAO.includes(caso.etapa)).filter((caso: any) => {
     if (params.etapa && caso.etapa !== params.etapa) return false
     if (params.carteira_id && caso.carteira_id !== params.carteira_id) return false

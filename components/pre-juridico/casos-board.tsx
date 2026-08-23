@@ -26,10 +26,12 @@ export function PreJuridicoCasosBoard({ casos, etapas = PRE_JURIDICO_ETAPAS.map(
         <header className="flex items-center justify-between gap-2 px-1 py-2"><h2 id={`etapa-${etapa.id}`} className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-700">{etapa.shortLabel}</h2><span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-600 shadow-sm">{rows.length}</span></header>
         <div className="space-y-2">{rows.map((caso) => {
           const condominio = relation(caso.condominio), unidade = relation(caso.unidade), acordo = relation(caso.acordo), cobranca = relation(caso.cobranca), responsavel = relation(caso.responsavel)
+          const cobrancasUnidade = Array.isArray(caso.cobrancas_unidade) ? caso.cobrancas_unidade : []
+          const valorCaso = acordo?.valor_acordado != null ? Number(acordo.valor_acordado) : cobrancasUnidade.length ? cobrancasUnidade.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0) : Number(cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0)
           const open = expanded === caso.id
           return <article key={caso.id} className="rounded-xl border border-white/80 bg-white p-3 shadow-sm">
-            <div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'}</p><p className="mt-0.5 text-xs text-slate-500">Unidade {unidade?.identificacao || '-'}</p></div><Scale size={15} className="shrink-0 text-slate-400" /></div>
-            <p className="mt-3 text-sm font-semibold text-slate-900">{formatCurrency(Number(acordo?.valor_acordado ?? cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0))}</p>
+            <div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'}</p><p className="mt-0.5 text-xs text-slate-500">Unidade {unidade?.identificacao || '-'} · {cobrancasUnidade.length || 1} cobrança(s)</p></div><Scale size={15} className="shrink-0 text-slate-400" /></div>
+            <p className="mt-3 text-sm font-semibold text-slate-900">{formatCurrency(valorCaso)}</p>
             <div className="mt-2 space-y-1 text-[11px] text-slate-500"><p className="flex items-center gap-1.5"><UserRound size={12} />{responsavel?.nome || 'Sem responsável definido'}</p><p className="flex items-center gap-1.5"><CalendarClock size={12} />Atualizado em {formatDateBR(caso.updated_at)}</p></div>
             {caso.numero_processo ? <p className="mt-2 rounded-lg bg-slate-100 px-2 py-1.5 text-[11px] font-medium text-slate-700">Processo {caso.numero_processo}</p> : null}
             {caso.prazo_etapa ? <p className="mt-2 text-[11px] font-medium text-slate-600">Prazo: {formatDateBR(caso.prazo_etapa)}</p> : null}

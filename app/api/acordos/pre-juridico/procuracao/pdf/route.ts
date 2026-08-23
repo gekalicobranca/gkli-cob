@@ -404,7 +404,25 @@ async function carregarCobrancas(ids: string[]) {
   assertCarteirasPreJuridicoHabilitadas(cobrancas);
   assertCarteirasGenske(cobrancas);
   const sindicos = await carregarSindicos(unique(cobrancas.map((row) => row.condominio_id)));
-  return cobrancas.map((row) => ({ ...row, sindico: sindicos.get(row.condominio_id) ?? null }));
+  const porUnidade = new Map<string, any[]>();
+  for (const row of cobrancas) {
+    const key = row.unidade_id || row.id;
+    const current = porUnidade.get(key) ?? [];
+    current.push(row);
+    porUnidade.set(key, current);
+  }
+  return Array.from(porUnidade.values()).map((rows) => {
+    const referencia = rows[0];
+    return {
+      ...referencia,
+      id: referencia.unidade_id || referencia.id,
+      origem: "unidade",
+      quantidade_cobrancas: rows.length,
+      cobranca_ids: rows.map((row) => row.id),
+      valor_acordado: rows.reduce((sum, row) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0),
+      sindico: sindicos.get(referencia.condominio_id) ?? null,
+    };
+  });
 }
 
 function montarPartes(acordo: any) {
@@ -416,7 +434,7 @@ function montarPartes(acordo: any) {
   const sindicoDocumento = formatDocumento(sindico.documento);
 
   lines.push(line("PROCURAÇÃO PARA AÇÃO DE COBRANÇA OU EXECUÇÃO", 13, true, BLUE));
-  lines.push(line(`${acordo.origem === "cobranca" ? "Cobranca" : "Acordo"} ${acordo.id} - gerado em ${formatDateBR(new Date())}`, 8));
+  lines.push(line(`${acordo.origem === "unidade" ? "Unidade" : acordo.origem === "cobranca" ? "Cobranca" : "Acordo"} ${acordo.id} - gerado em ${formatDateBR(new Date())}`, 8));
 
   section(lines, "Outorgante");
   addWrapped(lines, `Nome: ${fallback(condominio.nome, "condominio nao informado")}`, 10, true);
@@ -428,12 +446,14 @@ function montarPartes(acordo: any) {
   addWrapped(lines, `E-mail: ${fallback(sindico.email)}`);
   addWrapped(lines, `Telefone: ${fallback(sindico.telefone)}`);
 
-  section(lines, `Unidade e ${acordo.origem === "cobranca" ? "cobranca" : "acordo"} de referencia`);
+  section(lines, acordo.origem === "unidade" ? "Unidade e cobranças agrupadas" : `Unidade e ${acordo.origem === "cobranca" ? "cobranca" : "acordo"} de referencia`);
   addWrapped(lines, `Unidade: ${fallback(unidade.identificacao, "-")}${unidade.bloco ? ` - Bloco ${unidade.bloco}` : ""}`);
   addWrapped(lines, `Responsavel/devedor: ${fallback(unidade.responsavel_nome)}`);
   addWrapped(lines, `Documento: ${formatDocumento(unidade.responsavel_documento)}`);
   addWrapped(lines, `E-mail: ${fallback(unidade.email)} | Telefone: ${fallback(unidade.telefone)}`);
-  addWrapped(lines, `Valor ${acordo.origem === "cobranca" ? "da cobranca" : "do acordo"}: ${formatCurrency(Number(acordo.valor_acordado ?? 0))} | ${acordo.origem === "cobranca" ? "Vencimento" : "Data"}: ${formatDateBR(acordo.data_acordo ?? acordo.created_at)}`);
+  addWrapped(lines, acordo.origem === "unidade"
+    ? `Cobranças agrupadas: ${acordo.quantidade_cobrancas ?? 1} | Valor total: ${formatCurrency(Number(acordo.valor_acordado ?? 0))}`
+    : `Valor ${acordo.origem === "cobranca" ? "da cobranca" : "do acordo"}: ${formatCurrency(Number(acordo.valor_acordado ?? 0))} | ${acordo.origem === "cobranca" ? "Vencimento" : "Data"}: ${formatDateBR(acordo.data_acordo ?? acordo.created_at)}`);
   addWrapped(lines, `Status operacional: ${acordo.status ?? "-"} / ${acordo.fluxo_status ?? "-"}`);
 
   section(lines, "Outorgado");
