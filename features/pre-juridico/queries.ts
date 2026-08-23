@@ -110,6 +110,7 @@ export async function listPreJuridicoCasos(scope: CarteiraScope) {
       id, carteira_id, acordo_id, condominio_id, unidade_id, cobranca_id,
       responsavel_id, etapa, escritorio_juridico, prazo_etapa, protocolo_envio,
       certidao_status, certidao_solicitada_em, certidao_recebida_em,
+      procuracao_status, procuracao_gerada_em, procuracao_assinada_em,
       numero_processo, tribunal, foro, observacoes, enviado_juridico_em,
       judicializado_em, created_at, updated_at,
       carteira:carteiras(nome),

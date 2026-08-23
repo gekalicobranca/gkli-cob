@@ -1,10 +1,10 @@
 'use client'
 
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ChevronDown, ChevronRight, FileSignature } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
-import { atualizarCertidaoPreJuridico, atualizarEtapaPreJuridico } from '@/features/pre-juridico/actions'
+import { atualizarCertidaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
 import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -12,6 +12,8 @@ import { formatDateBR } from '@/utils/formatters/date'
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
 export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: readonly PreJuridicoEtapa[] }) {
+  const [selectedProcuracoes, setSelectedProcuracoes] = useState<string[]>([])
+  const toggleProcuracao = (id: string) => setSelectedProcuracoes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
   return <div className="space-y-3">
     {etapas.map((etapaId) => {
       const etapa = PRE_JURIDICO_ETAPAS.find((item) => item.id === etapaId)!
@@ -25,7 +27,8 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
             </ListPanelHeader>
           </summary>
           <div>
-          {rows.length ? <ListRows>{rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} />)}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
+          {etapaId === 'aguardando_sindico' && rows.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 md:flex-row md:items-center md:justify-between"><p className="text-sm text-slate-600">Selecione os casos para gerar as procurações em um único PDF.</p><form action={gerarProcuracoesPreJuridico} onSubmit={(event) => { if (!window.confirm(`Gerar ${selectedProcuracoes.length} procuração(ões)?`)) event.preventDefault() }}>{selectedProcuracoes.map((id) => <input key={id} type="hidden" name="caso_id" value={id} />)}<PendingSubmitButton disabled={!selectedProcuracoes.length} pendingLabel="Gerando procurações..."><FileSignature size={16} />Gerar procuração {selectedProcuracoes.length ? `(${selectedProcuracoes.length})` : ''}</PendingSubmitButton></form></div> : null}
+          {rows.length ? <ListRows>{rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} selectable={etapaId === 'aguardando_sindico'} selected={selectedProcuracoes.includes(caso.id)} onToggle={() => toggleProcuracao(caso.id)} />)}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
           </div>
         </details>
       </ListPanel>
@@ -33,7 +36,7 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
   </div>
 }
 
-function CasoProcessamento({ caso }: { caso: any }) {
+function CasoProcessamento({ caso, selectable = false, selected = false, onToggle }: { caso: any; selectable?: boolean; selected?: boolean; onToggle?: () => void }) {
   const condominio = relation(caso.condominio)
   const unidade = relation(caso.unidade)
   const acordo = relation(caso.acordo)
@@ -42,7 +45,8 @@ function CasoProcessamento({ caso }: { caso: any }) {
   const valor = Number(acordo?.valor_acordado ?? cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0)
 
   return <details className="group/caso">
-    <summary className="list-none [&::-webkit-details-marker]:hidden"><ListRow className="cursor-pointer bg-white md:grid-cols-[minmax(260px,1fr)_150px_150px_150px_24px]">
+    <summary className="list-none [&::-webkit-details-marker]:hidden"><ListRow className={`cursor-pointer bg-white ${selectable ? 'md:grid-cols-[28px_minmax(260px,1fr)_150px_150px_150px_24px]' : 'md:grid-cols-[minmax(260px,1fr)_150px_150px_150px_24px]'}`}>
+      {selectable ? <input aria-label="Selecionar para gerar procuração" type="checkbox" checked={selected} onClick={(event) => event.stopPropagation()} onChange={onToggle} className="h-4 w-4 rounded border-slate-300" /> : null}
       <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'}</p></div>
       <div><p className="text-xs text-slate-400">Valor</p><p className="mt-1 text-sm font-semibold">{formatCurrency(valor)}</p></div>
       <div><p className="text-xs text-slate-400">Responsável interno</p><p className="mt-1 text-sm">{responsavel?.nome || 'Não definido'}</p></div>
@@ -55,6 +59,12 @@ function CasoProcessamento({ caso }: { caso: any }) {
       <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
       <PendingSubmitButton pendingLabel="Atualizando...">Salvar andamento</PendingSubmitButton>
       <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Recebida, o caso avançará automaticamente para Procuração.</p>
+    </form> : caso.etapa === 'aguardando_sindico' ? <form action={atualizarProcuracaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar o andamento da procuração?')) event.preventDefault() }}>
+      <input type="hidden" name="caso_id" value={caso.id} />
+      <Field label="Andamento da procuração"><select name="procuracao_status" defaultValue={caso.procuracao_status ?? 'pendente'} className={controlClass}><option value="pendente">Pendente</option><option value="gerada">Gerada</option><option value="assinada">Assinada</option></select></Field>
+      <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
+      <PendingSubmitButton pendingLabel="Atualizando...">Salvar andamento</PendingSubmitButton>
+      <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, o caso avançará automaticamente para Administradora.</p>
     </form> : <form action={atualizarEtapaPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={(event) => { if (!window.confirm('Confirmar a atualização deste caso?')) event.preventDefault() }}>
       <input type="hidden" name="caso_id" value={caso.id} />
       <Field label="Nova etapa"><select name="etapa" defaultValue={caso.etapa} className={controlClass}>{PRE_JURIDICO_ETAPAS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></Field>

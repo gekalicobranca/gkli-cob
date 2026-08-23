@@ -374,6 +374,39 @@ async function carregarAcordos(ids: string[]) {
   }));
 }
 
+async function carregarCobrancas(ids: string[]) {
+  const supabase = await createClient();
+  const scope = await getPermittedCarteiras();
+  let query = supabase.from("cobrancas").select(`
+    id, carteira_id, condominio_id, unidade_id, status, status_financeiro,
+    status_operacional, valor_original, valor_atualizado, vencimento, created_at,
+    carteiras:carteira_id (id,nome,pre_juridico_habilitado),
+    condominios:condominio_id (
+      id,nome,cnpj,endereco_logradouro,endereco_numero,endereco_complemento,
+      endereco_bairro,endereco_cidade,endereco_uf,endereco_cep,administradora_id
+    ),
+    unidades:unidade_id (id,identificacao,bloco,responsavel_nome,responsavel_documento,email,telefone)
+  `).in("id", ids).order("vencimento", { ascending: false });
+  query = applyCarteiraScope(query, scope.carteiraIds);
+  const { data, error } = await query;
+  if (error) throw new Error(`Erro ao carregar cobrancas para procuracao: ${error.message}`);
+  const cobrancas = ((data ?? []) as any[]).map((row) => ({
+    ...row,
+    origem: "cobranca",
+    carteiras: firstRelation(row.carteiras),
+    condominios: firstRelation(row.condominios),
+    unidades: firstRelation(row.unidades),
+    valor_acordado: row.valor_atualizado ?? row.valor_original,
+    quantidade_parcelas: 1,
+    data_acordo: row.vencimento,
+    fluxo_status: row.status_operacional,
+  }));
+  assertCarteirasPreJuridicoHabilitadas(cobrancas);
+  assertCarteirasGenske(cobrancas);
+  const sindicos = await carregarSindicos(unique(cobrancas.map((row) => row.condominio_id)));
+  return cobrancas.map((row) => ({ ...row, sindico: sindicos.get(row.condominio_id) ?? null }));
+}
+
 function montarPartes(acordo: any) {
   const lines: PdfLine[] = [];
   const condominio = acordo.condominios ?? {};
@@ -383,7 +416,7 @@ function montarPartes(acordo: any) {
   const sindicoDocumento = formatDocumento(sindico.documento);
 
   lines.push(line("PROCURAÇÃO PARA AÇÃO DE COBRANÇA OU EXECUÇÃO", 13, true, BLUE));
-  lines.push(line(`Acordo ${acordo.id} - gerado em ${formatDateBR(new Date())}`, 8));
+  lines.push(line(`${acordo.origem === "cobranca" ? "Cobranca" : "Acordo"} ${acordo.id} - gerado em ${formatDateBR(new Date())}`, 8));
 
   section(lines, "Outorgante");
   addWrapped(lines, `Nome: ${fallback(condominio.nome, "condominio nao informado")}`, 10, true);
@@ -395,12 +428,12 @@ function montarPartes(acordo: any) {
   addWrapped(lines, `E-mail: ${fallback(sindico.email)}`);
   addWrapped(lines, `Telefone: ${fallback(sindico.telefone)}`);
 
-  section(lines, "Unidade e acordo de referencia");
+  section(lines, `Unidade e ${acordo.origem === "cobranca" ? "cobranca" : "acordo"} de referencia`);
   addWrapped(lines, `Unidade: ${fallback(unidade.identificacao, "-")}${unidade.bloco ? ` - Bloco ${unidade.bloco}` : ""}`);
   addWrapped(lines, `Responsavel/devedor: ${fallback(unidade.responsavel_nome)}`);
   addWrapped(lines, `Documento: ${formatDocumento(unidade.responsavel_documento)}`);
   addWrapped(lines, `E-mail: ${fallback(unidade.email)} | Telefone: ${fallback(unidade.telefone)}`);
-  addWrapped(lines, `Valor do acordo: ${formatCurrency(Number(acordo.valor_acordado ?? 0))} | Parcelas: ${acordo.quantidade_parcelas ?? "-"} | Data: ${formatDateBR(acordo.data_acordo ?? acordo.created_at)}`);
+  addWrapped(lines, `Valor ${acordo.origem === "cobranca" ? "da cobranca" : "do acordo"}: ${formatCurrency(Number(acordo.valor_acordado ?? 0))} | ${acordo.origem === "cobranca" ? "Vencimento" : "Data"}: ${formatDateBR(acordo.data_acordo ?? acordo.created_at)}`);
   addWrapped(lines, `Status operacional: ${acordo.status ?? "-"} / ${acordo.fluxo_status ?? "-"}`);
 
   section(lines, "Outorgado");
@@ -468,12 +501,17 @@ export async function GET(request: Request) {
         .split(",")
         .map((id) => id.trim()),
     );
+    const cobrancaIds = unique(
+      String(url.searchParams.get("cobrancaIds") ?? "")
+        .split(",")
+        .map((id) => id.trim()),
+    );
 
-    if (ids.length === 0) {
-      return NextResponse.json({ ok: false, error: "Selecione ao menos um acordo." }, { status: 400 });
+    if (ids.length === 0 && cobrancaIds.length === 0) {
+      return NextResponse.json({ ok: false, error: "Selecione ao menos um acordo ou cobranca." }, { status: 400 });
     }
 
-    const acordos = await carregarAcordos(ids);
+    const acordos = cobrancaIds.length ? await carregarCobrancas(cobrancaIds) : await carregarAcordos(ids);
     if (acordos.length === 0) {
       return NextResponse.json({ ok: false, error: "Nenhum acordo encontrado para gerar procuracao." }, { status: 404 });
     }

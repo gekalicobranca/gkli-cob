@@ -6,6 +6,7 @@ import { requireRole } from '@/utils/auth/require-role'
 import { requireUser } from '@/utils/auth/require-user'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { createClient } from '@/utils/supabase/server'
+import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import { PRE_JURIDICO_ETAPAS, type PreJuridicoEtapa } from './etapas'
 import { listPreJuridicoCobrancas } from './queries'
 import { registrarEventoOperacional } from '@/features/operacional/service'
@@ -124,6 +125,53 @@ export async function atualizarCertidaoPreJuridico(formData: FormData) {
 
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/monitor')
+}
+
+export async function gerarProcuracoesPreJuridico(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+  const supabase = await createClient()
+  const casoIds = Array.from(new Set(formData.getAll('caso_id').map(String).map((id) => id.trim()).filter(Boolean)))
+  if (!casoIds.length) throw new Error('Selecione ao menos um caso para gerar a procuração.')
+
+  let query = supabase.from('pre_juridico_casos').select('id,carteira_id,cobranca_id,condominio_id,unidade_id,etapa').in('id', casoIds)
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  const { data, error: casosError } = await query
+  if (casosError) throw new Error(`Erro ao carregar casos para procuração: ${casosError.message}`)
+  const casos = (data ?? []) as any[]
+  if (casos.length !== casoIds.length || casos.some((caso) => caso.etapa !== 'aguardando_sindico' || !caso.cobranca_id)) throw new Error('Um ou mais casos não estão disponíveis para gerar procuração.')
+
+  const agora = new Date().toISOString()
+  const { error } = await supabase.from('pre_juridico_casos').update({ procuracao_status: 'gerada', procuracao_gerada_em: agora, responsavel_id: user.id }).in('id', casoIds)
+  if (error) throw new Error(`Erro ao registrar a geração das procurações: ${error.message}`)
+  for (const caso of casos) {
+    await registrarEventoOperacional(supabase as any, { carteiraId: caso.carteira_id, entidadeTipo: 'cobranca', entidadeId: caso.cobranca_id, eventoCodigo: 'cobranca.pre_juridico.procuracao_gerada', titulo: 'Procuração gerada', descricao: 'Procuração preparada para coleta da assinatura do síndico.', severidade: 'info', payload: { caso_id: caso.id, condominio_id: caso.condominio_id, unidade_id: caso.unidade_id }, origem: 'manual', auditavel: true, required: true, userId: user.id })
+  }
+  revalidatePath('/app/pre-juridico/processamento')
+  redirect(`/api/acordos/pre-juridico/procuracao/pdf?cobrancaIds=${encodeURIComponent(casos.map((caso) => caso.cobranca_id).join(','))}`)
+}
+
+export async function atualizarProcuracaoPreJuridico(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+  const supabase = await createClient()
+  const casoId = String(formData.get('caso_id') ?? '').trim()
+  const status = String(formData.get('procuracao_status') ?? '').trim()
+  const observacoes = String(formData.get('observacoes') ?? '').trim() || null
+  if (!['pendente', 'gerada', 'assinada'].includes(status)) throw new Error('Andamento da procuração inválido.')
+  const { data: caso, error: casoError } = await supabase.from('pre_juridico_casos').select('id,carteira_id,cobranca_id,etapa,procuracao_gerada_em,procuracao_assinada_em').eq('id', casoId).maybeSingle()
+  if (casoError || !caso) throw new Error(casoError ? `Erro ao carregar procuração: ${casoError.message}` : 'Caso não encontrado.')
+  assertCarteiraPermitida(scope, caso.carteira_id)
+  if (caso.etapa !== 'aguardando_sindico') throw new Error('Este caso não está na etapa de Procuração.')
+  const agora = new Date().toISOString()
+  const payload: Record<string, unknown> = { procuracao_status: status, observacoes, responsavel_id: user.id }
+  if (status === 'gerada' && !caso.procuracao_gerada_em) payload.procuracao_gerada_em = agora
+  if (status === 'assinada') { payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora; payload.procuracao_assinada_em = caso.procuracao_assinada_em ?? agora; payload.etapa = 'aguardando_administradora' }
+  const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', casoId)
+  if (error) throw new Error(`Erro ao atualizar procuração: ${error.message}`)
+  revalidatePath('/app/pre-juridico/processamento')
 }
 
 export async function encaminharCobrancasPreJuridico(formData: FormData) {
