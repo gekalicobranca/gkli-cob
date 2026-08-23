@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { PlayCircle } from 'lucide-react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
+import { ListEmptyState, ListRow, ListRows } from '@/components/layout/list-page'
 import { iniciarProcessamentoPreJuridico } from '@/features/pre-juridico/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -31,12 +32,12 @@ export function IniciarProcessamento({ rows }: { rows: Row[] }) {
         <PendingSubmitButton disabled={!selected.length} pendingLabel="Iniciando..."><PlayCircle size={16} />Iniciar processamento {selected.length ? `(${selected.length})` : ''}</PendingSubmitButton>
       </form>
     </div>
-    {rows.length ? <div className="divide-y divide-slate-100">{rows.map((row) => <label key={row.id} className="grid cursor-pointer gap-3 px-5 py-3 hover:bg-slate-50 md:grid-cols-[28px_minmax(260px,1fr)_130px_150px] md:items-center">
+    {rows.length ? <ListRows>{rows.map((row) => <ListRow key={row.id} className="md:grid-cols-[28px_minmax(260px,1fr)_130px_150px]">
       <input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggle(row.id)} className="h-4 w-4 rounded border-slate-300" />
       <div><p className="text-sm font-semibold text-slate-950">{row.condominio?.nome_operacional || row.condominio?.nome || 'Condomínio'} · Unidade {row.unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{row.unidade?.responsavel_nome || 'Responsável não informado'}</p></div>
       <div><p className="text-xs text-slate-400">Vencimento</p><p className="mt-1 text-sm">{formatDateBR(row.vencimento)}</p></div>
       <p className="text-sm font-semibold md:text-right">{formatCurrency(Number(row.valor_atualizado ?? row.valor_original ?? 0))}</p>
-    </label>)}</div> : <p className="px-5 py-8 text-center text-sm text-slate-500">Nenhuma cobrança aguardando início.</p>}
+    </ListRow>)}</ListRows> : <ListEmptyState title="Nenhuma cobrança aguardando início" description="Não há cobranças encaminhadas sem processamento para os filtros selecionados." />}
     {selected.length ? <div className="border-t border-slate-100 px-5 py-3 text-right text-sm text-slate-600">Valor selecionado: <strong>{formatCurrency(total)}</strong></div> : null}
   </div>
 }

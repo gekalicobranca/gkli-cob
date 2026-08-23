@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
+import { ListEmptyState, ListRow, ListRows } from '@/components/layout/list-page'
 import { atualizarEtapaPreJuridico } from '@/features/pre-juridico/actions'
 import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -27,7 +28,7 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
           <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-700 shadow-sm">{rows.length}</span>
         </summary>
         <div className="border-t border-current/10 bg-white/80">
-          {rows.length ? <div className="divide-y divide-slate-100">{rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} />)}</div> : <p className="px-5 py-8 text-center text-sm text-slate-500">Nenhum caso nesta etapa.</p>}
+          {rows.length ? <ListRows>{rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} />)}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
         </div>
       </details>
     })}
@@ -43,13 +44,13 @@ function CasoProcessamento({ caso }: { caso: any }) {
   const valor = Number(acordo?.valor_acordado ?? cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0)
 
   return <details className="group/caso">
-    <summary className="grid cursor-pointer list-none gap-3 px-5 py-3 hover:bg-white md:grid-cols-[minmax(260px,1fr)_150px_150px_150px_24px] md:items-center [&::-webkit-details-marker]:hidden">
+    <summary className="list-none [&::-webkit-details-marker]:hidden"><ListRow className="cursor-pointer bg-white md:grid-cols-[minmax(260px,1fr)_150px_150px_150px_24px]">
       <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'}</p></div>
       <div><p className="text-xs text-slate-400">Valor</p><p className="mt-1 text-sm font-semibold">{formatCurrency(valor)}</p></div>
       <div><p className="text-xs text-slate-400">Responsável interno</p><p className="mt-1 text-sm">{responsavel?.nome || 'Não definido'}</p></div>
       <div><p className="text-xs text-slate-400">Atualização</p><p className="mt-1 text-sm">{formatDateBR(caso.updated_at)}</p></div>
       <ChevronRight size={17} className="text-slate-400 transition group-open/caso:rotate-90" />
-    </summary>
+    </ListRow></summary>
     <form action={atualizarEtapaPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={(event) => { if (!window.confirm('Confirmar a atualização deste caso?')) event.preventDefault() }}>
       <input type="hidden" name="caso_id" value={caso.id} />
       <Field label="Nova etapa"><select name="etapa" defaultValue={caso.etapa} className={controlClass}>{PRE_JURIDICO_ETAPAS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></Field>
