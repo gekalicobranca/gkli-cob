@@ -36,13 +36,6 @@ function onlyDigits(value: string | null | undefined) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
-function normalizeKey(value: string | null | undefined) {
-  return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
 function fallback(value: unknown, empty = "nao cadastrado no sistema") {
   const stringValue = String(value ?? "").trim();
   return stringValue || empty;
@@ -251,17 +244,6 @@ function assertCarteirasPreJuridicoHabilitadas(acordos: any[]) {
   }
 }
 
-function assertCarteirasGenske(acordos: any[]) {
-  const outrasCarteiras = acordos.filter((acordo) => {
-    const nome = normalizeKey(getCarteira(acordo)?.nome);
-    return !nome.includes("genske");
-  });
-
-  if (outrasCarteiras.length > 0) {
-    throw new Error("Esta procuracao e exclusiva da carteira Genske Advogados.");
-  }
-}
-
 async function carregarSindicos(condominioIds: string[]) {
   const result = new Map<string, SindicoInfo>();
   if (!condominioIds.length) return result;
@@ -314,16 +296,16 @@ async function carregarSindicos(condominioIds: string[]) {
 
   for (const row of (data ?? []) as any[]) {
     const condominioId = String(row.condominio_id ?? "");
-    if (!condominioId || result.has(condominioId)) continue;
+    if (!condominioId) continue;
 
     const usuario = firstRelation(row.portal_sindico_usuarios);
     if (!usuario || usuario.status === "inativo") continue;
 
     const cadastro = result.get(condominioId) ?? {};
     result.set(condominioId, {
-      nome: usuario.nome,
+      nome: usuario.nome ?? cadastro.nome,
       email: cadastro.email ?? usuario.email,
-      documento: usuario.documento,
+      documento: usuario.documento ?? cadastro.documento,
       telefone: cadastro.telefone ?? usuario.telefone,
     });
   }
@@ -389,7 +371,6 @@ async function carregarAcordos(ids: string[]) {
   }));
 
   assertCarteirasPreJuridicoHabilitadas(acordos);
-  assertCarteirasGenske(acordos);
 
   const sindicos = await carregarSindicos(unique(acordos.map((acordo) => acordo.condominio_id)));
   return acordos.map((acordo) => ({
@@ -426,7 +407,6 @@ async function carregarCobrancas(ids: string[]) {
     fluxo_status: row.status_operacional,
   }));
   assertCarteirasPreJuridicoHabilitadas(cobrancas);
-  assertCarteirasGenske(cobrancas);
   const sindicos = await carregarSindicos(unique(cobrancas.map((row) => row.condominio_id)));
   const porUnidade = new Map<string, any[]>();
   for (const row of cobrancas) {
