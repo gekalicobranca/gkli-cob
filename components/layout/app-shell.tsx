@@ -430,9 +430,6 @@ export function AppShell({
                 const visibleItems = filterItemsForUser(section.items, user)
                 if (visibleItems.length === 0) return null
                 const groupCollapsed = collapsedGroups.includes(section.id)
-                const groupActive = visibleItems.some((item) =>
-                  isItemActive(pathname, item.href, item.exact),
-                )
 
                 return (
                   <section key={section.id} className="space-y-2">
@@ -443,10 +440,7 @@ export function AppShell({
                         className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left transition hover:bg-white/70"
                       >
                         <span
-                          className={[
-                            'truncate text-[11px] font-semibold uppercase tracking-[0.28em]',
-                            groupActive ? 'text-[#04799a]' : 'text-slate-400',
-                          ].join(' ')}
+                          className="truncate text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400"
                         >
                           {section.title}
                         </span>
