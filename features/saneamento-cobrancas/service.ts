@@ -90,16 +90,22 @@ export async function registrarSaneamentoCobranca(
   params: RegistrarSaneamentoParams,
 ) {
   const unidadeRelatorio = String(params.unidadeRelatorio ?? '').trim()
+  const blocoRelatorio = String(params.blocoRelatorio ?? '').trim()
   if (!params.carteiraId || !params.condominioId || !unidadeRelatorio) return null
 
-  const { data: existente, error: existenteError } = await supabase
+  let existenteQuery = supabase
     .from('saneamento_cobrancas')
     .select('id')
     .eq('tipo', params.tipo)
     .eq('condominio_id', params.condominioId)
     .eq('unidade_relatorio', unidadeRelatorio)
     .eq('status', SANEAMENTO_STATUS.PENDENTE)
-    .maybeSingle()
+
+  existenteQuery = blocoRelatorio
+    ? existenteQuery.eq('bloco_relatorio', blocoRelatorio)
+    : existenteQuery.or('bloco_relatorio.is.null,bloco_relatorio.eq.')
+
+  const { data: existente, error: existenteError } = await existenteQuery.maybeSingle()
 
   if (existenteError) {
     // A migration pode ainda não ter sido aplicada em ambientes antigos.
@@ -119,7 +125,7 @@ export async function registrarSaneamentoCobranca(
     tipo: params.tipo,
     status: SANEAMENTO_STATUS.PENDENTE,
     unidade_relatorio: unidadeRelatorio,
-    bloco_relatorio: params.blocoRelatorio || null,
+    bloco_relatorio: blocoRelatorio || null,
     responsavel_relatorio: params.responsavelRelatorio || null,
     responsavel_documento_relatorio: params.responsavelDocumentoRelatorio || null,
     unidade_cadastro: params.unidadeCadastro || null,

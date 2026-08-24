@@ -32,14 +32,20 @@ function brDateToIso(value: string) {
 
 async function buscarUnidadeLiteral(
   supabase: ReturnType<typeof createAdminClient>,
-  params: { condominioId: string; identificacao: string },
+  params: { condominioId: string; identificacao: string; bloco?: string | null },
 ) {
-  const { data, error } = await supabase
+  const bloco = String(params.bloco ?? "").trim()
+  let query = supabase
     .from("unidades")
     .select("id, carteira_id, condominio_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email")
     .eq("condominio_id", params.condominioId)
     .eq("identificacao", params.identificacao)
-    .maybeSingle()
+
+  query = bloco
+    ? query.eq("bloco", bloco)
+    : query.or("bloco.is.null,bloco.eq.")
+
+  const { data, error } = await query.maybeSingle()
 
   if (error) {
     throw new Error(`Erro ao buscar unidade ${params.identificacao}: ${error.message}`)
@@ -54,6 +60,7 @@ async function registrarSaneamentoConversao(
     carteiraId: string
     condominioId: string
     unidadeLabel: string
+    blocoLabel?: string | null
     responsavelNome: string
     unidade: UnidadeSaneamentoRow | null
     unidadeCriada: boolean
@@ -67,6 +74,7 @@ async function registrarSaneamentoConversao(
       condominio_id: params.condominioId,
       unidade: params.unidadeLabel,
       identificacao: params.unidadeLabel,
+      bloco: params.blocoLabel ?? null,
       responsavel_nome: params.responsavelNome,
     },
     unidade: params.unidade,
@@ -200,6 +208,7 @@ export async function POST(request: NextRequest) {
 
     for (const item of cobrancas) {
       const unidadeLabel = String(item.unidade ?? "").trim()
+      const blocoLabel = String(item.bloco ?? "").trim()
       const responsavelNome = String(item.responsavel ?? "").trim()
 
       if (!unidadeLabel) {
@@ -210,12 +219,14 @@ export async function POST(request: NextRequest) {
       const unidadeExistente = await buscarUnidadeLiteral(supabase, {
         condominioId,
         identificacao: unidadeLabel,
+        bloco: blocoLabel,
       })
       const unidadeSugerida = unidadeExistente
         ? null
         : await buscarPossivelUnidadePorNormalizacao(supabase as any, {
             condominioId,
             identificacao: unidadeLabel,
+            bloco: blocoLabel,
           })
 
       let unidadeUsada: UnidadeSaneamentoRow | null = unidadeExistente ?? unidadeSugerida
@@ -229,6 +240,7 @@ export async function POST(request: NextRequest) {
             carteira_id: carteiraId ?? null,
             condominio_id: condominioId,
             identificacao: unidadeLabel,
+            bloco: blocoLabel || null,
             responsavel_nome: responsavelNome || "Responsável não identificado",
             status: "ativa",
           } as any)
@@ -310,6 +322,7 @@ export async function POST(request: NextRequest) {
           carteiraId,
           condominioId,
           unidadeLabel,
+          blocoLabel,
           responsavelNome,
           unidade: unidadeUsada,
           unidadeCriada,
@@ -325,6 +338,7 @@ export async function POST(request: NextRequest) {
           carteiraId,
           condominioId,
           unidadeLabel,
+          blocoLabel,
           responsavelNome,
           unidade: unidadeUsada,
           unidadeCriada,
@@ -347,6 +361,7 @@ export async function POST(request: NextRequest) {
           carteiraId,
           condominioId,
           unidadeLabel,
+          blocoLabel,
           responsavelNome,
           unidade: unidadeUsada,
           unidadeCriada,
@@ -398,6 +413,7 @@ export async function POST(request: NextRequest) {
         carteiraId,
         condominioId,
         unidadeLabel,
+        blocoLabel,
         responsavelNome,
         unidade: unidadeUsada,
         unidadeCriada,

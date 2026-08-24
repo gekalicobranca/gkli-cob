@@ -49,6 +49,27 @@ function desprezarCotasComMaisDeCincoAnos(preview: any) {
   }
 }
 
+function detectarBlocoPadraoCaptacao(...values: unknown[]) {
+  const texto = normalizar(values.filter(Boolean).join(" "))
+  const subcondominio = texto.match(/\bSUBCOND(?:OMINIO)?\s*0?([1-9]\d*)\b/)
+  if (subcondominio) return `SUBCOND ${subcondominio[1]}`
+  if (/\bCENTRAL\b/.test(texto)) return "CENTRAL"
+  return ""
+}
+
+function aplicarBlocoPadrao(preview: any, blocoPadrao: string) {
+  if (!blocoPadrao) return preview
+  const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
+  return {
+    ...preview,
+    blocoPadraoCaptacao: blocoPadrao,
+    cobrancas: cobrancas.map((item: any) => ({
+      ...item,
+      bloco: String(item.bloco ?? "").trim() || blocoPadrao,
+    })),
+  }
+}
+
 /** Leitor isolado do XLS multipágina exportado pelo Webware/CondoPro. */
 function parseBbzClock(buffer: Buffer, filename: string) {
   const workbook = XLSX.read(buffer, { type: "buffer", raw: false })
@@ -103,6 +124,7 @@ export async function processarRelatorioCaptado(arquivo: string): Promise<Resumo
   const nomePeloArquivo = path.basename(arquivo)
     .replace(/_\d{4}-\d{2}-\d{2}\.xlsx?$/i, "")
     .replace(/_/g, " ")
+  const blocoPadraoCaptacao = detectarBlocoPadraoCaptacao(nomeDetectado, nomePeloArquivo)
   const { data: candidatos, error: condominioError } = await supabase.from("condominios")
     .select("id, carteira_id, nome, nome_operacional, cnpj, captacao_automatica_habilitada")
     .eq("captacao_automatica_habilitada", true).eq("status", "ativo")
@@ -129,6 +151,7 @@ export async function processarRelatorioCaptado(arquivo: string): Promise<Resumo
   preview = preview.preview
   if (!preview.cobrancas?.length) preview = parseBbzClock(buffer, path.basename(arquivo))
   preview = desprezarCotasComMaisDeCincoAnos(preview)
+  preview = aplicarBlocoPadrao(preview, blocoPadraoCaptacao)
   if (!preview.cobrancas?.length && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos"))) {
     throw new Error("O relatório não contém cobranças reconhecíveis.")
   }

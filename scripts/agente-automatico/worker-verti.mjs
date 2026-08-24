@@ -84,10 +84,8 @@ async function agendarCaptacoesMensais() {
     .eq('script_key', SCRIPT_KEY).eq('ativo', true)
   if (receitasError) throw receitasError
 
-  const receitasPorCondominio = new Map((receitas ?? [])
-    .filter((receita) => receita.config_json?.condominio_id)
-    .map((receita) => [receita.config_json.condominio_id, receita]))
-  const condominioIds = [...receitasPorCondominio.keys()]
+  const receitasComCondominio = (receitas ?? []).filter((receita) => receita.config_json?.condominio_id)
+  const condominioIds = [...new Set(receitasComCondominio.map((receita) => receita.config_json.condominio_id))]
   if (!condominioIds.length) return
 
   const { data: condominios, error } = await supabase.from('condominios')
@@ -96,12 +94,13 @@ async function agendarCaptacoesMensais() {
     .eq('status', 'ativo').not('captacao_dia_mes', 'is', null)
   if (error) throw error
 
-  for (const condominio of condominios ?? []) {
+  const condominiosPorId = new Map((condominios ?? []).map((condominio) => [condominio.id, condominio]))
+  for (const receita of receitasComCondominio) {
+    const condominio = condominiosPorId.get(receita.config_json.condominio_id)
+    if (!condominio) continue
     const horario = String(condominio.captacao_horario || '08:00').slice(0, 5)
     if (agora.dia < Number(condominio.captacao_dia_mes) ||
       (agora.dia === Number(condominio.captacao_dia_mes) && agora.horario < horario)) continue
-    const receita = receitasPorCondominio.get(condominio.id)
-    if (!receita) continue
 
     const { data: existente } = await supabase.from('agente_execucoes').select('id')
       .eq('condominio_id', condominio.id).eq('receita_id', receita.id)

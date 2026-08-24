@@ -122,6 +122,12 @@ function saoPauloAgora() {
   return { dia: Number(parts.day), horario: `${parts.hour}:${parts.minute}`, competencia: `${parts.year}-${parts.month}` }
 }
 
+function normalizarPortalUrl(value) {
+  const url = String(value || '').trim()
+  if (!url) return ''
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`
+}
+
 async function agendarCaptacoesMensais() {
   const agora = saoPauloAgora()
   const { data: receitas, error: receitasError } = await supabase.from('agente_receitas')
@@ -129,12 +135,8 @@ async function agendarCaptacoesMensais() {
     .eq('script_key', SCRIPT_KEY).eq('ativo', true)
   if (receitasError) throw receitasError
 
-  const receitasPorCondominio = new Map(
-    (receitas ?? [])
-      .filter((receita) => receita.config_json?.condominio_id)
-      .map((receita) => [receita.config_json.condominio_id, receita]),
-  )
-  const condominioIds = [...receitasPorCondominio.keys()]
+  const receitasComCondominio = (receitas ?? []).filter((receita) => receita.config_json?.condominio_id)
+  const condominioIds = [...new Set(receitasComCondominio.map((receita) => receita.config_json.condominio_id))]
   if (!condominioIds.length) return
 
   const { data: condominios, error } = await supabase.from('condominios')
@@ -144,11 +146,12 @@ async function agendarCaptacoesMensais() {
     .not('captacao_dia_mes', 'is', null)
   if (error) throw error
 
-  for (const condominio of condominios ?? []) {
+  const condominiosPorId = new Map((condominios ?? []).map((condominio) => [condominio.id, condominio]))
+  for (const receita of receitasComCondominio) {
+    const condominio = condominiosPorId.get(receita.config_json.condominio_id)
+    if (!condominio) continue
     const horario = String(condominio.captacao_horario || '08:00').slice(0, 5)
     if (agora.dia < Number(condominio.captacao_dia_mes) || (agora.dia === Number(condominio.captacao_dia_mes) && agora.horario < horario)) continue
-    const receita = receitasPorCondominio.get(condominio.id)
-    if (!receita) continue
 
     const { data: existente } = await supabase.from('agente_execucoes').select('id')
       .eq('condominio_id', condominio.id).eq('receita_id', receita.id)
@@ -216,11 +219,14 @@ async function collectBbzCondominio(execution) {
 
   try {
     await log(execution.id, 'navegador', 'Abrindo o portal BBZ/CondoPro.')
-    await page.goto(execution.administradora.url_portal, { waitUntil: 'domcontentloaded' })
+    const portalUrl = normalizarPortalUrl(execution.receita?.config_json?.portal_url || execution.administradora.url_portal)
+    if (!portalUrl) throw new Error('URL do portal BBZ/CondoPro não configurada.')
+    await page.goto(portalUrl, { waitUntil: 'domcontentloaded' })
     await waitForPortalReady(page, execution.id)
 
+    const config = execution.receita?.config_json ?? {}
     const condominioNome = execution.condominio?.nome_operacional || execution.condominio?.nome || 'CLOCK VILA ROMANA'
-    const nomePortalConfigurado = execution.receita?.config_json?.condominio_portal || execution.receita?.config_json?.condominio || condominioNome
+    const nomePortalConfigurado = config.condominio_portal || config.condominio || condominioNome
     const nomePortal = nomePortalConfigurado.replace(/^(?:CONDOM[IÍ]NIO|COND\.)\s+/i, '').trim()
     await log(execution.id, 'condominio', `Localizando o condomínio ${condominioNome}.`)
     const card = page.getByText(nomePortal, { exact: false }).first()
@@ -254,7 +260,10 @@ async function collectBbzCondominio(execution) {
     const downloadPromise = page.waitForEvent('download', { timeout: 120_000 })
     await exportar.click()
     const download = await downloadPromise
-    const prefixo = condominioNome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase()
+    const nomeArquivoBase = [condominioNome, config.portal_segmento || config.bloco_padrao]
+      .filter(Boolean)
+      .join(' ')
+    const prefixo = nomeArquivoBase.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase()
     const filename = `${prefixo}_${downloadDate()}.xls`
     const localPath = path.join(localDownloadDir, filename)
     await download.saveAs(localPath)
