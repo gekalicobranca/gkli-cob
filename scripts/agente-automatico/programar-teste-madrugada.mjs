@@ -9,6 +9,7 @@ const SCRIPT_KEYS = [
   'manager_atentum_cotas_pendentes',
   'villagua_condopro_square_guarulhos',
   'verti_winker_inadimplencia',
+  'captacao_atipass',
 ]
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')

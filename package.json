@@ -25,6 +25,7 @@
     "agente:worker:manager": "node scripts/agente-automatico/worker-manager.mjs",
     "agente:worker:square-guarulhos": "node scripts/agente-automatico/worker-square-guarulhos.mjs",
     "agente:worker:verti": "node scripts/agente-automatico/worker-verti.mjs",
+    "agente:worker:atipass": "node scripts/agente-automatico/worker-atipass.mjs",
     "agente:programar-teste-madrugada": "node scripts/agente-automatico/programar-teste-madrugada.mjs",
     "agente:importar-acessos": "node scripts/agente-automatico/importar-acessos-administradoras.mjs",
     "condominios:atualizar-dados-operacao": "node scripts/atualizar-condominios-dados-operacao.mjs",
