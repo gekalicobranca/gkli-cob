@@ -29,6 +29,14 @@ type ListEmptyStateProps = {
   description: string
 }
 
+type ListMetricProps = {
+  label: string
+  value: ReactNode
+  icon?: ReactNode
+  className?: string
+  valueClassName?: string
+}
+
 type ListPaginationProps = {
   page: number
   pageSize: number
@@ -80,7 +88,7 @@ export function ListTitleBar({ className, children, ...props }: BaseProps) {
 export function ListTitle({ title, description }: { title: string; description?: string }) {
   return (
     <div>
-      <h2 className="text-base font-medium text-slate-950">{title}</h2>
+      <h2 className="text-base font-semibold text-slate-950">{title}</h2>
       {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
     </div>
   )
@@ -103,7 +111,7 @@ export function ListFiltersForm({ className, children, ...props }: FormHTMLAttri
 export function ListFilterField({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
     <label className={cn('min-w-0 space-y-1.5', className)}>
-      <span className="text-xs font-medium uppercase text-slate-400">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-normal text-slate-400">{label}</span>
       {children}
     </label>
   )
@@ -142,6 +150,34 @@ export function ListRow({ className, children, ...props }: BaseProps) {
   return (
     <div className={cn('grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:items-center', className)} {...props}>
       {children}
+    </div>
+  )
+}
+
+export function ListItemTitle({ className, children, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return (
+    <p className={cn('truncate text-sm font-medium text-slate-950', className)} {...props}>
+      {children}
+    </p>
+  )
+}
+
+export function ListItemMeta({ className, children, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return (
+    <p className={cn('mt-1 truncate text-xs leading-5 text-slate-500', className)} {...props}>
+      {children}
+    </p>
+  )
+}
+
+export function ListMetric({ label, value, icon, className, valueClassName }: ListMetricProps) {
+  return (
+    <div className={className}>
+      <p className="text-xs font-medium uppercase tracking-normal text-slate-400">{label}</p>
+      <p className={cn('mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-700', valueClassName)}>
+        {icon}
+        {value}
+      </p>
     </div>
   )
 }

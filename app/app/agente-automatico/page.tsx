@@ -15,6 +15,7 @@ import {
 } from '@/features/agente-automatico/actions'
 import { LimparExecucoesButton } from './limpar-execucoes-button'
 import { PageHeader } from '@/components/ui/page-header'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -85,16 +86,13 @@ function statusTone(status: string): 'green' | 'red' | 'blue' | 'amber' | 'slate
 
 function Kpi({ icon, label, value, helper }: { icon: React.ReactNode; label: string; value: number; helper: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">{label}</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-950">{value}</p>
-          <p className="mt-1 text-xs text-slate-500">{helper}</p>
-        </div>
-        <span className="rounded-xl bg-sky-50 p-2.5 text-sky-700">{icon}</span>
-      </div>
-    </div>
+    <KpiCard
+      label={label}
+      value={value}
+      hint={helper}
+      icon={icon}
+      className="rounded-2xl p-5"
+    />
   )
 }
 
@@ -231,8 +229,8 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
 
       <section className="space-y-3">
         <div className="px-1">
-          <h2 className="text-lg font-semibold text-slate-950">Configuração</h2>
-          <p className="mt-1 text-sm text-slate-500">Abra uma área somente quando precisar cadastrar um novo portal ou roteiro.</p>
+          <h2 className="text-lg font-semibold text-slate-950">Cadastros de acesso</h2>
+          <p className="mt-1 text-sm text-slate-500">Portais e receitas usados pelos agentes de coleta.</p>
         </div>
 
         <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -264,7 +262,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
             ) : <div className="mb-6 rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">Nenhum portal encontrado.</div>}
 
             <div className="mb-4">
-              <h3 className="font-semibold text-slate-900">Cadastrar administradora</h3>
+              <h3 className="text-base font-semibold text-slate-950">Cadastrar administradora</h3>
               <p className="mt-1 text-sm text-slate-500">Informe os dados básicos do portal. Usuário e senha permanecem no ambiente seguro.</p>
             </div>
             <form action={criarAgenteAdministradora} className="space-y-4">
@@ -288,7 +286,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
           <SectionSummary title="Receitas de coleta" description="Roteiros operacionais executados pelos agentes." count={receitas.length} />
           <div className="border-t border-slate-100 p-6">
             <div className="mb-4">
-              <h3 className="font-semibold text-slate-900">Cadastrar receita</h3>
+              <h3 className="text-base font-semibold text-slate-950">Cadastrar receita</h3>
               <p className="mt-1 text-sm text-slate-500">Vincule o roteiro a uma administradora e ao tipo de arquivo esperado.</p>
             </div>
             <form action={criarAgenteReceita} className="space-y-4">
@@ -319,7 +317,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
               <details key={carteiraNome} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
-                    <h3 className="truncate font-semibold text-slate-900">{carteiraNome}</h3>
+                    <h3 className="truncate text-sm font-semibold text-slate-950">{carteiraNome}</h3>
                     <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{receitasDoGrupo.length}</span>
                   </div>
                   <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
@@ -329,10 +327,10 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
                     <article key={receita.id} className="flex flex-col justify-between gap-4 px-5 py-4 lg:flex-row lg:items-center">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-medium text-slate-900">{receita.nome}</h4>
+                          <h4 className="text-sm font-medium text-slate-950">{receita.nome}</h4>
                           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{receita.tipo_arquivo_esperado.toUpperCase()}</span>
                         </div>
-                        <p className="mt-1 text-xs font-medium text-slate-500">{receita.administradora?.nome ?? 'Administradora não informada'}</p>
+                        <p className="mt-1 text-xs text-slate-500">{receita.administradora?.nome ?? 'Administradora não informada'}</p>
                         {receita.descricao ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{receita.descricao}</p> : null}
                       </div>
                       <form action={executarAgenteReceita} className="shrink-0">
@@ -362,13 +360,13 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
         </form>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-slate-50/80 text-xs uppercase tracking-normal text-slate-500">
               <tr><th className="px-6 py-3 font-medium">Execução</th><th className="px-4 py-3 font-medium">Receita</th><th className="px-4 py-3 font-medium">Status</th><th className="px-6 py-3 text-right font-medium">Ações</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {execucoesFiltradas.slice(0, 15).map((execucao) => (
                 <tr key={execucao.id} className="align-top hover:bg-slate-50/50">
-                  <td className="whitespace-nowrap px-6 py-4"><p className="font-medium text-slate-800">{formatarData(execucao.created_at)}</p><p className="mt-1 text-xs text-slate-500">{execucao.administradora?.nome ?? '—'}</p></td>
+                  <td className="whitespace-nowrap px-6 py-4"><p className="text-sm font-medium text-slate-950">{formatarData(execucao.created_at)}</p><p className="mt-1 text-xs text-slate-500">{execucao.administradora?.nome ?? '—'}</p></td>
                   <td className="max-w-sm px-4 py-4 text-slate-700">{execucao.receita?.nome ?? '—'}</td>
                   <td className="px-4 py-4"><StatusBadge tone={statusTone(execucao.status)} label={statusLabel(execucao.status)} /></td>
                   <td className="px-6 py-4">

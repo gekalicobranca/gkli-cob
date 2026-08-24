@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowUpRight, ChevronDown, Download, Edit3, Filter, Home, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
-import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
@@ -12,7 +12,10 @@ import {
   ListEmptyState,
   ListFilterField,
   ListFiltersForm,
+  ListItemMeta,
+  ListItemTitle,
   ListKpiGrid,
+  ListMetric,
   ListPage,
   ListPanel,
   ListPanelHeader,
@@ -182,27 +185,15 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
       />
 
       <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
-        <Card className="relative overflow-hidden p-3">
-          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
-            <Home size={18} />
-          </div>
-          <p className="text-xs font-medium uppercase text-slate-400">Ativas</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.ativas}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase text-slate-400">Sem telefone</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.semTelefone}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase text-slate-400">Sem e-mail</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.semEmail}</p>
-        </Card>
+        <KpiCard label="Ativas" value={resumo.ativas} icon={<Home size={18} />} />
+        <KpiCard label="Sem telefone" value={resumo.semTelefone} />
+        <KpiCard label="Sem e-mail" value={resumo.semEmail} />
       </ListKpiGrid>
 
       <ListPanel>
         <ListPanelHeader>
           <ListTitleBar>
-            <ListTitle title="Base de unidades" />
+            <ListTitle title="Filtros e resultados" />
             <ClearFiltersLink href="/app/unidades" show={filtrosAtivos} />
           </ListTitleBar>
 
@@ -278,7 +269,10 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                 <details key={group.id} className="group/condominio bg-white">
                   <summary className="flex cursor-pointer list-none items-center gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
                     <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
-                    <div><p className="text-sm font-semibold text-slate-950">{group.nome}</p><p className="mt-0.5 text-xs text-slate-500">{group.unidades.length} unidade(s) nesta página</p></div>
+                    <div>
+                      <ListItemTitle className="font-semibold">{group.nome}</ListItemTitle>
+                      <ListItemMeta className="mt-0.5">{group.unidades.length} unidade(s) nesta página</ListItemMeta>
+                    </div>
                   </summary>
                   <div className="divide-y divide-slate-100 border-t border-slate-100">
                   {group.unidades.map((row: any) => (
@@ -297,26 +291,19 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                   </label>
 
                   <Link href={`/app/unidades/${row.id}`} className="group min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]">
+                    <ListItemTitle className="group-hover:text-[var(--gkli-primary)]">
                       Unidade {row.identificacao || '-'} {row.bloco ? `· Bloco ${row.bloco}` : ''}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-slate-500">
+                    </ListItemTitle>
+                    <ListItemMeta>
                       {row.condominios?.nome ?? '-'} · {row.responsavel_nome ?? 'Responsável não informado'} ·{' '}
                       {row.carteiras?.nome ?? '-'}
-                    </p>
+                    </ListItemMeta>
                   </Link>
 
                   <StatusBadge status={row.status} />
 
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Telefone</p>
-                    <p className="mt-1 text-sm text-slate-700">{row.telefone ?? '-'}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">E-mail</p>
-                    <p className="mt-1 truncate text-sm text-slate-700">{row.email ?? '-'}</p>
-                  </div>
+                  <ListMetric label="Telefone" value={row.telefone ?? '-'} />
+                  <ListMetric label="E-mail" value={row.email ?? '-'} valueClassName="truncate" />
 
                   <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
                     <ButtonLink href={`/app/unidades/${row.id}`} variant="secondary" size="sm">

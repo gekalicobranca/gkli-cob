@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { AlertTriangle, ArrowUpRight, ChevronDown, Handshake, Inbox } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
-import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -13,7 +13,10 @@ import {
   ListEmptyState,
   ListFilterField,
   ListFiltersForm,
+  ListItemMeta,
+  ListItemTitle,
   ListKpiGrid,
+  ListMetric,
   ListPage,
   ListPanel,
   ListPanelHeader,
@@ -204,23 +207,18 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
       />
 
       <ListKpiGrid>
-        <Card className="relative overflow-hidden p-3">
-          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><Handshake size={18} /></div>
-          <p className="text-xs font-medium uppercase text-slate-400">Valor ativo</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{formatCurrency(valorAtivo)}</p>
-        </Card>
+        <KpiCard label="Valor ativo" value={formatCurrency(valorAtivo)} icon={<Handshake size={18} />} />
         {[
           ['Ativos', ativos, 'andamento', 'bg-emerald-50 text-emerald-700'],
           ['Em atraso', atraso, 'atenção', 'bg-amber-50 text-amber-700'],
           ['Rompidos', rompidos, 'risco', 'bg-red-50 text-red-700'],
         ].map(([title, value, tag, tagClass]) => (
-          <Card key={title} className="p-3">
-            <p className="text-xs font-medium uppercase text-slate-400">{title}</p>
-            <div className="mt-1.5 flex items-end justify-between gap-3">
-              <p className="text-2xl font-semibold text-slate-950">{value}</p>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span>
-            </div>
-          </Card>
+          <KpiCard
+            key={title}
+            label={String(title)}
+            value={value}
+            badge={<span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span>}
+          />
         ))}
       </ListKpiGrid>
 
@@ -318,8 +316,8 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                   <div className="flex min-w-0 items-center gap-3">
                     <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
                     <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-950">{group.condominio}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{group.acordos.length} acordo(s)</p>
+                    <ListItemTitle className="font-semibold">{group.condominio}</ListItemTitle>
+                    <ListItemMeta className="mt-0.5">{group.acordos.length} acordo(s)</ListItemMeta>
                     </div>
                   </div>
                 </summary>
@@ -335,23 +333,21 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                           <StatusBadge status={row.status} />
                           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.carteiras?.nome ?? 'Carteira não informada'}</span>
                         </div>
-                        <p className="mt-2 truncate text-sm font-medium text-slate-950">{getUnitLabel(row.unidades)}</p>
-                        <p className="mt-1 truncate text-xs text-slate-500">
+                        <ListItemTitle className="mt-2">{getUnitLabel(row.unidades)}</ListItemTitle>
+                        <ListItemMeta>
                           {row.unidades?.responsavel_nome ?? 'Responsável não informado'} {row.numero_processo ? `· proc. ${row.numero_processo}` : ''}
-                        </p>
+                        </ListItemMeta>
                       </div>
+                      <ListMetric
+                        label="Valor"
+                        value={formatCurrency(Number(row.valor_acordado))}
+                        valueClassName="font-semibold text-slate-950"
+                      />
                       <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado))}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Saúde</p>
+                        <p className="text-xs font-medium uppercase tracking-normal text-slate-400">Saúde</p>
                         <div className="mt-1"><AgreementHealthBadge health={row.saude_acordo} /></div>
                       </div>
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Data</p>
-                        <p className="mt-1 text-sm text-slate-700">{formatDateBR(row.data_acordo)}</p>
-                      </div>
+                      <ListMetric label="Data" value={formatDateBR(row.data_acordo)} />
                       <div className="flex justify-end"><ArrowUpRight size={16} className="text-slate-400 group-hover:text-[var(--gkli-primary)]" /></div>
                     </Link>
                   ))}

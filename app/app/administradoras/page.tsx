@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowUpRight, Building2, Filter, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
-import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
@@ -10,7 +10,10 @@ import {
   ListEmptyState,
   ListFilterField,
   ListFiltersForm,
+  ListItemMeta,
+  ListItemTitle,
   ListKpiGrid,
+  ListMetric,
   ListPage,
   ListPanel,
   ListPanelHeader,
@@ -81,18 +84,9 @@ export default async function AdministradorasPage({ searchParams }: Props) {
       />
 
       <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Total</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{rows.length}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Ativas</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{ativas}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Hub externo</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">ADM</p>
-        </Card>
+        <KpiCard label="Total" value={rows.length} />
+        <KpiCard label="Ativas" value={ativas} />
+        <KpiCard label="Hub externo" value="ADM" />
       </ListKpiGrid>
 
       <ListPanel>
@@ -148,25 +142,21 @@ export default async function AdministradorasPage({ searchParams }: Props) {
                 className="xl:grid-cols-[minmax(260px,1.4fr)_150px_minmax(180px,.8fr)_minmax(220px,1fr)_150px]"
               >
                 <Link href={`/app/administradoras/${row.id}`} className="group min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]">
+                  <ListItemTitle className="group-hover:text-[var(--gkli-primary)]">
                     <Building2 size={16} className="mr-2 inline text-slate-400" />
                     {row.nome_operacional || row.nome}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-slate-500">
+                  </ListItemTitle>
+                  <ListItemMeta>
                     Razão: {row.nome} · CNPJ {row.cnpj ?? '-'} · Resp. {row.responsavel_interno ?? '-'}
-                  </p>
+                  </ListItemMeta>
                 </Link>
                 <StatusBadge status={row.status ?? 'ativo'} />
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordos</p>
-                  <p className={row.acesso_gerar_acordo ? 'mt-1 text-sm font-medium text-emerald-700' : 'mt-1 text-sm text-slate-500'}>
-                    {row.acesso_gerar_acordo ? 'Acesso liberado' : 'Sem acesso'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Contato geral</p>
-                  <p className="mt-1 truncate text-sm text-slate-700">{row.email ?? row.telefone ?? '-'}</p>
-                </div>
+                <ListMetric
+                  label="Acordos"
+                  value={row.acesso_gerar_acordo ? 'Acesso liberado' : 'Sem acesso'}
+                  valueClassName={row.acesso_gerar_acordo ? 'text-emerald-700' : 'text-slate-500'}
+                />
+                <ListMetric label="Contato geral" value={row.email ?? row.telefone ?? '-'} valueClassName="truncate" />
                 <div className="flex justify-start xl:justify-end">
                   <ButtonLink href={`/app/administradoras/${row.id}`} size="sm" variant="secondary">
                     <ArrowUpRight size={15} />

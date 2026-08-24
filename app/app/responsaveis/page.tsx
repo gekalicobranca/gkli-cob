@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ChevronDown, Edit3, Plus, UsersRound } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
-import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
@@ -12,6 +12,8 @@ import {
   ListEmptyState,
   ListFilterField,
   ListFiltersForm,
+  ListItemMeta,
+  ListItemTitle,
   ListKpiGrid,
   ListPage,
   ListPanel,
@@ -163,25 +165,10 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
       />
 
       <ListKpiGrid className="md:grid-cols-4 xl:grid-cols-4">
-        <Card className="relative overflow-hidden p-3">
-          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
-            <UsersRound size={18} />
-          </div>
-          <p className="text-xs font-medium uppercase text-slate-400">Ativos</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.ativos}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase text-slate-400">Proprietários</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.proprietarios}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase text-slate-400">Inquilinos</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.inquilinos}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase text-slate-400">Incompletos</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{resumo.incompletos}</p>
-        </Card>
+        <KpiCard label="Ativos" value={resumo.ativos} icon={<UsersRound size={18} />} />
+        <KpiCard label="Proprietários" value={resumo.proprietarios} />
+        <KpiCard label="Inquilinos" value={resumo.inquilinos} />
+        <KpiCard label="Incompletos" value={resumo.incompletos} />
       </ListKpiGrid>
 
       <ListPanel>
@@ -271,7 +258,10 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
               <details key={group.id} className="group/condominio bg-white">
                 <summary className="flex cursor-pointer list-none items-center gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
                   <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
-                  <div><p className="text-sm font-semibold text-slate-950">{group.nome}</p><p className="mt-0.5 text-xs text-slate-500">{group.responsaveis.length} responsável(is) nesta página</p></div>
+                  <div>
+                    <ListItemTitle className="font-semibold">{group.nome}</ListItemTitle>
+                    <ListItemMeta className="mt-0.5">{group.responsaveis.length} responsável(is) nesta página</ListItemMeta>
+                  </div>
                 </summary>
                 <div className="divide-y divide-slate-100 border-t border-slate-100">
             {group.responsaveis.map((row: any) => {
@@ -283,16 +273,16 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                   className="xl:grid-cols-[minmax(240px,1.2fr)_150px_170px_150px_130px_120px]"
                 >
                   <Link href={href} className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-950">{row.responsavel_nome || 'Responsável não informado'}</p>
-                    <p className="mt-1 truncate text-xs text-slate-500">{row.carteiras?.nome ?? '-'} · origem {row.origem ?? '-'}</p>
+                    <ListItemTitle>{row.responsavel_nome || 'Responsável não informado'}</ListItemTitle>
+                    <ListItemMeta>{row.carteiras?.nome ?? '-'} · origem {row.origem ?? '-'}</ListItemMeta>
                   </Link>
                   <Link href={href} className="min-w-0 text-sm text-slate-700">
                     <span className="block truncate">Bloco {row.bloco || '-'}</span>
                     <span className="mt-1 block truncate text-xs text-slate-500">Unidade {row.unidade || '-'}</span>
                   </Link>
                   <Link href={href} className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-950">Unidade {row.unidade || '-'}</p>
-                    <p className="mt-1 text-xs text-slate-500">{tipoLabel(row.tipo_responsavel)}</p>
+                    <ListItemTitle>{tipoLabel(row.tipo_responsavel)}</ListItemTitle>
+                    <ListItemMeta>{row.email ?? row.telefone ?? 'Contato não informado'}</ListItemMeta>
                   </Link>
                   <div className="flex flex-wrap gap-2">
                     <Badge tone={row.ativo !== false ? 'green' : 'slate'}>{row.ativo !== false ? 'Ativo' : 'Inativo'}</Badge>

@@ -13,7 +13,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
-import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,10 @@ import {
   ListEmptyState,
   ListFilterField,
   ListFiltersForm,
+  ListItemMeta,
+  ListItemTitle,
   ListKpiGrid,
+  ListMetric,
   ListPage,
   ListPanel,
   ListPanelHeader,
@@ -363,7 +366,7 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
             {origemLabel[pendencia.origem] ?? pendencia.origem}
           </span>
         </div>
-        <h2 className="mt-2 text-base font-semibold tracking-[-0.01em] text-slate-950">{title}</h2>
+        <ListItemTitle className="mt-2">{title}</ListItemTitle>
         {description ? <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{description}</p> : null}
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">{tipo}</span>
@@ -372,15 +375,15 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
         </div>
       </div>
 
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Prazo</p>
-        <p className={cn('mt-1 text-sm', atrasada ? 'font-semibold text-rose-700' : 'text-slate-700')}>{formatDateTime(pendencia.prazo_limite)}</p>
-      </div>
+      <ListMetric
+        label="Prazo"
+        value={formatDateTime(pendencia.prazo_limite)}
+        valueClassName={atrasada ? 'font-semibold text-rose-700' : undefined}
+      />
 
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Responsável</p>
-        <p className="mt-1 truncate text-sm text-slate-700">{responsavel}</p>
-        <p className="mt-1 text-xs text-slate-500">Criada em {formatDateTime(pendencia.created_at)}</p>
+        <ListMetric label="Responsável" value={responsavel} valueClassName="truncate" />
+        <ListItemMeta>Criada em {formatDateTime(pendencia.created_at)}</ListItemMeta>
       </div>
 
       <PendenciaActions pendencia={pendencia} />
@@ -412,22 +415,10 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
       />
 
       <ListKpiGrid>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Abertas</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{resumo.totalAbertas}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Críticas</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-rose-700">{resumo.criticas}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Atrasadas</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-amber-700">{resumo.atrasadas}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">ADM / Acordos</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{resumo.administrativas + resumo.acordos}</p>
-        </Card>
+        <KpiCard label="Abertas" value={resumo.totalAbertas} />
+        <KpiCard label="Críticas" value={resumo.criticas} valueClassName="text-rose-700" />
+        <KpiCard label="Atrasadas" value={resumo.atrasadas} valueClassName="text-amber-700" />
+        <KpiCard label="ADM / Acordos" value={resumo.administrativas + resumo.acordos} />
       </ListKpiGrid>
 
       <ListPanel>

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowUpRight, Building2, Download, Edit3, Filter, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
-import { Card } from '@/components/ui/card'
+import { KpiCard } from '@/components/ui/kpi-card'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -11,7 +11,10 @@ import {
   ListEmptyState,
   ListFilterField,
   ListFiltersForm,
+  ListItemMeta,
+  ListItemTitle,
   ListKpiGrid,
+  ListMetric,
   ListPage,
   ListPanel,
   ListPanelHeader,
@@ -146,27 +149,15 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
       />
 
       <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
-        <Card className="relative overflow-hidden p-3">
-          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
-            <Building2 size={18} />
-          </div>
-          <p className="text-xs font-medium uppercase text-slate-400">Ativos</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{ativos}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase text-slate-400">Régua média</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">D+{mediaRegua}</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-xs font-medium uppercase text-slate-400">Cota média</p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{formatCurrency(ticketMedio)}</p>
-        </Card>
+        <KpiCard label="Ativos" value={ativos} icon={<Building2 size={18} />} />
+        <KpiCard label="Régua média" value={`D+${mediaRegua}`} />
+        <KpiCard label="Cota média" value={formatCurrency(ticketMedio)} />
       </ListKpiGrid>
 
       <ListPanel>
         <ListPanelHeader>
           <ListTitleBar>
-            <ListTitle title="Base cadastral" />
+            <ListTitle title="Filtros e resultados" />
             <ClearFiltersLink href="/app/condominios" show={filtrosAtivos} />
           </ListTitleBar>
 
@@ -232,29 +223,24 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                 className="xl:grid-cols-[minmax(320px,1.5fr)_110px_140px_130px_160px_170px]"
               >
                 <Link href={`/app/condominios/${row.id}`} className="group min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-950 group-hover:text-[var(--gkli-primary)]">
+                  <ListItemTitle className="group-hover:text-[var(--gkli-primary)]">
                     {row.nome_operacional || row.nome || 'Nome não informado'}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-slate-500">
+                  </ListItemTitle>
+                  <ListItemMeta>
                     {row.nome_operacional && row.nome_operacional !== row.nome ? `Oficial: ${row.nome} · ` : ''}
                     {row.administradora ?? '-'} · CNPJ {row.cnpj ?? '-'} · {row.carteiras?.nome ?? '-'}
-                  </p>
+                  </ListItemMeta>
                 </Link>
 
                 <ClassificacaoOperacionalBadge value={row.classificacao_operacional} />
                 <StatusBadge status={row.status} />
 
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Régua</p>
-                  <p className="mt-1 text-sm text-slate-700">D+{row.inicio_cobranca_dias}</p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Cota</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-950">
-                    {formatCurrency(Number(row.valor_cota_condominial ?? 0))}
-                  </p>
-                </div>
+                <ListMetric label="Régua" value={`D+${row.inicio_cobranca_dias}`} />
+                <ListMetric
+                  label="Cota"
+                  value={formatCurrency(Number(row.valor_cota_condominial ?? 0))}
+                  valueClassName="font-semibold text-slate-950"
+                />
 
                 <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
                   <ButtonLink href={`/app/condominios/${row.id}`} variant="secondary" size="sm">

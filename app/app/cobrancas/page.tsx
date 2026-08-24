@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, CalendarDays, ChevronDown, FileSpreadsheet, FileText, Plus, WalletCards } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
-import { Card } from "@/components/ui/card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import {
   LiteKpiStrip,
   LitePageHeader,
@@ -14,6 +14,9 @@ import {
   ListEmptyState,
   ListFilterField,
   ListFiltersForm,
+  ListItemMeta,
+  ListItemTitle,
+  ListMetric,
   ListPanel,
   ListPanelHeader,
   ListPagination,
@@ -366,17 +369,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
       </LitePageHeader>
 
       <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-        <Card className="relative overflow-hidden p-3">
-          <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
-            <WalletCards size={18} />
-          </div>
-          <p className="text-xs font-medium uppercase text-slate-400">
-            Em aberto
-          </p>
-          <p className="mt-1.5 text-2xl font-semibold text-slate-950">
-            {formatCurrency(resumo.totalEmAberto)}
-          </p>
-        </Card>
+        <KpiCard label="Em aberto" value={formatCurrency(resumo.totalEmAberto)} icon={<WalletCards size={18} />} />
 
         {[
           [
@@ -399,21 +392,12 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
             "bg-amber-50 text-amber-700",
           ],
         ].map(([title, value, tag, tagClass]) => (
-          <Card key={title} className="p-3">
-            <p className="text-xs font-medium uppercase text-slate-400">
-              {title}
-            </p>
-            <div className="mt-1.5 flex items-end justify-between gap-3">
-              <p className="text-2xl font-semibold text-slate-950">
-                {value}
-              </p>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}
-              >
-                {tag}
-              </span>
-            </div>
-        </Card>
+          <KpiCard
+            key={title}
+            label={String(title)}
+            value={value}
+            badge={<span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span>}
+          />
         ))}
       </LiteKpiStrip>
 
@@ -537,10 +521,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                       <div className="flex min-w-0 items-center gap-3">
                         <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open/carteira:rotate-180" />
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-950">{carteiraGroup.carteira}</p>
-                          <p className="mt-0.5 text-xs text-slate-500">
+                          <ListItemTitle className="font-semibold">{carteiraGroup.carteira}</ListItemTitle>
+                          <ListItemMeta className="mt-0.5">
                             {carteiraGroup.condominios.length} condomínio(s) · {carteiraGroup.cobrancasCount} cobrança(s) nesta página
-                          </p>
+                          </ListItemMeta>
                         </div>
                       </div>
                       <p className="text-sm font-semibold text-slate-800">{formatCurrency(carteiraGroup.valor)}</p>
@@ -553,8 +537,8 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                             <div className="flex min-w-0 items-center gap-3">
                               <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
                               <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-950">{group.condominio}</p>
-                              <p className="mt-0.5 text-xs text-slate-500">{group.cobrancas.length} cobrança(s) nesta página</p>
+                              <ListItemTitle>{group.condominio}</ListItemTitle>
+                              <ListItemMeta className="mt-0.5">{group.cobrancas.length} cobrança(s) nesta página</ListItemMeta>
                               </div>
                             </div>
                             <p className="text-sm font-semibold text-slate-700">{formatCurrency(group.valor)}</p>
@@ -598,10 +582,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                             </span>
                           ) : null}
                         </div>
-                        <p className="mt-2 truncate text-sm font-medium text-slate-950">{unidadeLabel || "Unidade não informada"}</p>
-                        <p className="mt-1 truncate text-xs text-slate-500">
+                        <ListItemTitle className="mt-2">{unidadeLabel || "Unidade não informada"}</ListItemTitle>
+                        <ListItemMeta>
                           {row.unidades?.responsavel_nome ?? "Responsável não informado"} · Competência {row.competencia ?? "-"}
-                        </p>
+                        </ListItemMeta>
                         {row.unidade_bloqueada_por_judicializacao ? (
                           <p className="mt-1 text-xs font-medium text-red-700">
                             Bloquear acordos para esta unidade: há cobrança em pré-jurídico ou judicializada.
@@ -609,33 +593,19 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                         ) : null}
                       </div>
 
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                          Valor
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-950">
-                          {formatCurrency(Number(row.valor_atualizado))}
-                        </p>
-                      </div>
+                      <ListMetric
+                        label="Valor"
+                        value={formatCurrency(Number(row.valor_atualizado))}
+                        valueClassName="font-semibold text-slate-950"
+                      />
 
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                          Vencimento
-                        </p>
-                        <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-700">
-                          <CalendarDays size={14} />
-                          {formatDateBR(row.vencimento)}
-                        </p>
-                      </div>
+                      <ListMetric
+                        label="Vencimento"
+                        value={formatDateBR(row.vencimento)}
+                        icon={<CalendarDays size={14} />}
+                      />
 
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                          Última interação
-                        </p>
-                        <p className="mt-1 text-sm text-slate-700">
-                          {formatDateBR(row.ultima_interacao_at)}
-                        </p>
-                      </div>
+                      <ListMetric label="Última interação" value={formatDateBR(row.ultima_interacao_at)} />
 
                       <div className="flex justify-end">
                         <Link
