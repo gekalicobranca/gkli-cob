@@ -311,5 +311,9 @@ export const backupSchemaFiles: ReadonlyArray<{ name: string; content: string }>
   {
     "name": "schema/migrations/20260824003000_condominios_contatos_regua.sql",
     "content": "alter table public.condominios\n  add column if not exists sindico_email text,\n  add column if not exists sindico_celular text,\n  add column if not exists gerente_email text,\n  add column if not exists gerente_celular text;\n\ncomment on column public.condominios.sindico_email is\n  'E-mail operacional do síndico usado pelas réguas e pré-jurídico.';\n\ncomment on column public.condominios.sindico_celular is\n  'Celular operacional do síndico usado pelas réguas e pré-jurídico.';\n\ncomment on column public.condominios.gerente_email is\n  'E-mail operacional do gerente do condomínio usado pelas réguas.';\n\ncomment on column public.condominios.gerente_celular is\n  'Celular operacional do gerente do condomínio usado pelas réguas.';\n"
+  },
+  {
+    "name": "schema/migrations/20260824014500_lotes_tipo_pre_juridico.sql",
+    "content": "alter table public.lotes\n  drop constraint if exists lotes_tipo_check;\n\nalter table public.lotes\n  add constraint lotes_tipo_check\n  check (\n    tipo in (\n      'regua_cobranca',\n      'regua_acordo',\n      'pre_juridico',\n      'mensageria',\n      'importacao'\n    )\n  );\n"
   }
 ]
