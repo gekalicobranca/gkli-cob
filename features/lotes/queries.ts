@@ -28,7 +28,12 @@ export async function listLotesRegua(scope: CarteiraScope) {
       resumo,
       iniciado_em,
       finalizado_em,
-      created_at
+      created_at,
+      regua:reguas(
+        id,
+        nome,
+        tipo
+      )
     `)
     .order('created_at', { ascending: false })
     .limit(LOTE_LIST_LIMIT)
@@ -67,7 +72,12 @@ export async function getLoteDetalhe(id: string, scope: CarteiraScope) {
       resumo,
       iniciado_em,
       finalizado_em,
-      created_at
+      created_at,
+      regua:reguas(
+        id,
+        nome,
+        tipo
+      )
     `)
     .eq('id', id)
 

@@ -13,6 +13,8 @@ import {
   RotateCcw,
   Trash2,
   Sparkles,
+  AlertTriangle,
+  Building2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -121,11 +123,90 @@ function retornoManualLabel(retorno?: string | null) {
   return labels[retorno] ?? retorno.replaceAll("_", " ");
 }
 
+const LOTE_TIPO_LABEL: Record<string, string> = {
+  regua_cobranca: "Régua de cobrança",
+  regua_acordo: "Régua de acordo",
+  pre_juridico: "Pré-jurídico",
+  mensageria: "Mensageria",
+  importacao: "Importação",
+};
+
+const LOTE_STATUS_LABEL: Record<string, string> = {
+  gerado: "Gerado",
+  processando: "Processando",
+  pendente_aprovacao: "Pendente de aprovação",
+  aprovado: "Aprovado",
+  enviado: "Enviado",
+  parcial: "Parcial",
+  concluido: "Concluído",
+  concluido_com_falhas: "Concluído com falhas",
+  cancelado: "Cancelado",
+  erro: "Erro",
+};
+
+const ITEM_STATUS_LABEL: Record<string, string> = {
+  criado: "Criado",
+  pulada: "Pulada",
+  duplicada: "Duplicada",
+  erro: "Erro",
+  aprovado: "Aprovado",
+  enviado: "Enviado",
+  pausado: "Pausado",
+  retorno_registrado: "Retorno registrado",
+  cancelado: "Cancelado",
+};
+
+const MENSAGEM_STATUS_LABEL_UI: Record<string, string> = {
+  rascunho: "Rascunho",
+  pendente_aprovacao: "Pendente de aprovação",
+  aprovada: "Aprovada",
+  agendada: "Agendada",
+  enviada: "Enviada",
+  falha: "Falha",
+  cancelada: "Cancelada",
+  aguardando_retorno: "Aguardando retorno",
+};
+
+function humanizeStatus(value: unknown, labels: Record<string, string>) {
+  const key = String(value ?? "").trim();
+  if (!key) return "Não informado";
+  return labels[key] ?? key.replaceAll("_", " ");
+}
+
+function statusPillClasses(status: string) {
+  if (status === "concluido") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "pendente_aprovacao" || status === "processando") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (status === "concluido_com_falhas" || status === "erro") return "border-red-200 bg-red-50 text-red-700";
+  return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
 function reguaLabel(lote: any) {
+  const regua = Array.isArray(lote?.regua) ? lote.regua[0] : lote?.regua;
+  if (regua?.nome) return String(regua.nome);
   const reguaId = lote?.resumo?.regua_id;
   if (!reguaId) return "Não identificada";
   if (String(reguaId).startsWith("default-")) return "Padrão interno";
   return String(reguaId);
+}
+
+function motivoAcionavel(motivo: unknown) {
+  const normalized = String(motivo ?? "")
+    .toLocaleLowerCase("pt-BR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (normalized.includes("sindico") && normalized.includes("e-mail")) {
+    return {
+      title: "Cadastrar e-mail do síndico",
+      description: "Depois de corrigir o cadastro do condomínio, gere um novo lote para reenviar a procuração.",
+    };
+  }
+  if (normalized.includes("sem contato") || normalized.includes("destinatario")) {
+    return {
+      title: "Completar contato do destinatário",
+      description: "Corrija o cadastro indicado e gere novamente apenas os casos necessários.",
+    };
+  }
+  return null;
 }
 
 function ActionButton({
@@ -151,6 +232,35 @@ function ActionButton({
   );
 }
 
+function MetricCard({
+  label,
+  value,
+  tone = "text-slate-950",
+  hint,
+}: {
+  label: string;
+  value: unknown;
+  tone?: string;
+  hint?: string;
+}) {
+  return (
+    <Card className="p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">{label}</p>
+      <p className={`mt-3 text-2xl font-semibold ${tone}`}>{metric(value)}</p>
+      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+    </Card>
+  );
+}
+
+function DetailItem({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-[0.08em] text-slate-400">{label}</p>
+      <div className="mt-1 text-sm text-slate-900">{children}</div>
+    </div>
+  );
+}
+
 function getSearchParam(params: Record<string, string | string[] | undefined>, key: string) {
   const value = params[key];
   return Array.isArray(value) ? value[0] : value;
@@ -173,6 +283,9 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const scope = await getPermittedCarteiras();
   const { lote, itens, totalItens, itemLimit, itensTruncados, hasEmailAprovado } = await getLoteDetalhe(id, scope);
+  const isPreJuridico = (lote as any).tipo === "pre_juridico" || getSearchParam(resolvedSearchParams, "pre_juridico") === "1";
+  const backHref = isPreJuridico ? "/app/pre-juridico/monitor" : "/app/lotes";
+  const backLabel = isPreJuridico ? "Voltar ao monitor" : "Voltar para lotes";
   const byStatus = countItensByStatus(itens);
   const byMensagemStatus = countMensagensByStatus(itens as any);
   const generatedNow = getSearchParam(resolvedSearchParams, "gerado") === "1";
@@ -200,16 +313,20 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Mensageria"
-        title="Detalhe do lote"
-        description="Rastreabilidade do processamento da régua: cobranças avaliadas, mensagens criadas, duplicidades, pulos e erros."
+        eyebrow={isPreJuridico ? "Pré-Jurídico" : "Mensageria"}
+        title={isPreJuridico ? "Lote pré-jurídico" : "Detalhe do lote"}
+        description={
+          isPreJuridico
+            ? "Rastreabilidade da régua de procurações: itens avaliados, mensagens criadas, pulos e pendências de cadastro."
+            : "Rastreabilidade do processamento da régua: cobranças avaliadas, mensagens criadas, duplicidades, pulos e erros."
+        }
         actions={
           <Link
-            href="/app/lotes"
+            href={backHref}
             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-white/20"
           >
             <ArrowLeft size={16} />
-            Voltar para lotes
+            {backLabel}
           </Link>
         }
       />
@@ -280,98 +397,28 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
       ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase text-slate-400">
-            Avaliadas
-          </p>
-          <p className="mt-3 text-2xl font-semibold text-slate-950">
-            {metric((lote as any).total_avaliadas)}
-          </p>
-        </Card>
-
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase text-slate-400">
-            Criadas
-          </p>
-          <p className="mt-3 text-2xl font-semibold text-emerald-700">
-            {metric(totalCriadas)}
-          </p>
-        </Card>
-
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase text-slate-400">
-            Duplicadas
-          </p>
-          <p className="mt-3 text-2xl font-semibold text-amber-700">
-            {metric(totalDuplicadas)}
-          </p>
-        </Card>
-
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase text-slate-400">
-            Puladas
-          </p>
-          <p className="mt-3 text-2xl font-semibold text-slate-700">
-            {metric(totalPuladas)}
-          </p>
-        </Card>
-
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase text-slate-400">
-            Erros
-          </p>
-          <p className="mt-3 text-2xl font-semibold text-red-700">
-            {metric(totalErros)}
-          </p>
-        </Card>
+        <MetricCard label="Avaliadas" value={(lote as any).total_avaliadas} hint="Itens analisados" />
+        <MetricCard label="Criadas" value={totalCriadas} tone="text-emerald-700" hint="Mensagens geradas" />
+        <MetricCard label="Duplicadas" value={totalDuplicadas} tone="text-amber-700" hint="Já existiam" />
+        <MetricCard label="Puladas" value={totalPuladas} tone="text-slate-700" hint="Exigem ajuste" />
+        <MetricCard label="Erros" value={totalErros} tone="text-red-700" hint="Falhas técnicas" />
       </section>
 
       <Card className="p-5">
-        <div className="grid gap-4 md:grid-cols-5">
-            <div>
-            <p className="text-xs font-medium uppercase text-slate-400">
-              Tipo
-            </p>
-            <p className="mt-1 text-sm text-slate-900">{(lote as any).tipo}</p>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium uppercase text-slate-400">
-              Status
-            </p>
-            <p className="mt-1 text-sm text-slate-900">
-              {(lote as any).status}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium uppercase text-slate-400">
-              Régua
-            </p>
-            <p className="mt-1 break-all text-sm text-slate-900">
-              {reguaLabel(lote)}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium uppercase text-slate-400">
-              Criado em
-            </p>
-            <p className="mt-1 text-sm text-slate-900">
-              {formatDateBR((lote as any).created_at)}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium uppercase text-slate-400">
-              Finalizado em
-            </p>
-            <p className="mt-1 text-sm text-slate-900">
-              {(lote as any).finalizado_em
-                ? formatDateBR((lote as any).finalizado_em)
-                : "Ainda não finalizado"}
-            </p>
-          </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <DetailItem label="Tipo">{humanizeStatus((lote as any).tipo, LOTE_TIPO_LABEL)}</DetailItem>
+          <DetailItem label="Status">
+            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusPillClasses((lote as any).status)}`}>
+              {humanizeStatus((lote as any).status, LOTE_STATUS_LABEL)}
+            </span>
+          </DetailItem>
+          <DetailItem label="Régua">
+            <span className="line-clamp-2 break-words">{reguaLabel(lote)}</span>
+          </DetailItem>
+          <DetailItem label="Criado em">{formatDateBR((lote as any).created_at)}</DetailItem>
+          <DetailItem label="Finalizado em">
+            {(lote as any).finalizado_em ? formatDateBR((lote as any).finalizado_em) : "Ainda não finalizado"}
+          </DetailItem>
         </div>
 
         {(lote as any).observacoes ? (
@@ -387,9 +434,11 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
             <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
               Próximo passo operacional
             </p>
-            <h2 className="mt-1 text-base text-slate-950">
+            <h2 className="mt-1 text-base font-semibold text-slate-950">
               {isAuditoriaSemMensagens
-                ? "Revisar motivos dos itens pulados"
+                ? isPreJuridico
+                  ? "Corrigir contatos do condomínio e gerar novo lote"
+                  : "Revisar motivos dos itens pulados"
                 : "Revisar, aprovar, enviar e acompanhar retorno"}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
@@ -405,6 +454,12 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                 </>
               )}
             </p>
+            {isAuditoriaSemMensagens && isPreJuridico ? (
+              <p className="mt-2 max-w-3xl text-sm text-slate-500">
+                No pré-jurídico, item pulado normalmente indica dado obrigatório ausente no condomínio, como e-mail do síndico.
+                Corrija o cadastro antes de tentar novo envio de procuração.
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -494,6 +549,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
               const acordo = item.acordo;
               const unidade = cobranca?.unidade || acordo?.unidade;
               const condominio = unidade?.condominio;
+              const condominioId = item.condominio_id || condominio?.id;
               const mensagem = item.mensagem;
               const canalPlanejado = payloadValue(item.payload, "canal");
               const destinatarioPlanejado = payloadValue(item.payload, "destinatario");
@@ -520,6 +576,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
               const cobrancaEmNegociacao =
                 String(cobranca?.status_operacional ?? cobranca?.status ?? "") ===
                 COBRANCA_STATUS.EM_NEGOCIACAO;
+              const acaoPulo = motivoAcionavel(item.motivo);
 
               return (
                 <div
@@ -532,7 +589,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                         className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs ${statusClasses(item.status)}`}
                       >
                         <StatusIcon status={item.status} />
-                        {item.status}
+                        {humanizeStatus(item.status, ITEM_STATUS_LABEL)}
                       </span>
 
                       {item.mensagem_id ? (
@@ -557,7 +614,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                       ) : null}
                     </div>
 
-                    <p className="mt-3 text-sm text-slate-950">
+                    <p className="mt-3 text-sm font-semibold text-slate-950">
                       {condominio?.nome || "Condomínio não identificado"}
                     </p>
                     {acordo?.id ? (
@@ -593,9 +650,30 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                     ) : null}
 
                     {item.motivo ? (
-                      <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600">
-                        Motivo: {item.motivo}
-                      </p>
+                      <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-900">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                          <div>
+                            <p className="font-medium">Motivo do pulo</p>
+                            <p className="mt-1 text-amber-800">{item.motivo}</p>
+                            {acaoPulo ? (
+                              <div className="mt-3 rounded-xl bg-white/70 p-3 text-xs leading-5 text-amber-900">
+                                <p className="font-semibold">{acaoPulo.title}</p>
+                                <p className="mt-1">{acaoPulo.description}</p>
+                                {condominioId ? (
+                                  <Link
+                                    href={`/app/condominios/${condominioId}`}
+                                    className="mt-2 inline-flex items-center gap-1 font-semibold text-[var(--gkli-primary)] hover:underline"
+                                  >
+                                    <Building2 size={14} />
+                                    Abrir cadastro do condomínio
+                                  </Link>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
                     ) : null}
                   </div>
 
@@ -635,7 +713,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                     ) : null}
                     {mensagem?.status_operacional || mensagem?.status ? (
                       <span className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
-                        {mensagem.status_operacional || mensagem.status}
+                        {humanizeStatus(mensagem.status_operacional || mensagem.status, MENSAGEM_STATUS_LABEL_UI)}
                       </span>
                     ) : null}
                     <p className="mt-1 text-xs text-slate-500">
@@ -732,9 +810,10 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                       <form action={cancelarItemLote.bind(null, item.id, "Cancelado item a item na revisão operacional.")}><ActionButton tone="danger" confirmMessage="Confirmar remoção deste item do lote?" pendingLabel="Removendo...">Remover item</ActionButton></form>
                     </div>
                     {!hasMensagem ? (
-                      <p className="mt-2 rounded-2xl bg-slate-50 p-3 text-xs text-slate-500">
-                        Item sem mensagem operacional. Use o motivo do pulo para ajustar cadastro, compliance ou régua antes de gerar novamente.
-                      </p>
+                      <div className="mt-2 rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
+                        <p className="font-medium text-slate-700">Sem mensagem operacional</p>
+                        <p className="mt-1">Ajuste o motivo indicado antes de gerar novamente.</p>
+                      </div>
                     ) : null}
                     {mensagem?.id ? (
                       <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
