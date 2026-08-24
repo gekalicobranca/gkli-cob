@@ -7,6 +7,11 @@ export type EmailPayload = {
   subject: string
   text: string
   from?: string
+  attachments?: Array<{
+    filename: string
+    contentType?: string
+    content: Buffer | Uint8Array | string
+  }>
 }
 
 type SmtpConfig = {
@@ -297,6 +302,75 @@ function escapeData(text: string) {
   return text.replace(/\r?\n/g, '\r\n').replace(/^\./gm, '..')
 }
 
+function sanitizeHeaderValue(value: string) {
+  return value.replace(/[\r\n"]/g, '_').trim()
+}
+
+function encodeFilename(filename: string) {
+  return `=?UTF-8?B?${Buffer.from(filename, 'utf8').toString('base64')}?=`
+}
+
+function base64Lines(content: Buffer | Uint8Array | string) {
+  const buffer = typeof content === 'string'
+    ? Buffer.from(content, 'utf8')
+    : Buffer.from(content)
+  return buffer.toString('base64').replace(/.{1,76}/g, '$&\r\n').trimEnd()
+}
+
+function buildMimeMessage(input: {
+  from: string
+  to: string
+  subject: string
+  body: string
+  attachments?: EmailPayload['attachments']
+}) {
+  const attachments = input.attachments ?? []
+  if (!attachments.length) {
+    return [
+      `From: ${input.from}`,
+      `To: ${input.to}`,
+      `Subject: ${encodeSubject(input.subject)}`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: 8bit',
+      '',
+      escapeData(input.body),
+      '.',
+    ].join('\r\n')
+  }
+
+  const boundary = `gkli-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  const parts = [
+    `From: ${input.from}`,
+    `To: ${input.to}`,
+    `Subject: ${encodeSubject(input.subject)}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    escapeData(input.body),
+  ]
+
+  for (const attachment of attachments) {
+    const filename = sanitizeHeaderValue(attachment.filename || 'anexo.pdf')
+    const contentType = sanitizeHeaderValue(attachment.contentType || 'application/octet-stream')
+    parts.push(
+      `--${boundary}`,
+      `Content-Type: ${contentType}; name="${encodeFilename(filename)}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${encodeFilename(filename)}"`,
+      '',
+      base64Lines(attachment.content),
+    )
+  }
+
+  parts.push(`--${boundary}--`, '.')
+  return parts.join('\r\n')
+}
+
 function smtpConnectionError(error: unknown, config: SmtpConfig) {
   const message = error instanceof Error ? error.message : String(error)
   const lower = message.toLowerCase()
@@ -362,17 +436,13 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
     await command(socket, `RCPT TO:<${to}>`, [250, 251])
     await command(socket, 'DATA', [354])
 
-    const message = [
-      `From: ${from}`,
-      `To: ${to}`,
-      `Subject: ${encodeSubject(subject)}`,
-      'MIME-Version: 1.0',
-      'Content-Type: text/plain; charset=UTF-8',
-      'Content-Transfer-Encoding: 8bit',
-      '',
-      escapeData(body),
-      '.',
-    ].join('\r\n')
+    const message = buildMimeMessage({
+      from,
+      to,
+      subject,
+      body,
+      attachments: payload.attachments,
+    })
 
     await command(socket, message, [250])
     await command(socket, 'QUIT', [221])

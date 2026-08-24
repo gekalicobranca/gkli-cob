@@ -8,6 +8,7 @@ import { requireUser } from "@/utils/auth/require-user";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { sendSmtpEmail } from "@/features/mensageria/email-provider";
 import { registrarEventoOperacional } from "@/features/operacional/service";
+import { listarAnexosMensagem } from "@/features/pre-juridico/documentos";
 import { TEMPLATE_VARIABLES } from "@/features/mensageria/render-template";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 import {
@@ -410,10 +411,13 @@ export async function enviarMensagemEmail(id: string) {
 
     assertSupabaseMutation(agendaError, "Erro ao marcar mensagem como agendada");
 
+    const anexos = await listarAnexosMensagem(createAdminClient(), mensagem.id);
+
     await sendSmtpEmail({
       to: mensagem.destinatario || "",
       subject: assunto || "Mensagem GKLI Cobrança",
       text: conteudo,
+      attachments: anexos,
     }, {
       carteiraId: mensagem.carteira_id,
     });
@@ -455,6 +459,7 @@ export async function enviarMensagemEmail(id: string) {
         canal: mensagem.canal,
         destinatario: mensagem.destinatario,
         tentativa: Number(mensagem.tentativas_envio ?? 0) + 1,
+        anexos: anexos.length,
       },
     });
 
@@ -468,7 +473,7 @@ export async function enviarMensagemEmail(id: string) {
       titulo: "E-mail enviado",
       descricao: `E-mail enviado para ${mensagem.destinatario}.`,
       severidade: "sucesso",
-      payload: { mensagem_id: mensagem.id, lote_item_id: mensagem.lote_item_id },
+      payload: { mensagem_id: mensagem.id, lote_item_id: mensagem.lote_item_id, anexos: anexos.length },
     });
   } catch (error) {
     await atualizarMensagemErro(supabase, mensagem, error);

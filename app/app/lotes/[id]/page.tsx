@@ -562,6 +562,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
               const destinatarioExibido = mensagem?.destinatario || destinatarioPlanejado || "";
               const hasMensagem = Boolean(mensagem?.id);
               const mensagemStatus = String(mensagem?.status ?? "");
+              const anexosMensagem = Array.isArray(mensagem?.anexos) ? mensagem.anexos : [];
               const canApproveItem =
                 hasMensagem &&
                 (item.status === LOTE_ITEM_STATUS.CRIADO || item.status === LOTE_ITEM_STATUS.ERRO);
@@ -714,6 +715,11 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                     {mensagem?.status_operacional || mensagem?.status ? (
                       <span className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
                         {humanizeStatus(mensagem.status_operacional || mensagem.status, MENSAGEM_STATUS_LABEL_UI)}
+                      </span>
+                    ) : null}
+                    {anexosMensagem.length ? (
+                      <span className="ml-2 mt-2 inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs text-sky-700">
+                        {anexosMensagem.length} anexo{anexosMensagem.length > 1 ? "s" : ""}
                       </span>
                     ) : null}
                     <p className="mt-1 text-xs text-slate-500">

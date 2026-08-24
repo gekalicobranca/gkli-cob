@@ -179,6 +179,15 @@ export async function getLoteDetalhe(id: string, scope: CarteiraScope) {
         erro,
         erro_envio,
         created_at,
+        anexos:mensagem_anexos(
+          id,
+          ordem,
+          documento:documentos_gerados(
+            id,
+            tipo,
+            nome_arquivo
+          )
+        ),
         template:mensagens_templates(
           id,
           nome,

@@ -4,6 +4,7 @@ import { registrarEventoOperacional } from "@/features/operacional/service";
 import { resolveTemplateMensagem } from "@/features/mensageria/template-resolver";
 import { renderTemplate } from "@/features/mensageria/render-template";
 import { registrarLogMensageria } from "@/features/mensageria/engine/logs";
+import { gerarEAnexarDocumentosPreJuridico } from "@/features/pre-juridico/documentos";
 import {
   LOTE_ITEM_STATUS,
   LOTE_STATUS,
@@ -380,6 +381,12 @@ function referenciasEntidade(row: any) {
     : { acordo_id: row.id, cobranca_id: null };
 }
 
+function tiposDocumentoPorFinalidade(finalidade: "carteira" | "administradora" | "sindico") {
+  if (finalidade === "carteira") return ["laudo_pre_juridico", "procuracao_pre_juridico"] as const;
+  if (finalidade === "sindico") return ["procuracao_pre_juridico"] as const;
+  return [] as const;
+}
+
 async function carregarContatosCarteira(
   supabase: ReturnType<typeof createAdminClient>,
   carteiraIds: string[],
@@ -538,6 +545,7 @@ async function criarMensagem(params: {
   supabase: ReturnType<typeof createAdminClient>;
   loteId: string;
   acordo: any;
+  scope: CarteiraScope;
   contato: { nome: string; email: string } | null;
   categoria: string;
   finalidade: "carteira" | "administradora" | "sindico";
@@ -680,6 +688,25 @@ async function criarMensagem(params: {
     .single();
 
   if (itemError) throw new Error(`Erro ao criar item do lote pré-jurídico: ${itemError.message}`);
+
+  const tipos = tiposDocumentoPorFinalidade(params.finalidade);
+  if (tipos.length) {
+    const origemDocumento = acordo.origem_pre_juridico === "cobranca" ? "cobranca" : "acordo";
+    await gerarEAnexarDocumentosPreJuridico({
+      supabase,
+      mensagemId: mensagem.id,
+      loteId: params.loteId,
+      loteItemId: item?.id ?? null,
+      carteiraId: acordo.carteira_id ?? null,
+      ...referenciasEntidade(acordo),
+      condominioId: condominio?.id ?? acordo.condominio_id ?? null,
+      unidadeId: unidade?.id ?? acordo.unidade_id ?? null,
+      origem: origemDocumento,
+      ids: idsDocumento(acordo),
+      tipos: [...tipos],
+      scope: params.scope,
+    });
+  }
 
   await supabase.from("mensagens").update({ lote_item_id: item?.id ?? null } as any).eq("id", mensagem.id);
   await registrarLogMensageria(supabase as any, {
@@ -829,7 +856,7 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
               ? { nome: primeiro.condominios?.administradoras?.nome ?? "Administradora", email: primeiro.condominios.administradoras.email }
               : null);
           await criarMensagem({
-            supabase, loteId, acordo: primeiro, contato, etapa,
+            supabase, loteId, acordo: primeiro, scope: params.scope, contato, etapa,
             categoria: etapa.categoria_template,
             finalidade: "administradora",
             assuntoFallback: "Lista pré-jurídica de acordos quebrados - {{administradora}}",
@@ -845,7 +872,7 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
       for (const acordo of rows) {
         const paraCarteira = etapa.categoria_template === "pre_juridico_carteira";
         await criarMensagem({
-          supabase, loteId, acordo, etapa,
+          supabase, loteId, acordo, scope: params.scope, etapa,
           contato: paraCarteira ? contatosCarteira.get(carteiraId)?.[0] ?? null : contatosSindico.get(acordo.condominio_id)?.[0] ?? null,
           categoria: etapa.categoria_template,
           finalidade: paraCarteira ? "carteira" : "sindico",
