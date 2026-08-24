@@ -261,6 +261,10 @@ async function carregarAcordos(
       condominios:condominio_id (
         id,
         nome,
+        sindico_email,
+        sindico_celular,
+        gerente_email,
+        gerente_celular,
         regua_pre_juridico_id,
         administradora_id,
         administradoras:administradora_id (id,nome,email)
@@ -311,7 +315,7 @@ async function carregarCobrancas(
       valor_original, valor_atualizado, vencimento,
       carteiras:carteira_id (id,nome,pre_juridico_habilitado),
       condominios:condominio_id (
-        id, nome, regua_pre_juridico_id, administradora_id,
+        id, nome, sindico_email, sindico_celular, gerente_email, gerente_celular, regua_pre_juridico_id, administradora_id,
         administradoras:administradora_id (id,nome,email)
       ),
       unidades:unidade_id (id,identificacao,bloco,responsavel_nome,email,telefone)
@@ -335,7 +339,7 @@ async function carregarCobrancas(
       valor_original, valor_atualizado, vencimento,
       carteiras:carteira_id (id,nome,pre_juridico_habilitado),
       condominios:condominio_id (
-        id, nome, regua_pre_juridico_id, administradora_id,
+        id, nome, sindico_email, sindico_celular, gerente_email, gerente_celular, regua_pre_juridico_id, administradora_id,
         administradoras:administradora_id (id,nome,email)
       ),
       unidades:unidade_id (id,identificacao,bloco,responsavel_nome,email,telefone)
@@ -429,8 +433,24 @@ async function carregarContatosSindico(
   supabase: ReturnType<typeof createAdminClient>,
   condominioIds: string[],
 ) {
-  const result = new Map<string, Array<{ nome: string; email: string }>>();
+  const result = new Map<string, Array<{ nome: string; email: string; celular?: string | null }>>();
   if (!condominioIds.length) return result;
+
+  const { data: condominios } = await supabase
+    .from("condominios")
+    .select("id,nome,sindico_email,sindico_celular")
+    .in("id", condominioIds);
+
+  for (const row of (condominios ?? []) as any[]) {
+    const condominioId = String(row.id ?? "");
+    const email = String(row.sindico_email ?? "").trim();
+    if (!condominioId || !email) continue;
+    result.set(condominioId, [{
+      nome: row.nome ? `Síndico - ${row.nome}` : "Síndico",
+      email,
+      celular: row.sindico_celular ?? null,
+    }]);
+  }
 
   const { data } = await supabase
     .from("portal_sindico_condominios")
@@ -441,6 +461,7 @@ async function carregarContatosSindico(
     const usuario = firstRelation((row as any).portal_sindico_usuarios);
     const email = String(usuario?.email ?? "").trim();
     if (!row.condominio_id || !email) continue;
+    if (result.has(row.condominio_id)) continue;
     const list = result.get(row.condominio_id) ?? [];
     list.push({ nome: usuario?.nome ?? email, email });
     result.set(row.condominio_id, list);
@@ -505,6 +526,10 @@ function contextoBase(acordo: any, contato: { nome: string; email: string }, ext
     valor_acordo: formatCurrency(Number(acordo.valor_acordado ?? 0)),
     administradora: administradora?.nome ?? "Administradora",
     email: contato.email,
+    sindico_email: condominio?.sindico_email ?? "",
+    sindico_celular: condominio?.sindico_celular ?? "",
+    gerente_email: condominio?.gerente_email ?? "",
+    gerente_celular: condominio?.gerente_celular ?? "",
     ...extra,
   };
 }
@@ -825,7 +850,7 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
           categoria: etapa.categoria_template,
           finalidade: paraCarteira ? "carteira" : "sindico",
           assuntoFallback: paraCarteira ? "Pacote pré-jurídico - {{condominio}} - unidade {{unidade}}" : "Procuração para assinatura - {{condominio}} - unidade {{unidade}}",
-          motivoSemContato: paraCarteira ? "Carteira sem usuário com e-mail vinculado para receber laudo/procuração." : "Condomínio sem síndico ativo com e-mail para receber procuração.",
+          motivoSemContato: paraCarteira ? "Carteira sem usuário com e-mail vinculado para receber laudo/procuração." : "Condomínio sem e-mail do síndico cadastrado para receber procuração.",
           links: pdfLinks(idsDocumento(acordo), origem),
           counters,
         });

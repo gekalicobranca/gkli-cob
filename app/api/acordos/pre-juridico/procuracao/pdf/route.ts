@@ -267,6 +267,29 @@ async function carregarSindicos(condominioIds: string[]) {
   if (!condominioIds.length) return result;
 
   const supabase = createAdminClient();
+
+  const { data: condominios, error: condominiosError } = await supabase
+    .from("condominios")
+    .select("id,nome,sindico_email,sindico_celular")
+    .in("id", condominioIds);
+
+  if (condominiosError) {
+    throw new Error(`Erro ao carregar contatos do cadastro do condomínio: ${condominiosError.message}`);
+  }
+
+  for (const row of (condominios ?? []) as any[]) {
+    const condominioId = String(row.id ?? "");
+    if (!condominioId) continue;
+    const email = String(row.sindico_email ?? "").trim() || null;
+    const telefone = String(row.sindico_celular ?? "").trim() || null;
+    if (!email && !telefone) continue;
+    result.set(condominioId, {
+      nome: row.nome ? `Síndico - ${row.nome}` : "Síndico",
+      email,
+      telefone,
+    });
+  }
+
   const { data, error } = await supabase
     .from("portal_sindico_condominios")
     .select(`
@@ -296,11 +319,12 @@ async function carregarSindicos(condominioIds: string[]) {
     const usuario = firstRelation(row.portal_sindico_usuarios);
     if (!usuario || usuario.status === "inativo") continue;
 
+    const cadastro = result.get(condominioId) ?? {};
     result.set(condominioId, {
       nome: usuario.nome,
-      email: usuario.email,
+      email: cadastro.email ?? usuario.email,
       documento: usuario.documento,
-      telefone: usuario.telefone,
+      telefone: cadastro.telefone ?? usuario.telefone,
     });
   }
 

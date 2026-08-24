@@ -16,6 +16,19 @@ function optionalText(formData: FormData, field: string) {
   return String(formData.get(field) ?? '').trim() || null
 }
 
+function optionalEmail(formData: FormData, field: string, label: string) {
+  const value = String(formData.get(field) ?? '').trim().toLowerCase()
+  if (!value) return null
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    throw new Error(`${label} inválido.`)
+  }
+  return value
+}
+
+function optionalPhone(formData: FormData, field: string) {
+  return onlyDigits(String(formData.get(field) ?? '')) || null
+}
+
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
   if (!carteiraId) throw new Error('Carteira obrigatória.')
   if (scope.carteiraIds !== null && !scope.carteiraIds.includes(carteiraId)) {
@@ -118,6 +131,10 @@ export async function createCondominio(formData: FormData) {
   const enderecoUf = optionalText(formData, 'endereco_uf')?.toUpperCase() ?? null
   const enderecoCep = onlyDigits(String(formData.get('endereco_cep') ?? '')) || null
   const administradora = String(formData.get('administradora') ?? '').trim()
+  const sindicoEmail = optionalEmail(formData, 'sindico_email', 'E-mail do síndico')
+  const sindicoCelular = optionalPhone(formData, 'sindico_celular')
+  const gerenteEmail = optionalEmail(formData, 'gerente_email', 'E-mail do gerente')
+  const gerenteCelular = optionalPhone(formData, 'gerente_celular')
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
   const valorCota = toNumber(formData.get('valor_cota_condominial'))
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
@@ -163,6 +180,10 @@ export async function createCondominio(formData: FormData) {
     endereco_uf: enderecoUf,
     endereco_cep: enderecoCep,
     administradora: administradora || null,
+    sindico_email: sindicoEmail,
+    sindico_celular: sindicoCelular,
+    gerente_email: gerenteEmail,
+    gerente_celular: gerenteCelular,
     vencimento_cota_dia: vencimentoCotaDia,
     valor_cota_condominial: valorCota,
     inicio_cobranca_dias: inicioCobrancaDias,
@@ -225,6 +246,10 @@ export async function updateCondominioIntegral(formData: FormData) {
   const enderecoUf = optionalText(formData, 'endereco_uf')?.toUpperCase() ?? null
   const enderecoCep = onlyDigits(String(formData.get('endereco_cep') ?? '')) || null
   const administradora = String(formData.get('administradora') ?? '').trim()
+  const sindicoEmail = optionalEmail(formData, 'sindico_email', 'E-mail do síndico')
+  const sindicoCelular = optionalPhone(formData, 'sindico_celular')
+  const gerenteEmail = optionalEmail(formData, 'gerente_email', 'E-mail do gerente')
+  const gerenteCelular = optionalPhone(formData, 'gerente_celular')
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
   const valorCota = toNumber(formData.get('valor_cota_condominial'))
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
@@ -261,7 +286,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, mascara_unidade, mascara_bloco, status, observacoes')
+    .select('id, carteira_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, sindico_email, sindico_celular, gerente_email, gerente_celular, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, mascara_unidade, mascara_bloco, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -283,6 +308,10 @@ export async function updateCondominioIntegral(formData: FormData) {
     endereco_uf: enderecoUf,
     endereco_cep: enderecoCep,
     administradora: administradora || null,
+    sindico_email: sindicoEmail,
+    sindico_celular: sindicoCelular,
+    gerente_email: gerenteEmail,
+    gerente_celular: gerenteCelular,
     vencimento_cota_dia: vencimentoCotaDia,
     valor_cota_condominial: valorCota,
     inicio_cobranca_dias: inicioCobrancaDias,

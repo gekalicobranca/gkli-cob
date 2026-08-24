@@ -50,14 +50,6 @@ export default async function NovoCondominioPage() {
               <Input name="administradora" placeholder="Ex.: Administradora Alfa" />
             </FormField>
 
-            <FormField label="Máscara da unidade" hint="0 = número, A = letra, * = qualquer caractere. Em branco não bloqueia.">
-              <Input name="mascara_unidade" placeholder="Ex.: 000000" className="uppercase" />
-            </FormField>
-
-            <FormField label="Máscara do bloco" hint="Será exigida na criação manual e na importação.">
-              <Input name="mascara_bloco" placeholder="Ex.: 0 ou A" className="uppercase" />
-            </FormField>
-
             <FormField label="Dia de vencimento da cota">
               <Input name="vencimento_cota_dia" type="number" min="1" max="31" defaultValue="10" />
             </FormField>
@@ -80,6 +72,29 @@ export default async function NovoCondominioPage() {
 
             <FormField label="Dias para reemissão de parcela de acordo em atraso" hint="0 não permite reemissão pelo acompanhamento de parcelas.">
               <Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" defaultValue="0" />
+            </FormField>
+          </div>
+
+          <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <div>
+              <p className="text-sm font-medium text-slate-950">Contatos para réguas</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Dados mínimos do condomínio para disparos operacionais: síndico e gerente com e-mail e celular.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField label="E-mail do síndico"><Input name="sindico_email" type="email" placeholder="sindico@email.com" /></FormField>
+              <FormField label="Celular do síndico"><Input name="sindico_celular" inputMode="tel" placeholder="(11) 99999-9999" /></FormField>
+              <FormField label="E-mail do gerente"><Input name="gerente_email" type="email" placeholder="gerente@email.com" /></FormField>
+              <FormField label="Celular do gerente"><Input name="gerente_celular" inputMode="tel" placeholder="(11) 99999-9999" /></FormField>
+            </div>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            <FormField label="Máscara da unidade" hint="0 = número, A = letra, * = qualquer caractere. Em branco não bloqueia.">
+              <Input name="mascara_unidade" placeholder="Ex.: 000000" className="uppercase" />
+            </FormField>
+
+            <FormField label="Máscara do bloco" hint="Será exigida na criação manual e na importação.">
+              <Input name="mascara_bloco" placeholder="Ex.: 0 ou A" className="uppercase" />
             </FormField>
           </div>
 

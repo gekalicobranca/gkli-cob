@@ -42,6 +42,13 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
   const contatosComEmail = baseContatos.filter((row: any) => row.email).length
   const coberturaContato = baseContatos.length ? Math.round(((contatosComTelefone + contatosComEmail) / (baseContatos.length * 2)) * 100) : 0
   const responsaveisAtivos = responsaveis.filter((row: any) => row.ativo !== false).length
+  const contatosReguaPreenchidos = [
+    condominio.sindico_email,
+    condominio.sindico_celular,
+    condominio.gerente_email,
+    condominio.gerente_celular,
+  ].filter((value) => String(value ?? '').trim()).length
+  const contatosReguaCompletos = contatosReguaPreenchidos === 4
   const ultimaImportacao = importacoes[0]
   const nomeExibicao = condominio.nome_operacional || condominio.nome || 'Condomínio'
 
@@ -65,10 +72,11 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
         <span className="text-sm text-slate-500">Classificação usada para orientar tom, prioridade e cuidado operacional.</span>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <Kpi icon={<Home size={18} />} label="Unidades" value={String(unidades.length)} detail={`${unidadesAtivas} ativas`} />
         <Kpi icon={<Users size={18} />} label="Responsáveis" value={String(responsaveis.length)} detail={`${responsaveisAtivos} ativos`} />
         <Kpi icon={<Users size={18} />} label="Cobertura contatos" value={`${coberturaContato}%`} detail={`${contatosComTelefone} telefones · ${contatosComEmail} e-mails`} />
+        <Kpi icon={<Users size={18} />} label="Contatos da régua" value={`${contatosReguaPreenchidos}/4`} detail={contatosReguaCompletos ? 'síndico e gerente completos' : 'complete síndico e gerente'} />
         <Kpi icon={<ClipboardList size={18} />} label="Importações" value={String(importacoes.length)} detail={ultimaImportacao ? `última em ${formatDateTime(ultimaImportacao.created_at)}` : 'sem importações'} />
         <Kpi icon={<Activity size={18} />} label="Eventos" value={String(eventos.length)} detail="auditoria operacional" />
       </section>
@@ -102,6 +110,21 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <FormField label="Administradora"><Input name="administradora" defaultValue={condominio.administradora ?? ''} /></FormField>
             <FormField label="Máscara da unidade" hint="0 = número, A = letra, * = qualquer caractere. Em branco não bloqueia."><Input name="mascara_unidade" defaultValue={condominio.mascara_unidade ?? ''} placeholder="Ex.: 000000" className="uppercase" /></FormField>
             <FormField label="Máscara do bloco" hint="Será exigida na criação manual e na importação."><Input name="mascara_bloco" defaultValue={condominio.mascara_bloco ?? ''} placeholder="Ex.: 0 ou A" className="uppercase" /></FormField>
+          </div>
+
+          <div className={`space-y-4 rounded-3xl border p-4 ${contatosReguaCompletos ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+            <div>
+              <p className="text-sm font-medium text-slate-950">Contatos para réguas</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                Prontidão {contatosReguaPreenchidos}/4: e-mail e celular do síndico, e-mail e celular do gerente do condomínio.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField label="E-mail do síndico"><Input name="sindico_email" type="email" defaultValue={condominio.sindico_email ?? ''} placeholder="sindico@email.com" /></FormField>
+              <FormField label="Celular do síndico"><Input name="sindico_celular" inputMode="tel" defaultValue={condominio.sindico_celular ?? ''} placeholder="(11) 99999-9999" /></FormField>
+              <FormField label="E-mail do gerente"><Input name="gerente_email" type="email" defaultValue={condominio.gerente_email ?? ''} placeholder="gerente@email.com" /></FormField>
+              <FormField label="Celular do gerente"><Input name="gerente_celular" inputMode="tel" defaultValue={condominio.gerente_celular ?? ''} placeholder="(11) 99999-9999" /></FormField>
+            </div>
           </div>
 
           <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">

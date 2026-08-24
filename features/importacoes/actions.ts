@@ -214,6 +214,10 @@ const ENDERECO_BAIRRO_KEYS = ["endereco_bairro", "bairro"];
 const ENDERECO_CIDADE_KEYS = ["endereco_cidade", "cidade", "municipio", "município"];
 const ENDERECO_UF_KEYS = ["endereco_uf", "uf", "estado"];
 const ENDERECO_CEP_KEYS = ["endereco_cep", "cep"];
+const SINDICO_EMAIL_KEYS = ["sindico_email", "email_sindico", "e_mail_sindico", "e-mail_sindico"];
+const SINDICO_CELULAR_KEYS = ["sindico_celular", "celular_sindico", "telefone_sindico", "sindico_telefone"];
+const GERENTE_EMAIL_KEYS = ["gerente_email", "email_gerente", "e_mail_gerente", "e-mail_gerente"];
+const GERENTE_CELULAR_KEYS = ["gerente_celular", "celular_gerente", "telefone_gerente", "gerente_telefone"];
 const CLASSIFICACAO_OPERACIONAL_KEYS = ["classificacao_operacional", "classificacao", "categoria", "badge"];
 const PARCELAS_ACORDO_KEYS = [
   "parcelas_acordo_sem_aprovacao_sindico",
@@ -380,6 +384,10 @@ function normalizeCondominioPayload(
     endereco_cidade: optionalString(getFirst(payload, ENDERECO_CIDADE_KEYS) ?? payload.endereco_cidade),
     endereco_uf: optionalString(getFirst(payload, ENDERECO_UF_KEYS) ?? payload.endereco_uf)?.toUpperCase() ?? null,
     endereco_cep: onlyDigits(String(getFirst(payload, ENDERECO_CEP_KEYS) ?? payload.endereco_cep ?? "")) || null,
+    sindico_email: normalizeEmail(getFirst(payload, SINDICO_EMAIL_KEYS) ?? payload.sindico_email),
+    sindico_celular: onlyDigits(String(getFirst(payload, SINDICO_CELULAR_KEYS) ?? payload.sindico_celular ?? "")) || null,
+    gerente_email: normalizeEmail(getFirst(payload, GERENTE_EMAIL_KEYS) ?? payload.gerente_email),
+    gerente_celular: onlyDigits(String(getFirst(payload, GERENTE_CELULAR_KEYS) ?? payload.gerente_celular ?? "")) || null,
     vencimento_cota_dia: toPositiveNumber(
       getFirst(payload, VENCIMENTO_COTA_KEYS),
       10,
@@ -1928,6 +1936,10 @@ async function importarCondominios(
             endereco_uf: payload.endereco_uf || null,
             endereco_cep: payload.endereco_cep || null,
             administradora: payload.administradora || null,
+            sindico_email: payload.sindico_email || null,
+            sindico_celular: payload.sindico_celular || null,
+            gerente_email: payload.gerente_email || null,
+            gerente_celular: payload.gerente_celular || null,
             vencimento_cota_dia: Number(payload.vencimento_cota_dia),
             valor_cota_condominial: Number(payload.valor_cota_condominial || 0),
             inicio_cobranca_dias: Number(payload.inicio_cobranca_dias),
@@ -1958,6 +1970,10 @@ async function importarCondominios(
         endereco_uf: payload.endereco_uf || null,
         endereco_cep: payload.endereco_cep || null,
         administradora: payload.administradora || null,
+        sindico_email: payload.sindico_email || null,
+        sindico_celular: payload.sindico_celular || null,
+        gerente_email: payload.gerente_email || null,
+        gerente_celular: payload.gerente_celular || null,
         vencimento_cota_dia: Number(payload.vencimento_cota_dia),
         valor_cota_condominial: Number(payload.valor_cota_condominial || 0),
         inicio_cobranca_dias: Number(payload.inicio_cobranca_dias),
