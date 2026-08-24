@@ -13,3 +13,4 @@ outputs/agente-automatico/
 restore-work/
 *.backup.enc
 *.backup.enc.sha256
+.vercel
