@@ -212,7 +212,28 @@ async function reivindicarExecucao() {
 }
 
 async function loginLello(page, execucao, config) {
-  if (/menuPortal2\/do\/Menu\/montaMenu/i.test(page.url())) return
+  const menuAutenticado = async () => {
+    const bodyText = await page.locator('body').innerText({ timeout: 5_000 }).catch(() => '')
+    const seletorValido = await page.locator('body').evaluate(() => {
+      const visivel = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+      return [...document.querySelectorAll('button')].some((button) => /^\d+\s*-/.test((button.innerText || button.textContent || '').trim()) && visivel(button))
+    }).catch(() => false)
+    const menuLello = /Empresa:\s*LELLO CONDOMINIOS|Condomínios[\s\S]*Recebimentos[\s\S]*Aplicativos/i.test(bodyText)
+    return (seletorValido || menuLello) && !/Erro na autenticação|Usuario nulo|Acesso ao recurso não permitido/i.test(bodyText)
+  }
+  const aguardarMenuAutenticado = async (timeout = 10_000) => {
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline) {
+      if (await menuAutenticado()) return true
+      await page.waitForTimeout(500)
+    }
+    return false
+  }
+
+  if (await aguardarMenuAutenticado(3_000)) return
+
+  await page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded' })
+  if (await aguardarMenuAutenticado()) return
 
   const usuarioEnv = process.env.AGENTE_LELLO_USUARIO
   const senhaEnv = process.env.AGENTE_LELLO_SENHA
@@ -224,7 +245,7 @@ async function loginLello(page, execucao, config) {
     throw new Error('Credenciais Lello/COJUR não configuradas.')
   }
 
-  const loginInput = page.locator('input[placeholder*="Login" i], input[type="text"], input[name*="login" i], input[name*="user" i]').first()
+  const loginInput = page.locator('input[placeholder*="Login" i], input[name*="login" i], input[name*="user" i], input[type="text"]:not([name="search"]):not([name="filter"])').first()
   const senhaInput = page.locator('input[placeholder*="Senha" i], input[type="password"], input[name*="senha" i]').first()
   await loginInput.waitFor({ state: 'visible', timeout: 60_000 })
   await loginInput.fill(usuario)
@@ -237,15 +258,24 @@ async function loginLello(page, execucao, config) {
 }
 
 async function selecionarCondominio(page, execucao, codigo) {
-  const codigoPattern = new RegExp(`^${escapeRegExp(codigo)}\\s*-`, 'i')
-  const selecionado = page.locator('button').filter({ hasText: codigoPattern }).first()
-  if (await selecionado.isVisible().catch(() => false)) {
+  const selecionado = await page.locator('body').evaluate((code) => {
+    const pattern = new RegExp(`^${code}\\s*-`, 'i')
+    const visivel = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+    return [...document.querySelectorAll('button')].some((button) => pattern.test((button.innerText || button.textContent || '').trim()) && visivel(button))
+  }, escapeRegExp(codigo)).catch(() => false)
+  if (selecionado) {
     await registrarLog(execucao.id, 'condominio', `Condomínio já selecionado no portal Lello pelo código ${codigo}.`)
     return
   }
 
-  const seletorAtual = page.locator('button').filter({ hasText: /^\d+\s*-/ }).first()
-  if (await seletorAtual.isVisible().catch(() => false)) await seletorAtual.click({ force: true })
+  await page.waitForTimeout(2_000)
+  await page.locator('body').evaluate(() => {
+    const visivel = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+    const button = [...document.querySelectorAll('button')].find((el) => /^\d+\s*-/.test((el.innerText || el.textContent || '').trim()) && visivel(el))
+    button?.click()
+  }).catch(() => {})
+  await page.locator('button').filter({ hasText: /^\d+\s*-/ }).first().click({ force: true, timeout: 3_000 }).catch(() => {})
+  await page.waitForFunction((code) => document.body.textContent.includes(`${code} -`), codigo, { timeout: 10_000 }).catch(() => {})
 
   const busca = page.locator('input[name="search"], input[placeholder*="código" i], input[placeholder*="condomínio" i]').first()
   if (await busca.isVisible().catch(() => false)) {
@@ -265,21 +295,195 @@ async function selecionarCondominio(page, execucao, codigo) {
   }, `^${escapeRegExp(codigo)}\\s*-`)
   if (!clicked) throw new Error(`Código do condomínio Lello não encontrado no seletor: ${codigo}.`)
 
-  await page.waitForTimeout(2_000)
+  await page.waitForFunction((code) => {
+    const text = document.body.innerText || ''
+    return text.includes(`${code} -`) && /Acob/i.test(text)
+  }, codigo, { timeout: 15_000 }).catch(() => page.waitForTimeout(2_000))
   await registrarLog(execucao.id, 'condominio', `Condomínio selecionado no portal Lello pelo código ${codigo}.`)
 }
 
-async function abrirRelatorioCojur(page, execucao, codigo) {
-  const relatorioUrl = new URL('/relatorios/CotasInadimplentes.do', page.url()).href
-  await page.goto(relatorioUrl, { waitUntil: 'domcontentloaded' })
-  await page.locator('input[name="dataFim"]').first().waitFor({ state: 'visible', timeout: 60_000 })
+async function aguardarFrameComTexto(page, pattern, timeout = 60_000) {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    for (const frame of page.frames()) {
+      const text = await frame.locator('body').innerText({ timeout: 1_000 }).catch(() => '')
+      if (pattern.test(text)) return frame
+    }
+    await page.waitForTimeout(500)
+  }
+  throw new Error(`Tela esperada não encontrada: ${pattern}`)
+}
 
-  const buscar = page.locator('input[type="submit"][value*="Buscar" i]').first()
-  if (await buscar.isVisible().catch(() => false)) await buscar.click()
+async function preencherBuscaCotasAcob(frame, codigo) {
+  const preenchido = await frame.evaluate((referencia) => {
+    const form = [...document.forms].find((candidate) => candidate.action.includes('/acob/servlet/BuscaCota')) || document.forms[1] || document.forms[0]
+    if (form?.elements?.pre_codigo) {
+      form.elements.pre_codigo.value = referencia
+      form.elements.pre_codigo.dispatchEvent(new Event('input', { bubbles: true }))
+      form.elements.pre_codigo.dispatchEvent(new Event('change', { bubbles: true }))
+      if (form.elements.dev_codigo) form.elements.dev_codigo.value = ''
+      if (form.elements.dev_status) form.elements.dev_status.value = ''
+      if (form.elements.cota_nummax) form.elements.cota_nummax.value = '10000'
+      if (form.elements.cota_dt_vecto1) form.elements.cota_dt_vecto1.value = ''
+      if (form.elements.cota_dt_vecto2) form.elements.cota_dt_vecto2.value = ''
+      return { ok: true }
+    }
 
-  const xls = page.getByText(/XLS/i).first()
-  await xls.waitFor({ state: 'visible', timeout: 120_000 })
-  await registrarLog(execucao.id, 'relatorio', `Relatório COJUR/Cotas Atrasadas aberto para o código ${codigo}.`)
+    const normalizar = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+
+    const emitir = (el) => {
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      el.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+
+    const encontrarControleNaLinha = (label, selector) => {
+      const rows = [...document.querySelectorAll('tr')]
+      for (const row of rows) {
+        if (!normalizar(row.innerText || row.textContent).includes(label)) continue
+        const controls = [...row.querySelectorAll(selector)]
+        if (controls.length) return controls[0]
+      }
+      return null
+    }
+
+    const referenciaInput = encontrarControleNaLinha('referencia', 'input[type="text"], input:not([type])') ||
+      document.querySelector('input[name*="refer" i], input[id*="refer" i], input[type="text"]')
+    if (!referenciaInput) return { ok: false, motivo: 'Campo Referência não encontrado.' }
+    referenciaInput.value = referencia
+    emitir(referenciaInput)
+
+    const unidadeInput = encontrarControleNaLinha('codigo unidade', 'input[type="text"], input:not([type])')
+    if (unidadeInput) {
+      unidadeInput.value = ''
+      emitir(unidadeInput)
+    }
+
+    const maximoLinhas = encontrarControleNaLinha('maximo de linhas', 'select')
+    if (maximoLinhas) {
+      const todas = [...maximoLinhas.options].find((option) => normalizar(option.textContent) === 'todas' || normalizar(option.value) === 'todas')
+      if (todas) {
+        maximoLinhas.value = todas.value
+        emitir(maximoLinhas)
+      }
+    }
+
+    return { ok: true }
+  }, codigo)
+
+  if (!preenchido?.ok) throw new Error(preenchido?.motivo || 'Não foi possível preencher a busca de cotas no Acob.')
+}
+
+async function clicarBuscarAcob(frame) {
+  const clicou = await frame.locator('input, button, a').evaluateAll((els) => {
+    const match = els.find((el) => /^buscar$/i.test((el.value || el.innerText || el.textContent || '').trim()))
+    if (!match) return false
+    match.click()
+    return true
+  }).catch(() => false)
+  if (!clicou) throw new Error('Botão buscar do Acob não encontrado.')
+}
+
+async function extrairUrlXlsAcob(frame) {
+  const url = await frame.locator('a').evaluateAll((links) => {
+    const match = links.find((link) => {
+      const text = (link.innerText || link.textContent || '').trim()
+      const onclick = link.getAttribute('onclick') || ''
+      const href = link.href || ''
+      return /xls/i.test(`${text} ${onclick} ${href}`)
+    })
+    if (!match) return null
+
+    const onclick = match.getAttribute('onclick') || ''
+    const openedUrl = onclick.match(/window\.open\(['"]([^'"]+)/i)?.[1]
+    return openedUrl || match.href || null
+  }).catch(() => null)
+
+  if (!url) throw new Error('Link XLS do relatório COJUR/Acob não encontrado.')
+  return url
+}
+
+async function selecionarPerfilCojurAcob(acobPage, execucao) {
+  const clicou = await Promise.any(acobPage.frames().map((frame) =>
+    frame.locator('a').evaluateAll((links) => {
+      const match = links.find((link) => /Acesso\s+COJUR/i.test((link.innerText || link.textContent || '').trim()))
+      if (!match) return false
+      match.click()
+      return true
+    }).catch(() => false),
+  )).catch(() => false)
+
+  if (!clicou) return
+
+  await acobPage.waitForLoadState('domcontentloaded', { timeout: 60_000 }).catch(() => {})
+  await aguardarFrameComTexto(acobPage, /menu principal|Busca de Cotas|\bcotas\b/i, 60_000)
+  await registrarLog(execucao.id, 'acob', 'Perfil COJUR selecionado no Acob.')
+}
+
+async function abrirAcobPeloMenu(page, execucao) {
+  const acobDisponivel = await page.waitForFunction(() => {
+    const visivel = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+    return [...document.querySelectorAll('a')].some((link) => /^Acob$/i.test((link.innerText || link.textContent || '').trim()) && visivel(link))
+  }, { timeout: 15_000 }).then(() => true).catch(() => false)
+
+  if (acobDisponivel) {
+    const popupPromise = page.context().waitForEvent('page', { timeout: 5_000 }).catch(() => null)
+    await page.locator('body').evaluate(() => {
+      const visivel = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+      const link = [...document.querySelectorAll('a')].find((el) => /^Acob$/i.test((el.innerText || el.textContent || '').trim()) && visivel(el))
+      link?.click()
+    })
+    const popup = await popupPromise
+    if (popup) {
+      await popup.waitForLoadState('domcontentloaded', { timeout: 60_000 }).catch(() => {})
+      await aguardarFrameComTexto(popup, /\bacob\b|Acesso\s+COJUR|menu principal|Busca de Cotas/i, 60_000)
+      await selecionarPerfilCojurAcob(popup, execucao)
+      await registrarLog(execucao.id, 'acob', 'Aplicativo Acob aberto pelo link do menu Lello.')
+      return popup
+    }
+    await page.waitForLoadState('domcontentloaded', { timeout: 60_000 }).catch(() => {})
+  } else {
+    await page.goto(new URL('/acob/frameDefault.jsp', page.url()).href, { waitUntil: 'domcontentloaded' })
+  }
+
+  await aguardarFrameComTexto(page, /\bacob\b|Acesso\s+COJUR|menu principal|Busca de Cotas/i, 60_000)
+  await selecionarPerfilCojurAcob(page, execucao)
+  await registrarLog(execucao.id, 'acob', 'Aplicativo Acob aberto no portal Lello.')
+  return page
+}
+
+async function abrirBuscaCotasAcob(acobPage) {
+  const clicked = await Promise.any(acobPage.frames().map((frame) =>
+    frame.locator('a').evaluateAll((links) => {
+      const match = links.find((link) => /Busca de Cotas/i.test((link.innerText || link.textContent || '').trim()))
+      if (!match) return false
+      match.click()
+      return true
+    }).catch(() => false),
+  )).catch(() => false)
+
+  if (!clicked) {
+    await acobPage.goto(new URL('/acob/buscaCota.jsp', acobPage.url()).href, { waitUntil: 'domcontentloaded' })
+  }
+}
+
+async function abrirRelatorioCojurAcob(page, execucao, codigo) {
+  const acobPage = await abrirAcobPeloMenu(page, execucao)
+  await abrirBuscaCotasAcob(acobPage)
+
+  const buscaFrame = await aguardarFrameComTexto(acobPage, /Referência[\s\S]*Código Unidade[\s\S]*Status do Devedor/i, 60_000)
+
+  await preencherBuscaCotasAcob(buscaFrame, codigo)
+  await clicarBuscarAcob(buscaFrame)
+
+  const resultadoFrame = await aguardarFrameComTexto(acobPage, /\bxls\b/i, 120_000)
+  const exportUrl = await extrairUrlXlsAcob(resultadoFrame)
+  await registrarLog(execucao.id, 'relatorio', `Relatório COJUR/Acob Cotas aberto para a referência ${codigo}.`)
+  return { relatorioPage: acobPage, exportUrl }
 }
 
 async function coletarLello(execucao) {
@@ -309,13 +513,20 @@ async function coletarLello(execucao) {
     await page.goto(config.portal_url || execucao.administradora.url_portal || PORTAL_URL, { waitUntil: 'domcontentloaded' })
     await loginLello(page, execucao, config)
     await selecionarCondominio(page, execucao, codigo)
-    await abrirRelatorioCojur(page, execucao, codigo)
+    const { relatorioPage, exportUrl } = await abrirRelatorioCojurAcob(page, execucao, codigo)
 
-    const downloadPromise = page.waitForEvent('download', { timeout: 120_000 })
-    await page.getByText(/XLS/i).first().click({ force: true })
+    const exportPage = await relatorioPage.context().newPage()
+    const downloadPromise = exportPage.waitForEvent('download', { timeout: 120_000 })
+    await exportPage.goto(new URL(exportUrl, relatorioPage.url()).href, {
+      waitUntil: 'domcontentloaded',
+      timeout: 120_000,
+    }).catch((error) => {
+      if (!/net::ERR_ABORTED|Download is starting/i.test(String(error?.message || error))) throw error
+    })
     const download = await downloadPromise
+    await exportPage.close().catch(() => {})
 
-    const filename = `${normalizarNomeArquivo(condominioNome)}_${codigo}_${dataDownload()}.xlsx`
+    const filename = `${normalizarNomeArquivo(condominioNome)}_${codigo}_${dataDownload()}.xls`
     const localPath = path.join(localDownloadDir, filename)
     await download.saveAs(localPath)
 
@@ -334,7 +545,7 @@ async function coletarLello(execucao) {
     const { error: arquivoError } = await supabase.from('agente_arquivos').insert({
       execucao_id: execucao.id,
       nome_arquivo: filename,
-      tipo_arquivo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      tipo_arquivo: 'application/vnd.ms-excel',
       storage_path: storagePath,
       tamanho_bytes: bytes.length,
       hash_arquivo: hash,
@@ -343,7 +554,7 @@ async function coletarLello(execucao) {
     if (arquivoError) throw arquivoError
 
     await supabase.from('agente_execucoes').update({ status: 'sucesso', finalizado_em: new Date().toISOString() }).eq('id', execucao.id)
-    await registrarLog(execucao.id, 'concluido', 'Relatório COJUR XLS da Lello coletado e disponibilizado ao operador.', 'info', {
+    await registrarLog(execucao.id, 'concluido', 'Relatório COJUR/Acob XLS da Lello coletado e disponibilizado ao operador.', 'info', {
       codigo_condominio: codigo,
       nome_arquivo: filename,
       tamanho_bytes: bytes.length,
