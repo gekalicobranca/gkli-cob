@@ -78,7 +78,7 @@ export function PreJuridicoCobrancasWorkbench({ rows }: { rows: Row[] }) {
             const groupEligible = group.rows.filter((row) => row.situacao_pre_juridico === 'elegivel')
             const groupSelected = groupEligible.length > 0 && groupEligible.every((row) => selectedIds.includes(row.id))
             const value = group.rows.reduce((sum, row) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
-            return <details key={group.id} open className="group/condominio bg-white">
+            return <details key={group.id} className="group/condominio bg-white">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50/70 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
                 <div className="flex min-w-0 items-center gap-3"><ChevronDown size={18} className="text-slate-400 transition-transform group-open/condominio:rotate-180" /><input aria-label={`Selecionar cobranças de ${group.nome}`} type="checkbox" checked={groupSelected} disabled={groupEligible.length === 0} onClick={(event) => event.stopPropagation()} onChange={() => toggleGroup(group.rows)} className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)]" /><div><p className="text-sm font-semibold text-slate-950">{group.nome}</p><p className="text-xs text-slate-500">{group.rows.length} cobrança(s)</p></div></div>
                 <p className="text-sm font-semibold text-slate-950">{formatCurrency(value)}</p>
