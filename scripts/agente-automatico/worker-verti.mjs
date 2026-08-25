@@ -48,6 +48,26 @@ function dataDownload() {
   }).format(new Date())
 }
 
+function normalizarTexto(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .replace(/\b(condominio|subcondominio)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+}
+
+function extrairCredenciais(raw) {
+  const text = String(raw || '')
+  const login = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] ||
+    text.match(/login:\s*([^\s]+)/i)?.[1] ||
+    text.match(/^([^\s]+)\s+Senha:/i)?.[1]
+  const senha = text.match(/senha:\s*(.+)$/i)?.[1]?.trim()
+  return { login, senha }
+}
+
 function agoraSaoPaulo() {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -140,12 +160,18 @@ async function reivindicarExecucao() {
     tentativas: Number(execucao.tentativas || 0) + 1,
   }).eq('id', execucao.id).eq('status', 'pendente').select('id').maybeSingle()
   if (claimError) throw claimError
-  return claimed ? execucao : null
+  if (claimed) return execucao
+  const { data: atual, error: atualError } = await supabase.from('agente_execucoes')
+    .select('status').eq('id', execucao.id).maybeSingle()
+  if (atualError) throw atualError
+  return atual?.status === 'em_execucao' ? execucao : null
 }
 
-async function aguardarLogin(page, execucaoId) {
-  const usuario = process.env.AGENTE_VERTI_USUARIO
-  const senha = process.env.AGENTE_VERTI_SENHA
+async function aguardarLogin(page, execucao) {
+  const config = execucao.receita?.config_json ?? {}
+  const credenciais = extrairCredenciais(config.acesso_raw)
+  const usuario = process.env.AGENTE_WINKER_USUARIO || credenciais.login || process.env.AGENTE_VERTI_USUARIO
+  const senha = process.env.AGENTE_WINKER_SENHA || credenciais.senha || process.env.AGENTE_VERTI_SENHA
   const userInput = page.locator('input[type="text"], input[type="email"]').first()
   const passwordInput = page.locator('input[type="password"]').first()
 
@@ -153,10 +179,10 @@ async function aguardarLogin(page, execucaoId) {
     await userInput.fill(usuario)
     await passwordInput.fill(senha)
     await page.getByRole('button', { name: /entrar/i }).or(page.getByText(/^Entrar$/i)).first().click()
-    await registrarLog(execucaoId, 'login', 'Credenciais locais preenchidas; aguardando acesso ao portal Verti.')
+    await registrarLog(execucao.id, 'login', 'Credenciais Winker preenchidas; aguardando acesso ao portal.')
   } else {
-    await registrarLog(execucaoId, 'intervencao_login',
-      'Navegador aberto. Faça login manualmente no portal Verti para continuar.', 'warning')
+    await registrarLog(execucao.id, 'intervencao_login',
+      'Navegador aberto. Faça login manualmente no portal Winker para continuar.', 'warning')
   }
   const deadline = Date.now() + LOGIN_TIMEOUT_MS
   while (Date.now() < deadline) {
@@ -164,13 +190,140 @@ async function aguardarLogin(page, execucaoId) {
     for (const candidate of pages.toReversed()) {
       if (candidate.isClosed()) continue
       const bodyText = await candidate.locator('body').innerText().catch(() => '')
-      if (/escolha o portal que você quer acessar|VERDANA|Balancete interativo/i.test(bodyText)) {
+      if (/escolha o portal que você quer acessar|Balancete interativo|Financeiro|OMA|Winker|VERDANA/i.test(bodyText)) {
         return candidate
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 1_000))
   }
-  throw new Error('Tempo excedido aguardando a página de condomínios do portal Verti.')
+  throw new Error('Tempo excedido aguardando a página de condomínios do portal Winker.')
+}
+
+async function clicarPorTextoNormalizado(pageOrFrame, alvo, options = {}) {
+  const normalizado = normalizarTexto(alvo)
+  const minLength = options.minLength ?? 8
+  const clicou = await pageOrFrame.locator('body').evaluate(({ target, min }) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .replace(/\b(condominio|subcondominio)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase()
+    const visible = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+    const candidates = [...document.querySelectorAll('a, button, label, li, div, span, super-tab-button, ion-item, ion-label')]
+      .filter((el) => visible(el))
+      .map((el) => ({ el, text: normalize(el.innerText || el.textContent) }))
+      .filter(({ text }) => text.length >= min)
+      .sort((a, b) => a.text.length - b.text.length)
+    const match = candidates.find(({ text }) => text.includes(target) || target.includes(text))
+    if (!match) return false
+    const clickable = match.el.closest('a, button, label, li, super-tab-button, ion-item, [role="button"]') || match.el
+    clickable.scrollIntoView({ block: 'center', inline: 'center' })
+    clickable.click()
+    return true
+  }, { target: normalizado, min: minLength }).catch(() => false)
+  return clicou
+}
+
+async function selecionarPortalWinker(page, nomePortal) {
+  const target = normalizarTexto(nomePortal)
+  const selecionou = await page.locator('body').evaluate((targetText) => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .replace(/\b(condominio|subcondominio)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase()
+    const visible = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+    const rows = [...document.querySelectorAll('a, button, li, tr, .list-group-item, .media, .portal, div')]
+      .filter((el) => visible(el))
+      .map((el) => ({ el, text: normalize(el.innerText || el.textContent) }))
+      .filter(({ text }) => text.includes(targetText) && /SINDICO|ADMINISTRADORA|INDIANOPOLIS|VILA MARIANA|JD DAS ACACIAS/i.test(text))
+      .sort((a, b) => a.text.length - b.text.length)
+    const match = rows[0]
+    if (!match) return false
+    const clickable = match.el.closest('a, button, li, tr, [role="button"]') || match.el
+    clickable.scrollIntoView({ block: 'center', inline: 'center' })
+    clickable.click()
+    return true
+  }, target).catch(() => false)
+  if (selecionou) return true
+  return clicarPorTextoNormalizado(page, nomePortal)
+}
+
+async function localizarFramePorTexto(context, pattern, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    for (const candidate of context.pages().toReversed()) {
+      if (candidate.isClosed()) continue
+      for (const frame of candidate.frames().toReversed()) {
+        const bodyText = await frame.locator('body').innerText().catch(() => '')
+        if (pattern.test(bodyText)) return { scope: frame, page: candidate, bodyText }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  return null
+}
+
+async function clicarEmQualquerFramePorTexto(context, alvo, options = {}) {
+  const target = normalizarTexto(alvo)
+  const timeoutMs = options.timeoutMs ?? 60_000
+  const exact = options.exact ?? false
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    for (const candidate of context.pages().toReversed()) {
+      if (candidate.isClosed()) continue
+      for (const frame of candidate.frames().toReversed()) {
+        const clicou = await frame.locator('body').evaluate(({ targetText, exactMatch }) => {
+          const normalize = (value) => String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9]+/g, ' ')
+            .replace(/\b(condominio|subcondominio)\b/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toUpperCase()
+          const visible = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+          const matches = [...document.querySelectorAll('*')]
+            .filter((el) => visible(el))
+            .map((el) => ({ el, text: normalize(el.innerText || el.textContent) }))
+            .filter(({ text }) => exactMatch ? text === targetText : (text.includes(targetText) || targetText.includes(text)))
+            .filter(({ text }) => text.length >= targetText.length && text.length <= targetText.length + 120)
+            .sort((a, b) => a.text.length - b.text.length)
+          const match = matches[0]
+          if (!match) return false
+          const clickable = match.el.closest('super-tab-button, ion-item, ion-label, button, a, li, [role="button"]') || match.el
+          clickable.scrollIntoView({ block: 'center', inline: 'center' })
+          clickable.click()
+          return true
+        }, { targetText: target, exactMatch: exact }).catch(() => false)
+        if (clicou) return { scope: frame, page: candidate }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  return null
+}
+
+async function clicarLocatorEmFrames(context, selector, pattern, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    for (const candidate of context.pages().toReversed()) {
+      if (candidate.isClosed()) continue
+      for (const frame of candidate.frames().toReversed()) {
+        const locator = frame.locator(selector).filter({ hasText: pattern }).first()
+        const clicou = await locator.click({ timeout: 1500, force: true }).then(() => true).catch(() => false)
+        if (clicou) return { scope: frame, page: candidate }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  return null
 }
 
 async function abrirBalancete(page, execucao) {
@@ -179,40 +332,75 @@ async function abrirBalancete(page, execucao) {
   if (!nomePortal) throw new Error('Nome do condomínio no portal Verti não configurado.')
 
   const bodyText = await page.locator('body').innerText().catch(() => '')
-  if (!bodyText.toUpperCase().includes(nomePortal.toUpperCase())) {
-    await registrarLog(execucao.id, 'condominio', `Selecionando ${nomePortal} no portal Verti.`)
-    const condominioLink = page.locator('a').filter({ hasText: nomePortal }).first()
-    const href = await condominioLink.getAttribute('href')
-    if (!href) throw new Error(`Condomínio ${nomePortal} não encontrado no portal Verti.`)
-    await page.goto(new URL(href, page.url()).href, { waitUntil: 'domcontentloaded' })
+  const estaNaTelaDeEscolha = /escolha o portal que você quer acessar/i.test(bodyText)
+  if (estaNaTelaDeEscolha || !normalizarTexto(bodyText).includes(normalizarTexto(nomePortal))) {
+    await registrarLog(execucao.id, 'condominio', `Selecionando ${nomePortal} no portal Winker.`)
+    const href = await page.locator('a').evaluateAll((links, target) => {
+      const normalize = (value) => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, ' ')
+        .replace(/\b(condominio|subcondominio)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toUpperCase()
+      const matches = [...links].filter((link) => {
+        const text = normalize(link.innerText || link.textContent)
+        return text && (text.includes(target) || target.includes(text))
+      })
+      const match = matches.find((link) => /changeCondominioPadrao/i.test(link.href || '')) ||
+        matches.find((link) => Boolean(link.offsetWidth || link.offsetHeight || link.getClientRects().length))
+      return match?.href || null
+    }, normalizarTexto(nomePortal)).catch(() => null)
+    if (href) {
+      await page.goto(new URL(href, page.url()).href, { waitUntil: 'domcontentloaded' })
+      await page.goto(new URL('/intra', page.url()).href, { waitUntil: 'domcontentloaded' }).catch(() => {})
+      await page.waitForFunction(() => /Balancete interativo|Financeiro/i.test(document.body.innerText || ''), null, { timeout: 30_000 }).catch(() => {})
+    } else if (await selecionarPortalWinker(page, nomePortal)) {
+      await page.waitForLoadState('domcontentloaded', { timeout: 30_000 }).catch(() => {})
+      await page.goto(new URL('/intra', page.url()).href, { waitUntil: 'domcontentloaded' }).catch(() => {})
+      await page.waitForFunction(() => /Balancete interativo|Financeiro/i.test(document.body.innerText || ''), null, { timeout: 30_000 }).catch(() => {})
+    } else {
+      throw new Error(`Condomínio ${nomePortal} não encontrado no portal Winker.`)
+    }
   }
   const balanco = page.locator('a:visible, button:visible').filter({ hasText: /Balan(?:ço|cete) interativo/i }).first()
-  await balanco.waitFor({ state: 'visible', timeout: 60_000 })
-  await balanco.click()
-  const deadline = Date.now() + 60_000
-  while (Date.now() < deadline) {
-    for (const candidate of page.context().pages().toReversed()) {
-      if (candidate.isClosed()) continue
-      for (const frame of candidate.frames().toReversed()) {
-        const bodyText = await frame.locator('body').innerText().catch(() => '')
-        if (/Financeiro/i.test(bodyText)) return { scope: frame, page: candidate }
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  if (await balanco.waitFor({ state: 'visible', timeout: 30_000 }).then(() => true).catch(() => false)) {
+    await balanco.click()
+  } else if (!await clicarPorTextoNormalizado(page, 'Balancete interativo', { minLength: 6 })) {
+    throw new Error('Balancete interativo não encontrado no portal Winker.')
   }
-  throw new Error('Tempo excedido aguardando o módulo financeiro da Verti.')
+  const target = await localizarFramePorTexto(page.context(), /Financeiro[\s\S]*Relat[óo]rios/i, 60_000)
+  if (target) return target
+  throw new Error('Tempo excedido aguardando o módulo financeiro do Winker.')
 }
 
 async function baixarRelatorio(target) {
   let { scope, page } = target
   const context = page.context()
-  await scope.getByText(/Financeiro/i).first().click()
-  const relatorios = scope.getByText(/^Relatórios$/i).first()
-  await relatorios.waitFor({ state: 'visible', timeout: 60_000 })
-  await relatorios.click()
-  const inadimplentes = scope.getByText(/^Inadimplentes$/i).first()
-  await inadimplentes.waitFor({ state: 'visible', timeout: 60_000 })
-  await inadimplentes.click()
+  await scope.getByText(/Financeiro/i).first().click().catch(() => {})
+  const frameComRelatorios = await localizarFramePorTexto(context, /Financeiro[\s\S]*Relat[óo]rios/i, 60_000)
+  if (frameComRelatorios) {
+    scope = frameComRelatorios.scope
+    page = frameComRelatorios.page
+  }
+  const relatorios = await clicarLocatorEmFrames(context, 'super-tab-button, span.title, [role="button"]', /RELAT[ÓO]RIOS/i, 60_000) ||
+    await clicarEmQualquerFramePorTexto(context, 'Relatórios', { exact: true, timeoutMs: 10_000 })
+  if (relatorios) {
+    scope = relatorios.scope
+    page = relatorios.page
+  } else {
+    throw new Error('Aba Relatórios não encontrada no módulo financeiro.')
+  }
+  await page.waitForTimeout(1_000).catch(() => {})
+  const inadimplentesClick = await clicarLocatorEmFrames(context, 'button, ion-item, ion-label, [role="button"], div.item', /^Inadimplentes?$/i, 60_000) ||
+    await clicarEmQualquerFramePorTexto(context, 'Inadimplentes', { exact: true, timeoutMs: 10_000 })
+  if (inadimplentesClick) {
+    scope = inadimplentesClick.scope
+    page = inadimplentesClick.page
+  } else {
+    throw new Error('Relatório de inadimplentes não encontrado no módulo financeiro.')
+  }
 
   const deadline = Date.now() + 180_000
   let encontrouRelatorio = false
@@ -221,7 +409,7 @@ async function baixarRelatorio(target) {
       if (candidate.isClosed()) continue
       for (const frame of candidate.frames().toReversed()) {
         const bodyText = await frame.locator('body').innerText().catch(() => '')
-        if (/Total de unidades inadimplentes/i.test(bodyText)) {
+        if (/Total de unidades inadimplentes|Inadimplência[\s\S]*Posição em|Condom[ií]nio:/i.test(bodyText)) {
           scope = frame
           page = candidate
           encontrouRelatorio = true
@@ -232,11 +420,13 @@ async function baixarRelatorio(target) {
     }
     if (!encontrouRelatorio) await new Promise((resolve) => setTimeout(resolve, 1_000))
   }
-  if (!encontrouRelatorio) throw new Error('Tempo excedido aguardando o relatório de inadimplência da Verti.')
+  if (!encontrouRelatorio) throw new Error('Tempo excedido aguardando o relatório de inadimplência do Winker.')
   const exportar = scope.locator([
     'a[title*="Excel" i]', 'button[title*="Excel" i]',
     'a[aria-label*="Excel" i]', 'button[aria-label*="Excel" i]',
-    'a[href*="xlsx" i]', '.fa-file-excel', '.fa-file-excel-o',
+    'a[href*="xlsx" i]', 'a[download]', 'button[download]',
+    '[onclick*="excel" i]', '[ng-click*="excel" i]', '[href*="excel" i]',
+    '.fa-file-excel', '.fa-file-excel-o',
   ].join(', ')).last()
   await exportar.waitFor({ state: 'visible', timeout: 60_000 })
   const downloadPromise = page.waitForEvent('download', { timeout: 120_000 })
@@ -248,20 +438,22 @@ async function coletar(execucao) {
   const condominioNome = execucao.condominio?.nome_operacional || execucao.condominio?.nome || 'VERDANA'
   const downloads = process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(), 'Downloads')
   await mkdir(downloads, { recursive: true })
-  const context = await chromium.launchPersistentContext(path.join(rootDir, '.codex-tmp', 'agente-browser-profile-verti'), {
-    channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
-    headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true',
-    chromiumSandbox: true,
-    acceptDownloads: true, viewport: null,
-  })
-  const page = context.pages()[0] || await context.newPage()
+  let context
 
   try {
-    await registrarLog(execucao.id, 'navegador', 'Abrindo o portal Verti/Winker.')
+    context = await chromium.launchPersistentContext(path.join(rootDir, '.codex-tmp', `agente-browser-profile-winker-${process.pid}`), {
+      channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
+      headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true',
+      chromiumSandbox: true,
+      acceptDownloads: true, viewport: null,
+    })
+    const page = context.pages()[0] || await context.newPage()
+
+    await registrarLog(execucao.id, 'navegador', 'Abrindo o portal Winker.')
     await page.goto(execucao.administradora.url_portal, { waitUntil: 'domcontentloaded' })
     let portalPage = page
     if (!await page.getByText(/escolha o portal que você quer acessar|VERDANA/i).first().isVisible().catch(() => false)) {
-      portalPage = await aguardarLogin(page, execucao.id)
+      portalPage = await aguardarLogin(page, execucao)
     }
     const balanceteTarget = await abrirBalancete(portalPage, execucao)
     const download = await baixarRelatorio(balanceteTarget)
@@ -291,7 +483,7 @@ async function coletar(execucao) {
 
     await supabase.from('agente_execucoes').update({ status: 'sucesso', finalizado_em: new Date().toISOString() }).eq('id', execucao.id)
     await registrarLog(execucao.id, 'concluido',
-      'Relatório XLSX da Verti coletado e disponibilizado ao operador.', 'info',
+      'Relatório XLSX do Winker coletado e disponibilizado ao operador.', 'info',
       { nome_arquivo: filename, tamanho_bytes: bytes.length, hash_sha256: hash, caminho_local: localPath })
     console.log(`Execução ${execucao.id}: ${filename} coletado com sucesso.`)
   } catch (error) {
@@ -304,7 +496,7 @@ async function coletar(execucao) {
     await registrarLog(execucao.id, 'erro', message, 'error')
     console.error(`Execução ${execucao.id}:`, message)
   } finally {
-    await context.close()
+    await context?.close().catch(() => {})
   }
 }
 
