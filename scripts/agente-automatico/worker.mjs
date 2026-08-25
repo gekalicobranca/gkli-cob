@@ -111,7 +111,15 @@ async function claimNextExecution() {
     .maybeSingle()
 
   if (claimError) throw claimError
-  return claimed ? execution : null
+  if (claimed) return execution
+
+  const { data: current, error: currentError } = await supabase
+    .from('agente_execucoes')
+    .select('status')
+    .eq('id', execution.id)
+    .maybeSingle()
+  if (currentError) throw currentError
+  return current?.status === 'em_execucao' ? execution : null
 }
 
 function saoPauloAgora() {

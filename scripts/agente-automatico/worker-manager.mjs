@@ -115,7 +115,15 @@ async function reivindicarExecucao() {
     status: 'em_execucao', iniciado_em: new Date().toISOString(), erro_mensagem: null, tentativas: Number(execucao.tentativas || 0) + 1,
   }).eq('id', execucao.id).eq('status', 'pendente').select('id').maybeSingle()
   if (claimError) throw claimError
-  return claimed ? execucao : null
+  if (claimed) return execucao
+
+  const { data: atual, error: atualError } = await supabase
+    .from('agente_execucoes')
+    .select('status')
+    .eq('id', execucao.id)
+    .maybeSingle()
+  if (atualError) throw atualError
+  return atual?.status === 'em_execucao' ? execucao : null
 }
 
 async function aguardarLogin(page, execucaoId) {

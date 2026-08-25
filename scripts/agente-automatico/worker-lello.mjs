@@ -208,7 +208,15 @@ async function reivindicarExecucao() {
     .maybeSingle()
 
   if (claimError) throw claimError
-  return claimed ? execucao : null
+  if (claimed) return execucao
+
+  const { data: atual, error: atualError } = await supabase
+    .from('agente_execucoes')
+    .select('status')
+    .eq('id', execucao.id)
+    .maybeSingle()
+  if (atualError) throw atualError
+  return atual?.status === 'em_execucao' ? execucao : null
 }
 
 async function loginLello(page, execucao, config) {
