@@ -16,15 +16,21 @@ export default async function RecuperarSenhaPage({
       <div className="absolute inset-0 opacity-[0.04] [background-image:radial-gradient(#004b63_0.7px,transparent_0.7px)] [background-size:24px_24px]" />
 
       <section className="relative z-10 w-full max-w-[520px] rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_25px_80px_rgba(15,23,42,0.10)] backdrop-blur md:p-10">
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center">
           <Image
-            src="/logo-gkli-cobranca-inteligente.png"
-            alt="GKLI Cobrança Inteligente"
-            width={320}
-            height={126}
+            src="/logo-gkli-mark.png"
+            alt="GKLI"
+            width={96}
+            height={96}
             priority
-            className="h-auto w-[280px] sm:w-[320px]"
+            className="h-24 w-24 rounded-[1.5rem] object-cover shadow-[0_16px_40px_rgba(0,75,99,0.16)]"
           />
+          <p className="mt-4 text-3xl font-bold tracking-tight text-[#004b63]">
+            GKLI
+          </p>
+          <p className="mt-1 text-sm font-semibold tracking-[0.18em] text-[#19364a]">
+            COBRANÇA
+          </p>
         </div>
 
         <div className="mt-8 text-center">

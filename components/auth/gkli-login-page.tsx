@@ -20,14 +20,25 @@ export function GKLIloginPage({
       <section className="relative z-10 grid min-h-screen grid-cols-1 lg:grid-cols-[1fr_560px]">
         <div className="hidden items-center justify-center px-16 lg:flex">
           <div className="max-w-[540px]">
-            <Image
-              src="/logo-gkli-cobranca-inteligente.png"
-              alt="GKLI Cobrança Inteligente"
-              width={760}
-              height={300}
-              priority
-              className="h-auto w-full"
-            />
+            <div className="flex items-center gap-5">
+              <Image
+                src="/logo-gkli-mark.png"
+                alt="GKLI"
+                width={112}
+                height={112}
+                priority
+                className="h-28 w-28 rounded-[1.75rem] object-cover shadow-[0_18px_45px_rgba(0,75,99,0.18)]"
+              />
+
+              <div>
+                <p className="text-5xl font-bold tracking-tight text-[#004b63]">
+                  GKLI
+                </p>
+                <p className="mt-2 text-xl font-semibold tracking-[0.18em] text-[#19364a]">
+                  COBRANÇA
+                </p>
+              </div>
+            </div>
 
             <div className="mt-10 max-w-[440px]">
               <h1 className="text-4xl font-light leading-tight text-[#19364a]">
@@ -45,14 +56,22 @@ export function GKLIloginPage({
         <div className="flex items-center justify-center px-6 py-10 lg:px-10">
           <div className="w-full max-w-[520px] rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_25px_80px_rgba(15,23,42,0.10)] backdrop-blur md:p-10">
             <div className="flex justify-center lg:hidden">
-              <Image
-                src="/logo-gkli-cobranca-inteligente.png"
-                alt="GKLI Cobrança Inteligente"
-                width={320}
-                height={126}
-                priority
-                className="h-auto w-[320px]"
-              />
+              <div className="flex flex-col items-center">
+                <Image
+                  src="/logo-gkli-mark.png"
+                  alt="GKLI"
+                  width={96}
+                  height={96}
+                  priority
+                  className="h-24 w-24 rounded-[1.5rem] object-cover shadow-[0_16px_40px_rgba(0,75,99,0.16)]"
+                />
+                <p className="mt-4 text-3xl font-bold tracking-tight text-[#004b63]">
+                  GKLI
+                </p>
+                <p className="mt-1 text-sm font-semibold tracking-[0.18em] text-[#19364a]">
+                  COBRANÇA
+                </p>
+              </div>
             </div>
 
             <div className="mt-2 text-center lg:text-left">
