@@ -1,5 +1,25 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+
+const CHROME_ARGS_AUTOFILL_DESABILITADO = [
+  '--disable-save-password-bubble',
+  '--disable-password-generation',
+  '--disable-autofill-keyboard-accessory-view',
+  '--disable-features=AutofillServerCommunication,PasswordManagerEnableAccountStorage,PasswordManagerOnboarding,PasswordLeakDetection',
+  '--password-store=basic',
+]
+
+const CHROME_PREFERENCES_AUTOFILL_DESABILITADO = {
+  autofill: {
+    credit_card_enabled: false,
+    profile_enabled: false,
+  },
+  credentials_enable_service: false,
+  profile: {
+    password_manager_enabled: false,
+    password_manager_leak_detection: false,
+  },
+}
 
 export async function criarContextoChromeIsolado(chromium, rootDir, prefix, options) {
   const profilesRoot = path.resolve(rootDir, '.codex-tmp', 'browser-profiles')
@@ -12,8 +32,31 @@ export async function criarContextoChromeIsolado(chromium, rootDir, prefix, opti
     .replace(/^-|-$/g, '')
     .toLowerCase() || 'worker'
   const profileDir = await mkdtemp(path.join(profilesRoot, `${safePrefix}-`))
-  const context = await chromium.launchPersistentContext(profileDir, options)
+  await prepararPreferenciasChrome(profileDir)
+  const context = await chromium.launchPersistentContext(profileDir, normalizarOpcoesChrome(options))
   return { context, profileDir }
+}
+
+async function prepararPreferenciasChrome(profileDir) {
+  const defaultProfileDir = path.join(profileDir, 'Default')
+  await mkdir(defaultProfileDir, { recursive: true })
+  await writeFile(
+    path.join(defaultProfileDir, 'Preferences'),
+    JSON.stringify(CHROME_PREFERENCES_AUTOFILL_DESABILITADO),
+    'utf8',
+  )
+}
+
+function normalizarOpcoesChrome(options = {}) {
+  const args = [...new Set([
+    ...(Array.isArray(options.args) ? options.args : []),
+    ...CHROME_ARGS_AUTOFILL_DESABILITADO,
+  ])]
+
+  return {
+    ...options,
+    args,
+  }
 }
 
 export async function fecharContextoChromeIsolado(session, rootDir) {
