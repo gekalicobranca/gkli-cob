@@ -105,6 +105,7 @@ function chaveCredencialEspecial(config) {
     config.portal_segmento,
   ].filter(Boolean).join(' '))
   if (base.includes('SAFIRA')) return 'SAFIRA'
+  if (base.includes('TOPAZIO')) return 'TOPAZIO'
   return null
 }
 
