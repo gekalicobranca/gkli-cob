@@ -332,20 +332,157 @@ async function selecionarCondominio(page, execucao, codigo, nomePortal = '') {
     const button = [...document.querySelectorAll('button')].find((el) => /^\d+\s*-/.test((el.innerText || el.textContent || '').trim()) && visivel(el))
     button?.click()
   }).catch(() => {})
-  const busca = page.locator('input[name="search"], input[placeholder*="código" i], input[placeholder*="condomínio" i]').first()
+  const busca = page.locator('.dropdown.open input[name="search"]:visible, .dropdown.open input[placeholder*="código" i]:visible, .dropdown.open input[placeholder*="condomínio" i]:visible').first()
   await page.waitForTimeout(500)
   if (!await busca.isVisible().catch(() => false)) {
     await page.locator('button').filter({ hasText: /^\d+\s*-/ }).first().click({ force: true, timeout: 3_000 }).catch(() => {})
   }
   await page.waitForFunction((code) => document.body.textContent.includes(`${code} -`), codigo, { timeout: 10_000 }).catch(() => {})
 
-  const tentarClicarResultado = async () => page.locator('a, button, span, li').evaluateAll((els, payload) => {
+  const buscarCodigoNoDropdown = async (termo) => page.locator('body').evaluate((value) => {
+    const visivel = (el) => {
+      const style = window.getComputedStyle(el)
+      return style.visibility !== 'hidden' && style.display !== 'none' && Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+    }
+    const inputCandidates = [...document.querySelectorAll('input')].map((el) => {
+      if (!visivel(el)) return false
+      const placeholder = String(el.getAttribute('placeholder') || '').toLowerCase()
+      const name = String(el.getAttribute('name') || '').toLowerCase()
+      const type = String(el.getAttribute('type') || 'text').toLowerCase()
+      if (type === 'password') return false
+      const score =
+        placeholder.includes('código') || placeholder.includes('codigo') ? 100 :
+          placeholder.includes('condomínio') || placeholder.includes('condominio') ? 90 :
+            name.includes('search') ? 80 :
+              type === 'text' ? 10 : 0
+      return score ? { el, score } : false
+    }).filter(Boolean).sort((a, b) => b.score - a.score)
+    const input = inputCandidates[0]?.el
+    if (!input) return { input: false, buscar: false }
+
+    input.focus()
+    input.value = ''
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.value = value
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }))
+    if (window.angular) {
+      const ngInput = window.angular.element(input)
+      ngInput.triggerHandler?.('input')
+      const scope = ngInput.scope?.()
+      if (scope) {
+        try {
+          scope.$apply?.(() => {
+            scope.condominiosInputSearch = value
+          })
+        } catch {
+          scope.condominiosInputSearch = value
+          scope.$digest?.()
+        }
+      }
+    }
+    input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: value.at(-1) || '' }))
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+
+    const form = input.closest('form')
+    const buscar = [...(form || document).querySelectorAll('button, input[type="button"], input[type="submit"], a')].find((el) => {
+      if (!visivel(el)) return false
+      const text = String(el.value || el.innerText || el.textContent || '').trim()
+      return /^buscar$/i.test(text)
+    })
+    buscar?.click()
+    return { input: true, buscar: Boolean(buscar) }
+  }, termo).catch(() => ({ input: false, buscar: false }))
+
+  const buscarCodigoViaCampoVisivel = async (termo) => {
+    const campoBusca = page.locator('.dropdown.open input[name="search"]:visible').first()
+    if (!await campoBusca.isVisible().catch(() => false)) return false
+
+    await campoBusca.click({ force: true })
+    await campoBusca.fill('')
+    if (typeof campoBusca.pressSequentially === 'function') {
+      await campoBusca.pressSequentially(termo, { delay: 35 }).catch(async () => {
+        await page.keyboard.type(termo, { delay: 35 })
+      })
+    } else {
+      await page.keyboard.type(termo, { delay: 35 })
+    }
+    await campoBusca.dispatchEvent('input').catch(() => {})
+    await campoBusca.dispatchEvent('change').catch(() => {})
+
+    const formBusca = page.locator('.dropdown.open form').filter({ has: campoBusca }).first()
+    const botaoBuscar = formBusca.getByRole('button', { name: /buscar/i })
+      .or(page.locator('.dropdown.open button[type="submit"]:visible'))
+      .first()
+    if (await botaoBuscar.isVisible().catch(() => false)) await botaoBuscar.click({ force: true })
+    else await campoBusca.press('Enter').catch(() => {})
+
+    await page.waitForTimeout(5_000)
+    return true
+  }
+
+  const avancarPaginaDropdown = async () => {
+    const botaoProximo = page.locator('.dropdown.open button[ng-click="nextBtn()"]:visible').first()
+    if (await botaoProximo.isVisible().catch(() => false)) {
+      const disabled = await botaoProximo.isDisabled().catch(() => false)
+      if (!disabled) {
+        await botaoProximo.click({ force: true })
+        return true
+      }
+    }
+
+    return page.locator('body').evaluate(() => {
+    const visivel = (el) => {
+      const style = window.getComputedStyle(el)
+      return style.visibility !== 'hidden' && style.display !== 'none' && Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+    }
+    const desabilitado = (el) => {
+      const disabledAttr = el.getAttribute('disabled')
+      const ariaDisabled = el.getAttribute('aria-disabled')
+      const classes = String(el.className || '')
+      return disabledAttr !== null || ariaDisabled === 'true' || /\bdisabled\b/i.test(classes)
+    }
+    const possuiPaginacaoNoEntorno = (el) => {
+      let current = el
+      for (let i = 0; i < 5 && current; i += 1) {
+        const text = String(current.innerText || current.textContent || '')
+        if (/\b\d+\s*-\s*\d+\s+de\s+\d+\b/i.test(text)) return true
+        current = current.parentElement
+      }
+      return false
+    }
+    const candidatos = [...document.querySelectorAll('.dropdown.open button[ng-click="nextBtn()"], button[ng-click="nextBtn()"], .dropdown.open button, .dropdown.open a')].filter((el) => {
+      if (!visivel(el) || desabilitado(el)) return false
+      const text = String(el.value || el.innerText || el.textContent || '').trim()
+      const attrs = [
+        el.getAttribute('ng-click'),
+        el.getAttribute('aria-label'),
+        el.getAttribute('title'),
+        el.getAttribute('class'),
+        el.innerHTML,
+      ].filter(Boolean).join(' ')
+      const pareceProximo = /^(›|>|»)$/.test(text) || /pr[oó]xim|next|chevron-right|angle-right|arrow-right/i.test(attrs)
+      return pareceProximo && possuiPaginacaoNoEntorno(el)
+    })
+    const [proximo] = candidatos.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).slice(-1)
+    if (!proximo) return false
+    proximo.click()
+    return true
+    }).catch(() => false)
+  }
+
+  const tentarClicarResultado = async () => page.locator('.dropdown.open a[ng-click*="setCondominio"], a[ng-click*="setCondominio"]').evaluateAll((els, payload) => {
     const { patternSource, name } = payload
     const pattern = new RegExp(patternSource, 'i')
-    const match = els.find((el) => {
+    const matches = els.map((el) => {
       const text = (el.innerText || el.textContent || '').trim()
-      return pattern.test(text) || (name && text.toUpperCase().includes(name.toUpperCase()))
-    })
+      if (!text) return false
+      const style = window.getComputedStyle(el)
+      const visible = style.visibility !== 'hidden' && style.display !== 'none' && Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+      if (!visible || !(pattern.test(text) || (name && text.toUpperCase().includes(name.toUpperCase())))) return false
+      const rect = el.getBoundingClientRect()
+      return { el, textLength: text.length, area: rect.width * rect.height }
+    }).filter(Boolean).sort((a, b) => a.textLength - b.textLength || a.area - b.area)
+    const match = matches[0]?.el
     if (!match) return false
     const clickable = match.closest('a, button') || match
     clickable.click()
@@ -361,13 +498,41 @@ async function selecionarCondominio(page, execucao, codigo, nomePortal = '') {
   ].filter(Boolean))]
 
   let clicked = await tentarClicarResultado()
-  if (!clicked && await busca.isVisible().catch(() => false)) {
+  if (!clicked) {
     for (const termo of termosBusca) {
-      await busca.fill(termo)
+      if (await buscarCodigoViaCampoVisivel(termo)) {
+        clicked = await tentarClicarResultado()
+        if (clicked) break
+      }
+
+      const buscaDireta = await buscarCodigoNoDropdown(termo)
+      if (buscaDireta.input) {
+        await page.waitForTimeout(5_000)
+        clicked = await tentarClicarResultado()
+        if (clicked) break
+      }
+
+      if (!await busca.isVisible().catch(() => false)) continue
+      await busca.click({ force: true })
+      await busca.fill('')
+      if (typeof busca.pressSequentially === 'function') await busca.pressSequentially(termo, { delay: 35 }).catch(async () => {
+        await page.keyboard.type(termo, { delay: 35 })
+      })
+      else await page.keyboard.type(termo, { delay: 35 })
       await busca.dispatchEvent('input').catch(() => {})
+      await busca.dispatchEvent('change').catch(() => {})
       if (await buscar.isVisible().catch(() => false)) await buscar.click({ force: true })
       else await busca.press('Enter').catch(() => {})
       await page.waitForTimeout(2_500)
+      clicked = await tentarClicarResultado()
+      if (clicked) break
+    }
+  }
+  if (!clicked) {
+    for (let pagina = 0; pagina < 6; pagina += 1) {
+      const avancou = await avancarPaginaDropdown()
+      if (!avancou) break
+      await page.waitForTimeout(1_000)
       clicked = await tentarClicarResultado()
       if (clicked) break
     }
