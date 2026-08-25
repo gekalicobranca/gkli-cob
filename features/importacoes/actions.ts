@@ -1535,7 +1535,7 @@ async function createImportacaoPreviewInternal(formData: FormData) {
   return importacao.id as string;
 }
 
-export async function createImportacaoLegadoPreview(_formData: FormData) {
+export async function createImportacaoLegadoPreview() {
   throw new Error("Importações legadas foram desativadas.");
 }
 

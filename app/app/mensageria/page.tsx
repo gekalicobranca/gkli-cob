@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { MessageSquarePlus } from 'lucide-react'
 
-import { PageHeader } from '@/components/layout/page-header'
+import { PageHeader } from '@/components/ui/page-header'
 import { ButtonLink } from '@/components/ui/button'
 import { EmptyState } from '@/components/data/empty-state'
 import { StatusBadge } from '@/components/data/status-badge'
