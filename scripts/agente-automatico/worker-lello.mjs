@@ -305,15 +305,22 @@ async function loginLello(page, execucao, config) {
   await registrarLog(execucao.id, 'login', 'Credenciais COJUR preenchidas; aguardando portal Lello.', 'info', {
     credencial: credenciaisEnv.origem,
   })
-  await page.waitForURL(/menuPortal2\/do\/Menu\/montaMenu/i, { timeout: LOGIN_TIMEOUT_MS })
+  await page.waitForURL(/menuPortal2\/do\/Menu\/montaMenu/i, { timeout: LOGIN_TIMEOUT_MS }).catch(async (error) => {
+    if (await aguardarMenuAutenticado(15_000)) return
+    throw error
+  })
 }
 
-async function selecionarCondominio(page, execucao, codigo) {
-  const selecionado = await page.locator('body').evaluate((code) => {
+async function selecionarCondominio(page, execucao, codigo, nomePortal = '') {
+  const termoNome = String(nomePortal || '').replace(/^\s*\d+\s*-\s*/, '').trim()
+  const selecionado = await page.locator('body').evaluate(({ code, name }) => {
     const pattern = new RegExp(`^${code}\\s*-`, 'i')
     const visivel = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
-    return [...document.querySelectorAll('button')].some((button) => pattern.test((button.innerText || button.textContent || '').trim()) && visivel(button))
-  }, escapeRegExp(codigo)).catch(() => false)
+    return [...document.querySelectorAll('button')].some((button) => {
+      const text = (button.innerText || button.textContent || '').trim()
+      return visivel(button) && (pattern.test(text) || (name && text.toUpperCase().includes(name.toUpperCase())))
+    })
+  }, { code: escapeRegExp(codigo), name: termoNome }).catch(() => false)
   if (selecionado) {
     await registrarLog(execucao.id, 'condominio', `Condomínio já selecionado no portal Lello pelo código ${codigo}.`)
     return
@@ -325,25 +332,46 @@ async function selecionarCondominio(page, execucao, codigo) {
     const button = [...document.querySelectorAll('button')].find((el) => /^\d+\s*-/.test((el.innerText || el.textContent || '').trim()) && visivel(el))
     button?.click()
   }).catch(() => {})
-  await page.locator('button').filter({ hasText: /^\d+\s*-/ }).first().click({ force: true, timeout: 3_000 }).catch(() => {})
+  const busca = page.locator('input[name="search"], input[placeholder*="código" i], input[placeholder*="condomínio" i]').first()
+  await page.waitForTimeout(500)
+  if (!await busca.isVisible().catch(() => false)) {
+    await page.locator('button').filter({ hasText: /^\d+\s*-/ }).first().click({ force: true, timeout: 3_000 }).catch(() => {})
+  }
   await page.waitForFunction((code) => document.body.textContent.includes(`${code} -`), codigo, { timeout: 10_000 }).catch(() => {})
 
-  const busca = page.locator('input[name="search"], input[placeholder*="código" i], input[placeholder*="condomínio" i]').first()
-  if (await busca.isVisible().catch(() => false)) {
-    await busca.fill(codigo)
-    const buscar = page.getByRole('button', { name: /buscar/i }).or(page.locator('button[type="submit"]')).first()
-    if (await buscar.isVisible().catch(() => false)) await buscar.click({ force: true })
-    await page.waitForTimeout(1_000)
-  }
-
-  const clicked = await page.locator('a, button, span, li').evaluateAll((els, patternSource) => {
+  const tentarClicarResultado = async () => page.locator('a, button, span, li').evaluateAll((els, payload) => {
+    const { patternSource, name } = payload
     const pattern = new RegExp(patternSource, 'i')
-    const match = els.find((el) => pattern.test((el.innerText || el.textContent || '').trim()))
+    const match = els.find((el) => {
+      const text = (el.innerText || el.textContent || '').trim()
+      return pattern.test(text) || (name && text.toUpperCase().includes(name.toUpperCase()))
+    })
     if (!match) return false
     const clickable = match.closest('a, button') || match
     clickable.click()
     return true
-  }, `^${escapeRegExp(codigo)}\\s*-`)
+  }, { patternSource: `^${escapeRegExp(codigo)}\\s*-`, name: termoNome })
+
+  const buscar = page.getByRole('button', { name: /buscar/i }).or(page.locator('button[type="submit"]')).first()
+  const termosBusca = [...new Set([
+    codigo,
+    termoNome,
+    String(nomePortal || '').trim(),
+    termoNome.replace(/\b(CONDOM[IÍ]NIO|EDIF[IÍ]CIO)\b/gi, '').replace(/\s+/g, ' ').trim(),
+  ].filter(Boolean))]
+
+  let clicked = await tentarClicarResultado()
+  if (!clicked && await busca.isVisible().catch(() => false)) {
+    for (const termo of termosBusca) {
+      await busca.fill(termo)
+      await busca.dispatchEvent('input').catch(() => {})
+      if (await buscar.isVisible().catch(() => false)) await buscar.click({ force: true })
+      else await busca.press('Enter').catch(() => {})
+      await page.waitForTimeout(2_500)
+      clicked = await tentarClicarResultado()
+      if (clicked) break
+    }
+  }
   if (!clicked) throw new Error(`Código do condomínio Lello não encontrado no seletor: ${codigo}.`)
 
   await page.waitForFunction((code) => {
@@ -562,7 +590,7 @@ async function coletarLello(execucao) {
     await registrarLog(execucao.id, 'navegador', 'Abrindo o portal Lello COJUR.')
     await page.goto(config.portal_url || execucao.administradora.url_portal || PORTAL_URL, { waitUntil: 'domcontentloaded' })
     await loginLello(page, execucao, config)
-    await selecionarCondominio(page, execucao, codigo)
+    await selecionarCondominio(page, execucao, codigo, config.condominio_portal || config.codigo_portal_nome || config.condominio)
     const { relatorioPage, exportUrl } = await abrirRelatorioCojurAcob(page, execucao, codigo)
 
     const exportPage = await relatorioPage.context().newPage()
