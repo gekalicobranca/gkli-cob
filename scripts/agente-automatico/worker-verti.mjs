@@ -255,6 +255,75 @@ async function selecionarPortalWinker(page, nomePortal) {
   return clicarPorTextoNormalizado(page, nomePortal)
 }
 
+async function abrirSeletorCondominioPeloUsuario(context, execucaoId) {
+  const selectors = [
+    '[aria-label*="usu" i]', '[title*="usu" i]',
+    '[aria-label*="perfil" i]', '[title*="perfil" i]',
+    '[class*="user" i]', '[class*="usuario" i]',
+    '[class*="profile" i]', '[class*="perfil" i]',
+  ].join(', ')
+
+  for (const candidate of context.pages().toReversed()) {
+    if (candidate.isClosed()) continue
+    for (const frame of candidate.frames().toReversed()) {
+      const locator = frame.locator(selectors).first()
+      const clicked = await locator.click({ timeout: 1_500, force: true }).then(() => true).catch(() => false)
+      if (clicked) {
+        await registrarLog(execucaoId, 'seletor_condominio', 'Abrindo seletor de condomínio pelo usuário/menu lateral do Winker.')
+        await candidate.waitForTimeout(1_000).catch(() => {})
+        return true
+      }
+    }
+  }
+
+  for (const candidate of context.pages().toReversed()) {
+    if (candidate.isClosed()) continue
+    for (const frame of candidate.frames().toReversed()) {
+      const clicked = await frame.locator('body').evaluate(() => {
+        const normalize = (value) => String(value || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zA-Z0-9@._-]+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toUpperCase()
+        const visible = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+        const blocked = /FINANCEIRO|RELATORIOS|INADIMPLENTES|BALANCETE|DASHBOARD|CONFIGURACOES/i
+        const candidates = [...document.querySelectorAll('a, button, ion-item, ion-label, [role="button"], div, span')]
+          .filter((el) => visible(el))
+          .map((el) => {
+            const rect = el.getBoundingClientRect()
+            const text = normalize(el.innerText || el.textContent || el.getAttribute('aria-label') || el.getAttribute('title'))
+            const className = normalize(el.getAttribute('class'))
+            const leftArea = rect.left <= Math.max(360, window.innerWidth * 0.35)
+            let score = 99
+            if (/USUARIO|PERFIL|CONTA|ACCOUNT|PROFILE|USER/.test(text) || /USUARIO|PERFIL|ACCOUNT|PROFILE|USER/.test(className)) score = 0
+            else if (/@/.test(text)) score = 1
+            else if (leftArea && text.length >= 2 && text.length <= 80 && !blocked.test(text)) score = 3
+            return { el, rect, text, score }
+          })
+          .filter(({ score }) => score < 99)
+          .sort((a, b) => a.score - b.score || a.rect.left - b.rect.left || b.rect.top - a.rect.top)
+        const match = candidates[0]
+        if (!match) return false
+        const clickable = match.el.closest('a, button, ion-item, [role="button"]') || match.el
+        clickable.scrollIntoView({ block: 'center', inline: 'center' })
+        clickable.click()
+        return true
+      }).catch(() => false)
+      if (clicked) {
+        await registrarLog(execucaoId, 'seletor_condominio', 'Abrindo seletor de condomínio pelo usuário/menu lateral do Winker.')
+        await candidate.waitForTimeout(1_000).catch(() => {})
+        return true
+      }
+    }
+  }
+
+  await registrarLog(execucaoId, 'seletor_condominio',
+    'Não foi possível abrir automaticamente o seletor pelo usuário/menu lateral; tentando busca direta do condomínio.', 'warning')
+  return false
+}
+
 async function localizarFramePorTexto(context, pattern, timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -335,6 +404,7 @@ async function abrirBalancete(page, execucao) {
   const estaNaTelaDeEscolha = /escolha o portal que você quer acessar/i.test(bodyText)
   if (estaNaTelaDeEscolha || !normalizarTexto(bodyText).includes(normalizarTexto(nomePortal))) {
     await registrarLog(execucao.id, 'condominio', `Selecionando ${nomePortal} no portal Winker.`)
+    await abrirSeletorCondominioPeloUsuario(page.context(), execucao.id)
     const href = await page.locator('a').evaluateAll((links, target) => {
       const normalize = (value) => String(value || '')
         .normalize('NFD')
@@ -356,7 +426,8 @@ async function abrirBalancete(page, execucao) {
       await page.goto(new URL(href, page.url()).href, { waitUntil: 'domcontentloaded' })
       await page.goto(new URL('/intra', page.url()).href, { waitUntil: 'domcontentloaded' }).catch(() => {})
       await page.waitForFunction(() => /Balancete interativo|Financeiro/i.test(document.body.innerText || ''), null, { timeout: 30_000 }).catch(() => {})
-    } else if (await selecionarPortalWinker(page, nomePortal)) {
+    } else if (await selecionarPortalWinker(page, nomePortal) ||
+      await clicarEmQualquerFramePorTexto(page.context(), nomePortal, { timeoutMs: 10_000 })) {
       await page.waitForLoadState('domcontentloaded', { timeout: 30_000 }).catch(() => {})
       await page.goto(new URL('/intra', page.url()).href, { waitUntil: 'domcontentloaded' }).catch(() => {})
       await page.waitForFunction(() => /Balancete interativo|Financeiro/i.test(document.body.innerText || ''), null, { timeout: 30_000 }).catch(() => {})
@@ -488,7 +559,7 @@ async function coletar(execucao) {
     console.log(`Execução ${execucao.id}: ${filename} coletado com sucesso.`)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    const precisaIntervencao = /Timeout|login|captcha|2fa/i.test(message)
+    const precisaIntervencao = /Timeout|Tempo excedido|login|captcha|2fa/i.test(message)
     await supabase.from('agente_execucoes').update({
       status: precisaIntervencao ? 'precisa_intervencao' : 'falha',
       finalizado_em: new Date().toISOString(), erro_mensagem: message,
