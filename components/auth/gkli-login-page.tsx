@@ -1,8 +1,14 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, BookOpen, Download, Eye, Lock, Mail } from 'lucide-react'
+import { ArrowRight, BookOpen, CheckCircle, Download, Eye, Lock, Mail } from 'lucide-react'
 
-export function GKLIloginPage({ errorMessage }: { errorMessage?: string }) {
+export function GKLIloginPage({
+  errorMessage,
+  successMessage,
+}: {
+  errorMessage?: string
+  successMessage?: string
+}) {
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#f4f5f7]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(0,75,99,0.08),transparent_32%)]" />
@@ -65,6 +71,13 @@ export function GKLIloginPage({ errorMessage }: { errorMessage?: string }) {
               </div>
             ) : null}
 
+            {successMessage ? (
+              <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                <CheckCircle size={18} className="mt-0.5 shrink-0" />
+                <span>{successMessage}</span>
+              </div>
+            ) : null}
+
             <form className="mt-10 space-y-5" action="/auth/login" method="post">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -109,7 +122,7 @@ export function GKLIloginPage({ errorMessage }: { errorMessage?: string }) {
                   href="/recuperar-senha"
                   className="text-sm font-medium text-[#005f7c] transition hover:text-[#004b63]"
                 >
-                  Esqueci minha senha
+                  Esqueceu sua senha?
                 </Link>
               </div>
 

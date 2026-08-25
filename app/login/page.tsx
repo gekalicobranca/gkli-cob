@@ -3,9 +3,9 @@ import { GKLIloginPage } from '@/components/auth/gkli-login-page'
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ erro?: string }>
+  searchParams?: Promise<{ erro?: string; sucesso?: string }>
 }) {
   const params = searchParams ? await searchParams : undefined
 
-  return <GKLIloginPage errorMessage={params?.erro} />
+  return <GKLIloginPage errorMessage={params?.erro} successMessage={params?.sucesso} />
 }

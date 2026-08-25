@@ -2,7 +2,18 @@ import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTypescript from 'eslint-config-next/typescript'
 
 export default [
-  { ignores: ['.next/**', 'node_modules/**', 'dist/**', 'out/**', 'tsconfig.tsbuildinfo'] },
+  {
+    ignores: [
+      '.next/**',
+      'node_modules/**',
+      'dist/**',
+      'out/**',
+      '.tmp/**',
+      '.codex-tmp/**',
+      '.codex-tmp-sheet/**',
+      'tsconfig.tsbuildinfo',
+    ],
+  },
   ...nextVitals,
   ...nextTypescript,
   {
