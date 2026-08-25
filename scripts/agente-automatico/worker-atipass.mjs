@@ -6,6 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
+import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 
@@ -363,13 +364,15 @@ async function coletarAtipass(execucao) {
 
   const channel = process.env.AGENTE_BROWSER_CHANNEL || 'chrome'
   const headless = String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true'
-  const context = await chromium.launchPersistentContext(
-    path.join(rootDir, '.codex-tmp', 'agente-browser-profile-atipass'),
-    { channel, headless, chromiumSandbox: true, acceptDownloads: true, viewport: null },
-  )
-  let page = context.pages()[0] || (await context.newPage())
+  let browserSession
 
   try {
+    browserSession = await criarContextoChromeIsolado(chromium, rootDir, 'atipass', {
+      channel, headless, chromiumSandbox: true, acceptDownloads: true, viewport: null,
+    })
+    const context = browserSession.context
+    let page = context.pages()[0] || (await context.newPage())
+
     const config = execucao.receita?.config_json ?? {}
     const condominioNome = execucao.condominio?.nome_operacional || execucao.condominio?.nome || config.condominio || 'RESIDENCIAL DAS ILHAS'
     const portalUrl = normalizarPortalUrl(config.portal_url || execucao.administradora.url_portal)
@@ -447,7 +450,7 @@ async function coletarAtipass(execucao) {
     await registrarLog(execucao.id, 'erro', message, 'error')
     console.error(`Execução ${execucao.id}:`, message)
   } finally {
-    await context.close()
+    await fecharContextoChromeIsolado(browserSession, rootDir)
   }
 }
 

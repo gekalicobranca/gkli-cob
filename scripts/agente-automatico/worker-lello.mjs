@@ -6,6 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
+import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 
@@ -496,6 +497,7 @@ async function abrirRelatorioCojurAcob(page, execucao, codigo) {
 
 async function coletarLello(execucao) {
   let context
+  let browserSession
   try {
     const config = execucao.receita?.config_json ?? {}
     const codigo = String(config.codigo_portal || config.codigo_cliente || '').trim()
@@ -505,16 +507,14 @@ async function coletarLello(execucao) {
     const localDownloadDir = process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(), 'Downloads')
     await mkdir(localDownloadDir, { recursive: true })
 
-    context = await chromium.launchPersistentContext(
-      path.join(rootDir, '.codex-tmp', 'agente-browser-profile-lello'),
-      {
-        channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
-        headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true',
-        chromiumSandbox: true,
-        acceptDownloads: true,
-        viewport: null,
-      },
-    )
+    browserSession = await criarContextoChromeIsolado(chromium, rootDir, 'lello', {
+      channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
+      headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true',
+      chromiumSandbox: true,
+      acceptDownloads: true,
+      viewport: null,
+    })
+    context = browserSession.context
     const page = context.pages()[0] || await context.newPage()
 
     await registrarLog(execucao.id, 'navegador', 'Abrindo o portal Lello COJUR.')
@@ -581,7 +581,7 @@ async function coletarLello(execucao) {
     await registrarLog(execucao.id, 'erro', message, 'error')
     console.error(`Execução ${execucao.id}:`, message)
   } finally {
-    if (context) await context.close()
+    await fecharContextoChromeIsolado(browserSession, rootDir)
   }
 }
 

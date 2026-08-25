@@ -6,6 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
+import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 
@@ -219,13 +220,15 @@ async function collectBbzCondominio(execution) {
 
   const channel = process.env.AGENTE_BROWSER_CHANNEL || 'chrome'
   const headless = String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true'
-  const context = await chromium.launchPersistentContext(
-    path.join(rootDir, '.codex-tmp', 'agente-browser-profile'),
-    { channel, headless, chromiumSandbox: true, acceptDownloads: true, viewport: null },
-  )
-  const page = context.pages()[0] || (await context.newPage())
+  let browserSession
 
   try {
+    browserSession = await criarContextoChromeIsolado(chromium, rootDir, 'bbz-condopro', {
+      channel, headless, chromiumSandbox: true, acceptDownloads: true, viewport: null,
+    })
+    const context = browserSession.context
+    const page = context.pages()[0] || (await context.newPage())
+
     await log(execution.id, 'navegador', 'Abrindo o portal BBZ/CondoPro.')
     const portalUrl = normalizarPortalUrl(execution.receita?.config_json?.portal_url || execution.administradora.url_portal)
     if (!portalUrl) throw new Error('URL do portal BBZ/CondoPro não configurada.')
@@ -321,7 +324,7 @@ async function collectBbzCondominio(execution) {
     await log(execution.id, 'erro', message, 'error')
     console.error(`Execução ${execution.id}:`, message)
   } finally {
-    await context.close()
+    await fecharContextoChromeIsolado(browserSession, rootDir)
   }
 }
 

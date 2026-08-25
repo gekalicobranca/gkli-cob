@@ -6,6 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
+import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 
@@ -510,14 +511,16 @@ async function coletar(execucao) {
   const downloads = process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(), 'Downloads')
   await mkdir(downloads, { recursive: true })
   let context
+  let browserSession
 
   try {
-    context = await chromium.launchPersistentContext(path.join(rootDir, '.codex-tmp', `agente-browser-profile-winker-${process.pid}`), {
+    browserSession = await criarContextoChromeIsolado(chromium, rootDir, 'winker', {
       channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
       headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true',
       chromiumSandbox: true,
       acceptDownloads: true, viewport: null,
     })
+    context = browserSession.context
     const page = context.pages()[0] || await context.newPage()
 
     await registrarLog(execucao.id, 'navegador', 'Abrindo o portal Winker.')
@@ -567,7 +570,7 @@ async function coletar(execucao) {
     await registrarLog(execucao.id, 'erro', message, 'error')
     console.error(`Execução ${execucao.id}:`, message)
   } finally {
-    await context?.close().catch(() => {})
+    await fecharContextoChromeIsolado(browserSession, rootDir)
   }
 }
 

@@ -6,6 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
+import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 
@@ -146,12 +147,15 @@ async function coletar(execucao) {
   const condominioNome = execucao.condominio?.nome_operacional || execucao.condominio?.nome || 'PARQUE DOS JEQUITIBAS'
   const downloads = process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(), 'Downloads')
   await mkdir(downloads, { recursive: true })
-  const context = await chromium.launchPersistentContext(path.join(rootDir, '.codex-tmp', 'agente-browser-profile-manager'), {
-    channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
-    headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true', chromiumSandbox: true, acceptDownloads: true, viewport: null,
-  })
-  const page = context.pages()[0] || await context.newPage()
+  let browserSession
   try {
+    browserSession = await criarContextoChromeIsolado(chromium, rootDir, 'manager', {
+      channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
+      headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true', chromiumSandbox: true, acceptDownloads: true, viewport: null,
+    })
+    const context = browserSession.context
+    const page = context.pages()[0] || await context.newPage()
+
     await registrarLog(execucao.id, 'navegador', 'Abrindo o portal Manager/Atentum.')
     await page.goto(execucao.administradora.url_portal, { waitUntil: 'domcontentloaded' })
     if (!/atentum-s9\.webware\.com\.br/i.test(page.url())) await aguardarLogin(page, execucao.id)
@@ -197,7 +201,7 @@ async function coletar(execucao) {
     await registrarLog(execucao.id, 'erro', message, 'error')
     console.error(`Execução ${execucao.id}:`, message)
   } finally {
-    await context.close()
+    await fecharContextoChromeIsolado(browserSession, rootDir)
   }
 }
 

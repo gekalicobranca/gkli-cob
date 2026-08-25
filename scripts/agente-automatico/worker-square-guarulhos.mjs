@@ -6,6 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
+import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 
@@ -178,16 +179,17 @@ async function coletar(execucao) {
   const downloads = process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(), 'Downloads')
   await mkdir(downloads, { recursive: true })
 
-  const context = await chromium.launchPersistentContext(
-    path.join(rootDir, '.codex-tmp', 'agente-browser-profile-square-guarulhos'), {
+  let browserSession
+  try {
+    browserSession = await criarContextoChromeIsolado(chromium, rootDir, 'square-guarulhos', {
       channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
       headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true',
       chromiumSandbox: true,
       acceptDownloads: true, viewport: null,
     })
-  const page = context.pages()[0] || await context.newPage()
+    const context = browserSession.context
+    const page = context.pages()[0] || await context.newPage()
 
-  try {
     await registrarLog(execucao.id, 'navegador', 'Abrindo o portal Villágua/Webware.')
     await page.goto(execucao.administradora.url_portal, { waitUntil: 'domcontentloaded' })
     if (!/rtPendentes\.asp/i.test(page.url()) &&
@@ -248,7 +250,7 @@ async function coletar(execucao) {
     await registrarLog(execucao.id, 'erro', message, 'error')
     console.error(`Execução ${execucao.id}:`, message)
   } finally {
-    await context.close()
+    await fecharContextoChromeIsolado(browserSession, rootDir)
   }
 }
 
