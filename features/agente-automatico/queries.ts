@@ -45,8 +45,9 @@ export async function listAgenteExecucoes(carteiraIds: string[] | null) {
     .from('agente_execucoes')
     .select(`
       *,
-      receita:agente_receitas(nome),
+      receita:agente_receitas(nome, script_key, config_json),
       administradora:agente_administradoras(nome),
+      condominio:condominios(nome, nome_operacional),
       arquivos:agente_arquivos(
         id,
         nome_arquivo,

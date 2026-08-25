@@ -30,6 +30,8 @@ import {
   Download,
   ExternalLink,
   FileDown,
+  FileText,
+  KeyRound,
   Play,
   Search,
   Settings2,
@@ -43,6 +45,8 @@ const WORKERS = [
   { scriptKey: 'manager_atentum_cotas_pendentes', nome: 'Manager / Atentum' },
   { scriptKey: 'villagua_condopro_square_guarulhos', nome: 'Square Guarulhos' },
   { scriptKey: 'verti_winker_inadimplencia', nome: 'Verti / Winker' },
+  { scriptKey: 'captacao_atipass', nome: 'Atipass' },
+  { scriptKey: 'captacao_lello', nome: 'Lello / COJUR' },
 ]
 
 function getParam(value: string | string[] | undefined) {
@@ -63,6 +67,41 @@ function formatarData(value: string) {
     timeStyle: 'short',
     timeZone: 'America/Sao_Paulo',
   }).format(new Date(value))
+}
+
+function formatarDataOpcional(value: string | null | undefined) {
+  return value ? formatarData(value) : '—'
+}
+
+function resumirErro(value: string | null | undefined) {
+  if (!value) return ''
+  return value.split('\n')[0]?.trim() || value.trim()
+}
+
+function extrairCodigo(config: Record<string, any> | null | undefined) {
+  const codigo = config?.codigo_portal || config?.codigo_cliente || config?.codigo_condominio || config?.codigo_credor
+  return codigo ? String(codigo).trim() : ''
+}
+
+function credencialLabel(config: Record<string, any> | null | undefined) {
+  const especial = String(config?.credencial_especial || config?.portal_segmento || config?.condominio || config?.condominio_portal || '')
+  if (/safira/i.test(especial)) return 'Lello · Safira'
+  if (/topazio/i.test(especial)) return 'Lello · Topazio'
+  if (config?.login_env) return String(config.login_env)
+  if (config?.acesso_portal || config?.perfil_acesso) return String(config.acesso_portal || config.perfil_acesso)
+  return 'Padrão'
+}
+
+function scriptLabel(scriptKey: string | null | undefined) {
+  const labels: Record<string, string> = {
+    bbz_condopro_clock_vila_romana: 'BBZ / CondoPro',
+    manager_atentum_cotas_pendentes: 'Manager / Atentum',
+    villagua_condopro_square_guarulhos: 'Square Guarulhos',
+    verti_winker_inadimplencia: 'Verti / Winker',
+    captacao_atipass: 'Atipass',
+    captacao_lello: 'Lello / COJUR',
+  }
+  return scriptKey ? labels[scriptKey] ?? scriptKey : 'Roteiro não informado'
 }
 
 function statusLabel(status: string) {
@@ -184,7 +223,19 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
   const execucaoOrdem = getParam(params?.execucao_ordem) || 'recentes'
   const execucoesFiltradas = execucoes
     .filter((item) => !execucaoStatus || item.status === execucaoStatus)
-    .filter((item) => contem(`${item.receita?.nome ?? ''} ${item.administradora?.nome ?? ''}`, execucaoBusca))
+    .filter((item) => {
+      const config = item.receita?.config_json
+      return contem([
+        item.receita?.nome ?? '',
+        item.administradora?.nome ?? '',
+        item.condominio?.nome ?? '',
+        item.condominio?.nome_operacional ?? '',
+        item.receita?.script_key ?? '',
+        extrairCodigo(config),
+        config?.condominio_portal ?? '',
+        config?.codigo_portal_nome ?? '',
+      ].join(' '), execucaoBusca)
+    })
     .sort((a, b) => {
       if (execucaoOrdem === 'receita') return (a.receita?.nome ?? '').localeCompare(b.receita?.nome ?? '', 'pt-BR')
       const result = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -358,29 +409,88 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
           <Select name="execucao_ordem" defaultValue={execucaoOrdem} aria-label="Ordenar execuções"><option value="recentes">Mais recentes</option><option value="antigas">Mais antigas</option><option value="receita">Nome da receita</option></Select>
           <div className="flex gap-2"><Button type="submit" variant="secondary">Filtrar</Button>{execucaoBusca || execucaoStatus || execucaoOrdem !== 'recentes' ? <ButtonLink href="/app/agente-automatico" variant="ghost">Limpar</ButtonLink> : null}</div>
         </form>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50/80 text-xs uppercase tracking-normal text-slate-500">
-              <tr><th className="px-6 py-3 font-medium">Execução</th><th className="px-4 py-3 font-medium">Receita</th><th className="px-4 py-3 font-medium">Status</th><th className="px-6 py-3 text-right font-medium">Ações</th></tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {execucoesFiltradas.slice(0, 15).map((execucao) => (
-                <tr key={execucao.id} className="align-top hover:bg-slate-50/50">
-                  <td className="whitespace-nowrap px-6 py-4"><p className="text-sm font-medium text-slate-950">{formatarData(execucao.created_at)}</p><p className="mt-1 text-xs text-slate-500">{execucao.administradora?.nome ?? '—'}</p></td>
-                  <td className="max-w-sm px-4 py-4 text-slate-700">{execucao.receita?.nome ?? '—'}</td>
-                  <td className="px-4 py-4"><StatusBadge tone={statusTone(execucao.status)} label={statusLabel(execucao.status)} /></td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      {(execucao.arquivos ?? []).map((arquivo) => <a key={arquivo.id} href={`/api/agente-automatico/arquivos/${arquivo.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"><Download size={14} /> Baixar</a>)}
-                      {execucao.status !== 'sucesso' ? <form action={marcarExecucaoComoSucessoManual}><input type="hidden" name="execucao_id" value={execucao.id} /><Button type="submit" variant="secondary" size="sm">Marcar sucesso</Button></form> : null}
-                      {(execucao.arquivos ?? []).length ? <><form action={validarArquivoAgente}><input type="hidden" name="execucao_id" value={execucao.id} /><input type="hidden" name="status" value="validado" /><Button type="submit" variant="secondary" size="sm">Validar</Button></form><form action={validarArquivoAgente}><input type="hidden" name="execucao_id" value={execucao.id} /><input type="hidden" name="status" value="rejeitado" /><Button type="submit" variant="danger" size="sm">Rejeitar</Button></form></> : null}
+        <div className="divide-y divide-slate-100">
+          {execucoesFiltradas.slice(0, 15).map((execucao) => {
+            const config = execucao.receita?.config_json
+            const codigo = extrairCodigo(config)
+            const erro = resumirErro(execucao.erro_mensagem)
+            const condominioNome = execucao.condominio?.nome_operacional || execucao.condominio?.nome || config?.condominio || config?.condominio_portal || 'Condomínio não informado'
+
+            return (
+              <article key={execucao.id} className="px-6 py-5 transition hover:bg-slate-50/50">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge tone={statusTone(execucao.status)} label={statusLabel(execucao.status)} />
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{scriptLabel(execucao.receita?.script_key)}</span>
+                      {execucao.competencia ? <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{execucao.competencia}</span> : null}
+                      {execucao.origem ? <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{execucao.origem}</span> : null}
                     </div>
-                  </td>
-                </tr>
-              ))}
-              {!execucoesFiltradas.length ? <tr><td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-500"><FileDown size={22} className="mx-auto mb-2 text-slate-400" />Nenhuma execução encontrada.</td></tr> : null}
-            </tbody>
-          </table>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-950">{condominioNome}</h3>
+                      <p className="mt-1 text-sm text-slate-600">{execucao.receita?.nome ?? 'Receita não informada'}</p>
+                      <p className="mt-1 text-xs text-slate-500">{execucao.administradora?.nome ?? 'Administradora não informada'}</p>
+                    </div>
+
+                    <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Código usado</p>
+                        <p className="mt-1 font-medium text-slate-900">{codigo || '—'}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Credencial</p>
+                        <p className="mt-1 inline-flex items-center gap-1.5 font-medium text-slate-900"><KeyRound size={14} />{credencialLabel(config)}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Início</p>
+                        <p className="mt-1 font-medium text-slate-900">{formatarDataOpcional(execucao.iniciado_em)}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Fim</p>
+                        <p className="mt-1 font-medium text-slate-900">{formatarDataOpcional(execucao.finalizado_em)}</p>
+                      </div>
+                    </div>
+
+                    {erro ? (
+                      <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        <p className="font-medium">Último erro</p>
+                        <p className="mt-1 leading-6">{erro}</p>
+                      </div>
+                    ) : null}
+
+                    {(execucao.arquivos ?? []).length ? (
+                      <div className="flex flex-wrap gap-2">
+                        {(execucao.arquivos ?? []).map((arquivo) => (
+                          <a key={arquivo.id} href={`/api/agente-automatico/arquivos/${arquivo.id}`} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+                            <FileText size={14} />
+                            <span className="max-w-[260px] truncate">{arquivo.nome_arquivo}</span>
+                            <StatusBadge status={arquivo.status_validacao} />
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="flex shrink-0 flex-wrap gap-2 xl:justify-end">
+                    {(execucao.arquivos ?? []).map((arquivo) => (
+                      <a key={arquivo.id} href={`/api/agente-automatico/arquivos/${arquivo.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"><Download size={14} /> Baixar</a>
+                    ))}
+                    {execucao.status !== 'sucesso' ? (
+                      <form action={marcarExecucaoComoSucessoManual}><input type="hidden" name="execucao_id" value={execucao.id} /><Button type="submit" variant="secondary" size="sm">Marcar sucesso</Button></form>
+                    ) : null}
+                    {(execucao.arquivos ?? []).length ? (
+                      <>
+                        <form action={validarArquivoAgente}><input type="hidden" name="execucao_id" value={execucao.id} /><input type="hidden" name="status" value="validado" /><Button type="submit" variant="secondary" size="sm">Validar</Button></form>
+                        <form action={validarArquivoAgente}><input type="hidden" name="execucao_id" value={execucao.id} /><input type="hidden" name="status" value="rejeitado" /><Button type="submit" variant="danger" size="sm">Rejeitar</Button></form>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+          {!execucoesFiltradas.length ? <div className="px-6 py-10 text-center text-sm text-slate-500"><FileDown size={22} className="mx-auto mb-2 text-slate-400" />Nenhuma execução encontrada.</div> : null}
         </div>
       </details>
     </main>

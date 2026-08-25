@@ -35,6 +35,7 @@ export type AgenteReceita = {
   tipo_arquivo_esperado: string
   periodicidade: string
   script_key: string | null
+  config_json?: Record<string, any> | null
   ativo: boolean
   created_at: string
   administradora?: {
@@ -54,12 +55,20 @@ export type AgenteExecucao = {
   finalizado_em: string | null
   erro_mensagem: string | null
   tentativas: number
+  origem?: string | null
+  competencia?: string | null
   created_at: string
   receita?: {
     nome: string
+    script_key?: string | null
+    config_json?: Record<string, any> | null
   } | null
   administradora?: {
     nome: string
+  } | null
+  condominio?: {
+    nome: string | null
+    nome_operacional: string | null
   } | null
   arquivos?: Array<{
     id: string
