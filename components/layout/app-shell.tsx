@@ -142,6 +142,7 @@ const settingsGroups: SidebarSection[] = [
     items: [
       { label: 'Mensageria', href: '/app/mensageria', icon: 'message' },
       { label: 'Automações', href: '/app/automacoes', icon: 'gear' },
+      { label: 'Monitor agentes', href: '/app/agente-automatico/monitor', icon: 'chart' },
       { label: 'Agente automático', href: '/app/agente-automatico', icon: 'robot' },
       { label: 'Assistente IA', href: '/app/ia', icon: 'bot' },
       { label: 'Inteligência operacional', href: '/app/inteligencia', icon: 'spark' },

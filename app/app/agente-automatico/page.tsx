@@ -5,6 +5,7 @@ import {
   listCarteirasParaAgente,
   getAgenteWorkerStatuses,
 } from '@/features/agente-automatico/queries'
+import { AGENTE_WORKERS } from '@/features/agente-automatico/workers'
 import {
   criarAgenteAdministradora,
   criarAgenteReceita,
@@ -39,15 +40,6 @@ import {
 } from 'lucide-react'
 
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> }
-
-const WORKERS = [
-  { scriptKey: 'bbz_condopro_clock_vila_romana', nome: 'BBZ / CondoPro' },
-  { scriptKey: 'manager_atentum_cotas_pendentes', nome: 'Manager / Atentum' },
-  { scriptKey: 'villagua_condopro_square_guarulhos', nome: 'Square Guarulhos' },
-  { scriptKey: 'verti_winker_inadimplencia', nome: 'Verti / Winker' },
-  { scriptKey: 'captacao_atipass', nome: 'Atipass' },
-  { scriptKey: 'captacao_lello', nome: 'Lello / COJUR' },
-]
 
 function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0]?.trim() ?? '' : value?.trim() ?? ''
@@ -161,9 +153,9 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
     listAgenteAdministradoras(carteiraIds),
     listAgenteReceitas(carteiraIds),
     listAgenteExecucoes(carteiraIds),
-    getAgenteWorkerStatuses(WORKERS.map((worker) => worker.scriptKey)),
+    getAgenteWorkerStatuses(AGENTE_WORKERS.map((worker) => worker.scriptKey)),
   ])
-  const workers = WORKERS.map((worker) => {
+  const workers = AGENTE_WORKERS.map((worker) => {
     const status = workerStatuses.find((item) => item.script_key === worker.scriptKey)
     return {
       ...worker,
