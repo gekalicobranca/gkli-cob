@@ -142,13 +142,14 @@ async function aguardarLogin(page, execucaoId) {
 }
 
 async function coletar(execucao) {
-  const codigoCliente = String(execucao.receita?.config_json?.codigo_cliente || '').trim()
-  if (!codigoCliente) throw new Error('Código do cliente Manager não configurado na receita.')
-  const condominioNome = execucao.condominio?.nome_operacional || execucao.condominio?.nome || 'PARQUE DOS JEQUITIBAS'
-  const downloads = process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(), 'Downloads')
-  await mkdir(downloads, { recursive: true })
   let browserSession
   try {
+    const codigoCliente = String(execucao.receita?.config_json?.codigo_cliente || '').trim()
+    if (!codigoCliente) throw new Error('Código do cliente Manager não configurado na receita.')
+    const condominioNome = execucao.condominio?.nome_operacional || execucao.condominio?.nome || 'PARQUE DOS JEQUITIBAS'
+    const downloads = process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(), 'Downloads')
+    await mkdir(downloads, { recursive: true })
+
     browserSession = await criarContextoChromeIsolado(chromium, rootDir, 'manager', {
       channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
       headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true', chromiumSandbox: true, acceptDownloads: true, viewport: null,
