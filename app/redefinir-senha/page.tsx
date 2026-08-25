@@ -30,11 +30,11 @@ export default async function RedefinirSenhaPage({
             priority
             className="h-24 w-24 rounded-[1.5rem] object-cover shadow-[0_16px_40px_rgba(0,75,99,0.16)]"
           />
-          <p className="mt-4 text-3xl font-bold tracking-tight text-[#004b63]">
-            GKLI
+          <p className="mt-4 text-center text-2xl font-bold tracking-tight text-[#004b63]">
+            Tecnologia com estilo
           </p>
-          <p className="mt-1 text-sm font-semibold tracking-[0.18em] text-[#19364a]">
-            COBRANÇA
+          <p className="mt-1 text-sm font-semibold uppercase tracking-[0.18em] text-[#19364a]">
+            GKLI Cobrança
           </p>
         </div>
 

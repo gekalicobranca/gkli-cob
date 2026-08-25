@@ -31,11 +31,11 @@ export function GKLIloginPage({
               />
 
               <div>
-                <p className="text-5xl font-bold tracking-tight text-[#004b63]">
-                  GKLI
+                <p className="max-w-[360px] text-4xl font-bold leading-tight tracking-tight text-[#004b63]">
+                  Tecnologia com estilo
                 </p>
-                <p className="mt-2 text-xl font-semibold tracking-[0.18em] text-[#19364a]">
-                  COBRANÇA
+                <p className="mt-3 text-sm font-semibold uppercase tracking-[0.22em] text-[#19364a]">
+                  GKLI Cobrança
                 </p>
               </div>
             </div>
@@ -65,11 +65,11 @@ export function GKLIloginPage({
                   priority
                   className="h-24 w-24 rounded-[1.5rem] object-cover shadow-[0_16px_40px_rgba(0,75,99,0.16)]"
                 />
-                <p className="mt-4 text-3xl font-bold tracking-tight text-[#004b63]">
-                  GKLI
+                <p className="mt-4 text-center text-2xl font-bold tracking-tight text-[#004b63]">
+                  Tecnologia com estilo
                 </p>
-                <p className="mt-1 text-sm font-semibold tracking-[0.18em] text-[#19364a]">
-                  COBRANÇA
+                <p className="mt-1 text-sm font-semibold uppercase tracking-[0.18em] text-[#19364a]">
+                  GKLI Cobrança
                 </p>
               </div>
             </div>
