@@ -89,6 +89,46 @@ function extrairCredenciais(raw) {
   return { login, senha }
 }
 
+function normalizarTexto(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+}
+
+function chaveCredencialEspecial(config) {
+  const base = normalizarTexto([
+    config.condominio,
+    config.condominio_portal,
+    config.portal_segmento,
+  ].filter(Boolean).join(' '))
+  if (base.includes('SAFIRA')) return 'SAFIRA'
+  return null
+}
+
+function credenciaisAmbienteLello(config) {
+  const chaveEspecial = chaveCredencialEspecial(config)
+  if (chaveEspecial) {
+    const usuarioEspecial = process.env[`AGENTE_LELLO_${chaveEspecial}_USUARIO`]
+    const senhaEspecial = process.env[`AGENTE_LELLO_${chaveEspecial}_SENHA`]
+    if (usuarioEspecial || senhaEspecial) {
+      return {
+        usuario: usuarioEspecial,
+        senha: senhaEspecial,
+        origem: `env:${chaveEspecial}`,
+      }
+    }
+  }
+
+  return {
+    usuario: process.env.AGENTE_LELLO_USUARIO,
+    senha: process.env.AGENTE_LELLO_SENHA,
+    origem: 'env:padrao',
+  }
+}
+
 async function registrarLog(execucaoId, step, mensagem, nivel = 'info', metadata = {}) {
   const { error } = await supabase.from('agente_logs').insert({
     execucao_id: execucaoId,
@@ -244,11 +284,10 @@ async function loginLello(page, execucao, config) {
   await page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded' })
   if (await aguardarMenuAutenticado()) return
 
-  const usuarioEnv = process.env.AGENTE_LELLO_USUARIO
-  const senhaEnv = process.env.AGENTE_LELLO_SENHA
+  const credenciaisEnv = credenciaisAmbienteLello(config)
   const credenciaisCadastro = extrairCredenciais(config.acesso_raw)
-  const usuario = usuarioEnv || credenciaisCadastro.login
-  const senha = senhaEnv || credenciaisCadastro.senha
+  const usuario = credenciaisEnv.usuario || credenciaisCadastro.login
+  const senha = credenciaisEnv.senha || credenciaisCadastro.senha
   if (!usuario || !senha) {
     await registrarLog(execucao.id, 'intervencao_login', 'Credenciais Lello/COJUR não configuradas no ambiente nem no cadastro do agente.', 'warning')
     throw new Error('Credenciais Lello/COJUR não configuradas.')
@@ -262,7 +301,9 @@ async function loginLello(page, execucao, config) {
 
   const acessar = page.getByRole('button', { name: /acessar/i }).or(page.getByText(/^Acessar$/i)).first()
   await acessar.click()
-  await registrarLog(execucao.id, 'login', 'Credenciais COJUR preenchidas; aguardando portal Lello.')
+  await registrarLog(execucao.id, 'login', 'Credenciais COJUR preenchidas; aguardando portal Lello.', 'info', {
+    credencial: credenciaisEnv.origem,
+  })
   await page.waitForURL(/menuPortal2\/do\/Menu\/montaMenu/i, { timeout: LOGIN_TIMEOUT_MS })
 }
 
