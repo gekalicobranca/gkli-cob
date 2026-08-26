@@ -181,43 +181,18 @@ async function ensureTemplates(supabase: ReturnType<typeof createAdminClient>) {
 async function ensureReguaPreJuridico(
   supabase: ReturnType<typeof createAdminClient>,
   carteiraId: string,
-  preferredId?: string | null,
 ) {
-  if (preferredId) {
-    const { data: preferred } = await supabase
-      .from("reguas")
-      .select("id")
-      .eq("id", preferredId)
-      .eq("tipo", JURIDICO_TIPO_REGUA)
-      .eq("ativo", true)
-      .or(`carteira_id.is.null,carteira_id.eq.${carteiraId}`)
-      .limit(1)
-      .maybeSingle();
-
-    if (preferred?.id) return { id: preferred.id as string, origem: "condominio" as const };
-  }
-
   const { data: specific } = await supabase
     .from("reguas")
     .select("id")
     .eq("tipo", JURIDICO_TIPO_REGUA)
     .eq("carteira_id", carteiraId)
     .eq("ativo", true)
+    .order("prioridade", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (specific?.id) return { id: specific.id as string, origem: "carteira" as const };
-
-  const { data: global } = await supabase
-    .from("reguas")
-    .select("id")
-    .eq("tipo", JURIDICO_TIPO_REGUA)
-    .is("carteira_id", null)
-    .eq("ativo", true)
-    .limit(1)
-    .maybeSingle();
-
-  if (global?.id) return { id: global.id as string, origem: "global" as const };
 
   const { data, error } = await supabase
     .from("reguas")
@@ -228,6 +203,7 @@ async function ensureReguaPreJuridico(
       descricao: "Régua de envio do pacote pré-jurídico: carteira, administradora e síndico.",
       prioridade: 90,
       padrao: false,
+      carteira_id: carteiraId,
       destinatario_preferencial: "qualquer",
       ativo: true,
     } as any)
@@ -266,7 +242,6 @@ async function carregarAcordos(
         sindico_celular,
         gerente_email,
         gerente_celular,
-        regua_pre_juridico_id,
         administradora_id,
         administradoras:administradora_id (id,nome,email)
       ),
@@ -316,7 +291,7 @@ async function carregarCobrancas(
       valor_original, valor_atualizado, vencimento,
       carteiras:carteira_id (id,nome,pre_juridico_habilitado),
       condominios:condominio_id (
-        id, nome, sindico_email, sindico_celular, gerente_email, gerente_celular, regua_pre_juridico_id, administradora_id,
+        id, nome, sindico_email, sindico_celular, gerente_email, gerente_celular, administradora_id,
         administradoras:administradora_id (id,nome,email)
       ),
       unidades:unidade_id (id,identificacao,bloco,responsavel_nome,email,telefone)
@@ -340,7 +315,7 @@ async function carregarCobrancas(
       valor_original, valor_atualizado, vencimento,
       carteiras:carteira_id (id,nome,pre_juridico_habilitado),
       condominios:condominio_id (
-        id, nome, sindico_email, sindico_celular, gerente_email, gerente_celular, regua_pre_juridico_id, administradora_id,
+        id, nome, sindico_email, sindico_celular, gerente_email, gerente_celular, administradora_id,
         administradoras:administradora_id (id,nome,email)
       ),
       unidades:unidade_id (id,identificacao,bloco,responsavel_nome,email,telefone)
@@ -829,11 +804,7 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
   const acordosPorRegua = new Map<string, { carteiraId: string; regua: Awaited<ReturnType<typeof ensureReguaPreJuridico>>; rows: any[] }>();
   for (const acordo of acordos) {
     if (!acordo.carteira_id) continue;
-    const regua = await ensureReguaPreJuridico(
-      supabase,
-      acordo.carteira_id,
-      acordo.condominios?.regua_pre_juridico_id,
-    );
+    const regua = await ensureReguaPreJuridico(supabase, acordo.carteira_id);
     const key = `${acordo.carteira_id}:${regua.id}`;
     const group = acordosPorRegua.get(key) ?? { carteiraId: acordo.carteira_id, regua, rows: [] };
     group.rows.push(acordo);

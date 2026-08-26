@@ -47,6 +47,7 @@ function buildReguaPayload(formData: FormData, carteiraId: string | null) {
 
   if (!nome) throw new Error('Informe o nome da régua.')
   if (!['cobranca', 'acordo', 'juridico'].includes(tipo)) throw new Error('Tipo de régua inválido.')
+  if (tipo === 'juridico' && !carteiraId) throw new Error('Selecione a carteira da régua pré-jurídica.')
 
   return {
     carteira_id: carteiraId,
@@ -68,6 +69,19 @@ export async function criarReguaOperacional(formData: FormData) {
   const supabase = createAdminClient()
   const payload = buildReguaPayload(formData, carteiraId)
   const now = new Date().toISOString()
+
+  if (payload.tipo === 'juridico' && carteiraId) {
+    const { data: existente, error: existenteError } = await supabase
+      .from('reguas')
+      .select('id')
+      .eq('tipo', 'juridico')
+      .eq('carteira_id', carteiraId)
+      .eq('ativo', true)
+      .limit(1)
+      .maybeSingle()
+    if (existenteError) throw new Error(`Erro ao verificar régua da carteira: ${existenteError.message}`)
+    if (existente?.id) throw new Error('Esta carteira já possui uma régua pré-jurídica ativa.')
+  }
 
   const { data, error } = await supabase
     .from('reguas')
