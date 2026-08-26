@@ -305,6 +305,11 @@ export async function atualizarProcuracaoPreJuridico(formData: FormData) {
   if (caso.etapa !== 'aguardando_sindico') throw new Error('Este caso não está na etapa de Procuração.')
   const agora = new Date().toISOString()
   const payload: Record<string, unknown> = { procuracao_status: status, observacoes, responsavel_id: user.id }
+  if (status === 'pendente') {
+    payload.procuracao_lote_id = null
+    payload.procuracao_lote_criado_em = null
+    payload.procuracao_flow_id = null
+  }
   if (status === 'gerada' && !caso.procuracao_gerada_em) payload.procuracao_gerada_em = agora
   if (status === 'enviada') payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora
   if (status === 'assinada') { payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora; payload.procuracao_assinada_em = caso.procuracao_assinada_em ?? agora; payload.etapa = 'confirmar_juridico' }
@@ -339,6 +344,11 @@ export async function atualizarProcuracoesPreJuridicoEmMassa(formData: FormData)
   const agora = new Date().toISOString()
   for (const caso of casos) {
     const payload: Record<string, unknown> = { procuracao_status: status, observacoes, responsavel_id: user.id }
+    if (status === 'pendente') {
+      payload.procuracao_lote_id = null
+      payload.procuracao_lote_criado_em = null
+      payload.procuracao_flow_id = null
+    }
     if (status === 'gerada' && !caso.procuracao_gerada_em) payload.procuracao_gerada_em = agora
     if (status === 'enviada') payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora
     if (status === 'assinada') {
