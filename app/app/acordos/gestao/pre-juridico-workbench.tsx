@@ -104,6 +104,7 @@ function ActionCard({
   children,
   variant = "secondary",
   confirmMessage,
+  openInNewTab = false,
 }: {
   title: string
   description: string
@@ -115,6 +116,7 @@ function ActionCard({
   children: ReactNode
   variant?: "primary" | "secondary"
   confirmMessage?: string
+  openInNewTab?: boolean
 }) {
   return (
     <Card className="p-4">
@@ -128,7 +130,7 @@ function ActionCard({
             <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
           </div>
         </div>
-        <form action={action} className="mt-auto" onSubmit={(event) => {
+        <form action={action} target={openInNewTab ? "_blank" : undefined} className="mt-auto" onSubmit={(event) => {
           if (confirmMessage && !window.confirm(confirmMessage)) event.preventDefault()
         }}>
           <SelectedInputs selectedIds={selectedIds} />
@@ -207,6 +209,7 @@ export function PreJuridicoWorkbench({ rows }: { rows: Row[] }) {
           selectedIds={selectedIds}
           disabled={selectedIds.length === 0}
           pendingLabel="Gerando procuração..."
+          openInNewTab
         >
           Gerar procuração PDF
         </ActionCard>
