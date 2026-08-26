@@ -89,7 +89,7 @@ export function PreJuridicoFlowWorkbench({
       <details open={initialStep === 'disponibilidade' || disponibilidade.length > 0} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
-            <ListTitle title="1. Disponibilidade" description="Procurações geradas e ainda sem lote/Flow." />
+            <ListTitle title="Disponibilidade" description="Procurações geradas e ainda sem lote/Flow." />
             <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{disponibilidade.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
           </ListPanelHeader>
         </summary>
@@ -129,7 +129,7 @@ export function PreJuridicoFlowWorkbench({
       <details open={initialStep === 'lotes' || grupos.length > 0} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
-            <ListTitle title="2. Lotes + Régua" description="Agrupamento por carteira com seleção da régua na linha do lote." />
+            <ListTitle title="Lotes + régua" description="Agrupamento por carteira com seleção da régua na linha do lote." />
             <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{grupos.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
           </ListPanelHeader>
         </summary>
@@ -172,7 +172,7 @@ export function PreJuridicoFlowWorkbench({
       <details open={initialStep === 'flows' || flows.length > 0} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
-            <ListTitle title="3. Flows" description="Envio, pausa, cancelamento e acompanhamento do próximo disparo." />
+            <ListTitle title="Flows" description="Envio, pausa, cancelamento e acompanhamento do próximo disparo." />
             <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{flows.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
           </ListPanelHeader>
         </summary>

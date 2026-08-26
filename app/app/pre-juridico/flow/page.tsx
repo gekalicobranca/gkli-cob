@@ -1,4 +1,4 @@
-import { Layers, ListChecks, Network, RadioTower } from 'lucide-react'
+import { Layers, ListChecks, Network, RadioTower, type LucideIcon } from 'lucide-react'
 import { PreJuridicoFlowWorkbench } from '@/components/pre-juridico/flow-workbench'
 import { ListKpiGrid, ListPage } from '@/components/layout/list-page'
 import { ButtonLink } from '@/components/ui/button'
@@ -22,11 +22,11 @@ export default async function FlowPreJuridicoPage({ searchParams }: { searchPara
   const agendadas = data.flows.reduce((sum: number, flow: any) => sum + Number(flow.total_agendadas ?? 0), 0)
   const enviadas = data.flows.reduce((sum: number, flow: any) => sum + Number(flow.total_enviadas ?? 0), 0)
 
-  const kpis = [
-    { label: 'Procurações disponíveis', value: data.disponibilidade.length, icon: ListChecks, tone: 'bg-[#edf8fb] text-[#04799a]', detail: 'aguardando Flow' },
-    { label: 'Flows ativos', value: ativos, icon: Layers, tone: 'bg-violet-50 text-violet-700', detail: 'prontos ou em execução' },
-    { label: 'Mensagens agendadas', value: agendadas, icon: RadioTower, tone: 'bg-amber-50 text-amber-700', detail: 'na agenda da régua' },
-    { label: 'Mensagens enviadas', value: enviadas, icon: ListChecks, tone: 'bg-emerald-50 text-emerald-700', detail: 'disparos concluídos' },
+  const kpis: Array<{ label: string; value: number; icon: LucideIcon; tone: string }> = [
+    { label: 'Disponíveis', value: data.disponibilidade.length, icon: ListChecks, tone: 'bg-[#edf8fb] text-[#04799a]' },
+    { label: 'Flows ativos', value: ativos, icon: Layers, tone: 'bg-violet-50 text-violet-700' },
+    { label: 'Agendadas', value: agendadas, icon: RadioTower, tone: 'bg-amber-50 text-amber-700' },
+    { label: 'Enviadas', value: enviadas, icon: ListChecks, tone: 'bg-emerald-50 text-emerald-700' },
   ]
 
   return <ListPage>
@@ -48,7 +48,7 @@ export default async function FlowPreJuridicoPage({ searchParams }: { searchPara
     ) : null}
 
     <ListKpiGrid>
-      {kpis.map(({ label, value, icon: Icon, tone, detail }) => <Card key={label} className="relative overflow-hidden p-3"><div className={`absolute right-4 top-3 rounded-lg p-2 ${tone}`}><Icon size={18} /></div><p className="pr-12 text-xs font-medium uppercase text-slate-400">{label}</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">{value}</p><p className="text-sm text-slate-500">{detail}</p></Card>)}
+      {kpis.map(({ label, value, icon: Icon, tone }) => <Card key={label} className="relative overflow-hidden p-3"><div className={`absolute right-4 top-3 rounded-lg p-2 ${tone}`}><Icon size={18} /></div><p className="text-xs font-medium uppercase text-slate-400">{label}</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">{value}</p></Card>)}
     </ListKpiGrid>
 
     <PreJuridicoFlowWorkbench
