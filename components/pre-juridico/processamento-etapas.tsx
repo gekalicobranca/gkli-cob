@@ -47,7 +47,7 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
             </div>
             {selectedNaEtapa.length ? <form action={atualizarProcuracoesPreJuridicoEmMassa} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-3 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm(`Atualizar o andamento de ${selectedNaEtapa.length} procuração(ões)?`)) event.preventDefault() }}>
               {selectedNaEtapa.map((caso) => <input key={caso.id} type="hidden" name="caso_id" value={caso.id} />)}
-              <Field label="Alterar selecionadas para"><select name="procuracao_status" defaultValue="gerada" className={controlClass}><option value="pendente">Pendente</option><option value="gerada">Gerada</option><option value="assinada">Assinada</option></select></Field>
+              <Field label="Alterar selecionadas para"><select name="procuracao_status" defaultValue="gerada" className={controlClass}><option value="pendente">Pendente</option><option value="gerada">Gerada</option><option value="enviada">Enviada</option><option value="assinada">Assinada</option></select></Field>
               <Field label="Observação em massa"><input name="observacoes" className={controlClass} /></Field>
               <PendingSubmitButton pendingLabel="Atualizando..."><CheckCircle2 size={16} />Salvar em massa ({selectedNaEtapa.length})</PendingSubmitButton>
               <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, os casos selecionados avançam automaticamente para Confirmar jurídico.</p>
@@ -91,7 +91,7 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
       <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Recebida, o caso avançará automaticamente para Procuração.</p>
     </form> : caso.etapa === 'aguardando_sindico' ? <form action={atualizarProcuracaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar o andamento da procuração?')) event.preventDefault() }}>
       <input type="hidden" name="caso_id" value={caso.id} />
-      <Field label="Andamento da procuração"><select name="procuracao_status" defaultValue={caso.procuracao_status ?? 'pendente'} className={controlClass}><option value="pendente">Pendente</option><option value="gerada">Gerada</option><option value="assinada">Assinada</option></select></Field>
+      <Field label="Andamento da procuração"><select name="procuracao_status" defaultValue={caso.procuracao_status ?? 'pendente'} className={controlClass}><option value="pendente">Pendente</option><option value="gerada">Gerada</option><option value="enviada">Enviada</option><option value="assinada">Assinada</option></select></Field>
       <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
       <PendingSubmitButton pendingLabel="Atualizando...">Salvar andamento</PendingSubmitButton>
       <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, o caso avançará automaticamente para Confirmar jurídico.</p>

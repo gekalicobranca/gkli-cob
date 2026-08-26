@@ -298,7 +298,7 @@ export async function atualizarProcuracaoPreJuridico(formData: FormData) {
   const casoId = String(formData.get('caso_id') ?? '').trim()
   const status = String(formData.get('procuracao_status') ?? '').trim()
   const observacoes = String(formData.get('observacoes') ?? '').trim() || null
-  if (!['pendente', 'gerada', 'assinada'].includes(status)) throw new Error('Andamento da procuração inválido.')
+  if (!['pendente', 'gerada', 'enviada', 'assinada'].includes(status)) throw new Error('Andamento da procuração inválido.')
   const { data: caso, error: casoError } = await supabase.from('pre_juridico_casos').select('id,carteira_id,cobranca_id,etapa,procuracao_gerada_em,procuracao_assinada_em').eq('id', casoId).maybeSingle()
   if (casoError || !caso) throw new Error(casoError ? `Erro ao carregar procuração: ${casoError.message}` : 'Caso não encontrado.')
   assertCarteiraPermitida(scope, caso.carteira_id)
@@ -306,6 +306,7 @@ export async function atualizarProcuracaoPreJuridico(formData: FormData) {
   const agora = new Date().toISOString()
   const payload: Record<string, unknown> = { procuracao_status: status, observacoes, responsavel_id: user.id }
   if (status === 'gerada' && !caso.procuracao_gerada_em) payload.procuracao_gerada_em = agora
+  if (status === 'enviada') payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora
   if (status === 'assinada') { payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora; payload.procuracao_assinada_em = caso.procuracao_assinada_em ?? agora; payload.etapa = 'confirmar_juridico' }
   const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', casoId)
   if (error) throw new Error(`Erro ao atualizar procuração: ${error.message}`)
@@ -321,7 +322,7 @@ export async function atualizarProcuracoesPreJuridicoEmMassa(formData: FormData)
   const status = String(formData.get('procuracao_status') ?? '').trim()
   const observacoes = String(formData.get('observacoes') ?? '').trim() || null
   if (!casoIds.length) throw new Error('Selecione ao menos uma procuração para atualizar.')
-  if (!['pendente', 'gerada', 'assinada'].includes(status)) throw new Error('Andamento da procuração inválido.')
+  if (!['pendente', 'gerada', 'enviada', 'assinada'].includes(status)) throw new Error('Andamento da procuração inválido.')
 
   let query = supabase
     .from('pre_juridico_casos')
@@ -339,6 +340,7 @@ export async function atualizarProcuracoesPreJuridicoEmMassa(formData: FormData)
   for (const caso of casos) {
     const payload: Record<string, unknown> = { procuracao_status: status, observacoes, responsavel_id: user.id }
     if (status === 'gerada' && !caso.procuracao_gerada_em) payload.procuracao_gerada_em = agora
+    if (status === 'enviada') payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora
     if (status === 'assinada') {
       payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora
       payload.procuracao_assinada_em = caso.procuracao_assinada_em ?? agora

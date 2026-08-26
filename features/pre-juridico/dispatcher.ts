@@ -10,6 +10,8 @@ type MensagemAgendada = {
   carteira_id: string | null
   lote_id: string | null
   lote_item_id: string | null
+  cobranca_id?: string | null
+  acordo_id?: string | null
   destinatario: string | null
   email_assunto: string | null
   conteudo: string | null
@@ -34,12 +36,25 @@ async function recalcularLote(loteId: string) {
   await supabase.from('lotes').update({ status, total_pendentes: pendentes, total_enviadas: enviadas, total_erros: falhas, finalizado_em: pendentes ? null : new Date().toISOString() } as any).eq('id', loteId)
 }
 
+async function marcarProcuracaoMensagemComoEnviada(supabase: ReturnType<typeof createAdminClient>, mensagem: MensagemAgendada) {
+  if (!mensagem.pre_juridico_flow_id) return
+  let query = supabase
+    .from('pre_juridico_casos')
+    .update({ procuracao_status: 'enviada' } as any)
+    .eq('procuracao_flow_id', mensagem.pre_juridico_flow_id)
+    .eq('procuracao_status', 'gerada')
+  if (mensagem.cobranca_id) query = query.eq('cobranca_id', mensagem.cobranca_id)
+  else if (mensagem.acordo_id) query = query.eq('acordo_id', mensagem.acordo_id)
+  const { error } = await query
+  if (error) throw new Error(`Erro ao marcar procurações como enviadas: ${error.message}`)
+}
+
 export async function executarDisparosPreJuridico(limit = 50) {
   const supabase = createAdminClient()
   const agora = new Date().toISOString()
   const { data, error } = await supabase
     .from('mensagens')
-    .select('id,carteira_id,lote_id,lote_item_id,destinatario,email_assunto,conteudo,conteudo_renderizado,tentativas_envio,pre_juridico_flow_id')
+    .select('id,carteira_id,lote_id,lote_item_id,cobranca_id,acordo_id,destinatario,email_assunto,conteudo,conteudo_renderizado,tentativas_envio,pre_juridico_flow_id')
     .eq('contexto', 'pre_juridico')
     .eq('canal', 'email')
     .eq('status', MENSAGEM_STATUS.AGENDADA)
@@ -93,6 +108,7 @@ export async function executarDisparosPreJuridico(limit = 50) {
       const { error: updateError } = await supabase.from('mensagens').update({ status: MENSAGEM_STATUS.ENVIADA, status_operacional: MENSAGEM_STATUS.ENVIADA, sent_at: enviadoEm, enviada_em: enviadoEm, ultima_tentativa_em: enviadoEm, proxima_tentativa_em: null, tentativas_envio: tentativa, erro: null, erro_envio: null } as any).eq('id', mensagem.id).eq('status', MENSAGEM_STATUS.AGENDADA)
       if (updateError) throw updateError
       if (mensagem.lote_item_id) await supabase.from('lote_itens').update({ status: LOTE_ITEM_STATUS.ENVIADO } as any).eq('id', mensagem.lote_item_id)
+      await marcarProcuracaoMensagemComoEnviada(supabase, mensagem)
       await registrarLogMensageria(supabase as any, { carteira_id: mensagem.carteira_id, lote_id: mensagem.lote_id, lote_item_id: mensagem.lote_item_id, mensagem_id: mensagem.id, evento: 'pre_juridico_email_enviado_automaticamente', status_anterior: MENSAGEM_STATUS.AGENDADA, status_novo: MENSAGEM_STATUS.ENVIADA, descricao: `E-mail pré-jurídico enviado automaticamente para ${mensagem.destinatario}.`, payload: { tentativa, anexos: anexos.length } })
       resultado.enviadas += 1
     } catch (erro) {
