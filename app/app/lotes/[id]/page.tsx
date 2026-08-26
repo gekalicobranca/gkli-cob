@@ -314,7 +314,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
   const hasMensagensOperacionais = totalCriadas > 0 || hasMensagens;
   const isAuditoriaSemMensagens =
     !hasMensagensOperacionais && (totalPuladas > 0 || totalDuplicadas > 0 || totalErros > 0);
-  const canApproveLote = pendentesAprovacao + falhas + (isPreJuridico ? aprovadas : 0) > 0;
+  const canApproveLote = !isPreJuridico && pendentesAprovacao + falhas > 0;
   const canSendEmails = !isPreJuridico && hasEmailAprovado;
   const canReprocessar = falhas > 0 || numberValue(byStatus.erro) > 0;
 
@@ -447,7 +447,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                 ? isPreJuridico
                   ? "Corrigir contatos do condomínio e gerar novo lote"
                   : "Revisar motivos dos itens pulados"
-                : isPreJuridico ? "Aprovar, agendar e acompanhar os disparos" : "Revisar, aprovar, enviar e acompanhar retorno"}
+                : isPreJuridico ? "Envio controlado pelo Flow pré-jurídico" : "Revisar, aprovar, enviar e acompanhar retorno"}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               {isAuditoriaSemMensagens ? (
@@ -470,6 +470,13 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {isPreJuridico ? (
+              <Link href="/app/pre-juridico/flow?step=flows" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50">
+                <Send size={16} />
+                Abrir Flow
+              </Link>
+            ) : null}
+
             {canApproveLote ? (
               <form action={aprovarLoteMensagens.bind(null, id)}>
                 <ActionButton confirmMessage={isPreJuridico ? "Confirmar aprovação e agendamento da régua deste lote?" : "Confirmar aprovação de todas as mensagens pendentes deste lote?"} pendingLabel="Aprovando...">

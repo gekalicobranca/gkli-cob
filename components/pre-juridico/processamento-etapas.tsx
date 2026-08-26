@@ -1,10 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import { ChevronDown, ChevronRight, FileSignature, PackagePlus } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
-import { atualizarCertidaoPreJuridico, atualizarDistribuicaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, confirmarJuridicoPreJuridico, criarLoteProcuracoesPreJuridico, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
+import { atualizarCertidaoPreJuridico, atualizarDistribuicaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, confirmarJuridicoPreJuridico, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
 import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -13,9 +14,7 @@ const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
 export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: readonly PreJuridicoEtapa[] }) {
   const [selectedProcuracoes, setSelectedProcuracoes] = useState<string[]>([])
-  const [selectedLote, setSelectedLote] = useState<string[]>([])
   const toggleProcuracao = (id: string) => setSelectedProcuracoes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
-  const toggleLote = (id: string) => setSelectedLote((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
   return <div className="space-y-3">
     {etapas.map((etapaId) => {
       const etapa = PRE_JURIDICO_ETAPAS.find((item) => item.id === etapaId)!
@@ -29,8 +28,8 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
             </ListPanelHeader>
           </summary>
           <div>
-          {etapaId === 'aguardando_sindico' && rows.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between"><p className="text-sm text-slate-600">Pendentes podem gerar procuração; procurações geradas podem criar o lote da régua.</p><div className="flex flex-wrap gap-2"><form action={gerarProcuracoesPreJuridico} target="_blank" onSubmit={(event) => { if (!window.confirm(`Gerar ${selectedProcuracoes.length} procuração(ões)?`)) event.preventDefault() }}>{selectedProcuracoes.map((id) => <input key={id} type="hidden" name="caso_id" value={id} />)}<PendingSubmitButton disabled={!selectedProcuracoes.length} pendingLabel="Gerando procurações..."><FileSignature size={16} />Gerar procuração {selectedProcuracoes.length ? `(${selectedProcuracoes.length})` : ''}</PendingSubmitButton></form><form action={criarLoteProcuracoesPreJuridico} onSubmit={(event) => { if (!window.confirm(`Criar lote com ${selectedLote.length} procuração(ões) gerada(s)?`)) event.preventDefault() }}>{selectedLote.map((id) => <input key={id} type="hidden" name="caso_id" value={id} />)}<PendingSubmitButton disabled={!selectedLote.length} pendingLabel="Criando lote..."><PackagePlus size={16} />Criar lote na régua {selectedLote.length ? `(${selectedLote.length})` : ''}</PendingSubmitButton></form></div></div> : null}
-          {rows.length ? <ListRows>{rows.map((caso) => { const loteDisponivel = caso.procuracao_status === 'gerada' && !caso.procuracao_lote_id; const gerarDisponivel = caso.procuracao_status !== 'gerada' && caso.procuracao_status !== 'assinada'; return <CasoProcessamento key={caso.id} caso={caso} selectable={etapaId === 'aguardando_sindico' && (gerarDisponivel || loteDisponivel)} selectionLabel={loteDisponivel ? 'Selecionar procuração gerada para criar lote' : 'Selecionar para gerar procuração'} selected={loteDisponivel ? selectedLote.includes(caso.id) : selectedProcuracoes.includes(caso.id)} onToggle={() => loteDisponivel ? toggleLote(caso.id) : toggleProcuracao(caso.id)} /> })}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
+          {etapaId === 'aguardando_sindico' && rows.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between"><p className="text-sm text-slate-600">Gere as procurações aqui; depois monte lote, régua e disparo na tela Flow.</p><div className="flex flex-wrap gap-2"><form action={gerarProcuracoesPreJuridico} target="_blank" onSubmit={(event) => { if (!window.confirm(`Gerar ${selectedProcuracoes.length} procuração(ões)?`)) event.preventDefault() }}>{selectedProcuracoes.map((id) => <input key={id} type="hidden" name="caso_id" value={id} />)}<PendingSubmitButton disabled={!selectedProcuracoes.length} pendingLabel="Gerando procurações..."><FileSignature size={16} />Gerar procuração {selectedProcuracoes.length ? `(${selectedProcuracoes.length})` : ''}</PendingSubmitButton></form><Link href="/app/pre-juridico/flow" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"><PackagePlus size={16} />Montar Flow</Link></div></div> : null}
+          {rows.length ? <ListRows>{rows.map((caso) => { const gerarDisponivel = caso.procuracao_status !== 'gerada' && caso.procuracao_status !== 'assinada'; return <CasoProcessamento key={caso.id} caso={caso} selectable={etapaId === 'aguardando_sindico' && gerarDisponivel} selectionLabel="Selecionar para gerar procuração" selected={selectedProcuracoes.includes(caso.id)} onToggle={() => toggleProcuracao(caso.id)} /> })}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
           </div>
         </details>
       </ListPanel>

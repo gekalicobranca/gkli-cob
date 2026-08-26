@@ -18,6 +18,7 @@ type PreJuridicoLoteParams = {
   cobrancaIds?: string[];
   scope: CarteiraScope;
   userId?: string | null;
+  reguaIdPorCarteira?: Record<string, string>;
 };
 
 type LoteCounters = {
@@ -38,6 +39,11 @@ type JuridicoEtapa = {
   categoria_template: "pre_juridico_carteira" | "pre_juridico_administradora" | "pre_juridico_sindico";
   tom: string;
   template: string | null;
+};
+
+type ReguaPreJuridicoRef = {
+  id: string;
+  origem: "carteira" | "criada" | "selecionada";
 };
 
 const JURIDICO_TIPO_REGUA = "juridico";
@@ -215,6 +221,28 @@ async function ensureReguaPreJuridico(
   }
 
   return { id: data.id as string, origem: "criada" as const };
+}
+
+async function carregarReguaPreJuridico(
+  supabase: ReturnType<typeof createAdminClient>,
+  reguaId: string,
+  carteiraId: string,
+) {
+  const { data, error } = await supabase
+    .from("reguas")
+    .select("id,carteira_id,tipo,status,ativo")
+    .eq("id", reguaId)
+    .maybeSingle();
+
+  if (error) throw new Error(`Erro ao carregar régua pré-jurídica selecionada: ${error.message}`);
+  if (!data?.id) throw new Error("Régua pré-jurídica selecionada não encontrada.");
+  if ((data as any).tipo !== JURIDICO_TIPO_REGUA) throw new Error("A régua selecionada não é do pré-jurídico.");
+  if ((data as any).ativo === false || (data as any).status === "inativa") throw new Error("A régua selecionada não está ativa.");
+  if ((data as any).carteira_id && (data as any).carteira_id !== carteiraId) {
+    throw new Error("A régua selecionada pertence a outra carteira.");
+  }
+
+  return { id: data.id as string, origem: "selecionada" as const };
 }
 
 async function carregarAcordos(
@@ -801,10 +829,14 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
 
   const lotes: string[] = [];
   const vinculos: Array<{ loteId: string; entidadeIds: string[] }> = [];
-  const acordosPorRegua = new Map<string, { carteiraId: string; regua: Awaited<ReturnType<typeof ensureReguaPreJuridico>>; rows: any[] }>();
+  const resultados: Array<{ loteId: string; carteiraId: string; reguaId: string; entidadeIds: string[]; counters: LoteCounters; etapas: JuridicoEtapa[] }> = [];
+  const acordosPorRegua = new Map<string, { carteiraId: string; regua: ReguaPreJuridicoRef; rows: any[] }>();
   for (const acordo of acordos) {
     if (!acordo.carteira_id) continue;
-    const regua = await ensureReguaPreJuridico(supabase, acordo.carteira_id);
+    const reguaSelecionada = params.reguaIdPorCarteira?.[acordo.carteira_id];
+    const regua = reguaSelecionada
+      ? await carregarReguaPreJuridico(supabase, reguaSelecionada, acordo.carteira_id)
+      : await ensureReguaPreJuridico(supabase, acordo.carteira_id);
     const key = `${acordo.carteira_id}:${regua.id}`;
     const group = acordosPorRegua.get(key) ?? { carteiraId: acordo.carteira_id, regua, rows: [] };
     group.rows.push(acordo);
@@ -879,6 +911,14 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
     }
 
     await finalizarLote(supabase, loteId, regua.id, counters, etapas);
+    resultados.push({
+      loteId,
+      carteiraId,
+      reguaId: regua.id,
+      entidadeIds: rows.map((row) => row.id),
+      counters: { ...counters },
+      etapas,
+    });
 
     await registrarEventoOperacional(supabase as any, {
       carteiraId,
@@ -901,5 +941,5 @@ export async function criarLotesPreJuridico(params: PreJuridicoLoteParams) {
     });
   }
 
-  return { loteId: lotes[0] ?? null, loteIds: lotes, vinculos };
+  return { loteId: lotes[0] ?? null, loteIds: lotes, vinculos, resultados };
 }

@@ -2,6 +2,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { sendSmtpEmail } from '@/features/mensageria/email-provider'
 import { listarAnexosMensagem } from '@/features/pre-juridico/documentos'
 import { registrarLogMensageria } from '@/features/mensageria/engine/logs'
+import { recalcularFlowPreJuridico } from '@/features/pre-juridico/flow-actions'
 import { LOTE_ITEM_STATUS, LOTE_STATUS, MENSAGEM_STATUS } from '@/lib/core/status'
 
 type MensagemAgendada = {
@@ -14,6 +15,7 @@ type MensagemAgendada = {
   conteudo: string | null
   conteudo_renderizado: string | null
   tentativas_envio: number | null
+  pre_juridico_flow_id?: string | null
 }
 
 async function recalcularLote(loteId: string) {
@@ -37,7 +39,7 @@ export async function executarDisparosPreJuridico(limit = 50) {
   const agora = new Date().toISOString()
   const { data, error } = await supabase
     .from('mensagens')
-    .select('id,carteira_id,lote_id,lote_item_id,destinatario,email_assunto,conteudo,conteudo_renderizado,tentativas_envio')
+    .select('id,carteira_id,lote_id,lote_item_id,destinatario,email_assunto,conteudo,conteudo_renderizado,tentativas_envio,pre_juridico_flow_id')
     .eq('contexto', 'pre_juridico')
     .eq('canal', 'email')
     .eq('status', MENSAGEM_STATUS.AGENDADA)
@@ -49,9 +51,24 @@ export async function executarDisparosPreJuridico(limit = 50) {
 
   const resultado = { avaliadas: (data ?? []).length, enviadas: 0, falhas: 0 }
   const lotes = new Set<string>()
+  const flows = new Set<string>()
+  const flowIds = Array.from(new Set(((data ?? []) as MensagemAgendada[]).map((mensagem) => mensagem.pre_juridico_flow_id).filter(Boolean) as string[]))
+  const flowStatus = new Map<string, string>()
+  if (flowIds.length) {
+    const { data: flowRows, error: flowError } = await supabase
+      .from('pre_juridico_flows')
+      .select('id,status')
+      .in('id', flowIds)
+    if (flowError) throw new Error(`Erro ao carregar status dos Flows pré-jurídicos: ${flowError.message}`)
+    for (const flow of (flowRows ?? []) as any[]) flowStatus.set(flow.id, String(flow.status ?? ''))
+  }
 
   for (const mensagem of (data ?? []) as MensagemAgendada[]) {
     if (mensagem.lote_id) lotes.add(mensagem.lote_id)
+    if (mensagem.pre_juridico_flow_id) {
+      flows.add(mensagem.pre_juridico_flow_id)
+      if (flowStatus.get(mensagem.pre_juridico_flow_id) !== 'em_execucao') continue
+    }
     const tentativa = Number(mensagem.tentativas_envio ?? 0) + 1
     const bloqueadaAte = new Date(Date.now() + 10 * 60_000).toISOString()
     const { data: claim, error: claimError } = await supabase
@@ -88,5 +105,6 @@ export async function executarDisparosPreJuridico(limit = 50) {
   }
 
   for (const loteId of lotes) await recalcularLote(loteId)
+  for (const flowId of flows) await recalcularFlowPreJuridico(supabase, flowId)
   return resultado
 }
