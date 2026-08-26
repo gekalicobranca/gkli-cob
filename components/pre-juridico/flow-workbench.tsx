@@ -76,15 +76,11 @@ function itemEntity(item: any) {
   const origem = cobranca ?? acordo ?? {}
   const unidade = relation(origem.unidade)
   const condominio = relation(unidade?.condominio)
-  const valor = cobranca
-    ? Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0)
-    : Number(acordo?.valor_acordado ?? 0)
 
   return {
     condominio: condominio?.nome_operacional || condominio?.nome || 'Condomínio',
     unidade: unidade?.identificacao || '-',
     responsavel: unidade?.responsavel_nome || 'Responsável não informado',
-    valor,
   }
 }
 
@@ -302,7 +298,7 @@ function FlowItemRow({ item }: { item: any }) {
   const destino = mensagem?.email_destinatario || mensagem?.destinatario || 'Destino não informado'
 
   return (
-    <div className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[140px_minmax(260px,1fr)_130px_minmax(180px,1fr)_180px_24px] lg:items-center">
+    <div className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[140px_minmax(320px,1fr)_minmax(220px,0.8fr)_minmax(220px,0.9fr)_24px] lg:items-center">
       <div>
         <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(messageStatus || itemStatus)}`}>
           {statusLabel}
@@ -312,14 +308,11 @@ function FlowItemRow({ item }: { item: any }) {
         <p className="truncate text-sm font-semibold text-slate-950">{entity.condominio}</p>
         <p className="mt-1 truncate text-xs text-slate-500">Unidade {entity.unidade} · {entity.responsavel}</p>
       </div>
-      <Metric label="Valor" value={formatCurrency(entity.valor)} />
       <div className="min-w-0">
-        <p className="text-xs text-slate-400">Destino</p>
-        <p className="mt-1 truncate text-sm font-medium text-slate-800">{destino}</p>
+        <p className="truncate text-sm font-medium text-slate-800">{destino}</p>
       </div>
       <div className="min-w-0">
-        <p className="text-xs text-slate-400">Mensagem</p>
-        <p className="mt-1 truncate text-sm font-medium text-slate-800">{mensagem?.canal || 'email'} · {statusLabel}</p>
+        <p className="truncate text-sm font-medium text-slate-800">{mensagem?.canal || 'email'} · {statusLabel}</p>
         <p className="mt-0.5 truncate text-xs text-slate-500">{messageScheduleLabel(mensagem)}</p>
       </div>
       <ChevronRight size={17} className="text-slate-300" />
