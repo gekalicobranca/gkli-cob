@@ -54,13 +54,10 @@ function formatDateTimeBR(value: string | null | undefined) {
 }
 
 function messageScheduleLabel(mensagem: any) {
-  const status = String(mensagem?.status_operacional ?? mensagem?.status ?? '')
-  const sentAt = mensagem?.enviada_em ?? mensagem?.sent_at
-  if (sentAt) return `Enviada em ${formatDateTimeBR(sentAt)}`
+  if (mensagem?.agendada_para || mensagem?.scheduled_at) return formatDateTimeBR(mensagem.agendada_para ?? mensagem.scheduled_at)
+  if (mensagem?.enviada_em || mensagem?.sent_at) return formatDateTimeBR(mensagem.enviada_em ?? mensagem.sent_at)
   if (mensagem?.erro_envio || mensagem?.erro) return 'Falha no envio'
-  if (mensagem?.agendada_para || mensagem?.scheduled_at) return `Disparo em ${formatDateTimeBR(mensagem.agendada_para ?? mensagem.scheduled_at)}`
-  if (status === 'pendente_aprovacao' || status === 'aprovada') return 'Aguardando envio do Flow'
-  return 'Sem agendamento'
+  return 'Sem agenda'
 }
 
 function caseValue(caso: any) {
@@ -298,7 +295,7 @@ function FlowItemRow({ item }: { item: any }) {
   const destino = mensagem?.email_destinatario || mensagem?.destinatario || 'Destino não informado'
 
   return (
-    <div className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[140px_minmax(320px,1fr)_minmax(220px,0.8fr)_minmax(220px,0.9fr)_24px] lg:items-center">
+    <div className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[140px_minmax(320px,1fr)_minmax(240px,0.9fr)_170px_24px] lg:items-center">
       <div>
         <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(messageStatus || itemStatus)}`}>
           {statusLabel}
@@ -312,8 +309,7 @@ function FlowItemRow({ item }: { item: any }) {
         <p className="truncate text-sm font-medium text-slate-800">{destino}</p>
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-slate-800">{mensagem?.canal || 'email'} · {statusLabel}</p>
-        <p className="mt-0.5 truncate text-xs text-slate-500">{messageScheduleLabel(mensagem)}</p>
+        <p className="truncate text-sm font-medium text-slate-800">{messageScheduleLabel(mensagem)}</p>
       </div>
       <ChevronRight size={17} className="text-slate-300" />
     </div>
