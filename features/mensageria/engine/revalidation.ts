@@ -4,6 +4,7 @@ export function revalidarMensageria(loteId?: string | null) {
   revalidatePath('/app/mensageria')
   revalidatePath('/app/lotes')
   revalidatePath('/app/mensageria/lotes')
+  revalidatePath('/app/pre-juridico/lotes')
   if (loteId) {
     revalidatePath(`/app/lotes/${loteId}`)
     revalidatePath(`/app/mensageria/lotes/${loteId}`)

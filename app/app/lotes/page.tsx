@@ -57,7 +57,7 @@ function reguaLabel(row: any) {
 export default async function LotesPage({ searchParams }: LotesPageProps) {
   const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
-  const rowsBase = await listLotesRegua(scope)
+  const rowsBase = await listLotesRegua(scope, { excluirTipo: 'pre_juridico' })
   const filters = {
     q: getParam(params.q),
     tipo: getParam(params.tipo),
@@ -119,7 +119,6 @@ export default async function LotesPage({ searchParams }: LotesPageProps) {
               <option value="">Todos</option>
               <option value="regua_cobranca">Régua cobrança</option>
               <option value="regua_acordo">Régua acordo</option>
-              <option value="pre_juridico">Pré-jurídico</option>
               <option value="mensageria">Mensageria</option>
             </Select>
           </ListFilterField>

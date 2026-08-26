@@ -284,8 +284,8 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
   const scope = await getPermittedCarteiras();
   const { lote, itens, totalItens, itemLimit, itensTruncados, hasEmailAprovado } = await getLoteDetalhe(id, scope);
   const isPreJuridico = (lote as any).tipo === "pre_juridico" || getSearchParam(resolvedSearchParams, "pre_juridico") === "1";
-  const backHref = isPreJuridico ? "/app/pre-juridico/monitor" : "/app/lotes";
-  const backLabel = isPreJuridico ? "Voltar ao monitor" : "Voltar para lotes";
+  const backHref = isPreJuridico ? "/app/pre-juridico/lotes" : "/app/lotes";
+  const backLabel = isPreJuridico ? "Voltar aos lotes do pré-jurídico" : "Voltar para lotes";
   const byStatus = countItensByStatus(itens);
   const byMensagemStatus = countMensagensByStatus(itens as any);
   const generatedNow = getSearchParam(resolvedSearchParams, "gerado") === "1";

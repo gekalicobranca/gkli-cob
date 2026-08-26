@@ -6,7 +6,7 @@ import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 const LOTE_LIST_LIMIT = 200
 const LOTE_ITEM_DETAIL_LIMIT = 250
 
-export async function listLotesRegua(scope: CarteiraScope) {
+export async function listLotesRegua(scope: CarteiraScope, options?: { tipo?: string; excluirTipo?: string }) {
   const supabase = await createClient()
 
   let query = supabase
@@ -39,6 +39,8 @@ export async function listLotesRegua(scope: CarteiraScope) {
     .limit(LOTE_LIST_LIMIT)
 
   query = applyCarteiraScope(query, scope.carteiraIds)
+  if (options?.tipo) query = query.eq('tipo', options.tipo)
+  if (options?.excluirTipo) query = query.neq('tipo', options.excluirTipo)
 
   const { data, error } = await query
 
