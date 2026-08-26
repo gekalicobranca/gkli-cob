@@ -524,7 +524,9 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
           <div>
               <h2 className="text-base text-slate-950">Itens do lote</h2>
               <p className="text-sm text-slate-500">
-                Exibindo {metric(itens.length)} de {metric(totalItens)} item(ns) do lote.
+                {itensTruncados
+                  ? `Exibindo ${metric(itens.length)} de ${metric(totalItens)} itens.`
+                  : `${metric(totalItens)} ${totalItens === 1 ? "item" : "itens"} neste lote.`}
               </p>
             </div>
           </div>
@@ -543,7 +545,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
             </div>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="space-y-3 bg-slate-50/60 p-4">
             {itens.map((item: any) => {
               const cobranca = item.cobranca;
               const acordo = item.acordo;
@@ -578,11 +580,12 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                 String(cobranca?.status_operacional ?? cobranca?.status ?? "") ===
                 COBRANCA_STATUS.EM_NEGOCIACAO;
               const acaoPulo = motivoAcionavel(item.motivo);
+              const mostrarMotivo = Boolean(item.motivo) && item.status !== LOTE_ITEM_STATUS.CRIADO;
 
               return (
                 <div
                   key={item.id}
-                  className="grid gap-4 px-5 py-4 xl:grid-cols-[1.1fr_0.8fr_0.8fr_0.8fr] xl:items-start"
+                  className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:grid-cols-[1.15fr_0.55fr_1fr_0.75fr] xl:items-start"
                 >
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -596,7 +599,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                       {item.mensagem_id ? (
                         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-700">
                           <MessageSquare size={14} />
-                          mensagem criada
+                          Mensagem pronta
                         </span>
                       ) : null}
 
@@ -650,12 +653,16 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                       </div>
                     ) : null}
 
-                    {item.motivo ? (
+                    {mostrarMotivo ? (
                       <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-900">
                         <div className="flex items-start gap-2">
                           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
                           <div>
-                            <p className="font-medium">Motivo do pulo</p>
+                            <p className="font-medium">
+                              {item.status === LOTE_ITEM_STATUS.DUPLICADA
+                                ? "Mensagem não recriada"
+                                : "Atenção necessária"}
+                            </p>
                             <p className="mt-1 text-amber-800">{item.motivo}</p>
                             {acaoPulo ? (
                               <div className="mt-3 rounded-xl bg-white/70 p-3 text-xs leading-5 text-amber-900">
@@ -739,8 +746,10 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
 
                     {mensagem?.id ? (
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {mensagemStatus === MENSAGEM_STATUS.PENDENTE_APROVACAO ||
-                        mensagemStatus === MENSAGEM_STATUS.FALHA ? (
+                        {!canApproveItem && [
+                          MENSAGEM_STATUS.PENDENTE_APROVACAO,
+                          MENSAGEM_STATUS.FALHA,
+                        ].includes(mensagemStatus as any) ? (
                           <form
                             action={aprovarMensagem.bind(null, mensagem.id)}
                           >
@@ -807,11 +816,11 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
 
                   <div>
                     <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
-                      Controle
+                      Ações
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {canApproveItem ? (
-                        <form action={aprovarItemLote.bind(null, item.id)}><ActionButton tone="secondary" confirmMessage="Confirmar aprovação deste item do lote?" pendingLabel="Aprovando...">Aprovar item</ActionButton></form>
+                        <form action={aprovarItemLote.bind(null, item.id)}><ActionButton tone="secondary" confirmMessage="Confirmar aprovação desta mensagem?" pendingLabel="Aprovando...">Aprovar mensagem</ActionButton></form>
                       ) : null}
                       <form action={cancelarItemLote.bind(null, item.id, "Cancelado item a item na revisão operacional.")}><ActionButton tone="danger" confirmMessage="Confirmar remoção deste item do lote?" pendingLabel="Removendo...">Remover item</ActionButton></form>
                     </div>
@@ -858,9 +867,10 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                         </form>
                       </details>
                     ) : null}
-                    <p className="mt-1 break-all text-xs text-slate-500">
-                      {item.fingerprint || "Sem fingerprint"}
-                    </p>
+                    <details className="mt-3 text-xs text-slate-500">
+                      <summary className="cursor-pointer font-medium text-slate-600">Detalhes técnicos</summary>
+                      <p className="mt-2 break-all">Identificador: {item.fingerprint || "não disponível"}</p>
+                    </details>
                     {item.status === LOTE_ITEM_STATUS.ERRO ? (
                       <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-red-50 px-3 py-2 text-xs text-red-700">
                         <ShieldAlert size={14} />

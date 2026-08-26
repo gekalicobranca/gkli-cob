@@ -95,7 +95,7 @@ export async function getLoteDetalhe(id: string, scope: CarteiraScope) {
 
   const { count: totalItens, error: totalItensError } = await supabase
     .from('lote_itens')
-    .select('id', { count: 'planned', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('lote_id', id)
 
   if (totalItensError) {
