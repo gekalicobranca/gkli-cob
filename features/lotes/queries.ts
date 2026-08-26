@@ -180,6 +180,11 @@ export async function getLoteDetalhe(id: string, scope: CarteiraScope) {
         template_id,
         erro,
         erro_envio,
+        scheduled_at,
+        agendada_para,
+        sent_at,
+        enviada_em,
+        ultima_tentativa_em,
         created_at,
         anexos:mensagem_anexos(
           id,

@@ -2,11 +2,13 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { processarReguaCobranca } from './processar-regua-cobranca'
 import { processarReguaAcordos } from './processar-regua-acordos'
 import { registrarEventoOperacional } from '@/features/operacional/service'
+import { executarDisparosPreJuridico } from '@/features/pre-juridico/dispatcher'
 
 type SchedulerParams = {
   origem?: 'cron' | 'manual' | 'api'
   executarCobranca?: boolean
   executarAcordos?: boolean
+  executarPreJuridico?: boolean
   dryRun?: boolean
 }
 
@@ -41,7 +43,7 @@ export async function executarSchedulerReguas(params: SchedulerParams = {}) {
   const erros: string[] = []
 
   if (params.dryRun) {
-    return { ok: true, dryRun: true, cobranca: params.executarCobranca !== false, acordos: params.executarAcordos !== false }
+    return { ok: true, dryRun: true, cobranca: params.executarCobranca !== false, acordos: params.executarAcordos !== false, preJuridico: params.executarPreJuridico === true }
   }
 
   if (params.executarCobranca !== false) {
@@ -63,6 +65,18 @@ export async function executarSchedulerReguas(params: SchedulerParams = {}) {
       await finalizarJob(jobId, 'concluido', resultados.acordos)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro inesperado na régua de acordos.'
+      erros.push(message)
+      await finalizarJob(jobId, 'erro', {}, message)
+    }
+  }
+
+  if (params.executarPreJuridico === true) {
+    const jobId = await criarJob('regua_pre_juridico', origem)
+    try {
+      resultados.preJuridico = await executarDisparosPreJuridico()
+      await finalizarJob(jobId, 'concluido', resultados.preJuridico)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro inesperado nos disparos pré-jurídicos.'
       erros.push(message)
       await finalizarJob(jobId, 'erro', {}, message)
     }

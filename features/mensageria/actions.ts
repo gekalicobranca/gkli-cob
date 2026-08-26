@@ -15,6 +15,7 @@ import {
   COBRANCA_STATUS,
   LOTE_ITEM_STATUS,
   LOTE_STATUS,
+  LOTE_TIPO,
   MENSAGEM_STATUS,
 } from "@/lib/core/status";
 import { registrarLogMensageria } from "./engine/logs";
@@ -94,6 +95,12 @@ async function getMensagemEnvio(supabase: SupabaseClient, id: string) {
 function getFormString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function agendamentoPreJuridico(payload: unknown, base = new Date()) {
+  const etapa = payload && typeof payload === 'object' ? (payload as any).etapa : null;
+  const delayDias = Math.max(0, Number(etapa?.delay_dias ?? 0) || 0);
+  return new Date(base.getTime() + delayDias * 86_400_000).toISOString();
 }
 
 function assertSupabaseMutation(error: { message?: string } | null | undefined, context: string) {
@@ -561,14 +568,14 @@ export async function registrarErroMensagem(
 async function getLoteResumo(supabase: SupabaseClient, loteId: string) {
   const { data, error } = await supabase
     .from("lotes")
-    .select("id,carteira_id,status")
+    .select("id,carteira_id,status,tipo")
     .eq("id", loteId)
     .maybeSingle();
 
   if (error) throw new Error(`Erro ao carregar lote: ${error.message}`);
   if (!data) throw new Error("Lote não encontrado.");
 
-  return data as { id: string; carteira_id: string | null; status: string | null };
+  return data as { id: string; carteira_id: string | null; status: string | null; tipo: string | null };
 }
 
 async function getLoteItemResumo(supabase: SupabaseClient, itemId: string) {
@@ -599,6 +606,9 @@ export async function aprovarItemLote(itemId: string) {
   const now = new Date().toISOString();
   const item = await getLoteItemResumo(supabase, itemId);
   const lote = await getLoteResumo(supabase, item.lote_id);
+  const mensagemStatusAprovado = lote.tipo === LOTE_TIPO.PRE_JURIDICO
+    ? MENSAGEM_STATUS.AGENDADA
+    : MENSAGEM_STATUS.APROVADA;
 
   if (!item.mensagem_id) {
     throw new Error("Este item não possui mensagem para aprovar.");
@@ -621,15 +631,22 @@ export async function aprovarItemLote(itemId: string) {
   if (itemError) throw new Error(`Erro ao aprovar item: ${itemError.message}`);
 
   if (item.mensagem_id) {
+    const { data: mensagemAtual } = lote.tipo === LOTE_TIPO.PRE_JURIDICO
+      ? await supabase.from("mensagens").select("payload").eq("id", item.mensagem_id).maybeSingle()
+      : { data: null };
+    const agendadaPara = lote.tipo === LOTE_TIPO.PRE_JURIDICO
+      ? agendamentoPreJuridico((mensagemAtual as any)?.payload, new Date(now))
+      : null;
     const { error: msgError } = await supabase
       .from("mensagens")
       .update({
-        status: MENSAGEM_STATUS.APROVADA,
-        status_operacional: MENSAGEM_STATUS.APROVADA,
+        status: mensagemStatusAprovado,
+        status_operacional: mensagemStatusAprovado,
         aprovado_por: userId,
         aprovado_em: now,
         erro: null,
         erro_envio: null,
+        ...(agendadaPara ? { scheduled_at: agendadaPara, agendada_para: agendadaPara } : {}),
       } as any)
       .eq("id", item.mensagem_id)
       .in("status", [
@@ -845,11 +862,26 @@ export async function aprovarLoteMensagens(loteId: string) {
   const userId = await getUserId(supabase);
   const now = new Date().toISOString();
 
+  const { data: lote, error: loteLoadError } = await supabase
+    .from("lotes")
+    .select("carteira_id,status,tipo")
+    .eq("id", loteId)
+    .maybeSingle();
+
+  assertSupabaseMutation(loteLoadError, "Erro ao carregar lote para aprovação");
+  if (!lote) throw new Error("Lote não encontrado.");
+  const mensagemStatusAprovado = lote.tipo === LOTE_TIPO.PRE_JURIDICO
+    ? MENSAGEM_STATUS.AGENDADA
+    : MENSAGEM_STATUS.APROVADA;
+  const mensagensAprovaveisStatus = lote.tipo === LOTE_TIPO.PRE_JURIDICO
+    ? [MENSAGEM_STATUS.PENDENTE_APROVACAO, MENSAGEM_STATUS.FALHA, MENSAGEM_STATUS.APROVADA]
+    : [MENSAGEM_STATUS.PENDENTE_APROVACAO, MENSAGEM_STATUS.FALHA];
+
   const { count: mensagensAprovaveis, error: countError } = await supabase
     .from("mensagens")
     .select("id", { count: "exact", head: true })
     .eq("lote_id", loteId)
-    .in("status", [MENSAGEM_STATUS.PENDENTE_APROVACAO, MENSAGEM_STATUS.FALHA]);
+    .in("status", mensagensAprovaveisStatus);
 
   if (countError) {
     throw new Error(`Erro ao validar mensagens do lote: ${countError.message}`);
@@ -862,20 +894,34 @@ export async function aprovarLoteMensagens(loteId: string) {
   const { error: mensagensError } = await supabase
     .from("mensagens")
     .update({
-      status: MENSAGEM_STATUS.APROVADA,
-      status_operacional: MENSAGEM_STATUS.APROVADA,
+      status: mensagemStatusAprovado,
+      status_operacional: mensagemStatusAprovado,
       aprovado_por: userId,
       aprovado_em: now,
       erro: null,
       erro_envio: null,
     } as any)
     .eq("lote_id", loteId)
-    .in("status", [MENSAGEM_STATUS.PENDENTE_APROVACAO, MENSAGEM_STATUS.FALHA]);
+    .in("status", mensagensAprovaveisStatus);
 
   if (mensagensError)
     throw new Error(
       `Erro ao aprovar mensagens do lote: ${mensagensError.message}`,
     );
+
+  if (lote.tipo === LOTE_TIPO.PRE_JURIDICO) {
+    const { data: agendadas, error: agendadasError } = await supabase
+      .from("mensagens")
+      .select("id,payload")
+      .eq("lote_id", loteId)
+      .eq("status", MENSAGEM_STATUS.AGENDADA);
+    if (agendadasError) throw new Error(`Erro ao montar agendamento da régua: ${agendadasError.message}`);
+    for (const mensagem of (agendadas ?? []) as any[]) {
+      const agendadaPara = agendamentoPreJuridico(mensagem.payload, new Date(now));
+      const { error: agendaError } = await supabase.from("mensagens").update({ scheduled_at: agendadaPara, agendada_para: agendadaPara } as any).eq("id", mensagem.id);
+      if (agendaError) throw new Error(`Erro ao agendar mensagem pré-jurídica: ${agendaError.message}`);
+    }
+  }
 
   const { error: itensError } = await supabase
     .from("lote_itens")
@@ -888,14 +934,6 @@ export async function aprovarLoteMensagens(loteId: string) {
     .in("status", [LOTE_ITEM_STATUS.CRIADO, LOTE_ITEM_STATUS.ERRO]);
 
   assertSupabaseMutation(itensError, "Erro ao aprovar itens do lote");
-
-  const { data: lote, error: loteLoadError } = await supabase
-    .from("lotes")
-    .select("carteira_id,status")
-    .eq("id", loteId)
-    .maybeSingle();
-
-  assertSupabaseMutation(loteLoadError, "Erro ao carregar lote aprovado");
 
   const { error } = await supabase
     .from("lotes")

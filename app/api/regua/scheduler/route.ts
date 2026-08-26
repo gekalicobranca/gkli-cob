@@ -14,6 +14,7 @@ export async function POST(req: Request) {
       origem: 'cron',
       executarCobranca: tipo ? tipo === 'cobranca' : true,
       executarAcordos: tipo ? tipo === 'acordo' : true,
+      executarPreJuridico: tipo === 'pre_juridico',
       dryRun,
     })
     return NextResponse.json(resultado)

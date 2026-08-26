@@ -3,6 +3,10 @@
     {
       "path": "/api/jobs/acordos/check-status",
       "schedule": "5 3 * * *"
+    },
+    {
+      "path": "/api/regua/scheduler?tipo=pre_juridico",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

@@ -82,6 +82,11 @@ function metric(value: unknown) {
   return numberValue(value).toLocaleString("pt-BR");
 }
 
+function formatDateTimeBR(value: string | null | undefined) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
+}
+
 function countMensagensByStatus(
   itens: Array<{
     mensagem?: {
@@ -295,10 +300,12 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
   const totalPuladas = numberValue((lote as any).total_puladas ?? byStatus.pulada);
   const totalDuplicadas = numberValue((lote as any).total_duplicadas ?? byStatus.duplicada);
   const totalErros = numberValue((lote as any).total_erros ?? byStatus.erro);
-  const pendentesAprovacao = numberValue(
-    (lote as any).total_pendentes ?? byMensagemStatus[MENSAGEM_STATUS.PENDENTE_APROVACAO] ?? byMensagemStatus.pendente,
+  const pendentesAprovacao = numberValue(isPreJuridico
+    ? byMensagemStatus[MENSAGEM_STATUS.PENDENTE_APROVACAO] ?? byMensagemStatus.pendente
+    : (lote as any).total_pendentes ?? byMensagemStatus[MENSAGEM_STATUS.PENDENTE_APROVACAO] ?? byMensagemStatus.pendente,
   );
   const aprovadas = numberValue((lote as any).total_aprovadas ?? byMensagemStatus[MENSAGEM_STATUS.APROVADA]);
+  const agendadas = numberValue(byMensagemStatus[MENSAGEM_STATUS.AGENDADA]);
   const enviadas = numberValue((lote as any).total_enviadas ?? byMensagemStatus[MENSAGEM_STATUS.ENVIADA]);
   const falhas = numberValue(
     (lote as any).total_erros ?? byMensagemStatus[MENSAGEM_STATUS.FALHA] ?? byMensagemStatus.erro ?? byMensagemStatus.falha_envio,
@@ -307,8 +314,8 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
   const hasMensagensOperacionais = totalCriadas > 0 || hasMensagens;
   const isAuditoriaSemMensagens =
     !hasMensagensOperacionais && (totalPuladas > 0 || totalDuplicadas > 0 || totalErros > 0);
-  const canApproveLote = pendentesAprovacao + falhas > 0;
-  const canSendEmails = hasEmailAprovado;
+  const canApproveLote = pendentesAprovacao + falhas + (isPreJuridico ? aprovadas : 0) > 0;
+  const canSendEmails = !isPreJuridico && hasEmailAprovado;
   const canReprocessar = falhas > 0 || numberValue(byStatus.erro) > 0;
 
   return (
@@ -440,7 +447,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                 ? isPreJuridico
                   ? "Corrigir contatos do condomínio e gerar novo lote"
                   : "Revisar motivos dos itens pulados"
-                : "Revisar, aprovar, enviar e acompanhar retorno"}
+                : isPreJuridico ? "Aprovar, agendar e acompanhar os disparos" : "Revisar, aprovar, enviar e acompanhar retorno"}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               {isAuditoriaSemMensagens ? (
@@ -450,8 +457,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                 </>
               ) : (
                 <>
-                  Pendentes de aprovação: {metric(pendentesAprovacao)} · Aprovadas:{" "}
-                  {metric(aprovadas)} · Enviadas: {metric(enviadas)} · Erros: {metric(falhas)}
+                  Pendentes de aprovação: {metric(pendentesAprovacao)} · {isPreJuridico ? <>Agendadas: {metric(agendadas)} · </> : <>Aprovadas: {metric(aprovadas)} · </>}Enviadas: {metric(enviadas)} · Erros: {metric(falhas)}
                 </>
               )}
             </p>
@@ -466,9 +472,9 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
           <div className="flex flex-wrap gap-2">
             {canApproveLote ? (
               <form action={aprovarLoteMensagens.bind(null, id)}>
-                <ActionButton confirmMessage="Confirmar aprovação de todas as mensagens pendentes deste lote?" pendingLabel="Aprovando...">
+                <ActionButton confirmMessage={isPreJuridico ? "Confirmar aprovação e agendamento da régua deste lote?" : "Confirmar aprovação de todas as mensagens pendentes deste lote?"} pendingLabel="Aprovando...">
                   <CheckCircle2 size={16} />
-                  Aprovar lote
+                  {isPreJuridico ? "Aprovar e agendar régua" : "Aprovar lote"}
                 </ActionButton>
               </form>
             ) : null}
@@ -597,7 +603,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                     <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-950">{condominio?.nome || "Condomínio não identificado"}</p><p className="truncate text-xs text-slate-500">Unidade {unidade?.identificacao || "não identificada"}{unidade?.responsavel_nome ? ` · ${unidade.responsavel_nome}` : ""}</p></div>
                     <div><p className="text-xs text-slate-400">Valor</p><p className="text-sm font-medium text-slate-800">{valor ? formatCurrency(valor) : "Sem valor"}</p></div>
                     <div className="min-w-0"><p className="text-xs text-slate-400">Destino</p><p className="truncate text-sm text-slate-700">{destinatarioExibido || "Sem destinatário"}</p></div>
-                    <div><p className="text-xs text-slate-400">Mensagem</p><p className="text-sm text-slate-700">{canalExibido || "Sem canal"} · {mensagem?.status_operacional || mensagem?.status ? humanizeStatus(mensagem.status_operacional || mensagem.status, MENSAGEM_STATUS_LABEL_UI) : "não criada"}</p></div>
+                    <div><p className="text-xs text-slate-400">Mensagem</p><p className="text-sm text-slate-700">{canalExibido || "Sem canal"} · {mensagem?.status_operacional || mensagem?.status ? humanizeStatus(mensagem.status_operacional || mensagem.status, MENSAGEM_STATUS_LABEL_UI) : "não criada"}</p>{mensagem?.enviada_em || mensagem?.sent_at ? <p className="text-xs text-emerald-700">Enviada em {formatDateTimeBR(mensagem.enviada_em || mensagem.sent_at)}</p> : mensagem?.agendada_para || mensagem?.scheduled_at ? <p className="text-xs text-slate-500">Disparo em {formatDateTimeBR(mensagem.agendada_para || mensagem.scheduled_at)}</p> : null}</div>
                     <ChevronDown size={17} className="text-slate-400 transition group-open/item:rotate-180" />
                   </summary>
                   <div className="grid gap-5 border-t border-slate-100 bg-slate-50/40 p-5 xl:grid-cols-[1.15fr_0.55fr_1fr_0.75fr] xl:items-start">
@@ -767,7 +773,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                           </form>
                         ) : null}
 
-                        {mensagem.canal === "email" &&
+                        {!isPreJuridico && mensagem.canal === "email" &&
                         mensagemStatus === MENSAGEM_STATUS.APROVADA ? (
                           <form
                             action={enviarMensagemEmail.bind(null, mensagem.id)}
