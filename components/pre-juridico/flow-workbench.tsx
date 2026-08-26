@@ -23,6 +23,15 @@ const FLOW_STATUS_LABEL: Record<string, string> = {
   concluido_com_falhas: 'Concluído com falhas',
 }
 
+const MESSAGE_STATUS_LABEL: Record<string, string> = {
+  pendente_aprovacao: 'Pendente',
+  aprovada: 'Aprovada',
+  agendada: 'Agendada',
+  enviada: 'Enviada',
+  falha: 'Falha',
+  cancelada: 'Cancelada',
+}
+
 function statusClass(status: string) {
   if (status === 'em_execucao') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
   if (status === 'pronto') return 'border-sky-200 bg-sky-50 text-sky-700'
@@ -31,9 +40,27 @@ function statusClass(status: string) {
   return 'border-rose-100 bg-rose-50 text-rose-700'
 }
 
+function itemStatusClass(status: string) {
+  if (['aprovado', 'aprovada', 'agendada', 'enviada'].includes(status)) return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  if (['criado', 'pendente_aprovacao'].includes(status)) return 'border-sky-200 bg-sky-50 text-sky-700'
+  if (['duplicada', 'pulada'].includes(status)) return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (['cancelado', 'cancelada', 'erro', 'falha'].includes(status)) return 'border-rose-100 bg-rose-50 text-rose-700'
+  return 'border-slate-200 bg-slate-50 text-slate-700'
+}
+
 function formatDateTimeBR(value: string | null | undefined) {
   if (!value) return 'Sem agendamento'
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(value))
+}
+
+function messageScheduleLabel(mensagem: any) {
+  const status = String(mensagem?.status_operacional ?? mensagem?.status ?? '')
+  const sentAt = mensagem?.enviada_em ?? mensagem?.sent_at
+  if (sentAt) return `Enviada em ${formatDateTimeBR(sentAt)}`
+  if (mensagem?.erro_envio || mensagem?.erro) return 'Falha no envio'
+  if (mensagem?.agendada_para || mensagem?.scheduled_at) return `Disparo em ${formatDateTimeBR(mensagem.agendada_para ?? mensagem.scheduled_at)}`
+  if (status === 'pendente_aprovacao' || status === 'aprovada') return 'Aguardando envio do Flow'
+  return 'Sem agendamento'
 }
 
 function caseValue(caso: any) {
@@ -41,6 +68,24 @@ function caseValue(caso: any) {
   if (cobrancas.length) return cobrancas.reduce((sum: number, item: any) => sum + Number(item.valor_atualizado ?? item.valor_original ?? 0), 0)
   const cobranca = relation(caso.cobranca)
   return Number(cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0)
+}
+
+function itemEntity(item: any) {
+  const cobranca = relation(item.cobranca)
+  const acordo = relation(item.acordo)
+  const origem = cobranca ?? acordo ?? {}
+  const unidade = relation(origem.unidade)
+  const condominio = relation(unidade?.condominio)
+  const valor = cobranca
+    ? Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0)
+    : Number(acordo?.valor_acordado ?? 0)
+
+  return {
+    condominio: condominio?.nome_operacional || condominio?.nome || 'Condomínio',
+    unidade: unidade?.identificacao || '-',
+    responsavel: unidade?.responsavel_nome || 'Responsável não informado',
+    valor,
+  }
 }
 
 function groupByCarteira(casos: any[]) {
@@ -187,6 +232,7 @@ function FlowRow({ flow }: { flow: any }) {
   const carteira = relation(flow.carteira)
   const regua = relation(flow.regua)
   const lote = relation(flow.lote)
+  const itens = Array.isArray(flow.itens) ? flow.itens : []
   return <details className="group/flow">
     <summary className="list-none [&::-webkit-details-marker]:hidden">
       <ListRow className="cursor-pointer bg-white lg:grid-cols-[minmax(280px,1fr)_130px_150px_160px_220px_20px]">
@@ -209,7 +255,7 @@ function FlowRow({ flow }: { flow: any }) {
       <div className="grid gap-3 sm:grid-cols-3">
         <Metric label="Falhas" value={flow.total_falhas} />
         <Metric label="Criado em" value={formatDateBR(flow.created_at)} />
-        <Metric label="Lote" value={lote?.status ? `Status ${lote.status}` : 'Sem status'} />
+        <Metric label="Itens" value={`${itens.length} no Flow`} />
       </div>
       <div className="flex flex-wrap justify-end gap-2">
         <Link href={`/app/lotes/${flow.lote_id}?pre_juridico=1`} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50">
@@ -226,7 +272,59 @@ function FlowRow({ flow }: { flow: any }) {
         ) : null}
       </div>
     </div>
+    <div className="border-t border-slate-100 bg-white px-4 py-3">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-950">Itens do Flow</p>
+          <p className="text-xs text-slate-500">Casos e mensagens vinculados ao lote {String(flow.lote_id ?? '').slice(0, 8)}.</p>
+        </div>
+        <span className="text-xs text-slate-400">Lote {lote?.status ? `· ${lote.status}` : ''}</span>
+      </div>
+      {itens.length ? (
+        <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          {itens.map((item: any) => <FlowItemRow key={item.id} item={item} />)}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+          Nenhum item vinculado a este Flow ainda.
+        </div>
+      )}
+    </div>
   </details>
+}
+
+function FlowItemRow({ item }: { item: any }) {
+  const entity = itemEntity(item)
+  const mensagem = relation(item.mensagem)
+  const itemStatus = String(item.status ?? 'criado')
+  const messageStatus = String(mensagem?.status_operacional ?? mensagem?.status ?? '')
+  const statusLabel = MESSAGE_STATUS_LABEL[messageStatus] ?? (messageStatus || itemStatus)
+  const destino = mensagem?.email_destinatario || mensagem?.destinatario || 'Destino não informado'
+
+  return (
+    <div className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[140px_minmax(260px,1fr)_130px_minmax(180px,1fr)_180px_24px] lg:items-center">
+      <div>
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(messageStatus || itemStatus)}`}>
+          {statusLabel}
+        </span>
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-950">{entity.condominio}</p>
+        <p className="mt-1 truncate text-xs text-slate-500">Unidade {entity.unidade} · {entity.responsavel}</p>
+      </div>
+      <Metric label="Valor" value={formatCurrency(entity.valor)} />
+      <div className="min-w-0">
+        <p className="text-xs text-slate-400">Destino</p>
+        <p className="mt-1 truncate text-sm font-medium text-slate-800">{destino}</p>
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-400">Mensagem</p>
+        <p className="mt-1 truncate text-sm font-medium text-slate-800">{mensagem?.canal || 'email'} · {statusLabel}</p>
+        <p className="mt-0.5 truncate text-xs text-slate-500">{messageScheduleLabel(mensagem)}</p>
+      </div>
+      <ChevronRight size={17} className="text-slate-300" />
+    </div>
+  )
 }
 
 function Metric({ label, value }: { label: string; value: unknown }) {

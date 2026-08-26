@@ -56,6 +56,92 @@ export async function getPreJuridicoFlowPageData(scope: CarteiraScope) {
   const { data: flows, error } = await flowsQuery
   if (error && error.code !== '42P01') throw new Error(`Erro ao carregar Flows pré-jurídicos: ${error.message}`)
 
+  const flowRows = (flows ?? []) as any[]
+  const flowIds = flowRows.map((flow) => flow.id).filter(Boolean)
+  let itensPorFlow = new Map<string, any[]>()
+
+  if (flowIds.length) {
+    const { data: itens, error: itensError } = await supabase
+      .from('lote_itens')
+      .select(`
+        id,
+        lote_id,
+        pre_juridico_flow_id,
+        cobranca_id,
+        acordo_id,
+        status,
+        motivo,
+        payload,
+        created_at,
+        cobranca:cobrancas(
+          id,
+          valor_original,
+          valor_atualizado,
+          vencimento,
+          unidade:unidades(
+            id,
+            identificacao,
+            responsavel_nome,
+            condominio:condominios(
+              id,
+              nome,
+              nome_operacional
+            )
+          )
+        ),
+        acordo:acordos(
+          id,
+          valor_acordado,
+          data_acordo,
+          unidade:unidades(
+            id,
+            identificacao,
+            responsavel_nome,
+            condominio:condominios(
+              id,
+              nome,
+              nome_operacional
+            )
+          )
+        ),
+        mensagem:mensagens!lote_itens_mensagem_id_fkey(
+          id,
+          canal,
+          status,
+          status_operacional,
+          destinatario,
+          email_destinatario,
+          email_assunto,
+          scheduled_at,
+          agendada_para,
+          sent_at,
+          enviada_em,
+          erro,
+          erro_envio,
+          created_at
+        )
+      `)
+      .in('pre_juridico_flow_id', flowIds)
+      .order('created_at', { ascending: true })
+      .limit(1000)
+
+    if (itensError) throw new Error(`Erro ao carregar itens dos Flows pré-jurídicos: ${itensError.message}`)
+
+    itensPorFlow = (itens ?? []).reduce((map, item: any) => {
+      const flowId = String(item.pre_juridico_flow_id ?? '')
+      if (!flowId) return map
+      const list = map.get(flowId) ?? []
+      list.push({
+        ...item,
+        cobranca: relation(item.cobranca),
+        acordo: relation(item.acordo),
+        mensagem: relation(item.mensagem),
+      })
+      map.set(flowId, list)
+      return map
+    }, new Map<string, any[]>())
+  }
+
   return {
     disponibilidade: disponibilidade.map((caso) => ({
       ...caso,
@@ -66,6 +152,9 @@ export async function getPreJuridicoFlowPageData(scope: CarteiraScope) {
     })),
     reguas,
     lotes,
-    flows: flows ?? [],
+    flows: flowRows.map((flow) => ({
+      ...flow,
+      itens: itensPorFlow.get(flow.id) ?? [],
+    })),
   }
 }
