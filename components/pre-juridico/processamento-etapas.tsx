@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronDown, ChevronRight, FileSignature, PackagePlus } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronRight, FileSignature, PackagePlus } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
-import { atualizarCertidaoPreJuridico, atualizarDistribuicaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, confirmarJuridicoPreJuridico, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
+import { atualizarCertidaoPreJuridico, atualizarDistribuicaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, atualizarProcuracoesPreJuridicoEmMassa, confirmarJuridicoPreJuridico, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
 import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -15,10 +15,14 @@ const relation = (value: any) => Array.isArray(value) ? value[0] : value
 export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: readonly PreJuridicoEtapa[] }) {
   const [selectedProcuracoes, setSelectedProcuracoes] = useState<string[]>([])
   const toggleProcuracao = (id: string) => setSelectedProcuracoes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  const toggleTodasProcuracoes = (ids: string[], checked: boolean) => setSelectedProcuracoes((current) => checked ? Array.from(new Set([...current, ...ids])) : current.filter((id) => !ids.includes(id)))
   return <div className="space-y-3">
     {etapas.map((etapaId) => {
       const etapa = PRE_JURIDICO_ETAPAS.find((item) => item.id === etapaId)!
       const rows = casos.filter((caso) => caso.etapa === etapaId)
+      const procuracaoIds = rows.map((caso) => String(caso.id))
+      const selectedNaEtapa = etapaId === 'aguardando_sindico' ? rows.filter((caso) => selectedProcuracoes.includes(caso.id)) : []
+      const todasSelecionadas = procuracaoIds.length > 0 && procuracaoIds.every((id) => selectedProcuracoes.includes(id))
       return <ListPanel key={etapaId}>
         <details open={rows.length > 0} className="group bg-white">
           <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
@@ -28,8 +32,30 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
             </ListPanelHeader>
           </summary>
           <div>
-          {etapaId === 'aguardando_sindico' && rows.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between"><p className="text-sm text-slate-600">Gere as procurações aqui; depois monte lote, régua e disparo na tela Flow.</p><div className="flex flex-wrap gap-2"><form action={gerarProcuracoesPreJuridico} target="_blank" onSubmit={(event) => { if (!window.confirm(`Gerar ${selectedProcuracoes.length} procuração(ões)?`)) event.preventDefault() }}>{selectedProcuracoes.map((id) => <input key={id} type="hidden" name="caso_id" value={id} />)}<PendingSubmitButton disabled={!selectedProcuracoes.length} pendingLabel="Gerando procurações..."><FileSignature size={16} />Gerar procuração {selectedProcuracoes.length ? `(${selectedProcuracoes.length})` : ''}</PendingSubmitButton></form><Link href="/app/pre-juridico/flow" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"><PackagePlus size={16} />Montar Flow</Link></div></div> : null}
-          {rows.length ? <ListRows>{rows.map((caso) => { const gerarDisponivel = caso.procuracao_status !== 'gerada' && caso.procuracao_status !== 'assinada'; return <CasoProcessamento key={caso.id} caso={caso} selectable={etapaId === 'aguardando_sindico' && gerarDisponivel} selectionLabel="Selecionar para gerar procuração" selected={selectedProcuracoes.includes(caso.id)} onToggle={() => toggleProcuracao(caso.id)} /> })}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
+          {etapaId === 'aguardando_sindico' && rows.length ? <div className="border-b border-slate-100">
+            <div className="flex flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+              <p className="text-sm text-slate-600">Gere as procurações aqui; depois monte lote, régua e disparo na tela Flow.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 shadow-sm">
+                  <input type="checkbox" checked={todasSelecionadas} onChange={(event) => toggleTodasProcuracoes(procuracaoIds, event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+                  Selecionar todas
+                </label>
+                <form action={gerarProcuracoesPreJuridico} target="_blank" onSubmit={(event) => { if (!window.confirm(`Gerar ${selectedNaEtapa.length} procuração(ões)?`)) event.preventDefault() }}>
+                  {selectedNaEtapa.map((caso) => <input key={caso.id} type="hidden" name="caso_id" value={caso.id} />)}
+                  <PendingSubmitButton disabled={!selectedNaEtapa.length} pendingLabel="Gerando procurações..."><FileSignature size={16} />Gerar procuração {selectedNaEtapa.length ? `(${selectedNaEtapa.length})` : ''}</PendingSubmitButton>
+                </form>
+                <Link href="/app/pre-juridico/flow" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"><PackagePlus size={16} />Montar Flow</Link>
+              </div>
+            </div>
+            {selectedNaEtapa.length ? <form action={atualizarProcuracoesPreJuridicoEmMassa} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-3 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm(`Atualizar o andamento de ${selectedNaEtapa.length} procuração(ões)?`)) event.preventDefault() }}>
+              {selectedNaEtapa.map((caso) => <input key={caso.id} type="hidden" name="caso_id" value={caso.id} />)}
+              <Field label="Alterar selecionadas para"><select name="procuracao_status" defaultValue="gerada" className={controlClass}><option value="pendente">Pendente</option><option value="gerada">Gerada</option><option value="assinada">Assinada</option></select></Field>
+              <Field label="Observação em massa"><input name="observacoes" className={controlClass} /></Field>
+              <PendingSubmitButton pendingLabel="Atualizando..."><CheckCircle2 size={16} />Salvar em massa ({selectedNaEtapa.length})</PendingSubmitButton>
+              <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, os casos selecionados avançam automaticamente para Confirmar jurídico.</p>
+            </form> : null}
+          </div> : null}
+          {rows.length ? <ListRows>{rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} selectable={etapaId === 'aguardando_sindico'} selectionLabel="Selecionar procuração" selected={selectedProcuracoes.includes(caso.id)} onToggle={() => toggleProcuracao(caso.id)} />)}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
           </div>
         </details>
       </ListPanel>

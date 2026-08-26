@@ -312,6 +312,47 @@ export async function atualizarProcuracaoPreJuridico(formData: FormData) {
   revalidatePath('/app/pre-juridico/processamento')
 }
 
+export async function atualizarProcuracoesPreJuridicoEmMassa(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+  const supabase = await createClient()
+  const casoIds = Array.from(new Set(formData.getAll('caso_id').map(String).map((id) => id.trim()).filter(Boolean)))
+  const status = String(formData.get('procuracao_status') ?? '').trim()
+  const observacoes = String(formData.get('observacoes') ?? '').trim() || null
+  if (!casoIds.length) throw new Error('Selecione ao menos uma procuração para atualizar.')
+  if (!['pendente', 'gerada', 'assinada'].includes(status)) throw new Error('Andamento da procuração inválido.')
+
+  let query = supabase
+    .from('pre_juridico_casos')
+    .select('id,carteira_id,cobranca_id,etapa,procuracao_gerada_em,procuracao_assinada_em')
+    .in('id', casoIds)
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  const { data, error: casosError } = await query
+  if (casosError) throw new Error(`Erro ao carregar procurações: ${casosError.message}`)
+  const casos = (data ?? []) as any[]
+  if (casos.length !== casoIds.length || casos.some((caso) => caso.etapa !== 'aguardando_sindico')) {
+    throw new Error('Uma ou mais procurações selecionadas não estão na etapa de Procuração.')
+  }
+
+  const agora = new Date().toISOString()
+  for (const caso of casos) {
+    const payload: Record<string, unknown> = { procuracao_status: status, observacoes, responsavel_id: user.id }
+    if (status === 'gerada' && !caso.procuracao_gerada_em) payload.procuracao_gerada_em = agora
+    if (status === 'assinada') {
+      payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora
+      payload.procuracao_assinada_em = caso.procuracao_assinada_em ?? agora
+      payload.etapa = 'confirmar_juridico'
+    }
+    const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', caso.id)
+    if (error) throw new Error(`Erro ao atualizar procuração: ${error.message}`)
+  }
+
+  revalidatePath('/app/pre-juridico/processamento')
+  revalidatePath('/app/pre-juridico/flow')
+  revalidatePath('/app/pre-juridico/monitor')
+}
+
 export async function encaminharCobrancasPreJuridico(formData: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
