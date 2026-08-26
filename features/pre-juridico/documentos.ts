@@ -422,40 +422,70 @@ async function salvarDocumento(params: DocumentoGeradoInput & {
     });
   if (uploadError) throw new Error(`Erro ao armazenar PDF: ${uploadError.message}`);
 
-  const { data: documento, error: documentoError } = await params.supabase
+  const documentoPayload = {
+    carteira_id: params.carteiraId ?? null,
+    lote_id: params.loteId,
+    lote_item_id: params.loteItemId ?? null,
+    mensagem_id: params.mensagemId,
+    acordo_id: params.acordoId ?? null,
+    cobranca_id: params.cobrancaId ?? null,
+    condominio_id: params.condominioId ?? null,
+    unidade_id: params.unidadeId ?? null,
+    tipo: params.tipo,
+    nome_arquivo: params.nomeArquivo,
+    content_type: "application/pdf",
+    storage_bucket: BUCKET,
+    storage_path: storagePath,
+    tamanho_bytes: params.buffer.length,
+    checksum_sha256: hash,
+    payload: { origem: params.origem, ids: params.ids },
+  } as any;
+
+  let { data: documento, error: documentoError } = await params.supabase
     .from("documentos_gerados")
-    .upsert({
-      carteira_id: params.carteiraId ?? null,
-      lote_id: params.loteId,
-      lote_item_id: params.loteItemId ?? null,
-      mensagem_id: params.mensagemId,
-      acordo_id: params.acordoId ?? null,
-      cobranca_id: params.cobrancaId ?? null,
-      condominio_id: params.condominioId ?? null,
-      unidade_id: params.unidadeId ?? null,
-      tipo: params.tipo,
-      nome_arquivo: params.nomeArquivo,
-      content_type: "application/pdf",
-      storage_bucket: BUCKET,
-      storage_path: storagePath,
-      tamanho_bytes: params.buffer.length,
-      checksum_sha256: hash,
-      payload: { origem: params.origem, ids: params.ids },
-    } as any, { onConflict: "storage_bucket,storage_path" })
+    .insert(documentoPayload)
     .select("id")
     .single();
+
+  if (documentoError?.code === "23505") {
+    const existente = await params.supabase
+      .from("documentos_gerados")
+      .select("id")
+      .eq("storage_bucket", BUCKET)
+      .eq("storage_path", storagePath)
+      .maybeSingle();
+    documento = existente.data;
+    documentoError = existente.error;
+  }
+
   if (documentoError || !documento?.id) throw new Error(`Erro ao registrar PDF: ${documentoError?.message ?? "documento não retornado"}`);
+
+  const { data: documentoConfirmado, error: documentoConfirmadoError } = await params.supabase
+    .from("documentos_gerados")
+    .select("id")
+    .eq("id", documento.id)
+    .maybeSingle();
+  if (documentoConfirmadoError || !documentoConfirmado?.id) {
+    throw new Error(`Erro ao confirmar PDF gerado: ${documentoConfirmadoError?.message ?? "documento não encontrado"}`);
+  }
 
   const { error: anexoError } = await params.supabase
     .from("mensagem_anexos")
     .upsert({
       mensagem_id: params.mensagemId,
-      documento_id: documento.id,
+      documento_id: documentoConfirmado.id,
       ordem: params.tipo === "laudo_pre_juridico" ? 1 : 2,
     } as any, { onConflict: "mensagem_id,documento_id" });
-  if (anexoError) throw new Error(`Erro ao vincular anexo à mensagem: ${anexoError.message}`);
+  if (anexoError) {
+    console.warn("Não foi possível vincular anexo pré-jurídico à mensagem.", {
+      mensagemId: params.mensagemId,
+      documentoId: documentoConfirmado.id,
+      tipo: params.tipo,
+      erro: anexoError.message,
+    });
+  }
 
-  return documento.id as string;
+  return documentoConfirmado.id as string;
 }
 
 export async function gerarEAnexarDocumentosPreJuridico(input: DocumentoGeradoInput) {
