@@ -459,19 +459,42 @@ async function carregarContatosSindico(
     }]);
   }
 
-  const { data } = await supabase
+  const { data: vinculos, error: vinculosError } = await supabase
     .from("portal_sindico_condominios")
-    .select("condominio_id, portal_sindico_usuarios(nome,email)")
+    .select("condominio_id,portal_usuario_id")
     .in("condominio_id", condominioIds);
 
-  for (const row of (data ?? []) as any[]) {
-    const usuario = firstRelation((row as any).portal_sindico_usuarios);
+  if (vinculosError) {
+    throw new Error(`Erro ao carregar vínculos de síndicos para documento: ${vinculosError.message}`);
+  }
+
+  const portalUsuarioIds = unique(
+    (vinculos ?? []).map((vinculo: any) => vinculo.portal_usuario_id),
+  );
+
+  if (!portalUsuarioIds.length) return result;
+
+  const { data: usuarios, error: usuariosError } = await supabase
+    .from("portal_sindico_usuarios")
+    .select("id,nome,email")
+    .in("id", portalUsuarioIds);
+
+  if (usuariosError) {
+    throw new Error(`Erro ao carregar síndicos para documento: ${usuariosError.message}`);
+  }
+
+  const usuariosPorId = new Map(
+    (usuarios ?? []).map((usuario: any) => [String(usuario.id), usuario]),
+  );
+
+  for (const vinculo of (vinculos ?? []) as any[]) {
+    const usuario = usuariosPorId.get(String(vinculo.portal_usuario_id ?? ""));
     const email = String(usuario?.email ?? "").trim();
-    if (!row.condominio_id || !email) continue;
-    if (result.has(row.condominio_id)) continue;
-    const list = result.get(row.condominio_id) ?? [];
+    if (!vinculo.condominio_id || !email) continue;
+    if (result.has(vinculo.condominio_id)) continue;
+    const list = result.get(vinculo.condominio_id) ?? [];
     list.push({ nome: usuario?.nome ?? email, email });
-    result.set(row.condominio_id, list);
+    result.set(vinculo.condominio_id, list);
   }
 
   return result;
