@@ -32,9 +32,12 @@ import {
   observacaoComBloqueioGarantidora,
   statusComBloqueioGarantidora,
 } from "./bloqueio-garantidora";
+import {
+  avaliarRecorteAnoCorrente,
+  limparCobrancasDaNovaImportacao,
+} from "./recorte-cobrancas";
 import { sincronizarResponsavelComUnidadeOperacional } from "@/features/responsaveis-unidades/sync-unidade";
 import { normalizeCondominioName } from "@/features/condominios/normalize-name";
-import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
 import { assertUnidadeMatchesMasks } from "@/features/unidades/mask";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -123,18 +126,18 @@ async function limparCobrancasNovasAnteriores(
     );
   }
 
-  const { data, error } = await supabase
-    .from("cobrancas")
-    .delete()
-    .in("condominio_id", condominioIds)
-    .eq("status_operacional", COBRANCA_STATUS_OPERACIONAL.NOVO)
-    .select("id");
+  const carteiraIds = Array.from(
+    new Set(
+      payloads
+        .map((payload) => String(payload.carteira_id ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
 
-  if (error) {
-    throw new Error(`Erro ao limpar cobranças anteriores: ${error.message}`);
-  }
-
-  return data?.length ?? 0;
+  return limparCobrancasDaNovaImportacao(supabase as any, {
+    condominioIds,
+    carteiraId: carteiraIds.length === 1 ? carteiraIds[0] : null,
+  });
 }
 
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
@@ -1016,16 +1019,22 @@ async function enrichCobrancaPreview(
       alertas.push("Contato encontrado no cadastro de apoio de responsaveis");
     }
 
+    const recorteAnoCorrente = avaliarRecorteAnoCorrente(payload.vencimento);
     const reguaImportacao = avaliarReguaImportacao({
       vencimento: payload.vencimento,
       inicioCobrancaDias: condominio?.inicio_cobranca_dias,
     });
     const importarPeloRecorte = somenteValidasNaRegua
-      ? !reguaImportacao.foraRegua
-      : true;
-    const motivoRecorte = somenteValidasNaRegua && reguaImportacao.foraRegua
-      ? reguaImportacao.motivo
-      : null;
+      ? recorteAnoCorrente.dentroDoAnoCorrente && !reguaImportacao.foraRegua
+      : recorteAnoCorrente.dentroDoAnoCorrente;
+    const motivoRecorte = !recorteAnoCorrente.dentroDoAnoCorrente
+      ? recorteAnoCorrente.motivo
+      : somenteValidasNaRegua && reguaImportacao.foraRegua
+        ? reguaImportacao.motivo
+        : null;
+    if (!recorteAnoCorrente.dentroDoAnoCorrente && recorteAnoCorrente.motivo) {
+      alertas.push(`${recorteAnoCorrente.motivo} Linha será mantida apenas no histórico da importação.`);
+    }
     if (somenteValidasNaRegua && reguaImportacao.foraRegua && reguaImportacao.motivo) {
       alertas.push(`Fora da régua de cobrança: ${reguaImportacao.motivo} Linha será mantida apenas no histórico da importação.`);
     }
@@ -1070,6 +1079,8 @@ async function enrichCobrancaPreview(
         acao_sugerida: !importarPeloRecorte ? "Manter apenas no histórico" : priority.acao,
         motivo_prioridade: motivoRecorte ?? priority.motivo,
         fora_regua_cobranca: reguaImportacao.foraRegua,
+        fora_ano_corrente: !recorteAnoCorrente.dentroDoAnoCorrente,
+        ano_corrente_importacao: recorteAnoCorrente.anoCorrente,
         importar_cobranca: importarPeloRecorte,
         recorte_regua: somenteValidasNaRegua ? "ja_na_regua" : "todos",
         dias_atraso_importacao: reguaImportacao.diasAtraso,
@@ -1779,6 +1790,15 @@ async function importarCobrancas(
     const linha = Number(payload.__linha ?? index + 1);
 
     try {
+      const recorteAnoCorrente = avaliarRecorteAnoCorrente(payload.vencimento);
+      if (!recorteAnoCorrente.dentroDoAnoCorrente) {
+        resultado.ignorados += 1;
+        resultado.erros.push(
+          `Linha ${linha}: cobrança mantida apenas no histórico da importação. ${recorteAnoCorrente.motivo}`,
+        );
+        continue;
+      }
+
       const unidade = await garantirUnidadeDaImportacao(supabase, payload);
       payload.unidade_id = unidade.id;
       if (unidade.criada) resultado.criados += 1;

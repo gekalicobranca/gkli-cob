@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { inflateSync } from "zlib";
 import * as XLSX from "xlsx";
+import { avaliarRecorteAnoCorrente } from "@/features/importacoes/recorte-cobrancas";
 
 export type ParcelaNormalizada = {
   unidade: string;
@@ -1324,8 +1325,13 @@ function buildPreviewFromRecibos({
     };
   }
 
-  const recibosElegiveis = recibos.filter((recibo) => !vencimentoComMaisDeCincoAnos(recibo.vencimento));
+  const recibosMuitoAntigos = recibos.filter((recibo) => vencimentoComMaisDeCincoAnos(recibo.vencimento));
+  const recibosElegiveis = recibos.filter((recibo) => {
+    const recorte = avaliarRecorteAnoCorrente(recibo.vencimento);
+    return !vencimentoComMaisDeCincoAnos(recibo.vencimento) && recorte.dentroDoAnoCorrente;
+  });
   const totalDesprezado = recibos.length - recibosElegiveis.length;
+  const totalForaAnoCorrente = recibos.length - recibosMuitoAntigos.length - recibosElegiveis.length;
   const cobrancas = recibosElegiveis.map(
     (recibo) =>
       ({
@@ -1376,7 +1382,17 @@ function buildPreviewFromRecibos({
         }),
       cobrancas,
       unidades: [],
-      inconsistencias: totalDesprezado ? [`${totalDesprezado} cota(s) com vencimento superior a 5 anos foram desprezadas.`] : [],
+      inconsistencias: [
+        totalForaAnoCorrente
+          ? `${totalForaAnoCorrente} cota(s) fora do ano corrente foram mantidas fora da importação operacional.`
+          : null,
+        recibosMuitoAntigos.length
+          ? `${recibosMuitoAntigos.length} cota(s) com vencimento superior a 5 anos foram desprezadas.`
+          : null,
+        totalDesprezado && !totalForaAnoCorrente && !recibosMuitoAntigos.length
+          ? `${totalDesprezado} cota(s) foram desprezadas pelo recorte operacional.`
+          : null,
+      ].filter(Boolean) as string[],
       csv: buildCsvPadraoGkli(cobrancas, condominioCnpj),
       xlsxBase64: buildXlsxBase64PadraoGkli(cobrancas, condominioCnpj),
     },
@@ -1402,8 +1418,13 @@ function buildPreviewFromParcelas({
     };
   }
 
-  const parcelasElegiveis = parcelas.filter((parcela) => !vencimentoComMaisDeCincoAnos(parcela.vencimento));
+  const parcelasMuitoAntigas = parcelas.filter((parcela) => vencimentoComMaisDeCincoAnos(parcela.vencimento));
+  const parcelasElegiveis = parcelas.filter((parcela) => {
+    const recorte = avaliarRecorteAnoCorrente(parcela.vencimento);
+    return !vencimentoComMaisDeCincoAnos(parcela.vencimento) && recorte.dentroDoAnoCorrente;
+  });
   const totalDesprezado = parcelas.length - parcelasElegiveis.length;
+  const totalForaAnoCorrente = parcelas.length - parcelasMuitoAntigas.length - parcelasElegiveis.length;
   const grouped = new Map<string, CobrancaPreview>();
 
   for (const parcela of parcelasElegiveis) {
@@ -1449,7 +1470,17 @@ function buildPreviewFromParcelas({
       }),
       cobrancas,
       unidades: [],
-      inconsistencias: totalDesprezado ? [`${totalDesprezado} cota(s) com vencimento superior a 5 anos foram desprezadas.`] : [],
+      inconsistencias: [
+        totalForaAnoCorrente
+          ? `${totalForaAnoCorrente} cota(s) fora do ano corrente foram mantidas fora da importação operacional.`
+          : null,
+        parcelasMuitoAntigas.length
+          ? `${parcelasMuitoAntigas.length} cota(s) com vencimento superior a 5 anos foram desprezadas.`
+          : null,
+        totalDesprezado && !totalForaAnoCorrente && !parcelasMuitoAntigas.length
+          ? `${totalDesprezado} cota(s) foram desprezadas pelo recorte operacional.`
+          : null,
+      ].filter(Boolean) as string[],
       csv: buildCsvPadraoGkli(cobrancas, condominioCnpj),
       xlsxBase64: buildXlsxBase64PadraoGkli(cobrancas, condominioCnpj),
     },

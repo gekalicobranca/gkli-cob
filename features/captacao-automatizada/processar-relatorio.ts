@@ -3,6 +3,7 @@ import path from "node:path"
 import * as XLSX from "xlsx"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { parseRelatorioBuffer } from "@/features/conversao-relatorio/server/parse-relatorio-buffer"
+import { avaliarRecorteAnoCorrente } from "@/features/importacoes/recorte-cobrancas"
 
 function normalizar(value: unknown) {
   return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]+/gi, " ").trim().toUpperCase()
@@ -34,18 +35,33 @@ function vencimentoComMaisDeCincoAnos(value: unknown) {
   return vencimento.getTime() < new Date(Date.UTC(ano - 5, mes - 1, dia)).getTime()
 }
 
-function desprezarCotasComMaisDeCincoAnos(preview: any) {
+function aplicarRecorteOperacionalDeVencimento(preview: any) {
   const cobrancas = Array.isArray(preview.cobrancas) ? preview.cobrancas : []
-  const elegiveis = cobrancas.filter((item: any) => !vencimentoComMaisDeCincoAnos(item.vencimento ?? item.vencimentoMaisAntigo))
+  const muitoAntigas = cobrancas.filter((item: any) => vencimentoComMaisDeCincoAnos(item.vencimento ?? item.vencimentoMaisAntigo))
+  const elegiveis = cobrancas.filter((item: any) => {
+    const vencimento = item.vencimento ?? item.vencimentoMaisAntigo
+    const recorte = avaliarRecorteAnoCorrente(vencimento)
+    return !vencimentoComMaisDeCincoAnos(vencimento) && recorte.dentroDoAnoCorrente
+  })
   const desprezadas = cobrancas.length - elegiveis.length
+  const foraAnoCorrente = cobrancas.length - muitoAntigas.length - elegiveis.length
   return {
     ...preview,
     cobrancas: elegiveis,
     totalParcelas: elegiveis.reduce((total: number, item: any) => total + Math.max(1, item.parcelas?.length ?? 0), 0),
     valorTotal: elegiveis.reduce((total: number, item: any) => total + Number(item.valorTotal ?? 0), 0),
-    inconsistencias: desprezadas
-      ? [...(preview.inconsistencias ?? []), `${desprezadas} cota(s) com vencimento superior a 5 anos foram desprezadas.`]
-      : (preview.inconsistencias ?? []),
+    inconsistencias: [
+      ...(preview.inconsistencias ?? []),
+      foraAnoCorrente
+        ? `${foraAnoCorrente} cota(s) fora do ano corrente foram mantidas fora da importação operacional.`
+        : null,
+      muitoAntigas.length
+        ? `${muitoAntigas.length} cota(s) com vencimento superior a 5 anos foram desprezadas.`
+        : null,
+      desprezadas && !foraAnoCorrente && !muitoAntigas.length
+        ? `${desprezadas} cota(s) foram desprezadas pelo recorte operacional.`
+        : null,
+    ].filter(Boolean),
   }
 }
 
@@ -150,7 +166,7 @@ export async function processarRelatorioCaptado(arquivo: string): Promise<Resumo
   if (!preview?.ok) throw new Error(preview?.error || "Não foi possível converter o relatório.")
   preview = preview.preview
   if (!preview.cobrancas?.length) preview = parseBbzClock(buffer, path.basename(arquivo))
-  preview = desprezarCotasComMaisDeCincoAnos(preview)
+  preview = aplicarRecorteOperacionalDeVencimento(preview)
   preview = aplicarBlocoPadrao(preview, blocoPadraoCaptacao)
   if (!preview.cobrancas?.length && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos"))) {
     throw new Error("O relatório não contém cobranças reconhecíveis.")

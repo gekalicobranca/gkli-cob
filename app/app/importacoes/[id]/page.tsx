@@ -304,7 +304,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                 Limpar cobranças anteriores
               </span>
               <span className="mt-1 block text-sm leading-6 text-amber-900/80">
-                Remove apenas cobranças com status Novo destes condomínios antes da importação.
+                Remove apenas cobranças com status Novo e vencimento no ano corrente destes condomínios antes da importação.
               </span>
             </span>
           </label>

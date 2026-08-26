@@ -17,6 +17,11 @@ import {
   statusComBloqueioGarantidora,
 } from "@/features/importacoes/bloqueio-garantidora"
 import {
+  anoCorrenteImportacao,
+  avaliarRecorteAnoCorrente,
+  limparCobrancasDaNovaImportacao,
+} from "@/features/importacoes/recorte-cobrancas"
+import {
   buscarPossivelUnidadePorNormalizacao,
   registrarSaneamentosDaCobrancaImportada,
   type UnidadeSaneamentoRow,
@@ -126,6 +131,7 @@ export async function POST(request: NextRequest) {
     const conversaoId = body?.conversaoId
     const condominioId = body?.condominioId
     const carteiraId = body?.carteiraId
+    const limparCobrancasAnteriores = body?.limparCobrancasAnteriores !== false
 
     if (!conversaoId) {
       return NextResponse.json(
@@ -183,6 +189,7 @@ export async function POST(request: NextRequest) {
           cobrancasIgnoradas: 0,
           cobrancasDivergentes: 0,
           cobrancasAusentes: 0,
+          cobrancasAnterioresRemovidas: 0,
           parcelasCriadas: 0,
           inconsistencias: [],
         },
@@ -202,9 +209,24 @@ export async function POST(request: NextRequest) {
     let cobrancasDivergentes = 0
     let cobrancasAusentes = 0
     let parcelasCriadas = 0
+    let cobrancasAnterioresRemovidas = 0
     const inconsistencias: string[] = []
     const importadasParaAusencia: CobrancaImportadaConciliacao[] = []
     const origemImportacao = formatOrigemImportacao("conversao_relatorio")
+    const anoCorrente = anoCorrenteImportacao()
+
+    if (limparCobrancasAnteriores) {
+      cobrancasAnterioresRemovidas = await limparCobrancasDaNovaImportacao(supabase as any, {
+        condominioIds: [condominioId],
+        carteiraId,
+        anoCorrente,
+      })
+      if (cobrancasAnterioresRemovidas > 0) {
+        inconsistencias.push(
+          `${cobrancasAnterioresRemovidas} cobrança(s) anterior(es) com status Novo e vencimento em ${anoCorrente} foram removidas antes da nova carga.`
+        )
+      }
+    }
 
     for (const item of cobrancas) {
       const unidadeLabel = String(item.unidade ?? "").trim()
@@ -213,6 +235,24 @@ export async function POST(request: NextRequest) {
 
       if (!unidadeLabel) {
         inconsistencias.push("Cobrança ignorada: unidade vazia.")
+        continue
+      }
+
+      const vencimentoPorRecibo = brDateToIso(String(item.vencimento ?? ""))
+      const vencimentos = Array.isArray(item.parcelas)
+        ? item.parcelas
+            .map((p: any) => brDateToIso(String(p.vencimento ?? "")))
+            .filter(Boolean)
+            .sort()
+        : []
+
+      const vencimentoMaisAntigo = vencimentoPorRecibo ?? vencimentos[0] ?? null
+      const recorteAnoCorrente = avaliarRecorteAnoCorrente(vencimentoMaisAntigo, anoCorrente)
+      if (!recorteAnoCorrente.dentroDoAnoCorrente) {
+        cobrancasIgnoradas += 1
+        inconsistencias.push(
+          `Unidade ${unidadeLabel}: cobrança mantida apenas no histórico da conversão. ${recorteAnoCorrente.motivo}`
+        )
         continue
       }
 
@@ -263,15 +303,6 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const vencimentoPorRecibo = brDateToIso(String(item.vencimento ?? ""))
-      const vencimentos = Array.isArray(item.parcelas)
-        ? item.parcelas
-            .map((p: any) => brDateToIso(String(p.vencimento ?? "")))
-            .filter(Boolean)
-            .sort()
-        : []
-
-      const vencimentoMaisAntigo = vencimentoPorRecibo ?? vencimentos[0] ?? null
       const valorPrincipal = Number(item.valorPrincipal ?? item.valorTotal ?? 0)
       const multa = Number(item.multa ?? 0)
       const correcao = Number(item.correcao ?? 0)
@@ -496,6 +527,7 @@ export async function POST(request: NextRequest) {
         cobrancasIgnoradas,
         cobrancasDivergentes,
         cobrancasAusentes,
+        cobrancasAnterioresRemovidas,
         parcelasCriadas,
         inconsistencias,
       },
