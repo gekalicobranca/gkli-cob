@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, ChevronRight, CirclePause, FileSignature, Play, XCircle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
 import { criarFlowsPreJuridico, cancelarFlowPreJuridico, enviarFlowPreJuridico, pausarFlowPreJuridico } from '@/features/pre-juridico/flow-actions'
@@ -137,6 +136,9 @@ export function PreJuridicoFlowWorkbench({
       <form action={criarFlowsPreJuridico} onSubmit={(event) => { if (!window.confirm(`Criar ${grupos.length} Flow(s) pré-jurídico(s)?`)) event.preventDefault() }}>
         {selected.map((id) => <input key={id} type="hidden" name="caso_id" value={id} />)}
         <div>
+          {selected.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+            <p className="text-sm text-slate-600">{selected.length} procuração(ões) selecionada(s), agrupadas em {grupos.length} lote(s) por carteira.</p>
+          </div> : null}
           {grupos.length ? <ListRows>
             {grupos.length ? grupos.map((grupo) => {
               const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
@@ -159,7 +161,6 @@ export function PreJuridicoFlowWorkbench({
             }) : null}
           </ListRows> : <ListEmptyState title="Nenhum lote montado" description="Selecione as procurações disponíveis na etapa anterior para agrupar por carteira." />}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
-            <Button type="button" variant="secondary" disabled={!selected.length}>Selecionadas: {selected.length}</Button>
             <PendingSubmitButton disabled={!grupos.length} pendingLabel="Criando flows..."><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
           </div>
         </div>

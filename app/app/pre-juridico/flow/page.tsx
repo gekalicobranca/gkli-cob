@@ -1,5 +1,6 @@
 import { Layers, ListChecks, Network, RadioTower } from 'lucide-react'
 import { PreJuridicoFlowWorkbench } from '@/components/pre-juridico/flow-workbench'
+import { ListKpiGrid, ListPage } from '@/components/layout/list-page'
 import { ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
@@ -21,7 +22,14 @@ export default async function FlowPreJuridicoPage({ searchParams }: { searchPara
   const agendadas = data.flows.reduce((sum: number, flow: any) => sum + Number(flow.total_agendadas ?? 0), 0)
   const enviadas = data.flows.reduce((sum: number, flow: any) => sum + Number(flow.total_enviadas ?? 0), 0)
 
-  return <div className="space-y-5">
+  const kpis = [
+    { label: 'Procurações disponíveis', value: data.disponibilidade.length, icon: ListChecks, tone: 'bg-[#edf8fb] text-[#04799a]', detail: 'aguardando Flow' },
+    { label: 'Flows ativos', value: ativos, icon: Layers, tone: 'bg-violet-50 text-violet-700', detail: 'prontos ou em execução' },
+    { label: 'Mensagens agendadas', value: agendadas, icon: RadioTower, tone: 'bg-amber-50 text-amber-700', detail: 'na agenda da régua' },
+    { label: 'Mensagens enviadas', value: enviadas, icon: ListChecks, tone: 'bg-emerald-50 text-emerald-700', detail: 'disparos concluídos' },
+  ]
+
+  return <ListPage>
     <PageHeader
       eyebrow="Pré-Jurídico"
       title="Flow"
@@ -39,12 +47,9 @@ export default async function FlowPreJuridicoPage({ searchParams }: { searchPara
       </Card>
     ) : null}
 
-    <section className="grid gap-3 md:grid-cols-4">
-      <Card className="p-4"><ListChecks size={19} className="text-[#04799a]" /><p className="mt-3 text-2xl font-semibold">{data.disponibilidade.length}</p><p className="text-sm text-slate-500">procurações disponíveis</p></Card>
-      <Card className="p-4"><Layers size={19} className="text-violet-600" /><p className="mt-3 text-2xl font-semibold">{ativos}</p><p className="text-sm text-slate-500">flows ativos</p></Card>
-      <Card className="p-4"><RadioTower size={19} className="text-amber-600" /><p className="mt-3 text-2xl font-semibold">{agendadas}</p><p className="text-sm text-slate-500">mensagens agendadas</p></Card>
-      <Card className="p-4"><ListChecks size={19} className="text-emerald-600" /><p className="mt-3 text-2xl font-semibold">{enviadas}</p><p className="text-sm text-slate-500">mensagens enviadas</p></Card>
-    </section>
+    <ListKpiGrid>
+      {kpis.map(({ label, value, icon: Icon, tone, detail }) => <Card key={label} className="relative overflow-hidden p-3"><div className={`absolute right-4 top-3 rounded-lg p-2 ${tone}`}><Icon size={18} /></div><p className="pr-12 text-xs font-medium uppercase text-slate-400">{label}</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">{value}</p><p className="text-sm text-slate-500">{detail}</p></Card>)}
+    </ListKpiGrid>
 
     <PreJuridicoFlowWorkbench
       disponibilidade={data.disponibilidade as any[]}
@@ -52,5 +57,5 @@ export default async function FlowPreJuridicoPage({ searchParams }: { searchPara
       flows={data.flows as any[]}
       initialStep={safeStep(params.step)}
     />
-  </div>
+  </ListPage>
 }
