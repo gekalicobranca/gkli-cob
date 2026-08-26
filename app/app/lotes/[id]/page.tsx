@@ -15,6 +15,7 @@ import {
   Sparkles,
   AlertTriangle,
   Building2,
+  ChevronDown,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -498,7 +499,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                   "Cancelado na revisão operacional do lote.",
                 )}
               >
-                <ActionButton tone="danger" confirmMessage="Confirmar cancelamento deste lote? Essa ação cancela mensagens e itens vinculados." pendingLabel="Cancelando...">
+                <ActionButton tone="secondary" confirmMessage="Confirmar cancelamento deste lote? Essa ação cancela mensagens e itens vinculados." pendingLabel="Cancelando...">
                   <XCircle size={16} />
                   Cancelar lote
                 </ActionButton>
@@ -507,7 +508,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
 
             {!hasMensagensOperacionais ? (
               <form action={excluirLoteMensagens.bind(null, id)}>
-                <ActionButton tone="danger" confirmMessage="Confirmar exclusão deste registro?" pendingLabel="Excluindo...">
+                <ActionButton tone="secondary" confirmMessage="Confirmar exclusão deste registro?" pendingLabel="Excluindo...">
                   <Trash2 size={16} />
                   Excluir registro
                 </ActionButton>
@@ -580,13 +581,26 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                 String(cobranca?.status_operacional ?? cobranca?.status ?? "") ===
                 COBRANCA_STATUS.EM_NEGOCIACAO;
               const acaoPulo = motivoAcionavel(item.motivo);
-              const mostrarMotivo = Boolean(item.motivo) && item.status !== LOTE_ITEM_STATUS.CRIADO;
+              const mostrarMotivo = Boolean(item.motivo) && [
+                LOTE_ITEM_STATUS.DUPLICADA,
+                LOTE_ITEM_STATUS.PULADA,
+                LOTE_ITEM_STATUS.ERRO,
+              ].includes(item.status as any);
 
               return (
-                <div
+                <details
                   key={item.id}
-                  className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:grid-cols-[1.15fr_0.55fr_1fr_0.75fr] xl:items-start"
+                  className="group/item overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                 >
+                  <summary className="grid cursor-pointer list-none gap-3 px-4 py-3 transition hover:bg-slate-50 md:grid-cols-[130px_minmax(240px,1fr)_130px_180px_170px_20px] md:items-center [&::-webkit-details-marker]:hidden">
+                    <span className={`inline-flex w-fit items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${statusClasses(item.status)}`}><StatusIcon status={item.status} />{humanizeStatus(item.status, ITEM_STATUS_LABEL)}</span>
+                    <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-950">{condominio?.nome || "Condomínio não identificado"}</p><p className="truncate text-xs text-slate-500">Unidade {unidade?.identificacao || "não identificada"}{unidade?.responsavel_nome ? ` · ${unidade.responsavel_nome}` : ""}</p></div>
+                    <div><p className="text-xs text-slate-400">Valor</p><p className="text-sm font-medium text-slate-800">{valor ? formatCurrency(valor) : "Sem valor"}</p></div>
+                    <div className="min-w-0"><p className="text-xs text-slate-400">Destino</p><p className="truncate text-sm text-slate-700">{destinatarioExibido || "Sem destinatário"}</p></div>
+                    <div><p className="text-xs text-slate-400">Mensagem</p><p className="text-sm text-slate-700">{canalExibido || "Sem canal"} · {mensagem?.status_operacional || mensagem?.status ? humanizeStatus(mensagem.status_operacional || mensagem.status, MENSAGEM_STATUS_LABEL_UI) : "não criada"}</p></div>
+                    <ChevronDown size={17} className="text-slate-400 transition group-open/item:rotate-180" />
+                  </summary>
+                  <div className="grid gap-5 border-t border-slate-100 bg-slate-50/40 p-5 xl:grid-cols-[1.15fr_0.55fr_1fr_0.75fr] xl:items-start">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span
@@ -732,12 +746,6 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                     <p className="mt-1 text-xs text-slate-500">
                       {destinatarioExibido || "Sem destinatário"}
                     </p>
-                    {conteudoFinal ? (
-                      <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-500">
-                        {conteudoFinal}
-                      </p>
-                    ) : null}
-
                     {mensagem?.template?.nome ? (
                       <p className="mt-2 text-[11px] text-slate-400">
                         Template: {mensagem.template.nome}
@@ -807,7 +815,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                               "Cancelada no detalhe do lote.",
                             )}
                           >
-                            <ActionButton tone="danger" confirmMessage="Confirmar cancelamento desta mensagem?" pendingLabel="Cancelando...">Cancelar</ActionButton>
+                            <ActionButton tone="secondary" confirmMessage="Confirmar cancelamento desta mensagem?" pendingLabel="Cancelando...">Cancelar mensagem</ActionButton>
                           </form>
                         ) : null}
                       </div>
@@ -822,7 +830,7 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                       {canApproveItem ? (
                         <form action={aprovarItemLote.bind(null, item.id)}><ActionButton tone="secondary" confirmMessage="Confirmar aprovação desta mensagem?" pendingLabel="Aprovando...">Aprovar mensagem</ActionButton></form>
                       ) : null}
-                      <form action={cancelarItemLote.bind(null, item.id, "Cancelado item a item na revisão operacional.")}><ActionButton tone="danger" confirmMessage="Confirmar remoção deste item do lote?" pendingLabel="Removendo...">Remover item</ActionButton></form>
+                      <form action={cancelarItemLote.bind(null, item.id, "Cancelado item a item na revisão operacional.")}><ActionButton tone="secondary" confirmMessage="Confirmar remoção deste item do lote?" pendingLabel="Removendo...">Remover item</ActionButton></form>
                     </div>
                     {!hasMensagem ? (
                       <div className="mt-2 rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
@@ -878,7 +886,8 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                       </div>
                     ) : null}
                   </div>
-                </div>
+                  </div>
+                </details>
               );
             })}
           </div>
