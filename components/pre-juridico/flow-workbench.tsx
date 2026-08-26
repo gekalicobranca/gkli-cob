@@ -2,10 +2,10 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { CheckCircle2, ChevronDown, CirclePause, FileSignature, Play, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronRight, CirclePause, FileSignature, Play, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
+import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
 import { criarFlowsPreJuridico, cancelarFlowPreJuridico, enviarFlowPreJuridico, pausarFlowPreJuridico } from '@/features/pre-juridico/flow-actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -73,7 +73,6 @@ export function PreJuridicoFlowWorkbench({
   flows: any[]
   initialStep?: StepId
 }) {
-  const [step, setStep] = useState<StepId>(initialStep)
   const [selected, setSelected] = useState<string[]>([])
   const selectedCasos = useMemo(() => disponibilidade.filter((caso) => selected.includes(caso.id)), [disponibilidade, selected])
   const grupos = useMemo(() => groupByCarteira(selectedCasos), [selectedCasos])
@@ -86,33 +85,30 @@ export function PreJuridicoFlowWorkbench({
     setSelected(checked ? disponibilidade.map((caso) => caso.id) : [])
   }
 
-  return <div className="space-y-4">
-    <Card className="p-4">
-      <div className="grid gap-2 md:grid-cols-3">
-        <StepButton active={step === 'disponibilidade'} onClick={() => setStep('disponibilidade')} title="1. Disponibilidade" detail={`${disponibilidade.length} procuração(ões) geradas`} />
-        <StepButton active={step === 'lotes'} onClick={() => setStep('lotes')} title="2. Lotes + Régua" detail={`${grupos.length} lote(s) por carteira`} />
-        <StepButton active={step === 'flows'} onClick={() => setStep('flows')} title="3. Flows" detail={`${flows.length} flow(s) monitorados`} />
-      </div>
-    </Card>
-
-    {step === 'disponibilidade' ? (
-      <Card className="overflow-hidden p-0">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="font-semibold text-slate-950">Procurações disponíveis</h2>
-            <p className="mt-1 text-sm text-slate-500">Casos com procuração gerada e ainda sem lote/Flow.</p>
-          </div>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={selected.length > 0 && selected.length === disponibilidade.length} onChange={(event) => setAll(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-            Selecionar todas
-          </label>
-        </div>
-        <div className="divide-y divide-slate-100">
+  return <div className="space-y-3">
+    <ListPanel>
+      <details open={initialStep === 'disponibilidade' || disponibilidade.length > 0} className="group bg-white">
+        <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+          <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
+            <ListTitle title="1. Disponibilidade" description="Procurações geradas e ainda sem lote/Flow." />
+            <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{disponibilidade.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
+          </ListPanelHeader>
+        </summary>
+        <div>
+          {disponibilidade.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+            <p className="text-sm text-slate-600">{selected.length} procuração(ões) selecionada(s) para montar lote.</p>
+            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+              <input type="checkbox" checked={selected.length > 0 && selected.length === disponibilidade.length} onChange={(event) => setAll(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+              Selecionar todas
+            </label>
+          </div> : null}
+          {disponibilidade.length ? <ListRows>
           {disponibilidade.length ? disponibilidade.map((caso) => {
             const condominio = relation(caso.condominio)
             const unidade = relation(caso.unidade)
             const value = caseValue(caso)
-            return <label key={caso.id} className="grid cursor-pointer gap-3 px-5 py-4 transition hover:bg-slate-50 md:grid-cols-[28px_minmax(260px,1fr)_150px_160px_120px] md:items-center">
+            return <label key={caso.id} className="block">
+              <ListRow className="cursor-pointer bg-white md:grid-cols-[28px_minmax(260px,1fr)_150px_150px_150px_24px]">
               <input type="checkbox" checked={selected.includes(caso.id)} onChange={() => toggle(caso.id)} className="h-4 w-4 rounded border-slate-300" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p>
@@ -121,28 +117,31 @@ export function PreJuridicoFlowWorkbench({
               <div><p className="text-xs text-slate-400">Valor</p><p className="text-sm font-medium text-slate-800">{formatCurrency(value)}</p></div>
               <div><p className="text-xs text-slate-400">Procuração</p><p className="text-sm text-emerald-700">Gerada</p></div>
               <div><p className="text-xs text-slate-400">Atualização</p><p className="text-sm text-slate-700">{formatDateBR(caso.updated_at)}</p></div>
+              <ChevronRight size={17} className="text-slate-400" />
+              </ListRow>
             </label>
-          }) : <div className="px-5 py-10 text-center text-sm text-slate-500">Nenhuma procuração gerada aguardando Flow.</div>}
+          }) : null}
+          </ListRows> : <ListEmptyState title="Nenhuma procuração disponível" description="Quando uma procuração for gerada no processamento, ela aparecerá aqui para montar o Flow." />}
         </div>
-        <div className="flex justify-end border-t border-slate-100 px-5 py-4">
-          <Button type="button" disabled={!selected.length} onClick={() => setStep('lotes')}>Montar lotes</Button>
-        </div>
-      </Card>
-    ) : null}
+      </details>
+    </ListPanel>
 
-    {step === 'lotes' ? (
+    <ListPanel>
+      <details open={initialStep === 'lotes' || grupos.length > 0} className="group bg-white">
+        <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+          <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
+            <ListTitle title="2. Lotes + Régua" description="Agrupamento por carteira com seleção da régua na linha do lote." />
+            <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{grupos.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
+          </ListPanelHeader>
+        </summary>
       <form action={criarFlowsPreJuridico} onSubmit={(event) => { if (!window.confirm(`Criar ${grupos.length} Flow(s) pré-jurídico(s)?`)) event.preventDefault() }}>
         {selected.map((id) => <input key={id} type="hidden" name="caso_id" value={id} />)}
-        <Card className="overflow-hidden p-0">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="font-semibold text-slate-950">Lotes por carteira</h2>
-            <p className="mt-1 text-sm text-slate-500">Cada linha vira um lote e um Flow com a régua selecionada.</p>
-          </div>
-          <div className="divide-y divide-slate-100">
+        <div>
+          {grupos.length ? <ListRows>
             {grupos.length ? grupos.map((grupo) => {
               const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
               const defaultRegua = opcoesRegua.find((regua: any) => regua.carteira_id === grupo.carteiraId)?.id ?? opcoesRegua[0]?.id ?? ''
-              return <div key={grupo.carteiraId} className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)] lg:items-center">
+              return <ListRow key={grupo.carteiraId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
                 <div>
                   <p className="text-sm font-semibold text-slate-950">{grupo.carteiraNome}</p>
                   <p className="mt-1 text-xs text-slate-500">{grupo.rows.length} caso(s) selecionado(s)</p>
@@ -156,36 +155,30 @@ export function PreJuridicoFlowWorkbench({
                     {opcoesRegua.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}{regua.carteira_id ? '' : ' · global'}</option>)}
                   </select>
                 </label>
-              </div>
-            }) : <div className="px-5 py-10 text-center text-sm text-slate-500">Selecione procurações na etapa anterior.</div>}
-          </div>
+              </ListRow>
+            }) : null}
+          </ListRows> : <ListEmptyState title="Nenhum lote montado" description="Selecione as procurações disponíveis na etapa anterior para agrupar por carteira." />}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
-            <Button type="button" variant="secondary" onClick={() => setStep('disponibilidade')}>Voltar</Button>
+            <Button type="button" variant="secondary" disabled={!selected.length}>Selecionadas: {selected.length}</Button>
             <PendingSubmitButton disabled={!grupos.length} pendingLabel="Criando flows..."><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
           </div>
-        </Card>
+        </div>
       </form>
-    ) : null}
+      </details>
+    </ListPanel>
 
-    {step === 'flows' ? (
-      <Card className="overflow-hidden p-0">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <h2 className="font-semibold text-slate-950">Flows pré-jurídicos</h2>
-          <p className="mt-1 text-sm text-slate-500">Envie, pause, cancele e acompanhe o próximo disparo.</p>
-        </div>
-        <div className="divide-y divide-slate-100">
-          {flows.length ? flows.map((flow: any) => <FlowRow key={flow.id} flow={flow} />) : <div className="px-5 py-10 text-center text-sm text-slate-500">Nenhum Flow criado ainda.</div>}
-        </div>
-      </Card>
-    ) : null}
+    <ListPanel>
+      <details open={initialStep === 'flows' || flows.length > 0} className="group bg-white">
+        <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+          <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
+            <ListTitle title="3. Flows" description="Envio, pausa, cancelamento e acompanhamento do próximo disparo." />
+            <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{flows.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
+          </ListPanelHeader>
+        </summary>
+        {flows.length ? <ListRows>{flows.map((flow: any) => <FlowRow key={flow.id} flow={flow} />)}</ListRows> : <ListEmptyState title="Nenhum Flow criado ainda" description="Depois de criar um Flow, ele aparecerá aqui para envio e monitoramento." />}
+      </details>
+    </ListPanel>
   </div>
-}
-
-function StepButton({ active, onClick, title, detail }: { active: boolean; onClick: () => void; title: string; detail: string }) {
-  return <button type="button" onClick={onClick} className={`rounded-lg border px-4 py-3 text-left transition ${active ? 'border-[#04799a] bg-[#edf8fb] text-[#035f7b]' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
-    <p className="text-sm font-semibold">{title}</p>
-    <p className="mt-1 text-xs opacity-80">{detail}</p>
-  </button>
 }
 
 function FlowRow({ flow }: { flow: any }) {
@@ -193,8 +186,9 @@ function FlowRow({ flow }: { flow: any }) {
   const carteira = relation(flow.carteira)
   const regua = relation(flow.regua)
   const lote = relation(flow.lote)
-  return <details className="group">
-    <summary className="grid cursor-pointer list-none gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[minmax(280px,1fr)_130px_150px_160px_220px_20px] lg:items-center [&::-webkit-details-marker]:hidden">
+  return <details className="group/flow">
+    <summary className="list-none [&::-webkit-details-marker]:hidden">
+      <ListRow className="cursor-pointer bg-white lg:grid-cols-[minmax(280px,1fr)_130px_150px_160px_220px_20px]">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(status)}`}>{FLOW_STATUS_LABEL[status] ?? status}</span>
@@ -207,7 +201,8 @@ function FlowRow({ flow }: { flow: any }) {
       <Metric label="Agendadas" value={flow.total_agendadas} />
       <Metric label="Enviadas" value={flow.total_enviadas} />
       <div><p className="text-xs text-slate-400">Próximo disparo</p><p className="text-sm text-slate-700">{formatDateTimeBR(flow.proximo_disparo_em)}</p></div>
-      <ChevronDown size={17} className="text-slate-400 transition group-open:rotate-180" />
+      <ChevronRight size={17} className="text-slate-400 transition group-open/flow:rotate-90" />
+      </ListRow>
     </summary>
     <div className="grid gap-4 border-t border-slate-100 bg-slate-50/60 px-5 py-4 lg:grid-cols-[1fr_auto] lg:items-center">
       <div className="grid gap-3 sm:grid-cols-3">
