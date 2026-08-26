@@ -272,33 +272,41 @@ async function carregarSindicos(condominioIds: string[]) {
     });
   }
 
-  const { data, error } = await supabase
+  const { data: vinculos, error: vinculosError } = await supabase
     .from("portal_sindico_condominios")
-    .select(`
-      condominio_id,
-      perfil,
-      status,
-      portal_sindico_usuarios (
-        nome,
-        email,
-        documento,
-        telefone,
-        status
-      )
-    `)
+    .select("condominio_id,portal_usuario_id")
     .in("condominio_id", condominioIds)
     .eq("perfil", "sindico")
     .eq("status", "ativo");
 
-  if (error) {
-    throw new Error(`Erro ao carregar sindicos para procuracao: ${error.message}`);
+  if (vinculosError) {
+    throw new Error(`Erro ao carregar vinculos de sindicos para procuracao: ${vinculosError.message}`);
   }
 
-  for (const row of (data ?? []) as any[]) {
-    const condominioId = String(row.condominio_id ?? "");
+  const portalUsuarioIds = unique(
+    (vinculos ?? []).map((vinculo: any) => vinculo.portal_usuario_id),
+  );
+
+  if (!portalUsuarioIds.length) return result;
+
+  const { data: usuarios, error: usuariosError } = await supabase
+    .from("portal_sindico_usuarios")
+    .select("id,nome,email,documento,telefone,status")
+    .in("id", portalUsuarioIds);
+
+  if (usuariosError) {
+    throw new Error(`Erro ao carregar sindicos para procuracao: ${usuariosError.message}`);
+  }
+
+  const usuariosPorId = new Map(
+    (usuarios ?? []).map((usuario: any) => [String(usuario.id), usuario]),
+  );
+
+  for (const vinculo of (vinculos ?? []) as any[]) {
+    const condominioId = String(vinculo.condominio_id ?? "");
     if (!condominioId) continue;
 
-    const usuario = firstRelation(row.portal_sindico_usuarios);
+    const usuario = usuariosPorId.get(String(vinculo.portal_usuario_id ?? ""));
     if (!usuario || usuario.status === "inativo") continue;
 
     const cadastro = result.get(condominioId) ?? {};
