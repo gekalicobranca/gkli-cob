@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { CheckCircle2, ChevronDown, ChevronRight, FileSignature, PackagePlus } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronRight, FileSignature } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
@@ -34,7 +33,7 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
           <div>
           {etapaId === 'aguardando_sindico' && rows.length ? <div className="border-b border-slate-100">
             <div className="flex flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
-              <p className="text-sm text-slate-600">Gere as procurações aqui; depois monte lote, régua e disparo na tela Flow.</p>
+              <p className="text-sm text-slate-600">Gere as procurações aqui; elas permanecem como Geradas no processamento e entram automaticamente na disponibilidade do Flow.</p>
               <div className="flex flex-wrap items-center gap-2">
                 <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 shadow-sm">
                   <input type="checkbox" checked={todasSelecionadas} onChange={(event) => toggleTodasProcuracoes(procuracaoIds, event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
@@ -44,7 +43,6 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
                   {selectedNaEtapa.map((caso) => <input key={caso.id} type="hidden" name="caso_id" value={caso.id} />)}
                   <PendingSubmitButton disabled={!selectedNaEtapa.length} pendingLabel="Gerando procurações..."><FileSignature size={16} />Gerar procuração {selectedNaEtapa.length ? `(${selectedNaEtapa.length})` : ''}</PendingSubmitButton>
                 </form>
-                <Link href="/app/pre-juridico/flow" className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"><PackagePlus size={16} />Montar Flow</Link>
               </div>
             </div>
             {selectedNaEtapa.length ? <form action={atualizarProcuracoesPreJuridicoEmMassa} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-3 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm(`Atualizar o andamento de ${selectedNaEtapa.length} procuração(ões)?`)) event.preventDefault() }}>
