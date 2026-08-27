@@ -36,6 +36,11 @@ function flowNome(carteiraNome: string | null | undefined, loteId: string) {
   return `Flow cobrança · ${carteira} · lote ${loteId.slice(0, 8)}`
 }
 
+function hasResponsavelVinculado(cobranca: any) {
+  const unidade = Array.isArray(cobranca?.unidade) ? cobranca.unidade[0] : cobranca?.unidade
+  return Boolean(String(unidade?.responsavel_nome ?? '').trim())
+}
+
 async function getFlow(supabase: SupabaseAdmin, flowId: string, scope: CarteiraScope) {
   let query = supabase
     .from('cobranca_flows')
@@ -103,7 +108,7 @@ export async function criarFlowsCobranca(formData: FormData) {
 
   let query = supabase
     .from('cobrancas')
-    .select('id,carteira_id,status,status_operacional,carteira:carteiras(nome)')
+    .select('id,carteira_id,status,status_operacional,carteira:carteiras(nome),unidade:unidades(responsavel_nome)')
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
@@ -111,6 +116,9 @@ export async function criarFlowsCobranca(formData: FormData) {
   const cobrancas = (data ?? []) as any[]
   if (cobrancas.length !== cobrancaIds.length || cobrancas.some((row) => row.status_operacional !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA && row.status !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA)) {
     throw new Error('Uma ou mais cobranças não estão em Cobrança ativa.')
+  }
+  if (cobrancas.some((row) => !hasResponsavelVinculado(row))) {
+    throw new Error('Uma ou mais cobranças não possuem responsável vinculado. Corrija o cadastro antes de criar o Flow.')
   }
 
   const { data: vinculadas, error: vinculadasError } = await supabase
@@ -204,7 +212,7 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
 
   let query = supabase
     .from('cobrancas')
-    .select('id,carteira_id,status,status_operacional')
+    .select('id,carteira_id,status,status_operacional,unidade:unidades(responsavel_nome)')
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
@@ -225,9 +233,10 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
   const elegiveis = rows
     .filter((row) => !vinculadasIds.has(String(row.id)))
     .filter((row) => row.status_operacional === COBRANCA_STATUS_OPERACIONAL.NOVO || row.status === COBRANCA_STATUS_OPERACIONAL.NOVO)
+    .filter(hasResponsavelVinculado)
     .map((row) => row.id)
 
-  if (!elegiveis.length) throw new Error('Nenhuma cobrança filtrada continua elegível para virar Cobrança ativa.')
+  if (!elegiveis.length) throw new Error('Nenhuma cobrança filtrada continua elegível para virar Cobrança ativa. Verifique se há responsável vinculado nas unidades selecionadas.')
 
   const { error: updateError } = await supabase
     .from('cobrancas')
