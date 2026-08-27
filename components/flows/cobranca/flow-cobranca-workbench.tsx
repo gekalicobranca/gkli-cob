@@ -6,9 +6,8 @@ import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListR
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { cancelarFlowCobranca, criarFlowsCobranca, enviarFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
-import { formatDateBR } from '@/utils/formatters/date'
 
-type StepId = 'disponibilidade' | 'lotes' | 'flows'
+type StepId = 'lotes' | 'flows'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 const n = (value: unknown) => Number(value ?? 0) || 0
@@ -126,18 +125,19 @@ export function FlowCobrancaWorkbench({
   disponibilidade,
   reguas,
   flows,
-  initialStep = 'disponibilidade',
+  initialStep = 'lotes',
+  initialSelectedIds = [],
 }: {
   disponibilidade: any[]
   reguas: any[]
   flows: any[]
   initialStep?: StepId
+  initialSelectedIds?: string[]
 }) {
-  const [selected, setSelected] = useState<string[]>([])
+  const [selected] = useState<string[]>(initialSelectedIds)
   const selectedCobrancas = useMemo(() => disponibilidade.filter((cobranca) => selected.includes(cobranca.id)), [disponibilidade, selected])
   const grupos = useMemo(() => groupByCarteira(selectedCobrancas), [selectedCobrancas])
   const [openSteps, setOpenSteps] = useState<Record<StepId, boolean>>({
-    disponibilidade: initialStep === 'disponibilidade' || disponibilidade.length > 0,
     lotes: initialStep === 'lotes' || grupos.length > 0,
     flows: initialStep === 'flows' || flows.length > 0,
   })
@@ -147,56 +147,12 @@ export function FlowCobrancaWorkbench({
     setOpenSteps((current) => current.lotes ? current : { ...current, lotes: true })
   }, [grupos.length])
 
-  function toggle(id: string) {
-    setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
-  }
-
-  function setAll(checked: boolean) {
-    setSelected(checked ? disponibilidade.map((cobranca) => cobranca.id) : [])
-  }
-
   function syncStepOpen(step: StepId, event: SyntheticEvent<HTMLDetailsElement>) {
     if (event.currentTarget !== event.target) return
     setOpenSteps((current) => ({ ...current, [step]: event.currentTarget.open }))
   }
 
   return <div className="space-y-3">
-    <ListPanel>
-      <details open={openSteps.disponibilidade} onToggle={(event) => syncStepOpen('disponibilidade', event)} className="group bg-white">
-        <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-          <ListCollapsibleSectionHeader title="Disponibilidade" count={disponibilidade.length} />
-        </summary>
-        <div>
-          {disponibilidade.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
-            <p className="text-sm text-slate-600">{selected.length} cobrança(s) selecionada(s) para montar lote.</p>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-              <input type="checkbox" checked={selected.length > 0 && selected.length === disponibilidade.length} onChange={(event) => setAll(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-              Selecionar todas
-            </label>
-          </div> : null}
-          {disponibilidade.length ? <ListRows>
-            {disponibilidade.map((cobranca) => {
-              const condominio = relation(cobranca.condominio)
-              const unidade = relation(cobranca.unidade)
-              return <label key={cobranca.id} className="block">
-                <ListRow className="cursor-pointer bg-white md:grid-cols-[28px_minmax(260px,1fr)_140px_130px_150px_24px]">
-                  <input type="checkbox" checked={selected.includes(cobranca.id)} onChange={() => toggle(cobranca.id)} className="h-4 w-4 rounded border-slate-300" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p>
-                    <p className="mt-1 truncate text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'} · {relation(cobranca.carteira)?.nome || 'Carteira'}</p>
-                  </div>
-                  <div><p className="text-xs text-slate-400">Valor</p><p className="text-sm font-medium text-slate-800">{formatCurrency(cobrancaValue(cobranca))}</p></div>
-                  <div><p className="text-xs text-slate-400">Status</p><p className="text-sm text-emerald-700">Cobrança ativa</p></div>
-                  <div><p className="text-xs text-slate-400">Vencimento</p><p className="text-sm text-slate-700">{formatDateBR(cobranca.vencimento)}</p></div>
-                  <ChevronRight size={17} className="text-slate-400" />
-                </ListRow>
-              </label>
-            })}
-          </ListRows> : <ListEmptyState title="Nenhuma cobrança disponível" description="Quando uma cobrança for ativada no painel e ainda não estiver em Flow, ela aparecerá aqui." />}
-        </div>
-      </details>
-    </ListPanel>
-
     <ListPanel>
       <details open={openSteps.lotes} onToggle={(event) => syncStepOpen('lotes', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
@@ -228,7 +184,7 @@ export function FlowCobrancaWorkbench({
                   </label>
                 </ListRow>
               })}
-            </ListRows> : <ListEmptyState title="Nenhum lote montado" description="Selecione cobranças disponíveis na etapa anterior para agrupar por carteira." />}
+            </ListRows> : <ListEmptyState title="Nenhum lote montado" description="Selecione cobranças novas no painel e clique em Ativar para montar o lote automaticamente." />}
             <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
               <PendingSubmitButton disabled={!grupos.length} pendingLabel="Criando flows..."><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
             </div>

@@ -14,11 +14,18 @@ import { getFlowCobrancaPageData, hasFlowCobrancaFilters, normalizeFlowCobrancaF
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatCurrency } from '@/utils/formatters/currency'
 
-type Params = Promise<{ step?: string; criados?: string; ativadas?: string; carteira?: string; condominio?: string; vencimento?: string; vencimento_de?: string; vencimento_ate?: string }>
+type Params = Promise<{ step?: string; criados?: string; ativadas?: string; selecionadas?: string; carteira?: string; condominio?: string; vencimento?: string; vencimento_de?: string; vencimento_ate?: string }>
 
 function safeStep(value: unknown) {
   const step = String(value ?? '')
-  return ['disponibilidade', 'lotes', 'flows'].includes(step) ? step as any : 'disponibilidade'
+  return ['lotes', 'flows'].includes(step) ? step as any : 'lotes'
+}
+
+function selectedIds(value: unknown) {
+  return String(value ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean)
 }
 
 export default async function FlowCobrancaPage({ searchParams }: { searchParams: Params }) {
@@ -73,7 +80,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
 
     {params.ativadas ? (
       <Card className="border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-        {params.ativadas} cobrança(s) filtrada(s) movida(s) para Cobrança ativa.
+        {params.ativadas} cobrança(s) ativada(s). Escolha a régua no lote abaixo para criar o Flow.
       </Card>
     ) : null}
 
@@ -105,6 +112,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
       reguas={data.reguas as any[]}
       flows={data.flows as any[]}
       initialStep={safeStep(params.step)}
+      initialSelectedIds={selectedIds(params.selecionadas)}
     />
   </ListPage>
 }

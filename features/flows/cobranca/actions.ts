@@ -239,9 +239,12 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
   if (updateError) throw new Error(`Erro ao ativar cobranças filtradas: ${updateError.message}`)
 
   const returnQuery = String(formData.get('return_query') ?? '').trim()
-  const suffix = returnQuery ? `?${returnQuery}&ativadas=${elegiveis.length}` : `?ativadas=${elegiveis.length}`
+  const nextParams = new URLSearchParams(returnQuery)
+  nextParams.set('step', 'lotes')
+  nextParams.set('ativadas', String(elegiveis.length))
+  nextParams.set('selecionadas', elegiveis.join(','))
   revalidatePath('/app/flows/cobranca')
-  redirect(`/app/flows/cobranca${suffix}`)
+  redirect(`/app/flows/cobranca?${nextParams.toString()}`)
 }
 
 export async function enviarFlowCobranca(flowId: string) {
