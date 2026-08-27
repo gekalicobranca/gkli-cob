@@ -75,11 +75,12 @@ export default async function MonitorPreJuridicoPage() {
   const scope = await getPermittedCarteiras()
   const data = await getPreJuridicoFlowPageData(scope)
   const flows = data.flows as any[]
-  const ativos = flows.filter((flow) => ['pronto', 'em_execucao', 'pausado'].includes(String(flow.status))).length
   const agendadas = flows.reduce((sum, flow) => sum + n(flow.total_agendadas), 0)
+  const enviadas = flows.reduce((sum, flow) => sum + n(flow.total_enviadas), 0)
   const falhas = flows.reduce((sum, flow) => sum + n(flow.total_falhas), 0)
+  const flowsComAgenda = flows.filter((flow) => n(flow.total_agendadas) > 0 || n(flow.total_enviadas) > 0 || n(flow.total_falhas) > 0)
 
-  const proximosDisparos = flows
+  const enviosAgendados = flows
     .flatMap((flow) => (Array.isArray(flow.itens) ? flow.itens : []).map((item: any) => ({ flow, item, mensagem: relation(item.mensagem) })))
     .filter(({ mensagem }) => String(mensagem?.status_operacional ?? mensagem?.status ?? '') === 'agendada')
     .map((row) => ({ ...row, agenda: row.mensagem?.agendada_para ?? row.mensagem?.scheduled_at }))
@@ -91,28 +92,28 @@ export default async function MonitorPreJuridicoPage() {
     <ListPage>
       <PageHeader
         eyebrow="Pré-Jurídico"
-        title="Monitor de flows"
-        description="Acompanhe somente os Flows do pré-jurídico: próximos disparos, envios, falhas e casos vinculados."
+        title="Monitor de envios agendados"
+        description="Acompanhe os disparos programados pelos Flows do pré-jurídico, com agenda, enviados e falhas."
         actions={<div className="flex flex-wrap gap-2">
           <ButtonLink href="/app/pre-juridico/flow?step=flows" variant="header"><RadioTower size={16} />Abrir Flow</ButtonLink>
         </div>}
       />
 
       <ListKpiGrid>
-        <KpiCard label="Flows monitorados" value={flows.length} icon={<RadioTower size={18} />} tone="bg-[#edf8fb] text-[#04799a]" />
-        <KpiCard label="Flows ativos" value={ativos} icon={<RadioTower size={18} />} tone="bg-violet-50 text-violet-700" />
-        <KpiCard label="Agendadas" value={agendadas} icon={<CalendarClock size={18} />} tone="bg-amber-50 text-amber-700" />
+        <KpiCard label="Envios agendados" value={agendadas} icon={<CalendarClock size={18} />} tone="bg-[#edf8fb] text-[#04799a]" />
+        <KpiCard label="Flows com agenda" value={flowsComAgenda.length} icon={<RadioTower size={18} />} tone="bg-violet-50 text-violet-700" />
+        <KpiCard label="Enviadas" value={enviadas} icon={<CheckCircle2 size={18} />} tone="bg-emerald-50 text-emerald-700" />
         <KpiCard label="Falhas" value={falhas} icon={<AlertCircle size={18} />} tone="bg-rose-50 text-rose-700" />
       </ListKpiGrid>
 
       <ListPanel>
         <ListPanelHeader className="flex items-center justify-between gap-4">
-          <ListTitle title="Próximos disparos" description="Mensagens agendadas pela régua dos Flows pré-jurídicos." />
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{proximosDisparos.length}</span>
+          <ListTitle title="Agenda de disparos" description="Envios programados e ainda não executados pelo Flow pré-jurídico." />
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{enviosAgendados.length}</span>
         </ListPanelHeader>
-        {proximosDisparos.length ? (
+        {enviosAgendados.length ? (
           <ListRows>
-            {proximosDisparos.map(({ flow, item, mensagem, agenda }) => {
+            {enviosAgendados.map(({ flow, item, mensagem, agenda }) => {
               const entity = itemEntity(item)
               return (
                 <ListRow key={`${flow.id}:${item.id}`} className="bg-white lg:grid-cols-[150px_minmax(280px,1fr)_minmax(220px,0.9fr)_160px_150px]">
@@ -132,21 +133,21 @@ export default async function MonitorPreJuridicoPage() {
             })}
           </ListRows>
         ) : (
-          <ListEmptyState title="Nenhum disparo agendado" description="Quando um Flow for enviado, as mensagens agendadas aparecerão aqui." />
+          <ListEmptyState title="Nenhum envio agendado" description="Quando um Flow for enviado, os disparos programados aparecerão aqui." />
         )}
       </ListPanel>
 
       <ListPanel>
         <ListPanelHeader className="flex items-center justify-between gap-4">
-          <ListTitle title="Flows pré-jurídicos" description="Saúde operacional de cada Flow e dos casos vinculados." />
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{flows.length}</span>
+          <ListTitle title="Resumo por Flow" description="Acompanhamento dos envios agendados, enviados e falhados por Flow." />
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{flowsComAgenda.length}</span>
         </ListPanelHeader>
-        {flows.length ? (
+        {flowsComAgenda.length ? (
           <ListRows>
-            {flows.map((flow) => <FlowMonitorRow key={flow.id} flow={flow} />)}
+            {flowsComAgenda.map((flow) => <FlowMonitorRow key={flow.id} flow={flow} />)}
           </ListRows>
         ) : (
-          <ListEmptyState title="Nenhum Flow monitorado" description="Crie um Flow pré-jurídico para acompanhar os casos por aqui." />
+          <ListEmptyState title="Nenhum Flow com envios" description="Quando um Flow tiver envios agendados, enviados ou falhados, ele aparecerá aqui." />
         )}
       </ListPanel>
     </ListPage>
