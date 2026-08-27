@@ -6,8 +6,32 @@ import { createAdminClient } from '@/utils/supabase/admin'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
-export async function getFlowCobrancaPageData(scope: CarteiraScope) {
+export type FlowCobrancaFilters = {
+  carteiraId?: string
+  condominioId?: string
+  vencimentoAte?: string
+}
+
+function cleanFilter(value?: string | null) {
+  return String(value ?? '').trim() || undefined
+}
+
+export function normalizeFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) {
+  return {
+    carteiraId: cleanFilter(filters.carteiraId),
+    condominioId: cleanFilter(filters.condominioId),
+    vencimentoAte: cleanFilter(filters.vencimentoAte),
+  }
+}
+
+export function hasFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) {
+  const normalized = normalizeFlowCobrancaFilters(filters)
+  return Boolean(normalized.carteiraId || normalized.condominioId || normalized.vencimentoAte)
+}
+
+export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: FlowCobrancaFilters = {}) {
   const supabase = createAdminClient()
+  const normalized = normalizeFlowCobrancaFilters(filters)
   const reguasPromise = listReguasForSelect(scope, 'cobranca')
 
   let disponibilidadeQuery = supabase
@@ -33,6 +57,18 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope) {
     .order('vencimento', { ascending: true })
     .limit(300)
   disponibilidadeQuery = applyCarteiraScope(disponibilidadeQuery, scope.carteiraIds)
+
+  if (normalized.carteiraId) {
+    disponibilidadeQuery = disponibilidadeQuery.eq('carteira_id', normalized.carteiraId)
+  }
+
+  if (normalized.condominioId) {
+    disponibilidadeQuery = disponibilidadeQuery.eq('condominio_id', normalized.condominioId)
+  }
+
+  if (normalized.vencimentoAte) {
+    disponibilidadeQuery = disponibilidadeQuery.lte('vencimento', normalized.vencimentoAte)
+  }
 
   let flowsQuery = supabase
     .from('cobranca_flows')
