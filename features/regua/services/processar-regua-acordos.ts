@@ -86,6 +86,14 @@ function diasRelativosAoVencimento(vencimento: string | null | undefined, hoje =
   return differenceInCalendarDays(hoje, date)
 }
 
+function dataDisparoDaEtapa(vencimento: string | null | undefined, delayDias: unknown, agora = new Date()) {
+  const date = parseDate(vencimento)
+  if (!date) return agora.toISOString()
+  const planned = new Date(date)
+  planned.setDate(planned.getDate() + (Number(delayDias ?? 0) || 0))
+  return planned.getTime() > agora.getTime() ? planned.toISOString() : agora.toISOString()
+}
+
 function normalizeFilter(value?: string | null) {
   return String(value ?? '').trim().toLowerCase()
 }
@@ -537,7 +545,7 @@ export async function processarReguaAcordos(
             continue
           }
 
-          if (diasRelativos < -3) {
+          if (diasRelativos < -3 && !selectedParcelaIds) {
             total.puladas += 1
             lote.contadores.puladas += 1
             itens.push({
@@ -562,6 +570,7 @@ export async function processarReguaAcordos(
           const etapas = await carregarEtapasDeReguaAdmin(params.reguaId || condominio?.regua_acordo_id, 'acordo')
           const etapa = selecionarEtapaAcordo({ etapas, diasRelativos }) ?? etapas[0] ?? DEFAULT_ACORDO_ETAPAS[0]
           const canal = etapa?.canal ?? 'whatsapp'
+          const dataDisparoPlanejada = dataDisparoDaEtapa(parcela.vencimento, etapa?.delay_dias)
           const reguaIdAtual = params.reguaId || condominio?.regua_acordo_id || null
           const preferenciaDestinatario = reguaIdAtual ? preferenciasReguas.get(reguaIdAtual) : null
           const contatoRegua = escolherContatoRegua({
@@ -716,12 +725,28 @@ export async function processarReguaAcordos(
               status: MENSAGEM_STATUS.PENDENTE_APROVACAO,
               status_operacional: MENSAGEM_STATUS.PENDENTE_APROVACAO,
               scheduled_at: new Date().toISOString(),
-              agendada_para: new Date().toISOString(),
+              agendada_para: dataDisparoPlanejada,
               lote_id: lote.id,
               regua_etapa_id: reguaEtapaId,
               fingerprint,
               template_id: templateResolvido.templateId,
-              payload: { contexto, template_resolvido: templateResolvido, parcela_id: parcela.id, dias_relativos_vencimento: diasRelativos, score, compliance, destinatario_regua: contatoRegua },
+              payload: {
+                contexto,
+                template_resolvido: templateResolvido,
+                parcela_id: parcela.id,
+                dias_relativos_vencimento: diasRelativos,
+                data_disparo_planejada: dataDisparoPlanejada,
+                etapa: {
+                  id: etapa?.id ?? null,
+                  ordem: etapa?.ordem ?? null,
+                  canal,
+                  delay_dias: etapa?.delay_dias ?? 0,
+                  categoria_template: (etapa as any)?.categoria_template ?? null,
+                },
+                score,
+                compliance,
+                destinatario_regua: contatoRegua,
+              },
             } as any)
             .select('id')
             .single()
