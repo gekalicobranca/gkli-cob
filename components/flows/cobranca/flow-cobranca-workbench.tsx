@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
-import { CheckCircle2, ChevronRight, CirclePause, FileText, Play, RefreshCcw, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, XCircle } from 'lucide-react'
 import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListRows } from '@/components/layout/list-page'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { cancelarFlowCobranca, criarFlowsCobranca, enviarFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
@@ -49,6 +49,13 @@ function itemStatusClass(status: string) {
 function formatDateTimeBR(value: string | null | undefined) {
   if (!value) return 'Sem agendamento'
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(value))
+}
+
+function messageScheduleLabel(mensagem: any) {
+  if (mensagem?.agendada_para || mensagem?.scheduled_at) return formatDateTimeBR(mensagem.agendada_para ?? mensagem.scheduled_at)
+  if (mensagem?.enviada_em || mensagem?.sent_at) return formatDateTimeBR(mensagem.enviada_em ?? mensagem.sent_at)
+  if (mensagem?.erro_envio || mensagem?.erro) return 'Falha no envio'
+  return 'Sem agenda'
 }
 
 function cleanText(value: unknown) {
@@ -208,6 +215,7 @@ function FlowRow({ flow }: { flow: any }) {
   const status = String(flow.status ?? 'pronto')
   const carteira = relation(flow.carteira)
   const regua = relation(flow.regua)
+  const lote = relation(flow.lote)
   const itens = Array.isArray(flow.itens) ? flow.itens : []
   const counters = {
     pendentes: n(flow.total_pendentes),
@@ -221,7 +229,7 @@ function FlowRow({ flow }: { flow: any }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(status)}`}>{FLOW_STATUS_LABEL[status] ?? status}</span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600"><FileText size={13} />{n(flow.total_mensagens)} mensagens</span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600"><FileSignature size={13} />{n(flow.total_mensagens)} mensagens</span>
           </div>
           <p className="mt-2 truncate text-sm font-semibold text-slate-950">{flow.nome}</p>
           <p className="mt-1 truncate text-xs text-slate-500">{carteira?.nome || 'Carteira'} · {regua?.nome || 'Régua'} · Lote {String(flow.lote_id ?? '').slice(0, 8)}</p>
@@ -238,57 +246,113 @@ function FlowRow({ flow }: { flow: any }) {
     </summary>
     <div className="grid gap-4 border-t border-slate-100 bg-slate-50/70 px-5 py-4 lg:grid-cols-[1fr_auto] lg:items-center">
       <div>
-        <p className="text-sm font-semibold text-slate-950">Itens do Flow</p>
-        <p className="mt-1 text-xs text-slate-500">Cobranças e mensagens vinculadas ao lote {String(flow.lote_id ?? '').slice(0, 8)}.</p>
+        <p className="text-sm font-semibold text-slate-950">Resumo do monitor</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Criado em {formatDateTimeBR(flow.created_at)} · {itens.length} item(ns) no Flow · Lote {lote?.status ? lote.status : 'sem status'}
+        </p>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {status === 'pronto' || status === 'pausado' ? <form action={enviarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton pendingLabel="Enviando..."><Play size={15} />Enviar</PendingSubmitButton></form> : null}
-        {status === 'em_execucao' ? <form action={pausarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton variant="secondary" pendingLabel="Pausando..."><CirclePause size={15} />Pausar</PendingSubmitButton></form> : null}
-        {!['cancelado', 'concluido', 'concluido_com_falhas'].includes(status) ? <form action={cancelarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton variant="secondary" pendingLabel="Cancelando..."><XCircle size={15} />Cancelar</PendingSubmitButton></form> : null}
+      <div className="flex flex-wrap justify-end gap-2">
+        {status === 'pronto' || status === 'pausado' ? (
+          <form action={enviarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton pendingLabel={status === 'pausado' ? 'Retomando...' : 'Enviando...'}><Play size={16} />{status === 'pausado' ? 'Retomar' : 'Enviar'}</PendingSubmitButton></form>
+        ) : null}
+        {status === 'em_execucao' ? (
+          <form action={pausarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton variant="secondary" pendingLabel="Pausando..."><CirclePause size={16} />Pausar</PendingSubmitButton></form>
+        ) : null}
+        {!['cancelado', 'concluido', 'concluido_com_falhas'].includes(status) ? (
+          <form action={cancelarFlowCobranca.bind(null, flow.id)} onSubmit={(event) => { if (!window.confirm('Cancelar este Flow e os disparos pendentes?')) event.preventDefault() }}><PendingSubmitButton variant="secondary" pendingLabel="Cancelando..."><XCircle size={16} />Cancelar</PendingSubmitButton></form>
+        ) : null}
       </div>
     </div>
-    {itens.length ? <div className="border-t border-slate-100 bg-slate-50/70 px-5 pb-5">
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        {itens.map((item: any) => <FlowItemRow key={item.id} item={item} />)}
+    <div className="border-t border-slate-100 bg-white px-4 py-3">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-950">Fila de envio</p>
+          <p className="text-xs text-slate-500">Status, destino, agenda e falhas de cada item do Flow.</p>
+        </div>
+        <span className="text-xs text-slate-400">{counters.falhas ? `${counters.falhas} item(ns) com falha` : 'Sem falhas abertas'}</span>
       </div>
-    </div> : <div className="border-t border-slate-100 bg-slate-50/70 px-5 pb-5"><ListEmptyState title="Nenhum item neste Flow" description="O lote ainda não possui itens vinculados." /></div>}
+      {itens.length ? (
+        <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="hidden bg-slate-50 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 lg:grid lg:grid-cols-[120px_minmax(280px,1fr)_minmax(220px,0.9fr)_170px_110px] lg:items-center">
+            <span>Status</span>
+            <span>Cobrança</span>
+            <span>Destino</span>
+            <span>Agenda</span>
+            <span className="text-right">Ação</span>
+          </div>
+          {itens.map((item: any) => <FlowItemRow key={item.id} item={item} />)}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+          Nenhum item vinculado a este Flow ainda.
+        </div>
+      )}
+    </div>
   </details>
 }
 
-function FlowCounter({ label, value, tone = 'slate' }: { label: string; value: number; tone?: 'slate' | 'sky' | 'emerald' | 'rose' }) {
-  const valueClass = tone === 'sky' ? 'text-sky-700' : tone === 'emerald' ? 'text-emerald-700' : tone === 'rose' ? 'text-rose-700' : 'text-slate-800'
-  return <div>
-    <p className="text-xs text-slate-400">{label}</p>
-    <p className={`text-sm font-semibold ${valueClass}`}>{value}</p>
-  </div>
+function FlowCounter({ label, value, tone = 'slate' }: { label: string; value: unknown; tone?: 'slate' | 'sky' | 'emerald' | 'rose' }) {
+  const classes = {
+    slate: 'border-slate-200 bg-slate-50 text-slate-700',
+    sky: 'border-sky-100 bg-sky-50 text-sky-700',
+    emerald: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+    rose: 'border-rose-100 bg-rose-50 text-rose-700',
+  }
+  return (
+    <div className={`rounded-xl border px-2.5 py-2 ${classes[tone]}`}>
+      <p className="text-[10px] font-medium uppercase tracking-wide opacity-70">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold">{String(value ?? 0)}</p>
+    </div>
+  )
 }
 
 function FlowItemRow({ item }: { item: any }) {
   const mensagem = relation(item.mensagem)
   const cobranca = relation(item.cobranca)
   const entidade = cobrancaEntity(cobranca)
-  const status = String(mensagem?.status_operacional ?? mensagem?.status ?? item.status ?? '')
-  const itemStatus = status || String(item.status ?? '')
-  const falha = isFailureStatus(itemStatus)
-  return <details className="group/item border-b border-slate-100 last:border-b-0">
-    <summary className="list-none [&::-webkit-details-marker]:hidden">
-      <div className="grid cursor-pointer gap-3 px-4 py-3 transition hover:bg-slate-50 md:grid-cols-[150px_minmax(260px,1fr)_minmax(180px,0.7fr)_190px_24px] md:items-center">
-        <span className={`w-fit rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(itemStatus)}`}>{MESSAGE_STATUS_LABEL[itemStatus] ?? itemStatus}</span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-950">{entidade.condominio}</p>
-          <p className="mt-1 truncate text-xs text-slate-500">Unidade {entidade.unidade} · {entidade.responsavel}</p>
-        </div>
-        <p className="truncate text-sm text-slate-700">{mensagem?.destinatario || entidade.destinatario || 'Sem destinatário'}</p>
-        <p className="text-sm text-slate-700">{formatDateTimeBR(mensagem?.agendada_para ?? mensagem?.scheduled_at ?? mensagem?.enviada_em ?? mensagem?.sent_at)}</p>
-        <ChevronRight size={17} className="text-slate-400 transition group-open/item:rotate-90" />
-      </div>
-    </summary>
-    <div className="grid gap-3 border-t border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600 md:grid-cols-[1fr_auto] md:items-center">
+  const itemStatus = String(item.status ?? 'criado')
+  const messageStatus = String(mensagem?.status_operacional ?? mensagem?.status ?? '')
+  const effectiveStatus = messageStatus || itemStatus
+  const statusLabel = MESSAGE_STATUS_LABEL[effectiveStatus] ?? effectiveStatus
+  const hasFailure = isFailureStatus(effectiveStatus) || Boolean(cleanText(mensagem?.erro_envio ?? mensagem?.erro))
+  const reason = hasFailure ? failureReason(item, mensagem) : ''
+  const destino = mensagem?.email_destinatario || mensagem?.destinatario || entidade.destinatario || 'Destino não informado'
+
+  return (
+    <div className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[120px_minmax(280px,1fr)_minmax(220px,0.9fr)_170px_110px] lg:items-center">
       <div>
-        <p className="font-medium text-slate-800">{falha ? 'Falha' : 'Detalhes'}</p>
-        <p className="mt-1">{falha ? failureReason(item, mensagem) : item.motivo || 'Item registrado no Flow cobrança.'}</p>
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(effectiveStatus)}`}>
+          {statusLabel}
+        </span>
       </div>
-      {falha ? <form action={reenviarItemFlowCobranca.bind(null, item.id)}><PendingSubmitButton variant="secondary" pendingLabel="Reagendando..."><RefreshCcw size={15} />Reenviar</PendingSubmitButton></form> : null}
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-950">{entidade.condominio}</p>
+        <p className="mt-1 truncate text-xs text-slate-500">Unidade {entidade.unidade} · {entidade.responsavel}</p>
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-slate-800">{destino}</p>
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-slate-800">{messageScheduleLabel(mensagem)}</p>
+      </div>
+      <div className="flex justify-start lg:justify-end">
+        {hasFailure ? (
+          <form action={reenviarItemFlowCobranca.bind(null, item.id)} className="shrink-0">
+            <PendingSubmitButton variant="secondary" size="sm" pendingLabel="Reagendando...">
+              Reenviar
+            </PendingSubmitButton>
+          </form>
+        ) : (
+          <span className="text-xs text-slate-300">—</span>
+        )}
+      </div>
+      {hasFailure ? (
+        <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-700 lg:col-span-5">
+          <p>
+            <span className="font-semibold">Motivo da falha:</span> <span className="break-words">{reason}</span>
+          </p>
+        </div>
+      ) : null}
     </div>
-  </details>
+  )
 }
