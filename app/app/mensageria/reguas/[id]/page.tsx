@@ -28,7 +28,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
   if (!regua) notFound()
 
   const templates = await listTemplatesParaLote(scope, regua.carteira_id)
-  const previewHref = regua.tipo === 'juridico' ? '/app/pre-juridico/monitor' : `/app/mensageria/simulador?aba=${regua.tipo === 'acordo' ? 'acordos' : 'cobrancas'}&regua_id=${regua.id}`
+  const previewHref = regua.tipo === 'juridico' ? '/app/pre-juridico/flow?step=flows' : `/app/mensageria/simulador?aba=${regua.tipo === 'acordo' ? 'acordos' : 'cobrancas'}&regua_id=${regua.id}`
   const backHref = regua.tipo === 'juridico' ? '/app/pre-juridico/regua' : '/app/mensageria/reguas'
 
   return (
@@ -40,7 +40,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
         actions={
           <>
             <ButtonLink href={backHref} variant="header"><ArrowLeft size={16} /> Voltar</ButtonLink>
-            <ButtonLink href={previewHref} variant="header"><Eye size={16} /> {regua.tipo === 'juridico' ? 'Abrir monitor' : 'Simular esta régua'}</ButtonLink>
+            <ButtonLink href={previewHref} variant="header"><Eye size={16} /> {regua.tipo === 'juridico' ? 'Abrir Flow' : 'Simular esta régua'}</ButtonLink>
           </>
         }
       />

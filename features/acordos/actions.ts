@@ -3188,7 +3188,7 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
   });
 
   revalidatePath("/app/lotes");
-  revalidatePath("/app/pre-juridico/monitor");
+  revalidatePath("/app/pre-juridico/flow");
 
   if (loteResult.loteId) {
     redirect(`/app/lotes/${loteResult.loteId}?pre_juridico=1`);

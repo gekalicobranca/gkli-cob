@@ -71,7 +71,7 @@ export async function atualizarEtapaPreJuridico(formData: FormData) {
 
   revalidatePath('/app/pre-juridico')
   revalidatePath('/app/pre-juridico/processamento')
-  revalidatePath('/app/pre-juridico/monitor')
+  revalidatePath('/app/pre-juridico/flow')
 }
 
 export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
@@ -127,7 +127,7 @@ export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
   }
 
   revalidatePath('/app/pre-juridico/processamento')
-  revalidatePath('/app/pre-juridico/monitor')
+  revalidatePath('/app/pre-juridico/flow')
   revalidatePath('/app/cobrancas')
   if (caso.unidade_id) revalidatePath(`/app/unidades/${caso.unidade_id}`)
 }
@@ -163,7 +163,7 @@ export async function confirmarJuridicoPreJuridico(formData: FormData) {
   if (error) throw new Error(`Erro ao confirmar o jurídico: ${error.message}`)
 
   revalidatePath('/app/pre-juridico/processamento')
-  revalidatePath('/app/pre-juridico/monitor')
+  revalidatePath('/app/pre-juridico/flow')
 }
 
 export async function atualizarCertidaoPreJuridico(formData: FormData) {
@@ -221,7 +221,7 @@ export async function atualizarCertidaoPreJuridico(formData: FormData) {
   }
 
   revalidatePath('/app/pre-juridico/processamento')
-  revalidatePath('/app/pre-juridico/monitor')
+  revalidatePath('/app/pre-juridico/flow')
 }
 
 export async function gerarProcuracoesPreJuridico(formData: FormData) {
@@ -286,7 +286,7 @@ export async function criarLoteProcuracoesPreJuridico(formData: FormData) {
   }
 
   revalidatePath('/app/pre-juridico/processamento')
-  revalidatePath('/app/pre-juridico/monitor')
+  revalidatePath('/app/pre-juridico/flow')
   if (resultado.loteId) redirect(`/app/lotes/${resultado.loteId}?pre_juridico=1`)
 }
 
@@ -362,7 +362,6 @@ export async function atualizarProcuracoesPreJuridicoEmMassa(formData: FormData)
 
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/flow')
-  revalidatePath('/app/pre-juridico/monitor')
 }
 
 export async function encaminharCobrancasPreJuridico(formData: FormData) {
@@ -403,7 +402,7 @@ export async function encaminharCobrancasPreJuridico(formData: FormData) {
 
   revalidatePath('/app/pre-juridico')
   revalidatePath('/app/pre-juridico/processamento')
-  revalidatePath('/app/pre-juridico/monitor')
+  revalidatePath('/app/pre-juridico/flow')
 }
 
 export async function gerarLaudosPreJuridico(formData: FormData) {
@@ -483,7 +482,7 @@ export async function gerarLaudosPreJuridico(formData: FormData) {
 
   revalidatePath('/app/pre-juridico')
   revalidatePath('/app/pre-juridico/processamento')
-  revalidatePath('/app/pre-juridico/monitor')
+  revalidatePath('/app/pre-juridico/flow')
   const cobrancasAgrupadasIds = (cobrancasUnidades ?? []).map((row: any) => row.id)
   redirect(`/app/pre-juridico/processamento/laudos?ids=${encodeURIComponent(cobrancasAgrupadasIds.join(','))}`)
 }

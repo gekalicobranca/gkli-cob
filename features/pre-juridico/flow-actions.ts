@@ -351,7 +351,6 @@ export async function reenviarItemFlowPreJuridico(itemId: string) {
   })
 
   revalidatePath('/app/pre-juridico/flow')
-  revalidatePath('/app/pre-juridico/monitor')
   revalidatePath(`/app/lotes/${flow.lote_id}`)
 }
 
