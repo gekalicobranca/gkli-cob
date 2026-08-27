@@ -1,9 +1,9 @@
-import { Layers, ListChecks, WalletCards, type LucideIcon } from 'lucide-react'
+import { Layers, ListChecks, Network, WalletCards, type LucideIcon } from 'lucide-react'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
 import { FlowCobrancaPainelWorkbench } from '@/components/flows/cobranca/cobrancas-painel-workbench'
 import { FlowCobrancaWorkbench } from '@/components/flows/cobranca/flow-cobranca-workbench'
 import { ClearFiltersLink, ListCollapsibleFilters, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage } from '@/components/layout/list-page'
-import { Button } from '@/components/ui/button'
+import { Button, ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/ui/page-header'
@@ -55,6 +55,10 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
       eyebrow="Flows"
       title="Flow cobrança"
       description="Crie lotes a partir das cobranças novas, vincule uma régua, libere a agenda e monitore os disparos."
+      actions={<div className="flex flex-wrap gap-2">
+        <ButtonLink href="/app/regua-cobranca" variant="header"><Network size={16} />Réguas</ButtonLink>
+        <ButtonLink href="/app/lotes?tipo=regua_cobranca" variant="header"><Layers size={16} />Lotes</ButtonLink>
+      </div>}
     />
 
     {params.criados ? (

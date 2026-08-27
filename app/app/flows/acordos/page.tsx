@@ -1,4 +1,7 @@
+import { Layers, Network } from 'lucide-react'
+
 import { Card } from '@/components/ui/card'
+import { ButtonLink } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 
 const etapas = [
@@ -15,6 +18,10 @@ export default function FlowAcordosPage() {
         eyebrow="Flows"
         title="Flow acordos"
         description="Nova esteira para montagem e execução monitorada dos flows de acordos, independente do módulo atual de Comunicação."
+        actions={<div className="flex flex-wrap gap-2">
+          <ButtonLink href="/app/regua-acordo" variant="header"><Network size={16} />Réguas</ButtonLink>
+          <ButtonLink href="/app/lotes?tipo=regua_acordo" variant="header"><Layers size={16} />Lotes</ButtonLink>
+        </div>}
       />
 
       <Card className="space-y-4">
