@@ -125,7 +125,7 @@ export function FlowCobrancaWorkbench({
   disponibilidade,
   reguas,
   flows,
-  initialStep = 'lotes',
+  initialStep,
   initialSelectedIds = [],
 }: {
   disponibilidade: any[]

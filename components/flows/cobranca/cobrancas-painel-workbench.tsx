@@ -55,6 +55,27 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
     setSelectedIds((current) => selected ? current.filter((id) => !ids.includes(id)) : Array.from(new Set([...current, ...ids])))
   }
 
+  if (rows.length === 0) {
+    return (
+      <Card className="overflow-hidden p-0">
+        <details className="group bg-white">
+          <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-white/80 px-4 py-2.5 group-hover:bg-slate-50">
+              <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-950">
+                <ChevronDown size={17} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+                <span className="truncate">Cobranças novas</span>
+              </div>
+              <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">0</span>
+            </div>
+          </summary>
+          <div className="p-5">
+            <EmptyState title="Nenhuma cobrança nova" description="Não há cobranças novas neste filtro." />
+          </div>
+        </details>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <Card className="p-4">

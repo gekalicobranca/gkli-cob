@@ -18,7 +18,7 @@ type Params = Promise<{ step?: string; criados?: string; ativadas?: string; sele
 
 function safeStep(value: unknown) {
   const step = String(value ?? '')
-  return ['lotes', 'flows'].includes(step) ? step as any : 'lotes'
+  return ['lotes', 'flows'].includes(step) ? step as any : undefined
 }
 
 function selectedIds(value: unknown) {
@@ -46,6 +46,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
   const ativos = data.flows.filter((flow: any) => ['pronto', 'em_execucao', 'pausado'].includes(String(flow.status))).length
   const painelRows = (data.painel ?? []) as any[]
   const disponibilidadeRows = (data.disponibilidade ?? []) as any[]
+  const selecionadas = selectedIds(params.selecionadas)
   const valorNovo = painelRows.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
   const unidades = new Set(painelRows.map((row: any) => row.unidade_id).filter(Boolean)).size
   const returnQuery = new URLSearchParams()
@@ -112,7 +113,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
       reguas={data.reguas as any[]}
       flows={data.flows as any[]}
       initialStep={safeStep(params.step)}
-      initialSelectedIds={selectedIds(params.selecionadas)}
+      initialSelectedIds={selecionadas}
     />
   </ListPage>
 }
