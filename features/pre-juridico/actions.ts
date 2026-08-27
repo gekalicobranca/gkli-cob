@@ -171,6 +171,48 @@ export async function confirmarJuridicoPreJuridico(formData: FormData) {
   revalidatePath('/app/pre-juridico/flow')
 }
 
+export async function confirmarJuridicoPreJuridicoEmMassa(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+  const supabase = await createClient()
+  const casoIds = Array.from(new Set(formData.getAll('caso_id').map((value) => String(value).trim()).filter(Boolean)))
+  const procuracaoAssinada = formData.get('juridico_procuracao_assinada_confirmada') === 'on'
+  const registroRecebido = formData.get('juridico_registro_recebido') === 'on'
+  const laudoEnviado = formData.get('juridico_laudo_enviado') === 'on'
+  if (!casoIds.length) throw new Error('Selecione ao menos um caso pré-jurídico.')
+
+  const { data: casos, error: casosError } = await supabase
+    .from('pre_juridico_casos')
+    .select('id,carteira_id,unidade_id,etapa')
+    .in('id', casoIds)
+  if (casosError) throw new Error(`Erro ao carregar confirmações do jurídico: ${casosError.message}`)
+  if ((casos ?? []).length !== casoIds.length) throw new Error('Um ou mais casos selecionados não foram encontrados.')
+
+  for (const caso of (casos ?? []) as any[]) {
+    assertCarteiraPermitida(scope, caso.carteira_id)
+    if (caso.etapa !== 'confirmar_juridico') throw new Error('Todos os casos selecionados devem estar em Confirmar jurídico.')
+  }
+
+  const payload: Record<string, unknown> = {
+    juridico_procuracao_assinada_confirmada: procuracaoAssinada,
+    juridico_registro_recebido: registroRecebido,
+    juridico_laudo_enviado: laudoEnviado,
+    responsavel_id: user.id,
+  }
+  if (procuracaoAssinada && registroRecebido && laudoEnviado) {
+    payload.etapa = 'pronto_juridico'
+    payload.distribuicao_status = 'solicitado'
+    payload.distribuicao_solicitada_em = new Date().toISOString()
+  }
+
+  const { error } = await supabase.from('pre_juridico_casos').update(payload).in('id', casoIds)
+  if (error) throw new Error(`Erro ao confirmar jurídico em massa: ${error.message}`)
+
+  revalidatePath('/app/pre-juridico/processamento')
+  revalidatePath('/app/pre-juridico/flow')
+}
+
 export async function atualizarCertidaoPreJuridico(formData: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()

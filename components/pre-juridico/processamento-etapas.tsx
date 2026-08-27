@@ -4,7 +4,7 @@ import { CheckCircle2, ChevronDown, ChevronRight, FileSignature } from 'lucide-r
 import { useState, type ReactNode } from 'react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
-import { atualizarCertidaoPreJuridico, atualizarDistribuicaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, atualizarProcuracoesPreJuridicoEmMassa, confirmarJuridicoPreJuridico, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
+import { atualizarCertidaoPreJuridico, atualizarDistribuicaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, atualizarProcuracoesPreJuridicoEmMassa, confirmarJuridicoPreJuridico, confirmarJuridicoPreJuridicoEmMassa, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
 import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -13,8 +13,11 @@ const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
 export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: readonly PreJuridicoEtapa[] }) {
   const [selectedProcuracoes, setSelectedProcuracoes] = useState<string[]>([])
+  const [selectedConfirmacoes, setSelectedConfirmacoes] = useState<string[]>([])
   const toggleProcuracao = (id: string) => setSelectedProcuracoes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
   const toggleTodasProcuracoes = (ids: string[], checked: boolean) => setSelectedProcuracoes((current) => checked ? Array.from(new Set([...current, ...ids])) : current.filter((id) => !ids.includes(id)))
+  const toggleConfirmacao = (id: string) => setSelectedConfirmacoes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  const toggleTodasConfirmacoes = (ids: string[], checked: boolean) => setSelectedConfirmacoes((current) => checked ? Array.from(new Set([...current, ...ids])) : current.filter((id) => !ids.includes(id)))
   return <div className="space-y-3">
     {etapas.map((etapaId) => {
       const etapa = PRE_JURIDICO_ETAPAS.find((item) => item.id === etapaId)!
@@ -22,6 +25,9 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
       const procuracaoIds = rows.map((caso) => String(caso.id))
       const selectedNaEtapa = etapaId === 'aguardando_sindico' ? rows.filter((caso) => selectedProcuracoes.includes(caso.id)) : []
       const todasSelecionadas = procuracaoIds.length > 0 && procuracaoIds.every((id) => selectedProcuracoes.includes(id))
+      const confirmacaoIds = rows.map((caso) => String(caso.id))
+      const selectedConfirmacoesNaEtapa = etapaId === 'confirmar_juridico' ? rows.filter((caso) => selectedConfirmacoes.includes(caso.id)) : []
+      const todasConfirmacoesSelecionadas = confirmacaoIds.length > 0 && confirmacaoIds.every((id) => selectedConfirmacoes.includes(id))
       return <ListPanel key={etapaId}>
         <details open={rows.length > 0} className="group bg-white">
           <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
@@ -53,7 +59,25 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
               <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, os casos selecionados avançam automaticamente para Confirmar jurídico.</p>
             </form> : null}
           </div> : null}
-          {rows.length ? <ListRows>{rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} selectable={etapaId === 'aguardando_sindico'} selectionLabel="Selecionar procuração" selected={selectedProcuracoes.includes(caso.id)} onToggle={() => toggleProcuracao(caso.id)} />)}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
+          {etapaId === 'confirmar_juridico' && rows.length ? <div className="border-b border-slate-100">
+            <div className="flex flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+              <p className="text-sm text-slate-600">Selecione casos para aplicar as confirmações jurídicas em massa.</p>
+              <label className="inline-flex h-9 w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 shadow-sm">
+                <input type="checkbox" checked={todasConfirmacoesSelecionadas} onChange={(event) => toggleTodasConfirmacoes(confirmacaoIds, event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+                Selecionar todas
+              </label>
+            </div>
+            {selectedConfirmacoesNaEtapa.length ? <form action={confirmarJuridicoPreJuridicoEmMassa} className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-3 xl:flex-row xl:items-center xl:justify-between" onSubmit={(event) => { if (!window.confirm(`Salvar confirmações em ${selectedConfirmacoesNaEtapa.length} caso(s)?`)) event.preventDefault() }}>
+              {selectedConfirmacoesNaEtapa.map((caso) => <input key={caso.id} type="hidden" name="caso_id" value={caso.id} />)}
+              <div className="flex flex-wrap gap-2">
+                <InlineCheckbox name="juridico_procuracao_assinada_confirmada" label="Procuração" defaultChecked />
+                <InlineCheckbox name="juridico_registro_recebido" label="Registro" defaultChecked />
+                <InlineCheckbox name="juridico_laudo_enviado" label="Laudo" defaultChecked />
+              </div>
+              <PendingSubmitButton pendingLabel="Salvando..."><CheckCircle2 size={16} />Salvar em massa ({selectedConfirmacoesNaEtapa.length})</PendingSubmitButton>
+            </form> : null}
+          </div> : null}
+          {rows.length ? <ListRows>{rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} selectable={etapaId === 'aguardando_sindico' || etapaId === 'confirmar_juridico'} selectionLabel={etapaId === 'confirmar_juridico' ? 'Selecionar confirmação jurídica' : 'Selecionar procuração'} selected={etapaId === 'confirmar_juridico' ? selectedConfirmacoes.includes(caso.id) : selectedProcuracoes.includes(caso.id)} onToggle={etapaId === 'confirmar_juridico' ? () => toggleConfirmacao(caso.id) : () => toggleProcuracao(caso.id)} />)}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
           </div>
         </details>
       </ListPanel>
@@ -66,7 +90,7 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
   const unidade = relation(caso.unidade)
   const cobrancasUnidade = Array.isArray(caso.cobrancas_unidade) ? caso.cobrancas_unidade : []
 
-  if (caso.etapa === 'confirmar_juridico') return <ConfirmarJuridicoInlineRow caso={caso} condominio={condominio} unidade={unidade} cobrancasUnidade={cobrancasUnidade} />
+  if (caso.etapa === 'confirmar_juridico') return <ConfirmarJuridicoInlineRow caso={caso} condominio={condominio} unidade={unidade} cobrancasUnidade={cobrancasUnidade} selectable={selectable} selectionLabel={selectionLabel} selected={selected} onToggle={onToggle} />
 
   const acordo = relation(caso.acordo)
   const cobranca = relation(caso.cobranca)
@@ -98,15 +122,6 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
       <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
       <PendingSubmitButton pendingLabel="Atualizando...">Salvar andamento</PendingSubmitButton>
       <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, o caso avançará automaticamente para Confirmar jurídico.</p>
-    </form> : caso.etapa === 'confirmar_juridico' ? <form action={confirmarJuridicoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 xl:grid-cols-[1fr_auto] xl:items-end" onSubmit={(event) => { if (!window.confirm('Salvar as confirmações do jurídico?')) event.preventDefault() }}>
-      <input type="hidden" name="caso_id" value={caso.id} />
-      <div className="grid gap-2 md:grid-cols-3">
-        <ChecklistField name="juridico_procuracao_assinada_confirmada" label="Procuração assinada" description="Assinatura validada pelo jurídico." defaultChecked={Boolean(caso.juridico_procuracao_assinada_confirmada || caso.procuracao_status === 'assinada')} />
-        <ChecklistField name="juridico_registro_recebido" label="Registro recebido" description="Registro conferido e recebido." defaultChecked={Boolean(caso.juridico_registro_recebido)} />
-        <ChecklistField name="juridico_laudo_enviado" label="Laudo enviado" description="Laudo entregue ao jurídico." defaultChecked={Boolean(caso.juridico_laudo_enviado)} />
-      </div>
-      <PendingSubmitButton pendingLabel="Confirmando...">Salvar confirmações</PendingSubmitButton>
-      <p className="text-xs text-slate-500 xl:col-span-2">Com as três confirmações marcadas, o caso avançará automaticamente para Distribuição.</p>
     </form> : caso.etapa === 'pronto_juridico' ? <form action={atualizarDistribuicaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[minmax(260px,1fr)_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar a distribuição e marcar ação judicial para a unidade?')) event.preventDefault() }}>
       <input type="hidden" name="caso_id" value={caso.id} />
       <Field label="Número CNPJ"><input name="distribuicao_cnpj" defaultValue={formatCnpj(caso.distribuicao_cnpj)} disabled={caso.distribuicao_status === 'distribuido'} placeholder="00.000.000/0000-00" className={controlClass} /></Field>
@@ -127,9 +142,10 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
   </details>
 }
 
-function ConfirmarJuridicoInlineRow({ caso, condominio, unidade, cobrancasUnidade }: { caso: any; condominio: any; unidade: any; cobrancasUnidade: any[] }) {
-  return <form action={confirmarJuridicoPreJuridico} className="grid gap-3 bg-white px-4 py-3 transition hover:bg-slate-50 md:grid-cols-[minmax(320px,1fr)_130px_110px_100px_auto] md:items-center">
+function ConfirmarJuridicoInlineRow({ caso, condominio, unidade, cobrancasUnidade, selectable = false, selectionLabel = 'Selecionar caso', selected = false, onToggle }: { caso: any; condominio: any; unidade: any; cobrancasUnidade: any[]; selectable?: boolean; selectionLabel?: string; selected?: boolean; onToggle?: () => void }) {
+  return <form action={confirmarJuridicoPreJuridico} className={`grid gap-3 bg-white px-4 py-3 transition hover:bg-slate-50 md:items-center ${selectable ? 'md:grid-cols-[28px_minmax(320px,1fr)_130px_110px_100px_auto]' : 'md:grid-cols-[minmax(320px,1fr)_130px_110px_100px_auto]'}`}>
     <input type="hidden" name="caso_id" value={caso.id} />
+    {selectable ? <input aria-label={selectionLabel} type="checkbox" checked={selected} onChange={onToggle} className="h-4 w-4 rounded border-slate-300" /> : null}
     <div>
       <p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p>
       <p className="mt-1 text-xs text-slate-500">{cobrancasUnidade.length || 1} cobrança(s) agrupada(s)</p>
@@ -152,16 +168,6 @@ const controlClass = 'mt-1 h-9 w-full rounded-lg border border-slate-200 bg-whit
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="text-xs font-medium text-slate-600">{label}{children}</label>
-}
-
-function ChecklistField({ name, label, description, defaultChecked }: { name: string; label: string; description: string; defaultChecked?: boolean }) {
-  return <label className="flex min-h-20 cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50/30">
-    <input name={name} type="checkbox" defaultChecked={defaultChecked} className="mt-1 h-4 w-4 rounded border-slate-300 text-cyan-700 focus:ring-cyan-600" />
-    <span>
-      <span className="block font-semibold text-slate-900">{label}</span>
-      <span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span>
-    </span>
-  </label>
 }
 
 function formatCnpj(value: unknown) {
