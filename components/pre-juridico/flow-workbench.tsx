@@ -252,7 +252,7 @@ function FlowRow({ flow }: { flow: any }) {
       </div>
       <div className="flex flex-wrap justify-end gap-2">
         <Link href={`/app/lotes/${flow.lote_id}?pre_juridico=1`} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50">
-          Abrir lote
+          Monitorar lote
         </Link>
         {status === 'pronto' || status === 'pausado' ? (
           <form action={enviarFlowPreJuridico.bind(null, flow.id)}><PendingSubmitButton pendingLabel={status === 'pausado' ? 'Retomando...' : 'Enviando...'}><Play size={16} />{status === 'pausado' ? 'Retomar' : 'Enviar'}</PendingSubmitButton></form>
