@@ -1,13 +1,11 @@
 import Link from 'next/link'
-import { AlertCircle, CalendarClock, CheckCircle2, Layers, RadioTower } from 'lucide-react'
-import { StatusBadge } from '@/components/data/status-badge'
+import { AlertCircle, CalendarClock, CheckCircle2, RadioTower } from 'lucide-react'
 import { ListEmptyState, ListKpiGrid, ListPage, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
 import { ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
 import { getPreJuridicoFlowPageData } from '@/features/pre-juridico/flow-queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
-import { formatDateBR } from '@/utils/formatters/date'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 const n = (value: unknown) => Number(value ?? 0) || 0
@@ -77,13 +75,9 @@ export default async function MonitorPreJuridicoPage() {
   const scope = await getPermittedCarteiras()
   const data = await getPreJuridicoFlowPageData(scope)
   const flows = data.flows as any[]
-  const lotes = data.lotes as any[]
-  const loteIdsComFlow = new Set(flows.map((flow) => flow.lote_id).filter(Boolean))
-  const lotesSemFlow = lotes.filter((lote: any) => !loteIdsComFlow.has(lote.id))
-  const lotesMonitorados = loteIdsComFlow.size + lotesSemFlow.length
   const ativos = flows.filter((flow) => ['pronto', 'em_execucao', 'pausado'].includes(String(flow.status))).length
   const agendadas = flows.reduce((sum, flow) => sum + n(flow.total_agendadas), 0)
-  const falhas = flows.reduce((sum, flow) => sum + n(flow.total_falhas), 0) + lotesSemFlow.reduce((sum: number, lote: any) => sum + n(lote.total_erros), 0)
+  const falhas = flows.reduce((sum, flow) => sum + n(flow.total_falhas), 0)
 
   const proximosDisparos = flows
     .flatMap((flow) => (Array.isArray(flow.itens) ? flow.itens : []).map((item: any) => ({ flow, item, mensagem: relation(item.mensagem) })))
@@ -97,16 +91,15 @@ export default async function MonitorPreJuridicoPage() {
     <ListPage>
       <PageHeader
         eyebrow="Pré-Jurídico"
-        title="Monitor de lotes"
-        description="Acompanhe os lotes vinculados aos Flows, próximos disparos, envios e falhas operacionais."
+        title="Monitor de flows"
+        description="Acompanhe somente os Flows do pré-jurídico: próximos disparos, envios, falhas e casos vinculados."
         actions={<div className="flex flex-wrap gap-2">
           <ButtonLink href="/app/pre-juridico/flow?step=flows" variant="header"><RadioTower size={16} />Abrir Flow</ButtonLink>
-          <ButtonLink href="/app/pre-juridico/lotes" variant="header"><Layers size={16} />Lista de lotes</ButtonLink>
         </div>}
       />
 
       <ListKpiGrid>
-        <KpiCard label="Lotes monitorados" value={lotesMonitorados} icon={<Layers size={18} />} tone="bg-[#edf8fb] text-[#04799a]" />
+        <KpiCard label="Flows monitorados" value={flows.length} icon={<RadioTower size={18} />} tone="bg-[#edf8fb] text-[#04799a]" />
         <KpiCard label="Flows ativos" value={ativos} icon={<RadioTower size={18} />} tone="bg-violet-50 text-violet-700" />
         <KpiCard label="Agendadas" value={agendadas} icon={<CalendarClock size={18} />} tone="bg-amber-50 text-amber-700" />
         <KpiCard label="Falhas" value={falhas} icon={<AlertCircle size={18} />} tone="bg-rose-50 text-rose-700" />
@@ -133,7 +126,7 @@ export default async function MonitorPreJuridicoPage() {
                     <p className="mt-1 truncate text-xs text-slate-500">{flow.nome}</p>
                   </div>
                   <Metric label="Agenda" value={formatDateTimeBR(agenda)} />
-                  <Link href={`/app/lotes/${flow.lote_id}?pre_juridico=1`} className="text-sm font-medium text-[var(--gkli-primary)] hover:underline">Monitorar lote</Link>
+                  <Link href="/app/pre-juridico/flow?step=flows" className="text-sm font-medium text-[var(--gkli-primary)] hover:underline">Abrir Flow</Link>
                 </ListRow>
               )
             })}
@@ -145,7 +138,7 @@ export default async function MonitorPreJuridicoPage() {
 
       <ListPanel>
         <ListPanelHeader className="flex items-center justify-between gap-4">
-          <ListTitle title="Lotes e Flows" description="Saúde operacional de cada Flow e do lote vinculado." />
+          <ListTitle title="Flows pré-jurídicos" description="Saúde operacional de cada Flow e dos casos vinculados." />
           <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{flows.length}</span>
         </ListPanelHeader>
         {flows.length ? (
@@ -153,32 +146,9 @@ export default async function MonitorPreJuridicoPage() {
             {flows.map((flow) => <FlowMonitorRow key={flow.id} flow={flow} />)}
           </ListRows>
         ) : (
-          <ListEmptyState title="Nenhum Flow monitorado" description="Crie um Flow pré-jurídico para acompanhar os lotes por aqui." />
+          <ListEmptyState title="Nenhum Flow monitorado" description="Crie um Flow pré-jurídico para acompanhar os casos por aqui." />
         )}
       </ListPanel>
-
-      {lotesSemFlow.length ? (
-        <ListPanel>
-          <ListPanelHeader>
-            <ListTitle title="Lotes sem Flow" description="Lotes pré-jurídicos existentes que ainda não estão ligados a um Flow." />
-          </ListPanelHeader>
-          <ListRows>
-            {lotesSemFlow.map((lote: any) => (
-              <ListRow key={lote.id} className="bg-white lg:grid-cols-[minmax(280px,1fr)_140px_110px_110px_110px_150px]">
-                <div>
-                  <p className="text-sm font-semibold text-slate-950">Lote {String(lote.id).slice(0, 8)}</p>
-                  <p className="mt-1 text-xs text-slate-500">{formatDateBR(lote.created_at)}</p>
-                </div>
-                <StatusBadge status={lote.status || 'gerado'} />
-                <Metric label="Mensagens" value={lote.total_criadas} />
-                <Metric label="Enviadas" value={lote.total_enviadas} />
-                <Metric label="Erros" value={lote.total_erros} danger />
-                <Link href={`/app/lotes/${lote.id}?pre_juridico=1`} className="text-sm font-medium text-[var(--gkli-primary)] hover:underline">Monitorar lote</Link>
-              </ListRow>
-            ))}
-          </ListRows>
-        </ListPanel>
-      ) : null}
     </ListPage>
   )
 }
@@ -186,7 +156,6 @@ export default async function MonitorPreJuridicoPage() {
 function FlowMonitorRow({ flow }: { flow: any }) {
   const status = String(flow.status ?? 'pronto')
   const counters = flowCounters(flow)
-  const lote = relation(flow.lote)
   const regua = relation(flow.regua)
   const itens = Array.isArray(flow.itens) ? flow.itens : []
   const open = counters.falhas > 0 || status === 'em_execucao'
@@ -194,11 +163,10 @@ function FlowMonitorRow({ flow }: { flow: any }) {
   return (
     <details className="group/monitor bg-white" open={open}>
       <summary className="list-none [&::-webkit-details-marker]:hidden">
-        <ListRow className="cursor-pointer bg-white lg:grid-cols-[minmax(300px,1fr)_130px_120px_120px_120px_190px_150px]">
+        <ListRow className="cursor-pointer bg-white lg:grid-cols-[minmax(300px,1fr)_130px_120px_120px_120px_190px_120px]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${flowStatusClass(status)}`}>{FLOW_STATUS_LABEL[status] ?? status}</span>
-              <StatusBadge status={lote?.status || 'sem_status'} />
             </div>
             <p className="mt-2 truncate text-sm font-semibold text-slate-950">{flow.nome}</p>
             <p className="mt-1 truncate text-xs text-slate-500">{regua?.nome || 'Régua'} · Lote {String(flow.lote_id ?? '').slice(0, 8)}</p>
@@ -208,7 +176,7 @@ function FlowMonitorRow({ flow }: { flow: any }) {
           <Metric label="Agendadas" value={counters.agendadas} />
           <Metric label="Enviadas" value={counters.enviadas} />
           <Metric label="Próximo disparo" value={formatDateTimeBR(flow.proximo_disparo_em)} />
-          <Link href={`/app/lotes/${flow.lote_id}?pre_juridico=1`} className="text-sm font-medium text-[var(--gkli-primary)] hover:underline">Monitorar lote</Link>
+          <Link href="/app/pre-juridico/flow?step=flows" className="text-sm font-medium text-[var(--gkli-primary)] hover:underline">Abrir Flow</Link>
         </ListRow>
       </summary>
       <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3">
