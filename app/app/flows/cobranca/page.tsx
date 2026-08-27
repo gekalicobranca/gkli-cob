@@ -1,17 +1,18 @@
-import { Layers, ListChecks, RadioTower, type LucideIcon } from 'lucide-react'
+import { Layers, ListChecks, WalletCards, type LucideIcon } from 'lucide-react'
+import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
+import { FlowCobrancaPainelWorkbench } from '@/components/flows/cobranca/cobrancas-painel-workbench'
 import { FlowCobrancaWorkbench } from '@/components/flows/cobranca/flow-cobranca-workbench'
-import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage } from '@/components/layout/list-page'
+import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage, ListPanel, ListPanelHeader, ListTitle, ListTitleBar } from '@/components/layout/list-page'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { PageHeader } from '@/components/ui/page-header'
 import { Select } from '@/components/ui/select'
-import { ativarCobrancasFiltradasFlowCobranca } from '@/features/flows/cobranca/actions'
 import { listCarteiras } from '@/features/carteiras/queries'
 import { listCondominios } from '@/features/condominios/queries'
 import { getFlowCobrancaPageData, hasFlowCobrancaFilters, normalizeFlowCobrancaFilters } from '@/features/flows/cobranca/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+import { formatCurrency } from '@/utils/formatters/currency'
 
 type Params = Promise<{ step?: string; criados?: string; ativadas?: string; carteira?: string; condominio?: string; vencimento?: string }>
 
@@ -35,18 +36,18 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
     listCondominios(scope, filters.carteiraId ? { carteiraId: filters.carteiraId } : {}),
   ])
   const ativos = data.flows.filter((flow: any) => ['pronto', 'em_execucao', 'pausado'].includes(String(flow.status))).length
-  const agendadas = data.flows.reduce((sum: number, flow: any) => sum + Number(flow.total_agendadas ?? 0), 0)
-  const enviadas = data.flows.reduce((sum: number, flow: any) => sum + Number(flow.total_enviadas ?? 0), 0)
+  const valorNovo = data.disponibilidade.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
+  const unidades = new Set(data.disponibilidade.map((row: any) => row.unidade_id).filter(Boolean)).size
   const returnQuery = new URLSearchParams()
   if (filters.carteiraId) returnQuery.set('carteira', filters.carteiraId)
   if (filters.condominioId) returnQuery.set('condominio', filters.condominioId)
   if (filters.vencimentoAte) returnQuery.set('vencimento', filters.vencimentoAte)
 
-  const kpis: Array<{ label: string; value: number; icon: LucideIcon; tone: string }> = [
-    { label: 'Disponíveis', value: data.disponibilidade.length, icon: ListChecks, tone: 'bg-[#edf8fb] text-[#04799a]' },
+  const kpis: Array<{ label: string; value: string | number; icon?: LucideIcon; tag?: string; tagClass?: string; tone?: string }> = [
+    { label: 'Valor novo', value: formatCurrency(valorNovo), icon: WalletCards, tone: 'bg-[var(--gkli-primary-light)] text-[var(--gkli-primary)]' },
+    { label: 'Novas', value: data.disponibilidade.length, tag: 'disponíveis', tagClass: 'bg-emerald-50 text-emerald-700' },
     { label: 'Flows ativos', value: ativos, icon: Layers, tone: 'bg-violet-50 text-violet-700' },
-    { label: 'Agendadas', value: agendadas, icon: RadioTower, tone: 'bg-amber-50 text-amber-700' },
-    { label: 'Enviadas', value: enviadas, icon: ListChecks, tone: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Unidades', value: unidades, icon: ListChecks, tone: 'bg-blue-50 text-blue-700' },
   ]
 
   return <ListPage>
@@ -69,41 +70,27 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
     ) : null}
 
     <ListKpiGrid>
-      {kpis.map(({ label, value, icon: Icon, tone }) => <Card key={label} className="relative overflow-hidden p-3"><div className={`absolute right-4 top-3 rounded-lg p-2 ${tone}`}><Icon size={18} /></div><p className="text-xs font-medium uppercase text-slate-400">{label}</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">{value}</p></Card>)}
+      {kpis.map(({ label, value, icon: Icon, tag, tagClass, tone }) => <Card key={label} className="relative overflow-hidden p-3">
+        {Icon ? <div className={`absolute right-4 top-3 rounded-lg p-2 ${tone}`}><Icon size={18} /></div> : null}
+        <p className="text-xs font-medium uppercase text-slate-400">{label}</p>
+        <div className="mt-1.5 flex items-end justify-between gap-3">
+          <p className="text-2xl font-semibold text-slate-950">{value}</p>
+          {tag ? <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span> : null}
+        </div>
+      </Card>)}
     </ListKpiGrid>
 
-    <Card className="p-4">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-slate-950">Painel</h2>
-          <p className="mt-1 text-sm text-slate-500">Filtre as cobranças novas e mova o recorte filtrado para Cobrança ativa.</p>
-        </div>
-        <form action={ativarCobrancasFiltradasFlowCobranca} className="flex shrink-0 justify-end">
-          {data.disponibilidade.map((cobranca: any) => <input key={cobranca.id} type="hidden" name="cobranca_id" value={cobranca.id} />)}
-          <input type="hidden" name="return_query" value={returnQuery.toString()} />
-          <PendingSubmitButton disabled={!data.disponibilidade.length} pendingLabel="Atualizando...">Mover filtradas para Cobrança ativa</PendingSubmitButton>
-        </form>
-      </div>
-      <ListFiltersForm action="/app/flows/cobranca" className="xl:grid-cols-[minmax(180px,0.9fr)_minmax(220px,1.2fr)_180px_auto_auto]">
-        <ListFilterField label="Carteira">
-          <Select name="carteira" defaultValue={filters.carteiraId ?? ''}>
-            <option value="">Todas</option>
-            {carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}
-          </Select>
-        </ListFilterField>
-        <ListFilterField label="Condomínio">
-          <Select name="condominio" defaultValue={filters.condominioId ?? ''}>
-            <option value="">Todos</option>
-            {condominios.map((condominio: any) => <option key={condominio.id} value={condominio.id}>{condominio.nome_operacional || condominio.nome}</option>)}
-          </Select>
-        </ListFilterField>
-        <ListFilterField label="Vencimento">
-          <Input type="date" name="vencimento" defaultValue={filters.vencimentoAte ?? ''} />
-        </ListFilterField>
-        <Button type="submit">Filtrar</Button>
-        <ClearFiltersLink href="/app/flows/cobranca" show={hasFilters} />
+    <ListPanel><ListPanelHeader className="bg-white/80">
+      <ListTitleBar className="xl:items-center"><ListTitle title="Filtros" description="Localize cobranças por carteira, condomínio e vencimento." /><ClearFiltersLink href="/app/flows/cobranca" show={hasFilters} /></ListTitleBar>
+      <ListFiltersForm action="/app/flows/cobranca" className="grid-cols-1 md:grid-cols-2 xl:grid-cols-8">
+        <ListFilterField label="Carteira" className="xl:col-span-2"><Select name="carteira" defaultValue={filters.carteiraId ?? ''}><option value="">Todas</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></ListFilterField>
+        <ListFilterField label="Condomínio" className="xl:col-span-3"><CondominioSearchSelect name="condominio" options={condominios.map((row: any) => ({ id: row.id, nome: row.nome_operacional || row.nome || 'Condomínio não informado', administradora: null })) as any[]} selectedId={filters.condominioId ?? ''} defaultToFirst={false} inputClassName="" /></ListFilterField>
+        <ListFilterField label="Vencimento até" className="xl:col-span-2"><Input type="date" name="vencimento" defaultValue={filters.vencimentoAte ?? ''} /></ListFilterField>
+        <Button type="submit" className="w-full xl:col-span-1">Filtrar</Button>
       </ListFiltersForm>
-    </Card>
+    </ListPanelHeader></ListPanel>
+
+    <FlowCobrancaPainelWorkbench rows={data.disponibilidade as any[]} returnQuery={returnQuery.toString()} />
 
     <FlowCobrancaWorkbench
       disponibilidade={data.disponibilidade as any[]}
