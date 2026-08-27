@@ -595,7 +595,7 @@ Não há chamada operacional separada para Monitor de lote ou Monitor de Flow. O
 7. No próprio Flow, envie e acompanhe agenda, enviados, falhas e reenvios.
 8. Quando a procuração voltar assinada, marque como assinada no Processamento.
 9. Em Confirmar jurídico, marque procuração assinada, registro recebido e laudo enviado.
-10. Na Distribuição, informe o CNPJ para marcar a unidade com ação judicial.
+10. Na Distribuição, informe o número CNJ para marcar a unidade com ação judicial.
 
 ### 13.3 Pontos de atenção
 
@@ -606,7 +606,7 @@ Não há chamada operacional separada para Monitor de lote ou Monitor de Flow. O
 - Flow é a execução monitorada de lote + régua.
 - O envio acontece pelo dispatcher automático, respeitando a agenda da régua.
 - Falhas aparecem na fila de envio do Flow, com motivo e opção de reenviar.
-- A distribuição exige CNPJ; ao confirmar, a unidade é marcada com ação judicial e as cobranças abertas são judicializadas.
+- A distribuição exige número CNJ; ao confirmar, a unidade é marcada com ação judicial e as cobranças abertas são judicializadas.
 
 ## 14. Fluxos práticos
 

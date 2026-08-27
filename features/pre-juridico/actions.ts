@@ -80,11 +80,11 @@ export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const supabase = await createClient()
   const casoId = String(formData.get('caso_id') ?? '').trim()
-  const cnpjRaw = String(formData.get('distribuicao_cnpj') ?? '').trim()
-  const cnpj = cnpjRaw.replace(/\D/g, '')
+  const cnjRaw = String(formData.get('distribuicao_cnj') ?? '').trim()
+  const cnj = cnjRaw.replace(/\D/g, '')
   if (!casoId) throw new Error('Caso pré-jurídico obrigatório.')
-  if (!cnpj) throw new Error('Informe o CNPJ para confirmar a distribuição.')
-  if (cnpj.length !== 14) throw new Error('Informe um CNPJ válido com 14 dígitos.')
+  if (!cnj) throw new Error('Informe o número CNJ para confirmar a distribuição.')
+  if (cnj.length !== 20) throw new Error('Informe um número CNJ válido com 20 dígitos.')
 
   const { data: caso, error: casoError } = await supabase
     .from('pre_juridico_casos')
@@ -101,7 +101,7 @@ export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
   const payload: Record<string, unknown> = {
     distribuicao_status: 'distribuido',
     distribuicao_solicitada_em: caso.distribuicao_solicitada_em ?? agora,
-    distribuicao_cnpj: cnpj,
+    distribuicao_cnj: cnj,
     distribuido_em: caso.distribuido_em ?? agora,
     responsavel_id: user.id,
   }
@@ -116,9 +116,9 @@ export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
       entidadeId: cobranca.id,
       eventoCodigo: 'cobranca.pre_juridico.distribuida',
       titulo: 'Cobrança distribuída ao jurídico',
-      descricao: 'Distribuição confirmada por CNPJ; cobrança judicializada e unidade marcada com ação judicial.',
+      descricao: 'Distribuição confirmada por número CNJ; cobrança judicializada e unidade marcada com ação judicial.',
       severidade: 'alerta',
-      payload: { caso_id: caso.id, condominio_id: caso.condominio_id, unidade_id: caso.unidade_id, cnpj },
+      payload: { caso_id: caso.id, condominio_id: caso.condominio_id, unidade_id: caso.unidade_id, cnj },
       origem: 'manual',
       auditavel: true,
       required: true,

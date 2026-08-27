@@ -158,7 +158,7 @@ export async function listPreJuridicoCasos(scope: CarteiraScope) {
       procuracao_lote_id, procuracao_lote_criado_em, procuracao_flow_id,
       juridico_procuracao_assinada_confirmada, juridico_registro_recebido,
       juridico_laudo_enviado, distribuicao_status, distribuicao_solicitada_em,
-      distribuido_em, distribuicao_cnpj,
+      distribuido_em, distribuicao_cnj,
       numero_processo, tribunal, foro, observacoes, enviado_juridico_em,
       judicializado_em, created_at, updated_at,
       carteira:carteiras(nome),

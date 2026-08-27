@@ -276,11 +276,11 @@ Etapa: `pronto_juridico`.
 
 Nome exibido: Distribuição.
 
-1. Operador informa o número do CNPJ para confirmar a distribuição.
-2. O sistema valida que o CNPJ possui 14 dígitos.
-3. Ao confirmar o CNPJ:
+1. Operador informa o número CNJ para confirmar a distribuição.
+2. O sistema valida que o CNJ possui 20 dígitos.
+3. Ao confirmar o CNJ:
   - o caso recebe distribuição como `distribuido`;
-  - o CNPJ fica registrado no caso;
+  - o número CNJ fica registrado no caso;
   - a unidade recebe marcação de ação judicial;
   - todas as cobranças abertas da unidade são marcadas como `judicializado`;
   - cobranças quitadas, pagas ou canceladas não são alteradas.
@@ -485,11 +485,11 @@ Transições automáticas:
 Campos:
 
 - `distribuicao_status`: `solicitado` ou `distribuido`.
-- `distribuicao_cnpj`: CNPJ informado na confirmação final.
+- `distribuicao_cnj`: número CNJ informado na confirmação final.
 
 Transição automática:
 
-- CNPJ confirmado marca distribuição como `distribuido`, marca unidade com ação judicial e judicializa cobranças abertas.
+- CNJ confirmado marca distribuição como `distribuido`, marca unidade com ação judicial e judicializa cobranças abertas.
 
 ### 10.5 Flow
 
@@ -695,7 +695,7 @@ Não entra novamente na disponibilidade para evitar duplicidade de lote/Flow.
 
 ### Distribuição
 
-- Deve exigir CNPJ válido para concluir a distribuição.
+- Deve exigir número CNJ válido para concluir a distribuição.
 - Deve marcar unidade com ação judicial ao confirmar a distribuição.
 - Deve judicializar cobranças abertas da unidade.
 - Não deve alterar cobranças quitadas, pagas ou canceladas.

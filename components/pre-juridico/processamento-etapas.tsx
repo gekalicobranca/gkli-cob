@@ -104,7 +104,7 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
   return <details className="group/caso">
     <summary className="list-none [&::-webkit-details-marker]:hidden"><ListRow className={`cursor-pointer bg-white ${selectable ? 'md:grid-cols-[28px_minmax(260px,1fr)_150px_150px_150px_24px]' : 'md:grid-cols-[minmax(260px,1fr)_150px_150px_150px_24px]'}`}>
       {selectable ? <input aria-label={selectionLabel} type="checkbox" checked={selected} onClick={(event) => event.stopPropagation()} onChange={onToggle} className="h-4 w-4 rounded border-slate-300" /> : null}
-      <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'} · {cobrancasUnidade.length || 1} cobrança(s) agrupada(s){caso.etapa === 'pronto_juridico' ? ` · ${caso.distribuicao_status === 'distribuido' ? 'Ação judicial registrada' : 'Aguardando CNPJ'}` : ''}</p></div>
+      <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'} · {cobrancasUnidade.length || 1} cobrança(s) agrupada(s){caso.etapa === 'pronto_juridico' ? ` · ${caso.distribuicao_status === 'distribuido' ? 'Ação judicial registrada' : 'Aguardando CNJ'}` : ''}</p></div>
       <div><p className="text-xs text-slate-400">Valor</p><p className="mt-1 text-sm font-semibold">{formatCurrency(valor)}</p></div>
       <div><p className="text-xs text-slate-400">Responsável interno</p><p className="mt-1 text-sm">{responsavel?.nome || 'Não definido'}</p></div>
       <div><p className="text-xs text-slate-400">Atualização</p><p className="mt-1 text-sm">{formatDateBR(caso.updated_at)}</p></div>
@@ -124,9 +124,9 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
       <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, o caso avançará automaticamente para Confirmar jurídico.</p>
     </form> : caso.etapa === 'pronto_juridico' ? <form action={atualizarDistribuicaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[minmax(260px,1fr)_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar a distribuição e marcar ação judicial para a unidade?')) event.preventDefault() }}>
       <input type="hidden" name="caso_id" value={caso.id} />
-      <Field label="Número CNPJ"><input name="distribuicao_cnpj" defaultValue={formatCnpj(caso.distribuicao_cnpj)} disabled={caso.distribuicao_status === 'distribuido'} placeholder="00.000.000/0000-00" className={controlClass} /></Field>
+      <Field label="Número CNJ"><input name="distribuicao_cnj" defaultValue={formatCnj(caso.distribuicao_cnj)} disabled={caso.distribuicao_status === 'distribuido'} placeholder="0000000-00.0000.0.00.0000" className={controlClass} /></Field>
       <PendingSubmitButton disabled={caso.distribuicao_status === 'distribuido'} pendingLabel="Confirmando...">{caso.distribuicao_status === 'distribuido' ? 'Ação judicial registrada' : 'Confirmar ação judicial'}</PendingSubmitButton>
-      <p className="text-xs text-slate-500 md:col-span-2">Ao confirmar o CNPJ, a unidade receberá o flag de ação judicial e as cobranças abertas serão judicializadas.</p>
+      <p className="text-xs text-slate-500 md:col-span-2">Ao confirmar o CNJ, a unidade receberá o flag de ação judicial e as cobranças abertas serão judicializadas.</p>
     </form> : <form action={atualizarEtapaPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={(event) => { if (!window.confirm('Confirmar a atualização deste caso?')) event.preventDefault() }}>
       <input type="hidden" name="caso_id" value={caso.id} />
       <Field label="Nova etapa"><select name="etapa" defaultValue={caso.etapa} className={controlClass}>{PRE_JURIDICO_ETAPAS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></Field>
@@ -170,16 +170,16 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="text-xs font-medium text-slate-600">{label}{children}</label>
 }
 
-function formatCnpj(value: unknown) {
+function formatCnj(value: unknown) {
   const digits = String(value ?? '').replace(/\D/g, '')
-  if (digits.length !== 14) return String(value ?? '')
-  return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
+  if (digits.length !== 20) return String(value ?? '')
+  return digits.replace(/^(\d{7})(\d{2})(\d{4})(\d)(\d{2})(\d{4})$/, '$1-$2.$3.$4.$5.$6')
 }
 
 function descricaoEtapa(etapa: PreJuridicoEtapa) {
   if (etapa === 'aguardando_documentos') return 'Solicite a certidão e confirme a propriedade antes de avançar.'
   if (etapa === 'aguardando_sindico') return 'Geração, envio e confirmação da procuração assinada pelo síndico.'
   if (etapa === 'confirmar_juridico') return 'Confirme procuração assinada, registro recebido e laudo enviado.'
-  if (etapa === 'pronto_juridico') return 'Informe o CNPJ para confirmar a distribuição e marcar ação judicial.'
+  if (etapa === 'pronto_juridico') return 'Informe o número CNJ para confirmar a distribuição e marcar ação judicial.'
   return etapaPreJuridicoLabel(etapa)
 }
