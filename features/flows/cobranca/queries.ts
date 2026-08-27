@@ -9,6 +9,7 @@ const relation = (value: any) => Array.isArray(value) ? value[0] : value
 export type FlowCobrancaFilters = {
   carteiraId?: string
   condominioId?: string
+  vencimentoDe?: string
   vencimentoAte?: string
 }
 
@@ -20,13 +21,14 @@ export function normalizeFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) 
   return {
     carteiraId: cleanFilter(filters.carteiraId),
     condominioId: cleanFilter(filters.condominioId),
+    vencimentoDe: cleanFilter(filters.vencimentoDe),
     vencimentoAte: cleanFilter(filters.vencimentoAte),
   }
 }
 
 export function hasFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) {
   const normalized = normalizeFlowCobrancaFilters(filters)
-  return Boolean(normalized.carteiraId || normalized.condominioId || normalized.vencimentoAte)
+  return Boolean(normalized.carteiraId || normalized.condominioId || normalized.vencimentoDe || normalized.vencimentoAte)
 }
 
 export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: FlowCobrancaFilters = {}) {
@@ -64,6 +66,10 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
 
   if (normalized.condominioId) {
     disponibilidadeQuery = disponibilidadeQuery.eq('condominio_id', normalized.condominioId)
+  }
+
+  if (normalized.vencimentoDe) {
+    disponibilidadeQuery = disponibilidadeQuery.gte('vencimento', normalized.vencimentoDe)
   }
 
   if (normalized.vencimentoAte) {

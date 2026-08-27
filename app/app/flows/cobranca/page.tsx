@@ -14,7 +14,7 @@ import { getFlowCobrancaPageData, hasFlowCobrancaFilters, normalizeFlowCobrancaF
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatCurrency } from '@/utils/formatters/currency'
 
-type Params = Promise<{ step?: string; criados?: string; ativadas?: string; carteira?: string; condominio?: string; vencimento?: string }>
+type Params = Promise<{ step?: string; criados?: string; ativadas?: string; carteira?: string; condominio?: string; vencimento?: string; vencimento_de?: string; vencimento_ate?: string }>
 
 function safeStep(value: unknown) {
   const step = String(value ?? '')
@@ -27,7 +27,8 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
   const filters = normalizeFlowCobrancaFilters({
     carteiraId: params.carteira,
     condominioId: params.condominio,
-    vencimentoAte: params.vencimento,
+    vencimentoDe: params.vencimento_de,
+    vencimentoAte: params.vencimento_ate ?? params.vencimento,
   })
   const hasFilters = hasFlowCobrancaFilters(filters)
   const [data, carteiras, condominios] = await Promise.all([
@@ -41,7 +42,8 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
   const returnQuery = new URLSearchParams()
   if (filters.carteiraId) returnQuery.set('carteira', filters.carteiraId)
   if (filters.condominioId) returnQuery.set('condominio', filters.condominioId)
-  if (filters.vencimentoAte) returnQuery.set('vencimento', filters.vencimentoAte)
+  if (filters.vencimentoDe) returnQuery.set('vencimento_de', filters.vencimentoDe)
+  if (filters.vencimentoAte) returnQuery.set('vencimento_ate', filters.vencimentoAte)
 
   const kpis: Array<{ label: string; value: string | number; icon?: LucideIcon; tag?: string; tagClass?: string; tone?: string }> = [
     { label: 'Valor novo', value: formatCurrency(valorNovo), icon: WalletCards, tone: 'bg-[var(--gkli-primary-light)] text-[var(--gkli-primary)]' },
@@ -85,10 +87,11 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
     </ListKpiGrid>
 
     <ListCollapsibleFilters defaultOpen={hasFilters} actions={<ClearFiltersLink href="/app/flows/cobranca" show={hasFilters} />}>
-      <ListFiltersForm action="/app/flows/cobranca" className="grid-cols-1 md:grid-cols-2 xl:grid-cols-8">
+      <ListFiltersForm action="/app/flows/cobranca" className="grid-cols-1 md:grid-cols-2 xl:grid-cols-10">
         <ListFilterField label="Carteira" className="xl:col-span-2"><Select name="carteira" defaultValue={filters.carteiraId ?? ''}><option value="">Todas</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></ListFilterField>
         <ListFilterField label="Condomínio" className="xl:col-span-3"><CondominioSearchSelect name="condominio" options={condominios.map((row: any) => ({ id: row.id, nome: row.nome_operacional || row.nome || 'Condomínio não informado', administradora: null })) as any[]} selectedId={filters.condominioId ?? ''} defaultToFirst={false} inputClassName="" /></ListFilterField>
-        <ListFilterField label="Vencimento até" className="xl:col-span-2"><Input type="date" name="vencimento" defaultValue={filters.vencimentoAte ?? ''} /></ListFilterField>
+        <ListFilterField label="Vencimento de" className="xl:col-span-2"><Input type="date" name="vencimento_de" defaultValue={filters.vencimentoDe ?? ''} /></ListFilterField>
+        <ListFilterField label="Vencimento até" className="xl:col-span-2"><Input type="date" name="vencimento_ate" defaultValue={filters.vencimentoAte ?? ''} /></ListFilterField>
         <Button type="submit" className="w-full xl:col-span-1">Filtrar</Button>
       </ListFiltersForm>
     </ListCollapsibleFilters>
