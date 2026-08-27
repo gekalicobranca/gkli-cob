@@ -64,10 +64,13 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
 function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecionar caso', selected = false, onToggle }: { caso: any; selectable?: boolean; selectionLabel?: string; selected?: boolean; onToggle?: () => void }) {
   const condominio = relation(caso.condominio)
   const unidade = relation(caso.unidade)
+  const cobrancasUnidade = Array.isArray(caso.cobrancas_unidade) ? caso.cobrancas_unidade : []
+
+  if (caso.etapa === 'confirmar_juridico') return <ConfirmarJuridicoInlineRow caso={caso} condominio={condominio} unidade={unidade} cobrancasUnidade={cobrancasUnidade} />
+
   const acordo = relation(caso.acordo)
   const cobranca = relation(caso.cobranca)
   const responsavel = relation(caso.responsavel)
-  const cobrancasUnidade = Array.isArray(caso.cobrancas_unidade) ? caso.cobrancas_unidade : []
   const valor = acordo?.valor_acordado != null
     ? Number(acordo.valor_acordado)
     : cobrancasUnidade.length
@@ -122,6 +125,27 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
       <div className="md:col-span-2 xl:col-span-4 flex justify-end"><PendingSubmitButton pendingLabel="Atualizando...">Salvar etapa</PendingSubmitButton></div>
     </form>}
   </details>
+}
+
+function ConfirmarJuridicoInlineRow({ caso, condominio, unidade, cobrancasUnidade }: { caso: any; condominio: any; unidade: any; cobrancasUnidade: any[] }) {
+  return <form action={confirmarJuridicoPreJuridico} className="grid gap-3 bg-white px-4 py-3 transition hover:bg-slate-50 md:grid-cols-[minmax(320px,1fr)_130px_110px_100px_auto] md:items-center">
+    <input type="hidden" name="caso_id" value={caso.id} />
+    <div>
+      <p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p>
+      <p className="mt-1 text-xs text-slate-500">{cobrancasUnidade.length || 1} cobrança(s) agrupada(s)</p>
+    </div>
+    <InlineCheckbox name="juridico_procuracao_assinada_confirmada" label="Procuração" defaultChecked={Boolean(caso.juridico_procuracao_assinada_confirmada || caso.procuracao_status === 'assinada')} />
+    <InlineCheckbox name="juridico_registro_recebido" label="Registro" defaultChecked={Boolean(caso.juridico_registro_recebido)} />
+    <InlineCheckbox name="juridico_laudo_enviado" label="Laudo" defaultChecked={Boolean(caso.juridico_laudo_enviado)} />
+    <PendingSubmitButton size="sm" pendingLabel="Salvando...">Salvar</PendingSubmitButton>
+  </form>
+}
+
+function InlineCheckbox({ name, label, defaultChecked }: { name: string; label: string; defaultChecked?: boolean }) {
+  return <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50/40">
+    <input name={name} type="checkbox" defaultChecked={defaultChecked} className="h-4 w-4 rounded border-slate-300 text-cyan-700 focus:ring-cyan-600" />
+    {label}
+  </label>
 }
 
 const controlClass = 'mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900'
