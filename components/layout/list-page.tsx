@@ -52,6 +52,11 @@ type ListCollapsibleFiltersProps = {
   actions?: ReactNode
 }
 
+type ListCollapsibleSectionHeaderProps = {
+  title: string
+  count?: ReactNode
+}
+
 export function ListPage({ className, children, ...props }: BaseProps) {
   return (
     <div className={cn('space-y-3', className)} {...props}>
@@ -124,6 +129,22 @@ export function ListCollapsibleFilters({
         </div>
       </details>
     </ListPanel>
+  )
+}
+
+export function ListCollapsibleSectionHeader({ title, count }: ListCollapsibleSectionHeaderProps) {
+  return (
+    <ListPanelHeader className="flex items-center justify-between gap-3 bg-white/80 py-2.5 group-hover:bg-slate-50">
+      <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-950">
+        <ChevronDown size={17} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
+        <span className="truncate">{title}</span>
+      </div>
+      {count !== undefined ? (
+        <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
+          {count}
+        </span>
+      ) : null}
+    </ListPanelHeader>
   )
 }
 

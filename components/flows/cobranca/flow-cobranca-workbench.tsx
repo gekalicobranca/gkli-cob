@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { CheckCircle2, ChevronDown, ChevronRight, CirclePause, FileText, Play, RefreshCcw, XCircle } from 'lucide-react'
-import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
+import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
+import { CheckCircle2, ChevronRight, CirclePause, FileText, Play, RefreshCcw, XCircle } from 'lucide-react'
+import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListRows } from '@/components/layout/list-page'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { cancelarFlowCobranca, criarFlowsCobranca, enviarFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -136,6 +136,16 @@ export function FlowCobrancaWorkbench({
   const [selected, setSelected] = useState<string[]>([])
   const selectedCobrancas = useMemo(() => disponibilidade.filter((cobranca) => selected.includes(cobranca.id)), [disponibilidade, selected])
   const grupos = useMemo(() => groupByCarteira(selectedCobrancas), [selectedCobrancas])
+  const [openSteps, setOpenSteps] = useState<Record<StepId, boolean>>({
+    disponibilidade: initialStep === 'disponibilidade' || disponibilidade.length > 0,
+    lotes: initialStep === 'lotes' || grupos.length > 0,
+    flows: initialStep === 'flows' || flows.length > 0,
+  })
+
+  useEffect(() => {
+    if (!grupos.length) return
+    setOpenSteps((current) => current.lotes ? current : { ...current, lotes: true })
+  }, [grupos.length])
 
   function toggle(id: string) {
     setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
@@ -145,14 +155,16 @@ export function FlowCobrancaWorkbench({
     setSelected(checked ? disponibilidade.map((cobranca) => cobranca.id) : [])
   }
 
+  function syncStepOpen(step: StepId, event: SyntheticEvent<HTMLDetailsElement>) {
+    if (event.currentTarget !== event.target) return
+    setOpenSteps((current) => ({ ...current, [step]: event.currentTarget.open }))
+  }
+
   return <div className="space-y-3">
     <ListPanel>
-      <details open={initialStep === 'disponibilidade' || disponibilidade.length > 0} className="group bg-white">
+      <details open={openSteps.disponibilidade} onToggle={(event) => syncStepOpen('disponibilidade', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-          <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
-            <ListTitle title="Disponibilidade" description="Cobranças com status Novo e ainda sem Flow cobrança." />
-            <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{disponibilidade.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
-          </ListPanelHeader>
+          <ListCollapsibleSectionHeader title="Disponibilidade" count={disponibilidade.length} />
         </summary>
         <div>
           {disponibilidade.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
@@ -186,12 +198,9 @@ export function FlowCobrancaWorkbench({
     </ListPanel>
 
     <ListPanel>
-      <details open={initialStep === 'lotes' || grupos.length > 0} className="group bg-white">
+      <details open={openSteps.lotes} onToggle={(event) => syncStepOpen('lotes', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-          <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
-            <ListTitle title="Lotes + régua" description="Agrupamento por carteira com seleção da régua na linha do lote." />
-            <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{grupos.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
-          </ListPanelHeader>
+          <ListCollapsibleSectionHeader title="Lotes + régua" count={grupos.length} />
         </summary>
         <form action={criarFlowsCobranca} onSubmit={(event) => { if (!window.confirm(`Criar ${grupos.length} Flow(s) de cobrança?`)) event.preventDefault() }}>
           {selected.map((id) => <input key={id} type="hidden" name="cobranca_id" value={id} />)}
@@ -229,12 +238,9 @@ export function FlowCobrancaWorkbench({
     </ListPanel>
 
     <ListPanel>
-      <details open={initialStep === 'flows' || flows.length > 0} className="group bg-white">
+      <details open={openSteps.flows} onToggle={(event) => syncStepOpen('flows', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-          <ListPanelHeader className="flex items-center justify-between gap-4 bg-white/80 group-hover:bg-slate-50">
-            <ListTitle title="Flows" description="Monitor operacional dos envios: agenda, enviados, falhas e reenvios." />
-            <div className="flex shrink-0 items-center gap-3"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{flows.length}</span><ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" /></div>
-          </ListPanelHeader>
+          <ListCollapsibleSectionHeader title="Flows" count={flows.length} />
         </summary>
         {flows.length ? <ListRows>{flows.map((flow: any) => <FlowRow key={flow.id} flow={flow} />)}</ListRows> : <ListEmptyState title="Nenhum Flow criado ainda" description="Depois de criar um Flow, ele aparecerá aqui para envio e monitoramento." />}
       </details>
