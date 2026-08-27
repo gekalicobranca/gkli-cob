@@ -130,7 +130,6 @@ const sections: SidebarSection[] = [
       { label: 'Painel Pré', href: '/app/pre-juridico', icon: 'shield', exact: true },
       { label: 'Processamento', href: '/app/pre-juridico/processamento', icon: 'layers' },
       { label: 'Flow', href: '/app/pre-juridico/flow', icon: 'nodes' },
-      { label: 'Monitor', href: '/app/pre-juridico/monitor', icon: 'chart' },
     ],
   },
   {
