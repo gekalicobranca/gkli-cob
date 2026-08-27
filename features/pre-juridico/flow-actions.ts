@@ -267,6 +267,94 @@ export async function enviarFlowPreJuridico(flowId: string) {
   revalidatePath('/app/pre-juridico/flow')
 }
 
+export async function reenviarItemFlowPreJuridico(itemId: string) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const user = await requireUser()
+  const scope = await getPermittedCarteiras()
+  const supabase = createAdminClient()
+
+  const { data: item, error: itemError } = await supabase
+    .from('lote_itens')
+    .select('id,lote_id,mensagem_id,pre_juridico_flow_id,status')
+    .eq('id', itemId)
+    .maybeSingle()
+  if (itemError) throw new Error(`Erro ao carregar item do Flow: ${itemError.message}`)
+  if (!item) throw new Error('Item do Flow não encontrado.')
+
+  const flowId = String((item as any).pre_juridico_flow_id ?? '')
+  const mensagemId = String((item as any).mensagem_id ?? '')
+  if (!flowId || !mensagemId) throw new Error('Este item não possui Flow ou mensagem vinculada.')
+
+  const flow = await getFlow(supabase, flowId, scope)
+  if (flow.status === 'cancelado') throw new Error('Não é possível reenviar item de Flow cancelado.')
+
+  const { data: mensagem, error: mensagemError } = await supabase
+    .from('mensagens')
+    .select('id,carteira_id,lote_id,lote_item_id,status,status_operacional,payload')
+    .eq('id', mensagemId)
+    .maybeSingle()
+  if (mensagemError) throw new Error(`Erro ao carregar mensagem do Flow: ${mensagemError.message}`)
+  if (!mensagem) throw new Error('Mensagem do item não encontrada.')
+
+  const statusMensagem = String((mensagem as any).status_operacional ?? (mensagem as any).status ?? '')
+  if (statusMensagem !== MENSAGEM_STATUS.FALHA) throw new Error('Somente mensagens com falha podem ser reenviadas.')
+
+  const agora = new Date().toISOString()
+  const agendadaPara = agendamentoPreJuridico((mensagem as any).payload, new Date(agora))
+  const { error: updateMensagemError } = await supabase
+    .from('mensagens')
+    .update({
+      status: MENSAGEM_STATUS.AGENDADA,
+      status_operacional: MENSAGEM_STATUS.AGENDADA,
+      scheduled_at: agendadaPara,
+      agendada_para: agendadaPara,
+      aprovado_por: user.id,
+      aprovado_em: agora,
+      proxima_tentativa_em: null,
+      erro: null,
+      erro_envio: null,
+    } as any)
+    .eq('id', mensagemId)
+  if (updateMensagemError) throw new Error(`Erro ao reagendar mensagem do Flow: ${updateMensagemError.message}`)
+
+  await supabase
+    .from('lote_itens')
+    .update({ status: LOTE_ITEM_STATUS.APROVADO, erro: null, operador_id: user.id } as any)
+    .eq('id', itemId)
+  await supabase
+    .from('lotes')
+    .update({ status: LOTE_STATUS.APROVADO, finalizado_em: null, aprovado_por: user.id, aprovado_em: agora } as any)
+    .eq('id', flow.lote_id)
+  await supabase
+    .from('pre_juridico_flows')
+    .update({
+      status: 'em_execucao',
+      pausado_em: null,
+      cancelado_em: null,
+      concluido_em: null,
+      proximo_disparo_em: agendadaPara,
+      atualizado_por: user.id,
+    } as any)
+    .eq('id', flowId)
+
+  await recalcularFlowPreJuridico(supabase, flowId)
+  await registrarLogMensageria(supabase as any, {
+    carteira_id: flow.carteira_id,
+    lote_id: flow.lote_id,
+    lote_item_id: itemId,
+    mensagem_id: mensagemId,
+    evento: 'pre_juridico_flow_item_reenviado',
+    status_anterior: MENSAGEM_STATUS.FALHA,
+    status_novo: MENSAGEM_STATUS.AGENDADA,
+    descricao: 'Item com falha foi reagendado para reenvio pelo Flow pré-jurídico.',
+    payload: { flow_id: flowId, agendada_para: agendadaPara },
+  })
+
+  revalidatePath('/app/pre-juridico/flow')
+  revalidatePath('/app/pre-juridico/monitor')
+  revalidatePath(`/app/lotes/${flow.lote_id}`)
+}
+
 export async function pausarFlowPreJuridico(flowId: string) {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()

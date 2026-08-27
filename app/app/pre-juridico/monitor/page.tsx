@@ -4,6 +4,8 @@ import { ListEmptyState, ListKpiGrid, ListPage, ListPanel, ListPanelHeader, List
 import { ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
+import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
+import { reenviarItemFlowPreJuridico } from '@/features/pre-juridico/flow-actions'
 import { getPreJuridicoFlowPageData } from '@/features/pre-juridico/flow-queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 
@@ -260,8 +262,15 @@ function FlowMonitorItem({ item }: { item: any }) {
       <p className="truncate text-sm font-medium text-slate-800">{mensagem?.email_destinatario || mensagem?.destinatario || 'Destino não informado'}</p>
       <Metric label={status === 'enviada' ? 'Enviado em' : 'Agenda'} value={formatDateTimeBR(agenda)} danger={status === 'falha'} />
       {hasFailure ? (
-        <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-700 lg:col-span-4">
-          <span className="font-semibold">Motivo da falha:</span> <span className="break-words">{reason}</span>
+        <div className="flex flex-col gap-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-700 sm:flex-row sm:items-center sm:justify-between lg:col-span-4">
+          <p>
+            <span className="font-semibold">Motivo da falha:</span> <span className="break-words">{reason}</span>
+          </p>
+          <form action={reenviarItemFlowPreJuridico.bind(null, item.id)} className="shrink-0">
+            <PendingSubmitButton variant="secondary" size="sm" pendingLabel="Reagendando...">
+              Reenviar
+            </PendingSubmitButton>
+          </form>
         </div>
       ) : null}
     </div>

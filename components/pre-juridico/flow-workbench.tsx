@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, ChevronRight, CirclePause, FileSignature, Play, XCircle } from 'lucide-react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
-import { criarFlowsPreJuridico, cancelarFlowPreJuridico, enviarFlowPreJuridico, pausarFlowPreJuridico } from '@/features/pre-juridico/flow-actions'
+import { criarFlowsPreJuridico, cancelarFlowPreJuridico, enviarFlowPreJuridico, pausarFlowPreJuridico, reenviarItemFlowPreJuridico } from '@/features/pre-juridico/flow-actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 
@@ -353,8 +353,15 @@ function FlowItemRow({ item }: { item: any }) {
       </div>
       <ChevronRight size={17} className="text-slate-300" />
       {hasFailure ? (
-        <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-700 lg:col-span-5">
-          <span className="font-semibold">Motivo da falha:</span> <span className="break-words">{reason}</span>
+        <div className="flex flex-col gap-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-700 sm:flex-row sm:items-center sm:justify-between lg:col-span-5">
+          <p>
+            <span className="font-semibold">Motivo da falha:</span> <span className="break-words">{reason}</span>
+          </p>
+          <form action={reenviarItemFlowPreJuridico.bind(null, item.id)} className="shrink-0">
+            <PendingSubmitButton variant="secondary" size="sm" pendingLabel="Reagendando...">
+              Reenviar
+            </PendingSubmitButton>
+          </form>
         </div>
       ) : null}
     </div>
