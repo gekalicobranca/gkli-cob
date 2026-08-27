@@ -258,15 +258,16 @@ Quando uma mensagem falha:
 
 O reenvio não dispara comunicação por fora do Flow.
 
-### 8.8 Confirmar retorno do jurídico
+### 8.8 Confirmar jurídico
 
 Etapa: `confirmar_juridico`.
 
-1. Operador registra a confirmação do jurídico.
-2. Status disponíveis:
-  - `pendente`;
-  - `pronto`.
-3. Ao marcar como `pronto`, o caso avança automaticamente para Distribuição.
+1. Operador registra três confirmações na linha do caso:
+  - procuração assinada;
+  - registro recebido;
+  - laudo enviado.
+2. Enquanto faltar qualquer confirmação, o caso permanece em Confirmar jurídico.
+3. Com as três confirmações marcadas, o caso avança automaticamente para Distribuição.
 4. Sistema define distribuição como `solicitado`.
 
 ### 8.9 Distribuição
@@ -275,11 +276,11 @@ Etapa: `pronto_juridico`.
 
 Nome exibido: Distribuição.
 
-1. Operador acompanha o status de distribuição.
-2. Status possíveis:
-  - `solicitado`;
-  - `distribuido`.
-3. Ao marcar como `distribuido`:
+1. Operador informa o número do CNPJ para confirmar a distribuição.
+2. O sistema valida que o CNPJ possui 14 dígitos.
+3. Ao confirmar o CNPJ:
+  - o caso recebe distribuição como `distribuido`;
+  - o CNPJ fica registrado no caso;
   - a unidade recebe marcação de ação judicial;
   - todas as cobranças abertas da unidade são marcadas como `judicializado`;
   - cobranças quitadas, pagas ou canceladas não são alteradas.
@@ -481,12 +482,14 @@ Transições automáticas:
 
 ### 10.4 Distribuição
 
-- `solicitado`
-- `distribuido`
+Campos:
+
+- `distribuicao_status`: `solicitado` ou `distribuido`.
+- `distribuicao_cnpj`: CNPJ informado na confirmação final.
 
 Transição automática:
 
-- `distribuido` marca unidade com ação judicial e judicializa cobranças abertas.
+- CNPJ confirmado marca distribuição como `distribuido`, marca unidade com ação judicial e judicializa cobranças abertas.
 
 ### 10.5 Flow
 
@@ -692,7 +695,8 @@ Não entra novamente na disponibilidade para evitar duplicidade de lote/Flow.
 
 ### Distribuição
 
-- Deve marcar unidade com ação judicial ao distribuir.
+- Deve exigir CNPJ válido para concluir a distribuição.
+- Deve marcar unidade com ação judicial ao confirmar a distribuição.
 - Deve judicializar cobranças abertas da unidade.
 - Não deve alterar cobranças quitadas, pagas ou canceladas.
 
@@ -705,4 +709,3 @@ Não entra novamente na disponibilidade para evitar duplicidade de lote/Flow.
 - Dispatcher: processo automático que envia mensagens agendadas.
 - Disponibilidade: procurações geradas aptas a montar Flow.
 - Fila de envio: itens de um Flow com status, destino, agenda e ação.
-

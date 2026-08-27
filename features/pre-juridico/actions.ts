@@ -80,10 +80,11 @@ export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const supabase = await createClient()
   const casoId = String(formData.get('caso_id') ?? '').trim()
-  const status = String(formData.get('distribuicao_status') ?? '').trim()
-  const observacoes = String(formData.get('observacoes') ?? '').trim() || null
+  const cnpjRaw = String(formData.get('distribuicao_cnpj') ?? '').trim()
+  const cnpj = cnpjRaw.replace(/\D/g, '')
   if (!casoId) throw new Error('Caso pré-jurídico obrigatório.')
-  if (!['solicitado', 'distribuido'].includes(status)) throw new Error('Andamento da distribuição inválido.')
+  if (!cnpj) throw new Error('Informe o CNPJ para confirmar a distribuição.')
+  if (cnpj.length !== 14) throw new Error('Informe um CNPJ válido com 14 dígitos.')
 
   const { data: caso, error: casoError } = await supabase
     .from('pre_juridico_casos')
@@ -93,37 +94,36 @@ export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
   if (casoError || !caso) throw new Error(casoError ? `Erro ao carregar distribuição: ${casoError.message}` : 'Caso não encontrado.')
   assertCarteiraPermitida(scope, caso.carteira_id)
   if (caso.etapa !== 'pronto_juridico') throw new Error('Este caso não está na etapa de Distribuição.')
-  if (caso.distribuicao_status === 'distribuido' && status !== 'distribuido') throw new Error('Uma distribuição concluída não pode voltar para solicitado.')
+  if (!caso.unidade_id) throw new Error('Este caso não possui unidade vinculada para marcar ação judicial.')
+  if (caso.distribuicao_status === 'distribuido') throw new Error('A distribuição deste caso já foi confirmada.')
 
   const agora = new Date().toISOString()
   const payload: Record<string, unknown> = {
-    distribuicao_status: status,
+    distribuicao_status: 'distribuido',
     distribuicao_solicitada_em: caso.distribuicao_solicitada_em ?? agora,
-    observacoes,
+    distribuicao_cnpj: cnpj,
+    distribuido_em: caso.distribuido_em ?? agora,
     responsavel_id: user.id,
   }
-  if (status === 'distribuido') payload.distribuido_em = caso.distribuido_em ?? agora
   const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', casoId)
   if (error) throw new Error(`Erro ao atualizar distribuição: ${error.message}`)
 
-  if (status === 'distribuido' && caso.distribuicao_status !== 'distribuido') {
-    const { data: cobrancas } = await supabase.from('cobrancas').select('id').eq('unidade_id', caso.unidade_id)
-    for (const cobranca of (cobrancas ?? []) as any[]) {
-      await registrarEventoOperacional(supabase as any, {
-        carteiraId: caso.carteira_id,
-        entidadeTipo: 'cobranca',
-        entidadeId: cobranca.id,
-        eventoCodigo: 'cobranca.pre_juridico.distribuida',
-        titulo: 'Cobrança distribuída ao jurídico',
-        descricao: 'Distribuição confirmada; cobrança judicializada e unidade marcada com ação judicial.',
-        severidade: 'alerta',
-        payload: { caso_id: caso.id, condominio_id: caso.condominio_id, unidade_id: caso.unidade_id },
-        origem: 'manual',
-        auditavel: true,
-        required: true,
-        userId: user.id,
-      })
-    }
+  const { data: cobrancas } = await supabase.from('cobrancas').select('id').eq('unidade_id', caso.unidade_id)
+  for (const cobranca of (cobrancas ?? []) as any[]) {
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: caso.carteira_id,
+      entidadeTipo: 'cobranca',
+      entidadeId: cobranca.id,
+      eventoCodigo: 'cobranca.pre_juridico.distribuida',
+      titulo: 'Cobrança distribuída ao jurídico',
+      descricao: 'Distribuição confirmada por CNPJ; cobrança judicializada e unidade marcada com ação judicial.',
+      severidade: 'alerta',
+      payload: { caso_id: caso.id, condominio_id: caso.condominio_id, unidade_id: caso.unidade_id, cnpj },
+      origem: 'manual',
+      auditavel: true,
+      required: true,
+      userId: user.id,
+    })
   }
 
   revalidatePath('/app/pre-juridico/processamento')
@@ -138,26 +138,31 @@ export async function confirmarJuridicoPreJuridico(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const supabase = await createClient()
   const casoId = String(formData.get('caso_id') ?? '').trim()
-  const status = String(formData.get('confirmacao_juridico') ?? '').trim()
-  const observacoes = String(formData.get('observacoes') ?? '').trim() || null
+  const procuracaoAssinada = formData.get('juridico_procuracao_assinada_confirmada') === 'on'
+  const registroRecebido = formData.get('juridico_registro_recebido') === 'on'
+  const laudoEnviado = formData.get('juridico_laudo_enviado') === 'on'
   if (!casoId) throw new Error('Caso pré-jurídico obrigatório.')
-  if (!['pendente', 'pronto'].includes(status)) throw new Error('Confirmação do jurídico inválida.')
 
   const { data: caso, error: casoError } = await supabase
     .from('pre_juridico_casos')
-    .select('id,carteira_id,unidade_id,etapa')
+    .select('id,carteira_id,unidade_id,etapa,distribuicao_solicitada_em')
     .eq('id', casoId)
     .maybeSingle()
   if (casoError || !caso) throw new Error(casoError ? `Erro ao carregar confirmação do jurídico: ${casoError.message}` : 'Caso não encontrado.')
   assertCarteiraPermitida(scope, caso.carteira_id)
   if (caso.etapa !== 'confirmar_juridico') throw new Error('Este caso não está na etapa de Confirmar jurídico.')
 
-  const payload: Record<string, unknown> = { observacoes, responsavel_id: user.id }
-  if (status === 'pronto') {
+  const payload: Record<string, unknown> = {
+    juridico_procuracao_assinada_confirmada: procuracaoAssinada,
+    juridico_registro_recebido: registroRecebido,
+    juridico_laudo_enviado: laudoEnviado,
+    responsavel_id: user.id,
+  }
+  if (procuracaoAssinada && registroRecebido && laudoEnviado) {
     const agora = new Date().toISOString()
     payload.etapa = 'pronto_juridico'
     payload.distribuicao_status = 'solicitado'
-    payload.distribuicao_solicitada_em = agora
+    payload.distribuicao_solicitada_em = caso.distribuicao_solicitada_em ?? agora
   }
   const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', casoId)
   if (error) throw new Error(`Erro ao confirmar o jurídico: ${error.message}`)
