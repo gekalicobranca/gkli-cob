@@ -5,6 +5,23 @@ import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { createAdminClient } from '@/utils/supabase/admin'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
+const COBRANCA_SELECT = `
+  id,
+  carteira_id,
+  condominio_id,
+  unidade_id,
+  competencia,
+  vencimento,
+  valor_original,
+  valor_atualizado,
+  status,
+  status_operacional,
+  status_financeiro,
+  updated_at,
+  carteira:carteiras(nome),
+  condominio:condominios(id,nome,nome_operacional,regua_cobranca_id),
+  unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone)
+`
 
 export type FlowCobrancaFilters = {
   carteiraId?: string
@@ -36,45 +53,43 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const normalized = normalizeFlowCobrancaFilters(filters)
   const reguasPromise = listReguasForSelect(scope, 'cobranca')
 
-  let disponibilidadeQuery = supabase
+  function applyFilters(query: any) {
+    query = applyCarteiraScope(query, scope.carteiraIds)
+
+    if (normalized.carteiraId) {
+      query = query.eq('carteira_id', normalized.carteiraId)
+    }
+
+    if (normalized.condominioId) {
+      query = query.eq('condominio_id', normalized.condominioId)
+    }
+
+    if (normalized.vencimentoDe) {
+      query = query.gte('vencimento', normalized.vencimentoDe)
+    }
+
+    if (normalized.vencimentoAte) {
+      query = query.lte('vencimento', normalized.vencimentoAte)
+    }
+
+    return query
+  }
+
+  let painelQuery = supabase
     .from('cobrancas')
-    .select(`
-      id,
-      carteira_id,
-      condominio_id,
-      unidade_id,
-      competencia,
-      vencimento,
-      valor_original,
-      valor_atualizado,
-      status,
-      status_operacional,
-      status_financeiro,
-      updated_at,
-      carteira:carteiras(nome),
-      condominio:condominios(id,nome,nome_operacional,regua_cobranca_id),
-      unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone)
-    `)
+    .select(COBRANCA_SELECT)
     .or(`status_operacional.eq.${COBRANCA_STATUS_OPERACIONAL.NOVO},status.eq.${COBRANCA_STATUS_OPERACIONAL.NOVO}`)
     .order('vencimento', { ascending: true })
     .limit(300)
-  disponibilidadeQuery = applyCarteiraScope(disponibilidadeQuery, scope.carteiraIds)
+  painelQuery = applyFilters(painelQuery)
 
-  if (normalized.carteiraId) {
-    disponibilidadeQuery = disponibilidadeQuery.eq('carteira_id', normalized.carteiraId)
-  }
-
-  if (normalized.condominioId) {
-    disponibilidadeQuery = disponibilidadeQuery.eq('condominio_id', normalized.condominioId)
-  }
-
-  if (normalized.vencimentoDe) {
-    disponibilidadeQuery = disponibilidadeQuery.gte('vencimento', normalized.vencimentoDe)
-  }
-
-  if (normalized.vencimentoAte) {
-    disponibilidadeQuery = disponibilidadeQuery.lte('vencimento', normalized.vencimentoAte)
-  }
+  let disponibilidadeQuery = supabase
+    .from('cobrancas')
+    .select(COBRANCA_SELECT)
+    .or(`status_operacional.eq.${COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA},status.eq.${COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA}`)
+    .order('vencimento', { ascending: true })
+    .limit(300)
+  disponibilidadeQuery = applyFilters(disponibilidadeQuery)
 
   let flowsQuery = supabase
     .from('cobranca_flows')
@@ -106,20 +121,22 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     .limit(100)
   flowsQuery = applyCarteiraScope(flowsQuery, scope.carteiraIds)
 
-  const [{ data: cobrancas, error: cobrancasError }, { data: flows, error: flowsError }, reguas] = await Promise.all([
+  const [{ data: painel, error: painelError }, { data: disponibilidade, error: disponibilidadeError }, { data: flows, error: flowsError }, reguas] = await Promise.all([
+    painelQuery,
     disponibilidadeQuery,
     flowsQuery,
     reguasPromise,
   ])
 
-  if (cobrancasError) throw new Error(`Erro ao carregar cobranças disponíveis para Flow: ${cobrancasError.message}`)
+  if (painelError) throw new Error(`Erro ao carregar cobranças novas para Flow: ${painelError.message}`)
+  if (disponibilidadeError) throw new Error(`Erro ao carregar cobranças disponíveis para Flow: ${disponibilidadeError.message}`)
   if (flowsError && flowsError.code !== '42P01') throw new Error(`Erro ao carregar Flows de cobrança: ${flowsError.message}`)
 
   const flowRows = (flows ?? []) as any[]
   const flowIds = flowRows.map((flow) => flow.id).filter(Boolean)
   let itensPorFlow = new Map<string, any[]>()
   let cobrancasJaVinculadas = new Set<string>()
-  const cobrancaIdsDisponibilidade = (cobrancas ?? []).map((row: any) => row.id).filter(Boolean)
+  const cobrancaIdsDisponibilidade = (disponibilidade ?? []).map((row: any) => row.id).filter(Boolean)
 
   if (cobrancaIdsDisponibilidade.length) {
     const { data: vinculados } = await supabase
@@ -192,7 +209,13 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   }
 
   return {
-    disponibilidade: (cobrancas ?? [])
+    painel: (painel ?? []).map((row: any) => ({
+      ...row,
+      carteira: relation(row.carteira),
+      condominio: relation(row.condominio),
+      unidade: relation(row.unidade),
+    })),
+    disponibilidade: (disponibilidade ?? [])
       .filter((row: any) => !cobrancasJaVinculadas.has(String(row.id)))
       .map((row: any) => ({
         ...row,

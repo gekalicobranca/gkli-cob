@@ -37,8 +37,10 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
     listCondominios(scope, filters.carteiraId ? { carteiraId: filters.carteiraId } : {}),
   ])
   const ativos = data.flows.filter((flow: any) => ['pronto', 'em_execucao', 'pausado'].includes(String(flow.status))).length
-  const valorNovo = data.disponibilidade.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
-  const unidades = new Set(data.disponibilidade.map((row: any) => row.unidade_id).filter(Boolean)).size
+  const painelRows = (data.painel ?? []) as any[]
+  const disponibilidadeRows = (data.disponibilidade ?? []) as any[]
+  const valorNovo = painelRows.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
+  const unidades = new Set(painelRows.map((row: any) => row.unidade_id).filter(Boolean)).size
   const returnQuery = new URLSearchParams()
   if (filters.carteiraId) returnQuery.set('carteira', filters.carteiraId)
   if (filters.condominioId) returnQuery.set('condominio', filters.condominioId)
@@ -47,7 +49,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
 
   const kpis: Array<{ label: string; value: string | number; icon?: LucideIcon; tag?: string; tagClass?: string; tone?: string }> = [
     { label: 'Valor novo', value: formatCurrency(valorNovo), icon: WalletCards, tone: 'bg-[var(--gkli-primary-light)] text-[var(--gkli-primary)]' },
-    { label: 'Novas', value: data.disponibilidade.length, tag: 'disponíveis', tagClass: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Novas', value: painelRows.length, tag: 'painel', tagClass: 'bg-emerald-50 text-emerald-700' },
     { label: 'Flows ativos', value: ativos, icon: Layers, tone: 'bg-violet-50 text-violet-700' },
     { label: 'Unidades', value: unidades, icon: ListChecks, tone: 'bg-blue-50 text-blue-700' },
   ]
@@ -96,10 +98,10 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
       </ListFiltersForm>
     </ListCollapsibleFilters>
 
-    <FlowCobrancaPainelWorkbench rows={data.disponibilidade as any[]} returnQuery={returnQuery.toString()} />
+    <FlowCobrancaPainelWorkbench rows={painelRows} returnQuery={returnQuery.toString()} />
 
     <FlowCobrancaWorkbench
-      disponibilidade={data.disponibilidade as any[]}
+      disponibilidade={disponibilidadeRows}
       reguas={data.reguas as any[]}
       flows={data.flows as any[]}
       initialStep={safeStep(params.step)}

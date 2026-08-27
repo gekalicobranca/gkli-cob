@@ -99,7 +99,7 @@ export async function criarFlowsCobranca(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
   const cobrancaIds = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
-  if (!cobrancaIds.length) throw new Error('Selecione ao menos uma cobrança nova.')
+  if (!cobrancaIds.length) throw new Error('Selecione ao menos uma cobrança ativa.')
 
   let query = supabase
     .from('cobrancas')
@@ -109,8 +109,8 @@ export async function criarFlowsCobranca(formData: FormData) {
   const { data, error } = await query
   if (error) throw new Error(`Erro ao carregar cobranças para Flow: ${error.message}`)
   const cobrancas = (data ?? []) as any[]
-  if (cobrancas.length !== cobrancaIds.length || cobrancas.some((row) => row.status_operacional !== COBRANCA_STATUS_OPERACIONAL.NOVO && row.status !== COBRANCA_STATUS_OPERACIONAL.NOVO)) {
-    throw new Error('Uma ou mais cobranças não estão com status Novo.')
+  if (cobrancas.length !== cobrancaIds.length || cobrancas.some((row) => row.status_operacional !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA && row.status !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA)) {
+    throw new Error('Uma ou mais cobranças não estão em Cobrança ativa.')
   }
 
   const { data: vinculadas, error: vinculadasError } = await supabase

@@ -20,6 +20,7 @@ type Row = {
   competencia?: string | null
   valor_original?: number | string | null
   valor_atualizado?: number | string | null
+  status?: string | null
   status_operacional?: string | null
   status_financeiro?: string | null
   condominio?: { nome?: string | null; nome_operacional?: string | null } | null
@@ -27,7 +28,7 @@ type Row = {
 }
 
 function isNovo(row: Row) {
-  return row.status_operacional === 'novo'
+  return row.status_operacional === 'novo' || row.status === 'novo'
 }
 
 export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: Row[]; returnQuery?: string }) {

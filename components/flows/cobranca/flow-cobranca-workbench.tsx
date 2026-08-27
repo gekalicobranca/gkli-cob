@@ -186,13 +186,13 @@ export function FlowCobrancaWorkbench({
                     <p className="mt-1 truncate text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'} · {relation(cobranca.carteira)?.nome || 'Carteira'}</p>
                   </div>
                   <div><p className="text-xs text-slate-400">Valor</p><p className="text-sm font-medium text-slate-800">{formatCurrency(cobrancaValue(cobranca))}</p></div>
-                  <div><p className="text-xs text-slate-400">Status</p><p className="text-sm text-sky-700">Novo</p></div>
+                  <div><p className="text-xs text-slate-400">Status</p><p className="text-sm text-emerald-700">Cobrança ativa</p></div>
                   <div><p className="text-xs text-slate-400">Vencimento</p><p className="text-sm text-slate-700">{formatDateBR(cobranca.vencimento)}</p></div>
                   <ChevronRight size={17} className="text-slate-400" />
                 </ListRow>
               </label>
             })}
-          </ListRows> : <ListEmptyState title="Nenhuma cobrança disponível" description="Quando houver cobranças com status Novo, elas aparecerão aqui para montar o Flow." />}
+          </ListRows> : <ListEmptyState title="Nenhuma cobrança disponível" description="Quando uma cobrança for ativada no painel e ainda não estiver em Flow, ela aparecerá aqui." />}
         </div>
       </details>
     </ListPanel>
