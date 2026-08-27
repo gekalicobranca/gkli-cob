@@ -1,39 +1,55 @@
+import { Layers, ListChecks, RadioTower, type LucideIcon } from 'lucide-react'
+import { FlowCobrancaWorkbench } from '@/components/flows/cobranca/flow-cobranca-workbench'
+import { ListKpiGrid, ListPage } from '@/components/layout/list-page'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
+import { getFlowCobrancaPageData } from '@/features/flows/cobranca/queries'
+import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 
-const etapas = [
-  ['1', 'Painel', 'Selecionar cobranças elegíveis para o fluxo novo.'],
-  ['2', 'Processamento', 'Preparar casos, validar dados e liberar disponibilidade.'],
-  ['3', 'Lote + Régua', 'Gerar conteúdo e escolher agenda/template sem usar Comunicação atual.'],
-  ['4', 'Flow', 'Enviar, pausar, cancelar, monitorar falhas e permitir reenvio.'],
-]
+type Params = Promise<{ step?: string; criados?: string }>
 
-export default function FlowCobrancaPage() {
-  return (
-    <div className="space-y-4">
-      <PageHeader
-        eyebrow="Flows"
-        title="Flow cobrança"
-        description="Nova esteira para montagem e execução monitorada dos flows de cobrança, independente do módulo atual de Comunicação."
-      />
+function safeStep(value: unknown) {
+  const step = String(value ?? '')
+  return ['disponibilidade', 'lotes', 'flows'].includes(step) ? step as any : 'disponibilidade'
+}
 
-      <Card className="space-y-4">
-        <div>
-          <h2 className="text-base font-semibold text-slate-950">Modelo operacional</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Esta tela será construída seguindo o padrão Painel, Processamento, Lote, Régua e Flow.
-          </p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {etapas.map(([numero, titulo, descricao]) => (
-            <div key={numero} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-cyan-100 text-sm font-semibold text-cyan-800">{numero}</span>
-              <h3 className="mt-3 text-sm font-semibold text-slate-950">{titulo}</h3>
-              <p className="mt-1 text-xs leading-5 text-slate-500">{descricao}</p>
-            </div>
-          ))}
-        </div>
+export default async function FlowCobrancaPage({ searchParams }: { searchParams: Params }) {
+  const params = await searchParams
+  const scope = await getPermittedCarteiras()
+  const data = await getFlowCobrancaPageData(scope)
+  const ativos = data.flows.filter((flow: any) => ['pronto', 'em_execucao', 'pausado'].includes(String(flow.status))).length
+  const agendadas = data.flows.reduce((sum: number, flow: any) => sum + Number(flow.total_agendadas ?? 0), 0)
+  const enviadas = data.flows.reduce((sum: number, flow: any) => sum + Number(flow.total_enviadas ?? 0), 0)
+
+  const kpis: Array<{ label: string; value: number; icon: LucideIcon; tone: string }> = [
+    { label: 'Disponíveis', value: data.disponibilidade.length, icon: ListChecks, tone: 'bg-[#edf8fb] text-[#04799a]' },
+    { label: 'Flows ativos', value: ativos, icon: Layers, tone: 'bg-violet-50 text-violet-700' },
+    { label: 'Agendadas', value: agendadas, icon: RadioTower, tone: 'bg-amber-50 text-amber-700' },
+    { label: 'Enviadas', value: enviadas, icon: ListChecks, tone: 'bg-emerald-50 text-emerald-700' },
+  ]
+
+  return <ListPage>
+    <PageHeader
+      eyebrow="Flows"
+      title="Flow cobrança"
+      description="Crie lotes a partir das cobranças novas, vincule uma régua, libere a agenda e monitore os disparos."
+    />
+
+    {params.criados ? (
+      <Card className="border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+        {params.criados} Flow(s) criado(s). Revise a lista e clique em Enviar para liberar a agenda da régua.
       </Card>
-    </div>
-  )
+    ) : null}
+
+    <ListKpiGrid>
+      {kpis.map(({ label, value, icon: Icon, tone }) => <Card key={label} className="relative overflow-hidden p-3"><div className={`absolute right-4 top-3 rounded-lg p-2 ${tone}`}><Icon size={18} /></div><p className="text-xs font-medium uppercase text-slate-400">{label}</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">{value}</p></Card>)}
+    </ListKpiGrid>
+
+    <FlowCobrancaWorkbench
+      disponibilidade={data.disponibilidade as any[]}
+      reguas={data.reguas as any[]}
+      flows={data.flows as any[]}
+      initialStep={safeStep(params.step)}
+    />
+  </ListPage>
 }
