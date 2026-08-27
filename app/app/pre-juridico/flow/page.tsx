@@ -37,7 +37,7 @@ export default async function FlowPreJuridicoPage({ searchParams }: { searchPara
       actions={<div className="flex flex-wrap gap-2">
         <ButtonLink href="/app/pre-juridico/regua" variant="header"><Network size={16} />Réguas</ButtonLink>
         <ButtonLink href="/app/pre-juridico/lotes" variant="header"><Layers size={16} />Lotes</ButtonLink>
-        <ButtonLink href="/app/pre-juridico/flow?step=flows" variant="header"><RadioTower size={16} />Monitor de flows</ButtonLink>
+        <ButtonLink href="/app/pre-juridico/monitor" variant="header"><RadioTower size={16} />Monitor de lotes</ButtonLink>
       </div>}
     />
 
