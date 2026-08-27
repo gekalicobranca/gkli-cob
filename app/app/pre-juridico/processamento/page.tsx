@@ -4,7 +4,7 @@ import { ProcessamentoEtapas } from '@/components/pre-juridico/processamento-eta
 import { IniciarProcessamento } from '@/components/pre-juridico/iniciar-processamento'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
-import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage, ListPanel, ListPanelHeader, ListSearchField, ListTitle, ListTitleBar } from '@/components/layout/list-page'
+import { ClearFiltersLink, ListCollapsibleFilters, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage, ListSearchField } from '@/components/layout/list-page'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { listPreJuridicoCasos, listPreJuridicoCobrancas } from '@/features/pre-juridico/queries'
@@ -63,9 +63,7 @@ export default async function ProcessamentoPreJuridicoPage({ searchParams }: { s
     <ListKpiGrid>
       {kpis.map(({ label, value, icon: Icon, tone }) => <Card key={label} className="relative overflow-hidden p-3"><div className={`absolute right-4 top-3 rounded-lg p-2 ${tone}`}><Icon size={18} /></div><p className="text-xs font-medium uppercase text-slate-400">{label}</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">{value}</p></Card>)}
     </ListKpiGrid>
-    <ListPanel>
-      <ListPanelHeader className="bg-white/80">
-        <ListTitleBar className="xl:items-center"><ListTitle title="Processamentos" description="Localize por carteira, condomínio, etapa, unidade ou responsável." /><ClearFiltersLink href="/app/pre-juridico/processamento" show={hasFilters} /></ListTitleBar>
+    <ListCollapsibleFilters defaultOpen={hasFilters} label="Filtros" actions={<ClearFiltersLink href="/app/pre-juridico/processamento" show={hasFilters} />}>
         <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
           <ListSearchField defaultValue={params.q} placeholder="Unidade ou responsável..." className="xl:col-span-4" />
           <ListFilterField label="Carteira" className="xl:col-span-2"><Select name="carteira_id" defaultValue={params.carteira_id ?? ''}><option value="">Todas</option>{carteiras.map(([id, nome]) => <option key={String(id)} value={String(id)}>{String(nome || 'Sem nome')}</option>)}</Select></ListFilterField>
@@ -73,8 +71,7 @@ export default async function ProcessamentoPreJuridicoPage({ searchParams }: { s
           <ListFilterField label="Etapa" className="xl:col-span-2"><Select name="etapa" defaultValue={params.etapa ?? ''}><option value="">Todas</option><option value="aguardando_inicio">Aguardando início</option><option value="aguardando_documentos">Confirmar propriedade</option><option value="aguardando_sindico">Procuração</option><option value="confirmar_juridico">Confirmar jurídico</option><option value="pronto_juridico">Distribuição</option></Select></ListFilterField>
           <Button type="submit" className="w-full xl:col-span-1">Filtrar</Button>
         </ListFiltersForm>
-      </ListPanelHeader>
-    </ListPanel>
+    </ListCollapsibleFilters>
     <IniciarProcessamento rows={aguardandoInicio as any[]} />
     <ProcessamentoEtapas casos={emPreparacao as any[]} etapas={PREPARACAO} />
   </ListPage>

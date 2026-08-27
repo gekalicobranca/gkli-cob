@@ -2,7 +2,7 @@ import { Layers, ListChecks, WalletCards, type LucideIcon } from 'lucide-react'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
 import { FlowCobrancaPainelWorkbench } from '@/components/flows/cobranca/cobrancas-painel-workbench'
 import { FlowCobrancaWorkbench } from '@/components/flows/cobranca/flow-cobranca-workbench'
-import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage, ListPanel, ListPanelHeader, ListTitle, ListTitleBar } from '@/components/layout/list-page'
+import { ClearFiltersLink, ListCollapsibleFilters, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage } from '@/components/layout/list-page'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -80,15 +80,14 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
       </Card>)}
     </ListKpiGrid>
 
-    <ListPanel><ListPanelHeader className="bg-white/80">
-      <ListTitleBar className="xl:items-center"><ListTitle title="Filtros" description="Localize cobranças por carteira, condomínio e vencimento." /><ClearFiltersLink href="/app/flows/cobranca" show={hasFilters} /></ListTitleBar>
+    <ListCollapsibleFilters defaultOpen={hasFilters} actions={<ClearFiltersLink href="/app/flows/cobranca" show={hasFilters} />}>
       <ListFiltersForm action="/app/flows/cobranca" className="grid-cols-1 md:grid-cols-2 xl:grid-cols-8">
         <ListFilterField label="Carteira" className="xl:col-span-2"><Select name="carteira" defaultValue={filters.carteiraId ?? ''}><option value="">Todas</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></ListFilterField>
         <ListFilterField label="Condomínio" className="xl:col-span-3"><CondominioSearchSelect name="condominio" options={condominios.map((row: any) => ({ id: row.id, nome: row.nome_operacional || row.nome || 'Condomínio não informado', administradora: null })) as any[]} selectedId={filters.condominioId ?? ''} defaultToFirst={false} inputClassName="" /></ListFilterField>
         <ListFilterField label="Vencimento até" className="xl:col-span-2"><Input type="date" name="vencimento" defaultValue={filters.vencimentoAte ?? ''} /></ListFilterField>
         <Button type="submit" className="w-full xl:col-span-1">Filtrar</Button>
       </ListFiltersForm>
-    </ListPanelHeader></ListPanel>
+    </ListCollapsibleFilters>
 
     <FlowCobrancaPainelWorkbench rows={data.disponibilidade as any[]} returnQuery={returnQuery.toString()} />
 

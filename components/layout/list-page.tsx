@@ -1,5 +1,5 @@
 import type { FormHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 import { EmptyState } from '@/components/data/empty-state'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -43,6 +43,13 @@ type ListPaginationProps = {
   total: number
   previousHref?: string
   nextHref?: string
+}
+
+type ListCollapsibleFiltersProps = {
+  children: ReactNode
+  defaultOpen?: boolean
+  label?: string
+  actions?: ReactNode
 }
 
 export function ListPage({ className, children, ...props }: BaseProps) {
@@ -91,6 +98,32 @@ export function ListTitle({ title, description }: { title: string; description?:
       <h2 className="text-base font-semibold text-slate-950">{title}</h2>
       {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
     </div>
+  )
+}
+
+export function ListCollapsibleFilters({
+  children,
+  defaultOpen = false,
+  label = 'Filtros',
+  actions,
+}: ListCollapsibleFiltersProps) {
+  return (
+    <ListPanel>
+      <details open={defaultOpen} className="group bg-white">
+        <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+          <ListPanelHeader className="flex items-center justify-between gap-3 bg-white/80 py-2.5 group-hover:bg-slate-50">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+              <ChevronDown size={17} className="text-slate-400 transition-transform group-open:rotate-180" />
+              {label}
+            </div>
+            {actions ? <div className="shrink-0">{actions}</div> : null}
+          </ListPanelHeader>
+        </summary>
+        <div className="px-4 pb-3">
+          {children}
+        </div>
+      </details>
+    </ListPanel>
   )
 }
 

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
-import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListKpiGrid, ListPanel, ListPanelHeader, ListSearchField, ListTitle, ListTitleBar } from '@/components/layout/list-page'
+import { ClearFiltersLink, ListCollapsibleFilters, ListFilterField, ListFiltersForm, ListKpiGrid, ListSearchField } from '@/components/layout/list-page'
 import { PreJuridicoCobrancasWorkbench } from '@/components/pre-juridico/cobrancas-workbench'
 import { listCarteirasForSelect, listCondominiosForSelect } from '@/features/cadastros/queries'
 import { listPreJuridicoCobrancas } from '@/features/pre-juridico/queries'
@@ -54,6 +54,7 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
   const encaminhadas = filteredScope.filter((row: any) => row.situacao_pre_juridico === 'encaminhado')
   const valorElegivel = elegiveis.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
   const unidades = new Set(filteredScope.map((row: any) => row.unidade_id).filter(Boolean)).size
+  const hasFilters = Boolean(params.q || params.carteira_id || params.condominio_id || params.vencimento_de || params.vencimento_ate || params.etapa)
 
   return (
     <div className="space-y-5">
@@ -78,8 +79,7 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
           </Card>
         ))}
       </ListKpiGrid>
-      <ListPanel><ListPanelHeader className="bg-white/80">
-        <ListTitleBar className="xl:items-center"><ListTitle title="Filtros" description="Localize cobranças por carteira, vencimento, condomínio, unidade ou responsável." /><ClearFiltersLink href="/app/pre-juridico" show={Boolean(params.q || params.carteira_id || params.condominio_id || params.vencimento_de || params.vencimento_ate || params.etapa)} /></ListTitleBar>
+      <ListCollapsibleFilters defaultOpen={hasFilters} actions={<ClearFiltersLink href="/app/pre-juridico" show={hasFilters} />}>
         <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
           <ListSearchField defaultValue={params.q} placeholder="Unidade ou responsável..." className="xl:col-span-3" />
           <ListFilterField label="Carteira" className="xl:col-span-2"><Select name="carteira_id" defaultValue={params.carteira_id ?? ''}><option value="">Todas</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></ListFilterField>
@@ -89,7 +89,7 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
           <ListFilterField label="Situação" className="xl:col-span-2"><Select name="etapa" defaultValue={params.etapa ?? ''}><option value="">Todas</option><option value="elegivel">Elegíveis</option><option value="encaminhado">Encaminhadas</option></Select></ListFilterField>
           <Button type="submit" className="w-full xl:col-span-1">Filtrar</Button>
         </ListFiltersForm>
-      </ListPanelHeader></ListPanel>
+      </ListCollapsibleFilters>
       <PreJuridicoCobrancasWorkbench rows={rows as any[]} />
     </div>
   )

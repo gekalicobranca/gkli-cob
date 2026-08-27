@@ -6,7 +6,7 @@ import { Select } from '@/components/ui/select'
 import { StatusBadge } from '@/components/data/status-badge'
 import { EmptyState } from '@/components/data/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
-import { ClearFiltersLink, ListFilterField, ListFiltersForm, ListSearchField, ListTitle, ListTitleBar } from '@/components/layout/list-page'
+import { ClearFiltersLink, ListCollapsibleFilters, ListFilterField, ListFiltersForm, ListSearchField } from '@/components/layout/list-page'
 import { listLotesRegua } from '@/features/lotes/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -40,15 +40,14 @@ export default async function LotesPreJuridicoPage({ searchParams }: { searchPar
       <Card className="p-4"><CheckCircle2 size={19} className="text-amber-600" /><p className="mt-3 text-2xl font-semibold">{pendentes}</p><p className="text-sm text-slate-500">pendentes de aprovação</p></Card>
       <Card className="p-4"><AlertCircle size={19} className="text-rose-600" /><p className="mt-3 text-2xl font-semibold">{erros}</p><p className="text-sm text-slate-500">erros para revisar</p></Card>
     </section>
-    <Card className="p-5">
-      <ListTitleBar><ListTitle title="Filtros" description="Localize por lote, régua, status ou resultado." /><ClearFiltersLink href="/app/pre-juridico/lotes" show={hasFilters} /></ListTitleBar>
+    <ListCollapsibleFilters defaultOpen={hasFilters} actions={<ClearFiltersLink href="/app/pre-juridico/lotes" show={hasFilters} />}>
       <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
         <ListSearchField defaultValue={params.q} placeholder="ID, régua ou observação..." className="xl:col-span-6" />
         <ListFilterField label="Status" className="xl:col-span-3"><Select name="status" defaultValue={params.status ?? ''}><option value="">Todos</option><option value="processando">Processando</option><option value="gerado">Gerado</option><option value="pendente_aprovacao">Pendente de aprovação</option><option value="concluido">Concluído</option><option value="concluido_com_falhas">Com falhas</option><option value="erro">Erro</option><option value="cancelado">Cancelado</option></Select></ListFilterField>
         <ListFilterField label="Resultado" className="xl:col-span-2"><Select name="resultado" defaultValue={params.resultado ?? ''}><option value="">Todos</option><option value="com_mensagens">Com mensagens</option><option value="com_duplicadas">Com duplicadas</option><option value="com_erros">Com erros</option></Select></ListFilterField>
         <Button type="submit" className="w-full xl:col-span-1">Filtrar</Button>
       </ListFiltersForm>
-    </Card>
+    </ListCollapsibleFilters>
     {rows.length ? <Card className="overflow-hidden p-0"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-semibold text-slate-950">Lotes pré-jurídicos</h2><p className="mt-1 text-sm text-slate-500">Cada linha representa uma geração de documentos e comunicações.</p></div><div className="divide-y divide-slate-100">{rows.map((row: any) => <Link key={row.id} href={`/app/lotes/${row.id}?pre_juridico=1`} className="grid gap-3 px-5 py-4 transition hover:bg-slate-50 lg:grid-cols-[minmax(300px,1fr)_140px_100px_100px_100px_100px] lg:items-center"><div><p className="text-sm font-semibold text-slate-950">Lote {String(row.id).slice(0, 8)}</p><p className="mt-1 text-xs text-slate-500">{relation(row.regua)?.nome || 'Régua pré-jurídica'} · {row.observacoes || 'Geração pré-jurídica'} · {formatDateBR(row.created_at)}</p></div><StatusBadge status={row.status || 'gerado'} /><Metric label="Casos" value={row.total_avaliadas} /><Metric label="Mensagens" value={row.total_criadas} /><Metric label="Duplicadas" value={row.total_duplicadas} /><Metric label="Erros" value={row.total_erros} danger /></Link>)}</div></Card> : <EmptyState title="Nenhum lote pré-jurídico" description="Os lotes criados no processamento pré-jurídico aparecerão aqui." />}
   </div>
 }
