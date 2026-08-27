@@ -134,7 +134,7 @@ export function FlowCobrancaWorkbench({
   initialStep?: StepId
   initialSelectedIds?: string[]
 }) {
-  const [selected] = useState<string[]>(initialSelectedIds)
+  const [selected] = useState<string[]>(initialSelectedIds.length ? initialSelectedIds : disponibilidade.map((cobranca) => cobranca.id).filter(Boolean))
   const selectedCobrancas = useMemo(() => disponibilidade.filter((cobranca) => selected.includes(cobranca.id)), [disponibilidade, selected])
   const grupos = useMemo(() => groupByCarteira(selectedCobrancas), [selectedCobrancas])
   const [openSteps, setOpenSteps] = useState<Record<StepId, boolean>>({
@@ -159,10 +159,10 @@ export function FlowCobrancaWorkbench({
           <ListCollapsibleSectionHeader title="Lotes + régua" count={grupos.length} />
         </summary>
         <form action={criarFlowsCobranca} onSubmit={(event) => { if (!window.confirm(`Criar ${grupos.length} Flow(s) de cobrança?`)) event.preventDefault() }}>
-          {selected.map((id) => <input key={id} type="hidden" name="cobranca_id" value={id} />)}
+          {selectedCobrancas.map((cobranca) => <input key={cobranca.id} type="hidden" name="cobranca_id" value={cobranca.id} />)}
           <div>
-            {selected.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
-              <p className="text-sm text-slate-600">{selected.length} cobrança(s) selecionada(s), agrupadas em {grupos.length} lote(s) por carteira.</p>
+            {selectedCobrancas.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+              <p className="text-sm text-slate-600">{selectedCobrancas.length} cobrança(s) ativa(s), agrupadas em {grupos.length} lote(s) por carteira.</p>
             </div> : null}
             {grupos.length ? <ListRows>
               {grupos.map((grupo) => {
