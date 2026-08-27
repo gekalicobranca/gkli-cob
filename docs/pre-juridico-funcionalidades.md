@@ -1,45 +1,75 @@
-# Pré-Jurídico - funcionalidades disponíveis
+# Pré-Jurídico — funcionalidades disponíveis
 
-Atualizado em 22/08/2026.
+Atualizado em 26/08/2026.
 
-## Preparação dos casos
+Este arquivo é um resumo operacional. A especificação funcional completa está em:
 
-- [x] Elegibilidade de acordos quebrados por parcela vencida fora da tolerância.
-- [x] Elegibilidade por cobranças vincendas ativas fora do acordo.
-- [x] Filtros por condomínio, unidade, responsável e etapa.
-- [x] Agrupamento e seleção em massa por condomínio.
-- [x] Indicadores de documentação, casos prontos, encaminhados e valor em tratamento.
+[Pré-Jurídico — especificação funcional](./pre-juridico-especificacao-funcional.md)
 
-## Documentos e encaminhamento
+## Navegação atual
 
-- [x] Dossiê pré-jurídico em PDF, com uma unidade por página.
-- [x] Relação consolidada para a administradora em PDF.
-- [x] Procuração opcional em PDF.
-- [x] Registro das etapas de documentos por acordo.
-- [x] Bloqueio do encaminhamento enquanto dossiê e relação estiverem pendentes.
-- [x] Encaminhamento em massa com atualização de acordos e cobranças vinculadas.
+- Painel Pré: identifica cobranças elegíveis e permite encaminhamento ao pré-jurídico.
+- Processamento: organiza laudo, certidão, procuração, confirmação jurídica e distribuição.
+- Flow: monta lote + régua e monitora envios, agenda, falhas e reenvios.
+- Lotes: lista lotes pré-jurídicos já gerados.
+- Régua: configura a régua pré-jurídica por carteira.
 
-## Régua e comunicações
+## Funcionalidades disponíveis
 
-- [x] Réguas exclusivas do tipo jurídico, separadas das réguas de cobrança e acordo.
-- [x] Prioridade por condomínio, carteira e régua global.
-- [x] Etapas configuráveis para carteira, administradora e síndico.
-- [x] Geração de lotes separados por carteira e régua.
-- [x] Preparação de mensagens para aprovação antes do envio.
-- [x] Tratamento de destinatários ausentes e mensagens duplicadas.
-- [x] Histórico de lotes, mensagens e falhas.
+### Painel Pré
 
-## Monitor jurídico
+- [x] Elegibilidade por carteira e condomínio habilitados.
+- [x] Cálculo de atraso conforme regra D+ do condomínio.
+- [x] Bloqueio de cobranças vinculadas a acordo.
+- [x] Filtros por busca, carteira, condomínio, vencimento e situação.
+- [x] Agrupamento por condomínio.
+- [x] Seleção individual, por condomínio e geral.
+- [x] Encaminhamento de cobranças elegíveis ao pré-jurídico.
 
-- [x] Quadro com nove etapas, da documentação à judicialização.
-- [x] Atualização de etapa e responsável pela movimentação.
-- [x] Registro de escritório, prazo, protocolo, processo, tribunal, foro e observações.
-- [x] Exigência de número do processo ao judicializar.
-- [x] Marcação automática da unidade como ação judicial.
-- [x] Bloqueio de novos acordos e retirada do fluxo extrajudicial após judicialização.
+### Processamento
 
-## Navegação e segurança
+- [x] Criação de caso pré-jurídico por unidade.
+- [x] Agrupamento das cobranças abertas da unidade.
+- [x] Geração de laudo.
+- [x] Andamento da certidão: pendente, solicitada e recebida.
+- [x] Geração de procuração em nova aba.
+- [x] Seleção múltipla de procurações.
+- [x] Atualização em massa do status da procuração.
+- [x] Confirmação do jurídico.
+- [x] Controle de distribuição ao jurídico.
+- [x] Judicialização automática das cobranças abertas ao distribuir.
 
-- [x] Navegação direta entre Painel Pré, Régua e Monitor.
-- [x] Escopo de acesso por carteira nas consultas e alterações.
-- [x] Perfis autorizados para movimentar casos e configurar réguas.
+### Flow
+
+- [x] Disponibilidade de procurações geradas e ainda sem lote/Flow.
+- [x] Montagem por carteira.
+- [x] Seleção de régua na linha do lote.
+- [x] Criação de Flow a partir de lote + régua.
+- [x] Envio, pausa, retomada e cancelamento do Flow.
+- [x] Monitoramento dos envios no próprio Flow.
+- [x] Contadores de pendentes, agendadas, enviadas e falhas.
+- [x] Fila de envio com status, caso, destino, agenda e ação.
+- [x] Exibição do motivo de falha.
+- [x] Reenvio de item com falha pelo Flow.
+
+### Régua
+
+- [x] Réguas exclusivas do tipo jurídico.
+- [x] Configuração por carteira.
+- [x] Etapas com delay, canal e template.
+- [x] Categorias de template para carteira, administradora e síndico.
+
+### Lotes
+
+- [x] Listagem separada dos lotes pré-jurídicos.
+- [x] Filtros por lote, régua, status e resultado.
+- [x] Indicadores de mensagens, pendências e erros.
+
+## Decisões funcionais vigentes
+
+- A régua pré-jurídica é por carteira, não por condomínio.
+- Lote contém conteúdo e mensagens.
+- Régua contém agenda, frequência e template.
+- Flow é a execução monitorada de lote + régua.
+- O envio acontece pelo dispatcher automático, não por disparo direto fora do Flow.
+- O monitoramento operacional de envio fica na seção `Flows` da tela Flow.

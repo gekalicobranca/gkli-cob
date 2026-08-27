@@ -568,133 +568,45 @@ O e-mail geral da administradora não deve bloquear o cadastro. Quando não houv
 
 ## 13. Pré-Jurídico
 
-O módulo Pré-Jurídico organiza a passagem entre a cobrança extrajudicial e o tratamento judicial. Ele fica no menu lateral, abaixo de Comunicação e antes de Gestão.
+O módulo Pré-Jurídico organiza a passagem entre a cobrança extrajudicial e a preparação jurídica. Ele fica no menu lateral, abaixo de Comunicação e antes de Gestão.
 
-### 13.1 Funcionalidades disponíveis
+A especificação funcional completa fica em `docs/pre-juridico-especificacao-funcional.md`. O resumo de funcionalidades fica em `docs/pre-juridico-funcionalidades.md`.
 
-O módulo possui navegação direta entre Painel Pré, Régua e Monitor. Estão disponíveis:
+### 13.1 Navegação atual
 
-- identificação e seleção dos casos elegíveis;
-- geração do dossiê, da relação para administradora e da procuração opcional;
-- bloqueio do encaminhamento enquanto os documentos obrigatórios estiverem pendentes;
-- réguas exclusivas, lotes e mensagens para carteira, administradora e síndico;
-- monitoramento em nove etapas, da preparação até a judicialização;
-- registro de escritório, prazo, protocolo, processo, tribunal, foro e observações;
-- marcação automática da unidade como ação judicial ao concluir a judicialização.
+O menu Pré-Jurídico possui:
 
-A lista técnica atualizada fica em `docs/pre-juridico-funcionalidades.md`.
+- Painel Pré: cobranças elegíveis e encaminhamento.
+- Flow: criação de lote + régua e monitoramento dos envios.
+- Processamento: laudo, certidão, procuração, confirmação jurídica e distribuição.
+- Lotes: consulta de lotes pré-jurídicos.
+- Régua: configuração da régua pré-jurídica por carteira.
 
-### 13.2 Habilitação e elegibilidade
+Não há chamada operacional separada para Monitor de lote ou Monitor de Flow. O acompanhamento dos disparos fica na seção `Flows` da tela Flow.
 
-Antes de usar o módulo, confirme:
+### 13.2 Fluxo recomendado
 
-- a carteira está com "Gerar pré-jurídico nesta carteira" habilitado;
-- o condomínio possui prazo de expiração configurado quando houver encaminhamento automático;
-- o acordo não está quitado, cancelado ou renegociado;
-- existe parcela aberta vencida além da tolerância de reemissão do condomínio ou cobrança vincenda ativa fora do acordo.
+1. Em Painel Pré, filtre e encaminhe cobranças elegíveis.
+2. Em Processamento, gere laudo para iniciar o caso da unidade.
+3. Confirme a propriedade pela certidão.
+4. Gere a procuração.
+5. Em Flow, selecione as procurações geradas.
+6. Agrupe por carteira, escolha a régua e crie o Flow.
+7. No próprio Flow, envie e acompanhe agenda, enviados, falhas e reenvios.
+8. Quando a procuração voltar assinada, marque como assinada no Processamento.
+9. Confirme recebimento pelo jurídico.
+10. Registre a distribuição.
 
-O Painel trabalha com casos originados de acordos e parcelas. A cobrança principal pode não estar vinculada em bases antigas; revise os vínculos antes do envio quando necessário.
+### 13.3 Pontos de atenção
 
-### 13.3 Painel Pré
-
-Rota: `/app/pre-juridico`
-
-O Painel Pré apresenta os casos elegíveis agrupados por condomínio. Abra ou recolha cada condomínio para consultar as unidades.
-
-Indicadores:
-
-- Em documentação: falta uma ou mais etapas obrigatórias.
-- Prontos para envio: dossiê e relação necessários já foram gerados.
-- Encaminhados: casos que saíram da preparação.
-- Valor em tratamento: acordo mais eventuais cobranças vincendas fora dele.
-
-Fluxo recomendado:
-
-1. Filtre por condomínio, unidade, responsável ou etapa.
-2. Abra o condomínio desejado.
-3. Selecione casos individualmente ou pelo cabeçalho do condomínio.
-4. Gere o dossiê dos casos.
-5. Gere a relação para a administradora.
-6. Gere a procuração quando solicitada.
-7. Confira se os casos ficaram prontos.
-8. Use "Encaminhar casos prontos" e confirme a operação.
-
-### 13.4 Documentos
-
-- Dossiê dos casos: histórico pré-jurídico, com uma unidade por página.
-- Relação para administradora: relação consolidada por administradora e condomínio.
-- Procuração: documento opcional para assinatura do síndico.
-
-Gerar um documento registra a etapa correspondente. Não encaminhe casos sem conferir nomes, unidade, valores, endereço, administradora e contatos.
-
-### 13.5 Régua Pré-Jurídica
-
-Rota: `/app/pre-juridico/regua`
-
-As réguas pré-jurídicas são separadas das réguas de cobrança e de acordos. A escolha segue esta prioridade:
-
-1. régua vinculada diretamente ao condomínio;
-2. régua da carteira;
-3. régua global.
-
-Na tela de Régua:
-
-- crie réguas globais ou por carteira;
-- abra uma régua para editar suas etapas;
-- configure o prazo de entrada de cada condomínio;
-- vincule uma régua específica ao condomínio, se necessário;
-- deixe em "Automática" para usar o fallback da carteira ou global.
-
-Cada etapa ativa da régua define:
-
-- ordem de execução;
-- destinatário e documento: carteira, administradora ou síndico;
-- canal: e-mail ou ação manual;
-- template fixo ou resolução automática;
-- intervalo em dias para agendamento.
-
-Etapas inativas não entram no lote. Uma régua sem etapas ativas não pode gerar o encaminhamento.
-
-### 13.6 Montagem e aprovação do lote
-
-Ao encaminhar os casos, o sistema agrupa os registros pela combinação de carteira e régua. Condôminos que usam réguas diferentes podem gerar lotes separados.
-
-O lote pode preparar, conforme as etapas configuradas:
-
-- pacote com laudo e procuração para a carteira;
-- lista consolidada para a administradora;
-- procuração para o síndico.
-
-Mensagens sem destinatário são marcadas como puladas. Mensagens repetidas para a mesma finalidade, destinatário e data são marcadas como duplicadas. As mensagens criadas ficam pendentes de aprovação antes do envio.
-
-### 13.7 Monitor
-
-Rota: `/app/pre-juridico/monitor`
-
-O Monitor mostra os casos nas etapas:
-
-1. aguardando documentos;
-2. aguardando administradora;
-3. aguardando síndico;
-4. pronto para o jurídico;
-5. enviado ao jurídico;
-6. análise jurídica;
-7. pendência jurídica;
-8. autorizado para ajuizamento;
-9. judicializado.
-
-Abra um cartão para atualizar etapa, escritório jurídico, prazo, protocolo de envio, número do processo, tribunal, foro e observações. O número do processo é obrigatório ao marcar como judicializado.
-
-Na parte inferior, o Histórico de comunicações mostra os lotes, mensagens preparadas e falhas. Abra o lote para revisar itens e aprovar comunicações.
-
-### 13.8 Cuidados do fluxo
-
-- Não judicialize sem autorização e documentação conferida.
-- Corrija contatos ausentes antes de repetir um lote com itens pulados.
-- Não recrie mensagens no mesmo dia para contornar uma duplicidade.
-- Confirme o vínculo entre acordo e cobrança nas bases antigas.
-- Use observações do caso para registrar pendências devolvidas pelo jurídico.
-- Ao judicializar, retire a unidade do fluxo extrajudicial comum.
+- A régua pré-jurídica é por carteira, não por condomínio.
+- A procuração gerada permanece no processamento como `gerada` e entra automaticamente na disponibilidade do Flow.
+- Lote contém conteúdo e mensagens.
+- Régua contém agenda, frequência e template.
+- Flow é a execução monitorada de lote + régua.
+- O envio acontece pelo dispatcher automático, respeitando a agenda da régua.
+- Falhas aparecem na fila de envio do Flow, com motivo e opção de reenviar.
+- Ao distribuir, a unidade é marcada com ação judicial e as cobranças abertas são judicializadas.
 
 ## 14. Fluxos práticos
 
@@ -805,11 +717,12 @@ Use este checklist para validar a etapa manual:
 - Responsáveis possuem tipo proprietário/inquilino/não informado.
 - Administradoras possuem flag de acesso para gerar acordo.
 - Carteiras habilitadas exibem casos elegíveis no Painel Pré.
-- Casos do Pré-Jurídico aparecem agrupados por condomínio.
-- Dossiê, relação da administradora e procuração registram suas etapas.
+- Cobranças do Painel Pré aparecem agrupadas por condomínio.
+- Casos do Processamento aparecem por unidade, com cobranças agrupadas.
+- Laudo e procuração registram suas etapas.
 - Réguas pré-jurídicas estão separadas das réguas de cobrança e acordo.
-- O lote respeita as etapas ativas e a prioridade condomínio, carteira e global.
-- O Monitor permite acompanhar o caso até a judicialização.
+- A régua pré-jurídica é configurada por carteira.
+- O Flow permite acompanhar agenda, enviados, falhas e reenvios.
 - Botões exibem processamento perceptível.
 - Erros de módulo mostram código para suporte.
 
@@ -824,7 +737,8 @@ Use este checklist para validar a etapa manual:
 - Proprietário: responsável dono da unidade.
 - Inquilino: responsável ocupante/contratual.
 - Acesso acordos: permissão/condição da administradora para gerar acordo.
-- Caso pré-jurídico: acordo elegível em preparação para análise jurídica.
-- Régua pré-jurídica: sequência configurável que determina destinatários, documentos, canais e ordem do lote.
-- Lote pré-jurídico: conjunto de documentos e comunicações gerado para casos que usam a mesma carteira e régua.
-- Judicializado: caso autorizado que recebeu número de processo e saiu do fluxo extrajudicial.
+- Caso pré-jurídico: acompanhamento operacional de uma unidade encaminhada à preparação jurídica.
+- Régua pré-jurídica: configuração por carteira que define agenda, frequência, canal e templates.
+- Lote pré-jurídico: conjunto de conteúdo, itens e mensagens gerado para procurações selecionadas.
+- Flow pré-jurídico: execução monitorada de lote + régua, com agenda, envios, falhas e reenvios.
+- Judicializado: cobrança/unidade distribuída ao jurídico e retirada do fluxo extrajudicial.
