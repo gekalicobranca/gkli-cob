@@ -1,6 +1,6 @@
 # Pré-Jurídico — especificação funcional
 
-Atualizado em 26/08/2026.
+Atualizado em 27/08/2026.
 
 ## 1. Visão geral
 
@@ -65,12 +65,11 @@ Menu lateral: Pré-Jurídico.
 Itens visíveis:
 
 - Painel Pré: `/app/pre-juridico`
-- Flow: `/app/pre-juridico/flow`
 - Processamento: `/app/pre-juridico/processamento`
-- Lotes: `/app/pre-juridico/lotes`
-- Régua: `/app/pre-juridico/regua`
+- Flow: `/app/pre-juridico/flow`
+- Monitor: `/app/pre-juridico/monitor`
 
-Não existe chamada operacional separada para “Monitor de lote” ou “Monitor de Flow”. O monitoramento de envios fica concentrado na área `Flows` da tela Flow.
+Lotes e réguas continuam existindo como telas de apoio, mas não aparecem como itens principais do menu operacional. O monitoramento de envios fica concentrado no Flow e no Monitor de Flows pré-jurídicos.
 
 ## 6. Conceitos funcionais
 
