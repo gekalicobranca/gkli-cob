@@ -60,6 +60,43 @@ function messageScheduleLabel(mensagem: any) {
   return 'Sem agenda'
 }
 
+function cleanText(value: unknown) {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number') return String(value)
+  return ''
+}
+
+function payloadFailureReason(payload: any) {
+  if (!payload || typeof payload !== 'object') return ''
+  const candidates = [
+    payload.erro_envio,
+    payload.erro,
+    payload.ultimo_erro,
+    payload.motivo,
+    payload.reason,
+    payload.error,
+    payload.message,
+    payload.mensagem?.erro_envio,
+    payload.mensagem?.erro,
+  ]
+  return candidates.map(cleanText).find(Boolean) ?? ''
+}
+
+function failureReason(item: any, mensagem: any) {
+  const candidates = [
+    mensagem?.erro_envio,
+    mensagem?.erro,
+    mensagem?.ultimo_erro,
+    item?.motivo,
+    payloadFailureReason(item?.payload),
+  ]
+  return candidates.map(cleanText).find(Boolean) ?? 'Falha sem detalhe técnico registrado.'
+}
+
+function isFailureStatus(status: string) {
+  return ['falha', 'erro'].includes(status)
+}
+
 function caseValue(caso: any) {
   const cobrancas = Array.isArray(caso.cobrancas_unidade) ? caso.cobrancas_unidade : []
   if (cobrancas.length) return cobrancas.reduce((sum: number, item: any) => sum + Number(item.valor_atualizado ?? item.valor_original ?? 0), 0)
@@ -291,13 +328,16 @@ function FlowItemRow({ item }: { item: any }) {
   const mensagem = relation(item.mensagem)
   const itemStatus = String(item.status ?? 'criado')
   const messageStatus = String(mensagem?.status_operacional ?? mensagem?.status ?? '')
-  const statusLabel = MESSAGE_STATUS_LABEL[messageStatus] ?? (messageStatus || itemStatus)
+  const effectiveStatus = messageStatus || itemStatus
+  const statusLabel = MESSAGE_STATUS_LABEL[effectiveStatus] ?? effectiveStatus
+  const hasFailure = isFailureStatus(effectiveStatus) || Boolean(cleanText(mensagem?.erro_envio ?? mensagem?.erro))
+  const reason = hasFailure ? failureReason(item, mensagem) : ''
   const destino = mensagem?.email_destinatario || mensagem?.destinatario || 'Destino não informado'
 
   return (
     <div className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[140px_minmax(320px,1fr)_minmax(240px,0.9fr)_170px_24px] lg:items-center">
       <div>
-        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(messageStatus || itemStatus)}`}>
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(effectiveStatus)}`}>
           {statusLabel}
         </span>
       </div>
@@ -312,6 +352,11 @@ function FlowItemRow({ item }: { item: any }) {
         <p className="truncate text-sm font-medium text-slate-800">{messageScheduleLabel(mensagem)}</p>
       </div>
       <ChevronRight size={17} className="text-slate-300" />
+      {hasFailure ? (
+        <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-700 lg:col-span-5">
+          <span className="font-semibold">Motivo da falha:</span> <span className="break-words">{reason}</span>
+        </div>
+      ) : null}
     </div>
   )
 }

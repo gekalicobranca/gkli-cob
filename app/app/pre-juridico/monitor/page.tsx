@@ -48,6 +48,43 @@ function messageStatusClass(status: string) {
   return 'border-slate-200 bg-slate-50 text-slate-700'
 }
 
+function cleanText(value: unknown) {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number') return String(value)
+  return ''
+}
+
+function payloadFailureReason(payload: any) {
+  if (!payload || typeof payload !== 'object') return ''
+  const candidates = [
+    payload.erro_envio,
+    payload.erro,
+    payload.ultimo_erro,
+    payload.motivo,
+    payload.reason,
+    payload.error,
+    payload.message,
+    payload.mensagem?.erro_envio,
+    payload.mensagem?.erro,
+  ]
+  return candidates.map(cleanText).find(Boolean) ?? ''
+}
+
+function failureReason(item: any, mensagem: any) {
+  const candidates = [
+    mensagem?.erro_envio,
+    mensagem?.erro,
+    mensagem?.ultimo_erro,
+    item?.motivo,
+    payloadFailureReason(item?.payload),
+  ]
+  return candidates.map(cleanText).find(Boolean) ?? 'Falha sem detalhe técnico registrado.'
+}
+
+function isFailureStatus(status: string) {
+  return ['falha', 'erro'].includes(status)
+}
+
 function itemEntity(item: any) {
   const cobranca = relation(item.cobranca)
   const acordo = relation(item.acordo)
@@ -210,6 +247,8 @@ function FlowMonitorItem({ item }: { item: any }) {
   const status = String(mensagem?.status_operacional ?? mensagem?.status ?? item.status ?? 'criado')
   const statusLabel = MESSAGE_STATUS_LABEL[status] ?? status
   const agenda = mensagem?.agendada_para ?? mensagem?.scheduled_at ?? mensagem?.enviada_em ?? mensagem?.sent_at
+  const hasFailure = isFailureStatus(status) || Boolean(cleanText(mensagem?.erro_envio ?? mensagem?.erro))
+  const reason = hasFailure ? failureReason(item, mensagem) : ''
 
   return (
     <div className="grid gap-3 px-4 py-3 lg:grid-cols-[130px_minmax(260px,1fr)_minmax(220px,0.9fr)_170px] lg:items-center">
@@ -220,6 +259,11 @@ function FlowMonitorItem({ item }: { item: any }) {
       </div>
       <p className="truncate text-sm font-medium text-slate-800">{mensagem?.email_destinatario || mensagem?.destinatario || 'Destino não informado'}</p>
       <Metric label={status === 'enviada' ? 'Enviado em' : 'Agenda'} value={formatDateTimeBR(agenda)} danger={status === 'falha'} />
+      {hasFailure ? (
+        <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-700 lg:col-span-4">
+          <span className="font-semibold">Motivo da falha:</span> <span className="break-words">{reason}</span>
+        </div>
+      ) : null}
     </div>
   )
 }
