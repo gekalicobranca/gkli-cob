@@ -58,7 +58,7 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="Pré-Jurídico" title="Painel de cobranças" description="Revise cobranças que atingiram a regra de vencimento e encaminhe cada uma individualmente ao pré-jurídico." />
+      <PageHeader eyebrow="Pré-Jurídico" title="Painel pré-jurídico" description="Revise cobranças que atingiram a regra de vencimento e encaminhe cada uma individualmente ao pré-jurídico." />
       <ListKpiGrid>
         <Card className="relative overflow-hidden p-3">
           <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><WalletCards size={18} /></div>
