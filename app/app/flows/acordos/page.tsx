@@ -1,4 +1,4 @@
-import { Layers, Network, RadioTower, WalletCards, type LucideIcon } from 'lucide-react'
+import { FileText, Layers, Network, RadioTower, WalletCards, type LucideIcon } from 'lucide-react'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
 import { FlowAcordosWorkbench } from '@/components/flows/acordos/flow-acordos-workbench'
 import { ClearFiltersLink, ListCollapsibleFilters, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage } from '@/components/layout/list-page'
@@ -55,7 +55,7 @@ export default async function FlowAcordosPage({ searchParams }: { searchParams: 
       description="Monte lembretes de pagamento para parcelas geradas/ativas de acordos, vincule uma régua e monitore os disparos."
       actions={<div className="flex flex-wrap gap-2">
         <ButtonLink href="/app/regua-acordo" variant="header"><Network size={16} />Réguas</ButtonLink>
-        <ButtonLink href="/app/lotes?tipo=regua_acordo" variant="header"><Layers size={16} />Lotes</ButtonLink>
+        <ButtonLink href="/app/mensageria/templates?tipo=acordo" variant="header"><FileText size={16} />Templates</ButtonLink>
       </div>}
     />
 

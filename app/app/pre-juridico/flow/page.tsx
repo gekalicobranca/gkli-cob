@@ -1,4 +1,4 @@
-import { Layers, ListChecks, Network, RadioTower, type LucideIcon } from 'lucide-react'
+import { FileText, Layers, ListChecks, Network, RadioTower, type LucideIcon } from 'lucide-react'
 import { PreJuridicoFlowWorkbench } from '@/components/pre-juridico/flow-workbench'
 import { ListKpiGrid, ListPage } from '@/components/layout/list-page'
 import { ButtonLink } from '@/components/ui/button'
@@ -36,7 +36,7 @@ export default async function FlowPreJuridicoPage({ searchParams }: { searchPara
       description="Crie o lote, vincule a régua, libere o envio e monitore os disparos do pré-jurídico."
       actions={<div className="flex flex-wrap gap-2">
         <ButtonLink href="/app/pre-juridico/regua" variant="header"><Network size={16} />Réguas</ButtonLink>
-        <ButtonLink href="/app/pre-juridico/lotes" variant="header"><Layers size={16} />Lotes</ButtonLink>
+        <ButtonLink href="/app/mensageria/templates?tipo=juridico" variant="header"><FileText size={16} />Templates</ButtonLink>
       </div>}
     />
 

@@ -1,4 +1,4 @@
-import { Layers, ListChecks, Network, WalletCards, type LucideIcon } from 'lucide-react'
+import { FileText, Layers, ListChecks, Network, WalletCards, type LucideIcon } from 'lucide-react'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
 import { FlowCobrancaPainelWorkbench } from '@/components/flows/cobranca/cobrancas-painel-workbench'
 import { FlowCobrancaWorkbench } from '@/components/flows/cobranca/flow-cobranca-workbench'
@@ -69,7 +69,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
       description="Crie lotes a partir das cobranças novas, vincule uma régua, libere a agenda e monitore os disparos."
       actions={<div className="flex flex-wrap gap-2">
         <ButtonLink href="/app/regua-cobranca" variant="header"><Network size={16} />Réguas</ButtonLink>
-        <ButtonLink href="/app/lotes?tipo=regua_cobranca" variant="header"><Layers size={16} />Lotes</ButtonLink>
+        <ButtonLink href="/app/mensageria/templates?tipo=cobranca" variant="header"><FileText size={16} />Templates</ButtonLink>
       </div>}
     />
 
