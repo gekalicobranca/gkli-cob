@@ -100,6 +100,15 @@ const sections: SidebarSection[] = [
     ],
   },
   {
+    id: 'pre-juridico',
+    title: 'Pré-Jurídico',
+    items: [
+      { label: 'Painel Pré', href: '/app/pre-juridico', icon: 'shield', exact: true },
+      { label: 'Processamento', href: '/app/pre-juridico/processamento', icon: 'layers' },
+      { label: 'Flow', href: '/app/pre-juridico/flow', icon: 'nodes' },
+    ],
+  },
+  {
     id: 'automacao',
     title: 'Automação',
     items: [
@@ -109,15 +118,6 @@ const sections: SidebarSection[] = [
       { label: 'Importação', href: '/app/importacoes', icon: 'upload' },
       { label: 'Validação', href: '/app/configuracoes/lab/captacao-automatizada', icon: 'shield' },
       { label: 'Keila', href: '/app/gestao/keila', icon: 'bot' },
-    ],
-  },
-  {
-    id: 'pre-juridico',
-    title: 'Pré-Jurídico',
-    items: [
-      { label: 'Painel Pré', href: '/app/pre-juridico', icon: 'shield', exact: true },
-      { label: 'Processamento', href: '/app/pre-juridico/processamento', icon: 'layers' },
-      { label: 'Flow', href: '/app/pre-juridico/flow', icon: 'nodes' },
     ],
   },
   {
