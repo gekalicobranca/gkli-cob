@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, ArrowUpRight, ChevronDown, Handshake, Inbox } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, ChevronDown, FileText, Handshake, Inbox } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -62,6 +62,16 @@ function pageHref(params: Record<string, string | undefined>, page: number) {
   }
   query.set('page', String(page))
   return `/app/acordos?${query.toString()}`
+}
+
+function acordosRelatorioExecutivoHref(params: Record<string, string | undefined>) {
+  const query = new URLSearchParams()
+  for (const key of ['q', 'condominio_id', 'unidade_id', 'carteira_id', 'status', 'data_de', 'data_ate', 'ordenar']) {
+    const value = params[key]
+    if (value) query.set(key, value)
+  }
+  const qs = query.toString()
+  return qs ? `/api/acordos/relatorio-executivo?${qs}` : '/api/acordos/relatorio-executivo'
 }
 
 function clean(value: unknown) {
@@ -200,6 +210,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
         description="Controle acordos, parcelas, atrasos e quebras operacionais."
         actions={
           <>
+            <ButtonLink href={acordosRelatorioExecutivoHref(params)} variant="secondary" target="_blank"><FileText size={16} />Relatório executivo</ButtonLink>
             <ButtonLink href="/app/acordos/fila" variant="secondary"><Inbox size={16} />Fila</ButtonLink>
             <ButtonLink href="/app/acordos/gestao" variant="secondary"><AlertTriangle size={16} />Gestão de quebrados</ButtonLink>
           </>
