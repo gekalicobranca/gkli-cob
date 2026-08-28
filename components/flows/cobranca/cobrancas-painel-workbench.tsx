@@ -5,7 +5,8 @@ import { useMemo, useState } from 'react'
 import { AlertTriangle, ArrowUpRight, ChevronDown, Gauge } from 'lucide-react'
 import { EmptyState } from '@/components/data/empty-state'
 import { StatusBadge } from '@/components/data/status-badge'
-import { Button, ButtonLink } from '@/components/ui/button'
+import { ListCollapsibleSectionHeader } from '@/components/layout/list-page'
+import { ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ativarCobrancasFiltradasFlowCobranca } from '@/features/flows/cobranca/actions'
@@ -41,7 +42,6 @@ function isAtivavel(row: Row) {
 
 export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: Row[]; returnQuery?: string }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [listOpen, setListOpen] = useState(true)
   const novas = useMemo(() => rows.filter(isNovo), [rows])
   const ativaveis = useMemo(() => novas.filter(hasResponsavel), [novas])
   const bloqueadasSemResponsavel = novas.length - ativaveis.length
@@ -71,13 +71,7 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
       <Card className="overflow-hidden p-0">
         <details className="group bg-white">
           <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-white/80 px-4 py-2.5 group-hover:bg-slate-50">
-              <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-950">
-                <ChevronDown size={17} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" />
-                <span className="truncate">Cobranças novas</span>
-              </div>
-              <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">0</span>
-            </div>
+            <ListCollapsibleSectionHeader title="Cobranças novas" count={0} />
           </summary>
           <div className="p-5">
             <EmptyState title="Nenhuma cobrança nova" description="Não há cobranças novas neste filtro." />
@@ -104,18 +98,17 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
       </Card>
 
       <Card className="overflow-hidden p-0">
-        {rows.length === 0 ? <div className="p-5"><EmptyState title="Nenhuma cobrança nova" description="Não há cobranças novas neste filtro." /></div> : <>
+        <details open={rows.length > 0} className="group bg-white">
+          <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+            <ListCollapsibleSectionHeader title="Cobranças novas" count={rows.length} />
+          </summary>
           <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between">
             <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700"><input type="checkbox" checked={allSelected} disabled={ativaveis.length === 0} onChange={toggleAll} className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)]" />Selecionar todas aptas</label>
             <div className="flex flex-wrap items-center gap-3 md:justify-end">
               <p className="text-sm text-slate-500">{selectedIds.length} de {ativaveis.length} apta(s){bloqueadasSemResponsavel ? ` · ${bloqueadasSemResponsavel} sem responsável` : ''}</p>
-              <Button type="button" variant="secondary" size="sm" onClick={() => setListOpen((current) => !current)}>
-                <ChevronDown size={15} className={`transition-transform ${listOpen ? 'rotate-180' : ''}`} />
-                {listOpen ? 'Recolher' : 'Expandir'}
-              </Button>
             </div>
           </div>
-          {listOpen ? <div className="divide-y divide-slate-100">{groups.map((group) => {
+          <div className="divide-y divide-slate-100">{groups.map((group) => {
             const groupNovas = group.rows.filter(isAtivavel)
             const groupSelected = groupNovas.length > 0 && groupNovas.every((row) => selectedIds.includes(row.id))
             const value = group.rows.reduce((sum, row) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
@@ -133,8 +126,8 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
                 <ButtonLink href={`/app/cobrancas/${row.id}`} variant="ghost" size="sm" aria-label="Abrir cobrança"><ArrowUpRight size={14} /></ButtonLink>
               </div>)}</div>
             </details>
-          })}</div> : null}
-        </>}
+          })}</div>
+        </details>
       </Card>
     </div>
   )

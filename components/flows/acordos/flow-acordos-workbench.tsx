@@ -124,10 +124,6 @@ function parcelaEntity(row: any) {
   }
 }
 
-function parcelaResumo(row: any) {
-  return `Parcela ${row.numero ?? '-'} · venc. ${formatDateBR(row.vencimento)}`
-}
-
 function groupParcelasByCondominio(parcelas: any[]) {
   const groups = new Map<string, { id: string; nome: string; rows: any[]; total: number }>()
   for (const row of parcelas) {
@@ -166,7 +162,6 @@ export function FlowAcordosWorkbench({
 }) {
   const aptas = useMemo(() => parcelas.filter((row) => parcelaEntity(row).hasResponsavel), [parcelas])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [listOpen, setListOpen] = useState(parcelas.length > 0)
   const selectedParcelas = useMemo(() => parcelas.filter((row) => selectedIds.includes(row.id)), [parcelas, selectedIds])
   const gruposCondominio = useMemo(() => groupParcelasByCondominio(parcelas), [parcelas])
   const gruposCarteira = useMemo(() => groupByCarteira(selectedParcelas), [selectedParcelas])
@@ -210,10 +205,6 @@ export function FlowAcordosWorkbench({
               <Button type="button" variant="secondary" size="sm" onClick={() => setOpenSteps((current) => ({ ...current, lotes: true }))} disabled={selectedIds.length === 0}>
                 Montar lote
               </Button>
-              <Button type="button" variant="secondary" size="sm" onClick={() => setListOpen((current) => !current)}>
-                <ChevronDown size={15} className={`transition-transform ${listOpen ? 'rotate-180' : ''}`} />
-                {listOpen ? 'Recolher' : 'Expandir'}
-              </Button>
             </div>
           </div>
           {bloqueadasSemResponsavel ? (
@@ -223,7 +214,7 @@ export function FlowAcordosWorkbench({
               </p>
             </div>
           ) : null}
-          {listOpen ? <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100">
             {gruposCondominio.map((grupo) => {
               const rowsAptas = grupo.rows.filter((row) => parcelaEntity(row).hasResponsavel)
               const groupSelected = rowsAptas.length > 0 && rowsAptas.every((row) => selectedIds.includes(row.id))
@@ -253,7 +244,7 @@ export function FlowAcordosWorkbench({
                 </div>
               </details>
             })}
-          </div> : null}
+          </div>
         </> : <ListEmptyState title="Nenhuma parcela disponível" description="Acordos com parcelas abertas/vencidas aparecerão aqui para montar o Flow." />}
       </details>
     </ListPanel>
