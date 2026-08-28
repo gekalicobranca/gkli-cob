@@ -92,18 +92,6 @@ const sections: SidebarSection[] = [
     ],
   },
   {
-    id: 'comunicacao',
-    title: 'Comunicação',
-    items: [
-      { label: 'Simulador', href: '/app/mensageria/simulador', icon: 'message' },
-      { label: 'Templates', href: '/app/mensageria/templates', icon: 'document' },
-      { label: 'Réguas', href: '/app/mensageria/reguas', icon: 'nodes' },
-      { label: 'Lotes', href: '/app/lotes', icon: 'layers' },
-      { label: 'Logs', href: '/app/mensageria/log', icon: 'log' },
-      { label: 'Saneamento', href: '/app/mensageria/saneamento', icon: 'shield' },
-    ],
-  },
-  {
     id: 'flows',
     title: 'Flows',
     items: [
@@ -144,6 +132,18 @@ const sections: SidebarSection[] = [
 ]
 
 const settingsGroups: SidebarSection[] = [
+  {
+    id: 'comunicacao',
+    title: 'Comunicação',
+    items: [
+      { label: 'Simulador', href: '/app/mensageria/simulador', icon: 'message' },
+      { label: 'Templates', href: '/app/mensageria/templates', icon: 'document' },
+      { label: 'Réguas', href: '/app/mensageria/reguas', icon: 'nodes' },
+      { label: 'Lotes', href: '/app/lotes', icon: 'layers' },
+      { label: 'Logs', href: '/app/mensageria/log', icon: 'log' },
+      { label: 'Saneamento', href: '/app/mensageria/saneamento', icon: 'shield' },
+    ],
+  },
   {
     id: 'administracao',
     title: 'Administração',
