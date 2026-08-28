@@ -254,12 +254,12 @@ export function FlowAcordosWorkbench({
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListCollapsibleSectionHeader title="Lotes + régua" count={gruposCarteira.length} />
         </summary>
-        <form action={criarFlowsAcordos} onSubmit={(event) => { if (!window.confirm(`Criar ${gruposCarteira.length} Flow(s) de acordos?`)) event.preventDefault() }}>
+        {gruposCarteira.length ? <form action={criarFlowsAcordos} onSubmit={(event) => { if (!window.confirm(`Criar ${gruposCarteira.length} Flow(s) de acordos?`)) event.preventDefault() }}>
           {selectedParcelas.map((parcela) => <input key={parcela.id} type="hidden" name="parcela_id" value={parcela.id} />)}
-          {selectedParcelas.length ? <div className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
+          <div className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
             {selectedParcelas.length} parcela(s) selecionada(s), agrupadas em {gruposCarteira.length} lote(s) por carteira.
-          </div> : null}
-          {gruposCarteira.length ? <ListRows>
+          </div>
+          <ListRows>
             {gruposCarteira.map((grupo) => {
               const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
               const defaultRegua = opcoesRegua.find((regua: any) => regua.carteira_id === grupo.carteiraId)?.id ?? opcoesRegua[0]?.id ?? ''
@@ -270,11 +270,11 @@ export function FlowAcordosWorkbench({
                 <label className="space-y-1.5"><span className="text-xs font-medium uppercase text-slate-400">Régua</span><select name={`regua_id:${grupo.carteiraId}`} defaultValue={defaultRegua} required className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[var(--gkli-primary)] focus:ring-2 focus:ring-[var(--gkli-primary)]/10"><option value="">Selecione</option>{opcoesRegua.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}{regua.carteira_id ? '' : ' · global'}</option>)}</select></label>
               </ListRow>
             })}
-          </ListRows> : <ListEmptyState title="Nenhum lote montado" description="Selecione parcelas no painel e clique em Montar lote." />}
+          </ListRows>
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
-            <PendingSubmitButton disabled={!gruposCarteira.length} pendingLabel="Criando flows..."><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
+            <PendingSubmitButton pendingLabel="Criando flows..."><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
           </div>
-        </form>
+        </form> : <ListEmptyState title="Nenhum lote montado" description="Selecione parcelas no painel e clique em Montar lote." />}
       </details>
     </ListPanel>
 

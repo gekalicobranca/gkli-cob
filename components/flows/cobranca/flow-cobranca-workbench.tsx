@@ -165,38 +165,36 @@ export function FlowCobrancaWorkbench({
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListCollapsibleSectionHeader title="Lotes + régua" count={grupos.length} />
         </summary>
-        <form action={criarFlowsCobranca} onSubmit={(event) => { if (!window.confirm(`Criar ${grupos.length} Flow(s) de cobrança?`)) event.preventDefault() }}>
+        {grupos.length ? <form action={criarFlowsCobranca} onSubmit={(event) => { if (!window.confirm(`Criar ${grupos.length} Flow(s) de cobrança?`)) event.preventDefault() }}>
           {selectedCobrancas.map((cobranca) => <input key={cobranca.id} type="hidden" name="cobranca_id" value={cobranca.id} />)}
-          <div>
-            {selectedCobrancas.length ? <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
-              <p className="text-sm text-slate-600">{selectedCobrancas.length} cobrança(s) ativa(s), agrupadas em {grupos.length} lote(s) por carteira.</p>
-            </div> : null}
-            {grupos.length ? <ListRows>
-              {grupos.map((grupo) => {
-                const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
-                const defaultRegua = opcoesRegua.find((regua: any) => regua.carteira_id === grupo.carteiraId)?.id ?? opcoesRegua[0]?.id ?? ''
-                return <ListRow key={grupo.carteiraId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-950">{grupo.carteiraNome}</p>
-                    <p className="mt-1 text-xs text-slate-500">{grupo.rows.length} cobrança(s) selecionada(s)</p>
-                  </div>
-                  <div><p className="text-xs text-slate-400">Total</p><p className="text-sm font-medium text-slate-800">{formatCurrency(grupo.total)}</p></div>
-                  <div><p className="text-xs text-slate-400">Lote</p><p className="text-sm text-slate-700">1 lote</p></div>
-                  <label className="text-xs font-medium text-slate-600">
-                    Régua do Flow
-                    <select name={`regua_id:${grupo.carteiraId}`} required defaultValue={defaultRegua} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900">
-                      <option value="" disabled>Selecione</option>
-                      {opcoesRegua.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}{regua.carteira_id ? '' : ' · global'}</option>)}
-                    </select>
-                  </label>
-                </ListRow>
-              })}
-            </ListRows> : <ListEmptyState title="Nenhum lote montado" description="Selecione cobranças novas no painel e clique em Ativar para montar o lote automaticamente." />}
-            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
-              <PendingSubmitButton disabled={!grupos.length} pendingLabel="Criando flows..."><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
-            </div>
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+            <p className="text-sm text-slate-600">{selectedCobrancas.length} cobrança(s) ativa(s), agrupadas em {grupos.length} lote(s) por carteira.</p>
           </div>
-        </form>
+          <ListRows>
+            {grupos.map((grupo) => {
+              const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
+              const defaultRegua = opcoesRegua.find((regua: any) => regua.carteira_id === grupo.carteiraId)?.id ?? opcoesRegua[0]?.id ?? ''
+              return <ListRow key={grupo.carteiraId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
+                <div>
+                  <p className="text-sm font-semibold text-slate-950">{grupo.carteiraNome}</p>
+                  <p className="mt-1 text-xs text-slate-500">{grupo.rows.length} cobrança(s) selecionada(s)</p>
+                </div>
+                <div><p className="text-xs text-slate-400">Total</p><p className="text-sm font-medium text-slate-800">{formatCurrency(grupo.total)}</p></div>
+                <div><p className="text-xs text-slate-400">Lote</p><p className="text-sm text-slate-700">1 lote</p></div>
+                <label className="text-xs font-medium text-slate-600">
+                  Régua do Flow
+                  <select name={`regua_id:${grupo.carteiraId}`} required defaultValue={defaultRegua} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900">
+                    <option value="" disabled>Selecione</option>
+                    {opcoesRegua.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}{regua.carteira_id ? '' : ' · global'}</option>)}
+                  </select>
+                </label>
+              </ListRow>
+            })}
+          </ListRows>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
+            <PendingSubmitButton pendingLabel="Criando flows..."><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
+          </div>
+        </form> : <ListEmptyState title="Nenhum lote montado" description="Selecione cobranças novas no painel e clique em Ativar para montar o lote automaticamente." />}
       </details>
     </ListPanel>
 
