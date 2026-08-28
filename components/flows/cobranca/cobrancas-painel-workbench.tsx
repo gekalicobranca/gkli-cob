@@ -66,21 +66,6 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
     setSelectedIds((current) => selected ? current.filter((id) => !ids.includes(id)) : Array.from(new Set([...current, ...ids])))
   }
 
-  if (rows.length === 0) {
-    return (
-      <Card className="overflow-hidden p-0">
-        <details className="group bg-white">
-          <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-            <ListCollapsibleSectionHeader title="Cobranças novas" count={0} />
-          </summary>
-          <div className="p-5">
-            <EmptyState title="Nenhuma cobrança nova" description="Não há cobranças novas neste filtro." />
-          </div>
-        </details>
-      </Card>
-    )
-  }
-
   return (
     <div className="space-y-4">
       <Card className="p-4">
@@ -98,7 +83,14 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
       </Card>
 
       <Card className="overflow-hidden p-0">
-        <details open={rows.length > 0} className="group bg-white">
+        {rows.length === 0 ? <details className="group bg-white">
+          <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+            <ListCollapsibleSectionHeader title="Cobranças novas" count={0} />
+          </summary>
+          <div className="p-5">
+            <EmptyState title="Nenhuma cobrança nova" description="Não há cobranças novas neste filtro." />
+          </div>
+        </details> : <details open className="group bg-white">
           <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
             <ListCollapsibleSectionHeader title="Cobranças novas" count={rows.length} />
           </summary>
@@ -127,7 +119,7 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
               </div>)}</div>
             </details>
           })}</div>
-        </details>
+        </details>}
       </Card>
     </div>
   )

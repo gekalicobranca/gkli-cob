@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, CirclePause, Fi
 import { StatusBadge } from '@/components/data/status-badge'
 import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListRows } from '@/components/layout/list-page'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { cancelarFlowAcordos, criarFlowsAcordos, enviarFlowAcordos, pausarFlowAcordos, reenviarItemFlowAcordos } from '@/features/flows/acordos/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -187,6 +188,22 @@ export function FlowAcordosWorkbench({
   }
 
   return <div className="space-y-3">
+    <Card className="p-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><FileSignature size={18} /></div>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-950">Montar lote selecionado</h2>
+            <p className="mt-1 text-xs text-slate-500">Depois da montagem, escolha a régua na etapa Lotes + régua.</p>
+            {bloqueadasSemResponsavel ? <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"><AlertTriangle size={13} />{bloqueadasSemResponsavel} parcela(s) sem responsável não podem evoluir.</p> : null}
+          </div>
+        </div>
+        <Button type="button" onClick={() => setOpenSteps((current) => ({ ...current, lotes: true }))} disabled={selectedIds.length === 0}>
+          Montar lote
+        </Button>
+      </div>
+    </Card>
+
     <ListPanel>
       <details open={openSteps.painel} onToggle={(event) => syncStepOpen('painel', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
@@ -202,9 +219,6 @@ export function FlowAcordosWorkbench({
               <p className="text-sm text-slate-500">
                 {selectedIds.length} de {aptas.length} apta(s){bloqueadasSemResponsavel ? ` · ${bloqueadasSemResponsavel} sem responsável` : ''}
               </p>
-              <Button type="button" variant="secondary" size="sm" onClick={() => setOpenSteps((current) => ({ ...current, lotes: true }))} disabled={selectedIds.length === 0}>
-                Montar lote
-              </Button>
             </div>
           </div>
           {bloqueadasSemResponsavel ? (
