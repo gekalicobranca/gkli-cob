@@ -9,6 +9,7 @@ import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
+import { captacaoGlobalAtiva } from './controle-global.mjs'
 
 const SCRIPT_KEY = 'villagua_condopro_square_guarulhos'
 const BUCKET = 'agente-relatorios'
@@ -258,9 +259,11 @@ console.log(`Worker ativo para ${SCRIPT_KEY}. Aguardando execuções...`)
 await startWorkerHeartbeat(supabase, SCRIPT_KEY)
 for (;;) {
   try {
-    await agendarCaptacaoMensal()
-    const execucao = await reivindicarExecucao()
-    if (execucao) await coletar(execucao)
+    if (await captacaoGlobalAtiva(supabase)) {
+      await agendarCaptacaoMensal()
+      const execucao = await reivindicarExecucao()
+      if (execucao) await coletar(execucao)
+    }
   } catch (error) {
     console.error('Erro no worker Square Guarulhos:', error instanceof Error ? error.message : error)
   }

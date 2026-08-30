@@ -7,6 +7,13 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getAgenteWorkerByScriptKey } from './workers'
 import { startLocalWorker, stopLocalWorker } from './local-workers'
 
+async function assertCaptacaoGlobalAtiva(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data, error } = await supabase.from('automacao_controle')
+    .select('ativo').eq('chave', 'captacao_global').maybeSingle()
+  if (error) throw new Error(`Erro ao consultar o controle da automação: ${error.message}`)
+  if (data?.ativo === false) throw new Error('A captação está desligada no Orquestrador.')
+}
+
 function getString(formData: FormData, key: string) {
   const value = formData.get(key)
   return typeof value === 'string' ? value.trim() : ''
@@ -92,6 +99,7 @@ export async function criarAgenteReceita(formData: FormData) {
 
 export async function executarAgenteReceita(formData: FormData) {
   const supabase = await createClient()
+  await assertCaptacaoGlobalAtiva(supabase)
 
   const receitaId = getString(formData, 'receita_id')
 
@@ -147,10 +155,12 @@ export async function executarAgenteReceita(formData: FormData) {
   })
 
   revalidatePath('/app/agente-automatico')
+  revalidatePath('/app/agente-automatico/orquestrador')
 }
 
 export async function executarAgenteAdministradoraAgora(formData: FormData) {
   const supabase = await createClient()
+  await assertCaptacaoGlobalAtiva(supabase)
   const scope = await getPermittedCarteiras()
 
   const administradoraId = getString(formData, 'administradora_id')
@@ -243,6 +253,7 @@ export async function executarAgenteAdministradoraAgora(formData: FormData) {
 
 export async function executarAgenteScriptAgora(formData: FormData) {
   const supabase = await createClient()
+  await assertCaptacaoGlobalAtiva(supabase)
   const scope = await getPermittedCarteiras()
   const worker = getScriptKey(formData)
 
@@ -272,7 +283,7 @@ export async function executarAgenteScriptAgora(formData: FormData) {
 
   if (!receitasParaExecutar.length) {
     revalidatePath('/app/agente-automatico')
-    revalidatePath('/app/agente-automatico/monitor')
+    revalidatePath('/app/agente-automatico/orquestrador')
     return
   }
 
@@ -334,21 +345,33 @@ export async function executarAgenteScriptAgora(formData: FormData) {
   }
 
   revalidatePath('/app/agente-automatico')
-  revalidatePath('/app/agente-automatico/monitor')
+  revalidatePath('/app/agente-automatico/orquestrador')
+}
+
+export async function alternarCaptacaoGlobal(formData: FormData) {
+  const supabase = await createClient()
+  const ativo = getString(formData, 'ativo') === 'true'
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Usuário não autenticado.')
+  const { error } = await supabase.from('automacao_controle').upsert({
+    chave: 'captacao_global', ativo, atualizado_em: new Date().toISOString(), atualizado_por: user.id,
+  }, { onConflict: 'chave' })
+  if (error) throw new Error(`Não foi possível ${ativo ? 'ligar' : 'desligar'} a captação: ${error.message}`)
+  revalidatePath('/app/agente-automatico/orquestrador')
 }
 
 export async function iniciarAgenteWorkerLocal(formData: FormData) {
   const worker = getScriptKey(formData)
   await startLocalWorker(worker)
   revalidatePath('/app/agente-automatico')
-  revalidatePath('/app/agente-automatico/monitor')
+  revalidatePath('/app/agente-automatico/orquestrador')
 }
 
 export async function pararAgenteWorkerLocal(formData: FormData) {
   const worker = getScriptKey(formData)
   await stopLocalWorker(worker)
   revalidatePath('/app/agente-automatico')
-  revalidatePath('/app/agente-automatico/monitor')
+  revalidatePath('/app/agente-automatico/orquestrador')
 }
 
 export async function marcarExecucaoComoSucessoManual(formData: FormData) {

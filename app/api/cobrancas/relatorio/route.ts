@@ -305,6 +305,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const filters = {
     search: getParam(searchParams, "q"),
+    administradoraId: getParam(searchParams, "administradora_id"),
     condominioId: getParam(searchParams, "condominio_id"),
     unidadeId: getParam(searchParams, "unidade_id"),
     status: getParam(searchParams, "status"),

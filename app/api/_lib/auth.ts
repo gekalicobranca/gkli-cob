@@ -42,3 +42,8 @@ export function requireCronSecret(request: Request) {
 
   return null
 }
+
+export function isCronSecretAuthorized(request: Request) {
+  const secret = process.env.CRON_SECRET || process.env.REGUA_CRON_SECRET
+  return Boolean(secret && request.headers.get('authorization') === `Bearer ${secret}`)
+}

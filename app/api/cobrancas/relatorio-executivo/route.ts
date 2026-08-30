@@ -560,6 +560,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const filters: CobrancaListFilters = {
     search: getParam(searchParams, "q"),
+    administradoraId: getParam(searchParams, "administradora_id"),
     condominioId: getParam(searchParams, "condominio_id"),
     unidadeId: getParam(searchParams, "unidade_id"),
     vencimentoDe: getParam(searchParams, "vencimento_de"),

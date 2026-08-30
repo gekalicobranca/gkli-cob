@@ -105,6 +105,78 @@ function flowCounters(rows: any[]) {
   return { total, pendentes, agendadas, enviadas, falhas, proximo }
 }
 
+export async function getFlowAcordosItens(scope: CarteiraScope, flowId: string) {
+  const supabase = createAdminClient()
+
+  let flowQuery = supabase
+    .from('acordo_flows')
+    .select('id,carteira_id')
+    .eq('id', flowId)
+    .maybeSingle()
+  flowQuery = applyCarteiraScope(flowQuery, scope.carteiraIds)
+
+  const { data: flow, error: flowError } = await flowQuery
+  if (flowError) throw new Error(`Erro ao validar Flow de acordos: ${flowError.message}`)
+  if (!flow) throw new Error('Flow de acordos não encontrado.')
+
+  const { data: itens, error: itensError } = await supabase
+    .from('lote_itens')
+    .select(`
+      id,
+      lote_id,
+      acordo_flow_id,
+      acordo_id,
+      status,
+      motivo,
+      payload,
+      created_at,
+      acordo:acordos(
+        id,
+        valor_acordado,
+        data_acordo,
+        status,
+        status_financeiro,
+        unidade:unidades(
+          id,
+          identificacao,
+          responsavel_nome,
+          email,
+          telefone,
+          condominio:condominios(id,nome,nome_operacional)
+        )
+      ),
+      mensagem:mensagens!lote_itens_mensagem_id_fkey(
+        id,
+        canal,
+        status,
+        status_operacional,
+        destinatario,
+        email_destinatario,
+        scheduled_at,
+        agendada_para,
+        sent_at,
+        enviada_em,
+        erro,
+        erro_envio,
+        payload,
+        created_at
+      )
+    `)
+    .eq('acordo_flow_id', flowId)
+    .order('created_at', { ascending: true })
+    .limit(1000)
+
+  if (itensError && !['42703', 'PGRST204'].includes(String(itensError.code))) {
+    throw new Error(`Erro ao carregar itens do Flow de acordos: ${itensError.message}`)
+  }
+
+  return ((itens ?? []) as any[]).map((item) => ({
+    ...item,
+    acordo: relation(item.acordo),
+    mensagem: relation(item.mensagem),
+  }))
+}
+
 export async function getFlowAcordosPageData(scope: CarteiraScope, filters: FlowAcordosFilters = {}) {
   const supabase = createAdminClient()
   const normalized = normalizeFlowAcordosFilters(filters)
@@ -175,56 +247,22 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
 
   const flowRows = (flows ?? []) as any[]
   const flowIds = flowRows.map((flow) => flow.id).filter(Boolean)
-  let itensPorFlow = new Map<string, any[]>()
   let parcelasJaVinculadas = new Set<string>()
 
   if (flowIds.length) {
     const { data: itens, error: itensError } = await supabase
       .from('lote_itens')
       .select(`
-        id,
-        lote_id,
         acordo_flow_id,
-        acordo_id,
-        status,
-        motivo,
         payload,
-        created_at,
-        acordo:acordos(
-          id,
-          valor_acordado,
-          data_acordo,
-          status,
-          status_financeiro,
-          unidade:unidades(
-            id,
-            identificacao,
-            responsavel_nome,
-            email,
-            telefone,
-            condominio:condominios(id,nome,nome_operacional)
-          )
-        ),
         mensagem:mensagens!lote_itens_mensagem_id_fkey(
           id,
-          canal,
-          status,
-          status_operacional,
-          destinatario,
-          email_destinatario,
-          scheduled_at,
-          agendada_para,
-          sent_at,
-          enviada_em,
-          erro,
-          erro_envio,
-          payload,
-          created_at
+          payload
         )
       `)
       .in('acordo_flow_id', flowIds)
       .order('created_at', { ascending: true })
-      .limit(1000)
+      .limit(5000)
 
     if (itensError && !['42703', 'PGRST204'].includes(String(itensError.code))) {
       throw new Error(`Erro ao carregar itens dos Flows de acordos: ${itensError.message}`)
@@ -232,39 +270,20 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
 
     const itensRows = ((itens ?? []) as any[]).map((item) => ({
       ...item,
-      acordo: relation(item.acordo),
       mensagem: relation(item.mensagem),
     }))
     parcelasJaVinculadas = new Set(itensRows.map((item) => parcelaIdFromPayload(item.payload) || parcelaIdFromPayload(item.mensagem?.payload)).filter(Boolean))
-    itensPorFlow = itensRows.reduce((map, item: any) => {
-      const flowId = String(item.acordo_flow_id ?? '')
-      if (!flowId) return map
-      const list = map.get(flowId) ?? []
-      list.push(item)
-      map.set(flowId, list)
-      return map
-    }, new Map<string, any[]>())
   }
 
   return {
     parcelas: parcelasNormalizadas.filter((row) => !parcelasJaVinculadas.has(String(row.id))),
     reguas,
-    flows: flowRows.map((flow) => {
-      const itens = itensPorFlow.get(flow.id) ?? []
-      const counters = flowCounters(itens)
-      return {
-        ...flow,
-        carteira: relation(flow.carteira),
-        regua: relation(flow.regua),
-        lote: relation(flow.lote),
-        itens,
-        total_mensagens: counters.total || flow.total_mensagens,
-        total_pendentes: counters.pendentes,
-        total_agendadas: counters.agendadas,
-        total_enviadas: counters.enviadas,
-        total_falhas: counters.falhas,
-        proximo_disparo_em: counters.proximo ?? flow.proximo_disparo_em,
-      }
-    }),
+    flows: flowRows.map((flow) => ({
+      ...flow,
+      carteira: relation(flow.carteira),
+      regua: relation(flow.regua),
+      lote: relation(flow.lote),
+      itens: [],
+    })),
   }
 }

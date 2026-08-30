@@ -33,7 +33,11 @@ import { StatusBadge } from "@/components/data/status-badge";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
-import { listCondominiosForSelect, listUnidadesForSelect } from "@/features/cadastros/queries";
+import {
+  listAdministradorasForSelect,
+  listCondominiosForSelect,
+  listUnidadesForSelect,
+} from "@/features/cadastros/queries";
 import { listCobrancasPage, summarizeCobrancas } from "@/features/cobrancas/queries";
 import { updateCobrancasStatusEmLote } from "@/features/cobrancas/actions";
 import {
@@ -50,6 +54,7 @@ import { CobrancasBulkControls } from "./cobrancas-bulk-controls";
 type PageProps = {
   searchParams?: Promise<{
     q?: string;
+    administradora_id?: string;
     condominio_id?: string;
     unidade_id?: string;
     status?: string;
@@ -167,7 +172,7 @@ function cobrancasRelatorioHref(params: Record<string, string>) {
 function cobrancasRelatorioExecutivoHref(params: Record<string, string>) {
   const query = new URLSearchParams();
 
-  for (const key of ["q", "condominio_id", "unidade_id", "vencimento_de", "vencimento_ate", "ordenar"]) {
+  for (const key of ["q", "administradora_id", "condominio_id", "unidade_id", "vencimento_de", "vencimento_ate", "ordenar"]) {
     const value = params[key];
     if (value) query.set(key, value);
   }
@@ -277,6 +282,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const statusFilter = getStatusFilter(statusParam);
   const filters = {
     search: getParam(params.q),
+    administradoraId: getParam(params.administradora_id),
     condominioId: getParam(params.condominio_id),
     unidadeId: getParam(params.unidade_id),
     status: statusFilter.status,
@@ -288,6 +294,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   };
   const queryParams = {
     q: filters.search,
+    administradora_id: filters.administradoraId,
     condominio_id: filters.condominioId,
     unidade_id: filters.unidadeId,
     status: statusFilter.statusSelect === "operacionais" ? "" : statusFilter.statusSelect,
@@ -298,6 +305,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   };
   const hasFilters = Boolean(
     filters.search ||
+    filters.administradoraId ||
     filters.condominioId ||
     filters.unidadeId ||
     statusFilter.statusSelect !== "operacionais" ||
@@ -316,7 +324,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const relatorioExecutivoHref = cobrancasRelatorioExecutivoHref(queryParams);
 
   const scope = await getPermittedCarteiras();
-  const [pageData, resumo, condominios, unidades] = await Promise.all([
+  const [pageData, resumo, administradoras, condominios, unidades] = await Promise.all([
     listCobrancasPage(scope, filters, { page, pageSize: PAGE_SIZE, orderBy: filters.ordenar }).catch((error) => {
       console.error("Erro ao carregar lista de cobrancas:", error);
       return emptyPageData(page);
@@ -324,6 +332,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     summarizeCobrancas(scope, filters).catch((error) => {
       console.error("Erro ao resumir cobrancas na lista:", error);
       return EMPTY_RESUMO;
+    }),
+    listAdministradorasForSelect(scope).catch((error) => {
+      console.error("Erro ao carregar administradoras no filtro de cobrancas:", error);
+      return [];
     }),
     listCondominiosForSelect(scope).catch((error) => {
       console.error("Erro ao carregar condominios no filtro de cobrancas:", error);
@@ -431,7 +443,18 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                   placeholder="Buscar responsável, unidade, bloco..."
                   className="xl:col-span-3"
                 />
-                <ListFilterField label="Condomínio" className="xl:col-span-5">
+                <ListFilterField label="Administradora" className="xl:col-span-3">
+                  <SearchableSelect
+                    name="administradora_id"
+                    options={administradoras.map((administradora) => ({
+                      value: administradora.id,
+                      label: administradora.nome,
+                    }))}
+                    selectedValue={filters.administradoraId}
+                    placeholder="Digite parte da administradora"
+                  />
+                </ListFilterField>
+                <ListFilterField label="Condomínio" className="xl:col-span-3">
                   <CondominioSearchSelect
                     name="condominio_id"
                     options={condominios.map((condominio: any) => ({
@@ -444,7 +467,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                     inputClassName=""
                   />
                 </ListFilterField>
-                <ListFilterField label="Unidade" className="xl:col-span-4">
+                <ListFilterField label="Unidade" className="xl:col-span-3">
                   <SearchableSelect
                     name="unidade_id"
                     options={unidades.map((unidade: any) => ({

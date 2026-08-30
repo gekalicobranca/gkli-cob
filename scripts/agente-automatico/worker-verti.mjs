@@ -9,6 +9,7 @@ import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
+import { captacaoGlobalAtiva } from './controle-global.mjs'
 
 const SCRIPT_KEY = 'verti_winker_inadimplencia'
 const BUCKET = 'agente-relatorios'
@@ -433,7 +434,13 @@ async function abrirBalancete(page, execucao) {
       await page.goto(new URL('/intra', page.url()).href, { waitUntil: 'domcontentloaded' }).catch(() => {})
       await page.waitForFunction(() => /Balancete interativo|Financeiro/i.test(document.body.innerText || ''), null, { timeout: 30_000 }).catch(() => {})
     } else {
-      throw new Error(`Condomínio ${nomePortal} não encontrado no portal Winker.`)
+      const opcoes = await page.evaluate(() => [...document.querySelectorAll('a')]
+        .filter((link) => /changeCondominioPadrao/i.test(link.href || ''))
+        .map((link) => String(link.innerText || link.textContent || '').replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .slice(0, 30)).catch(() => [])
+      const resumo = opcoes.length ? ` Opções disponíveis: ${opcoes.join(' | ')}` : ''
+      throw new Error(`Condomínio ${nomePortal} não encontrado no portal Winker.${resumo}`)
     }
   }
   const balanco = page.locator('a:visible, button:visible').filter({ hasText: /Balan(?:ço|cete) interativo/i }).first()
@@ -578,9 +585,11 @@ console.log(`Worker ativo para ${SCRIPT_KEY}. Aguardando execuções...`)
 await startWorkerHeartbeat(supabase, SCRIPT_KEY)
 for (;;) {
   try {
-    await agendarCaptacoesMensais()
-    const execucao = await reivindicarExecucao()
-    if (execucao) await coletar(execucao)
+    if (await captacaoGlobalAtiva(supabase)) {
+      await agendarCaptacoesMensais()
+      const execucao = await reivindicarExecucao()
+      if (execucao) await coletar(execucao)
+    }
   } catch (error) {
     console.error('Erro no worker Verti:', error instanceof Error ? error.message : error)
   }

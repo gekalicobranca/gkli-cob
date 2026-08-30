@@ -9,6 +9,13 @@ function normalizar(value: unknown) {
   return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]+/gi, " ").trim().toUpperCase()
 }
 
+function nomeBaseCondominioCaptacao(value: unknown) {
+  return normalizar(value)
+    .replace(/\s+-?\s*SUBCOND(?:OMINIO)?\s*0?\d+\b.*$/, "")
+    .replace(/\s+-?\s*CENTRAL\b.*$/, "")
+    .trim()
+}
+
 function detectarCondominioBbz(buffer: Buffer) {
   const workbook = XLSX.read(buffer, { type: "buffer", raw: false })
   const primeira = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "", raw: false })
@@ -86,6 +93,27 @@ function aplicarBlocoPadrao(preview: any, blocoPadrao: string) {
   }
 }
 
+function aplicarFiltroBlocoManager(preview: any, nomeCondominio: string) {
+  const nome = normalizar(nomeCondominio)
+  let blocoEsperado = ""
+  if (nome.includes("K360") && nome.includes("COMERCIAL")) blocoEsperado = "COM"
+  if (nome.includes("K360") && nome.includes("RESIDENCIAL")) blocoEsperado = "RES"
+  if (!blocoEsperado) return preview
+
+  const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
+  const filtradas = cobrancas.filter((item: any) => normalizar(item.bloco) === blocoEsperado)
+  return {
+    ...preview,
+    cobrancas: filtradas,
+    totalParcelas: filtradas.reduce((total: number, item: any) => total + Math.max(1, item.parcelas?.length ?? 0), 0),
+    valorTotal: filtradas.reduce((total: number, item: any) => total + Number(item.valorTotal ?? 0), 0),
+    inconsistencias: [
+      ...(preview.inconsistencias ?? []),
+      `Relatório compartilhado K360: aplicado o recorte exclusivo do bloco ${blocoEsperado}.`,
+    ],
+  }
+}
+
 /** Leitor isolado do XLS multipágina exportado pelo Webware/CondoPro. */
 function parseBbzClock(buffer: Buffer, filename: string) {
   const workbook = XLSX.read(buffer, { type: "buffer", raw: false })
@@ -124,6 +152,8 @@ function parseBbzClock(buffer: Buffer, filename: string) {
 
 export type ResumoCaptacao = {
   conversaoId: string
+  condominioId: string
+  carteiraId: string
   cobrancas: number
   parcelas: number
   status: "aguardando_validacao"
@@ -136,9 +166,14 @@ export type ResumoCaptacao = {
 export async function processarRelatorioCaptado(arquivo: string): Promise<ResumoCaptacao> {
   const supabase = createAdminClient()
   const buffer = await readFile(arquivo)
+  const nomeArquivo = path.basename(arquivo)
+  const origemCaptacao = /_\d{3,}_\d{4}-\d{2}-\d{2}\.xlsx?$/i.test(nomeArquivo)
+    ? "captacao_automatizada:lello"
+    : "captacao_automatizada:bbz"
   const nomeDetectado = detectarCondominioBbz(buffer)
-  const nomePeloArquivo = path.basename(arquivo)
+  const nomePeloArquivo = nomeArquivo
     .replace(/_\d{4}-\d{2}-\d{2}\.xlsx?$/i, "")
+    .replace(/_\d{3,}$/i, "")
     .replace(/_/g, " ")
   const blocoPadraoCaptacao = detectarBlocoPadraoCaptacao(nomeDetectado, nomePeloArquivo)
   const { data: candidatos, error: condominioError } = await supabase.from("condominios")
@@ -146,29 +181,42 @@ export async function processarRelatorioCaptado(arquivo: string): Promise<Resumo
     .eq("captacao_automatica_habilitada", true).eq("status", "ativo")
   const detectado = normalizar(nomeDetectado)
   const detectadoPeloArquivo = normalizar(nomePeloArquivo)
+  const baseDetectada = nomeBaseCondominioCaptacao(nomeDetectado)
+  const baseDetectadaPeloArquivo = nomeBaseCondominioCaptacao(nomePeloArquivo)
   const condominio = (candidatos ?? []).find((item: any) => {
     const oficial = normalizar(item.nome), operacional = normalizar(item.nome_operacional)
+    const baseOficial = nomeBaseCondominioCaptacao(item.nome)
+    const baseOperacional = nomeBaseCondominioCaptacao(item.nome_operacional)
     return oficial === detectadoPeloArquivo || operacional === detectadoPeloArquivo
       || oficial === detectado || operacional === detectado
+      || oficial === baseDetectadaPeloArquivo || operacional === baseDetectadaPeloArquivo
+      || oficial === baseDetectada || operacional === baseDetectada
+      || baseOficial === baseDetectadaPeloArquivo || baseOperacional === baseDetectadaPeloArquivo
+      || baseOficial === baseDetectada || baseOperacional === baseDetectada
       || (detectado && (oficial.includes(detectado) || detectado.includes(oficial)))
   })
   if (condominioError || !condominio?.id || !condominio?.carteira_id) {
-    throw new Error(condominioError?.message || `Condomínio do relatório (${nomeDetectado || "não identificado"}) não está habilitado para captação.`)
+    const candidatosProximos = (candidatos ?? [])
+      .filter((item: any) => normalizar(item.nome).includes("ATMOSFERA"))
+      .map((item: any) => `${item.nome} [${nomeBaseCondominioCaptacao(item.nome)}]`)
+      .join(" | ")
+    throw new Error(condominioError?.message || `Condomínio do relatório (${nomeDetectado || "não identificado"}) não está habilitado para captação. Arquivo: ${detectadoPeloArquivo} [${baseDetectadaPeloArquivo}]. Candidatos: ${candidatosProximos || "nenhum"}.`)
   }
   if (!condominio.captacao_automatica_habilitada) {
     throw new Error(`Captação automática desabilitada no cadastro de ${condominio.nome}.`)
   }
 
   let preview: any = await parseRelatorioBuffer({
-    buffer, filename: path.basename(arquivo), mimeType: "application/vnd.ms-excel",
+    buffer, filename: nomeArquivo, mimeType: "application/vnd.ms-excel",
     condominioCnpj: String(condominio.cnpj ?? "").replace(/\D/g, ""), tipoConversao: "cobrancas",
   })
   if (!preview?.ok) throw new Error(preview?.error || "Não foi possível converter o relatório.")
   preview = preview.preview
-  if (!preview.cobrancas?.length) preview = parseBbzClock(buffer, path.basename(arquivo))
+  if (!preview.cobrancas?.length && !preview.semPendencias) preview = parseBbzClock(buffer, path.basename(arquivo))
+  preview = aplicarFiltroBlocoManager(preview, condominio.nome)
   preview = aplicarRecorteOperacionalDeVencimento(preview)
   preview = aplicarBlocoPadrao(preview, blocoPadraoCaptacao)
-  if (!preview.cobrancas?.length && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos"))) {
+  if (!preview.cobrancas?.length && !preview.semPendencias && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos") || item.includes("fora do ano corrente"))) {
     throw new Error("O relatório não contém cobranças reconhecíveis.")
   }
 
@@ -182,8 +230,8 @@ export async function processarRelatorioCaptado(arquivo: string): Promise<Resumo
   const { data: conversao, error } = await supabase.from("conversoes_relatorio").insert({
     carteira_id: condominio.carteira_id,
     condominio_id: condominio.id,
-    origem: "captacao_automatizada:bbz",
-    nome_arquivo: path.basename(arquivo),
+    origem: origemCaptacao,
+    nome_arquivo: nomeArquivo,
     status: "aguardando_validacao",
     total_cobrancas: preview.cobrancas.length,
     total_parcelas: preview.totalParcelas ?? 0,
@@ -195,6 +243,8 @@ export async function processarRelatorioCaptado(arquivo: string): Promise<Resumo
 
   return {
     conversaoId: conversao.id,
+    condominioId: condominio.id,
+    carteiraId: condominio.carteira_id,
     cobrancas: preview.cobrancas.length,
     parcelas: preview.totalParcelas ?? 0,
     status: "aguardando_validacao",

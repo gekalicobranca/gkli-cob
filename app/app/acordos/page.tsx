@@ -30,7 +30,7 @@ import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCondominiosForSelect, listUnidadesForSelect } from '@/features/cadastros/queries'
-import { listAcordosComSaude } from '@/features/acordos/queries'
+import { listAcordosComSaudePage } from '@/features/acordos/queries'
 import { listCarteiras } from '@/features/carteiras/queries'
 import { AgreementHealthBadge } from '@/features/acordos/components/agreement-health-badge'
 
@@ -78,88 +78,15 @@ function clean(value: unknown) {
   return String(value ?? '').trim()
 }
 
-function normalizeText(value: unknown) {
-  return clean(value)
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-}
-
 function dateFilter(value: unknown) {
   const text = clean(value)
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
-}
-
-function sumBy(rows: any[], predicate: (row: any) => boolean) {
-  return rows.filter(predicate).reduce((sum, row) => sum + Number(row.valor_acordado ?? 0), 0)
 }
 
 function getUnitLabel(unidade: any) {
   if (!unidade) return 'Unidade não informada'
   const bloco = unidade.bloco ? `Bloco ${unidade.bloco} · ` : ''
   return `${bloco}Unidade ${unidade.identificacao ?? '-'}`
-}
-
-function getComparable(row: any, field: string) {
-  if (field === 'data_asc' || field === 'data_desc') return new Date(row.data_acordo ?? 0).getTime()
-  if (field === 'valor_asc' || field === 'valor_desc') return Number(row.valor_acordado ?? 0)
-  if (field === 'condominio') return normalizeText(row.condominios?.nome)
-  if (field === 'unidade') return normalizeText(row.unidades?.identificacao)
-  if (field === 'responsavel') return normalizeText(row.unidades?.responsavel_nome)
-  if (field === 'status') return normalizeText(row.status)
-  return normalizeText(row.condominios?.nome)
-}
-
-function sortAcordos(rows: any[], ordenar: string) {
-  return [...rows].sort((a, b) => {
-    const field = ordenar || 'condominio'
-    const av = getComparable(a, field)
-    const bv = getComparable(b, field)
-
-    if (typeof av === 'number' && typeof bv === 'number') {
-      return field.endsWith('_desc') ? bv - av : av - bv
-    }
-
-    const result = String(av).localeCompare(String(bv), 'pt-BR', { numeric: true })
-    if (result !== 0) return result
-
-    return String(a.unidades?.identificacao ?? '').localeCompare(String(b.unidades?.identificacao ?? ''), 'pt-BR', { numeric: true })
-  })
-}
-
-function filterAcordos(rows: any[], filters: Awaited<NonNullable<AcordosPageProps['searchParams']>>) {
-  const termo = normalizeText(filters.q)
-  const condominioId = clean(filters.condominio_id)
-  const unidadeId = clean(filters.unidade_id)
-  const carteiraId = clean(filters.carteira_id)
-  const status = clean(filters.status)
-  const dataDe = dateFilter(filters.data_de)
-  const dataAte = dateFilter(filters.data_ate)
-
-  return rows.filter((row) => {
-    const data = clean(row.data_acordo).slice(0, 10)
-    if (condominioId && row.condominio_id !== condominioId) return false
-    if (unidadeId && row.unidade_id !== unidadeId) return false
-    if (carteiraId && row.carteira_id !== carteiraId) return false
-    if (status && row.status !== status) return false
-    if (dataDe && data < dataDe) return false
-    if (dataAte && data > dataAte) return false
-
-    if (termo) {
-      const haystack = normalizeText([
-        row.condominios?.nome,
-        row.unidades?.identificacao,
-        row.unidades?.bloco,
-        row.unidades?.responsavel_nome,
-        row.numero_processo,
-        row.status,
-        row.carteiras?.nome,
-      ].filter(Boolean).join(' '))
-      if (!haystack.includes(termo)) return false
-    }
-
-    return true
-  })
 }
 
 function groupAcordos(rows: any[]) {
@@ -183,24 +110,20 @@ function groupAcordos(rows: any[]) {
 export default async function AcordosPage({ searchParams }: AcordosPageProps) {
   const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
-  const [allRows, condominios, unidades, carteiras] = await Promise.all([
-    listAcordosComSaude(scope),
+  const page = getPageParam(params.page)
+  const [acordosPage, condominios, unidades, carteiras] = await Promise.all([
+    listAcordosComSaudePage(scope, params, page, PAGE_SIZE),
     listCondominiosForSelect(scope),
     clean(params.condominio_id)
       ? listUnidadesForSelect(scope, { condominioId: clean(params.condominio_id) })
       : Promise.resolve([]),
     listCarteiras(scope),
   ])
-  const filteredRows = sortAcordos(filterAcordos(allRows, params), clean(params.ordenar) || 'condominio')
-  const page = getPageParam(params.page)
-  const rows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const rows = acordosPage.rows
   const groups = groupAcordos(rows)
   const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.carteira_id || params.status || params.data_de || params.data_ate || params.ordenar)
 
-  const ativos = filteredRows.filter((row: any) => row.status === 'ativo').length
-  const atraso = filteredRows.filter((row: any) => row.status === 'em atraso').length
-  const rompidos = filteredRows.filter((row: any) => row.status === 'rompido').length
-  const valorAtivo = sumBy(filteredRows, (row: any) => ['ativo', 'em atraso'].includes(row.status))
+  const { ativos, atraso, rompidos, valorAtivo } = acordosPage.resumo
 
   return (
     <ListPage>
@@ -300,7 +223,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
               <Input name="data_ate" type="date" defaultValue={dateFilter(params.data_ate)} />
             </ListFilterField>
             <ListFilterField label="Ordenar por" className="xl:col-span-3">
-              <Select name="ordenar" defaultValue={clean(params.ordenar) || 'condominio'}>
+              <Select name="ordenar" defaultValue={clean(params.ordenar) || 'data_desc'}>
                 <option value="condominio">Condomínio</option>
                 <option value="unidade">Unidade</option>
                 <option value="responsavel">Responsável</option>
@@ -370,9 +293,9 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
         <ListPagination
           page={page}
           pageSize={PAGE_SIZE}
-          total={filteredRows.length}
+          total={acordosPage.total}
           previousHref={page > 1 ? pageHref(params, page - 1) : undefined}
-          nextHref={page * PAGE_SIZE < filteredRows.length ? pageHref(params, page + 1) : undefined}
+          nextHref={page * PAGE_SIZE < acordosPage.total ? pageHref(params, page + 1) : undefined}
         />
       </ListPanel>
     </ListPage>

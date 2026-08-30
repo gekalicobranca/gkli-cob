@@ -9,6 +9,7 @@ import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
+import { captacaoGlobalAtiva } from './controle-global.mjs'
 
 const SCRIPT_KEY = 'captacao_lello'
 const BUCKET = 'agente-relatorios'
@@ -287,8 +288,13 @@ async function loginLello(page, execucao, config) {
 
   const credenciaisEnv = credenciaisAmbienteLello(config)
   const credenciaisCadastro = extrairCredenciais(config.acesso_raw)
-  const usuario = credenciaisEnv.usuario || credenciaisCadastro.login
-  const senha = credenciaisEnv.senha || credenciaisCadastro.senha
+  const cadastroPrioritario = chaveCredencialEspecial(config) === 'TOPAZIO'
+  const usuario = cadastroPrioritario
+    ? credenciaisCadastro.login || credenciaisEnv.usuario
+    : credenciaisEnv.usuario || credenciaisCadastro.login
+  const senha = cadastroPrioritario
+    ? credenciaisCadastro.senha || credenciaisEnv.senha
+    : credenciaisEnv.senha || credenciaisCadastro.senha
   if (!usuario || !senha) {
     await registrarLog(execucao.id, 'intervencao_login', 'Credenciais Lello/COJUR não configuradas no ambiente nem no cadastro do agente.', 'warning')
     throw new Error('Credenciais Lello/COJUR não configuradas.')
@@ -303,7 +309,7 @@ async function loginLello(page, execucao, config) {
   const acessar = page.getByRole('button', { name: /acessar/i }).or(page.getByText(/^Acessar$/i)).first()
   await acessar.click()
   await registrarLog(execucao.id, 'login', 'Credenciais COJUR preenchidas; aguardando portal Lello.', 'info', {
-    credencial: credenciaisEnv.origem,
+    credencial: cadastroPrioritario ? 'cadastro:TOPAZIO' : credenciaisEnv.origem,
   })
   await page.waitForURL(/menuPortal2\/do\/Menu\/montaMenu/i, { timeout: LOGIN_TIMEOUT_MS }).catch(async (error) => {
     if (await aguardarMenuAutenticado(15_000)) return
@@ -313,6 +319,13 @@ async function loginLello(page, execucao, config) {
 
 async function selecionarCondominio(page, execucao, codigo, nomePortal = '') {
   const termoNome = String(nomePortal || '').replace(/^\s*\d+\s*-\s*/, '').trim()
+  const selecaoExibida = await page.locator('body').innerText({ timeout: 5_000 }).then((text) =>
+    text.includes(`${codigo} -`) && (!termoNome || normalizarTexto(text).includes(normalizarTexto(termoNome))))
+    .catch(() => false)
+  if (selecaoExibida) {
+    await registrarLog(execucao.id, 'condominio', `Condomínio já exibido no cabeçalho do portal Lello pelo código ${codigo}.`)
+    return
+  }
   const selecionado = await page.locator('body').evaluate(({ code, name }) => {
     const pattern = new RegExp(`^${code}\\s*-`, 'i')
     const visivel = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
@@ -537,7 +550,12 @@ async function selecionarCondominio(page, execucao, codigo, nomePortal = '') {
       if (clicked) break
     }
   }
-  if (!clicked) throw new Error(`Código do condomínio Lello não encontrado no seletor: ${codigo}.`)
+  if (!clicked) {
+    const opcoes = await page.locator('.dropdown.open a[ng-click*="setCondominio"]:visible, a[ng-click*="setCondominio"]:visible')
+      .allInnerTexts().catch(() => [])
+    const resumo = [...new Set(opcoes.map((item) => item.trim()).filter(Boolean))].slice(0, 40)
+    throw new Error(`Código do condomínio Lello não encontrado no seletor: ${codigo}.${resumo.length ? ` Opções visíveis: ${resumo.join(' | ')}` : ''}`)
+  }
 
   await page.waitForFunction((code) => {
     const text = document.body.innerText || ''
@@ -824,9 +842,11 @@ console.log(`Worker ativo para ${SCRIPT_KEY}. Aguardando execuções...`)
 await startWorkerHeartbeat(supabase, SCRIPT_KEY)
 for (;;) {
   try {
-    await agendarCaptacoesMensais()
-    const execucao = await reivindicarExecucao()
-    if (execucao) await coletarLello(execucao)
+    if (await captacaoGlobalAtiva(supabase)) {
+      await agendarCaptacoesMensais()
+      const execucao = await reivindicarExecucao()
+      if (execucao) await coletarLello(execucao)
+    }
   } catch (error) {
     console.error('Erro no worker Lello:', error instanceof Error ? error.message : error)
   }

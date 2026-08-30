@@ -9,6 +9,7 @@ import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
+import { captacaoGlobalAtiva } from './controle-global.mjs'
 
 const SCRIPT_KEY = 'captacao_atipass'
 const BUCKET = 'agente-relatorios'
@@ -460,9 +461,11 @@ async function run() {
   const runOnce = String(process.env.AGENTE_RUN_ONCE || 'false').toLowerCase() === 'true'
   for (;;) {
     try {
-      await agendarCaptacoesMensais()
-      const execucao = await reivindicarExecucao()
-      if (execucao) await coletarAtipass(execucao)
+      if (await captacaoGlobalAtiva(supabase)) {
+        await agendarCaptacoesMensais()
+        const execucao = await reivindicarExecucao()
+        if (execucao) await coletarAtipass(execucao)
+      }
     } catch (error) {
       console.error('Erro no worker:', error instanceof Error ? error.message : error)
     }

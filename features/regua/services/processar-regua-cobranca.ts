@@ -109,7 +109,7 @@ export type ResultadoLoteRegua = {
 
 type ProcessarReguaParams = {
   scope?: CarteiraScope;
-  origem?: "manual" | "api" | "cron" | "keila_teste" | "keila_auto";
+  origem?: "manual" | "api" | "cron" | "keila_teste" | "keila_auto" | "orquestrador_captacao";
   cooldownDias?: number;
   q?: string;
   carteiraId?: string;
@@ -483,17 +483,21 @@ async function getAcordosAtivosPorCobranca(
 ) {
   if (cobrancaIds.length === 0) return new Set<string>();
 
-  const { data, error } = await supabase
-    .from("acordos")
-    .select("cobranca_id")
-    .in("cobranca_id", cobrancaIds)
-    .in("status", ACORDO_STATUS_VIGENTES as string[]);
+  const rows: any[] = [];
+  for (let index = 0; index < cobrancaIds.length; index += 200) {
+    const { data, error } = await supabase
+      .from("acordos")
+      .select("cobranca_id")
+      .in("cobranca_id", cobrancaIds.slice(index, index + 200))
+      .in("status", ACORDO_STATUS_VIGENTES as string[]);
 
-  if (error) {
-    throw new Error(`Erro ao verificar acordos ativos: ${error.message}`);
+    if (error) {
+      throw new Error(`Erro ao verificar acordos ativos: ${error.message}`);
+    }
+    rows.push(...(data ?? []));
   }
 
-  return new Set<string>((data ?? []).map((row: any) => String(row.cobranca_id)).filter(Boolean));
+  return new Set<string>(rows.map((row: any) => String(row.cobranca_id)).filter(Boolean));
 }
 
 async function getUltimasMensagensPorCobranca(
@@ -503,18 +507,22 @@ async function getUltimasMensagensPorCobranca(
   const map = new Map<string, { id: string; created_at: string; status: string }>();
   if (cobrancaIds.length === 0) return map;
 
-  const { data, error } = await supabase
-    .from("mensagens")
-    .select("id, cobranca_id, status, created_at")
-    .in("cobranca_id", cobrancaIds)
-    .neq("status", MENSAGEM_STATUS.CANCELADA)
-    .order("created_at", { ascending: false });
+  const rows: any[] = [];
+  for (let index = 0; index < cobrancaIds.length; index += 200) {
+    const { data, error } = await supabase
+      .from("mensagens")
+      .select("id, cobranca_id, status, created_at")
+      .in("cobranca_id", cobrancaIds.slice(index, index + 200))
+      .neq("status", MENSAGEM_STATUS.CANCELADA)
+      .order("created_at", { ascending: false });
 
-  if (error) {
-    throw new Error(`Erro ao verificar mensagens recentes: ${error.message}`);
+    if (error) {
+      throw new Error(`Erro ao verificar mensagens recentes: ${error.message}`);
+    }
+    rows.push(...(data ?? []));
   }
 
-  for (const row of data ?? []) {
+  for (const row of rows) {
     const cobrancaId = (row as any).cobranca_id as string | null;
     if (cobrancaId && !map.has(cobrancaId)) {
       map.set(cobrancaId, {

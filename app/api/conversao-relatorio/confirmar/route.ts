@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { createAdminClient } from "@/utils/supabase/admin"
-import { requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
+import { isCronSecretAuthorized, requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
 import {
   conciliarCobrancaImportada,
   encontrarCobrancasAbertasAusentes,
@@ -124,8 +124,10 @@ async function isCarteiraPermitida(
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, response } = await requireAuthenticatedApiUser()
-    if (response) return response
+    const chamadaOrquestrador = isCronSecretAuthorized(request)
+    const autenticacao = chamadaOrquestrador ? null : await requireAuthenticatedApiUser()
+    if (autenticacao?.response) return autenticacao.response
+    const user = autenticacao?.user ?? null
 
     const body = await request.json()
     const conversaoId = body?.conversaoId
@@ -156,7 +158,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient()
 
-    const carteiraPermitida = await isCarteiraPermitida(supabase, user.id, carteiraId)
+    const carteiraPermitida = chamadaOrquestrador || Boolean(user && await isCarteiraPermitida(supabase, user.id, carteiraId))
     if (!carteiraPermitida) {
       return NextResponse.json(
         { ok: false, error: "Você não tem permissão para importar nesta carteira." },

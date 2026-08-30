@@ -214,14 +214,36 @@ function FlowRow({ flow }: { flow: any }) {
   const carteira = relation(flow.carteira)
   const regua = relation(flow.regua)
   const lote = relation(flow.lote)
-  const itens = Array.isArray(flow.itens) ? flow.itens : []
+  const [itens, setItens] = useState<any[]>(Array.isArray(flow.itens) ? flow.itens : [])
+  const [itensLoaded, setItensLoaded] = useState(itens.length > 0)
+  const [itensLoading, setItensLoading] = useState(false)
+  const [itensError, setItensError] = useState('')
   const counters = {
     pendentes: n(flow.total_pendentes),
     agendadas: n(flow.total_agendadas),
     enviadas: n(flow.total_enviadas),
     falhas: n(flow.total_falhas),
   }
-  return <details className="group/flow">
+  const itensResumo = itensLoaded ? itens.length : n(flow.total_mensagens)
+
+  async function loadItens() {
+    if (itensLoaded || itensLoading) return
+    setItensLoading(true)
+    setItensError('')
+    try {
+      const response = await fetch(`/api/flows/cobranca/${flow.id}/itens`, { cache: 'no-store' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload?.error || 'Não foi possível carregar os itens do Flow.')
+      setItens(Array.isArray(payload?.itens) ? payload.itens : [])
+      setItensLoaded(true)
+    } catch (error) {
+      setItensError(error instanceof Error ? error.message : 'Não foi possível carregar os itens do Flow.')
+    } finally {
+      setItensLoading(false)
+    }
+  }
+
+  return <details className="group/flow" onToggle={(event) => { if (event.currentTarget.open) void loadItens() }}>
     <summary className="list-none [&::-webkit-details-marker]:hidden">
       <ListRow className="cursor-pointer bg-white lg:grid-cols-[minmax(320px,1.2fr)_minmax(360px,1fr)_190px_24px]">
         <div className="min-w-0">
@@ -246,7 +268,7 @@ function FlowRow({ flow }: { flow: any }) {
       <div>
         <p className="text-sm font-semibold text-slate-950">Resumo do monitor</p>
         <p className="mt-1 text-xs text-slate-500">
-          Criado em {formatDateTimeBR(flow.created_at)} · {itens.length} item(ns) no Flow · Lote {lote?.status ? lote.status : 'sem status'}
+          Criado em {formatDateTimeBR(flow.created_at)} · {itensResumo} item(ns) no Flow · Lote {lote?.status ? lote.status : 'sem status'}
         </p>
       </div>
       <div className="flex flex-wrap justify-end gap-2">
@@ -269,7 +291,15 @@ function FlowRow({ flow }: { flow: any }) {
         </div>
         <span className="text-xs text-slate-400">{counters.falhas ? `${counters.falhas} item(ns) com falha` : 'Sem falhas abertas'}</span>
       </div>
-      {itens.length ? (
+      {itensLoading ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+          Carregando fila do Flow...
+        </div>
+      ) : itensError ? (
+        <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
+          {itensError}
+        </div>
+      ) : itens.length ? (
         <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="hidden bg-slate-50 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 lg:grid lg:grid-cols-[120px_minmax(280px,1fr)_minmax(220px,0.9fr)_170px_110px] lg:items-center">
             <span>Status</span>

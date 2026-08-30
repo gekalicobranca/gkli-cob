@@ -11,6 +11,7 @@ export async function listAgenteAdministradoras(carteiraIds: string[] | null) {
   query = applyCarteiraScope(query, carteiraIds)
 
   const { data, error } = await query
+    .eq('ativo', true)
     .order('created_at', { ascending: false })
 
   if (error) throw new Error(error.message)

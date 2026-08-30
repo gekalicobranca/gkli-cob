@@ -71,7 +71,7 @@ export async function limparCobrancasDaNovaImportacao(
 
   let query = supabase
     .from("cobrancas")
-    .delete()
+    .select("id")
     .in("condominio_id", condominioIds)
     .in("status_operacional", statusOperacionais)
     .gte("vencimento", `${anoCorrente}-01-01`)
@@ -81,11 +81,41 @@ export async function limparCobrancasDaNovaImportacao(
     query = query.eq("carteira_id", params.carteiraId);
   }
 
-  const { data, error } = await query.select("id");
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Erro ao limpar cobranças anteriores: ${error.message}`);
   }
 
-  return data?.length ?? 0;
+  const cobrancaIds = (data ?? [])
+    .map((item: { id?: string | null }) => String(item.id ?? "").trim())
+    .filter(Boolean);
+
+  // O saneamento é histórico operacional e não deve ser apagado quando uma
+  // nova importação substitui a cobrança. A FK é opcional, então preservamos
+  // a ocorrência e removemos somente o vínculo com a cobrança substituída.
+  for (let index = 0; index < cobrancaIds.length; index += 500) {
+    const loteIds = cobrancaIds.slice(index, index + 500);
+    const { error: saneamentoError } = await supabase
+      .from("saneamento_cobrancas")
+      .update({ cobranca_id: null })
+      .in("cobranca_id", loteIds);
+
+    if (saneamentoError) {
+      throw new Error(
+        `Erro ao preservar o histórico de saneamento: ${saneamentoError.message}`,
+      );
+    }
+
+    const { error: deleteError } = await supabase
+      .from("cobrancas")
+      .delete()
+      .in("id", loteIds);
+
+    if (deleteError) {
+      throw new Error(`Erro ao limpar cobranças anteriores: ${deleteError.message}`);
+    }
+  }
+
+  return cobrancaIds.length;
 }

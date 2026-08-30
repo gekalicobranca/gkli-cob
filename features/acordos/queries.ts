@@ -773,6 +773,232 @@ export async function listAcordosComSaude(scope?: CarteiraScope) {
   return attachAgreementHealth(acordos as any[], parcelas);
 }
 
+export type ListAcordosComSaudePageFilters = {
+  q?: string;
+  condominio_id?: string;
+  unidade_id?: string;
+  carteira_id?: string;
+  status?: string;
+  data_de?: string;
+  data_ate?: string;
+  ordenar?: string;
+};
+
+const ACORDOS_PAGE_SELECT = `
+  id,
+  condominio_id,
+  unidade_id,
+  carteira_id,
+  cobranca_id,
+  data_acordo,
+  valor_acordado,
+  entrada,
+  status,
+  status_financeiro,
+  fluxo_status,
+  numero_processo,
+  condominios:condominio_id (
+    id,
+    nome,
+    parcelas_acordo_sem_aprovacao_sindico,
+    dias_reemissao_parcela_acordo_atrasada
+  ),
+  unidades:unidade_id (
+    id,
+    identificacao,
+    bloco,
+    responsavel_nome
+  ),
+  cobrancas:cobranca_id (
+    id,
+    valor_original,
+    valor_atualizado,
+    status,
+    status_operacional,
+    status_financeiro
+  ),
+  carteiras:carteira_id (
+    id,
+    nome,
+    pre_juridico_habilitado
+  )
+`;
+
+function cleanPageFilter(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function datePageFilter(value: unknown) {
+  const text = cleanPageFilter(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
+}
+
+function normalizePageText(value: unknown) {
+  return cleanPageFilter(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function getAcordoComparable(row: any, field: string) {
+  if (field === "data_asc" || field === "data_desc") return new Date(row.data_acordo ?? 0).getTime();
+  if (field === "valor_asc" || field === "valor_desc") return Number(row.valor_acordado ?? 0);
+  if (field === "condominio") return normalizePageText(row.condominios?.nome);
+  if (field === "unidade") return normalizePageText(row.unidades?.identificacao);
+  if (field === "responsavel") return normalizePageText(row.unidades?.responsavel_nome);
+  if (field === "status") return normalizePageText(row.status);
+  return new Date(row.data_acordo ?? 0).getTime();
+}
+
+function sortAcordosPageRows(rows: any[], ordenar: string) {
+  return [...rows].sort((a, b) => {
+    const field = ordenar || "data_desc";
+    const av = getAcordoComparable(a, field);
+    const bv = getAcordoComparable(b, field);
+
+    if (typeof av === "number" && typeof bv === "number") {
+      return field.endsWith("_asc") ? av - bv : bv - av;
+    }
+
+    const result = String(av).localeCompare(String(bv), "pt-BR", { numeric: true });
+    if (result !== 0) return result;
+
+    return String(a.unidades?.identificacao ?? "").localeCompare(String(b.unidades?.identificacao ?? ""), "pt-BR", { numeric: true });
+  });
+}
+
+function filterAcordosPageRows(rows: any[], filters: ListAcordosComSaudePageFilters) {
+  const termo = normalizePageText(filters.q);
+  const condominioId = cleanPageFilter(filters.condominio_id);
+  const unidadeId = cleanPageFilter(filters.unidade_id);
+  const carteiraId = cleanPageFilter(filters.carteira_id);
+  const status = cleanPageFilter(filters.status);
+  const dataDe = datePageFilter(filters.data_de);
+  const dataAte = datePageFilter(filters.data_ate);
+
+  return rows.filter((row) => {
+    const data = cleanPageFilter(row.data_acordo).slice(0, 10);
+    if (condominioId && row.condominio_id !== condominioId) return false;
+    if (unidadeId && row.unidade_id !== unidadeId) return false;
+    if (carteiraId && row.carteira_id !== carteiraId) return false;
+    if (status && row.status !== status) return false;
+    if (dataDe && data < dataDe) return false;
+    if (dataAte && data > dataAte) return false;
+
+    if (termo) {
+      const haystack = normalizePageText([
+        row.condominios?.nome,
+        row.unidades?.identificacao,
+        row.unidades?.bloco,
+        row.unidades?.responsavel_nome,
+        row.numero_processo,
+        row.status,
+        row.carteiras?.nome,
+      ].filter(Boolean).join(" "));
+      if (!haystack.includes(termo)) return false;
+    }
+
+    return true;
+  });
+}
+
+function resumoAcordosPage(rows: any[]) {
+  const ativos = rows.filter((row: any) => row.status === "ativo").length;
+  const atraso = rows.filter((row: any) => row.status === "em atraso").length;
+  const rompidos = rows.filter((row: any) => row.status === "rompido").length;
+  const valorAtivo = rows
+    .filter((row: any) => ["ativo", "em atraso"].includes(row.status))
+    .reduce((sum, row) => sum + Number(row.valor_acordado ?? 0), 0);
+
+  return { ativos, atraso, rompidos, valorAtivo };
+}
+
+function canUsePagedAcordosQuery(filters: ListAcordosComSaudePageFilters) {
+  const ordenar = cleanPageFilter(filters.ordenar) || "data_desc";
+  if (cleanPageFilter(filters.q)) return false;
+  return ["data_desc", "data_asc", "valor_desc", "valor_asc", "status"].includes(ordenar);
+}
+
+function applyAcordosDirectFilters(query: any, filters: ListAcordosComSaudePageFilters, scope?: CarteiraScope) {
+  if (scope) query = applyCarteiraScope(query, scope.carteiraIds);
+  const condominioId = cleanPageFilter(filters.condominio_id);
+  const unidadeId = cleanPageFilter(filters.unidade_id);
+  const carteiraId = cleanPageFilter(filters.carteira_id);
+  const status = cleanPageFilter(filters.status);
+  const dataDe = datePageFilter(filters.data_de);
+  const dataAte = datePageFilter(filters.data_ate);
+
+  if (condominioId) query = query.eq("condominio_id", condominioId);
+  if (unidadeId) query = query.eq("unidade_id", unidadeId);
+  if (carteiraId) query = query.eq("carteira_id", carteiraId);
+  if (status) query = query.eq("status", status);
+  if (dataDe) query = query.gte("data_acordo", dataDe);
+  if (dataAte) query = query.lte("data_acordo", dataAte);
+
+  return query;
+}
+
+function applyAcordosOrder(query: any, ordenar: string) {
+  if (ordenar === "data_asc") return query.order("data_acordo", { ascending: true }).order("id", { ascending: true });
+  if (ordenar === "valor_desc") return query.order("valor_acordado", { ascending: false, nullsFirst: false }).order("id", { ascending: true });
+  if (ordenar === "valor_asc") return query.order("valor_acordado", { ascending: true, nullsFirst: false }).order("id", { ascending: true });
+  if (ordenar === "status") return query.order("status", { ascending: true }).order("id", { ascending: true });
+  return query.order("data_acordo", { ascending: false }).order("id", { ascending: true });
+}
+
+export async function listAcordosComSaudePage(
+  scope: CarteiraScope,
+  filters: ListAcordosComSaudePageFilters = {},
+  page = 1,
+  pageSize = 100,
+) {
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const safePageSize = Math.min(Math.max(Math.floor(pageSize) || 100, 1), 200);
+  const from = (safePage - 1) * safePageSize;
+  const to = from + safePageSize - 1;
+  const ordenar = cleanPageFilter(filters.ordenar) || "data_desc";
+
+  if (!canUsePagedAcordosQuery(filters)) {
+    const allRows = await listAcordosComSaude(scope);
+    const filteredRows = filterAcordosPageRows(allRows, filters);
+    const sortedRows = sortAcordosPageRows(filteredRows, ordenar);
+    return {
+      rows: sortedRows.slice(from, to + 1),
+      total: filteredRows.length,
+      resumo: resumoAcordosPage(filteredRows),
+    };
+  }
+
+  const supabase = await createClient();
+  let rowsQuery = supabase
+    .from("acordos")
+    .select(ACORDOS_PAGE_SELECT, { count: "exact" });
+  rowsQuery = applyAcordosDirectFilters(rowsQuery, filters, scope);
+  rowsQuery = applyAcordosOrder(rowsQuery, ordenar).range(from, to);
+
+  let resumoQuery = supabase
+    .from("acordos")
+    .select("status, valor_acordado");
+  resumoQuery = applyAcordosDirectFilters(resumoQuery, filters, scope);
+
+  const [{ data: rowsData, error: rowsError, count }, { data: resumoRows, error: resumoError }] = await Promise.all([
+    rowsQuery,
+    resumoQuery,
+  ]);
+
+  if (rowsError) throw new Error(`Erro ao carregar acordos: ${rowsError.message}`);
+  if (resumoError) throw new Error(`Erro ao carregar resumo de acordos: ${resumoError.message}`);
+
+  const rows = (rowsData ?? []) as any[];
+  const parcelas = await getParcelasDosAcordos(rows.map((acordo: any) => acordo.id));
+
+  return {
+    rows: attachAgreementHealth(rows, parcelas),
+    total: count ?? rows.length,
+    resumo: resumoAcordosPage((resumoRows ?? []) as any[]),
+  };
+}
+
 export async function listFilaParcelasOperadorAcordos(scope?: CarteiraScope) {
   // Hardening 5.6: evita carregar parcelas duas vezes.
   // Antes, listAcordosComSaude() já buscava parcelas e esta função buscava novamente.

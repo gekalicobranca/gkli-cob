@@ -84,6 +84,7 @@ export type ConversaoPreview = {
   inconsistencias: string[];
   csv: string;
   xlsxBase64: string;
+  semPendencias?: boolean;
 };
 
 type ParseInput = {
@@ -360,10 +361,19 @@ function parseMoney(value: unknown) {
   const raw = normalize(value);
   if (!raw) return 0;
 
-  const cleaned = raw
-    .replace(/[^\d,.-]/g, "")
-    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
-    .replace(",", ".");
+  let cleaned = raw.replace(/[^\d,.-]/g, "");
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    cleaned = lastComma > lastDot
+      ? cleaned.replace(/\./g, "").replace(",", ".")
+      : cleaned.replace(/,/g, "");
+  } else {
+    cleaned = cleaned
+      .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+      .replace(",", ".");
+  }
 
   const number = Number(cleaned);
   return Number.isFinite(number) ? number : 0;
@@ -393,6 +403,17 @@ function isCondoproZero(value: unknown) {
 }
 
 function extractCondoproTotalRecibo(row: unknown[]) {
+  const tail = row.slice(-6).map((cell) => parseCondoproMoney(cell));
+  if (tail.length === 6 && tail[5] > 0) {
+    return {
+      valorPrincipal: tail[0],
+      multa: tail[2],
+      correcao: tail[3],
+      juros: tail[4],
+      valorTotal: tail[5],
+    };
+  }
+
   const numericValues = row
     .map((cell) => {
       const text = normalize(cell);
@@ -508,7 +529,7 @@ function rowToText(row: unknown[]) {
 function extractCondominioHeaderFromRows(rows: unknown[][]) {
   for (const rawRow of rows.slice(0, 30)) {
     const text = rowToText(rawRow);
-    const match = text.match(/\bcondom[ií]nio\s*:\s*(.+)$/i);
+    const match = text.match(/\bcondom(?:[ií]|�)nio\s*:\s*(.+)$/i);
     if (!match) continue;
 
     const detected = normalize(match[1]).replace(/^\d+\s*[-–—]\s*/, "");
@@ -887,9 +908,13 @@ function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
 
     if (!text) continue;
 
-    const unidadeMatch = text.match(
-      /bloco\s*:\s*([^\s]+)\s+unidade\s*:\s*([^\s]+)\s*(.*)$/i,
-    );
+    const unidadeMatch =
+      text.match(
+        /bloco\s*:\s*([^\s]+)\s+unidade\s*:\s*([^\s]+)\s*(.*)$/i,
+      ) ??
+      text.match(
+        /bloco\s+([^\s]+)\s*[-–—]\s*unidade\s+([^\s]+)\s*:\s*(.*)$/i,
+      );
 
     if (unidadeMatch) {
       blocoAtual = unidadeMatch[1] || "0";
@@ -5380,6 +5405,11 @@ export async function parseRelatorioBuffer(
 
   const fullText = allRows.map(rowToText).join("\n").toLowerCase();
   const condominioDetectado = extractCondominioHeaderFromRows(allRows);
+  const managerSemPendencias =
+    Boolean(condominioDetectado) &&
+    fullText.includes("bloco:") &&
+    fullText.includes("unidade:") &&
+    /n(?:[aã]|�)o consta pend(?:[eê]|�)ncia/.test(fullText);
   const deteccaoHflexRows = detectHflexLiveFacilitiesCobrancasRows(allRows);
   const deteccaoLelloCotasAtrasadas = detectLelloCotasAtrasadasRows(allRows);
 
@@ -5433,9 +5463,38 @@ export async function parseRelatorioBuffer(
     fullText.includes("valor principal") &&
     fullText.includes("total geral da unidade");
 
+  if (managerSemPendencias) {
+    return {
+      ok: true,
+      preview: {
+        tipoConversao: "cobrancas",
+        origem: "Manager / Atentum - Cotas Pendentes",
+        arquivo: input.filename,
+        totalParcelas: 0,
+        valorTotal: 0,
+        padraoDetectado: buildPadraoDetectado(
+          PADRAO_MANAGER_ATENTUM_COBRANCAS,
+          { condominioDetectado, confianca: 99 },
+        ),
+        cobrancas: [],
+        unidades: [],
+        inconsistencias: [
+          "Relatório reconhecido: o condomínio não possui pendências no período consultado.",
+        ],
+        csv: buildCsvPadraoGkli([], input.condominioCnpj),
+        xlsxBase64: buildXlsxBase64PadraoGkli([], input.condominioCnpj),
+        semPendencias: true,
+      },
+    };
+  }
+
   const looksCondoproBbz =
     fullText.includes("condopro") ||
     looksManagerAtentum ||
+    (fullText.includes("inadimplência") &&
+      fullText.includes("posição em") &&
+      fullText.includes("total do recibo") &&
+      fullText.includes("atualização monetária")) ||
     (fullText.includes("total do recibo") &&
       fullText.includes("valor principal") &&
       fullText.includes("total geral da unidade"));
@@ -5456,14 +5515,23 @@ export async function parseRelatorioBuffer(
             })
           : undefined;
 
+      const looksWinkerInadimplencia =
+        fullText.includes("inadimplência") && fullText.includes("posição em");
+
       return buildPreviewFromRecibos({
         origem: looksManagerAtentum
           ? "Manager / Atentum - Cotas Pendentes"
-          : "Condopro / BBZ - Recibos por Unidade",
+          : looksWinkerInadimplencia
+            ? "Winker - Inadimplência"
+            : "Condopro / BBZ - Recibos por Unidade",
         filename: input.filename,
         recibos,
         condominioCnpj: input.condominioCnpj,
-        origemSistema: looksManagerAtentum ? "Manager / Atentum" : undefined,
+        origemSistema: looksManagerAtentum
+          ? "Manager / Atentum"
+          : looksWinkerInadimplencia
+            ? "Winker"
+            : undefined,
         padraoDetectado,
       });
     }

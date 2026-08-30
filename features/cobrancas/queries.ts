@@ -7,9 +7,11 @@ import {
   COBRANCA_STATUS_OPERACIONAL,
 } from '@/lib/constants/cobrancas'
 import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
+import { getAdministradoraAliasKey } from '@/lib/core/administradora'
 
 export type CobrancaListFilters = {
   search?: string
+  administradoraId?: string
   condominioId?: string
   unidadeId?: string
   status?: string
@@ -155,6 +157,48 @@ async function listUnidadeIdsMatchingSearch(
   return (data ?? []).map((row: any) => String(row.id)).filter(Boolean)
 }
 
+async function listCondominioIdsByAdministradora(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  scope: CarteiraScope,
+  administradoraId: string,
+) {
+  if (administradoraId.startsWith('alias:')) {
+    const aliasKey = administradoraId.slice('alias:'.length)
+    let aliasQuery = supabase
+      .from('condominios')
+      .select('id, carteira_id, administradora, administradoras:administradora_id(nome)')
+
+    aliasQuery = applyCarteiraScope(aliasQuery, scope.carteiraIds)
+
+    const { data, error } = await aliasQuery
+    if (error) throw new Error(`Erro ao filtrar cobranças por administradora: ${error.message}`)
+
+    return (data ?? [])
+      .filter((row: any) => {
+        const relation = Array.isArray(row.administradoras) ? row.administradoras[0] : row.administradoras
+        return getAdministradoraAliasKey(relation?.nome ?? row.administradora) === aliasKey
+      })
+      .map((row: any) => String(row.id))
+      .filter(Boolean)
+  }
+
+  let query = supabase
+    .from('condominios')
+    .select('id, carteira_id')
+
+  if (administradoraId.startsWith('legacy:')) {
+    query = query.eq('administradora', administradoraId.slice('legacy:'.length))
+  } else {
+    query = query.eq('administradora_id', administradoraId)
+  }
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  const { data, error } = await query
+  if (error) throw new Error(`Erro ao filtrar cobranças por administradora: ${error.message}`)
+  return (data ?? []).map((row: any) => String(row.id)).filter(Boolean)
+}
+
 async function applyCobrancaFilters(
   query: any,
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -177,6 +221,15 @@ async function applyCobrancaFilters(
 
   if (filters.vencimentoAte) {
     scopedQuery = scopedQuery.lte('vencimento', filters.vencimentoAte)
+  }
+
+  if (filters.administradoraId) {
+    const condominioIds = await listCondominioIdsByAdministradora(
+      supabase,
+      scope,
+      filters.administradoraId,
+    )
+    scopedQuery = scopedQuery.in('condominio_id', condominioIds.length ? condominioIds : [EMPTY_UUID])
   }
 
   if (filters.condominioId) {

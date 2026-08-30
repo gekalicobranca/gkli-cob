@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 import process from "node:process"
 import { processarRelatorioCaptado } from "../../features/captacao-automatizada/processar-relatorio"
+import { captacaoGlobalAtiva } from "../../features/captacao-automatizada/controle-global"
 
 const raiz = process.cwd()
 async function carregarEnv() {
@@ -17,6 +18,37 @@ async function carregarEnv() {
   } catch {}
 }
 let entrada = "", processados = "", falhas = ""
+
+async function executarEtapaHttp(url: string, secret: string, body: Record<string, unknown>, etapa: string) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${secret}` },
+    body: JSON.stringify(body),
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok || result?.ok === false) throw new Error(`${etapa}: ${result?.error || `HTTP ${response.status}`}`)
+  return result
+}
+
+async function concluirPipeline(resumo: Awaited<ReturnType<typeof processarRelatorioCaptado>>) {
+  const automatico = String(process.env.CAPTACAO_AUTOMATIZADA_CONFIRMAR || "false").toLowerCase() === "true"
+  if (!automatico) return false
+  const baseUrl = String(process.env.CAPTACAO_ORQUESTRADOR_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")
+  const secret = process.env.CRON_SECRET || process.env.REGUA_CRON_SECRET || ""
+  if (!baseUrl) throw new Error("CAPTACAO_ORQUESTRADOR_URL não configurada para concluir a importação automática.")
+  if (!secret) throw new Error("REGUA_CRON_SECRET não configurado para autenticar o orquestrador.")
+
+  await executarEtapaHttp(`${baseUrl}/api/conversao-relatorio/confirmar`, secret, {
+    conversaoId: resumo.conversaoId,
+    condominioId: resumo.condominioId,
+    carteiraId: resumo.carteiraId,
+  }, "Importação automática")
+  await executarEtapaHttp(`${baseUrl}/api/regua/processar`, secret, {
+    condominioId: resumo.condominioId,
+    carteiraId: resumo.carteiraId,
+  }, "Entrada na régua")
+  return true
+}
 
 async function destinoUnico(pasta: string, nome: string) {
   const parsed = path.parse(nome)
@@ -40,14 +72,18 @@ async function main() {
   await mkdir(processados, { recursive: true }); await mkdir(falhas, { recursive: true })
   console.log(`Captação automatizada ativa em ${entrada}`)
   for (;;) {
-    for (const nome of await arquivosElegiveis()) {
+    const ligada = await captacaoGlobalAtiva()
+    for (const nome of ligada ? await arquivosElegiveis() : []) {
       const origem = path.join(entrada, nome)
       try {
         const antes = await stat(origem); await new Promise((r) => setTimeout(r, 1500)); const depois = await stat(origem)
         if (antes.size !== depois.size || antes.mtimeMs !== depois.mtimeMs) continue
         const resumo = await processarRelatorioCaptado(origem)
+        const automatico = await concluirPipeline(resumo)
         await rename(origem, await destinoUnico(processados, nome))
-        console.log(`${nome}: convertido (${resumo.cobrancas} cobranças); aguardando validação do operador.`)
+        console.log(automatico
+          ? `${nome}: pipeline concluído (${resumo.cobrancas} cobranças); régua acionada.`
+          : `${nome}: convertido (${resumo.cobrancas} cobranças); aguardando validação do operador.`)
       } catch (error) {
         console.error(`${nome}: ${error instanceof Error ? error.message : error}`)
         if (await stat(origem).then(() => true).catch(() => false)) await rename(origem, await destinoUnico(falhas, nome))

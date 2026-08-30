@@ -48,6 +48,77 @@ export function hasFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) {
   return Boolean(normalized.carteiraId || normalized.condominioId || normalized.vencimentoDe || normalized.vencimentoAte)
 }
 
+export async function getFlowCobrancaItens(scope: CarteiraScope, flowId: string) {
+  const supabase = createAdminClient()
+
+  let flowQuery = supabase
+    .from('cobranca_flows')
+    .select('id,carteira_id')
+    .eq('id', flowId)
+    .maybeSingle()
+  flowQuery = applyCarteiraScope(flowQuery, scope.carteiraIds)
+
+  const { data: flow, error: flowError } = await flowQuery
+  if (flowError) throw new Error(`Erro ao validar Flow de cobrança: ${flowError.message}`)
+  if (!flow) throw new Error('Flow de cobrança não encontrado.')
+
+  const { data: itens, error: itensError } = await supabase
+    .from('lote_itens')
+    .select(`
+      id,
+      lote_id,
+      cobranca_flow_id,
+      cobranca_id,
+      status,
+      motivo,
+      payload,
+      created_at,
+      cobranca:cobrancas(
+        id,
+        competencia,
+        vencimento,
+        status,
+        status_operacional,
+        valor_original,
+        valor_atualizado,
+        unidade:unidades(
+          id,
+          identificacao,
+          responsavel_nome,
+          email,
+          telefone,
+          condominio:condominios(id,nome,nome_operacional)
+        )
+      ),
+      mensagem:mensagens!lote_itens_mensagem_id_fkey(
+        id,
+        canal,
+        status,
+        status_operacional,
+        destinatario,
+        email_destinatario,
+        scheduled_at,
+        agendada_para,
+        sent_at,
+        enviada_em,
+        erro,
+        erro_envio,
+        created_at
+      )
+    `)
+    .eq('cobranca_flow_id', flowId)
+    .order('created_at', { ascending: true })
+    .limit(1000)
+
+  if (itensError) throw new Error(`Erro ao carregar itens do Flow de cobrança: ${itensError.message}`)
+
+  return ((itens ?? []) as any[]).map((item) => ({
+    ...item,
+    cobranca: relation(item.cobranca),
+    mensagem: relation(item.mensagem),
+  }))
+}
+
 export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: FlowCobrancaFilters = {}) {
   const supabase = createAdminClient()
   const normalized = normalizeFlowCobrancaFilters(filters)
@@ -133,8 +204,6 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   if (flowsError && flowsError.code !== '42P01') throw new Error(`Erro ao carregar Flows de cobrança: ${flowsError.message}`)
 
   const flowRows = (flows ?? []) as any[]
-  const flowIds = flowRows.map((flow) => flow.id).filter(Boolean)
-  let itensPorFlow = new Map<string, any[]>()
   let cobrancasJaVinculadas = new Set<string>()
   const cobrancaIdsDisponibilidade = (disponibilidade ?? []).map((row: any) => row.id).filter(Boolean)
 
@@ -145,67 +214,6 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
       .in('cobranca_id', cobrancaIdsDisponibilidade)
       .not('cobranca_flow_id', 'is', null)
     cobrancasJaVinculadas = new Set((vinculados ?? []).map((row: any) => String(row.cobranca_id)).filter(Boolean))
-  }
-
-  if (flowIds.length) {
-    const { data: itens, error: itensError } = await supabase
-      .from('lote_itens')
-      .select(`
-        id,
-        lote_id,
-        cobranca_flow_id,
-        cobranca_id,
-        status,
-        motivo,
-        payload,
-        created_at,
-        cobranca:cobrancas(
-          id,
-          competencia,
-          vencimento,
-          status,
-          status_operacional,
-          valor_original,
-          valor_atualizado,
-          unidade:unidades(
-            id,
-            identificacao,
-            responsavel_nome,
-            email,
-            telefone,
-            condominio:condominios(id,nome,nome_operacional)
-          )
-        ),
-        mensagem:mensagens!lote_itens_mensagem_id_fkey(
-          id,
-          canal,
-          status,
-          status_operacional,
-          destinatario,
-          email_destinatario,
-          scheduled_at,
-          agendada_para,
-          sent_at,
-          enviada_em,
-          erro,
-          erro_envio,
-          created_at
-        )
-      `)
-      .in('cobranca_flow_id', flowIds)
-      .order('created_at', { ascending: true })
-      .limit(1000)
-
-    if (itensError) throw new Error(`Erro ao carregar itens dos Flows de cobrança: ${itensError.message}`)
-
-    itensPorFlow = (itens ?? []).reduce((map, item: any) => {
-      const flowId = String(item.cobranca_flow_id ?? '')
-      if (!flowId) return map
-      const list = map.get(flowId) ?? []
-      list.push({ ...item, cobranca: relation(item.cobranca), mensagem: relation(item.mensagem) })
-      map.set(flowId, list)
-      return map
-    }, new Map<string, any[]>())
   }
 
   return {
@@ -229,7 +237,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
       carteira: relation(flow.carteira),
       regua: relation(flow.regua),
       lote: relation(flow.lote),
-      itens: itensPorFlow.get(flow.id) ?? [],
+      itens: [],
     })),
   }
 }

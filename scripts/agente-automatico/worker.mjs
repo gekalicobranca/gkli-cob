@@ -9,6 +9,7 @@ import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
+import { captacaoGlobalAtiva } from './controle-global.mjs'
 
 const SCRIPT_KEY = 'bbz_condopro_clock_vila_romana'
 const BUCKET = 'agente-relatorios'
@@ -137,6 +138,15 @@ function normalizarPortalUrl(value) {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`
 }
 
+function identificadorPortal(value) {
+  const tokens = String(value || '').trim().split(/\s+/).filter(Boolean)
+  if (!tokens.length) return ''
+  const ultimo = tokens.at(-1)
+  return ultimo.length <= 2 && tokens.length > 1
+    ? `${tokens.at(-2)} ${ultimo}`
+    : ultimo
+}
+
 async function agendarCaptacoesMensais() {
   const agora = saoPauloAgora()
   const { data: receitas, error: receitasError } = await supabase.from('agente_receitas')
@@ -239,13 +249,72 @@ async function collectBbzCondominio(execution) {
     const condominioNome = execution.condominio?.nome_operacional || execution.condominio?.nome || 'CLOCK VILA ROMANA'
     const nomePortalConfigurado = config.condominio_portal || config.condominio || condominioNome
     const nomePortal = nomePortalConfigurado.replace(/^(?:CONDOM[IÍ]NIO|COND\.)\s+/i, '').trim()
+
+    // O acesso do In Jardim Sul só é inicializado corretamente pelo CondoPro
+    // depois que a sessão entra em outro condomínio e retorna à relação.
+    if (/\bIN JARDIM SUL\b/i.test(nomePortal)) {
+      await log(execution.id, 'condominio_pre_acesso', 'Inicializando a sessão por outro condomínio antes do In Jardim Sul.')
+      const apoio = page.getByText(/CLOCK VILA ROMANA/i, { exact: false }).first()
+      if (!await apoio.isVisible({ timeout: 8_000 }).catch(() => false)) {
+        throw new Error('Condomínio de apoio não localizado para inicializar o acesso do In Jardim Sul.')
+      }
+      const apoioContainer = apoio.locator('xpath=ancestor::*[.//a or .//button][1]')
+      const apoioAcessar = apoioContainer.getByText(/Acessar/i).first()
+      if (await apoioAcessar.isVisible().catch(() => false)) await apoioAcessar.click()
+      else await apoio.click()
+      await page.waitForLoadState('domcontentloaded')
+
+      // Abrir o relatório no condomínio de apoio é o passo que inicializa o
+      // módulo de relatórios para o In Jardim Sul nesta sessão.
+      await page.goto(new URL('/bin/rt/rtPendentes.asp', page.url()).href, {
+        waitUntil: 'domcontentloaded',
+      })
+      await page.getByText(/Informe a Unidade/i).waitFor({ state: 'visible', timeout: 60_000 })
+
+      const unidadesApoio = page.locator('select').first()
+      if (await unidadesApoio.count() && await unidadesApoio.locator('option').count()) {
+        await unidadesApoio.selectOption({ label: /Todas as Unidades/i }).catch(async () => {
+          await unidadesApoio.selectOption({ index: 0 })
+        })
+      }
+      const consultarApoio = page.getByRole('button', { name: /Consultar|Avançar/i })
+        .or(page.getByText(/Consultar|Avançar/i)).first()
+      await consultarApoio.click()
+      await page.getByText(/Exportar Excel/i).first().waitFor({ state: 'visible', timeout: 60_000 })
+
+      for (let tentativaVolta = 0; tentativaVolta < 4; tentativaVolta++) {
+        await page.goBack({ waitUntil: 'domcontentloaded' })
+        const principalInJardim = page.locator('div.card.principal').filter({ hasText: /IN JARDIM SUL GALLERY/i }).first()
+        if (await principalInJardim.isVisible({ timeout: 5_000 }).catch(() => false)) break
+      }
+      await page.locator('div.card.principal').filter({ hasText: /IN JARDIM SUL GALLERY/i })
+        .first().waitFor({ state: 'visible', timeout: 60_000 })
+    }
+
     await log(execution.id, 'condominio', `Localizando o condomínio ${condominioNome}.`)
-    const card = page.getByText(nomePortal, { exact: false }).first()
+    let card = /\bIN JARDIM SUL\b/i.test(nomePortal)
+      ? page.locator('div.card.principal').filter({ hasText: /IN JARDIM SUL GALLERY/i }).first()
+      : page.getByText(nomePortal, { exact: false }).first()
+    if (!await card.isVisible({ timeout: 8_000 }).catch(() => false)) {
+      const identificador = identificadorPortal(nomePortal)
+      await log(execution.id, 'condominio_fallback', `Nome completo não localizado; tentando pelo identificador ${identificador}.`, 'warning')
+      card = page.getByText(identificador, { exact: false }).first()
+      if (!await card.isVisible({ timeout: 8_000 }).catch(() => false)) {
+        const opcoes = (await page.locator('body').innerText()).split(/\r?\n/)
+          .map((item) => item.trim()).filter((item) => item.length >= 4 && item.length <= 120)
+          .filter((item, index, array) => array.indexOf(item) === index).slice(0, 80)
+        throw new Error(`Condomínio não localizado na relação BBZ: ${nomePortal}. Opções visíveis: ${opcoes.join(' | ')}`)
+      }
+    }
     await card.waitFor({ state: 'visible', timeout: 60_000 })
-    const cardContainer = card.locator('xpath=ancestor::*[.//a or .//button][1]')
+    const cardContainer = /\bIN JARDIM SUL\b/i.test(nomePortal)
+      ? card
+      : card.locator('xpath=ancestor::*[.//a or .//button][1]')
     const acessar = cardContainer.getByText(/Acessar/i).first()
     if (await acessar.isVisible().catch(() => false)) await acessar.click()
     else await card.click()
+    await page.waitForTimeout(2_000)
+    await page.waitForLoadState('domcontentloaded')
 
     // O CondoPro mantém duas cópias do menu, sendo uma oculta. A rota direta
     // reproduz o mesmo clique sem depender da variação visual do menu lateral.
@@ -255,7 +324,7 @@ async function collectBbzCondominio(execution) {
 
     await page.getByText(/Informe a Unidade/i).waitFor({ state: 'visible', timeout: 60_000 })
     const unidades = page.locator('select').first()
-    if (await unidades.count()) {
+    if (await unidades.count() && await unidades.locator('option').count()) {
       await unidades.selectOption({ label: /Todas as Unidades/i }).catch(async () => {
         await unidades.selectOption({ index: 0 })
       })
@@ -264,8 +333,6 @@ async function collectBbzCondominio(execution) {
     const consultar = page.getByRole('button', { name: /Consultar|Avançar/i })
       .or(page.getByText(/Consultar|Avançar/i)).first()
     await consultar.click()
-    await page.getByText(nomePortal, { exact: false }).last().waitFor({ state: 'visible', timeout: 120_000 })
-
     const exportar = page.getByText(/Exportar Excel/i).first()
     await exportar.waitFor({ state: 'visible', timeout: 60_000 })
     const downloadPromise = page.waitForEvent('download', { timeout: 120_000 })
@@ -281,6 +348,12 @@ async function collectBbzCondominio(execution) {
 
     const bytes = await readFile(localPath)
     if (bytes.length === 0) throw new Error('O portal gerou um arquivo vazio.')
+    const conteudoNormalizado = bytes.toString('latin1').normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]+/gi, ' ').toUpperCase()
+    const identificadorEsperado = identificadorPortal(nomePortal).toUpperCase()
+    if (identificadorEsperado && !conteudoNormalizado.includes(identificadorEsperado)) {
+      throw new Error(`O relatório retornado não pertence ao condomínio esperado (${nomePortal}).`)
+    }
     const hash = createHash('sha256').update(bytes).digest('hex')
     const storagePath = `${execution.id}/${filename}`
 
@@ -334,9 +407,11 @@ async function run() {
   const runOnce = String(process.env.AGENTE_RUN_ONCE || 'false').toLowerCase() === 'true'
   for (;;) {
     try {
-      await agendarCaptacoesMensais()
-      const execution = await claimNextExecution()
-      if (execution) await collectBbzCondominio(execution)
+      if (await captacaoGlobalAtiva(supabase)) {
+        await agendarCaptacoesMensais()
+        const execution = await claimNextExecution()
+        if (execution) await collectBbzCondominio(execution)
+      }
     } catch (error) {
       console.error('Erro no worker:', error instanceof Error ? error.message : error)
     }
