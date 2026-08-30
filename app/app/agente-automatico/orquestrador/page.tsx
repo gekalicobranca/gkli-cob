@@ -1,5 +1,5 @@
 import {
-  Bot, Building2, CalendarClock, Check, ChevronRight, CircleDot, Clock3,
+  Bot, Building2, CalendarClock, Check, ChevronDown, ChevronRight, CircleDot, Clock3,
   FileCheck2, Filter, Gauge, Layers3, Play, Power, PowerOff, RefreshCw, Route, TriangleAlert,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
@@ -56,7 +56,10 @@ function resumoPipeline(etapas: Etapa[]) {
 
 function Progresso({ etapas }: { etapas: Etapa[] }) {
   return <div className="grid grid-cols-6 gap-1.5" aria-label="Progresso da captação">
-    {etapas.map((etapa) => <div key={etapa.nome} title={`${etapa.nome}: ${rotuloEstado(etapa.estado)}`} className={`h-2 rounded-full ${etapa.estado === 'concluida' ? 'bg-emerald-500' : etapa.estado === 'executando' ? 'bg-blue-500' : etapa.estado === 'atencao' ? 'bg-rose-500' : etapa.estado === 'nao_configurada' ? 'bg-amber-400' : 'bg-slate-200'}`} />)}
+    {etapas.map((etapa) => <div key={etapa.nome} className="min-w-0" title={`${etapa.nome}: ${rotuloEstado(etapa.estado)} — ${etapa.detalhe}`}>
+      <p className="mb-1.5 truncate text-[9px] font-medium uppercase tracking-wide text-slate-400 xl:text-[10px]">{etapa.nome}</p>
+      <div className={`h-2 rounded-full ${etapa.estado === 'concluida' ? 'bg-emerald-500' : etapa.estado === 'executando' ? 'bg-blue-500' : etapa.estado === 'atencao' ? 'bg-rose-500' : etapa.estado === 'nao_configurada' ? 'bg-amber-400' : 'bg-slate-200'}`} />
+    </div>)}
   </div>
 }
 
@@ -174,9 +177,9 @@ export default async function OrquestradorPage({ searchParams }: Props) {
     {!filtradas.length ? <Card className="py-12 text-center"><Gauge className="mx-auto text-slate-300" /><p className="mt-3 font-medium text-slate-900">Nenhum condomínio encontrado</p><p className="mt-1 text-sm text-slate-500">Ajuste os filtros para visualizar o pipeline.</p></Card> : null}
     {[...grupos.entries()].map(([chave, itens]) => {
       const [carteiraNome, administradoraNome] = chave.split('|||')
-      return <section key={chave} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-5 py-4"><div className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[var(--gkli-primary)] shadow-sm"><Layers3 size={18} /></span><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-950">{carteiraNome}</p><p className="truncate text-xs text-slate-500">{administradoraNome}</p></div></div><Badge tone="slate">{itens.length} condomínio(s)</Badge></div>
-        <div className="divide-y divide-slate-100">{itens.map((linha: any) => <details key={linha.condominio.id} className="group">
+      return <details key={chave} open className="group/bloco overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 bg-slate-50/80 px-5 py-4 transition hover:bg-slate-100/80 [&::-webkit-details-marker]:hidden"><div className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[var(--gkli-primary)] shadow-sm"><Layers3 size={18} /></span><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-950">{carteiraNome}</p><p className="truncate text-xs text-slate-500">{administradoraNome}</p></div></div><div className="flex items-center gap-3"><Badge tone="slate">{itens.length} condomínio(s)</Badge><ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/bloco:rotate-180" /></div></summary>
+        <div className="divide-y divide-slate-100 border-t border-slate-200">{itens.map((linha: any) => <details key={linha.condominio.id} className="group">
           <summary className="grid cursor-pointer list-none gap-4 px-5 py-4 hover:bg-slate-50/70 [&::-webkit-details-marker]:hidden lg:grid-cols-[minmax(250px,1fr)_minmax(260px,0.8fr)_170px_auto] lg:items-center">
             <div className="min-w-0"><div className="flex items-center gap-2"><p className="truncate text-sm font-semibold text-slate-950">{linha.condominio.nome_operacional || linha.condominio.nome}</p><ChevronRight size={15} className="shrink-0 text-slate-400 transition group-open:rotate-90" /></div><p className="mt-1 truncate text-xs text-slate-500">CNPJ {linha.condominio.cnpj || '—'} · {linha.receita?.nome || 'Agente não vinculado'}</p></div>
             <div><Progresso etapas={linha.etapas} /><p className="mt-1.5 text-[11px] text-slate-400">{linha.etapas.filter((etapa: Etapa) => etapa.estado === 'concluida').length} de 6 etapas concluídas</p></div><Badge tone={linha.resumo.tone}>{linha.resumo.label}</Badge><span className="text-right text-xs text-slate-500">{formatarData(linha.execucao?.created_at)}</span>
@@ -186,7 +189,7 @@ export default async function OrquestradorPage({ searchParams }: Props) {
               <div className="flex gap-2">{linha.conversao?.status === 'aguardando_validacao' ? <ButtonLink size="sm" href={`/app/configuracoes/lab/captacao-automatizada/${linha.conversao.id}`}>Resolver bloqueio</ButtonLink> : null}{linha.receita?.id ? <form action={executarAgenteReceita}><input type="hidden" name="receita_id" value={linha.receita.id} /><Button size="sm" type="submit" variant="secondary" disabled={['pendente', 'em_execucao'].includes(linha.execucao?.status)}><Play size={14} />Rodar agora</Button></form> : <ButtonLink size="sm" variant="secondary" href="/app/agente-automatico">Configurar agente</ButtonLink>}<ButtonLink size="sm" variant="ghost" href={`/app/condominios/${linha.condominio.id}#cobranca`}>Abrir condomínio</ButtonLink></div>
             </div></div>
         </details>)}</div>
-      </section>
+      </details>
     })}
     <Card className="flex items-start gap-3 border-blue-100 bg-blue-50 text-sm text-blue-900"><Clock3 size={18} className="mt-0.5 shrink-0" /><div><p className="font-medium">O orquestrador usa os registros reais de cada etapa.</p><p className="mt-1 text-blue-800">Quando uma conversão ainda exige validação manual, ela aparece como bloqueio. Esse indicador identifica os fluxos que ainda precisam ser liberados para operação integralmente autônoma.</p></div></Card>
   </main>
