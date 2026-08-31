@@ -269,8 +269,8 @@ export default async function MaestroPage({ searchParams }: Props) {
     <Card className={`flex items-center justify-between gap-4 border ${captacaoAtiva ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}><div className="flex items-center gap-3"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${captacaoAtiva ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{captacaoAtiva ? <Power size={18} /> : <PowerOff size={18} />}</span><div><p className={`text-sm font-semibold ${captacaoAtiva ? 'text-emerald-900' : 'text-rose-900'}`}>Captação {captacaoAtiva ? 'ligada' : 'desligada'}</p><p className={`text-xs ${captacaoAtiva ? 'text-emerald-700' : 'text-rose-700'}`}>{captacaoAtiva ? 'Agendas e execuções automáticas estão liberadas.' : 'Novas execuções estão pausadas; agendas e filas foram preservadas.'}</p></div></div>{controleGlobal?.atualizado_em ? <span className="hidden text-xs text-slate-500 md:block">Alterado em {formatarData(controleGlobal.atualizado_em)}</span> : null}</Card>
 
     <Card className="flex flex-wrap items-center gap-2 p-2">
-      <Link href={tabQuery('pipeline')} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${aba === 'pipeline' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}>Pipeline</Link>
-      <Link href={tabQuery('agenda')} className={`rounded-xl px-4 py-2 text-sm font-medium transition ${aba === 'agenda' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}>Agenda</Link>
+      <Link href={tabQuery('pipeline')} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${aba === 'pipeline' ? 'bg-slate-950 !text-white shadow-sm' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'}`}>Pipeline</Link>
+      <Link href={tabQuery('agenda')} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${aba === 'agenda' ? 'bg-slate-950 !text-white shadow-sm' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'}`}>Agenda</Link>
     </Card>
 
     {aba === 'pipeline' ? <>
