@@ -49,6 +49,13 @@ export const AGENTE_WORKERS: AgenteWorkerConfig[] = [
     logName: 'lello-worker',
     workerFile: 'worker-lello.mjs',
   },
+  {
+    scriptKey: 'captacao_hflex',
+    nome: 'HFlex / LiveFacilities',
+    npmScript: 'agente:worker:hflex',
+    logName: 'hflex-worker',
+    workerFile: 'worker-hflex.mjs',
+  },
 ]
 
 export function getAgenteWorkerByScriptKey(scriptKey: string) {

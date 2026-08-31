@@ -33,10 +33,10 @@ async function executarEtapaHttp(url: string, secret: string, body: Record<strin
 async function concluirPipeline(resumo: Awaited<ReturnType<typeof processarRelatorioCaptado>>) {
   const automatico = String(process.env.CAPTACAO_AUTOMATIZADA_CONFIRMAR || "false").toLowerCase() === "true"
   if (!automatico) return false
-  const baseUrl = String(process.env.CAPTACAO_ORQUESTRADOR_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")
+  const baseUrl = String(process.env.CAPTACAO_MAESTRO_URL || process.env.CAPTACAO_ORQUESTRADOR_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")
   const secret = process.env.CRON_SECRET || process.env.REGUA_CRON_SECRET || ""
-  if (!baseUrl) throw new Error("CAPTACAO_ORQUESTRADOR_URL não configurada para concluir a importação automática.")
-  if (!secret) throw new Error("REGUA_CRON_SECRET não configurado para autenticar o orquestrador.")
+  if (!baseUrl) throw new Error("CAPTACAO_MAESTRO_URL não configurada para concluir a importação automática.")
+  if (!secret) throw new Error("REGUA_CRON_SECRET não configurado para autenticar o Maestro.")
 
   await executarEtapaHttp(`${baseUrl}/api/conversao-relatorio/confirmar`, secret, {
     conversaoId: resumo.conversaoId,

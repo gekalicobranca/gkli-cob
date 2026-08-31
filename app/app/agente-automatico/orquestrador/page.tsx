@@ -78,7 +78,7 @@ function EtapaCard({ etapa, ultima }: { etapa: Etapa; ultima: boolean }) {
   </div>
 }
 
-export default async function OrquestradorPage({ searchParams }: Props) {
+export default async function MaestroPage({ searchParams }: Props) {
   const params = await searchParams
   const q = getParam(params?.q).trim()
   const carteiraFiltro = getParam(params?.carteira)
@@ -92,7 +92,7 @@ export default async function OrquestradorPage({ searchParams }: Props) {
   let condominiosQuery = supabase.from('condominios').select('id, carteira_id, nome, nome_operacional, cnpj, administradora, captacao_dia_mes, captacao_horario, captacao_automatica_habilitada, regua_cobranca_id, carteira:carteiras(id,nome)').eq('status', 'ativo').order('nome')
   condominiosQuery = applyCarteiraScope(condominiosQuery, scope.carteiraIds)
   const { data: condominiosRaw, error: condominiosError } = await condominiosQuery
-  if (condominiosError) throw new Error(`Erro ao carregar condomínios do orquestrador: ${condominiosError.message}`)
+  if (condominiosError) throw new Error(`Erro ao carregar condomínios do Maestro: ${condominiosError.message}`)
 
   const condominioIds = (condominiosRaw ?? []).map((row: any) => row.id)
   const [receitasResult, execucoesResult, conversoesResult] = condominioIds.length ? await Promise.all([
@@ -159,10 +159,10 @@ export default async function OrquestradorPage({ searchParams }: Props) {
   const concluidos = linhas.filter((linha) => linha.resumo.tone === 'green').length
 
   return <main className="space-y-4">
-    <PageHeader eyebrow="Automação" title="Orquestrador de captação" description="Acompanhe o ciclo completo de cada condomínio — da agenda do agente à entrada na régua de cobrança." actions={<><form action={alternarCaptacaoGlobal}><input type="hidden" name="ativo" value={captacaoAtiva ? 'false' : 'true'} /><Button type="submit" variant="header">{captacaoAtiva ? <PowerOff size={16} /> : <Power size={16} />}{captacaoAtiva ? 'Desligar captação' : 'Ligar captação'}</Button></form><ButtonLink href="/app/agente-automatico" variant="header"><Bot size={16} />Agentes</ButtonLink><ButtonLink href="/app/agente-automatico/orquestrador" variant="header"><RefreshCw size={16} />Atualizar</ButtonLink></>} />
+    <PageHeader eyebrow="Automação" title="Maestro de captação" description="Acompanhe o ciclo completo de cada condomínio — da agenda do agente à entrada na régua de cobrança." actions={<><form action={alternarCaptacaoGlobal}><input type="hidden" name="ativo" value={captacaoAtiva ? 'false' : 'true'} /><Button type="submit" variant="header">{captacaoAtiva ? <PowerOff size={16} /> : <Power size={16} />}{captacaoAtiva ? 'Desligar captação' : 'Ligar captação'}</Button></form><ButtonLink href="/app/agente-automatico" variant="header"><Bot size={16} />Agentes</ButtonLink><ButtonLink href="/app/agente-automatico/maestro" variant="header"><RefreshCw size={16} />Atualizar</ButtonLink></>} />
     <Card className={`flex items-center justify-between gap-4 border ${captacaoAtiva ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}><div className="flex items-center gap-3"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${captacaoAtiva ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{captacaoAtiva ? <Power size={18} /> : <PowerOff size={18} />}</span><div><p className={`text-sm font-semibold ${captacaoAtiva ? 'text-emerald-900' : 'text-rose-900'}`}>Captação {captacaoAtiva ? 'ligada' : 'desligada'}</p><p className={`text-xs ${captacaoAtiva ? 'text-emerald-700' : 'text-rose-700'}`}>{captacaoAtiva ? 'Agendas e execuções automáticas estão liberadas.' : 'Novas execuções estão pausadas; agendas e filas foram preservadas.'}</p></div></div>{controleGlobal?.atualizado_em ? <span className="hidden text-xs text-slate-500 md:block">Alterado em {formatarData(controleGlobal.atualizado_em)}</span> : null}</Card>
     <section className="grid gap-3 md:grid-cols-4">
-      <Kpi icon={<Building2 size={18} />} label="Condomínios" value={linhas.length} helper="no orquestrador" />
+      <Kpi icon={<Building2 size={18} />} label="Condomínios" value={linhas.length} helper="no Maestro" />
       <Kpi icon={<Route size={18} />} label="Em fluxo" value={emFluxo} helper="aguardando ou executando" />
       <Kpi icon={<Check size={18} />} label="Ciclos concluídos" value={concluidos} helper="chegaram à régua" />
       <Kpi icon={<TriangleAlert size={18} />} label="Atenção" value={atencao} helper="erro ou configuração" tone="amber" />
@@ -191,7 +191,7 @@ export default async function OrquestradorPage({ searchParams }: Props) {
         </details>)}</div>
       </details>
     })}
-    <Card className="flex items-start gap-3 border-blue-100 bg-blue-50 text-sm text-blue-900"><Clock3 size={18} className="mt-0.5 shrink-0" /><div><p className="font-medium">O orquestrador usa os registros reais de cada etapa.</p><p className="mt-1 text-blue-800">Quando uma conversão ainda exige validação manual, ela aparece como bloqueio. Esse indicador identifica os fluxos que ainda precisam ser liberados para operação integralmente autônoma.</p></div></Card>
+    <Card className="flex items-start gap-3 border-blue-100 bg-blue-50 text-sm text-blue-900"><Clock3 size={18} className="mt-0.5 shrink-0" /><div><p className="font-medium">O Maestro usa os registros reais de cada etapa.</p><p className="mt-1 text-blue-800">Quando uma conversão ainda exige validação manual, ela aparece como bloqueio. Esse indicador identifica os fluxos que ainda precisam ser liberados para operação integralmente autônoma.</p></div></Card>
   </main>
 }
 

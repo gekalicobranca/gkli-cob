@@ -83,7 +83,7 @@ with mascaras(nome, mascara_unidade, mascara_bloco) as (
     ('HELVETIA GRAND QUARTIER – GARTEN HAUS CONDOMINIUM', '000000', '0'),
     ('HI VIEW ALTO DA BOA VISTA - SETOR RESIDENCIAL', '0000', '0'),
     ('OLIVA VILA MASCOTE', '000000', '0'),
-    ('VERDANA SUITES JARDIM PRUDENCIA SETOR MORADIA TORRE 3', '000', '0')
+    ('VERDANA SUITES JARDIM PRUDENCIA SETOR MORADIA TORRE 3', '0000', '0')
 )
 update public.condominios c
    set mascara_unidade = m.mascara_unidade,

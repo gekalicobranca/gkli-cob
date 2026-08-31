@@ -112,7 +112,7 @@ const sections: SidebarSection[] = [
     id: 'automacao',
     title: 'Automação',
     items: [
-      { label: 'Orquestrador', href: '/app/agente-automatico/orquestrador', icon: 'nodes' },
+      { label: 'Maestro', href: '/app/agente-automatico/maestro', icon: 'nodes' },
       { label: 'Agentes remotos', href: '/app/agente-automatico', icon: 'robot', exact: true },
       { label: 'Motor de conversão', href: '/app/conversao-relatorio', icon: 'document' },
       { label: 'Importação', href: '/app/importacoes', icon: 'upload' },

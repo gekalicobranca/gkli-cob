@@ -163,7 +163,10 @@ export type ResumoCaptacao = {
  * Capta e converte, mas deliberadamente não grava unidades, cobranças ou parcelas.
  * A confirmação continua no fluxo autenticado do operador.
  */
-export async function processarRelatorioCaptado(arquivo: string): Promise<ResumoCaptacao> {
+export async function processarRelatorioCaptado(
+  arquivo: string,
+  options: { condominioId?: string } = {},
+): Promise<ResumoCaptacao> {
   const supabase = createAdminClient()
   const buffer = await readFile(arquivo)
   const nomeArquivo = path.basename(arquivo)
@@ -184,6 +187,7 @@ export async function processarRelatorioCaptado(arquivo: string): Promise<Resumo
   const baseDetectada = nomeBaseCondominioCaptacao(nomeDetectado)
   const baseDetectadaPeloArquivo = nomeBaseCondominioCaptacao(nomePeloArquivo)
   const condominio = (candidatos ?? []).find((item: any) => {
+    if (options.condominioId) return item.id === options.condominioId
     const oficial = normalizar(item.nome), operacional = normalizar(item.nome_operacional)
     const baseOficial = nomeBaseCondominioCaptacao(item.nome)
     const baseOperacional = nomeBaseCondominioCaptacao(item.nome_operacional)
