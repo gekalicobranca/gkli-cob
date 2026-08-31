@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
@@ -479,11 +480,35 @@ export async function alternarCaptacaoGlobal(formData: FormData) {
   const ativo = getString(formData, 'ativo') === 'true'
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Usuário não autenticado.')
-  const { error } = await supabase.from('automacao_controle').upsert({
-    chave: 'captacao_global', ativo, atualizado_em: new Date().toISOString(), atualizado_por: user.id,
-  }, { onConflict: 'chave' })
+
+  const payload = {
+    ativo,
+    atualizado_em: new Date().toISOString(),
+    atualizado_por: user.id,
+  }
+
+  const { data, error } = await supabase
+    .from('automacao_controle')
+    .update(payload)
+    .eq('chave', 'captacao_global')
+    .select('chave')
+    .maybeSingle()
+
   if (error) throw new Error(`Não foi possível ${ativo ? 'ligar' : 'desligar'} a captação: ${error.message}`)
+
+  if (!data) {
+    const admin = createAdminClient()
+    const { error: adminError } = await admin.from('automacao_controle').upsert({
+      chave: 'captacao_global',
+      ...payload,
+    }, { onConflict: 'chave' })
+    if (adminError) throw new Error(`Não foi possível ${ativo ? 'ligar' : 'desligar'} a captação: ${adminError.message}`)
+  }
+
+  revalidatePath('/app/agente-automatico')
   revalidatePath('/app/agente-automatico/maestro')
+  revalidatePath('/app/agente-automatico/orquestrador')
+  redirect('/app/agente-automatico/maestro')
 }
 
 export async function iniciarAgenteWorkerLocal(formData: FormData) {
