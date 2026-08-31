@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
     const condominioId = typeof body?.condominioId === 'string' ? body.condominioId : undefined
     const carteiraId = typeof body?.carteiraId === 'string' ? body.carteiraId : undefined
-    const resultado = await processarReguaCobranca({ origem: condominioId ? 'orquestrador_captacao' : 'api', condominioId, carteiraId })
+    const resultado = await processarReguaCobranca({ origem: condominioId ? 'maestro_captacao' : 'api', condominioId, carteiraId })
     return NextResponse.json({ ok: true, ...resultado })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro inesperado ao processar régua.'

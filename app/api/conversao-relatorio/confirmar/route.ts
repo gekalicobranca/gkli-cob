@@ -124,8 +124,8 @@ async function isCarteiraPermitida(
 
 export async function POST(request: NextRequest) {
   try {
-    const chamadaOrquestrador = isCronSecretAuthorized(request)
-    const autenticacao = chamadaOrquestrador ? null : await requireAuthenticatedApiUser()
+    const chamadaMaestro = isCronSecretAuthorized(request)
+    const autenticacao = chamadaMaestro ? null : await requireAuthenticatedApiUser()
     if (autenticacao?.response) return autenticacao.response
     const user = autenticacao?.user ?? null
 
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient()
 
-    const carteiraPermitida = chamadaOrquestrador || Boolean(user && await isCarteiraPermitida(supabase, user.id, carteiraId))
+    const carteiraPermitida = chamadaMaestro || Boolean(user && await isCarteiraPermitida(supabase, user.id, carteiraId))
     if (!carteiraPermitida) {
       return NextResponse.json(
         { ok: false, error: "Você não tem permissão para importar nesta carteira." },

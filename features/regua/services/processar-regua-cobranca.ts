@@ -109,7 +109,7 @@ export type ResultadoLoteRegua = {
 
 type ProcessarReguaParams = {
   scope?: CarteiraScope;
-  origem?: "manual" | "api" | "cron" | "keila_teste" | "keila_auto" | "orquestrador_captacao";
+  origem?: "manual" | "api" | "cron" | "keila_teste" | "keila_auto" | "maestro_captacao" | "orquestrador_captacao";
   cooldownDias?: number;
   q?: string;
   carteiraId?: string;
