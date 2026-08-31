@@ -65,7 +65,7 @@ export default async function CaptacaoAutomatizadaPage({ searchParams }: Props) 
   const filtrosAtivos = Boolean(q || administradora || agendaFiltro)
 
   return <ListPage>
-    <PageHeader eyebrow="Configurações · Lab" title="Captação automatizada" description="Agenda mensal, coleta de relatórios e validação humana antes da importação." actions={<><ButtonLink href="/app/configuracoes/lab/captacao-automatizada/historico" variant="secondary"><History size={16} />Histórico</ButtonLink><ButtonLink href="/app/agente-automatico" variant="secondary"><Bot size={16} />Abrir agente</ButtonLink></>} />
+    <PageHeader eyebrow="Maestro" title="Validações do Maestro" description="Coletas e conversões que ainda precisam de revisão antes da importação." actions={<><ButtonLink href="/app/agente-automatico/maestro?aba=agenda" variant="secondary"><Clock3 size={16} />Abrir agenda</ButtonLink><ButtonLink href="/app/configuracoes/lab/captacao-automatizada/historico" variant="secondary"><History size={16} />Histórico</ButtonLink><ButtonLink href="/app/agente-automatico" variant="secondary"><Bot size={16} />Agentes</ButtonLink></>} />
 
     <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
       <Kpi icon={<CheckCircle2 size={18} />} label="Habilitados" value={(condominiosBase ?? []).length} />

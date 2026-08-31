@@ -43,7 +43,7 @@ export default async function HistoricoCaptacaoPage({ searchParams }: Props) {
   const filtrosAtivos = Boolean(q || status || competencia)
 
   return <ListPage>
-    <PageHeader eyebrow="Configurações · Lab · Captação automatizada" title="Histórico de captações" description="Execuções mensais, resultados e mensagens registradas pelo agente." actions={<ButtonLink href="/app/configuracoes/lab/captacao-automatizada" variant="secondary"><ArrowLeft size={16} />Voltar à agenda</ButtonLink>} />
+    <PageHeader eyebrow="Maestro" title="Histórico de execuções" description="Execuções mensais, resultados e mensagens registradas pelo agente." actions={<ButtonLink href="/app/agente-automatico/maestro?aba=agenda" variant="secondary"><ArrowLeft size={16} />Voltar à agenda</ButtonLink>} />
     <ListKpiGrid className="md:grid-cols-2 xl:grid-cols-2">
       <Kpi icon={<CheckCircle2 size={18} />} label="Executados com sucesso" value={sucessos} />
       <Kpi icon={<TriangleAlert size={18} />} label="Executados com erro" value={falhas} />

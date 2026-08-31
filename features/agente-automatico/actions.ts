@@ -28,6 +28,12 @@ function getCondominioId(configJson: unknown) {
   return typeof condominioId === 'string' && condominioId ? condominioId : null
 }
 
+function parseDateTimeLocalSaoPaulo(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null
+  const date = new Date(`${value}:00-03:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 function getScriptKey(formData: FormData) {
   const scriptKey = getString(formData, 'script_key')
   if (!scriptKey) throw new Error('Worker não informado.')
@@ -180,6 +186,102 @@ export async function executarAgenteReceitaComAcompanhamento(formData: FormData)
       error: error instanceof Error ? error.message : 'Não foi possível iniciar a execução.',
     }
   }
+}
+
+export async function agendarExecucaoAgenteReceita(formData: FormData) {
+  const supabase = await createClient()
+  await assertCaptacaoGlobalAtiva(supabase)
+
+  const receitaId = getString(formData, 'receita_id')
+  const agendadoParaLocal = getString(formData, 'agendado_para')
+  const agendadoPara = parseDateTimeLocalSaoPaulo(agendadoParaLocal)
+
+  if (!receitaId) throw new Error('Receita não informada.')
+  if (!agendadoPara) throw new Error('Informe uma data e horário válidos.')
+  if (agendadoPara.getTime() <= Date.now()) throw new Error('A execução precisa ser agendada para uma data futura.')
+
+  const { data: receita, error: receitaError } = await supabase
+    .from('agente_receitas')
+    .select('id, administradora_id, carteira_id, config_json')
+    .eq('id', receitaId)
+    .single()
+
+  if (receitaError) throw new Error(receitaError.message)
+  if (!receita) throw new Error('Receita não encontrada.')
+
+  const condominioId = getCondominioId(receita.config_json)
+  let carteiraId = receita.carteira_id
+  if (condominioId) {
+    const { data: condominio, error: condominioError } = await supabase
+      .from('condominios')
+      .select('carteira_id')
+      .eq('id', condominioId)
+      .single()
+    if (condominioError) throw new Error(condominioError.message)
+    carteiraId = condominio?.carteira_id ?? carteiraId
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { data: existente, error: existenteError } = await supabase
+    .from('agente_execucoes')
+    .select('id')
+    .eq('receita_id', receita.id)
+    .eq('status', 'pendente')
+    .eq('origem', 'manual_agendada')
+    .not('agendado_para', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (existenteError) throw new Error(existenteError.message)
+
+  const payload = {
+    receita_id: receita.id,
+    administradora_id: receita.administradora_id,
+    carteira_id: carteiraId,
+    condominio_id: condominioId,
+    status: 'pendente',
+    solicitado_por: user?.id ?? null,
+    tentativas: 0,
+    origem: 'manual_agendada',
+    agendado_para: agendadoPara.toISOString(),
+    erro_mensagem: null,
+  }
+
+  const { data: execucao, error } = existente
+    ? await supabase
+      .from('agente_execucoes')
+      .update({
+        agendado_para: payload.agendado_para,
+        solicitado_por: payload.solicitado_por,
+        erro_mensagem: null,
+      })
+      .eq('id', existente.id)
+      .eq('status', 'pendente')
+      .select('id')
+      .single()
+    : await supabase
+      .from('agente_execucoes')
+      .insert(payload)
+      .select('id')
+      .single()
+
+  if (error) throw new Error(error.message)
+
+  await supabase.from('agente_logs').insert({
+    execucao_id: execucao.id,
+    nivel: 'info',
+    step: existente ? 'agenda_manual_ajustada' : 'agenda_manual',
+    mensagem: existente
+      ? `Execução manual reagendada para ${agendadoPara.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`
+      : `Execução manual agendada para ${agendadoPara.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`,
+  })
+
+  revalidatePath('/app/agente-automatico')
+  revalidatePath('/app/agente-automatico/maestro')
 }
 
 export async function executarAgenteAdministradoraAgora(formData: FormData) {

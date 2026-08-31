@@ -116,7 +116,7 @@ const sections: SidebarSection[] = [
       { label: 'Agentes remotos', href: '/app/agente-automatico', icon: 'robot', exact: true },
       { label: 'Motor de conversão', href: '/app/conversao-relatorio', icon: 'document' },
       { label: 'Importação', href: '/app/importacoes', icon: 'upload' },
-      { label: 'Validação', href: '/app/configuracoes/lab/captacao-automatizada', icon: 'shield' },
+      { label: 'Validações do Maestro', href: '/app/configuracoes/lab/captacao-automatizada', icon: 'shield' },
       { label: 'Keila', href: '/app/gestao/keila', icon: 'bot' },
     ],
   },
@@ -180,7 +180,7 @@ const settingsGroups: SidebarSection[] = [
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
       { label: 'Lab experimental', href: '/app/configuracoes/lab', icon: 'beaker' },
-      { label: 'Captação automatizada', href: '/app/configuracoes/lab/captacao-automatizada', icon: 'bot' },
+      { label: 'Agenda do Maestro', href: '/app/agente-automatico/maestro?aba=agenda', icon: 'bot' },
       { label: 'Lite legado', href: '/app/configuracoes/lab/lite', icon: 'spark' },
       { label: 'Mobile', href: '/app/configuracoes/lab/mobile', icon: 'mobile' },
       { label: 'Workspace Focus', href: '/app/configuracoes/lab/workspace/demo/focus', icon: 'target' },

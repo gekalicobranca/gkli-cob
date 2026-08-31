@@ -4,9 +4,9 @@ import { Card } from '@/components/ui/card'
 
 const experiments = [
   {
-    title: 'Captação automatizada',
-    description: 'Busca o relatório, converte e prepara a prévia para validação humana antes da importação. Piloto BBZ · Clock Vila Romana.',
-    href: '/app/configuracoes/lab/captacao-automatizada',
+    title: 'Agenda do Maestro',
+    description: 'Agenda mensal, coleta de relatórios e validações do ciclo de captação automatizada, agora centralizadas no Maestro.',
+    href: '/app/agente-automatico/maestro?aba=agenda',
     icon: Bot,
   },
   {
