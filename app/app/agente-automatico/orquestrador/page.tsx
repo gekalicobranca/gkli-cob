@@ -1,6 +1,6 @@
 import {
   Bot, Building2, CalendarClock, Check, ChevronDown, ChevronRight, CircleDot, Clock3,
-  FileCheck2, Filter, Gauge, Layers3, Play, Power, PowerOff, RefreshCw, Route, TriangleAlert,
+  FileCheck2, Filter, Gauge, Layers3, Power, PowerOff, RefreshCw, Route, TriangleAlert,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
@@ -11,7 +11,8 @@ import { Select } from '@/components/ui/select'
 import { createClient } from '@/utils/supabase/server'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
-import { alternarCaptacaoGlobal, executarAgenteReceita } from '@/features/agente-automatico/actions'
+import { alternarCaptacaoGlobal } from '@/features/agente-automatico/actions'
+import { ExecutarAgoraButton } from './executar-agora-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -186,7 +187,7 @@ export default async function MaestroPage({ searchParams }: Props) {
           </summary>
           <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-5"><div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">{linha.etapas.map((etapa: Etapa, index: number) => <EtapaCard key={etapa.nome} etapa={etapa} ultima={index === linha.etapas.length - 1} />)}</div>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-4 text-xs text-slate-500"><span className="flex items-center gap-1.5"><CalendarClock size={14} />{linha.condominio.captacao_dia_mes ? `Próximo ciclo: dia ${linha.condominio.captacao_dia_mes}` : 'Sem agenda'}</span><span className="flex items-center gap-1.5"><FileCheck2 size={14} />{linha.conversao ? `${linha.conversao.total_cobrancas ?? 0} cobranças detectadas` : 'Sem conversão'}</span></div>
-              <div className="flex gap-2">{linha.conversao?.status === 'aguardando_validacao' ? <ButtonLink size="sm" href={`/app/configuracoes/lab/captacao-automatizada/${linha.conversao.id}`}>Resolver bloqueio</ButtonLink> : null}{linha.receita?.id ? <form action={executarAgenteReceita}><input type="hidden" name="receita_id" value={linha.receita.id} /><Button size="sm" type="submit" variant="secondary" disabled={['pendente', 'em_execucao'].includes(linha.execucao?.status)}><Play size={14} />Rodar agora</Button></form> : <ButtonLink size="sm" variant="secondary" href="/app/agente-automatico">Configurar agente</ButtonLink>}<ButtonLink size="sm" variant="ghost" href={`/app/condominios/${linha.condominio.id}#cobranca`}>Abrir condomínio</ButtonLink></div>
+              <div className="flex gap-2">{linha.conversao?.status === 'aguardando_validacao' ? <ButtonLink size="sm" href={`/app/configuracoes/lab/captacao-automatizada/${linha.conversao.id}`}>Resolver bloqueio</ButtonLink> : null}{linha.receita?.id ? <ExecutarAgoraButton receitaId={linha.receita.id} condominioNome={linha.condominio.nome_operacional || linha.condominio.nome} disabled={['pendente', 'em_execucao'].includes(linha.execucao?.status)} /> : <ButtonLink size="sm" variant="secondary" href="/app/agente-automatico">Configurar agente</ButtonLink>}<ButtonLink size="sm" variant="ghost" href={`/app/condominios/${linha.condominio.id}#cobranca`}>Abrir condomínio</ButtonLink></div>
             </div></div>
         </details>)}</div>
       </details>

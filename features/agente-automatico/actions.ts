@@ -97,7 +97,7 @@ export async function criarAgenteReceita(formData: FormData) {
   revalidatePath('/app/agente-automatico')
 }
 
-export async function executarAgenteReceita(formData: FormData) {
+async function criarExecucaoAgenteReceita(formData: FormData) {
   const supabase = await createClient()
   await assertCaptacaoGlobalAtiva(supabase)
 
@@ -156,6 +156,30 @@ export async function executarAgenteReceita(formData: FormData) {
 
   revalidatePath('/app/agente-automatico')
   revalidatePath('/app/agente-automatico/maestro')
+
+  return {
+    execucaoId: execucao.id,
+    condominioId,
+  }
+}
+
+export async function executarAgenteReceita(formData: FormData) {
+  await criarExecucaoAgenteReceita(formData)
+}
+
+export async function executarAgenteReceitaComAcompanhamento(formData: FormData): Promise<
+  { ok: true; execucaoId: string; condominioId: string | null } |
+  { ok: false; error: string }
+> {
+  try {
+    const resultado = await criarExecucaoAgenteReceita(formData)
+    return { ok: true, ...resultado }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Não foi possível iniciar a execução.',
+    }
+  }
 }
 
 export async function executarAgenteAdministradoraAgora(formData: FormData) {

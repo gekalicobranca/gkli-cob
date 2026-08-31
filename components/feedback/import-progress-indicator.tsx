@@ -1,12 +1,16 @@
 "use client";
 
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type ImportProgressIndicatorProps = {
   active: boolean;
   title: string;
   steps: string[];
+  currentStep?: number;
+  detail?: string;
+  state?: "running" | "completed" | "error";
+  onClose?: () => void;
 };
 
 function formatElapsed(seconds: number) {
@@ -20,6 +24,10 @@ export function ImportProgressIndicator({
   active,
   title,
   steps,
+  currentStep,
+  detail,
+  state = "running",
+  onClose,
 }: ImportProgressIndicatorProps) {
   const [elapsed, setElapsed] = useState(0);
 
@@ -37,16 +45,20 @@ export function ImportProgressIndicator({
     return () => window.clearInterval(timer);
   }, [active]);
 
-  const activeStep = useMemo(() => {
+  const simulatedStep = useMemo(() => {
     if (!steps.length) return 0;
     return Math.min(steps.length - 1, Math.floor(elapsed / 5));
   }, [elapsed, steps.length]);
+  const activeStep = currentStep === undefined
+    ? simulatedStep
+    : Math.max(0, Math.min(steps.length - 1, currentStep));
 
   if (!active) return null;
 
-  const progress = steps.length
+  const progress = state === "completed" ? 100 : steps.length
     ? Math.min(94, Math.round(((activeStep + 0.55) / steps.length) * 100))
     : 35;
+  const Icon = state === "completed" ? CheckCircle2 : state === "error" ? XCircle : Loader2;
 
   return (
     <div
@@ -56,19 +68,28 @@ export function ImportProgressIndicator({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
-            <Loader2 size={18} className="animate-spin" />
+          <span className={[
+            "mt-0.5 rounded-lg p-2",
+            state === "completed" ? "bg-emerald-50 text-emerald-700" : state === "error" ? "bg-rose-50 text-rose-700" : "bg-[var(--gkli-primary-light)] text-[var(--gkli-primary)]",
+          ].join(" ")}>
+            <Icon size={18} className={state === "running" ? "animate-spin" : undefined} />
           </span>
           <div>
             <p className="text-sm font-semibold text-slate-950">{title}</p>
             <p className="mt-1 text-xs text-slate-500">
-              {steps[activeStep] ?? "Processando"} · {formatElapsed(elapsed)}
+              {detail ?? steps[activeStep] ?? "Processando"} · {formatElapsed(elapsed)}
             </p>
           </div>
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-          Em andamento
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={[
+            "rounded-full px-3 py-1 text-xs font-medium",
+            state === "completed" ? "bg-emerald-50 text-emerald-700" : state === "error" ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600",
+          ].join(" ")}>
+            {state === "completed" ? "Concluído" : state === "error" ? "Requer atenção" : "Em andamento"}
+          </span>
+          {onClose ? <button type="button" onClick={onClose} className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Fechar acompanhamento"><X size={15} /></button> : null}
+        </div>
       </div>
 
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -80,8 +101,8 @@ export function ImportProgressIndicator({
 
       <ol className="mt-4 grid gap-2 sm:grid-cols-2">
         {steps.map((step, index) => {
-          const done = index < activeStep;
-          const current = index === activeStep;
+          const done = state === "completed" || index < activeStep;
+          const current = state === "running" && index === activeStep;
           return (
             <li
               key={step}
