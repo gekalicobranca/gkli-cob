@@ -4,6 +4,7 @@ import * as XLSX from "xlsx"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { parseRelatorioBuffer } from "@/features/conversao-relatorio/server/parse-relatorio-buffer"
 import { avaliarRecorteAnoCorrente } from "@/features/importacoes/recorte-cobrancas"
+import { buildRankingMensalFromCobrancas } from "@/features/captacao-automatizada/ranking-mensal"
 
 function normalizar(value: unknown) {
   return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]+/gi, " ").trim().toUpperCase()
@@ -44,6 +45,9 @@ function vencimentoComMaisDeCincoAnos(value: unknown) {
 
 function aplicarRecorteOperacionalDeVencimento(preview: any) {
   const cobrancas = Array.isArray(preview.cobrancas) ? preview.cobrancas : []
+  const cobrancasRankingMensal = Array.isArray(preview.cobrancasRankingMensal)
+    ? preview.cobrancasRankingMensal
+    : cobrancas
   const muitoAntigas = cobrancas.filter((item: any) => vencimentoComMaisDeCincoAnos(item.vencimento ?? item.vencimentoMaisAntigo))
   const elegiveis = cobrancas.filter((item: any) => {
     const vencimento = item.vencimento ?? item.vencimentoMaisAntigo
@@ -52,8 +56,14 @@ function aplicarRecorteOperacionalDeVencimento(preview: any) {
   })
   const desprezadas = cobrancas.length - elegiveis.length
   const foraAnoCorrente = cobrancas.length - muitoAntigas.length - elegiveis.length
+  const previewSemBaseRanking = { ...preview }
+  delete previewSemBaseRanking.cobrancasRankingMensal
   return {
-    ...preview,
+    ...previewSemBaseRanking,
+    rankingMensal: preview.rankingMensal ?? buildRankingMensalFromCobrancas(cobrancasRankingMensal, {
+      arquivoOrigem: preview.arquivo ?? "",
+      condominio: preview.condominio ?? null,
+    }),
     cobrancas: elegiveis,
     totalParcelas: elegiveis.reduce((total: number, item: any) => total + Math.max(1, item.parcelas?.length ?? 0), 0),
     valorTotal: elegiveis.reduce((total: number, item: any) => total + Number(item.valorTotal ?? 0), 0),
@@ -83,13 +93,16 @@ function detectarBlocoPadraoCaptacao(...values: unknown[]) {
 function aplicarBlocoPadrao(preview: any, blocoPadrao: string) {
   if (!blocoPadrao) return preview
   const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
+  const cobrancasRankingMensal = Array.isArray(preview?.cobrancasRankingMensal) ? preview.cobrancasRankingMensal : null
+  const aplicar = (item: any) => ({
+    ...item,
+    bloco: String(item.bloco ?? "").trim() || blocoPadrao,
+  })
   return {
     ...preview,
     blocoPadraoCaptacao: blocoPadrao,
-    cobrancas: cobrancas.map((item: any) => ({
-      ...item,
-      bloco: String(item.bloco ?? "").trim() || blocoPadrao,
-    })),
+    cobrancas: cobrancas.map(aplicar),
+    ...(cobrancasRankingMensal ? { cobrancasRankingMensal: cobrancasRankingMensal.map(aplicar) } : {}),
   }
 }
 
@@ -101,10 +114,13 @@ function aplicarFiltroBlocoManager(preview: any, nomeCondominio: string) {
   if (!blocoEsperado) return preview
 
   const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
+  const cobrancasRankingMensal = Array.isArray(preview?.cobrancasRankingMensal) ? preview.cobrancasRankingMensal : null
   const filtradas = cobrancas.filter((item: any) => normalizar(item.bloco) === blocoEsperado)
+  const filtradasRankingMensal = cobrancasRankingMensal?.filter((item: any) => normalizar(item.bloco) === blocoEsperado) ?? null
   return {
     ...preview,
     cobrancas: filtradas,
+    ...(filtradasRankingMensal ? { cobrancasRankingMensal: filtradasRankingMensal } : {}),
     totalParcelas: filtradas.reduce((total: number, item: any) => total + Math.max(1, item.parcelas?.length ?? 0), 0),
     valorTotal: filtradas.reduce((total: number, item: any) => total + Number(item.valorTotal ?? 0), 0),
     inconsistencias: [
@@ -217,9 +233,9 @@ export async function processarRelatorioCaptado(
   if (!preview?.ok) throw new Error(preview?.error || "Não foi possível converter o relatório.")
   preview = preview.preview
   if (!preview.cobrancas?.length && !preview.semPendencias) preview = parseBbzClock(buffer, path.basename(arquivo))
+  preview = aplicarBlocoPadrao(preview, blocoPadraoCaptacao)
   preview = aplicarFiltroBlocoManager(preview, condominio.nome)
   preview = aplicarRecorteOperacionalDeVencimento(preview)
-  preview = aplicarBlocoPadrao(preview, blocoPadraoCaptacao)
   if (!preview.cobrancas?.length && !preview.semPendencias && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos") || item.includes("fora do ano corrente"))) {
     throw new Error("O relatório não contém cobranças reconhecíveis.")
   }

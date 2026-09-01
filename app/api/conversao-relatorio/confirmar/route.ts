@@ -17,6 +17,10 @@ import {
   statusComBloqueioGarantidora,
 } from "@/features/importacoes/bloqueio-garantidora"
 import {
+  buildRankingMensalFromCobrancas,
+  classificarRankingMensalComApp,
+} from "@/features/captacao-automatizada/ranking-mensal"
+import {
   anoCorrenteImportacao,
   avaliarRecorteAnoCorrente,
   limparCobrancasDaNovaImportacao,
@@ -509,11 +513,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const rankingBase = preview.rankingMensal ?? buildRankingMensalFromCobrancas(
+      Array.isArray(preview.cobrancasRankingMensal) ? preview.cobrancasRankingMensal : preview.cobrancas ?? [],
+      {
+        arquivoOrigem: preview.arquivo ?? "",
+        condominio: preview.condominio ?? null,
+      },
+    )
+    const rankingMensal = await classificarRankingMensalComApp(supabase as any, rankingBase, {
+      condominioId,
+      inicioCobrancaDias: (condominioConfiguracao as any)?.inicio_cobranca_dias,
+    })
+    const previewSemBaseRanking = { ...preview }
+    delete previewSemBaseRanking.cobrancasRankingMensal
+
     await supabase
       .from("conversoes_relatorio")
       .update({
         status: inconsistencias.length ? "concluido_com_alertas" : "concluido",
         inconsistencias_json: inconsistencias,
+        preview_json: rankingMensal ? { ...previewSemBaseRanking, rankingMensal } : previewSemBaseRanking,
         atualizado_em: new Date().toISOString(),
       } as any)
       .eq("id", conversaoId)

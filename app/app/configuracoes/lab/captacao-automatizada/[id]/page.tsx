@@ -18,9 +18,10 @@ export default async function ValidarCaptacaoPage({ params }: { params: Promise<
   const preview: any = data.preview_json ?? {}
   const cobrancas: any[] = Array.isArray(preview.cobrancas) ? preview.cobrancas : []
   const finalizada = ['concluido', 'concluido_com_alertas'].includes(String(data.status))
+  const rankingMensal = preview.rankingMensal
 
   return <ListPage>
-    <PageHeader eyebrow="Maestro · Validação" title={data.nome_arquivo || 'Validar importação'} description={`Condomínio: ${preview.condominio || 'não identificado'}. Confira a conversão antes de liberar a importação.`} actions={<><StatusBadge status={data.status} /><ButtonLink href={`/api/captacao-automatizada/conversoes/${data.id}/exportar`} variant="secondary"><Download size={16} />Exportar XLSX</ButtonLink><ButtonLink href="/app/agente-automatico/maestro?aba=agenda" variant="secondary"><ArrowLeft size={16} />Voltar à agenda</ButtonLink></>} />
+    <PageHeader eyebrow="Maestro · Validação" title={data.nome_arquivo || 'Validar importação'} description={`Condomínio: ${preview.condominio || 'não identificado'}. Confira a conversão antes de liberar a importação.`} actions={<><StatusBadge status={data.status} /><ButtonLink href={`/api/captacao-automatizada/conversoes/${data.id}/exportar`} variant="secondary"><Download size={16} />Exportar XLSX</ButtonLink>{rankingMensal?.xlsxBase64 ? <ButtonLink href={`/api/captacao-automatizada/conversoes/${data.id}/ranking`} variant="secondary"><Download size={16} />Ranking mensal</ButtonLink> : null}<ButtonLink href="/app/agente-automatico/maestro?aba=agenda" variant="secondary"><ArrowLeft size={16} />Voltar à agenda</ButtonLink></>} />
 
     <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
       <Resumo icon={<ListChecks size={18} />} label="Cobranças" value={data.total_cobrancas ?? 0} />

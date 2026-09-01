@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { inflateSync } from "zlib";
 import * as XLSX from "xlsx";
 import { avaliarRecorteAnoCorrente } from "@/features/importacoes/recorte-cobrancas";
+import type { RankingMensalCaptacao } from "@/features/captacao-automatizada/ranking-mensal";
 
 export type ParcelaNormalizada = {
   unidade: string;
@@ -84,6 +85,8 @@ export type ConversaoPreview = {
   inconsistencias: string[];
   csv: string;
   xlsxBase64: string;
+  rankingMensal?: RankingMensalCaptacao | null;
+  cobrancasRankingMensal?: CobrancaPreview[];
   semPendencias?: boolean;
 };
 
@@ -1357,7 +1360,7 @@ function buildPreviewFromRecibos({
   });
   const totalDesprezado = recibos.length - recibosElegiveis.length;
   const totalForaAnoCorrente = recibos.length - recibosMuitoAntigos.length - recibosElegiveis.length;
-  const cobrancas = recibosElegiveis.map(
+  const cobrancasCompletas = recibos.map(
     (recibo) =>
       ({
         unidade: recibo.unidade,
@@ -1391,6 +1394,8 @@ function buildPreviewFromRecibos({
         ],
       }) satisfies CobrancaPreview,
   );
+  const recibosElegiveisSet = new Set(recibosElegiveis);
+  const cobrancas = cobrancasCompletas.filter((_, index) => recibosElegiveisSet.has(recibos[index]));
 
   return {
     ok: true,
@@ -1420,6 +1425,7 @@ function buildPreviewFromRecibos({
       ].filter(Boolean) as string[],
       csv: buildCsvPadraoGkli(cobrancas, condominioCnpj),
       xlsxBase64: buildXlsxBase64PadraoGkli(cobrancas, condominioCnpj),
+      cobrancasRankingMensal: cobrancasCompletas,
     },
   };
 }
@@ -1450,6 +1456,33 @@ function buildPreviewFromParcelas({
   });
   const totalDesprezado = parcelas.length - parcelasElegiveis.length;
   const totalForaAnoCorrente = parcelas.length - parcelasMuitoAntigas.length - parcelasElegiveis.length;
+  const groupedCompleto = new Map<string, CobrancaPreview>();
+
+  for (const parcela of parcelas) {
+    const key = parcela.unidade;
+    const current =
+      groupedCompleto.get(key) ??
+      ({
+        unidade: parcela.unidade,
+        responsavel: parcela.responsavel,
+        valorTotal: 0,
+        vencimentoMaisAntigo: null,
+        parcelas: [],
+      } satisfies CobrancaPreview);
+
+    current.parcelas.push(parcela);
+    current.valorTotal += parcela.valor;
+
+    if (
+      !current.vencimentoMaisAntigo ||
+      compareBrDates(parcela.vencimento, current.vencimentoMaisAntigo) < 0
+    ) {
+      current.vencimentoMaisAntigo = parcela.vencimento;
+    }
+
+    groupedCompleto.set(key, current);
+  }
+
   const grouped = new Map<string, CobrancaPreview>();
 
   for (const parcela of parcelasElegiveis) {
@@ -1508,6 +1541,7 @@ function buildPreviewFromParcelas({
       ].filter(Boolean) as string[],
       csv: buildCsvPadraoGkli(cobrancas, condominioCnpj),
       xlsxBase64: buildXlsxBase64PadraoGkli(cobrancas, condominioCnpj),
+      cobrancasRankingMensal: [...groupedCompleto.values()],
     },
   };
 }
