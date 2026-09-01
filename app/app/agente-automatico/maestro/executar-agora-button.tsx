@@ -57,6 +57,12 @@ export function ExecutarAgoraButton({ receitaId, condominioNome, disabled = fals
     }
   }, [execucaoId, router, state])
 
+  useEffect(() => {
+    if (!visible || state !== 'completed') return
+    const timer = window.setTimeout(() => setVisible(false), 5000)
+    return () => window.clearTimeout(timer)
+  }, [state, visible])
+
   async function executar() {
     setSubmitting(true)
     setVisible(true)
