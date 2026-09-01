@@ -34,9 +34,9 @@ async function concluirPipeline(resumo: Awaited<ReturnType<typeof processarRelat
   const automatico = String(process.env.CAPTACAO_AUTOMATIZADA_CONFIRMAR || "false").toLowerCase() === "true"
   if (!automatico) return false
   const baseUrl = String(process.env.CAPTACAO_MAESTRO_URL || process.env.CAPTACAO_ORQUESTRADOR_URL || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")
-  const secret = process.env.CRON_SECRET || process.env.REGUA_CRON_SECRET || ""
+  const secret = process.env.CAPTACAO_ORQUESTRADOR_SECRET || process.env.CRON_SECRET || process.env.REGUA_CRON_SECRET || ""
   if (!baseUrl) throw new Error("CAPTACAO_MAESTRO_URL não configurada para concluir a importação automática.")
-  if (!secret) throw new Error("REGUA_CRON_SECRET não configurado para autenticar o Maestro.")
+  if (!secret) throw new Error("Credencial da automação não configurada para autenticar o Orquestrador.")
 
   await executarEtapaHttp(`${baseUrl}/api/conversao-relatorio/confirmar`, secret, {
     conversaoId: resumo.conversaoId,
@@ -72,22 +72,26 @@ async function main() {
   await mkdir(processados, { recursive: true }); await mkdir(falhas, { recursive: true })
   console.log(`Captação automatizada ativa em ${entrada}`)
   for (;;) {
-    const ligada = await captacaoGlobalAtiva()
-    for (const nome of ligada ? await arquivosElegiveis() : []) {
-      const origem = path.join(entrada, nome)
-      try {
-        const antes = await stat(origem); await new Promise((r) => setTimeout(r, 1500)); const depois = await stat(origem)
-        if (antes.size !== depois.size || antes.mtimeMs !== depois.mtimeMs) continue
-        const resumo = await processarRelatorioCaptado(origem)
-        const automatico = await concluirPipeline(resumo)
-        await rename(origem, await destinoUnico(processados, nome))
-        console.log(automatico
-          ? `${nome}: pipeline concluído (${resumo.cobrancas} cobranças); régua acionada.`
-          : `${nome}: convertido (${resumo.cobrancas} cobranças); aguardando validação do operador.`)
-      } catch (error) {
-        console.error(`${nome}: ${error instanceof Error ? error.message : error}`)
-        if (await stat(origem).then(() => true).catch(() => false)) await rename(origem, await destinoUnico(falhas, nome))
+    try {
+      const ligada = await captacaoGlobalAtiva()
+      for (const nome of ligada ? await arquivosElegiveis() : []) {
+        const origem = path.join(entrada, nome)
+        try {
+          const antes = await stat(origem); await new Promise((r) => setTimeout(r, 1500)); const depois = await stat(origem)
+          if (antes.size !== depois.size || antes.mtimeMs !== depois.mtimeMs) continue
+          const resumo = await processarRelatorioCaptado(origem)
+          const automatico = await concluirPipeline(resumo)
+          await rename(origem, await destinoUnico(processados, nome))
+          console.log(automatico
+            ? `${nome}: pipeline concluído (${resumo.cobrancas} cobranças); régua acionada.`
+            : `${nome}: convertido (${resumo.cobrancas} cobranças); aguardando validação do operador.`)
+        } catch (error) {
+          console.error(`${nome}: ${error instanceof Error ? error.message : error}`)
+          if (await stat(origem).then(() => true).catch(() => false)) await rename(origem, await destinoUnico(falhas, nome))
+        }
       }
+    } catch (error) {
+      console.error(`Falha temporária no ciclo da captação: ${error instanceof Error ? error.message : error}`)
     }
     if (String(process.env.CAPTACAO_RUN_ONCE || "false").toLowerCase() === "true") break
     await new Promise((r) => setTimeout(r, intervalo))

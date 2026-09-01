@@ -22,18 +22,18 @@ export async function requireAuthenticatedApiUser() {
 }
 
 export function requireCronSecret(request: Request) {
-  const secret = process.env.CRON_SECRET || process.env.REGUA_CRON_SECRET
+  const secrets = getAutomationSecrets()
 
-  if (!secret) {
+  if (secrets.length === 0) {
     return NextResponse.json(
-      { ok: false, error: 'REGUA_CRON_SECRET não configurado no ambiente.' },
+      { ok: false, error: 'Credencial da automação não configurada no ambiente.' },
       { status: 500 },
     )
   }
 
   const auth = request.headers.get('authorization')
 
-  if (auth !== `Bearer ${secret}`) {
+  if (!secrets.some((secret) => auth === `Bearer ${secret}`)) {
     return NextResponse.json(
       { ok: false, error: 'Não autorizado.' },
       { status: 401 },
@@ -44,6 +44,14 @@ export function requireCronSecret(request: Request) {
 }
 
 export function isCronSecretAuthorized(request: Request) {
-  const secret = process.env.CRON_SECRET || process.env.REGUA_CRON_SECRET
-  return Boolean(secret && request.headers.get('authorization') === `Bearer ${secret}`)
+  const auth = request.headers.get('authorization')
+  return getAutomationSecrets().some((secret) => auth === `Bearer ${secret}`)
+}
+
+function getAutomationSecrets() {
+  return [
+    process.env.CAPTACAO_ORQUESTRADOR_SECRET,
+    process.env.CRON_SECRET,
+    process.env.REGUA_CRON_SECRET,
+  ].filter((secret): secret is string => Boolean(secret))
 }
