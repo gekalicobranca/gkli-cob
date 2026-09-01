@@ -282,3 +282,32 @@ export async function listEventosDoCondominio(condominio: any, scope: CarteiraSc
 
   return (data ?? []) as any[]
 }
+
+export async function listRankingsDoCondominio(condominio: any, scope: CarteiraScope) {
+  const supabase = await createClient()
+
+  if (!condominio?.id) return []
+
+  let query = supabase
+    .from('conversoes_relatorio')
+    .select('id, carteira_id, condominio_id, nome_arquivo, origem, status, total_cobrancas, total_parcelas, valor_total, preview_json, criado_em, atualizado_em')
+    .eq('condominio_id', condominio.id)
+    .like('origem', 'captacao_automatizada:%')
+    .order('criado_em', { ascending: false })
+    .limit(24)
+
+  query = applyCarteiraScope(query, scope.carteiraIds)
+
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error(`Erro ao carregar rankings do condomínio: ${error.message}`)
+  }
+
+  return (data ?? [])
+    .map((row: any) => ({
+      ...row,
+      rankingMensal: row.preview_json?.rankingMensal ?? null,
+    }))
+    .filter((row: any) => row.rankingMensal?.xlsxBase64)
+}

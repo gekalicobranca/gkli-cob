@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Activity, ChevronDown, ClipboardList, Download, FileClock, History, Home, Landmark, PencilLine, Users } from 'lucide-react'
+import { Activity, BarChart3, ChevronDown, ClipboardList, Download, FileClock, History, Home, Landmark, PencilLine, Users } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -12,13 +12,31 @@ import { FormField } from '@/components/ui/form-field'
 import { StatusBadge } from '@/components/data/status-badge'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
-import { getCondominioIntegral, listEventosDoCondominio, listImportacoesDoCondominio, listResponsaveisDoCondominio, listUnidadesDoCondominio } from '@/features/condominios/queries'
+import { getCondominioIntegral, listEventosDoCondominio, listImportacoesDoCondominio, listRankingsDoCondominio, listResponsaveisDoCondominio, listUnidadesDoCondominio } from '@/features/condominios/queries'
 import { listReguasForSelect } from '@/features/reguas/queries'
 import { updateCondominioIntegral } from '@/features/condominios/actions'
 import { ClassificacaoOperacionalBadge, ClassificacaoOperacionalField } from '@/features/condominios/components/classificacao-operacional'
 
-export default async function CondominioIntegralPage({ params }: { params: Promise<{ id: string }> }) {
+type CondominioAba = 'cadastro' | 'cobranca' | 'reguas' | 'historico' | 'auditoria' | 'rankings'
+
+const ABAS_CONDOMINIO: Array<{ id: CondominioAba; label: string; icon: React.ReactNode }> = [
+  { id: 'cadastro', label: 'Cadastro', icon: <PencilLine size={15} /> },
+  { id: 'cobranca', label: 'Cobrança', icon: <Landmark size={15} /> },
+  { id: 'reguas', label: 'Régua', icon: <Activity size={15} /> },
+  { id: 'historico', label: 'Histórico', icon: <History size={15} /> },
+  { id: 'auditoria', label: 'Auditoria', icon: <FileClock size={15} /> },
+  { id: 'rankings', label: 'Rankings', icon: <BarChart3 size={15} /> },
+]
+
+function normalizeAba(value?: string | string[] | null): CondominioAba {
+  const raw = Array.isArray(value) ? value[0] : value
+  return ABAS_CONDOMINIO.some((aba) => aba.id === raw) ? raw as CondominioAba : 'cadastro'
+}
+
+export default async function CondominioIntegralPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ aba?: string | string[] }> }) {
   const { id } = await params
+  const query = await searchParams
+  const abaAtiva = normalizeAba(query?.aba)
   const scope = await getPermittedCarteiras()
   const [condominio, carteiras, reguasCobranca, reguasAcordo] = await Promise.all([
     getCondominioIntegral(id, scope),
@@ -29,11 +47,12 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
 
   if (!condominio) notFound()
 
-  const [unidades, responsaveis, importacoes, eventos] = await Promise.all([
+  const [unidades, responsaveis, importacoes, eventos, rankings] = await Promise.all([
     listUnidadesDoCondominio(condominio.id, scope),
     listResponsaveisDoCondominio(condominio.id, scope),
     listImportacoesDoCondominio(condominio, scope),
     listEventosDoCondominio(condominio, scope),
+    listRankingsDoCondominio(condominio, scope),
   ])
 
   const unidadesAtivas = unidades.filter((row: any) => ['ativo', 'ativa'].includes(String(row.status ?? '').toLowerCase())).length
@@ -82,17 +101,23 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
       </section>
 
       <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-        <Tab href="#cadastro" icon={<PencilLine size={15} />} label="Cadastro" />
-        <Tab href="#cobranca" icon={<Landmark size={15} />} label="Cobrança" />
-        <Tab href="#reguas" icon={<Activity size={15} />} label="Réguas" />
-        <Tab href="#historico" icon={<History size={15} />} label="Histórico" />
-        <Tab href="#auditoria" icon={<FileClock size={15} />} label="Auditoria" />
+        {ABAS_CONDOMINIO.map((aba) => (
+          <Tab
+            key={aba.id}
+            href={aba.id === 'cadastro' ? `/app/condominios/${condominio.id}` : `/app/condominios/${condominio.id}?aba=${aba.id}`}
+            icon={aba.icon}
+            label={aba.label}
+            active={abaAtiva === aba.id}
+          />
+        ))}
       </div>
 
-      <form action={updateCondominioIntegral} className="space-y-4">
+      {['cadastro', 'cobranca', 'reguas'].includes(abaAtiva) ? <form action={updateCondominioIntegral} className="space-y-4">
         <input type="hidden" name="id" value={condominio.id} />
+        <input type="hidden" name="aba" value={abaAtiva} />
+        <HiddenCondominioFields condominio={condominio} activeTab={abaAtiva} />
 
-        <CollapsibleArea id="cadastro" title="Dados principais" description="Identificação, endereço, classificação e observações do condomínio.">
+        {abaAtiva === 'cadastro' ? <CollapsibleArea id="cadastro" title="Dados principais" description="Identificação, endereço, classificação e observações do condomínio." defaultOpen>
 
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Carteira">
@@ -150,9 +175,9 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
           <FormField label="Observações internas">
             <Textarea name="observacoes" defaultValue={condominio.observacoes ?? ''} placeholder="Observações do condomínio, regras combinadas, exceções operacionais..." />
           </FormField>
-        </CollapsibleArea>
+        </CollapsibleArea> : null}
 
-        <CollapsibleArea id="cobranca" title="Parâmetros operacionais" description="Cobrança, acordos, automações e réguas vinculadas.">
+        {abaAtiva === 'cobranca' ? <CollapsibleArea id="cobranca" title="Parâmetros operacionais" description="Cobrança, acordos e automações vinculadas." defaultOpen>
 
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Dia de vencimento da cota"><Input name="vencimento_cota_dia" type="number" min="1" max="31" defaultValue={condominio.vencimento_cota_dia ?? 10} /></FormField>
@@ -208,7 +233,10 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             <p className="mt-1">Acima do limite de parcelas, o sistema envia primeiro a aprovação pública ao síndico. Somente após esse aceite o termo é enviado ao devedor. Se os dias de reemissão forem 0, parcelas vencidas não poderão ser reemitidas pelo acompanhamento.</p>
           </div>
 
-          <div id="reguas" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+        </CollapsibleArea> : null}
+
+        {abaAtiva === 'reguas' ? <CollapsibleArea id="reguas" title="Régua" description="Réguas de cobrança e acordos vinculadas ao condomínio." defaultOpen>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             <p className="text-sm font-medium text-slate-800">Réguas vinculadas</p>
             <p className="mt-2">Se nenhuma régua específica for selecionada, o motor usa a régua padrão da carteira ou o fallback do sistema.</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -226,12 +254,11 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
               </FormField>
             </div>
           </div>
-
-        </CollapsibleArea>
+        </CollapsibleArea> : null}
         <div className="flex justify-end gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><ButtonLink href="/app/condominios" variant="secondary">Cancelar</ButtonLink><Button type="submit">Salvar Condomínio Integral</Button></div>
-      </form>
+      </form> : null}
 
-      <section id="historico" className="scroll-mt-24">
+      {abaAtiva === 'historico' ? <section id="historico" className="scroll-mt-24">
         <Card className="overflow-hidden p-0">
           <div className="border-b border-slate-100 p-5"><Badge tone="primary">Histórico</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Histórico operacional</h2><p className="mt-1 text-sm text-slate-500">Eventos do Condomínio Integral e importações recentes ficam concentrados aqui.</p></div>
           {eventos.length === 0 && importacoes.length === 0 ? <div className="p-5 text-sm text-slate-500">Nenhum histórico encontrado para este condomínio.</div> : (
@@ -241,21 +268,109 @@ export default async function CondominioIntegralPage({ params }: { params: Promi
             </div>
           )}
         </Card>
-      </section>
+      </section> : null}
 
-      <section id="auditoria" className="scroll-mt-24">
+      {abaAtiva === 'auditoria' ? <section id="auditoria" className="scroll-mt-24">
         <Card className="space-y-4">
           <div><Badge tone="primary">Auditoria</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Alterações rastreadas</h2><p className="mt-1 text-sm text-slate-500">Na Fase 2, toda edição salva no Condomínio Integral registra usuário, data e campos alterados.</p></div>
           <div className="grid gap-3 md:grid-cols-3"><AuditInfo title="Quem alterou" text="Nome e e-mail do usuário autenticado." /><AuditInfo title="O que mudou" text="Campos antes/depois em JSON estruturado." /><AuditInfo title="Quando mudou" text="Linha do tempo ordenada por data." /></div>
         </Card>
-      </section>
+      </section> : null}
+
+      {abaAtiva === 'rankings' ? <section id="rankings" className="scroll-mt-24">
+        <Card className="overflow-hidden p-0">
+          <div className="border-b border-slate-100 p-5">
+            <Badge tone="primary">Rankings</Badge>
+            <h2 className="mt-3 text-lg font-medium text-slate-950">Rankings mensais</h2>
+            <p className="mt-1 text-sm text-slate-500">Arquivos gerados pela captação/importação antes do recorte operacional das cobranças.</p>
+          </div>
+          {rankings.length === 0 ? (
+            <div className="p-5 text-sm text-slate-500">Nenhum ranking mensal gerado para este condomínio.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {rankings.map((ranking: any) => <RankingItem key={ranking.id} ranking={ranking} />)}
+            </div>
+          )}
+        </Card>
+      </section> : null}
     </div>
   )
 }
 
 function Kpi({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: string; detail: string }) { return <Card className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[0.16em] text-slate-400">{label}</p><p className="mt-3 text-3xl font-medium tracking-tight text-slate-950">{value}</p><p className="mt-1 text-sm text-slate-500">{detail}</p></div><div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">{icon}</div></div></Card> }
 function CollapsibleArea({ id, title, description, defaultOpen = false, children }: { id: string; title: string; description: string; defaultOpen?: boolean; children: React.ReactNode }) { return <details id={id} name="condominio-secoes" open={defaultOpen} className="group scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden"><div><p className="text-base font-semibold text-slate-950">{title}</p><p className="mt-1 text-sm text-slate-500">{description}</p></div><ChevronDown size={19} className="shrink-0 text-slate-400 transition-transform group-open:rotate-180" /></summary><div className="space-y-5 border-t border-slate-100 p-5">{children}</div></details> }
-function Tab({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) { return <a href={href} className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-950">{icon}{label}</a> }
+function HiddenInput({ name, value }: { name: string; value: unknown }) {
+  return <input type="hidden" name={name} value={String(value ?? '')} />
+}
+
+function HiddenCheckbox({ name, checked }: { name: string; checked: boolean }) {
+  return checked ? <input type="hidden" name={name} value="on" /> : null
+}
+
+function HiddenCondominioFields({ condominio, activeTab }: { condominio: any; activeTab: CondominioAba }) {
+  return <>
+    {activeTab !== 'cadastro' ? <>
+      <HiddenInput name="carteira_id" value={condominio.carteira_id} />
+      <HiddenInput name="status" value={condominio.status ?? 'ativo'} />
+      <HiddenInput name="nome" value={condominio.nome} />
+      <HiddenInput name="nome_operacional" value={condominio.nome_operacional} />
+      <HiddenInput name="cnpj" value={condominio.cnpj} />
+      <HiddenInput name="administradora" value={condominio.administradora} />
+      <HiddenInput name="mascara_unidade" value={condominio.mascara_unidade} />
+      <HiddenInput name="mascara_bloco" value={condominio.mascara_bloco} />
+      <HiddenInput name="sindico_email" value={condominio.sindico_email} />
+      <HiddenInput name="sindico_celular" value={condominio.sindico_celular} />
+      <HiddenInput name="gerente_email" value={condominio.gerente_email} />
+      <HiddenInput name="gerente_celular" value={condominio.gerente_celular} />
+      <HiddenInput name="endereco_logradouro" value={condominio.endereco_logradouro} />
+      <HiddenInput name="endereco_numero" value={condominio.endereco_numero} />
+      <HiddenInput name="endereco_complemento" value={condominio.endereco_complemento} />
+      <HiddenInput name="endereco_bairro" value={condominio.endereco_bairro} />
+      <HiddenInput name="endereco_cidade" value={condominio.endereco_cidade} />
+      <HiddenInput name="endereco_uf" value={condominio.endereco_uf} />
+      <HiddenInput name="endereco_cep" value={condominio.endereco_cep} />
+      <HiddenInput name="classificacao_operacional" value={condominio.classificacao_operacional ?? 'prata'} />
+      <HiddenInput name="observacoes" value={condominio.observacoes} />
+    </> : null}
+    {activeTab !== 'cobranca' ? <>
+      <HiddenInput name="vencimento_cota_dia" value={condominio.vencimento_cota_dia ?? 10} />
+      <HiddenInput name="valor_cota_condominial" value={String(condominio.valor_cota_condominial ?? 0).replace('.', ',')} />
+      <HiddenInput name="inicio_cobranca_dias" value={condominio.inicio_cobranca_dias ?? 30} />
+      <HiddenInput name="dias_cobranca_ativa" value={condominio.dias_cobranca_ativa ?? 60} />
+      <HiddenInput name="parcelas_acordo_sem_aprovacao_sindico" value={condominio.parcelas_acordo_sem_aprovacao_sindico ?? 0} />
+      <HiddenInput name="dias_reemissao_parcela_acordo_atrasada" value={condominio.dias_reemissao_parcela_acordo_atrasada ?? 0} />
+      <HiddenCheckbox name="pre_juridico_habilitado" checked={Boolean(condominio.pre_juridico_habilitado)} />
+      <HiddenCheckbox name="operacao_virtual_habilitada" checked={Boolean(condominio.operacao_virtual_habilitada)} />
+      <HiddenCheckbox name="captacao_automatica_habilitada" checked={Boolean(condominio.captacao_automatica_habilitada)} />
+      <HiddenInput name="captacao_dia_mes" value={condominio.captacao_dia_mes} />
+      <HiddenInput name="captacao_horario" value={String(condominio.captacao_horario ?? '08:00').slice(0, 5)} />
+      <HiddenCheckbox name="bloqueio_garantidora_habilitado" checked={Boolean(condominio.bloqueio_garantidora_habilitado)} />
+      <HiddenInput name="bloqueio_garantidora_inicio" value={String(condominio.bloqueio_garantidora_inicio ?? '').slice(0, 7)} />
+      <HiddenInput name="bloqueio_garantidora_fim" value={String(condominio.bloqueio_garantidora_fim ?? '').slice(0, 7)} />
+    </> : null}
+    {activeTab !== 'reguas' ? <>
+      <HiddenInput name="regua_cobranca_id" value={condominio.regua_cobranca_id} />
+      <HiddenInput name="regua_acordo_id" value={condominio.regua_acordo_id} />
+    </> : null}
+  </>
+}
+
+function Tab({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) { return <Link href={href} className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm transition ${active ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}>{icon}{label}</Link> }
+function RankingItem({ ranking }: { ranking: any }) {
+  const item = ranking.rankingMensal ?? {}
+  return <div className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-medium text-slate-950">{item.competencia ? `Competência ${item.competencia}` : ranking.nome_arquivo || 'Ranking mensal'}</p>
+        <StatusBadge status={ranking.status} />
+      </div>
+      <p className="mt-1 text-xs text-slate-500">{ranking.nome_arquivo || 'Arquivo da captação'} · gerado em {formatDateTime(item.geradoEm || ranking.atualizado_em || ranking.criado_em)}</p>
+      <p className="mt-2 text-sm text-slate-600">{item.totalUnidades ?? 0} unidades · {formatCurrency(item.valorTotal ?? 0)}</p>
+      {Array.isArray(item.resumoStatus) && item.resumoStatus.length ? <div className="mt-3 flex flex-wrap gap-2">{item.resumoStatus.map((status: any) => <span key={status.status} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{status.status}: {status.unidades}</span>)}</div> : null}
+    </div>
+    <ButtonLink href={`/api/captacao-automatizada/conversoes/${ranking.id}/ranking`} variant="secondary"><Download size={16} />Baixar ranking</ButtonLink>
+  </div>
+}
 function AuditInfo({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-medium text-slate-900">{title}</p><p className="mt-2 text-sm text-slate-500">{text}</p></div> }
 function TimelineItem({ evento }: { evento: any }) { const changes = Object.entries(evento.diferencas ?? {}); return <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><p className="text-sm font-medium text-slate-950">{evento.titulo}</p><p className="mt-1 text-xs text-slate-500">{formatDateTime(evento.criado_em)} · {evento.usuario_nome || evento.usuario_email || 'Usuário'}</p>{evento.descricao ? <p className="mt-2 text-sm text-slate-600">{evento.descricao}</p> : null}</div><Badge tone="slate">{formatEventoTipo(evento.evento_tipo)}</Badge></div>{changes.length > 0 ? <div className="mt-4 grid gap-2 md:grid-cols-2">{changes.slice(0, 6).map(([field, change]: [string, any]) => <div key={field} className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"><p className="uppercase tracking-[0.14em] text-slate-400">{formatField(field)}</p><p className="mt-2"><span className="text-slate-400">Antes:</span> {formatAuditValue(change?.antes)}</p><p className="mt-1"><span className="text-slate-400">Depois:</span> {formatAuditValue(change?.depois)}</p></div>)}</div> : null}</div> }
 function formatEventoTipo(value?: string | null) { return value ? value.replaceAll('_', ' ') : 'evento' }
@@ -263,3 +378,4 @@ function formatField(value: string) { return value.replaceAll('_', ' ') }
 function formatAuditValue(value: unknown) { if (value === null || value === undefined || value === '') return '-'; if (typeof value === 'boolean') return value ? 'sim' : 'não'; return String(value) }
 function formatDate(value?: string | null) { if (!value) return '-'; return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value)) }
 function formatDateTime(value?: string | null) { if (!value) return '-'; return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) }
+function formatCurrency(value: unknown) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value ?? 0)) }

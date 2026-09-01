@@ -234,6 +234,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const user = await requireUser()
 
   const id = String(formData.get('id') ?? '')
+  const aba = String(formData.get('aba') ?? '').trim()
   const carteiraId = String(formData.get('carteira_id') ?? '')
   const nome = normalizeCondominioName(String(formData.get('nome') ?? '').trim())
   const nomeOperacional = normalizeCondominioName(String(formData.get('nome_operacional') ?? '').trim())
@@ -359,5 +360,5 @@ export async function updateCondominioIntegral(formData: FormData) {
 
   revalidatePath('/app/condominios')
   revalidatePath(`/app/condominios/${id}`)
-  redirect(`/app/condominios/${id}`)
+  redirect(aba && aba !== 'cadastro' ? `/app/condominios/${id}?aba=${encodeURIComponent(aba)}` : `/app/condominios/${id}`)
 }
