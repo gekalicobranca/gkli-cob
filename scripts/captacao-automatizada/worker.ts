@@ -44,6 +44,7 @@ async function concluirPipeline(resumo: Awaited<ReturnType<typeof processarRelat
     carteiraId: resumo.carteiraId,
   }, "Importação automática")
   await executarEtapaHttp(`${baseUrl}/api/regua/processar`, secret, {
+    conversaoId: resumo.conversaoId,
     condominioId: resumo.condominioId,
     carteiraId: resumo.carteiraId,
   }, "Entrada na régua")

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -163,6 +164,7 @@ export default async function MaestroPage({ searchParams }: Props) {
   const agendaFiltro = getParam(params?.agenda)
   const scope = await getPermittedCarteiras()
   const supabase = await createClient()
+  const admin = createAdminClient()
   const { data: controleGlobal } = await supabase.from('automacao_controle').select('ativo, atualizado_em').eq('chave', 'captacao_global').maybeSingle()
   const captacaoAtiva = controleGlobal?.ativo !== false
 
@@ -172,22 +174,24 @@ export default async function MaestroPage({ searchParams }: Props) {
   if (condominiosError) throw new Error(`Erro ao carregar condomínios do Maestro: ${condominiosError.message}`)
 
   const condominioIds = (condominiosRaw ?? []).map((row: any) => row.id)
-  const [receitasResult, execucoesResult, conversoesResult] = condominioIds.length ? await Promise.all([
+  const [receitasResult, execucoesResult, conversoesResult, reguaExecucoesResult] = condominioIds.length ? await Promise.all([
     supabase.from('agente_receitas').select('id, carteira_id, nome, script_key, config_json, ativo, administradora:agente_administradoras(id,nome)').eq('ativo', true),
     supabase.from('agente_execucoes').select('id, condominio_id, receita_id, status, origem, competencia, agendado_para, created_at, iniciado_em, finalizado_em, erro_mensagem, arquivos:agente_arquivos(id,nome_arquivo,status_validacao,created_at)').in('condominio_id', condominioIds).is('oculto_em', null).order('created_at', { ascending: false }).limit(1000),
-    supabase.from('conversoes_relatorio').select('id, condominio_id, status, total_cobrancas, total_parcelas, criado_em, atualizado_em, inconsistencias_json').in('condominio_id', condominioIds).like('origem', 'captacao_automatizada:%').order('criado_em', { ascending: false }).limit(1000),
-  ]) : [{ data: [] }, { data: [] }, { data: [] }] as any
+    admin.from('conversoes_relatorio').select('id, condominio_id, status, total_cobrancas, total_parcelas, criado_em, atualizado_em, inconsistencias_json').in('condominio_id', condominioIds).like('origem', 'captacao_automatizada:%').order('criado_em', { ascending: false }).limit(1000),
+    admin.from('timeline_operacional').select('id, condominio_id, evento_tipo, descricao, payload, ocorreu_em, created_at').in('condominio_id', condominioIds).eq('evento_tipo', 'regua_cobranca.processada').order('ocorreu_em', { ascending: false }).limit(1000),
+  ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }] as any
 
   const receitas = receitasResult.data ?? []
   const execucoes = execucoesResult.data ?? []
   const conversoes = conversoesResult.data ?? []
+  const reguaExecucoes = reguaExecucoesResult.data ?? []
   const conversaoIdsConcluidas = conversoes.filter((row: any) => ['concluido', 'concluido_com_alertas'].includes(row.status)).map((row: any) => row.id)
   const { data: cobrancasImportadas } = conversaoIdsConcluidas.length
-    ? await supabase.from('cobrancas').select('id, condominio_id, conversao_relatorio_id').in('conversao_relatorio_id', conversaoIdsConcluidas).limit(5000)
+    ? await admin.from('cobrancas').select('id, condominio_id, conversao_relatorio_id').in('conversao_relatorio_id', conversaoIdsConcluidas).limit(5000)
     : { data: [] as any[] }
   const cobrancaIds = (cobrancasImportadas ?? []).map((row: any) => row.id)
   const { data: mensagensRegua } = cobrancaIds.length
-    ? await supabase.from('mensagens').select('id, cobranca_id, status, created_at').in('cobranca_id', cobrancaIds).contains('payload', { origem: 'regua_cobranca' }).order('created_at', { ascending: false }).limit(5000)
+    ? await admin.from('mensagens').select('id, cobranca_id, status, created_at').in('cobranca_id', cobrancaIds).contains('payload', { origem: 'regua_cobranca' }).order('created_at', { ascending: false }).limit(5000)
     : { data: [] as any[] }
   const mensagensPorCobranca = new Map((mensagensRegua ?? []).map((row: any) => [row.cobranca_id, row]))
 
@@ -206,6 +210,7 @@ export default async function MaestroPage({ searchParams }: Props) {
     const conversao = conversoes.find((item: any) => item.condominio_id === condominio.id)
     const cobrancas = (cobrancasImportadas ?? []).filter((item: any) => item.conversao_relatorio_id === conversao?.id)
     const mensagem = cobrancas.map((item: any) => mensagensPorCobranca.get(item.id)).filter(Boolean).sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)))[0] as any
+    const reguaExecucao = reguaExecucoes.find((item: any) => item.condominio_id === condominio.id && item.payload?.conversao_id === conversao?.id)
     const agendaConfigurada = Boolean(condominio.captacao_automatica_habilitada && condominio.captacao_dia_mes && receita?.script_key)
     const conversaoEstado = conversao ? estadoConversao(conversao.status) : 'aguardando'
     const importacaoConcluida = Boolean(conversao && ['concluido', 'concluido_com_alertas'].includes(conversao.status))
@@ -216,7 +221,7 @@ export default async function MaestroPage({ searchParams }: Props) {
       { nome: 'Arquivo', estado: arquivo ? (arquivo.status_validacao === 'rejeitado' ? 'atencao' : 'concluida') : execucao?.status === 'em_execucao' ? 'executando' : execucao?.status === 'sucesso' ? 'atencao' : 'aguardando', detalhe: arquivo?.nome_arquivo || (execucao?.status === 'sucesso' ? 'Execução terminou sem arquivo vinculado' : 'Aguardando download do relatório'), data: arquivo?.created_at },
       { nome: 'Conversão', estado: conversaoEstado, detalhe: conversao ? `${conversao.total_cobrancas ?? 0} cobranças · ${conversao.total_parcelas ?? 0} parcelas` : 'Aguardando arquivo para converter', data: conversao?.atualizado_em || conversao?.criado_em },
       { nome: 'Importação', estado: importacaoConcluida ? 'concluida' : conversao?.status === 'aguardando_validacao' ? 'atencao' : conversaoEstado === 'atencao' ? 'atencao' : 'aguardando', detalhe: importacaoConcluida ? `${cobrancas.length} cobranças conciliadas` : conversao?.status === 'aguardando_validacao' ? 'Validação manual ainda bloqueia a automação' : 'Aguardando conversão', data: importacaoConcluida ? conversao?.atualizado_em : null },
-      { nome: 'Régua', estado: !condominio.regua_cobranca_id ? 'nao_configurada' : mensagem ? 'concluida' : 'aguardando', detalhe: !condominio.regua_cobranca_id ? 'Régua de cobrança não vinculada' : mensagem ? `Acionamento ${String(mensagem.status ?? 'criado').replaceAll('_', ' ')}` : importacaoConcluida ? 'Importada e pronta para o próximo ciclo da régua' : 'Aguardando importação', data: mensagem?.created_at },
+      { nome: 'Régua', estado: !condominio.regua_cobranca_id ? 'nao_configurada' : mensagem || reguaExecucao ? 'concluida' : 'aguardando', detalhe: !condominio.regua_cobranca_id ? 'Régua de cobrança não vinculada' : mensagem ? `Acionamento ${String(mensagem.status ?? 'criado').replaceAll('_', ' ')}` : reguaExecucao ? reguaExecucao.descricao || 'Régua processada sem novas mensagens' : importacaoConcluida ? 'Importada e pronta para o próximo ciclo da régua' : 'Aguardando importação', data: mensagem?.created_at || reguaExecucao?.ocorreu_em || reguaExecucao?.created_at },
     ]
     return { condominio, carteira, administradora, receita, execucao, execucaoManualAgendada, conversao, etapas, resumo: resumoPipeline(etapas) }
   })
