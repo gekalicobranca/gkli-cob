@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
-import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, RotateCcw, Trash2, XCircle } from 'lucide-react'
 import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListRows } from '@/components/layout/list-page'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
-import { cancelarFlowCobranca, criarFlowsCobranca, enviarFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
+import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlowCobranca, enviarFlowCobranca, excluirFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 
 type StepId = 'lotes' | 'flows'
@@ -141,11 +141,12 @@ export function FlowCobrancaWorkbench({
   initialStep?: StepId
   initialSelectedIds?: string[]
 }) {
-  const [selected] = useState<string[]>(initialSelectedIds.length ? initialSelectedIds : disponibilidade.map((cobranca) => cobranca.id).filter(Boolean))
+  const [selected, setSelected] = useState<string[]>(initialSelectedIds)
   const selectedCobrancas = useMemo(() => disponibilidade.filter((cobranca) => selected.includes(cobranca.id)), [disponibilidade, selected])
   const grupos = useMemo(() => groupByCarteira(selectedCobrancas), [selectedCobrancas])
+  const gruposDisponiveis = useMemo(() => groupByCarteira(disponibilidade), [disponibilidade])
   const [openSteps, setOpenSteps] = useState<Record<StepId, boolean>>({
-    lotes: initialStep === 'lotes' || grupos.length > 0,
+    lotes: initialStep === 'lotes' || gruposDisponiveis.length > 0,
     flows: initialStep === 'flows' || flows.length > 0,
   })
 
@@ -160,31 +161,41 @@ export function FlowCobrancaWorkbench({
     setOpenSteps((current) => ({ ...current, [step]: isOpen }))
   }
 
+  function toggleGrupo(rows: any[]) {
+    const ids = rows.map((row) => String(row.id)).filter(Boolean)
+    const todosSelecionados = ids.length > 0 && ids.every((id) => selected.includes(id))
+    setSelected((current) => todosSelecionados
+      ? current.filter((id) => !ids.includes(id))
+      : Array.from(new Set([...current, ...ids])))
+  }
+
   return <div className="space-y-3">
     <ListPanel>
       <details open={openSteps.lotes} onToggle={(event) => syncStepOpen('lotes', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListCollapsibleSectionHeader title="Lotes + régua" count={grupos.length} />
         </summary>
-        {grupos.length ? <form action={criarFlowsCobranca} onSubmit={(event) => { if (!window.confirm(`Criar ${grupos.length} Flow(s) de cobrança?`)) event.preventDefault() }}>
+        {gruposDisponiveis.length ? <form action={criarFlowsCobranca}>
           {selectedCobrancas.map((cobranca) => <input key={cobranca.id} type="hidden" name="cobranca_id" value={cobranca.id} />)}
           <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
-            <p className="text-sm text-slate-600">{selectedCobrancas.length} cobrança(s) ativa(s), agrupadas em {grupos.length} lote(s) por carteira.</p>
+            <p className="text-sm text-slate-600">{selectedCobrancas.length} de {disponibilidade.length} cobrança(s) ativa(s) selecionada(s), agrupadas em {grupos.length} lote(s) por carteira.</p>
           </div>
           <ListRows>
-            {grupos.map((grupo) => {
+            {gruposDisponiveis.map((grupo) => {
+              const selecionadasNoGrupo = grupo.rows.filter((row) => selected.includes(row.id))
+              const grupoSelecionado = grupo.rows.length > 0 && selecionadasNoGrupo.length === grupo.rows.length
               const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
               const defaultRegua = opcoesRegua.find((regua: any) => regua.carteira_id === grupo.carteiraId)?.id ?? opcoesRegua[0]?.id ?? ''
               return <ListRow key={grupo.carteiraId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
                 <div>
-                  <p className="text-sm font-semibold text-slate-950">{grupo.carteiraNome}</p>
-                  <p className="mt-1 text-xs text-slate-500">{grupo.rows.length} cobrança(s) selecionada(s)</p>
+                  <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="checkbox" checked={grupoSelecionado} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)]" />{grupo.carteiraNome}</label>
+                  <p className="mt-1 text-xs text-slate-500">{selecionadasNoGrupo.length} de {grupo.rows.length} cobrança(s) selecionada(s)</p>
                 </div>
-                <div><p className="text-xs text-slate-400">Total</p><p className="text-sm font-medium text-slate-800">{formatCurrency(grupo.total)}</p></div>
-                <div><p className="text-xs text-slate-400">Lote</p><p className="text-sm text-slate-700">1 lote</p></div>
+                <div><p className="text-xs text-slate-400">Total selecionado</p><p className="text-sm font-medium text-slate-800">{formatCurrency(selecionadasNoGrupo.reduce((sum, row) => sum + cobrancaValue(row), 0))}</p></div>
+                <div><p className="text-xs text-slate-400">Lote</p><p className="text-sm text-slate-700">{selecionadasNoGrupo.length ? '1 lote' : 'Não selecionado'}</p></div>
                 <label className="text-xs font-medium text-slate-600">
                   Régua do Flow
-                  <select name={`regua_id:${grupo.carteiraId}`} required defaultValue={defaultRegua} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900">
+                  <select name={`regua_id:${grupo.carteiraId}`} required={selecionadasNoGrupo.length > 0} disabled={selecionadasNoGrupo.length === 0} defaultValue={defaultRegua} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400">
                     <option value="" disabled>Selecione</option>
                     {opcoesRegua.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}{regua.carteira_id ? '' : ' · global'}</option>)}
                   </select>
@@ -193,7 +204,8 @@ export function FlowCobrancaWorkbench({
             })}
           </ListRows>
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
-            <PendingSubmitButton pendingLabel="Criando flows..."><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
+            <PendingSubmitButton formAction={desfazerAtivacaoCobrancasFlowCobranca} formNoValidate variant="danger" disabled={selectedCobrancas.length === 0} pendingLabel="Desfazendo..." onClick={(event) => { if (!window.confirm(`Devolver ${selectedCobrancas.length} cobrança(s) para Novas?`)) event.preventDefault() }}><RotateCcw size={16} />Desfazer ativação</PendingSubmitButton>
+            <PendingSubmitButton disabled={selectedCobrancas.length === 0} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${grupos.length} Flow(s) de cobrança?`)) event.preventDefault() }}><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
           </div>
         </form> : <ListEmptyState title="Nenhum lote montado" description="Selecione cobranças novas no painel e clique em Ativar para montar o lote automaticamente." />}
       </details>
@@ -281,6 +293,9 @@ function FlowRow({ flow }: { flow: any }) {
         ) : null}
         {!['cancelado', 'concluido', 'concluido_com_falhas'].includes(status) ? (
           <form action={cancelarFlowCobranca.bind(null, flow.id)} onSubmit={(event) => { if (!window.confirm('Cancelar este Flow e os disparos pendentes?')) event.preventDefault() }}><PendingSubmitButton variant="secondary" pendingLabel="Cancelando..."><XCircle size={16} />Cancelar</PendingSubmitButton></form>
+        ) : null}
+        {status !== 'em_execucao' && counters.enviadas === 0 ? (
+          <form action={excluirFlowCobranca.bind(null, flow.id)} onSubmit={(event) => { if (!window.confirm('Excluir permanentemente este Flow, o lote e as mensagens nunca enviadas?')) event.preventDefault() }}><PendingSubmitButton variant="danger" pendingLabel="Excluindo..."><Trash2 size={16} />Excluir Flow</PendingSubmitButton></form>
         ) : null}
       </div>
     </div>

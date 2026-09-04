@@ -68,7 +68,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
                 type="submit"
                 formAction={excluirReguaOperacional.bind(null, regua.id)}
                 variant="danger"
-                confirmMessage="Confirmar exclusão desta régua? Só será excluída se não houver etapas nem vínculos com condomínios."
+                confirmMessage="Confirmar exclusão desta régua e de suas etapas? A exclusão será bloqueada se houver condomínio, Flow ou mensagem vinculada."
               >
                 <Trash2 size={16} /> Excluir régua
               </ReguaActionButton>

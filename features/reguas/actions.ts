@@ -234,15 +234,12 @@ export async function excluirReguaOperacional(id: string) {
     throw new Error('Você não tem permissão para excluir esta régua.')
   }
 
-  const { count: etapasCount, error: etapasError } = await supabase
+  const { data: etapas, error: etapasError } = await supabase
     .from('regua_etapas')
-    .select('id', { count: 'exact', head: true })
+    .select('id')
     .eq('regua_id', id)
 
   if (etapasError) throw new Error(`Erro ao validar etapas da régua: ${etapasError.message}`)
-  if ((etapasCount ?? 0) > 0) {
-    throw new Error('Esta régua já possui etapas. Inative a régua ou remova as etapas antes de excluir.')
-  }
 
   const coluna = (regua as any).tipo === 'acordo'
     ? 'regua_acordo_id'
@@ -257,6 +254,26 @@ export async function excluirReguaOperacional(id: string) {
   if (vinculosError) throw new Error(`Erro ao validar vínculos da régua: ${vinculosError.message}`)
   if ((vinculosCount ?? 0) > 0) {
     throw new Error('Esta régua está vinculada a condomínio. Remova o vínculo ou inative a régua.')
+  }
+
+  const flowTables = ['cobranca_flows', 'acordo_flows', 'pre_juridico_flows'] as const
+  for (const table of flowTables) {
+    const { count, error } = await supabase.from(table).select('id', { count: 'exact', head: true }).eq('regua_id', id)
+    if (error) throw new Error(`Erro ao validar histórico da régua: ${error.message}`)
+    if ((count ?? 0) > 0) throw new Error('Esta régua já foi usada em Flow e não pode ser excluída. Inative-a para preservar o histórico.')
+  }
+
+  const etapaIds = (etapas ?? []).map((etapa: any) => String(etapa.id)).filter(Boolean)
+  if (etapaIds.length) {
+    const { count: mensagensCount, error: mensagensError } = await supabase
+      .from('mensagens')
+      .select('id', { count: 'exact', head: true })
+      .in('regua_etapa_id', etapaIds)
+    if (mensagensError) throw new Error(`Erro ao validar mensagens da régua: ${mensagensError.message}`)
+    if ((mensagensCount ?? 0) > 0) throw new Error('Esta régua possui mensagens vinculadas e não pode ser excluída. Inative-a para preservar o histórico.')
+
+    const { error: deleteEtapasError } = await supabase.from('regua_etapas').delete().eq('regua_id', id)
+    if (deleteEtapasError) throw new Error(`Erro ao excluir etapas da régua: ${deleteEtapasError.message}`)
   }
 
   const { error } = await supabase.from('reguas').delete().eq('id', id)

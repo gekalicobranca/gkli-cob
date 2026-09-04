@@ -383,6 +383,84 @@ export async function cancelarFlowCobranca(flowId: string) {
   revalidatePath('/app/flows/cobranca')
 }
 
+export async function desfazerAtivacaoCobrancasFlowCobranca(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const scope = await getPermittedCarteiras()
+  const supabase = createAdminClient()
+  const cobrancaIds = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
+  if (!cobrancaIds.length) throw new Error('Selecione ao menos uma cobrança ativa.')
+
+  const idChunks = Array.from({ length: Math.ceil(cobrancaIds.length / 100) }, (_, index) => cobrancaIds.slice(index * 100, (index + 1) * 100))
+  const cobrancas: any[] = []
+  for (const ids of idChunks) {
+    let query = supabase
+      .from('cobrancas')
+      .select('id,carteira_id,status,status_operacional')
+      .in('id', ids)
+    query = applyCarteiraScope(query, scope.carteiraIds)
+    const { data, error } = await query
+    if (error) throw new Error(`Erro ao validar cobranças ativas: ${error.message}`)
+    cobrancas.push(...(data ?? []))
+  }
+  if (cobrancas.length !== cobrancaIds.length) throw new Error('Uma ou mais cobranças não estão disponíveis para alteração.')
+  if (cobrancas.some((row: any) => row.status_operacional !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA && row.status !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA)) {
+    throw new Error('Somente cobranças ativas e ainda sem Flow podem voltar para novas.')
+  }
+
+  for (const ids of idChunks) {
+    const { data: vinculadas, error: vinculadasError } = await supabase
+      .from('lote_itens')
+      .select('cobranca_id')
+      .in('cobranca_id', ids)
+      .not('cobranca_flow_id', 'is', null)
+      .limit(1)
+    if (vinculadasError) throw new Error(`Erro ao verificar vínculos com Flows: ${vinculadasError.message}`)
+    if ((vinculadas ?? []).length) throw new Error('Uma ou mais cobranças já pertencem a um Flow e não podem ser removidas por esta ação.')
+  }
+
+  for (const ids of idChunks) {
+    const { error: updateError } = await supabase
+      .from('cobrancas')
+      .update({
+        status: COBRANCA_STATUS_OPERACIONAL.NOVO,
+        status_operacional: COBRANCA_STATUS_OPERACIONAL.NOVO,
+      } as any)
+      .in('id', ids)
+    if (updateError) throw new Error(`Erro ao desfazer ativação das cobranças: ${updateError.message}`)
+  }
+
+  revalidatePath('/app/flows/cobranca')
+}
+
+export async function excluirFlowCobranca(flowId: string) {
+  await requireRole(['admin', 'gestor'])
+  const scope = await getPermittedCarteiras()
+  const supabase = createAdminClient()
+  const flow = await getFlow(supabase, flowId, scope)
+  if (flow.status === 'em_execucao') throw new Error('Pause ou cancele o Flow antes de excluí-lo.')
+
+  const { data: mensagens, error: mensagensError } = await supabase
+    .from('mensagens')
+    .select('id,status,sent_at,enviada_em,provider_message_id')
+    .eq('cobranca_flow_id', flowId)
+  if (mensagensError) throw new Error(`Erro ao validar mensagens do Flow: ${mensagensError.message}`)
+  const possuiEnvio = (mensagens ?? []).some((mensagem: any) =>
+    mensagem.status === MENSAGEM_STATUS.ENVIADA || mensagem.sent_at || mensagem.enviada_em || mensagem.provider_message_id,
+  )
+  if (possuiEnvio) throw new Error('Este Flow possui histórico de envio e não pode ser excluído. Cancele-o para preservar a auditoria.')
+
+  const { error: deleteMensagensError } = await supabase.from('mensagens').delete().eq('cobranca_flow_id', flowId)
+  if (deleteMensagensError) throw new Error(`Erro ao excluir mensagens do Flow: ${deleteMensagensError.message}`)
+  const { error: deleteItensError } = await supabase.from('lote_itens').delete().eq('lote_id', flow.lote_id)
+  if (deleteItensError) throw new Error(`Erro ao excluir itens do lote: ${deleteItensError.message}`)
+  const { error: deleteFlowError } = await supabase.from('cobranca_flows').delete().eq('id', flowId)
+  if (deleteFlowError) throw new Error(`Erro ao excluir Flow: ${deleteFlowError.message}`)
+  const { error: deleteLoteError } = await supabase.from('lotes').delete().eq('id', flow.lote_id)
+  if (deleteLoteError) throw new Error(`Erro ao excluir lote: ${deleteLoteError.message}`)
+
+  revalidatePath('/app/flows/cobranca')
+}
+
 export async function reenviarItemFlowCobranca(itemId: string) {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
