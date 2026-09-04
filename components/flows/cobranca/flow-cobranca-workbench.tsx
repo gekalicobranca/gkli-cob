@@ -156,7 +156,8 @@ export function FlowCobrancaWorkbench({
 
   function syncStepOpen(step: StepId, event: SyntheticEvent<HTMLDetailsElement>) {
     if (event.currentTarget !== event.target) return
-    setOpenSteps((current) => ({ ...current, [step]: event.currentTarget.open }))
+    const isOpen = event.currentTarget.open
+    setOpenSteps((current) => ({ ...current, [step]: isOpen }))
   }
 
   return <div className="space-y-3">
