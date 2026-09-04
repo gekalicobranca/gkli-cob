@@ -147,6 +147,9 @@ function EtapaForm({ reguaId, tipo, templates, etapa, compact = false }: { regua
         <FormField label="Template fixo opcional"><SearchableSelect name="template_id" options={templates.map((tpl: any) => ({ value: tpl.id, label: `${tpl.nome} - ${tpl.canal}` }))} selectedValue={etapa?.template_id ?? ''} placeholder="Resolver automatico por carteira/situacao" /></FormField>
         <FormField label="Horário início"><Input name="horario_inicio" type="time" defaultValue={etapa?.horario_inicio ?? '09:00'} /></FormField>
         <FormField label="Horário fim"><Input name="horario_fim" type="time" defaultValue={etapa?.horario_fim ?? '18:00'} /></FormField>
+        <FormField label="Template oficial WhatsApp"><Input name="whatsapp_template_nome" defaultValue={etapa?.whatsapp_template_nome ?? ''} placeholder="Ex.: gkli_cobranca_inicial" /></FormField>
+        <FormField label="Idioma do template"><Input name="whatsapp_template_idioma" defaultValue={etapa?.whatsapp_template_idioma ?? 'pt_BR'} placeholder="pt_BR" /></FormField>
+        <FormField label="Parâmetros do template"><Input name="whatsapp_template_parametros" defaultValue={(etapa?.whatsapp_template_parametros ?? []).join(', ')} placeholder="primeiro_nome, unidade, vencimento" /></FormField>
       </div>
       <FormField label="Fallback textual da etapa" hint="Opcional. Se não houver template fixo, o motor procura: carteira → global → fallback GKLI. Variáveis: {{carteira}}, {{responsavel}}, {{unidade}}, {{condominio}}, {{vencimento}}, {{valor}}, {{parcela_numero}}, {{valor_parcela}}.">
         <Textarea name="template" defaultValue={etapa?.template ?? ''} className={compact ? 'min-h-24' : 'min-h-28'} />

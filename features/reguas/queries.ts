@@ -85,7 +85,7 @@ export async function getReguaOperacional(id: string, scope: CarteiraScope): Pro
   function buildQuery(select: string) {
     let query = supabase
       .from('reguas')
-      .select(`${select}, etapas:regua_etapas(id, regua_id, ordem, nome, delay_dias, delay_referencia, canal, template, template_id, categoria_template, tom, horario_inicio, horario_fim, acao, ativo)`)
+      .select(`${select}, etapas:regua_etapas(id, regua_id, ordem, nome, delay_dias, delay_referencia, canal, template, template_id, categoria_template, tom, horario_inicio, horario_fim, acao, ativo, whatsapp_template_nome, whatsapp_template_idioma, whatsapp_template_parametros)`)
       .eq('id', id)
       .maybeSingle()
 
@@ -126,7 +126,7 @@ export async function listReguaEtapas(): Promise<ReguaEtapaResumo[]> {
 
   const { data, error } = await supabase
     .from('regua_etapas')
-    .select('id, regua_id, template_id, template, nome, ordem, canal, ativo')
+    .select('id, regua_id, template_id, template, nome, ordem, canal, ativo, whatsapp_template_nome, whatsapp_template_idioma, whatsapp_template_parametros')
     .order('ordem', { ascending: true })
 
   if (error) {

@@ -87,6 +87,17 @@ function formatDateTimeBR(value: string | null | undefined) {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
 }
 
+function whatsappProviderLabel(status?: string | null) {
+  const labels: Record<string, string> = {
+    accepted: "Aceita pela Meta",
+    sent: "Enviada pela Meta",
+    delivered: "Entregue no WhatsApp",
+    read: "Lida no WhatsApp",
+    failed: "Falha no WhatsApp",
+  };
+  return status ? labels[status] || status.replaceAll("_", " ") : "";
+}
+
 function countMensagensByStatus(
   itens: Array<{
     mensagem?: {
@@ -763,6 +774,13 @@ export default async function LoteDetalhePage({ params, searchParams }: PageProp
                       <p className="mt-2 text-[11px] text-slate-400">
                         Template: {mensagem.template.nome}
                       </p>
+                    ) : null}
+                    {mensagem?.provider_status ? (
+                      <div className={`mt-2 rounded-xl border px-3 py-2 text-xs ${mensagem.provider_status === "failed" ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                        <p className="font-medium">{whatsappProviderLabel(mensagem.provider_status)}</p>
+                        {mensagem.provider_template_name ? <p className="mt-1">Modelo Meta: {mensagem.provider_template_name}</p> : null}
+                        {mensagem.provider_error_message ? <p className="mt-1">{mensagem.provider_error_message}</p> : null}
+                      </div>
                     ) : null}
 
                     {mensagem?.id ? (

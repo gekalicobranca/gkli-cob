@@ -15,6 +15,7 @@ export async function POST(req: Request) {
       executarCobranca: tipo ? tipo === 'cobranca' : true,
       executarAcordos: tipo ? tipo === 'acordo' : true,
       executarPreJuridico: tipo === 'pre_juridico',
+      executarWhatsapp: tipo ? tipo === 'whatsapp' : true,
       dryRun,
     })
     return NextResponse.json(resultado)

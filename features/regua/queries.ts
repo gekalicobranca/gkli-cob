@@ -257,7 +257,7 @@ async function loadEtapasPorReguaMap(
 
   const { data, error } = await supabase
     .from("regua_etapas")
-    .select("id, regua_id, ordem, delay_dias, canal, template, template_id, categoria_template, tom, ativo")
+    .select("id, regua_id, ordem, delay_dias, canal, template, template_id, categoria_template, tom, ativo, whatsapp_template_nome, whatsapp_template_idioma, whatsapp_template_parametros")
     .in("regua_id", ids)
     .eq("ativo", true)
     .order("ordem", { ascending: true });
@@ -653,7 +653,7 @@ export async function carregarEtapasDeReguaAdmin(
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('regua_etapas')
-    .select('id, regua_id, ordem, delay_dias, canal, template, template_id, categoria_template, tom, ativo')
+    .select('id, regua_id, ordem, delay_dias, canal, template, template_id, categoria_template, tom, ativo, whatsapp_template_nome, whatsapp_template_idioma, whatsapp_template_parametros')
     .eq('regua_id', reguaId)
     .eq('ativo', true)
     .order('ordem', { ascending: true })

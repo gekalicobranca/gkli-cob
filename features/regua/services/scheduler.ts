@@ -3,12 +3,14 @@ import { processarReguaCobranca } from './processar-regua-cobranca'
 import { processarReguaAcordos } from './processar-regua-acordos'
 import { registrarEventoOperacional } from '@/features/operacional/service'
 import { executarDisparosPreJuridico } from '@/features/pre-juridico/dispatcher'
+import { executarDisparosWhatsapp } from '@/features/mensageria/whatsapp-cloud/dispatcher'
 
 type SchedulerParams = {
   origem?: 'cron' | 'manual' | 'api'
   executarCobranca?: boolean
   executarAcordos?: boolean
   executarPreJuridico?: boolean
+  executarWhatsapp?: boolean
   dryRun?: boolean
 }
 
@@ -43,7 +45,7 @@ export async function executarSchedulerReguas(params: SchedulerParams = {}) {
   const erros: string[] = []
 
   if (params.dryRun) {
-    return { ok: true, dryRun: true, cobranca: params.executarCobranca !== false, acordos: params.executarAcordos !== false, preJuridico: params.executarPreJuridico === true }
+    return { ok: true, dryRun: true, cobranca: params.executarCobranca !== false, acordos: params.executarAcordos !== false, preJuridico: params.executarPreJuridico === true, whatsapp: params.executarWhatsapp !== false }
   }
 
   if (params.executarCobranca !== false) {
@@ -77,6 +79,18 @@ export async function executarSchedulerReguas(params: SchedulerParams = {}) {
       await finalizarJob(jobId, 'concluido', resultados.preJuridico)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro inesperado nos disparos pré-jurídicos.'
+      erros.push(message)
+      await finalizarJob(jobId, 'erro', {}, message)
+    }
+  }
+
+  if (params.executarWhatsapp !== false) {
+    const jobId = await criarJob('whatsapp_dispatcher', origem)
+    try {
+      resultados.whatsapp = await executarDisparosWhatsapp()
+      await finalizarJob(jobId, 'concluido', resultados.whatsapp)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro inesperado nos disparos do WhatsApp.'
       erros.push(message)
       await finalizarJob(jobId, 'erro', {}, message)
     }

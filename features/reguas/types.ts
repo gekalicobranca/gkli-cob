@@ -38,4 +38,7 @@ export type ReguaEtapaResumo = {
   horario_fim: string | null
   acao: string | null
   ativo: boolean | null
+  whatsapp_template_nome?: string | null
+  whatsapp_template_idioma?: string | null
+  whatsapp_template_parametros?: string[] | null
 }

@@ -169,6 +169,9 @@ export async function salvarEtapaRegua(reguaId: string, formData: FormData) {
     horario_fim: s(formData, 'horario_fim') || null,
     acao: s(formData, 'acao') || 'enviar_mensagem',
     ativo: checkboxOn(formData, 'ativo'),
+    whatsapp_template_nome: s(formData, 'whatsapp_template_nome') || null,
+    whatsapp_template_idioma: s(formData, 'whatsapp_template_idioma') || 'pt_BR',
+    whatsapp_template_parametros: s(formData, 'whatsapp_template_parametros').split(',').map((value) => value.trim()).filter(Boolean),
     updated_at: new Date().toISOString(),
   }
 

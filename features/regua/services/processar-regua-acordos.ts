@@ -733,6 +733,9 @@ export async function processarReguaAcordos(
               payload: {
                 contexto,
                 template_resolvido: templateResolvido,
+                whatsapp_template_nome: (etapa as any)?.whatsapp_template_nome ?? null,
+                whatsapp_template_idioma: (etapa as any)?.whatsapp_template_idioma ?? 'pt_BR',
+                whatsapp_template_parametros: (etapa as any)?.whatsapp_template_parametros ?? [],
                 parcela_id: parcela.id,
                 dias_relativos_vencimento: diasRelativos,
                 data_disparo_planejada: dataDisparoPlanejada,
