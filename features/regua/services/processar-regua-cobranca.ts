@@ -27,6 +27,7 @@ import { verificarSuspensaoRegua } from "./suspension";
 import { salvarScoreRegua } from "./intelligence";
 import { resolveTemplateMensagem } from "@/features/mensageria/template-resolver";
 import { registrarLogMensageria } from "@/features/mensageria/engine/logs";
+import { createCarteiraCanalChecker, nomeCanalComunicacao } from "@/features/carteiras/canais";
 import type { ReguaTom } from "../types";
 import {
   cicloReferencia,
@@ -597,6 +598,7 @@ export async function processarReguaCobranca(
   const total = novoContador();
   const itens: ResultadoLoteRegua["itens"] = [];
   const lotesPorCarteiraRegua = new Map<string, LoteContext>();
+  const carteiraPermiteCanal = createCarteiraCanalChecker(supabase);
   const cooldownDias = Number(params.cooldownDias ?? 3);
   const ciclo = cicloReferencia();
   const selectedIdsForQuery = params.cobrancaIds
@@ -824,6 +826,22 @@ export async function processarReguaCobranca(
         }
 
         const canal = etapa.canal ?? "whatsapp";
+        if (!(await carteiraPermiteCanal(row.carteira_id, canal))) {
+          const motivo = `${nomeCanalComunicacao(canal)} não está habilitado para esta carteira.`;
+          total.puladas += 1;
+          lote.contadores.puladas += 1;
+          itens.push({ cobrancaId: row.id, status: LOTE_ITEM_STATUS.PULADA, motivo });
+          await criarItemLote({
+            supabase,
+            loteId: lote.id,
+            row,
+            status: LOTE_ITEM_STATUS.PULADA,
+            motivo,
+            reguaEtapaId: normalizarEtapaId(etapa.id),
+            payload: { canal, origem: "canal_desabilitado_carteira", ciclo },
+          });
+          continue;
+        }
         const reguaIdAtual = params.reguaId || condominio?.regua_cobranca_id || null;
         const preferenciaDestinatario = reguaIdAtual ? preferenciasReguas.get(reguaIdAtual) : null;
         const contatoRegua = escolherContatoRegua({

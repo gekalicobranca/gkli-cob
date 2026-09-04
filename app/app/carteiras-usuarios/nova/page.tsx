@@ -38,6 +38,21 @@ export default async function NovaCarteiraPage() {
             <Input name="percentual_participacao_resultado" type="number" min="0" max="100" step="0.0001" defaultValue="0" required />
           </FormField>
 
+          <fieldset className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <legend className="px-1 text-sm font-semibold text-slate-950">Canais de comunicação permitidos</legend>
+            <p className="mb-3 mt-1 text-xs text-slate-500">As réguas só poderão gerar mensagens nos canais selecionados para esta carteira.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900">
+                <input type="checkbox" name="email_habilitado" defaultChecked className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]" />
+                E-mail
+              </label>
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900">
+                <input type="checkbox" name="whatsapp_habilitado" className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]" />
+                WhatsApp
+              </label>
+            </div>
+          </fieldset>
+
           <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <input
               type="checkbox"

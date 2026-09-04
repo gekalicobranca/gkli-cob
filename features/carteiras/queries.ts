@@ -8,7 +8,7 @@ export async function listCarteiras(scope: CarteiraScope) {
 
   let query = supabase
     .from('carteiras')
-    .select('id, nome, descricao, ativo, pre_juridico_habilitado, percentual_participacao_resultado, nfse_emissor_cnpj, created_at')
+    .select('id, nome, descricao, ativo, pre_juridico_habilitado, email_habilitado, whatsapp_habilitado, percentual_participacao_resultado, nfse_emissor_cnpj, created_at')
     .order('nome', { ascending: true })
 
   query = applyCarteiraScope(query, scope.carteiraIds, 'id')
@@ -27,7 +27,7 @@ export async function listAllCarteirasForAdmin() {
 
   const { data, error } = await supabase
     .from('carteiras')
-    .select('id, nome, descricao, ativo, pre_juridico_habilitado, percentual_participacao_resultado, nfse_emissor_cnpj, created_at')
+    .select('id, nome, descricao, ativo, pre_juridico_habilitado, email_habilitado, whatsapp_habilitado, percentual_participacao_resultado, nfse_emissor_cnpj, created_at')
     .order('nome', { ascending: true })
 
   if (error) {
@@ -79,7 +79,7 @@ export async function getCarteiraByIdForAdmin(id: string) {
 
   const { data, error } = await supabase
     .from('carteiras')
-    .select('id, nome, descricao, logo_url, ativo, pre_juridico_habilitado, percentual_participacao_resultado, nfse_emissor_cnpj, nfse_emissor_razao_social, nfse_emissor_inscricao_municipal, nfse_emissor_municipio, nfse_emissor_uf, nfse_codigo_servico, nfse_codigo_lc116, nfse_serie_rps, created_at, updated_at')
+    .select('id, nome, descricao, logo_url, ativo, pre_juridico_habilitado, email_habilitado, whatsapp_habilitado, percentual_participacao_resultado, nfse_emissor_cnpj, nfse_emissor_razao_social, nfse_emissor_inscricao_municipal, nfse_emissor_municipio, nfse_emissor_uf, nfse_codigo_servico, nfse_codigo_lc116, nfse_serie_rps, created_at, updated_at')
     .eq('id', id)
     .maybeSingle()
 

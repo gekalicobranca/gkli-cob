@@ -19,6 +19,7 @@ import { verificarSuspensaoRegua } from './suspension'
 import { salvarScoreRegua } from './intelligence'
 import { resolveTemplateMensagem } from '@/features/mensageria/template-resolver'
 import { registrarLogMensageria } from '@/features/mensageria/engine/logs'
+import { createCarteiraCanalChecker, nomeCanalComunicacao } from '@/features/carteiras/canais'
 import type { ReguaEtapa, ReguaTom } from '../types'
 import {
   cicloReferencia,
@@ -416,6 +417,7 @@ export async function processarReguaAcordos(
   const total = novoContador()
   const itens: ResultadoLoteReguaAcordos['itens'] = []
   const lotesPorCarteiraRegua = new Map<string, LoteContext>()
+  const carteiraPermiteCanal = createCarteiraCanalChecker(supabase)
   const selectedParcelaIds = params.parcelaIds
     ? params.parcelaIds.map((id) => String(id).trim()).filter(Boolean)
     : null
@@ -570,6 +572,23 @@ export async function processarReguaAcordos(
           const etapas = await carregarEtapasDeReguaAdmin(params.reguaId || condominio?.regua_acordo_id, 'acordo')
           const etapa = selecionarEtapaAcordo({ etapas, diasRelativos }) ?? etapas[0] ?? DEFAULT_ACORDO_ETAPAS[0]
           const canal = etapa?.canal ?? 'whatsapp'
+          if (!(await carteiraPermiteCanal(acordo.carteira_id, canal))) {
+            const motivo = `${nomeCanalComunicacao(canal)} não está habilitado para esta carteira.`
+            total.puladas += 1
+            lote.contadores.puladas += 1
+            itens.push({ acordoId: acordo.id, parcelaId: parcela.id, status: LOTE_ITEM_STATUS.PULADA, motivo })
+            await criarItemLote({
+              supabase,
+              loteId: lote.id,
+              acordo,
+              parcela,
+              status: LOTE_ITEM_STATUS.PULADA,
+              motivo,
+              reguaEtapaId: normalizarEtapaId(etapa?.id),
+              payload: { canal, origem: 'canal_desabilitado_carteira', parcela_id: parcela.id },
+            })
+            continue
+          }
           const dataDisparoPlanejada = dataDisparoDaEtapa(parcela.vencimento, etapa?.delay_dias)
           const reguaIdAtual = params.reguaId || condominio?.regua_acordo_id || null
           const preferenciaDestinatario = reguaIdAtual ? preferenciasReguas.get(reguaIdAtual) : null
