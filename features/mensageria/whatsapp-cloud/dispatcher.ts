@@ -19,6 +19,12 @@ type ScheduledMessage = {
   acordo_flow_id: string | null
   pre_juridico_flow_id: string | null
 }
+
+type WhatsAppDispatchOptions = {
+  cobrancaFlowId?: string
+  acordoFlowId?: string
+  preJuridicoFlowId?: string
+}
 function templateValues(keys: unknown, payload: any) {
   if (!Array.isArray(keys)) return []
   const context = payload?.contexto ?? payload?.template_resolvido?.variables ?? {}
@@ -51,10 +57,10 @@ async function destinatarioBloqueado(supabase: any, original: string | null, nor
   return Boolean(data?.id)
 }
 
-export async function executarDisparosWhatsapp(limit = 50) {
+export async function executarDisparosWhatsapp(limit = 50, options: WhatsAppDispatchOptions = {}) {
   const supabase = createAdminClient()
   const agora = new Date().toISOString()
-  const { data, error } = await supabase
+  let query = supabase
     .from('mensagens')
     .select('id,carteira_id,lote_id,lote_item_id,cobranca_id,acordo_id,destinatario,payload,tentativas_envio,regua_etapa_id,cobranca_flow_id,acordo_flow_id,pre_juridico_flow_id')
     .eq('canal', 'whatsapp')
@@ -63,6 +69,10 @@ export async function executarDisparosWhatsapp(limit = 50) {
     .or(`proxima_tentativa_em.is.null,proxima_tentativa_em.lte.${agora}`)
     .order('agendada_para', { ascending: true })
     .limit(Math.max(1, Math.min(limit, 100)))
+  if (options.cobrancaFlowId) query = query.eq('cobranca_flow_id', options.cobrancaFlowId)
+  if (options.acordoFlowId) query = query.eq('acordo_flow_id', options.acordoFlowId)
+  if (options.preJuridicoFlowId) query = query.eq('pre_juridico_flow_id', options.preJuridicoFlowId)
+  const { data, error } = await query
   if (error) throw new Error(`Erro ao carregar disparos do WhatsApp: ${error.message}`)
 
   const messages = (data ?? []) as ScheduledMessage[]

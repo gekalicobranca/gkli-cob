@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { processarReguaCobranca } from '@/features/regua/services/processar-regua-cobranca'
 import { registrarLogMensageria } from '@/features/mensageria/engine/logs'
+import { executarDisparosWhatsapp } from '@/features/mensageria/whatsapp-cloud/dispatcher'
 import { COBRANCA_STATUS_OPERACIONAL } from '@/lib/constants/cobrancas'
 import { LOTE_ITEM_STATUS, LOTE_STATUS, MENSAGEM_STATUS } from '@/lib/core/status'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -325,6 +326,8 @@ export async function enviarFlowCobranca(flowId: string) {
     descricao: 'Flow cobrança liberado para agenda de disparos.',
     payload: { flow_id: flowId },
   })
+
+  await executarDisparosWhatsapp(100, { cobrancaFlowId: flowId })
 
   revalidatePath('/app/flows/cobranca')
 }
