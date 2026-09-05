@@ -14,6 +14,8 @@ import { getFlowCobrancaPageData, hasFlowCobrancaFilters, normalizeFlowCobrancaF
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatCurrency } from '@/utils/formatters/currency'
 
+export const maxDuration = 60
+
 type Params = Promise<{ step?: string; criados?: string; ativadas?: string; selecionadas?: string; carteira?: string; condominio?: string; vencimento?: string; vencimento_de?: string; vencimento_ate?: string }>
 
 function safeStep(value: unknown) {

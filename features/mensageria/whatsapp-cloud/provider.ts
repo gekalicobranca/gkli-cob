@@ -86,6 +86,7 @@ export async function sendWhatsAppTemplate(
     `https://graph.facebook.com/${encodeURIComponent(config.apiVersion)}/${encodeURIComponent(config.phoneNumberId)}/messages`,
     {
       method: 'POST',
+      signal: AbortSignal.timeout(45_000),
       headers: { authorization: `Bearer ${config.accessToken}`, 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     },

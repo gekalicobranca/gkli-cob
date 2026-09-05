@@ -354,6 +354,17 @@ export async function pausarFlowCobranca(flowId: string) {
   revalidatePath('/app/flows/cobranca')
 }
 
+export async function processarFlowCobrancaAgora(flowId: string) {
+  await requireRole(['admin', 'gestor', 'operador'])
+  const scope = await getPermittedCarteiras()
+  const supabase = createAdminClient()
+  const flow = await getFlow(supabase, flowId, scope)
+  if (flow.status !== 'em_execucao') throw new Error('Somente Flows em execução podem ser processados agora.')
+
+  await executarDisparosWhatsapp(100, { cobrancaFlowId: flowId })
+  revalidatePath('/app/flows/cobranca')
+}
+
 export async function cancelarFlowCobranca(flowId: string) {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()

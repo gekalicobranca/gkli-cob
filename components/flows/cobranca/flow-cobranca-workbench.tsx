@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
-import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, RotateCcw, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, RefreshCw, RotateCcw, Trash2, XCircle } from 'lucide-react'
 import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListRows } from '@/components/layout/list-page'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
-import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlowCobranca, enviarFlowCobranca, excluirFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
+import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlowCobranca, enviarFlowCobranca, excluirFlowCobranca, pausarFlowCobranca, processarFlowCobrancaAgora, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 
 type StepId = 'lotes' | 'flows'
@@ -289,7 +289,10 @@ function FlowRow({ flow }: { flow: any }) {
           <form action={enviarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton pendingLabel={status === 'pausado' ? 'Retomando...' : 'Enviando...'}><Play size={16} />{status === 'pausado' ? 'Retomar' : 'Enviar'}</PendingSubmitButton></form>
         ) : null}
         {status === 'em_execucao' ? (
-          <form action={pausarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton variant="secondary" pendingLabel="Pausando..."><CirclePause size={16} />Pausar</PendingSubmitButton></form>
+          <>
+            <form action={processarFlowCobrancaAgora.bind(null, flow.id)}><PendingSubmitButton pendingLabel="Processando..."><RefreshCw size={16} />Processar agora</PendingSubmitButton></form>
+            <form action={pausarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton variant="secondary" pendingLabel="Pausando..."><CirclePause size={16} />Pausar</PendingSubmitButton></form>
+          </>
         ) : null}
         {!['cancelado', 'concluido', 'concluido_com_falhas'].includes(status) ? (
           <form action={cancelarFlowCobranca.bind(null, flow.id)} onSubmit={(event) => { if (!window.confirm('Cancelar este Flow e os disparos pendentes?')) event.preventDefault() }}><PendingSubmitButton variant="secondary" pendingLabel="Cancelando..."><XCircle size={16} />Cancelar</PendingSubmitButton></form>
