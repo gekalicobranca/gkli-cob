@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
+import { useRouter } from 'next/navigation'
 import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, RefreshCw, RotateCcw, Trash2, XCircle } from 'lucide-react'
 import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListRows } from '@/components/layout/list-page'
+import { Button } from '@/components/ui/button'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
-import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlowCobranca, enviarFlowCobranca, excluirFlowCobranca, pausarFlowCobranca, processarFlowCobrancaAgora, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
+import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlowCobranca, enviarFlowCobranca, excluirFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 
 type StepId = 'lotes' | 'flows'
@@ -223,6 +225,7 @@ export function FlowCobrancaWorkbench({
 }
 
 function FlowRow({ flow }: { flow: any }) {
+  const router = useRouter()
   const status = String(flow.status ?? 'pronto')
   const carteira = relation(flow.carteira)
   const regua = relation(flow.regua)
@@ -231,6 +234,8 @@ function FlowRow({ flow }: { flow: any }) {
   const [itensLoaded, setItensLoaded] = useState(itens.length > 0)
   const [itensLoading, setItensLoading] = useState(false)
   const [itensError, setItensError] = useState('')
+  const [processando, setProcessando] = useState(false)
+  const [processarError, setProcessarError] = useState('')
   const counters = {
     pendentes: n(flow.total_pendentes),
     agendadas: n(flow.total_agendadas),
@@ -253,6 +258,24 @@ function FlowRow({ flow }: { flow: any }) {
       setItensError(error instanceof Error ? error.message : 'Não foi possível carregar os itens do Flow.')
     } finally {
       setItensLoading(false)
+    }
+  }
+
+  async function processarAgora() {
+    if (processando) return
+    setProcessando(true)
+    setProcessarError('')
+    try {
+      const response = await fetch(`/api/flows/cobranca/${flow.id}/processar`, { method: 'POST' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload?.error || 'Não foi possível processar o Flow.')
+      setItensLoaded(false)
+      setItens([])
+      router.refresh()
+    } catch (error) {
+      setProcessarError(error instanceof Error ? error.message : 'Não foi possível processar o Flow.')
+    } finally {
+      setProcessando(false)
     }
   }
 
@@ -290,7 +313,9 @@ function FlowRow({ flow }: { flow: any }) {
         ) : null}
         {status === 'em_execucao' ? (
           <>
-            <form action={processarFlowCobrancaAgora.bind(null, flow.id)}><PendingSubmitButton pendingLabel="Processando..."><RefreshCw size={16} />Processar agora</PendingSubmitButton></form>
+            <Button type="button" disabled={processando} onClick={() => void processarAgora()}>
+              <RefreshCw size={16} className={processando ? 'animate-spin' : ''} />{processando ? 'Processando...' : 'Processar agora'}
+            </Button>
             <form action={pausarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton variant="secondary" pendingLabel="Pausando..."><CirclePause size={16} />Pausar</PendingSubmitButton></form>
           </>
         ) : null}
@@ -301,6 +326,7 @@ function FlowRow({ flow }: { flow: any }) {
           <form action={excluirFlowCobranca.bind(null, flow.id)} onSubmit={(event) => { if (!window.confirm('Excluir permanentemente este Flow, o lote e as mensagens nunca enviadas?')) event.preventDefault() }}><PendingSubmitButton variant="danger" pendingLabel="Excluindo..."><Trash2 size={16} />Excluir Flow</PendingSubmitButton></form>
         ) : null}
       </div>
+      {processarError ? <p className="text-xs font-medium text-rose-700 lg:col-span-2">{processarError}</p> : null}
     </div>
     <div className="border-t border-slate-100 bg-white px-4 py-3">
       <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">

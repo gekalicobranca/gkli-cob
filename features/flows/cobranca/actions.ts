@@ -1,7 +1,5 @@
 'use server'
 
-import { after } from 'next/server'
-
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { processarReguaCobranca } from '@/features/regua/services/processar-regua-cobranca'
@@ -353,21 +351,6 @@ export async function pausarFlowCobranca(flowId: string) {
     .update({ status: 'pausado', pausado_em: agora, proximo_disparo_em: null, atualizado_por: user.id } as any)
     .eq('id', flowId)
   if (error) throw new Error(`Erro ao pausar Flow: ${error.message}`)
-  revalidatePath('/app/flows/cobranca')
-}
-
-export async function processarFlowCobrancaAgora(flowId: string) {
-  await requireRole(['admin', 'gestor', 'operador'])
-  const scope = await getPermittedCarteiras()
-  const supabase = createAdminClient()
-  const flow = await getFlow(supabase, flowId, scope)
-  if (flow.status !== 'em_execucao') throw new Error('Somente Flows em execução podem ser processados agora.')
-
-  // O envio externo continua depois que a ação devolve o controle para a tela.
-  // Assim, a navegação do usuário não encerra a chamada à Meta no meio.
-  after(async () => {
-    await executarDisparosWhatsapp(100, { cobrancaFlowId: flowId })
-  })
   revalidatePath('/app/flows/cobranca')
 }
 
