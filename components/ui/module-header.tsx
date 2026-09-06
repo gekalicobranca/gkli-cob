@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 type HeaderVariant = 'default' | 'compact' | 'subtle'
 
 type ModuleHeaderProps = {
-  eyebrow?: string
+  eyebrow?: ReactNode
   title: string
   description?: string
   actions?: ReactNode

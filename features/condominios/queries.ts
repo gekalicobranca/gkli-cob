@@ -76,7 +76,7 @@ export function hasCondominioFilters(filters: CondominioFilters = {}) {
   return Boolean(normalized.search || normalized.carteiraId || normalized.administradora || normalized.status)
 }
 
-export async function listCondominios(scope: CarteiraScope, filters: CondominioFilters = {}) {
+export async function listCondominios(scope: CarteiraScope, filters: CondominioFilters = {}, options: { all?: boolean } = {}) {
   const supabase = await createClient()
   const normalized = normalizeCondominioFilters(filters)
 
@@ -84,6 +84,7 @@ export async function listCondominios(scope: CarteiraScope, filters: CondominioF
     .from('condominios')
     .select(CONDOMINIO_SELECT)
     .order('nome', { ascending: true })
+    .order('id', { ascending: true })
 
   query = applyCarteiraScope(query, scope.carteiraIds)
 
@@ -117,13 +118,15 @@ export async function listCondominios(scope: CarteiraScope, filters: CondominioF
     query = query.or(clauses.join(','))
   }
 
-  const { data, error } = await query
-
-  if (error) {
-    throw new Error(`Erro ao carregar condomínios: ${error.message}`)
-  }
-
-  return normalizeRelationsList((data ?? []) as any[], ['carteiras']) as any[]
+  const rows: any[] = []
+  const batchSize = 500
+  do {
+    const { data, error } = await (options.all ? query.range(rows.length, rows.length + batchSize - 1) : query)
+    if (error) throw new Error(`Erro ao carregar condomínios: ${error.message}`)
+    rows.push(...(data ?? []))
+    if (!options.all || (data ?? []).length < batchSize) break
+  } while (true)
+  return normalizeRelationsList(rows, ['carteiras']) as any[]
 }
 
 

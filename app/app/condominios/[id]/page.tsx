@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Activity, BarChart3, ChevronDown, ClipboardList, Download, FileClock, History, Home, Landmark, PencilLine, Users } from 'lucide-react'
+import { Activity, BarChart3, Bot, BotOff, ChevronDown, CircleHelp, ClipboardList, Download, FileClock, History, Home, Landmark, PencilLine, Users } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -16,6 +16,7 @@ import { getCondominioIntegral, listEventosDoCondominio, listImportacoesDoCondom
 import { listReguasForSelect } from '@/features/reguas/queries'
 import { updateCondominioIntegral } from '@/features/condominios/actions'
 import { ClassificacaoOperacionalBadge, ClassificacaoOperacionalField } from '@/features/condominios/components/classificacao-operacional'
+import { getCondominioAgenteStatus } from '@/features/agente-automatico/queries'
 
 type CondominioAba = 'cadastro' | 'cobranca' | 'reguas' | 'historico' | 'auditoria' | 'rankings'
 
@@ -47,12 +48,13 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
 
   if (!condominio) notFound()
 
-  const [unidades, responsaveis, importacoes, eventos, rankings] = await Promise.all([
+  const [unidades, responsaveis, importacoes, eventos, rankings, agenteStatus] = await Promise.all([
     listUnidadesDoCondominio(condominio.id, scope),
     listResponsaveisDoCondominio(condominio.id, scope),
     listImportacoesDoCondominio(condominio, scope),
     listEventosDoCondominio(condominio, scope),
     listRankingsDoCondominio(condominio, scope),
+    getCondominioAgenteStatus(condominio.id, scope.carteiraIds),
   ])
 
   const unidadesAtivas = unidades.filter((row: any) => ['ativo', 'ativa'].includes(String(row.status ?? '').toLowerCase())).length
@@ -70,11 +72,27 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
   const contatosReguaCompletos = contatosReguaPreenchidos === 4
   const ultimaImportacao = importacoes[0]
   const nomeExibicao = condominio.nome_operacional || condominio.nome || 'Condomínio'
+  const agenteLabel = agenteStatus === 'configurado'
+    ? 'Acesso remoto/agente configurado'
+    : agenteStatus === 'nao_configurado'
+      ? 'Sem acesso remoto/agente ativo configurado'
+      : 'Não foi possível verificar a configuração do acesso remoto/agente'
+  const AgenteIcon = agenteStatus === 'configurado' ? Bot : agenteStatus === 'nao_configurado' ? BotOff : CircleHelp
 
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Base Cadastral · Condomínio Integral"
+        eyebrow={
+          <span
+            role="img"
+            aria-label={agenteLabel}
+            title={agenteLabel}
+            tabIndex={0}
+            className={`inline-flex rounded-lg border p-1.5 align-middle outline-none focus-visible:ring-2 focus-visible:ring-white ${agenteStatus === 'configurado' ? 'border-emerald-200/30 bg-emerald-300/15 text-emerald-200' : 'border-white/20 bg-white/10 text-white/65'}`}
+          >
+            <AgenteIcon size={18} aria-hidden="true" />
+          </span>
+        }
         title={nomeExibicao}
         description={condominio.nome_operacional && condominio.nome_operacional !== condominio.nome ? `Razão/Nome oficial: ${condominio.nome}` : 'Cadastro integral, exportações e parâmetros operacionais do condomínio.'}
         actions={
@@ -355,7 +373,17 @@ function HiddenCondominioFields({ condominio, activeTab }: { condominio: any; ac
   </>
 }
 
-function Tab({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) { return <Link href={href} className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm transition ${active ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'}`}>{icon}{label}</Link> }
+function Tab({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--gkli-primary)] ${active ? 'bg-slate-950 !text-white shadow-sm [&_svg]:!text-white' : '!text-slate-600 hover:bg-slate-100 hover:!text-slate-950'}`}
+    >
+      {icon}{label}
+    </Link>
+  )
+}
 function RankingItem({ ranking }: { ranking: any }) {
   const item = ranking.rankingMensal ?? {}
   return <div className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">

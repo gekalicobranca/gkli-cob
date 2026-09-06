@@ -1,6 +1,45 @@
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 
+export type CondominioAgenteStatus = 'configurado' | 'nao_configurado' | 'indisponivel'
+
+export async function getCondominiosAgenteStatus(condominioIds: string[], carteiraIds: string[] | null) {
+  const ids = [...new Set(condominioIds)]
+  const statuses = new Map<string, CondominioAgenteStatus>(ids.map(id => [id, 'nao_configurado']))
+  if (!ids.length) return statuses
+  const supabase = await createClient()
+  for (let i = 0; i < ids.length; i += 100) {
+    const batch = ids.slice(i, i + 100)
+    for (let offset = 0; ; offset += 500) {
+      let query = supabase
+        .from('agente_receitas')
+        .select('id, condominio_id:config_json->>condominio_id, administradora:agente_administradoras!inner(ativo)')
+        .in('config_json->>condominio_id', batch)
+        .eq('ativo', true)
+        .eq('administradora.ativo', true)
+        .not('script_key', 'is', null)
+        .neq('script_key', '')
+        .order('id')
+        .range(offset, offset + 499)
+      query = applyCarteiraScope(query, carteiraIds)
+      const { data, error } = await query
+      if (error) {
+        console.error('Erro ao consultar configuração do agente dos condomínios:', error.message)
+        for (const id of batch) statuses.set(id, 'indisponivel')
+        break
+      }
+      for (const row of data ?? []) statuses.set(row.condominio_id, 'configurado')
+      if ((data ?? []).length < 500) break
+    }
+  }
+  return statuses
+}
+
+export async function getCondominioAgenteStatus(condominioId: string, carteiraIds: string[] | null) {
+  const statuses = await getCondominiosAgenteStatus([condominioId], carteiraIds)
+  return statuses.get(condominioId) ?? 'indisponivel'
+}
+
 export async function listAgenteAdministradoras(carteiraIds: string[] | null) {
   const supabase = await createClient()
 

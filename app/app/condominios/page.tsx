@@ -1,5 +1,6 @@
+import { sortCondominios } from '@/features/condominios/sort'
 import Link from 'next/link'
-import { ArrowUpRight, Building2, Download, Edit3, Filter, Plus } from 'lucide-react'
+import { ArrowUpRight, Building2, Download, Edit3, FileText, Filter, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -58,31 +59,6 @@ function condominiosHref(params: Record<string, string | undefined>, page: numbe
   return qs ? `/app/condominios?${qs}` : '/app/condominios'
 }
 
-function normalizeText(value: unknown) {
-  return String(value ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-}
-
-function sortCondominios(rows: any[], ordenar: string) {
-  const field = ordenar || 'nome'
-  return [...rows].sort((a, b) => {
-    const getValue = (row: any) => {
-      if (field === 'administradora') return normalizeText(row.administradora)
-      if (field === 'status') return normalizeText(row.status)
-      if (field === 'carteira') return normalizeText(row.carteiras?.nome)
-      if (field === 'regua_asc' || field === 'regua_desc') return Number(row.inicio_cobranca_dias ?? 0)
-      if (field === 'cota_asc' || field === 'cota_desc') return Number(row.valor_cota_condominial ?? 0)
-      return normalizeText(row.nome_operacional || row.nome)
-    }
-    const av = getValue(a)
-    const bv = getValue(b)
-    if (typeof av === 'number' && typeof bv === 'number') return field.endsWith('_desc') ? bv - av : av - bv
-    return String(av).localeCompare(String(bv), 'pt-BR', { numeric: true })
-  })
-}
-
 export default async function CondominiosPage({ searchParams }: CondominiosPageProps) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
@@ -113,6 +89,11 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
   if (filters.carteiraId) exportParams.set('carteira_id', filters.carteiraId)
 
   const exportCondominiosHref = `/api/condominios/exportacoes/condominios${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
+  const reportParams = new URLSearchParams({ status: filters.status ?? '', ordenar })
+  if (filters.search) reportParams.set('q', filters.search)
+  if (filters.carteiraId) reportParams.set('carteira_id', filters.carteiraId)
+  if (filters.administradora) reportParams.set('administradora', filters.administradora)
+  const reportHref = '/api/condominios/relatorio-executivo?' + reportParams.toString()
   const ativos = filteredRows.filter((row: any) => row.status === 'ativo').length
   const mediaRegua = filteredRows.length
     ? Math.round(filteredRows.reduce((sum: number, row: any) => sum + Number(row.inicio_cobranca_dias ?? 0), 0) / filteredRows.length)
@@ -136,6 +117,10 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
         description="Base de condomínios, filtros operacionais, regras de início de cobrança e vínculo com carteiras."
         actions={
           <>
+            <ButtonLink href={reportHref} variant="secondary" target="_blank">
+              <FileText size={16} />
+              Relatório executivo
+            </ButtonLink>
             <ButtonLink href={exportCondominiosHref} variant="secondary">
               <Download size={16} />
               Exportar
