@@ -155,7 +155,7 @@ export async function executarDisparosWhatsapp(limit = 50, options: WhatsAppDisp
       const failedAt = new Date().toISOString()
       const retry = providerError.retryable && attempt < 3
       const retryAt = retry ? new Date(Date.now() + Math.min(60, 2 ** attempt * 5) * 60_000).toISOString() : null
-      await supabase.from('mensagens').update({
+      const { error: failureUpdateError } = await supabase.from('mensagens').update({
         status: retry ? MENSAGEM_STATUS.AGENDADA : MENSAGEM_STATUS.FALHA,
         status_operacional: retry ? MENSAGEM_STATUS.AGENDADA : MENSAGEM_STATUS.FALHA,
         provider: 'meta_cloud_api', provider_recipient: recipient || null, provider_status: retry ? 'retry_scheduled' : 'failed',
@@ -163,6 +163,7 @@ export async function executarDisparosWhatsapp(limit = 50, options: WhatsAppDisp
         provider_failed_at: failedAt, ultima_tentativa_em: failedAt, proxima_tentativa_em: retryAt,
         tentativas_envio: attempt, erro: providerError.message, erro_envio: providerError.message,
       } as any).eq('id', message.id)
+      if (failureUpdateError) throw new Error(`Erro ao registrar falha do WhatsApp: ${failureUpdateError.message}`)
       if (!retry && message.lote_item_id) await supabase.from('lote_itens').update({ status: LOTE_ITEM_STATUS.ERRO, erro: providerError.message } as any).eq('id', message.lote_item_id)
       await registrarLogMensageria(supabase, { carteira_id: message.carteira_id, lote_id: message.lote_id, lote_item_id: message.lote_item_id, mensagem_id: message.id, evento: retry ? 'whatsapp_reagendado' : 'whatsapp_falhou', status_anterior: MENSAGEM_STATUS.AGENDADA, status_novo: retry ? MENSAGEM_STATUS.AGENDADA : MENSAGEM_STATUS.FALHA, descricao: providerError.message, payload: { codigo: providerError.code, tentativa: attempt, proxima_tentativa_em: retryAt } })
       if (retry) result.reagendadas += 1
