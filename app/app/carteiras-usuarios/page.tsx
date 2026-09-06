@@ -79,6 +79,7 @@ export default async function CarteirasUsuariosPage() {
                     <StatusBadge status={carteira.pre_juridico_habilitado ? 'pré-jurídico' : 'sem pré-jurídico'} />
                     {carteira.email_habilitado !== false ? <StatusBadge status="e-mail" /> : null}
                     {carteira.whatsapp_habilitado ? <StatusBadge status="WhatsApp" /> : null}
+                    {carteira.whatsapp_habilitado ? <StatusBadge status={carteira.whatsapp_remetente_modo === 'proprio' ? `Linha própria ${carteira.whatsapp_numero_proprio ?? ''}`.trim() : 'Linha global GEKALI'} /> : null}
                     <ButtonLink href={`/app/carteiras-usuarios/${carteira.id}/editar`} variant="secondary" size="sm"><Edit3 size={14} />Editar</ButtonLink>
                   </div>
                 </div>

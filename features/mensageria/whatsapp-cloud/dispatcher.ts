@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/utils/supabase/admin'
 import { LOTE_ITEM_STATUS, MENSAGEM_STATUS } from '@/lib/core/status'
 import { registrarLogMensageria } from '@/features/mensageria/engine/logs'
-import { sendWhatsAppTemplate, WhatsAppProviderError, normalizeWhatsAppPhone } from './provider'
+import { getWhatsAppCloudConfig, sendWhatsAppTemplate, WhatsAppProviderError, normalizeWhatsAppPhone } from './provider'
 import { recalcularReferenciasMensagem } from './flows'
 
 type ScheduledMessage = {
@@ -77,11 +77,18 @@ export async function executarDisparosWhatsapp(limit = 50, options: WhatsAppDisp
 
   const messages = (data ?? []) as ScheduledMessage[]
   const stepIds = Array.from(new Set(messages.map((row) => row.regua_etapa_id).filter(Boolean) as string[]))
+  const carteiraIds = Array.from(new Set(messages.map((row) => row.carteira_id).filter(Boolean) as string[]))
   const { data: stepRows, error: stepError } = stepIds.length
     ? await supabase.from('regua_etapas').select('id,whatsapp_template_nome,whatsapp_template_idioma,whatsapp_template_parametros').in('id', stepIds)
     : { data: [], error: null }
   if (stepError) throw new Error(`Erro ao carregar templates oficiais: ${stepError.message}`)
   const steps = new Map((stepRows ?? []).map((row: any) => [row.id, row]))
+
+  const { data: carteiraRows, error: carteiraError } = carteiraIds.length
+    ? await supabase.from('carteiras').select('id,whatsapp_remetente_modo,whatsapp_phone_number_id').in('id', carteiraIds)
+    : { data: [], error: null }
+  if (carteiraError) throw new Error(`Erro ao carregar a linha de WhatsApp da carteira: ${carteiraError.message}`)
+  const carteiras = new Map((carteiraRows ?? []).map((row: any) => [row.id, row]))
 
   const cobrancaFlows = await activeFlowMap(supabase, 'cobranca_flows', Array.from(new Set(messages.map((row) => row.cobranca_flow_id).filter(Boolean) as string[])))
   const acordoFlows = await activeFlowMap(supabase, 'acordo_flows', Array.from(new Set(messages.map((row) => row.acordo_flow_id).filter(Boolean) as string[])))
@@ -110,6 +117,7 @@ export async function executarDisparosWhatsapp(limit = 50, options: WhatsAppDisp
     if (!claim) continue
 
     const recipient = normalizeWhatsAppPhone(message.destinatario)
+    let senderPhoneNumberId: string | null = null
     try {
       if (!recipient) throw new WhatsAppProviderError('Número de WhatsApp inválido.', { status: 400, code: 'invalid_recipient', retryable: false })
       if (await destinatarioBloqueado(supabase, message.destinatario, recipient)) {
@@ -119,17 +127,28 @@ export async function executarDisparosWhatsapp(limit = 50, options: WhatsAppDisp
       const templateName = String(step?.whatsapp_template_nome ?? message.payload?.whatsapp_template_nome ?? '').trim()
       const languageCode = String(step?.whatsapp_template_idioma ?? message.payload?.whatsapp_template_idioma ?? 'pt_BR')
       const parameterKeys = step?.whatsapp_template_parametros ?? message.payload?.whatsapp_template_parametros ?? []
+      const carteira = message.carteira_id ? carteiras.get(message.carteira_id) : null
+      const config = getWhatsAppCloudConfig()
+      if (carteira?.whatsapp_remetente_modo === 'proprio') {
+        const ownPhoneNumberId = String(carteira.whatsapp_phone_number_id ?? '').trim()
+        if (!ownPhoneNumberId) {
+          throw new WhatsAppProviderError('A carteira está configurada com número próprio, mas não possui Phone Number ID.', { status: 400, code: 'missing_carteira_phone_number_id', retryable: false })
+        }
+        config.phoneNumberId = ownPhoneNumberId
+      }
+      senderPhoneNumberId = config.phoneNumberId
       const response = await sendWhatsAppTemplate({
         to: recipient,
         templateName,
         languageCode,
         parameters: templateValues(parameterKeys, message.payload),
-      })
+      }, { config })
       const acceptedAt = new Date().toISOString()
       const { error: updateError } = await supabase.from('mensagens').update({
         provider: 'meta_cloud_api',
         provider_message_id: response.messageId,
         provider_recipient: response.recipient,
+        provider_phone_number_id: config.phoneNumberId,
         provider_status: 'accepted',
         provider_template_name: templateName,
         provider_payload: response.raw,
@@ -158,7 +177,7 @@ export async function executarDisparosWhatsapp(limit = 50, options: WhatsAppDisp
       const { error: failureUpdateError } = await supabase.from('mensagens').update({
         status: retry ? MENSAGEM_STATUS.AGENDADA : MENSAGEM_STATUS.FALHA,
         status_operacional: retry ? MENSAGEM_STATUS.AGENDADA : MENSAGEM_STATUS.FALHA,
-        provider: 'meta_cloud_api', provider_recipient: recipient || null, provider_status: retry ? 'retry_scheduled' : 'failed',
+        provider: 'meta_cloud_api', provider_recipient: recipient || null, provider_phone_number_id: senderPhoneNumberId, provider_status: retry ? 'retry_scheduled' : 'failed',
         provider_error_code: providerError.code, provider_error_message: providerError.message,
         provider_failed_at: failedAt, ultima_tentativa_em: failedAt, proxima_tentativa_em: retryAt,
         tentativas_envio: attempt, erro: providerError.message, erro_envio: providerError.message,

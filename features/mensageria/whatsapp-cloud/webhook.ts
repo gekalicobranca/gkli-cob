@@ -100,8 +100,28 @@ async function processInbound(supabase: any, value: any, inbound: any) {
     const text = inboundText(inbound)
     const receivedAt = statusTimestamp(inbound?.timestamp)
     const contactName = String(value?.contacts?.[0]?.profile?.name ?? '') || null
-    const { data: message } = await supabase.from('mensagens').select('id,carteira_id,lote_id,lote_item_id,cobranca_id,acordo_id,cobranca_flow_id,acordo_flow_id,pre_juridico_flow_id,status').eq('provider_recipient', from).order('created_at', { ascending: false }).limit(1).maybeSingle()
-    const { data: inboundRow, error } = await supabase.from('whatsapp_inbound_messages').insert({ provider_message_id: providerMessageId, phone_number_id: value?.metadata?.phone_number_id ?? null, from_number: from, contact_name: contactName, message_type: String(inbound?.type ?? 'unknown'), message_text: text || null, matched_mensagem_id: message?.id ?? null, carteira_id: message?.carteira_id ?? null, cobranca_id: message?.cobranca_id ?? null, acordo_id: message?.acordo_id ?? null, payload: inbound, received_at: receivedAt, processed_at: new Date().toISOString() } as any).select('id').single()
+    const receiverPhoneNumberId = String(value?.metadata?.phone_number_id ?? '').trim()
+    const contextMessageId = String(inbound?.context?.id ?? '').trim()
+    const messageSelect = 'id,carteira_id,lote_id,lote_item_id,cobranca_id,acordo_id,cobranca_flow_id,acordo_flow_id,pre_juridico_flow_id,status'
+    let message: any = null
+    if (contextMessageId) {
+      const exact = await supabase.from('mensagens').select(messageSelect).eq('provider_message_id', contextMessageId).maybeSingle()
+      if (exact.error) throw exact.error
+      message = exact.data
+    }
+    if (!message) {
+      let recentQuery = supabase.from('mensagens').select(messageSelect).eq('provider_recipient', from)
+      if (receiverPhoneNumberId) recentQuery = recentQuery.eq('provider_phone_number_id', receiverPhoneNumberId)
+      const recent = await recentQuery.order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (recent.error) throw recent.error
+      message = recent.data
+    }
+    if (!message && receiverPhoneNumberId) {
+      const legacy = await supabase.from('mensagens').select(messageSelect).eq('provider_recipient', from).is('provider_phone_number_id', null).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (legacy.error) throw legacy.error
+      message = legacy.data
+    }
+    const { data: inboundRow, error } = await supabase.from('whatsapp_inbound_messages').insert({ provider_message_id: providerMessageId, phone_number_id: receiverPhoneNumberId || null, from_number: from, contact_name: contactName, message_type: String(inbound?.type ?? 'unknown'), message_text: text || null, matched_mensagem_id: message?.id ?? null, carteira_id: message?.carteira_id ?? null, cobranca_id: message?.cobranca_id ?? null, acordo_id: message?.acordo_id ?? null, payload: inbound, received_at: receivedAt, processed_at: new Date().toISOString() } as any).select('id').single()
     if (error && error.code !== '23505') throw error
     if (!message) return
 

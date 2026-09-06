@@ -53,6 +53,26 @@ export default async function NovaCarteiraPage() {
             </div>
           </fieldset>
 
+          <fieldset className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <legend className="px-1 text-sm font-semibold text-slate-950">Linha remetente do WhatsApp</legend>
+            <p className="mb-3 mt-1 text-xs text-slate-500">O Flow herda esta escolha automaticamente. A linha global GEKALI é o padrão.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                <input type="radio" name="whatsapp_remetente_modo" value="global" defaultChecked className="mt-1 h-4 w-4 border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]" />
+                <span><span className="block font-medium text-slate-950">Linha global GEKALI</span><span className="mt-1 block text-xs text-slate-500">Usa o número padrão da operação.</span></span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                <input type="radio" name="whatsapp_remetente_modo" value="proprio" className="mt-1 h-4 w-4 border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]" />
+                <span><span className="block font-medium text-slate-950">Número próprio da carteira</span><span className="mt-1 block text-xs text-slate-500">Usa uma linha registrada especificamente para esta carteira.</span></span>
+              </label>
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <FormField label="Número próprio" hint="Preencha somente ao selecionar número próprio."><Input name="whatsapp_numero_proprio" placeholder="Ex.: 5511921118973" inputMode="numeric" /></FormField>
+              <FormField label="Phone Number ID"><Input name="whatsapp_phone_number_id" placeholder="ID fornecido pela Meta" /></FormField>
+              <FormField label="WABA ID" hint="Opcional enquanto estiver na mesma conta empresarial."><Input name="whatsapp_waba_id" placeholder="ID da conta do WhatsApp" /></FormField>
+            </div>
+          </fieldset>
+
           <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <input
               type="checkbox"

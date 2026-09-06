@@ -75,10 +75,32 @@ function getCarteiraFiscalPayload(formData: FormData) {
 }
 
 function getCarteiraOperacionalPayload(formData: FormData) {
+  const whatsappHabilitado = formData.get("whatsapp_habilitado") === "on";
+  const whatsappRemetenteModo = String(formData.get("whatsapp_remetente_modo") ?? "global").trim();
+  if (!["global", "proprio"].includes(whatsappRemetenteModo)) {
+    throw new Error("Origem do número de WhatsApp inválida.");
+  }
+
+  const whatsappNumeroProprio = onlyDigits(String(formData.get("whatsapp_numero_proprio") ?? ""));
+  const whatsappPhoneNumberId = optionalText(formData, "whatsapp_phone_number_id");
+  const whatsappWabaId = optionalText(formData, "whatsapp_waba_id");
+  if (whatsappHabilitado && whatsappRemetenteModo === "proprio") {
+    if (whatsappNumeroProprio.length < 12 || whatsappNumeroProprio.length > 13) {
+      throw new Error("Informe o número próprio do WhatsApp com DDI e DDD.");
+    }
+    if (!whatsappPhoneNumberId) {
+      throw new Error("Informe o Phone Number ID da linha própria.");
+    }
+  }
+
   return {
     pre_juridico_habilitado: formData.get("pre_juridico_habilitado") === "on",
     email_habilitado: formData.get("email_habilitado") === "on",
-    whatsapp_habilitado: formData.get("whatsapp_habilitado") === "on",
+    whatsapp_habilitado: whatsappHabilitado,
+    whatsapp_remetente_modo: whatsappRemetenteModo,
+    whatsapp_numero_proprio: whatsappRemetenteModo === "proprio" ? whatsappNumeroProprio || null : null,
+    whatsapp_phone_number_id: whatsappRemetenteModo === "proprio" ? whatsappPhoneNumberId : null,
+    whatsapp_waba_id: whatsappRemetenteModo === "proprio" ? whatsappWabaId : null,
     percentual_participacao_resultado: percentage(formData, "percentual_participacao_resultado"),
   };
 }
