@@ -90,20 +90,54 @@ function getUnitLabel(unidade: any) {
 }
 
 function groupAcordos(rows: any[]) {
-  const groups: Array<{ condominioId: string; condominio: string; acordos: any[] }> = []
+  const groups: Array<{
+    carteiraId: string
+    carteira: string
+    acordosCount: number
+    valor: number
+    condominios: Array<{
+      condominioId: string
+      condominio: string
+      acordos: any[]
+      valor: number
+    }>
+  }> = []
+
   for (const row of rows) {
-    const condominioId = row.condominios?.id ?? 'sem-condominio'
-    let group = groups.find((item) => item.condominioId === condominioId)
-    if (!group) {
-      group = {
+    const carteiraId = row.carteira_id ?? 'sem-carteira'
+    let carteiraGroup = groups.find((item) => item.carteiraId === carteiraId)
+
+    if (!carteiraGroup) {
+      carteiraGroup = {
+        carteiraId,
+        carteira: row.carteiras?.nome ?? 'Carteira não informada',
+        acordosCount: 0,
+        valor: 0,
+        condominios: [],
+      }
+      groups.push(carteiraGroup)
+    }
+
+    const condominioId = row.condominios?.id ?? row.condominio_id ?? 'sem-condominio'
+    let condominioGroup = carteiraGroup.condominios.find((item) => item.condominioId === condominioId)
+
+    if (!condominioGroup) {
+      condominioGroup = {
         condominioId,
         condominio: row.condominios?.nome ?? 'Condomínio não informado',
         acordos: [],
+        valor: 0,
       }
-      groups.push(group)
+      carteiraGroup.condominios.push(condominioGroup)
     }
-    group.acordos.push(row)
+
+    const valorAcordado = Number(row.valor_acordado ?? 0)
+    carteiraGroup.acordosCount += 1
+    carteiraGroup.valor += valorAcordado
+    condominioGroup.acordos.push(row)
+    condominioGroup.valor += valorAcordado
   }
+
   return groups
 }
 
@@ -244,46 +278,65 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
           <ListEmptyState title="Nenhum acordo encontrado" description="Crie acordos a partir das cobranças negociadas." />
         ) : (
           <ListRows>
-            {groups.map((group) => (
-              <details key={group.condominioId} className="group/condominio bg-white">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
+            {groups.map((carteiraGroup) => (
+              <details key={carteiraGroup.carteiraId} className="group/carteira bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-200 bg-slate-100/80 px-4 py-3 transition hover:bg-slate-200/70 first:border-t-0 [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
-                    <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                    <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/carteira:rotate-180" />
                     <div className="min-w-0">
-                    <ListItemTitle className="font-semibold">{group.condominio}</ListItemTitle>
-                    <ListItemMeta className="mt-0.5">{group.acordos.length} acordo(s)</ListItemMeta>
+                      <ListItemTitle className="font-semibold">{carteiraGroup.carteira}</ListItemTitle>
+                      <ListItemMeta className="mt-0.5">
+                        {carteiraGroup.condominios.length} condomínio(s) · {carteiraGroup.acordosCount} acordo(s) nesta página
+                      </ListItemMeta>
                     </div>
                   </div>
+                  <p className="shrink-0 text-sm font-semibold text-slate-800">{formatCurrency(carteiraGroup.valor)}</p>
                 </summary>
-                <div className="divide-y divide-slate-100 border-t border-slate-100">
-                  {group.acordos.map((row: any) => (
-                    <Link
-                      key={row.id}
-                      href={`/app/acordos/${row.id}`}
-                      className="group grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.4fr)_120px_140px_150px_90px] xl:items-center"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <StatusBadge status={row.status} />
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.carteiras?.nome ?? 'Carteira não informada'}</span>
+                <div className="divide-y divide-slate-100">
+                  {carteiraGroup.condominios.map((group) => (
+                    <details key={group.condominioId} className="group/condominio bg-white">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/70 px-7 py-2.5 transition hover:bg-slate-100/80 [&::-webkit-details-marker]:hidden">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                          <div className="min-w-0">
+                            <ListItemTitle className="font-semibold">{group.condominio}</ListItemTitle>
+                            <ListItemMeta className="mt-0.5">{group.acordos.length} acordo(s) nesta página</ListItemMeta>
+                          </div>
                         </div>
-                        <ListItemTitle className="mt-2">{getUnitLabel(row.unidades)}</ListItemTitle>
-                        <ListItemMeta>
-                          {row.unidades?.responsavel_nome ?? 'Responsável não informado'} {row.numero_processo ? `· proc. ${row.numero_processo}` : ''}
-                        </ListItemMeta>
+                        <p className="shrink-0 text-sm font-semibold text-slate-800">{formatCurrency(group.valor)}</p>
+                      </summary>
+                      <div className="divide-y divide-slate-100 border-t border-slate-100">
+                        {group.acordos.map((row: any) => (
+                          <Link
+                            key={row.id}
+                            href={`/app/acordos/${row.id}`}
+                            className="group grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.4fr)_120px_140px_150px_90px] xl:items-center"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <StatusBadge status={row.status} />
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.carteiras?.nome ?? 'Carteira não informada'}</span>
+                              </div>
+                              <ListItemTitle className="mt-2">{getUnitLabel(row.unidades)}</ListItemTitle>
+                              <ListItemMeta>
+                                {row.unidades?.responsavel_nome ?? 'Responsável não informado'} {row.numero_processo ? `· proc. ${row.numero_processo}` : ''}
+                              </ListItemMeta>
+                            </div>
+                            <ListMetric
+                              label="Valor"
+                              value={formatCurrency(Number(row.valor_acordado))}
+                              valueClassName="font-semibold text-slate-950"
+                            />
+                            <div>
+                              <p className="text-xs font-medium uppercase tracking-normal text-slate-400">Saúde</p>
+                              <div className="mt-1"><AgreementHealthBadge health={row.saude_acordo} /></div>
+                            </div>
+                            <ListMetric label="Data" value={formatDateBR(row.data_acordo)} />
+                            <div className="flex justify-end"><ArrowUpRight size={16} className="text-slate-400 group-hover:text-[var(--gkli-primary)]" /></div>
+                          </Link>
+                        ))}
                       </div>
-                      <ListMetric
-                        label="Valor"
-                        value={formatCurrency(Number(row.valor_acordado))}
-                        valueClassName="font-semibold text-slate-950"
-                      />
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-normal text-slate-400">Saúde</p>
-                        <div className="mt-1"><AgreementHealthBadge health={row.saude_acordo} /></div>
-                      </div>
-                      <ListMetric label="Data" value={formatDateBR(row.data_acordo)} />
-                      <div className="flex justify-end"><ArrowUpRight size={16} className="text-slate-400 group-hover:text-[var(--gkli-primary)]" /></div>
-                    </Link>
+                    </details>
                   ))}
                 </div>
               </details>

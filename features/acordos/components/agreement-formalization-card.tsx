@@ -49,14 +49,14 @@ function Step({
   blocked?: boolean;
 }) {
   return (
-    <div className={["rounded-2xl border p-4", stepTone(done, blocked)].join(" ")}>
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/70">
+    <div className={["rounded-xl border px-3 py-2.5", stepTone(done, blocked)].join(" ")}>
+      <div className="flex items-center gap-3">
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/70">
           <CheckCircle2 className="h-4 w-4" />
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold">{title}</p>
-          <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
+          <p className="mt-0.5 truncate text-xs opacity-80">{description}</p>
         </div>
       </div>
     </div>
@@ -104,14 +104,14 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
 
   return (
     <Card>
-      <CardContent className="space-y-5 p-6">
+      <CardContent className="space-y-4 p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               <ClipboardList className="h-4 w-4" />
               Formalização
             </div>
-            <h2 className="mt-2 text-lg font-semibold text-slate-950">Checklist do acordo</h2>
+            <h2 className="mt-1.5 text-base font-semibold text-slate-950">Checklist do acordo</h2>
             <p className="mt-1 text-sm text-slate-500">Controle enxuto de formalização, boletos e primeiro pagamento.</p>
           </div>
           <span className="inline-flex w-fit rounded-full bg-[#351b40]/5 px-3 py-1 text-xs font-semibold text-[#351b40] ring-1 ring-[#351b40]/10">
@@ -119,7 +119,7 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
           </span>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-2 md:grid-cols-4">
           <Step
             title="Devedor"
             description={formalizacaoDevedor ? "Formalização enviada" : "Pendente"}
@@ -143,8 +143,8 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
           />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="grid items-start gap-3 xl:grid-cols-[1fr_320px]">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
               <FileText className="h-4 w-4" />
               Formalizações vinculadas
@@ -174,7 +174,7 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
             )}
           </div>
 
-          <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3.5">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
               <MailCheck className="h-4 w-4" />
               Administração
@@ -182,7 +182,7 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
             <p className="text-xs leading-5 text-slate-500">Mensagem pronta para acompanhar a emissão dos boletos, sem adicionar link público.</p>
             <textarea
               readOnly
-              className="min-h-[170px] w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600 outline-none"
+              className="min-h-[104px] w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600 outline-none"
               value={textoSolicitacao}
             />
             <div className="grid gap-2">

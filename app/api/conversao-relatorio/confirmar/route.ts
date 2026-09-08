@@ -20,6 +20,7 @@ import {
   buildRankingMensalFromCobrancas,
   classificarRankingMensalComApp,
 } from "@/features/captacao-automatizada/ranking-mensal"
+import { persistirCaptacaoHistoricaSindico } from "@/features/captacao-automatizada/historico-sindico"
 import {
   anoCorrenteImportacao,
   avaliarRecorteAnoCorrente,
@@ -187,6 +188,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (["concluido", "concluido_com_alertas"].includes(String((conversao as any).status ?? ""))) {
+      const historicoCaptacao = await persistirCaptacaoHistoricaSindico(supabase as any, {
+        conversaoId,
+        condominioId,
+        carteiraId,
+        ranking: (conversao.preview_json as any)?.rankingMensal,
+      })
       return NextResponse.json({
         ok: true,
         jaConfirmada: true,
@@ -196,6 +203,8 @@ export async function POST(request: NextRequest) {
           cobrancasDivergentes: 0,
           cobrancasAusentes: 0,
           cobrancasAnterioresRemovidas: 0,
+          captacaoHistoricaCriada: historicoCaptacao.inseridas,
+          captacaoHistoricaRetida: historicoCaptacao.retidas,
           parcelasCriadas: 0,
           inconsistencias: [],
         },
@@ -524,6 +533,17 @@ export async function POST(request: NextRequest) {
       condominioId,
       inicioCobrancaDias: (condominioConfiguracao as any)?.inicio_cobranca_dias,
     })
+    const historicoCaptacao = await persistirCaptacaoHistoricaSindico(supabase as any, {
+      conversaoId,
+      condominioId,
+      carteiraId,
+      ranking: rankingMensal,
+    })
+    if (historicoCaptacao.retidas > 0) {
+      inconsistencias.push(
+        `${historicoCaptacao.retidas} unidade(s) da captação não foram gravadas no histórico do síndico por falta de vínculo único ou valor válido.`
+      )
+    }
     const previewSemBaseRanking = { ...preview }
     delete previewSemBaseRanking.cobrancasRankingMensal
 
@@ -549,6 +569,8 @@ export async function POST(request: NextRequest) {
         cobrancasDivergentes,
         cobrancasAusentes,
         cobrancasAnterioresRemovidas,
+        captacaoHistoricaCriada: historicoCaptacao.inseridas,
+        captacaoHistoricaRetida: historicoCaptacao.retidas,
         parcelasCriadas,
         inconsistencias,
       },

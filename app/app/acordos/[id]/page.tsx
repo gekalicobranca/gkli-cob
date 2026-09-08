@@ -326,6 +326,8 @@ export default async function AcordoDetalhePage({ params }: Props) {
   ) || ["aguardando_aprovacao_sindico", "aprovado_sindico_aguardando_aceite_devedor", "aguardando_aceite_devedor"].includes(String(acordo.fluxo_status ?? ""));
   const podeCancelarFormalizacao = possuiFormalizacaoPendente && !possuiPagamentoRegistrado && !statusFechado;
   const podeRevisar = ["admin", "gestor"].includes(scope.perfil);
+  const actionFieldClass = "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10";
+  const actionTextareaClass = "min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10";
 
   return (
     <div className="space-y-6">
@@ -572,6 +574,105 @@ export default async function AcordoDetalhePage({ params }: Props) {
         </Card>
       </div>
 
+      <Card className="border-slate-200 shadow-sm">
+        <CardContent className="space-y-4 p-5">
+          <SectionTitle
+            title="Ações operacionais"
+            description="Comandos de exceção para corrigir o fluxo do acordo."
+          />
+
+          <div className={["grid gap-3", podeCancelarFormalizacao ? "xl:grid-cols-2" : "xl:grid-cols-1"].join(" ")}>
+            {podeCancelarFormalizacao ? (
+              <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <h3 className="text-base font-semibold text-slate-950">Cancelar formalização</h3>
+                    <p className="mt-1 text-sm leading-5 text-slate-500">
+                      Volta a cobrança para o fluxo extrajudicial quando o primeiro pagamento não foi identificado.
+                    </p>
+                  </div>
+                  <XCircle className="h-5 w-5 shrink-0 text-rose-500" />
+                </div>
+
+                <form action={cancelarFormalizacaoAcordo} className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_auto] lg:items-end">
+                  <input type="hidden" name="acordo_id" value={acordo.id} />
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Motivo</span>
+                    <select name="motivo" className={actionFieldClass} defaultValue="Primeiro pagamento não foi identificado">
+                      <option value="Primeiro pagamento não foi identificado">Primeiro pagamento não foi identificado</option>
+                      <option value="Devedor desistiu da negociação">Devedor desistiu da negociação</option>
+                      <option value="Prazo interno expirado">Prazo interno expirado</option>
+                      <option value="Nova negociação necessária">Nova negociação necessária</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Observação</span>
+                    <textarea name="observacao" className={actionTextareaClass} placeholder="Opcional" />
+                  </label>
+                  <PendingSubmitButton
+                    variant="secondary"
+                    className="h-10 whitespace-nowrap border-rose-200 bg-white text-rose-700 hover:bg-rose-50"
+                    icon={<XCircle size={16} />}
+                    pendingLabel="Cancelando..."
+                  >
+                    Cancelar
+                  </PendingSubmitButton>
+                </form>
+              </div>
+            ) : null}
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-slate-950">Rompimento assistido</h3>
+                  <p className="mt-1 text-sm leading-5 text-slate-500">
+                    Registre apenas quando o acordo saiu do fluxo normal e precisa de destino operacional.
+                  </p>
+                </div>
+                <XCircle className="h-5 w-5 shrink-0 text-slate-400" />
+              </div>
+
+              <form action={romperAcordoAssistido} className="mt-4 grid gap-3 lg:grid-cols-[minmax(160px,0.8fr)_minmax(180px,0.9fr)_minmax(160px,0.8fr)_auto] lg:items-end">
+                <input type="hidden" name="acordo_id" value={acordo.id} />
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Motivo</span>
+                  <select name="motivo" className={actionFieldClass} defaultValue="">
+                    <option value="">Selecione</option>
+                    <option value="Parcela vencida">Parcela vencida</option>
+                    <option value="Não pagamento recorrente">Não pagamento recorrente</option>
+                    <option value="Solicitação do condomínio">Solicitação do condomínio</option>
+                    <option value="Negociação substituída">Negociação substituída</option>
+                    <option value="Outro">Outro</option>
+                  </select>
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Destino</span>
+                  <select name="destino" className={actionFieldClass} defaultValue="retomar_cobranca">
+                    <option value="retomar_cobranca">Retomar cobrança</option>
+                    <option value="suspender">Suspender cobranças</option>
+                    <option value="pre_juridico">Preparar documentação pré-jurídica</option>
+                    <option value="judicializar">Judicializar cobranças</option>
+                  </select>
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Observação</span>
+                  <textarea name="observacao" className={actionTextareaClass} placeholder="Opcional" />
+                </label>
+                <PendingSubmitButton
+                  variant="secondary"
+                  className="h-10 whitespace-nowrap border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  icon={<XCircle size={16} />}
+                  pendingLabel="Registrando..."
+                >
+                  Registrar
+                </PendingSubmitButton>
+              </form>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-5 xl:grid-cols-2">
         <Card>
           <CardContent className="space-y-5 p-6">
@@ -656,86 +757,6 @@ export default async function AcordoDetalhePage({ params }: Props) {
         </Card>
 
         <div className="space-y-5">
-          {podeCancelarFormalizacao ? (
-            <Card>
-              <CardContent className="space-y-4 p-6">
-                <SectionTitle
-                  title="Cancelar formalização"
-                  description="Use quando o primeiro pagamento não foi identificado e a cobrança deve voltar para o fluxo extrajudicial."
-                />
-                <form action={cancelarFormalizacaoAcordo} className="space-y-3">
-                  <input type="hidden" name="acordo_id" value={acordo.id} />
-                  <label className="block space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Motivo</span>
-                    <select name="motivo" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" defaultValue="Primeiro pagamento não foi identificado">
-                      <option value="Primeiro pagamento não foi identificado">Primeiro pagamento não foi identificado</option>
-                      <option value="Devedor desistiu da negociação">Devedor desistiu da negociação</option>
-                      <option value="Prazo interno expirado">Prazo interno expirado</option>
-                      <option value="Nova negociação necessária">Nova negociação necessária</option>
-                      <option value="Outro">Outro</option>
-                    </select>
-                  </label>
-                  <label className="block space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Observacao</span>
-                    <textarea name="observacao" className="min-h-[84px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" placeholder="Opcional" />
-                  </label>
-                  <PendingSubmitButton
-                    variant="secondary"
-                    className="w-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
-                    icon={<XCircle size={16} />}
-                    pendingLabel="Cancelando formalização..."
-                  >
-                    Cancelar formalização
-                  </PendingSubmitButton>
-                </form>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          <Card>
-            <CardContent className="space-y-4 p-6">
-              <SectionTitle
-                title="Rompimento assistido"
-                description="Use só quando o acordo realmente saiu do fluxo normal."
-              />
-              <form action={romperAcordoAssistido} className="space-y-3">
-                <input type="hidden" name="acordo_id" value={acordo.id} />
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Motivo</span>
-                  <select name="motivo" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" defaultValue="">
-                    <option value="">Selecione</option>
-                    <option value="Parcela vencida">Parcela vencida</option>
-                    <option value="Não pagamento recorrente">Não pagamento recorrente</option>
-                    <option value="Solicitação do condomínio">Solicitação do condomínio</option>
-                    <option value="Negociação substituída">Negociação substituída</option>
-                    <option value="Outro">Outro</option>
-                  </select>
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Destino</span>
-                  <select name="destino" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" defaultValue="retomar_cobranca">
-                    <option value="retomar_cobranca">Retomar cobrança</option>
-                    <option value="suspender">Suspender cobranças</option>
-                    <option value="pre_juridico">Preparar documentação pré-jurídica</option>
-                    <option value="judicializar">Judicializar cobranças</option>
-                  </select>
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Observação</span>
-                  <textarea name="observacao" className="min-h-[84px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10" placeholder="Opcional" />
-                </label>
-                <PendingSubmitButton
-                  variant="secondary"
-                  className="w-full border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
-                  icon={<XCircle size={16} />}
-                  pendingLabel="Registrando rompimento..."
-                >
-                  Registrar rompimento
-                </PendingSubmitButton>
-              </form>
-            </CardContent>
-          </Card>
-
           <Card>
           <CardContent className="space-y-5 p-6">
             <SectionTitle
