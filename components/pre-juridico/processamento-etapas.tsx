@@ -11,6 +11,62 @@ import { formatDateBR } from '@/utils/formatters/date'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
+function valorCaso(caso: any) {
+  const acordo = relation(caso.acordo)
+  const cobranca = relation(caso.cobranca)
+  const cobrancasUnidade = Array.isArray(caso.cobrancas_unidade) ? caso.cobrancas_unidade : []
+  if (acordo?.valor_acordado != null) return Number(acordo.valor_acordado)
+  if (cobrancasUnidade.length) return cobrancasUnidade.reduce((sum: number, item: any) => sum + Number(item.valor_atualizado ?? item.valor_original ?? 0), 0)
+  return Number(cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0)
+}
+
+function groupCasos(casos: any[]) {
+  const map = new Map<string, {
+    carteiraId: string
+    carteira: string
+    condominios: Array<{ id: string; nome: string; rows: any[]; value: number }>
+    rows: any[]
+    value: number
+  }>()
+
+  for (const caso of casos) {
+    const carteira = relation(caso.carteira)
+    const condominio = relation(caso.condominio)
+    const carteiraId = caso.carteira_id || 'sem-carteira'
+    const carteiraGroup = map.get(carteiraId) ?? {
+      carteiraId,
+      carteira: carteira?.nome || 'Carteira não informada',
+      condominios: [],
+      rows: [],
+      value: 0,
+    }
+    const condominioId = caso.condominio_id || 'sem-condominio'
+    let condominioGroup = carteiraGroup.condominios.find((item) => item.id === condominioId)
+    if (!condominioGroup) {
+      condominioGroup = {
+        id: condominioId,
+        nome: condominio?.nome_operacional || condominio?.nome || 'Condomínio não informado',
+        rows: [],
+        value: 0,
+      }
+      carteiraGroup.condominios.push(condominioGroup)
+    }
+    const value = valorCaso(caso)
+    condominioGroup.rows.push(caso)
+    condominioGroup.value += value
+    carteiraGroup.rows.push(caso)
+    carteiraGroup.value += value
+    map.set(carteiraId, carteiraGroup)
+  }
+
+  return Array.from(map.values())
+    .map((group) => ({
+      ...group,
+      condominios: group.condominios.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+    }))
+    .sort((a, b) => a.carteira.localeCompare(b.carteira, 'pt-BR'))
+}
+
 export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: readonly PreJuridicoEtapa[] }) {
   const [selectedProcuracoes, setSelectedProcuracoes] = useState<string[]>([])
   const [selectedConfirmacoes, setSelectedConfirmacoes] = useState<string[]>([])
@@ -22,6 +78,7 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
     {etapas.map((etapaId) => {
       const etapa = PRE_JURIDICO_ETAPAS.find((item) => item.id === etapaId)!
       const rows = casos.filter((caso) => caso.etapa === etapaId)
+      const groups = groupCasos(rows)
       const procuracaoIds = rows.map((caso) => String(caso.id))
       const selectedNaEtapa = etapaId === 'aguardando_sindico' ? rows.filter((caso) => selectedProcuracoes.includes(caso.id)) : []
       const todasSelecionadas = procuracaoIds.length > 0 && procuracaoIds.every((id) => selectedProcuracoes.includes(id))
@@ -77,7 +134,44 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
               <PendingSubmitButton pendingLabel="Salvando..."><CheckCircle2 size={16} />Salvar em massa ({selectedConfirmacoesNaEtapa.length})</PendingSubmitButton>
             </form> : null}
           </div> : null}
-          {rows.length ? <ListRows>{rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} selectable={etapaId === 'aguardando_sindico' || etapaId === 'confirmar_juridico'} selectionLabel={etapaId === 'confirmar_juridico' ? 'Selecionar confirmação jurídica' : 'Selecionar procuração'} selected={etapaId === 'confirmar_juridico' ? selectedConfirmacoes.includes(caso.id) : selectedProcuracoes.includes(caso.id)} onToggle={etapaId === 'confirmar_juridico' ? () => toggleConfirmacao(caso.id) : () => toggleProcuracao(caso.id)} />)}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
+          {rows.length ? <ListRows>{groups.map((carteiraGroup) => {
+            const carteiraIds = carteiraGroup.rows.map((caso) => String(caso.id))
+            const carteiraSelected = etapaId === 'confirmar_juridico'
+              ? carteiraIds.length > 0 && carteiraIds.every((id) => selectedConfirmacoes.includes(id))
+              : carteiraIds.length > 0 && carteiraIds.every((id) => selectedProcuracoes.includes(id))
+            const selectable = etapaId === 'aguardando_sindico' || etapaId === 'confirmar_juridico'
+            return <details key={carteiraGroup.carteiraId} className="group/carteira bg-white">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-200 bg-slate-100/80 px-4 py-3 transition hover:bg-slate-200/70 first:border-t-0 [&::-webkit-details-marker]:hidden">
+                <div className="flex min-w-0 items-center gap-3">
+                  <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open/carteira:rotate-180" />
+                  {selectable ? <input aria-label={`Selecionar casos de ${carteiraGroup.carteira}`} type="checkbox" checked={carteiraSelected} onClick={(event) => event.stopPropagation()} onChange={(event) => etapaId === 'confirmar_juridico' ? toggleTodasConfirmacoes(carteiraIds, event.target.checked) : toggleTodasProcuracoes(carteiraIds, event.target.checked)} className="h-4 w-4 rounded border-slate-300" /> : null}
+                  <div className="min-w-0"><p className="text-sm font-semibold text-slate-950">{carteiraGroup.carteira}</p><p className="text-xs text-slate-500">{carteiraGroup.condominios.length} condomínio(s) · {carteiraGroup.rows.length} caso(s)</p></div>
+                </div>
+                <p className="shrink-0 text-sm font-semibold text-slate-950">{formatCurrency(carteiraGroup.value)}</p>
+              </summary>
+              <div className="divide-y divide-slate-100">
+                {carteiraGroup.condominios.map((group) => {
+                  const groupIds = group.rows.map((caso) => String(caso.id))
+                  const groupSelected = etapaId === 'confirmar_juridico'
+                    ? groupIds.length > 0 && groupIds.every((id) => selectedConfirmacoes.includes(id))
+                    : groupIds.length > 0 && groupIds.every((id) => selectedProcuracoes.includes(id))
+                  return <details key={group.id} className="group/condominio bg-white">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/70 px-7 py-2.5 transition hover:bg-slate-100/80 [&::-webkit-details-marker]:hidden">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                        {selectable ? <input aria-label={`Selecionar casos de ${group.nome}`} type="checkbox" checked={groupSelected} onClick={(event) => event.stopPropagation()} onChange={(event) => etapaId === 'confirmar_juridico' ? toggleTodasConfirmacoes(groupIds, event.target.checked) : toggleTodasProcuracoes(groupIds, event.target.checked)} className="h-4 w-4 rounded border-slate-300" /> : null}
+                        <div className="min-w-0"><p className="text-sm font-semibold text-slate-950">{group.nome}</p><p className="text-xs text-slate-500">{group.rows.length} caso(s)</p></div>
+                      </div>
+                      <p className="shrink-0 text-sm font-semibold text-slate-700">{formatCurrency(group.value)}</p>
+                    </summary>
+                    <div className="divide-y divide-slate-100 border-t border-slate-100">
+                      {group.rows.map((caso) => <CasoProcessamento key={caso.id} caso={caso} selectable={selectable} selectionLabel={etapaId === 'confirmar_juridico' ? 'Selecionar confirmação jurídica' : 'Selecionar procuração'} selected={etapaId === 'confirmar_juridico' ? selectedConfirmacoes.includes(caso.id) : selectedProcuracoes.includes(caso.id)} onToggle={etapaId === 'confirmar_juridico' ? () => toggleConfirmacao(caso.id) : () => toggleProcuracao(caso.id)} />)}
+                    </div>
+                  </details>
+                })}
+              </div>
+            </details>
+          })}</ListRows> : <ListEmptyState title="Nenhum caso nesta etapa" description="Não há processamentos neste painel para os filtros selecionados." />}
           </div>
         </details>
       </ListPanel>

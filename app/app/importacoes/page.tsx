@@ -29,14 +29,14 @@ import { LimparHistoricoImportacoesButton } from "./limpar-historico-importacoes
 
 const importCards = [
   {
-    tipo: "condominios",
-    title: "Condomínios",
+    tipo: "cobrancas",
+    title: "Cobranças",
     description:
-      "Cadastro base por carteira, CNPJ, administradora e início da cobrança.",
-    icon: Building2,
-    templateHref: "/templates/importacao-condominios.xlsx",
-    guardrail: "Deduplica CNPJ no arquivo: mantém a primeira linha e bloqueia repetidas.",
-    impact: "Base cadastral",
+      "Débitos em aberto, competência, vencimento, valores e validação operacional.",
+    icon: ClipboardCheck,
+    templateHref: "/templates/importacao-cobrancas.xlsx",
+    guardrail: "Calcula impacto financeiro e bloqueia cobrança sem vínculo seguro.",
+    impact: "Carteira ativa",
   },
   {
     tipo: "unidades",
@@ -50,14 +50,14 @@ const importCards = [
     impact: "Contatos de apoio",
   },
   {
-    tipo: "cobrancas",
-    title: "Cobranças",
+    tipo: "condominios",
+    title: "Condomínios",
     description:
-      "Débitos em aberto, competência, vencimento, valores e validação operacional.",
-    icon: ClipboardCheck,
-    templateHref: "/templates/importacao-cobrancas.xlsx",
-    guardrail: "Calcula impacto financeiro e bloqueia cobrança sem vínculo seguro.",
-    impact: "Carteira ativa",
+      "Cadastro base por carteira, CNPJ, administradora e início da cobrança.",
+    icon: Building2,
+    templateHref: "/templates/importacao-condominios.xlsx",
+    guardrail: "Deduplica CNPJ no arquivo: mantém a primeira linha e bloqueia repetidas.",
+    impact: "Base cadastral",
   },
   {
     tipo: "acordos_extra",

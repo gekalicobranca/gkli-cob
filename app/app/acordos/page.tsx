@@ -282,7 +282,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
               <details key={carteiraGroup.carteiraId} className="group/carteira bg-white">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-200 bg-slate-100/80 px-4 py-3 transition hover:bg-slate-200/70 first:border-t-0 [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
-                    <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/carteira:rotate-180" />
+                    <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open/carteira:rotate-180" />
                     <div className="min-w-0">
                       <ListItemTitle className="font-semibold">{carteiraGroup.carteira}</ListItemTitle>
                       <ListItemMeta className="mt-0.5">
@@ -297,7 +297,7 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                     <details key={group.condominioId} className="group/condominio bg-white">
                       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/70 px-7 py-2.5 transition hover:bg-slate-100/80 [&::-webkit-details-marker]:hidden">
                         <div className="flex min-w-0 items-center gap-3">
-                          <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                          <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
                           <div className="min-w-0">
                             <ListItemTitle className="font-semibold">{group.condominio}</ListItemTitle>
                             <ListItemMeta className="mt-0.5">{group.acordos.length} acordo(s) nesta página</ListItemMeta>

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, Bot, FlaskConical, MonitorSmartphone, Sparkles, Target } from 'lucide-react'
+import { ArrowRight, Bot, FlaskConical, Home, MonitorSmartphone, Sparkles, Target } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 
 const experiments = [
@@ -8,6 +8,12 @@ const experiments = [
     description: 'Agenda mensal, coleta de relatórios e validações do ciclo de captação automatizada, agora centralizadas no Maestro.',
     href: '/app/agente-automatico/maestro?aba=agenda',
     icon: Bot,
+  },
+  {
+    title: 'Visão do síndico antiga',
+    description: 'Dashboard executivo anterior do síndico, preservado como referência no laboratório.',
+    href: '/app/configuracoes/lab/visao-sindico-antiga',
+    icon: Home,
   },
   {
     title: 'Lite legado',

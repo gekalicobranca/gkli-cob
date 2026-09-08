@@ -95,13 +95,49 @@ function sortUnidades(rows: any[], ordenar: string) {
 }
 
 function groupUnidades(rows: any[]) {
-  const groups = new Map<string, { id: string; nome: string; unidades: any[] }>()
+  const carteiraGroups = new Map<string, {
+    carteiraId: string
+    carteira: string
+    condominios: Array<{ condominioId: string; condominio: string; unidades: any[] }>
+    unidadesCount: number
+  }>()
+
   for (const row of rows) {
-    const id = row.condominios?.id ?? row.condominio_id ?? 'sem-condominio'
-    if (!groups.has(id)) groups.set(id, { id, nome: row.condominios?.nome ?? 'Condomínio não informado', unidades: [] })
-    groups.get(id)!.unidades.push(row)
+    const carteiraId = row.carteira_id ?? 'sem-carteira'
+    let carteiraGroup = carteiraGroups.get(carteiraId)
+
+    if (!carteiraGroup) {
+      carteiraGroup = {
+        carteiraId,
+        carteira: row.carteiras?.nome ?? 'Carteira não informada',
+        condominios: [],
+        unidadesCount: 0,
+      }
+      carteiraGroups.set(carteiraId, carteiraGroup)
+    }
+
+    const condominioId = row.condominio_id ?? 'sem-condominio'
+    let condominioGroup = carteiraGroup.condominios.find((item) => item.condominioId === condominioId)
+
+    if (!condominioGroup) {
+      condominioGroup = {
+        condominioId,
+        condominio: row.condominios?.nome ?? 'Condomínio não informado',
+        unidades: [],
+      }
+      carteiraGroup.condominios.push(condominioGroup)
+    }
+
+    condominioGroup.unidades.push(row)
+    carteiraGroup.unidadesCount += 1
   }
-  return Array.from(groups.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+
+  return Array.from(carteiraGroups.values())
+    .map((carteiraGroup) => ({
+      ...carteiraGroup,
+      condominios: carteiraGroup.condominios.sort((a, b) => a.condominio.localeCompare(b.condominio, 'pt-BR')),
+    }))
+    .sort((a, b) => a.carteira.localeCompare(b.carteira, 'pt-BR'))
 }
 
 export default async function UnidadesPage({ searchParams }: UnidadesPageProps) {
@@ -265,58 +301,79 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
           <form action={updateUnidadesStatusEmLote}>
             <UnidadesBulkControls />
             <ListRows>
-              {groups.map((group) => (
-                <details key={group.id} className="group/condominio bg-white">
-                  <summary className="flex cursor-pointer list-none items-center gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
-                    <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
-                    <div>
-                      <ListItemTitle className="font-semibold">{group.nome}</ListItemTitle>
-                      <ListItemMeta className="mt-0.5">{group.unidades.length} unidade(s) nesta página</ListItemMeta>
+              {groups.map((carteiraGroup) => (
+                <details key={carteiraGroup.carteiraId} className="group/carteira bg-white">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-200 bg-slate-100/80 px-4 py-3 transition hover:bg-slate-200/70 first:border-t-0 [&::-webkit-details-marker]:hidden">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open/carteira:rotate-180" />
+                      <div className="min-w-0">
+                        <ListItemTitle className="font-semibold">{carteiraGroup.carteira}</ListItemTitle>
+                        <ListItemMeta className="mt-0.5">
+                          {carteiraGroup.condominios.length} condomínio(s) · {carteiraGroup.unidadesCount} unidade(s) nesta página
+                        </ListItemMeta>
+                      </div>
                     </div>
                   </summary>
-                  <div className="divide-y divide-slate-100 border-t border-slate-100">
-                  {group.unidades.map((row: any) => (
-                <ListRow
-                  key={row.id}
-                  className="xl:grid-cols-[40px_minmax(300px,1.35fr)_120px_170px_220px_170px]"
-                >
-                  <label className="flex items-center xl:justify-center">
-                    <input
-                      type="checkbox"
-                      name="unidade_ids"
-                      value={row.id}
-                      aria-label={`Selecionar unidade ${row.identificacao || ''}`}
-                      className="size-4 rounded border-slate-300"
-                    />
-                  </label>
 
-                  <Link href={`/app/unidades/${row.id}`} className="group min-w-0">
-                    <ListItemTitle className="group-hover:text-[var(--gkli-primary)]">
-                      Unidade {row.identificacao || '-'} {row.bloco ? `· Bloco ${row.bloco}` : ''}
-                    </ListItemTitle>
-                    <ListItemMeta>
-                      {row.condominios?.nome ?? '-'} · {row.responsavel_nome ?? 'Responsável não informado'} ·{' '}
-                      {row.carteiras?.nome ?? '-'}
-                    </ListItemMeta>
-                  </Link>
+                  <div className="divide-y divide-slate-100">
+                    {carteiraGroup.condominios.map((group) => (
+                      <details key={group.condominioId} className="group/condominio bg-white">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/70 px-7 py-2.5 transition hover:bg-slate-100/80 [&::-webkit-details-marker]:hidden">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                            <div className="min-w-0">
+                              <ListItemTitle>{group.condominio}</ListItemTitle>
+                              <ListItemMeta className="mt-0.5">{group.unidades.length} unidade(s) nesta página</ListItemMeta>
+                            </div>
+                          </div>
+                        </summary>
 
-                  <StatusBadge status={row.status} />
+                        <div className="divide-y divide-slate-100">
+                          {group.unidades.map((row: any) => (
+                            <ListRow
+                              key={row.id}
+                              className="xl:grid-cols-[40px_minmax(300px,1.35fr)_120px_170px_220px_170px]"
+                            >
+                              <label className="flex items-center xl:justify-center">
+                                <input
+                                  type="checkbox"
+                                  name="unidade_ids"
+                                  value={row.id}
+                                  aria-label={`Selecionar unidade ${row.identificacao || ''}`}
+                                  className="size-4 rounded border-slate-300"
+                                />
+                              </label>
 
-                  <ListMetric label="Telefone" value={row.telefone ?? '-'} />
-                  <ListMetric label="E-mail" value={row.email ?? '-'} valueClassName="truncate" />
+                              <Link href={`/app/unidades/${row.id}`} className="group min-w-0">
+                                <ListItemTitle className="group-hover:text-[var(--gkli-primary)]">
+                                  Unidade {row.identificacao || '-'} {row.bloco ? `· Bloco ${row.bloco}` : ''}
+                                </ListItemTitle>
+                                <ListItemMeta>
+                                  {row.condominios?.nome ?? '-'} · {row.responsavel_nome ?? 'Responsável não informado'} ·{' '}
+                                  {row.carteiras?.nome ?? '-'}
+                                </ListItemMeta>
+                              </Link>
 
-                  <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
-                    <ButtonLink href={`/app/unidades/${row.id}`} variant="secondary" size="sm">
-                      <ArrowUpRight size={15} />
-                      Abrir
-                    </ButtonLink>
-                    <ButtonLink href={`/app/unidades/${row.id}#cadastro`} size="sm">
-                      <Edit3 size={15} />
-                      Editar
-                    </ButtonLink>
-                  </div>
-                </ListRow>
-                  ))}
+                              <StatusBadge status={row.status} />
+
+                              <ListMetric label="Telefone" value={row.telefone ?? '-'} />
+                              <ListMetric label="E-mail" value={row.email ?? '-'} valueClassName="truncate" />
+
+                              <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
+                                <ButtonLink href={`/app/unidades/${row.id}`} variant="secondary" size="sm">
+                                  <ArrowUpRight size={15} />
+                                  Abrir
+                                </ButtonLink>
+                                <ButtonLink href={`/app/unidades/${row.id}#cadastro`} size="sm">
+                                  <Edit3 size={15} />
+                                  Editar
+                                </ButtonLink>
+                              </div>
+                            </ListRow>
+                          ))}
+                        </div>
+                      </details>
+                    ))}
                   </div>
                 </details>
               ))}

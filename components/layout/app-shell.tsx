@@ -179,7 +179,8 @@ const settingsGroups: SidebarSection[] = [
     title: 'Lab',
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
-      { label: 'Lab experimental', href: '/app/configuracoes/lab', icon: 'beaker' },
+      { label: 'Lab experimental', href: '/app/configuracoes/lab', icon: 'beaker', exact: true },
+      { label: 'Visão síndico antiga', href: '/app/configuracoes/lab/visao-sindico-antiga', icon: 'home' },
       { label: 'Agenda do Maestro', href: '/app/agente-automatico/maestro?aba=agenda', icon: 'bot' },
       { label: 'Lite legado', href: '/app/configuracoes/lab/lite', icon: 'spark' },
       { label: 'Mobile', href: '/app/configuracoes/lab/mobile', icon: 'mobile' },

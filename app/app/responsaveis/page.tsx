@@ -81,13 +81,49 @@ function sortResponsaveis(rows: any[], ordenar: string) {
 }
 
 function groupResponsaveis(rows: any[]) {
-  const groups = new Map<string, { id: string; nome: string; responsaveis: any[] }>()
+  const carteiraGroups = new Map<string, {
+    carteiraId: string
+    carteira: string
+    condominios: Array<{ condominioId: string; condominio: string; responsaveis: any[] }>
+    responsaveisCount: number
+  }>()
+
   for (const row of rows) {
-    const id = row.condominios?.id ?? row.condominio_id ?? 'sem-condominio'
-    if (!groups.has(id)) groups.set(id, { id, nome: row.condominios?.nome ?? 'Condomínio não informado', responsaveis: [] })
-    groups.get(id)!.responsaveis.push(row)
+    const carteiraId = row.carteira_id ?? 'sem-carteira'
+    let carteiraGroup = carteiraGroups.get(carteiraId)
+
+    if (!carteiraGroup) {
+      carteiraGroup = {
+        carteiraId,
+        carteira: row.carteiras?.nome ?? 'Carteira não informada',
+        condominios: [],
+        responsaveisCount: 0,
+      }
+      carteiraGroups.set(carteiraId, carteiraGroup)
+    }
+
+    const condominioId = row.condominio_id ?? 'sem-condominio'
+    let condominioGroup = carteiraGroup.condominios.find((item) => item.condominioId === condominioId)
+
+    if (!condominioGroup) {
+      condominioGroup = {
+        condominioId,
+        condominio: row.condominios?.nome ?? 'Condomínio não informado',
+        responsaveis: [],
+      }
+      carteiraGroup.condominios.push(condominioGroup)
+    }
+
+    condominioGroup.responsaveis.push(row)
+    carteiraGroup.responsaveisCount += 1
   }
-  return Array.from(groups.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+
+  return Array.from(carteiraGroups.values())
+    .map((carteiraGroup) => ({
+      ...carteiraGroup,
+      condominios: carteiraGroup.condominios.sort((a, b) => a.condominio.localeCompare(b.condominio, 'pt-BR')),
+    }))
+    .sort((a, b) => a.carteira.localeCompare(b.carteira, 'pt-BR'))
 }
 
 function tipoLabel(value?: string | null) {
@@ -254,50 +290,71 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
           />
         ) : (
           <ListRows>
-            {groups.map((group) => (
-              <details key={group.id} className="group/condominio bg-white">
-                <summary className="flex cursor-pointer list-none items-center gap-3 bg-slate-50/70 px-4 py-2.5 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
-                  <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
-                  <div>
-                    <ListItemTitle className="font-semibold">{group.nome}</ListItemTitle>
-                    <ListItemMeta className="mt-0.5">{group.responsaveis.length} responsável(is) nesta página</ListItemMeta>
+            {groups.map((carteiraGroup) => (
+              <details key={carteiraGroup.carteiraId} className="group/carteira bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-200 bg-slate-100/80 px-4 py-3 transition hover:bg-slate-200/70 first:border-t-0 [&::-webkit-details-marker]:hidden">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open/carteira:rotate-180" />
+                    <div className="min-w-0">
+                      <ListItemTitle className="font-semibold">{carteiraGroup.carteira}</ListItemTitle>
+                      <ListItemMeta className="mt-0.5">
+                        {carteiraGroup.condominios.length} condomínio(s) · {carteiraGroup.responsaveisCount} responsável(is) nesta página
+                      </ListItemMeta>
+                    </div>
                   </div>
                 </summary>
-                <div className="divide-y divide-slate-100 border-t border-slate-100">
-            {group.responsaveis.map((row: any) => {
-              const href = `/app/responsaveis/${row.id}`
-              const completo = completenessLabel(row) === 'Completo'
-              return (
-                <ListRow
-                  key={row.id}
-                  className="xl:grid-cols-[minmax(240px,1.2fr)_150px_170px_150px_130px_120px]"
-                >
-                  <Link href={href} className="min-w-0">
-                    <ListItemTitle>{row.responsavel_nome || 'Responsável não informado'}</ListItemTitle>
-                    <ListItemMeta>{row.carteiras?.nome ?? '-'} · origem {row.origem ?? '-'}</ListItemMeta>
-                  </Link>
-                  <Link href={href} className="min-w-0 text-sm text-slate-700">
-                    <span className="block truncate">Bloco {row.bloco || '-'}</span>
-                    <span className="mt-1 block truncate text-xs text-slate-500">Unidade {row.unidade || '-'}</span>
-                  </Link>
-                  <Link href={href} className="min-w-0">
-                    <ListItemTitle>{tipoLabel(row.tipo_responsavel)}</ListItemTitle>
-                    <ListItemMeta>{row.email ?? row.telefone ?? 'Contato não informado'}</ListItemMeta>
-                  </Link>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone={row.ativo !== false ? 'green' : 'slate'}>{row.ativo !== false ? 'Ativo' : 'Inativo'}</Badge>
-                    <Badge tone={completo ? 'green' : 'yellow'}>{completenessLabel(row)}</Badge>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Atualizado em {row.updated_at ? new Intl.DateTimeFormat('pt-BR').format(new Date(row.updated_at)) : '-'}
-                  </p>
-                  <ButtonLink href={href} variant="secondary" size="sm">
-                    <Edit3 size={14} />
-                    Editar
-                  </ButtonLink>
-                </ListRow>
-              )
-            })}
+
+                <div className="divide-y divide-slate-100">
+                  {carteiraGroup.condominios.map((group) => (
+                    <details key={group.condominioId} className="group/condominio bg-white">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/70 px-7 py-2.5 transition hover:bg-slate-100/80 [&::-webkit-details-marker]:hidden">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
+                          <div className="min-w-0">
+                            <ListItemTitle>{group.condominio}</ListItemTitle>
+                            <ListItemMeta className="mt-0.5">{group.responsaveis.length} responsável(is) nesta página</ListItemMeta>
+                          </div>
+                        </div>
+                      </summary>
+
+                      <div className="divide-y divide-slate-100">
+                        {group.responsaveis.map((row: any) => {
+                          const href = `/app/responsaveis/${row.id}`
+                          const completo = completenessLabel(row) === 'Completo'
+                          return (
+                            <ListRow
+                              key={row.id}
+                              className="xl:grid-cols-[minmax(240px,1.2fr)_150px_170px_150px_130px_120px]"
+                            >
+                              <Link href={href} className="min-w-0">
+                                <ListItemTitle>{row.responsavel_nome || 'Responsável não informado'}</ListItemTitle>
+                                <ListItemMeta>{row.carteiras?.nome ?? '-'} · origem {row.origem ?? '-'}</ListItemMeta>
+                              </Link>
+                              <Link href={href} className="min-w-0 text-sm text-slate-700">
+                                <span className="block truncate">Bloco {row.bloco || '-'}</span>
+                                <span className="mt-1 block truncate text-xs text-slate-500">Unidade {row.unidade || '-'}</span>
+                              </Link>
+                              <Link href={href} className="min-w-0">
+                                <ListItemTitle>{tipoLabel(row.tipo_responsavel)}</ListItemTitle>
+                                <ListItemMeta>{row.email ?? row.telefone ?? 'Contato não informado'}</ListItemMeta>
+                              </Link>
+                              <div className="flex flex-wrap gap-2">
+                                <Badge tone={row.ativo !== false ? 'green' : 'slate'}>{row.ativo !== false ? 'Ativo' : 'Inativo'}</Badge>
+                                <Badge tone={completo ? 'green' : 'yellow'}>{completenessLabel(row)}</Badge>
+                              </div>
+                              <p className="text-xs text-slate-500">
+                                Atualizado em {row.updated_at ? new Intl.DateTimeFormat('pt-BR').format(new Date(row.updated_at)) : '-'}
+                              </p>
+                              <ButtonLink href={href} variant="secondary" size="sm">
+                                <Edit3 size={14} />
+                                Editar
+                              </ButtonLink>
+                            </ListRow>
+                          )
+                        })}
+                      </div>
+                    </details>
+                  ))}
                 </div>
               </details>
             ))}

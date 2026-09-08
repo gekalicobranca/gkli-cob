@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/utils/supabase/admin'
+import { listCondominios } from '@/features/condominios/queries'
+import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { carregarAcessoSindicoV2 } from './queries'
 import {
   montarCaptacaoComHistorico,
@@ -8,9 +10,38 @@ import {
 } from './captacao'
 import type { PeriodoSindico } from './periodos'
 
+type AcessoVisaoSindicoV2 = {
+  nome: string
+  condominios: { id: string; nome: string }[]
+  selecionado: { id: string; nome: string } | null
+  selecaoInvalida: boolean
+}
+
 export async function carregarVisaoSindicoV2(condominioId: string | undefined, periodo: PeriodoSindico) {
   // Resolver autorização aqui, antes de criar qualquer consulta de dados do condomínio.
   const acesso = await carregarAcessoSindicoV2(condominioId)
+  return carregarCaptacaoParaAcesso(acesso, periodo)
+}
+
+export async function carregarVisaoSindicoV2Gestao(condominioId: string | undefined, periodo: PeriodoSindico) {
+  const scope = await getPermittedCarteiras()
+  const rows = await listCondominios(scope, { status: 'ativo' }, { all: true })
+  const condominios = rows
+    .map((item: any) => ({ id: String(item.id), nome: String(item.nome_operacional || item.nome || 'Condomínio sem nome') }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  const selecionado = condominioId
+    ? condominios.find((item) => item.id === condominioId) ?? null
+    : condominios[0] ?? null
+
+  return carregarCaptacaoParaAcesso({
+    nome: 'Gestão GKLI',
+    condominios,
+    selecionado,
+    selecaoInvalida: Boolean(condominioId && !condominios.some((item) => item.id === condominioId)),
+  }, periodo)
+}
+
+async function carregarCaptacaoParaAcesso(acesso: AcessoVisaoSindicoV2, periodo: PeriodoSindico) {
   if (!acesso.selecionado) return { acesso, captacao: null }
   const admin = createAdminClient()
   const registros: RegistroCaptacao[] = []
