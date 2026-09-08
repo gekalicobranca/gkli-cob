@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  ChevronDown,
   CheckCircle2,
   Mail,
   MessageCircle,
@@ -37,8 +38,10 @@ import { iniciarTratamentoPendencia, resolverPendencia } from "@/features/penden
 import { listPendenciasOperacionais } from "@/features/pendencias/queries";
 import type { PendenciaOperacional } from "@/features/pendencias/types";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
+import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
+import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -65,6 +68,105 @@ function shouldShowSection(active: string, section: string) {
 
 function onlyDigits(value?: string | null) {
   return String(value ?? "").replace(/\D/g, "");
+}
+
+function relation(value: any) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+async function getCarteiraNomeMap(scope: CarteiraScope) {
+  if (scope.carteiraIds?.length === 0) return new Map<string, string>();
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("carteiras")
+    .select("id, nome")
+    .order("nome", { ascending: true });
+
+  if (scope.carteiraIds) {
+    query = query.in("id", scope.carteiraIds);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`Erro ao carregar carteiras dos acionamentos: ${error.message}`);
+  }
+
+  return new Map((data ?? []).map((row: any) => [String(row.id), String(row.nome ?? "Carteira sem nome")]));
+}
+
+function getCarteiraInfo(row: any, carteiraNomes: Map<string, string>) {
+  const carteira = relation(row.carteiras ?? row.carteira);
+  const id = String(row.carteiraId ?? row.carteira_id ?? carteira?.id ?? "sem-carteira");
+  const nome = row.carteiraNome
+    ?? carteira?.nome
+    ?? carteiraNomes.get(id)
+    ?? "Carteira não informada";
+
+  return { id, nome };
+}
+
+function groupByCarteira<T>(
+  rows: T[],
+  carteiraNomes: Map<string, string>,
+  valueExtractor?: (row: T) => number,
+) {
+  const groups = new Map<string, { carteiraId: string; carteira: string; rows: T[]; value: number | null }>();
+
+  for (const row of rows) {
+    const carteira = getCarteiraInfo(row, carteiraNomes);
+    const group = groups.get(carteira.id) ?? {
+      carteiraId: carteira.id,
+      carteira: carteira.nome,
+      rows: [],
+      value: valueExtractor ? 0 : null,
+    };
+
+    group.rows.push(row);
+    if (valueExtractor) group.value = Number(group.value ?? 0) + valueExtractor(row);
+    groups.set(carteira.id, group);
+  }
+
+  return Array.from(groups.values()).sort((a, b) => a.carteira.localeCompare(b.carteira, "pt-BR"));
+}
+
+function CarteiraGroupedList<T>({
+  rows,
+  carteiraNomes,
+  valueExtractor,
+  children,
+}: {
+  rows: T[];
+  carteiraNomes: Map<string, string>;
+  valueExtractor?: (row: T) => number;
+  children: (row: T) => React.ReactNode;
+}) {
+  const groups = groupByCarteira(rows, carteiraNomes, valueExtractor);
+
+  return (
+    <div className="divide-y divide-slate-100">
+      {groups.map((group) => (
+        <details key={group.carteiraId} className="group/carteira bg-white">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-200 bg-slate-100/80 px-4 py-3 transition hover:bg-slate-200/70 first:border-t-0 [&::-webkit-details-marker]:hidden">
+            <div className="flex min-w-0 items-center gap-3">
+              <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open/carteira:rotate-180" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-950">{group.carteira}</p>
+                <p className="mt-0.5 text-xs text-slate-500">{group.rows.length} item(ns)</p>
+              </div>
+            </div>
+            {group.value !== null ? (
+              <p className="shrink-0 text-sm font-semibold text-slate-950">{formatCurrency(group.value)}</p>
+            ) : null}
+          </summary>
+          <div className="divide-y divide-slate-100 border-t border-slate-100">
+            {group.rows.map(children)}
+          </div>
+        </details>
+      ))}
+    </div>
+  );
 }
 
 function whatsappHref(phone: string | null, text: string) {
@@ -193,6 +295,7 @@ function SectionShell({
   emptyDescription,
   children,
   hasRows,
+  count,
 }: {
   title: string;
   description: string;
@@ -201,25 +304,36 @@ function SectionShell({
   emptyDescription: string;
   children: React.ReactNode;
   hasRows: boolean;
+  count: number;
 }) {
   return (
     <Card className="overflow-hidden p-0">
-      <div className="border-b border-slate-100 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
-            <Icon size={18} />
+      <details open={hasRows} className="group bg-white">
+        <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]">
+                  <Icon size={18} />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-medium text-slate-950">{title}</h2>
+                  <p className="mt-1 text-sm text-slate-500">{description}</p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">{count}</span>
+                <ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" />
+              </div>
+            </div>
           </div>
-          <div>
-            <h2 className="text-base font-medium text-slate-950">{title}</h2>
-            <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </summary>
+        {hasRows ? children : (
+          <div className="p-5">
+            <EmptyState title={emptyTitle} description={emptyDescription} />
           </div>
-        </div>
-      </div>
-      {hasRows ? <div className="divide-y divide-slate-100">{children}</div> : (
-        <div className="p-5">
-          <EmptyState title={emptyTitle} description={emptyDescription} />
-        </div>
-      )}
+        )}
+      </details>
     </Card>
   );
 }
@@ -323,6 +437,11 @@ function BoletoRow({ row }: { row: any }) {
 function payloadString(payload: Record<string, unknown> | null | undefined, key: string) {
   const value = payload?.[key];
   return value === null || value === undefined ? "" : String(value);
+}
+
+function valorPendenciaReemissao(pendencia: PendenciaOperacional) {
+  const payload = pendencia.payload ?? {};
+  return Number(payload.valor_novo ?? payload.valor_anterior ?? 0);
 }
 
 function ReemissaoRow({ pendencia }: { pendencia: PendenciaOperacional }) {
@@ -468,12 +587,13 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
     ? "/app/gestao/acionamentos-acordos"
     : `/app/gestao/acionamentos-acordos?tipo=${tipoFiltro}`;
   const scope = await getPermittedCarteiras();
-  const [sindicoTerms, devedorTerms, aprovacoes, boletos, pendencias] = await Promise.all([
+  const [sindicoTerms, devedorTerms, aprovacoes, boletos, pendencias, carteiraNomes] = await Promise.all([
     listAgreementManualActivationInbox(scope, "sindico"),
     listAgreementManualActivationInbox(scope, "devedor"),
     listAgreementApprovalInbox(scope),
     listAgreementBoletoInbox(scope),
     listPendenciasOperacionais(scope),
+    getCarteiraNomeMap(scope),
   ]);
 
   const sindicoTermByAcordo = new Map(sindicoTerms.map((term) => [term.acordoId, term]));
@@ -538,10 +658,13 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
           emptyTitle="Sem aprovação de síndico pendente"
           emptyDescription="Nenhum acordo depende desta etapa agora."
           hasRows={aprovacoes.length > 0}
+          count={aprovacoes.length}
         >
-          {aprovacoes.map((row: any) => (
-            <SindicoDecisionRow key={row.id} row={row} term={sindicoTermByAcordo.get(row.id)} returnTo={currentPath} />
-          ))}
+          <CarteiraGroupedList rows={aprovacoes} carteiraNomes={carteiraNomes} valueExtractor={(row: any) => Number(row.valor_acordado ?? 0)}>
+            {(row: any) => (
+              <SindicoDecisionRow key={row.id} row={row} term={sindicoTermByAcordo.get(row.id)} returnTo={currentPath} />
+            )}
+          </CarteiraGroupedList>
         </SectionShell>
       ) : null}
 
@@ -553,8 +676,11 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
           emptyTitle="Sem formalização de devedor pendente"
           emptyDescription="Todos os termos de devedor foram acionados ou ainda não foram gerados."
           hasRows={devedorTerms.length > 0}
+          count={devedorTerms.length}
         >
-          {devedorTerms.map((row) => <ActivationRow key={row.termoId} row={row} canal="devedor" returnTo={currentPath} />)}
+          <CarteiraGroupedList rows={devedorTerms} carteiraNomes={carteiraNomes} valueExtractor={(row) => row.valorAcordado}>
+            {(row) => <ActivationRow key={row.termoId} row={row} canal="devedor" returnTo={currentPath} />}
+          </CarteiraGroupedList>
         </SectionShell>
       ) : null}
 
@@ -566,8 +692,11 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
           emptyTitle="Sem boletos em acompanhamento"
           emptyDescription="Nenhum acordo está parado nesta etapa agora."
           hasRows={boletos.length > 0}
+          count={boletos.length}
         >
-          {boletos.map((row: any) => <BoletoRow key={row.id} row={row} />)}
+          <CarteiraGroupedList rows={boletos} carteiraNomes={carteiraNomes} valueExtractor={(row: any) => Number(row.valor_acordado ?? 0)}>
+            {(row: any) => <BoletoRow key={row.id} row={row} />}
+          </CarteiraGroupedList>
         </SectionShell>
       ) : null}
 
@@ -579,8 +708,11 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
           emptyTitle="Sem reemissões pendentes"
           emptyDescription="Nenhuma parcela de acordo está aguardando reemissão agora."
           hasRows={reemissoesPendentes.length > 0}
+          count={reemissoesPendentes.length}
         >
-          {reemissoesPendentes.map((pendencia) => <ReemissaoRow key={pendencia.id} pendencia={pendencia} />)}
+          <CarteiraGroupedList rows={reemissoesPendentes} carteiraNomes={carteiraNomes} valueExtractor={valorPendenciaReemissao}>
+            {(pendencia) => <ReemissaoRow key={pendencia.id} pendencia={pendencia} />}
+          </CarteiraGroupedList>
         </SectionShell>
       ) : null}
 
@@ -592,8 +724,11 @@ export default async function AcionamentosAcordosPage({ searchParams }: { search
           emptyTitle="Sem pendências bloqueantes"
           emptyDescription="Nenhuma pendência de implantação aberta para acordos ou administradoras."
           hasRows={pendenciasImplantacao.length > 0}
+          count={pendenciasImplantacao.length}
         >
-          {pendenciasImplantacao.map((pendencia) => <PendenciaRow key={pendencia.id} pendencia={pendencia} />)}
+          <CarteiraGroupedList rows={pendenciasImplantacao} carteiraNomes={carteiraNomes}>
+            {(pendencia) => <PendenciaRow key={pendencia.id} pendencia={pendencia} />}
+          </CarteiraGroupedList>
         </SectionShell>
       ) : null}
     </div>

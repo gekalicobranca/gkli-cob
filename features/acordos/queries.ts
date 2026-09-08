@@ -1537,6 +1537,7 @@ export type AgreementManualActivationRow = {
   mensagemAcionadaEm: string | null;
   mensagemAssunto: string | null;
   mensagemConteudo: string | null;
+  carteiraNome: string | null;
 };
 
 export async function listAgreementManualActivationInbox(
@@ -1564,6 +1565,7 @@ export async function listAgreementManualActivationInbox(
         fluxo_status,
         valor_acordado,
         data_acordo,
+        carteiras:carteira_id (id, nome),
         condominios:condominio_id (nome),
         unidades:unidade_id (identificacao, bloco, responsavel_nome, telefone, email)
       )
@@ -1612,6 +1614,7 @@ export async function listAgreementManualActivationInbox(
 
   return ((termos ?? []) as any[]).map((termo) => {
     const acordo = Array.isArray(termo.acordos) ? termo.acordos[0] : termo.acordos;
+    const carteira = Array.isArray(acordo?.carteiras) ? acordo?.carteiras[0] : acordo?.carteiras;
     const condominio = Array.isArray(acordo?.condominios) ? acordo?.condominios[0] : acordo?.condominios;
     const unidade = Array.isArray(acordo?.unidades) ? acordo?.unidades[0] : acordo?.unidades;
     const mensagem = mensagensPorAcordo.get(termo.acordo_id) ?? null;
@@ -1643,6 +1646,7 @@ export async function listAgreementManualActivationInbox(
       mensagemAcionadaEm: termo.visualizado_em ?? mensagem?.enviada_manual_em ?? mensagem?.ultima_tentativa_em ?? null,
       mensagemAssunto: mensagem?.email_assunto ?? "Formalização do acordo",
       mensagemConteudo: mensagem?.conteudo_renderizado ?? mensagem?.conteudo ?? null,
+      carteiraNome: carteira?.nome ?? null,
     };
   });
 }
