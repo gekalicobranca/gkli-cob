@@ -115,7 +115,6 @@ const sections: SidebarSection[] = [
       { label: 'Maestro', href: '/app/agente-automatico/maestro', icon: 'nodes' },
       { label: 'Agentes remotos', href: '/app/agente-automatico', icon: 'robot', exact: true },
       { label: 'Motor de conversão', href: '/app/conversao-relatorio', icon: 'document' },
-      { label: 'Importação', href: '/app/importacoes', icon: 'upload' },
       { label: 'Validações do Maestro', href: '/app/configuracoes/lab/captacao-automatizada', icon: 'shield' },
       { label: 'Keila', href: '/app/gestao/keila', icon: 'bot' },
     ],
