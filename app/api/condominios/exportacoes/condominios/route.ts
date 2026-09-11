@@ -1,29 +1,8 @@
 import { NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import { criarExcelCondominios } from "@/features/condominios/exportacao-excel";
 import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
-
-const CONDOMINIOS_HEADERS = [
-  "condominio",
-  "cnpj",
-  "sindico_email",
-  "sindico_celular",
-  "gerente_email",
-  "gerente_celular",
-  "endereco_logradouro",
-  "endereco_numero",
-  "endereco_complemento",
-  "endereco_bairro",
-  "endereco_cidade",
-  "endereco_uf",
-  "endereco_cep",
-  "vencimento_cota_dia",
-  "valor_cota_condominial",
-  "inicio_cobranca_dias",
-  "dias_expiracao_regua_pre_juridico",
-  "carteira",
-];
 
 function sanitizeFileName(value: string) {
   return String(value || "condominios")
@@ -33,35 +12,6 @@ function sanitizeFileName(value: string) {
     .replace(/^-+|-+$/g, "")
     .toLowerCase()
     .slice(0, 80) || "condominios";
-}
-
-function createWorkbook(rows: Record<string, unknown>[]) {
-  const workbook = XLSX.utils.book_new();
-  const dados = XLSX.utils.json_to_sheet(rows, { header: CONDOMINIOS_HEADERS });
-
-  dados["!cols"] = [
-    { wch: 42 },
-    { wch: 20 },
-    { wch: 32 },
-    { wch: 18 },
-    { wch: 32 },
-    { wch: 18 },
-    { wch: 36 },
-    { wch: 14 },
-    { wch: 24 },
-    { wch: 24 },
-    { wch: 22 },
-    { wch: 8 },
-    { wch: 14 },
-    { wch: 20 },
-    { wch: 22 },
-    { wch: 20 },
-    { wch: 34 },
-    { wch: 28 },
-  ];
-
-  XLSX.utils.book_append_sheet(workbook, dados, "DADOS");
-  return workbook;
 }
 
 export async function GET(request: Request) {
@@ -79,6 +29,7 @@ export async function GET(request: Request) {
         carteira_id,
         nome,
         cnpj,
+        administradora,
         sindico_email,
         sindico_celular,
         gerente_email,
@@ -114,36 +65,14 @@ export async function GET(request: Request) {
     }
 
     const carteiraNames = new Set<string>();
-    const rows = (data ?? []).map((row: any) => {
+    const rows = data ?? [];
+    for (const row of rows) {
       const carteira = Array.isArray(row.carteiras) ? row.carteiras[0] : row.carteiras;
-      const carteiraNome = carteira?.nome ?? "";
-      if (carteiraNome) carteiraNames.add(carteiraNome);
-
-      return {
-        condominio: row.nome ?? "",
-        cnpj: row.cnpj ?? "",
-        sindico_email: row.sindico_email ?? "",
-        sindico_celular: row.sindico_celular ?? "",
-        gerente_email: row.gerente_email ?? "",
-        gerente_celular: row.gerente_celular ?? "",
-        endereco_logradouro: row.endereco_logradouro ?? "",
-        endereco_numero: row.endereco_numero ?? "",
-        endereco_complemento: row.endereco_complemento ?? "",
-        endereco_bairro: row.endereco_bairro ?? "",
-        endereco_cidade: row.endereco_cidade ?? "",
-        endereco_uf: row.endereco_uf ?? "",
-        endereco_cep: row.endereco_cep ?? "",
-        vencimento_cota_dia: row.vencimento_cota_dia ?? "",
-        valor_cota_condominial: row.valor_cota_condominial ?? "",
-        inicio_cobranca_dias: row.inicio_cobranca_dias ?? "",
-        dias_expiracao_regua_pre_juridico: row.dias_expiracao_regua_pre_juridico ?? "",
-        carteira: carteiraNome,
-      };
-    });
+      if (carteira?.nome) carteiraNames.add(carteira.nome);
+    }
 
     const carteiraLabel = carteiraNames.size === 1 ? Array.from(carteiraNames)[0] : "todas-as-carteiras-permitidas";
-    const workbook = createWorkbook(rows);
-    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const buffer = await criarExcelCondominios(rows);
     const fileName = `gkli-condominios-${sanitizeFileName(carteiraLabel)}.xlsx`;
 
     return new Response(buffer, {
