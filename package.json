@@ -35,7 +35,8 @@
     "agente:importar-acessos": "node scripts/agente-automatico/importar-acessos-administradoras.mjs",
     "condominios:atualizar-dados-operacao": "node scripts/atualizar-condominios-dados-operacao.mjs",
     "captacao:worker": "tsx scripts/captacao-automatizada/worker.ts",
-    "prebuild": "npm run backup:generate-schema"
+    "prebuild": "npm run backup:generate-schema",
+    "test:dependencias": "tsx scripts/validate-dependency-updates.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
@@ -45,13 +46,13 @@
     "exceljs": "^4.4.0",
     "fflate": "^0.8.3",
     "lucide-react": "latest",
-    "next": "16.2.4",
+    "next": "16.3.5",
     "openai": "^6.37.0",
     "pdf-parse": "1.1.1",
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "tailwind-merge": "latest",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "latest"
   },
   "devDependencies": {
@@ -62,10 +63,15 @@
     "eslint": "latest",
     "eslint-config-next": "latest",
     "playwright": "1.62.1",
-    "supabase": "^2.113.0",
+    "supabase": "^2.117.0",
     "tailwindcss": "4.2.4",
     "tsx": "4.20.6",
     "typescript": "5.9.3"
   },
-  "description": "GKLI Cobrança - plataforma operacional de cobrança extrajudicial condominial"
+  "description": "GKLI Cobrança - plataforma operacional de cobrança extrajudicial condominial",
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
+  }
 }
