@@ -180,12 +180,12 @@ export type ResumoCaptacao = {
  * A confirmação continua no fluxo autenticado do operador.
  */
 export async function processarRelatorioCaptado(
-  arquivo: string,
-  options: { condominioId?: string } = {},
+  arquivo: string | { buffer: Buffer; nomeArquivo: string },
+  options: { condominioId?: string; conversaoId?: string } = {},
 ): Promise<ResumoCaptacao> {
   const supabase = createAdminClient()
-  const buffer = await readFile(arquivo)
-  const nomeArquivo = path.basename(arquivo)
+  const buffer = typeof arquivo === 'string' ? await readFile(arquivo) : arquivo.buffer
+  const nomeArquivo = path.basename(typeof arquivo === 'string' ? arquivo : arquivo.nomeArquivo)
   const origemCaptacao = /_\d{3,}_\d{4}-\d{2}-\d{2}\.xlsx?$/i.test(nomeArquivo)
     ? "captacao_automatizada:lello"
     : "captacao_automatizada:bbz"
@@ -232,7 +232,7 @@ export async function processarRelatorioCaptado(
   })
   if (!preview?.ok) throw new Error(preview?.error || "Não foi possível converter o relatório.")
   preview = preview.preview
-  if (!preview.cobrancas?.length && !preview.semPendencias) preview = parseBbzClock(buffer, path.basename(arquivo))
+  if (!preview.cobrancas?.length && !preview.semPendencias) preview = parseBbzClock(buffer, nomeArquivo)
   preview = aplicarBlocoPadrao(preview, blocoPadraoCaptacao)
   preview = aplicarFiltroBlocoManager(preview, condominio.nome)
   preview = aplicarRecorteOperacionalDeVencimento(preview)
@@ -248,6 +248,7 @@ export async function processarRelatorioCaptado(
     condominio: condominio.nome,
   }
   const { data: conversao, error } = await supabase.from("conversoes_relatorio").insert({
+    ...(options.conversaoId ? { id: options.conversaoId } : {}),
     carteira_id: condominio.carteira_id,
     condominio_id: condominio.id,
     origem: origemCaptacao,
@@ -259,10 +260,12 @@ export async function processarRelatorioCaptado(
     preview_json: previewComContexto,
     inconsistencias_json: preview.inconsistencias ?? [],
   } as any).select("id").single()
-  if (error || !conversao) throw new Error(error?.message || "Falha ao registrar a conversão para validação.")
+  // O ID do arquivo torna cliques simultâneos idempotentes, sem sobrescrever uma conversão confirmada.
+  const conversaoId = conversao?.id ?? (error?.code === '23505' ? options.conversaoId : undefined)
+  if (!conversaoId) throw new Error(error?.message || "Falha ao registrar a conversão para validação.")
 
   return {
-    conversaoId: conversao.id,
+    conversaoId,
     condominioId: condominio.id,
     carteiraId: condominio.carteira_id,
     cobrancas: preview.cobrancas.length,

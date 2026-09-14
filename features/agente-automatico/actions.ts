@@ -7,6 +7,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getAgenteWorkerByScriptKey } from './workers'
 import { startLocalWorker, stopLocalWorker } from './local-workers'
+import { processarRelatorioCaptado } from '@/features/captacao-automatizada/processar-relatorio'
 
 async function assertCaptacaoGlobalAtiva(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data, error } = await supabase.from('automacao_controle')
@@ -557,6 +558,7 @@ export async function marcarExecucaoComoSucessoManual(formData: FormData) {
 
 export async function validarArquivoAgente(formData: FormData) {
   const supabase = await createClient()
+  const scope = await getPermittedCarteiras()
 
   const execucaoId = getString(formData, 'execucao_id')
   const status = getString(formData, 'status')
@@ -565,6 +567,38 @@ export async function validarArquivoAgente(formData: FormData) {
   if (!execucaoId) throw new Error('Execução não informada.')
   if (!['validado', 'rejeitado', 'reenviar_coleta', 'importado_manual'].includes(status)) {
     throw new Error('Status de validação inválido.')
+  }
+
+  const { data: execucao, error: execucaoError } = await supabase.from('agente_execucoes')
+    .select('id, condominio_id, carteira_id').eq('id', execucaoId).single()
+  if (execucaoError || !execucao || (scope.carteiraIds !== null && !scope.carteiraIds.includes(execucao.carteira_id))) {
+    throw new Error('Execução não encontrada ou sem permissão.')
+  }
+
+  let conversaoId: string | undefined
+  if (status === 'validado') {
+    if (!execucao.condominio_id) throw new Error('Execução sem condomínio vinculado.')
+    const { data: arquivo, error: arquivoError } = await supabase.from('agente_arquivos')
+      .select('id, nome_arquivo, storage_path').eq('execucao_id', execucaoId)
+      .order('created_at', { ascending: false }).limit(1).single()
+    if (arquivoError || !arquivo) throw new Error('Arquivo coletado não encontrado.')
+    const admin = createAdminClient()
+    const { data: existente, error: existenteError } = await admin.from('conversoes_relatorio')
+      .select('id').eq('id', arquivo.id).eq('condominio_id', execucao.condominio_id).maybeSingle()
+    if (existenteError) throw new Error(existenteError.message)
+    if (existente) {
+      conversaoId = existente.id
+    } else {
+      const { data: download, error: downloadError } = await admin.storage.from('agente-relatorios').download(arquivo.storage_path)
+      if (downloadError || !download) throw new Error(downloadError?.message || 'Não foi possível baixar o relatório.')
+      const resumo = await processarRelatorioCaptado({
+        buffer: Buffer.from(await download.arrayBuffer()), nomeArquivo: arquivo.nome_arquivo,
+      }, { condominioId: execucao.condominio_id, conversaoId: arquivo.id })
+      conversaoId = resumo.conversaoId
+    }
+    const { error: arquivoUpdateError } = await admin.from('agente_arquivos')
+      .update({ status_validacao: 'validado' }).eq('id', arquivo.id)
+    if (arquivoUpdateError) throw new Error(arquivoUpdateError.message)
   }
 
   const {
@@ -588,6 +622,10 @@ export async function validarArquivoAgente(formData: FormData) {
   })
 
   revalidatePath('/app/agente-automatico')
+  if (conversaoId) {
+    revalidatePath('/app/agente-automatico/maestro')
+    redirect(`/app/configuracoes/lab/captacao-automatizada/${conversaoId}`)
+  }
 }
 
 export async function limparAgenteExecucoes() {
