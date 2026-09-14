@@ -45,7 +45,7 @@ export default async function CaptacaoAutomatizadaPage({ searchParams }: Props) 
 
   const [{ data: condominiosBase }, { data: conversoes }, { data: execucoesAgenda }, { data: receitasAgente }] = await Promise.all([
     supabase.from('condominios').select('id, nome, nome_operacional, cnpj, administradora, status, captacao_dia_mes, captacao_horario, carteiras(nome)').eq('captacao_automatica_habilitada', true).order('nome'),
-    supabase.from('conversoes_relatorio').select('id, nome_arquivo, status, total_cobrancas, total_parcelas, inconsistencias_json, criado_em, atualizado_em, preview_json').eq('origem', 'captacao_automatizada:bbz').order('criado_em', { ascending: false }).limit(40),
+    supabase.from('conversoes_relatorio').select('id, nome_arquivo, status, total_cobrancas, total_parcelas, inconsistencias_json, criado_em, atualizado_em, preview_json').like('origem', 'captacao_automatizada:%').order('criado_em', { ascending: false }).limit(40),
     supabase.from('agente_execucoes').select('id, condominio_id, status, competencia, created_at, erro_mensagem, logs:agente_logs(step, mensagem, nivel, created_at)').eq('origem', 'agenda_mensal').order('created_at', { ascending: false }).limit(40),
     supabase.from('agente_receitas').select('id, script_key, config_json, ativo, administradora:agente_administradoras(nome, ativo)').eq('ativo', true),
   ])

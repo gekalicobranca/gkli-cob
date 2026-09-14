@@ -10,7 +10,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   if (response) return response
   const { id } = await params
   const supabase = createAdminClient()
-  const { data, error } = await supabase.from('conversoes_relatorio').select('nome_arquivo, preview_json').eq('id', id).eq('origem', 'captacao_automatizada:bbz').maybeSingle()
+  const { data, error } = await supabase.from('conversoes_relatorio').select('nome_arquivo, preview_json').eq('id', id).like('origem', 'captacao_automatizada:%').maybeSingle()
   if (error || !data) return NextResponse.json({ ok: false, error: error?.message || 'Conversão não encontrada.' }, { status: 404 })
   const preview: any = data.preview_json ?? {}
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user!.id).maybeSingle()

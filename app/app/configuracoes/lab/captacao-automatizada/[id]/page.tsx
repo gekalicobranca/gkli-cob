@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export default async function ValidarCaptacaoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = createAdminClient()
-  const { data } = await supabase.from('conversoes_relatorio').select('id, nome_arquivo, status, preview_json, total_cobrancas, total_parcelas, valor_total, inconsistencias_json').eq('id', id).eq('origem', 'captacao_automatizada:bbz').maybeSingle()
+  const { data } = await supabase.from('conversoes_relatorio').select('id, nome_arquivo, status, preview_json, total_cobrancas, total_parcelas, valor_total, inconsistencias_json').eq('id', id).like('origem', 'captacao_automatizada:%').maybeSingle()
   if (!data) notFound()
   const preview: any = data.preview_json ?? {}
   const cobrancas: any[] = Array.isArray(preview.cobrancas) ? preview.cobrancas : []
