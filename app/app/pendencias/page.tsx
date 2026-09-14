@@ -410,6 +410,7 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
   return (
     <ListPage>
       <PageHeader
+        eyebrow="Base Operacional"
         title="Central de Pendências"
         description="Fila única para acompanhar travas operacionais, solicitações externas, acordos críticos e pontos que exigem ação do time."
       />

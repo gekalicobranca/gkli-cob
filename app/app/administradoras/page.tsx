@@ -83,7 +83,7 @@ export default async function AdministradorasPage({ searchParams }: Props) {
   return (
     <ListPage>
       <PageHeader
-        eyebrow="Administradoras"
+        eyebrow="Base Cadastral"
         title="Cadastro de administradoras"
         description="Controle global das administradoras, seus contatos e a operação externa que destrava planilhas, boletos e registros de acordo."
         actions={

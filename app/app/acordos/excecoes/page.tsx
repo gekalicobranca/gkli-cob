@@ -16,7 +16,7 @@ export default async function ExcecoesAcordosPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Acordos"
+        eyebrow="Base Operacional"
         title="Painel de exceções"
         description="Rompimentos, boletos, aprovações e pontos que pedem ação do gestor."
         actions={<ButtonLink href="/app/acordos/gestao" variant="secondary">Voltar</ButtonLink>}

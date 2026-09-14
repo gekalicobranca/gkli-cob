@@ -29,7 +29,7 @@ export default async function SolicitacoesAdmPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="Administradoras" title="Solicitações ADM" description="Fila de pedidos de planilha de débitos, boletos de acordo, registros de acordo e retornos externos." />
+      <PageHeader eyebrow="Base Cadastral" title="Solicitações ADM" description="Fila de pedidos de planilha de débitos, boletos de acordo, registros de acordo e retornos externos." />
       <ListKpiGrid className="xl:grid-cols-3">
         <Card className="p-3"><p className="text-xs font-medium uppercase text-slate-400">Solicitações</p><div className="mt-1.5 flex items-end justify-between gap-3"><p className="text-2xl font-semibold text-slate-950">{rows.length}</p><p className="text-sm text-slate-500">registradas</p></div></Card>
         <Card className="p-3"><p className="text-xs font-medium uppercase text-slate-400">Abertas</p><div className="mt-1.5 flex items-end justify-between gap-3"><p className="text-2xl font-semibold text-slate-950">{abertas}</p><p className="text-sm text-slate-500">aguardando retorno</p></div></Card>

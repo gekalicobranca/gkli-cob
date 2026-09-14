@@ -83,7 +83,7 @@ export default async function NovaImportacaoPage({
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Importações"
+        eyebrow="Base Cadastral"
         title={`Nova importação · ${selected.label}`}
         description="Upload controlado em etapas: arquivo, validação, preview, impacto e confirmação. O tipo já vem definido pelo card escolhido."
         actions={

@@ -23,7 +23,7 @@ export default async function AprovacoesAcordosPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Acordos"
+        eyebrow="Base Operacional"
         title="Aprovações"
         description="Fila leve de acordos que dependem de aprovação do síndico."
         actions={

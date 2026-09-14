@@ -44,7 +44,7 @@ export default async function ResponsavelDetalhePage({ params }: ResponsavelPage
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Responsáveis"
+        eyebrow="Base Cadastral"
         title="Cadastro do responsável"
         description="Dados de apoio para importações, acordos e acionamentos da unidade."
         actions={<ButtonLink href="/app/responsaveis" variant="secondary"><ArrowLeft size={16} />Voltar</ButtonLink>}

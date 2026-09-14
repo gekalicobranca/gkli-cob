@@ -153,7 +153,7 @@ export default async function TimelinePage({ searchParams }: PageProps) {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Operação"
+        eyebrow="Base Operacional"
         title="Timeline operacional global"
         description="Memória viva da operação: cobranças, acordos, mensageria, réguas, lotes e administradoras em uma trilha única."
         actions={

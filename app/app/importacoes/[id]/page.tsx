@@ -196,7 +196,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Preview de importação"
+        eyebrow="Base Cadastral"
         title={importacao.arquivo_nome ?? 'Arquivo sem nome'}
         description={`${labelTipo(importacaoTipo)} - criada em ${formatDateBR(importacao.created_at)} - preview antes de gravar dados definitivos.`}
         actions={

@@ -249,7 +249,7 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
   return (
     <div className="space-y-3">
       <PageHeader
-        eyebrow="Acordos"
+        eyebrow="Base Operacional"
         title="Parcelas de acordos"
         description="Acompanhe vencimentos, confirme pagamentos e solicite reemissões sem sair da tela."
         actions={

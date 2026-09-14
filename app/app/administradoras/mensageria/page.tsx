@@ -13,7 +13,7 @@ export default async function MensageriaAdmPage() {
   const templates = await listTemplatesAdm()
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="Administradoras" title="Mensageria ADM" description="Mensageria separada para administradoras: planilhas de débitos, boletos de acordo, registros e follow-up externo." actions={<ButtonLink href="/app/administradoras/solicitacoes" variant="secondary">Ver solicitações</ButtonLink>} />
+      <PageHeader eyebrow="Base Cadastral" title="Mensageria ADM" description="Mensageria separada para administradoras: planilhas de débitos, boletos de acordo, registros e follow-up externo." actions={<ButtonLink href="/app/administradoras/solicitacoes" variant="secondary">Ver solicitações</ButtonLink>} />
       <section className="grid gap-3 md:grid-cols-2">
         <Card className="p-5"><MessageSquareText className="text-[var(--gkli-primary)]" size={22} /><p className="mt-4 text-sm font-medium text-slate-950">Canal administrativo</p><p className="mt-1 text-sm text-slate-500">Separado da mensageria de devedores.</p></Card>
         <Card className="p-5"><FileText className="text-[var(--gkli-primary)]" size={22} /><p className="mt-4 text-sm font-medium text-slate-950">Templates ADM</p><p className="mt-1 text-sm text-slate-500">{templates.length} modelos disponíveis.</p></Card>

@@ -29,7 +29,7 @@ export default async function BoletosAcordosPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Acordos"
+        eyebrow="Base Operacional"
         title="Controle de boletos"
         description="Acompanhamento simples: aguardando, recebidos e enviados ao devedor."
         actions={

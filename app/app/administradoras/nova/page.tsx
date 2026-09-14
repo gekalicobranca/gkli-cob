@@ -9,7 +9,7 @@ import { createAdministradora } from '@/features/administradoras/actions'
 export default function NovaAdministradoraPage() {
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="Administradoras" title="Nova administradora" description="Cadastre a administradora para vincular contatos, solicitações e pendências externas." />
+      <PageHeader eyebrow="Base Cadastral" title="Nova administradora" description="Cadastre a administradora para vincular contatos, solicitações e pendências externas." />
       <Card>
         <form action={createAdministradora} className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1.5"><span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Nome / razão social</span><Input name="nome" required /></label>

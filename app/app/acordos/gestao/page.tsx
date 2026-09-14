@@ -137,7 +137,7 @@ export default async function GestaoAcordosPage({ searchParams }: { searchParams
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Acordos"
+        eyebrow="Base Operacional"
         title="Gestão de acordos quebrados"
         description="Fila de acordos com quebra real para preparação documental e encaminhamento ao pré-jurídico."
         actions={

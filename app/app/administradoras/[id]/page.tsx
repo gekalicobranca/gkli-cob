@@ -48,7 +48,7 @@ export default async function AdministradoraDetalhePage({ params }: Props) {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Administradoras"
+        eyebrow="Base Cadastral"
         title={administradora.nome_operacional || administradora.nome}
         description="Hub operacional da relação com a administradora: contatos, solicitações, SLA básico e pendências externas."
         actions={<><ButtonLink href="/app/administradoras" variant="secondary">Voltar</ButtonLink><ButtonLink href="/app/administradoras/solicitacoes" variant="secondary">Solicitações ADM</ButtonLink></>}
