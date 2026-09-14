@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import ExcelJS from 'exceljs'
+import { criarExcelRelatorioAcordos } from '../features/acordos/exportacao-excel'
 import { criarExcelAdministradoras } from '../features/administradoras/exportacao-excel'
 import { criarExcelRelatorioCobrancas } from '../features/cobrancas/exportacao-excel'
 import { criarExcelExportacaoCondominio } from '../features/condominios/exportacao-cadastro-excel'
@@ -227,6 +228,75 @@ async function validateAcordosCondominio(outputDir: string) {
   writeFileSync(`${outputDir}/acordos-condominio.xlsx`, bytes)
 }
 
+async function validateRelatorioAcordos(outputDir: string) {
+  const rows = [{
+    id: 'acordo-1',
+    carteira_id: 'cart-1',
+    condominio_id: 'cond-1',
+    unidade_id: 'und-1',
+    data_acordo: '2026-09-10',
+    valor_acordado: '1100',
+    entrada: '200',
+    quantidade_parcelas: 6,
+    status: 'ativo',
+    status_financeiro: 'aberto',
+    fluxo_status: 'boletos_enviados',
+    numero_processo: '',
+    saude_acordo: 'saudavel',
+    carteiras: { nome: 'Carteira Paulista' },
+    condominios: { nome: 'Condomínio São José' },
+    unidades: { identificacao: '001', bloco: 'A', responsavel_nome: 'Maria de Souza' },
+  }]
+  const parcelas = [
+    {
+      id: 'parcela-1',
+      acordo_id: 'acordo-1',
+      numero: 1,
+      tipo_parcela: 'entrada',
+      valor: '200',
+      vencimento: '2026-09-10',
+      status: 'paga',
+      data_pagamento: '2026-09-10',
+    },
+    {
+      id: 'parcela-2',
+      acordo_id: 'acordo-1',
+      numero: 2,
+      tipo_parcela: 'parcela',
+      valor: '150',
+      vencimento: '2026-10-10',
+      status: 'pendente',
+      data_pagamento: null,
+    },
+  ]
+  const bytes = await criarExcelRelatorioAcordos({
+    q: '',
+    condominio_id: '',
+    unidade_id: '',
+    carteira_id: '',
+    status: '',
+    data_de: '',
+    data_ate: '',
+    ordenar: 'data_desc',
+  }, rows, parcelas, new Date('2026-09-11T15:00:00Z'))
+  const workbook = await loadWorkbook(bytes)
+  const resumo = workbook.getWorksheet('RESUMO')!
+  const acordos = workbook.getWorksheet('ACORDOS')!
+  const parcelasSheet = workbook.getWorksheet('PARCELAS')!
+  assert.equal(resumo.getCell('B17').value, 1100)
+  assert.equal(resumo.getCell('B17').numFmt, '"R$" #,##0.00')
+  assert.equal(acordos.getCell('A5').value, 'Carteira')
+  assert.equal(acordos.getCell('F6').value, 1100)
+  assert.equal(acordos.getCell('F6').numFmt, '"R$" #,##0.00')
+  assert.equal(parcelasSheet.getCell('I5').value, 'Nº parcela')
+  assert.equal(parcelasSheet.getCell('K6').value instanceof Date, true)
+  assert.equal(parcelasSheet.getCell('L6').value, 200)
+  assert.equal(parcelasSheet.getCell('L6').numFmt, '"R$" #,##0.00')
+  assert.equal(parcelasSheet.getCell('N6').value instanceof Date, true)
+  assert.equal(parcelasSheet.autoFilter, 'A5:P7')
+  writeFileSync(`${outputDir}/relatorio-acordos.xlsx`, bytes)
+}
+
 async function main() {
   const outputDir = '.codex-tmp/exportacoes-excel'
   mkdirSync(outputDir, { recursive: true })
@@ -235,6 +305,7 @@ async function main() {
   await validateAdministradoras(outputDir)
   await validateCobrancas(outputDir)
   await validateAcordosCondominio(outputDir)
+  await validateRelatorioAcordos(outputDir)
   console.log('Exportações Excel validadas: condomínios, unidades, administradoras, cobranças e acordos.')
 }
 

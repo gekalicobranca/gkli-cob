@@ -117,13 +117,13 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
         description="Base de condomínios, filtros operacionais, regras de início de cobrança e vínculo com carteiras."
         actions={
           <>
-            <ButtonLink href={reportHref} variant="secondary" target="_blank">
-              <FileText size={16} />
-              Relatório executivo
-            </ButtonLink>
             <ButtonLink href={exportCondominiosHref} variant="secondary">
               <Download size={16} />
               Exportar
+            </ButtonLink>
+            <ButtonLink href={reportHref} variant="secondary" target="_blank">
+              <FileText size={16} />
+              Relatório executivo
             </ButtonLink>
             <ButtonLink href="/app/condominios/novo">
               <Plus size={16} />

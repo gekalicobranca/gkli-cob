@@ -999,6 +999,16 @@ export async function listAcordosComSaudePage(
   };
 }
 
+export async function listAcordosComSaudeFiltered(
+  scope: CarteiraScope,
+  filters: ListAcordosComSaudePageFilters = {},
+) {
+  const ordenar = cleanPageFilter(filters.ordenar) || "data_desc";
+  const allRows = await listAcordosComSaude(scope);
+  const filteredRows = filterAcordosPageRows(allRows, filters);
+  return sortAcordosPageRows(filteredRows, ordenar);
+}
+
 export async function listFilaParcelasOperadorAcordos(scope?: CarteiraScope) {
   // Hardening 5.6: evita carregar parcelas duas vezes.
   // Antes, listAcordosComSaude() já buscava parcelas e esta função buscava novamente.

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, ChevronDown, FileSpreadsheet, FileText, Plus, WalletCards } from "lucide-react";
+import { ArrowUpRight, CalendarDays, ChevronDown, Download, FileText, Plus, WalletCards } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { KpiCard } from "@/components/ui/kpi-card";
 import {
@@ -364,8 +364,8 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
           actions={
             <>
               <ButtonLink href={relatorioHref} variant="secondary">
-                <FileSpreadsheet size={16} />
-                Relatório
+                <Download size={16} />
+                Exportar
               </ButtonLink>
               <ButtonLink href={relatorioExecutivoHref} variant="secondary">
                 <FileText size={16} />
