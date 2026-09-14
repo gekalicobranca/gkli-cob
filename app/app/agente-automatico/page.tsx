@@ -99,6 +99,9 @@ function scriptLabel(scriptKey: string | null | undefined) {
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     sucesso: 'Sucesso',
+    validado: 'Validado',
+    rejeitado: 'Rejeitado',
+    importado: 'Importado',
     falha: 'Falha',
     em_execucao: 'Em execução',
     precisa_intervencao: 'Requer atenção',
@@ -108,8 +111,8 @@ function statusLabel(status: string) {
 }
 
 function statusTone(status: string): 'green' | 'red' | 'blue' | 'amber' | 'slate' {
-  if (status === 'sucesso') return 'green'
-  if (status === 'falha') return 'red'
+  if (['sucesso', 'validado', 'importado'].includes(status)) return 'green'
+  if (['falha', 'rejeitado'].includes(status)) return 'red'
   if (status === 'em_execucao') return 'blue'
   if (status === 'precisa_intervencao') return 'amber'
   return 'slate'
@@ -403,6 +406,8 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
         </form>
         <div className="divide-y divide-slate-100">
           {execucoesFiltradas.slice(0, 15).map((execucao) => {
+            const arquivoRecente = [...(execucao.arquivos ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+            const statusExibido = execucao.status === 'sucesso' && arquivoRecente && arquivoRecente.status_validacao !== 'aguardando_validacao' ? arquivoRecente.status_validacao : execucao.status
             const config = execucao.receita?.config_json
             const codigo = extrairCodigo(config)
             const erro = resumirErro(execucao.erro_mensagem)
@@ -413,7 +418,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge tone={statusTone(execucao.status)} label={statusLabel(execucao.status)} />
+                      <StatusBadge tone={statusTone(statusExibido)} label={statusLabel(statusExibido)} />
                       <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{scriptLabel(execucao.receita?.script_key)}</span>
                       {execucao.competencia ? <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{execucao.competencia}</span> : null}
                       {execucao.origem ? <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{execucao.origem}</span> : null}
@@ -473,7 +478,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
                     ) : null}
                     {(execucao.arquivos ?? []).length ? (
                       <>
-                        <form action={validarArquivoAgente}><input type="hidden" name="execucao_id" value={execucao.id} /><input type="hidden" name="status" value="validado" /><Button type="submit" variant="secondary" size="sm">Validar</Button></form>
+                        <form action={validarArquivoAgente}><input type="hidden" name="execucao_id" value={execucao.id} /><input type="hidden" name="status" value="validado" /><Button type="submit" variant="secondary" size="sm">{arquivoRecente?.status_validacao === 'validado' ? 'Abrir conversão' : 'Validar'}</Button></form>
                         <form action={validarArquivoAgente}><input type="hidden" name="execucao_id" value={execucao.id} /><input type="hidden" name="status" value="rejeitado" /><Button type="submit" variant="danger" size="sm">Rejeitar</Button></form>
                       </>
                     ) : null}
