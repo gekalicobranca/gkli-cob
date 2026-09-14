@@ -1,56 +1,8 @@
 import { NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import { criarExcelExportacaoCondominio, type CondominioExportTipo } from "@/features/condominios/exportacao-cadastro-excel";
 import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
-
-type ExportTipo = "unidades" | "cobrancas" | "acordos";
-
-const UNIDADES_HEADERS = [
-  "condominio_cnpj",
-  "identificacao",
-  "bloco",
-  "tipo",
-  "responsavel_nome",
-  "responsavel_documento",
-  "telefone",
-  "email",
-  "status",
-  "observacoes",
-];
-
-const COBRANCAS_HEADERS = [
-  "condominio_cnpj",
-  "unidade",
-  "bloco",
-  "responsavel_nome",
-  "responsavel_documento",
-  "telefone",
-  "email",
-  "competencia",
-  "vencimento",
-  "valor_original",
-  "valor_atualizado",
-  "status",
-  "observacoes",
-];
-
-const ACORDOS_HEADERS = [
-  "condominio_cnpj",
-  "unidade",
-  "bloco",
-  "responsavel_nome",
-  "data_acordo",
-  "valor_original",
-  "despesa_cobranca_percentual",
-  "despesa_cobranca_valor",
-  "entrada",
-  "quantidade_parcelas",
-  "primeiro_vencimento",
-  "status",
-  "documento_url",
-  "observacoes",
-];
 
 function sanitizeFileName(value: string) {
   return String(value || "condominio")
@@ -71,28 +23,6 @@ function toDate(value?: string | null) {
 function money(value: unknown) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function createWorkbook(title: string, headers: string[], rows: Record<string, any>[]) {
-  const workbook = XLSX.utils.book_new();
-  const instrucoes = XLSX.utils.aoa_to_sheet([
-    [`GKLI Cobrança — Exportação de ${title}`],
-    [],
-    ["Arquivo gerado no mesmo padrão da importação."],
-    ["Use a aba DADOS para conferência, saneamento ou reimportação controlada."],
-  ]);
-  const dados = XLSX.utils.json_to_sheet(rows, { header: headers });
-  const exemplos = XLSX.utils.aoa_to_sheet([
-    ["Cabeçalho padrão"],
-    [],
-    headers,
-  ]);
-
-  dados["!cols"] = headers.map(() => ({ wch: 24 }));
-  XLSX.utils.book_append_sheet(workbook, instrucoes, "INSTRUCOES");
-  XLSX.utils.book_append_sheet(workbook, dados, "DADOS");
-  XLSX.utils.book_append_sheet(workbook, exemplos, "EXEMPLOS");
-  return workbook;
 }
 
 async function loadCondominio(id: string) {
@@ -140,7 +70,7 @@ async function exportUnidades(id: string) {
     observacoes: row.observacoes ?? "",
   }));
 
-  return { condominio, workbook: createWorkbook("Unidades", UNIDADES_HEADERS, rows) };
+  return { condominio, buffer: await criarExcelExportacaoCondominio("unidades", rows) };
 }
 
 async function exportCobrancas(id: string) {
@@ -194,7 +124,7 @@ async function exportCobrancas(id: string) {
     };
   });
 
-  return { condominio, workbook: createWorkbook("Cobranças", COBRANCAS_HEADERS, rows) };
+  return { condominio, buffer: await criarExcelExportacaoCondominio("cobrancas", rows) };
 }
 
 async function exportAcordos(id: string) {
@@ -207,6 +137,7 @@ async function exportAcordos(id: string) {
       id,
       data_acordo,
       valor_acordado,
+      quantidade_parcelas,
       entrada,
       despesa_cobranca_percentual,
       despesa_cobranca_valor,
@@ -235,7 +166,7 @@ async function exportAcordos(id: string) {
   if (acordoIds.length > 0) {
     const { data: parcelas, error: parcelasError } = await supabase
       .from("parcelas_acordo")
-      .select("acordo_id, numero, vencimento")
+      .select("id, acordo_id, numero, tipo_parcela, valor, vencimento, status, data_pagamento")
       .in("acordo_id", acordoIds)
       .order("numero", { ascending: true });
 
@@ -254,6 +185,7 @@ async function exportAcordos(id: string) {
     const parcelas = parcelasPorAcordo.get(row.id) ?? [];
     const primeiroVencimento = parcelas[0]?.vencimento ?? "";
     const valorOriginal = money(row.valor_acordado) - money(row.despesa_cobranca_valor);
+    const quantidadeParcelas = Number(row.quantidade_parcelas || parcelas.length || 0);
 
     return {
       condominio_cnpj: condominio.cnpj ?? "",
@@ -265,7 +197,7 @@ async function exportAcordos(id: string) {
       despesa_cobranca_percentual: money(row.despesa_cobranca_percentual),
       despesa_cobranca_valor: money(row.despesa_cobranca_valor),
       entrada: money(row.entrada),
-      quantidade_parcelas: parcelas.length || "",
+      quantidade_parcelas: quantidadeParcelas || "",
       primeiro_vencimento: toDate(primeiroVencimento),
       status: row.status ?? "ativo",
       documento_url: row.documento_url ?? "",
@@ -273,7 +205,52 @@ async function exportAcordos(id: string) {
     };
   });
 
-  return { condominio, workbook: createWorkbook("Acordos Extrajudiciais", ACORDOS_HEADERS, rows) };
+  const parcelasRows: Array<Record<string, unknown>> = (data ?? []).flatMap((row: any) => {
+    const unidade = Array.isArray(row.unidades) ? row.unidades[0] : row.unidades;
+    const parcelas = parcelasPorAcordo.get(row.id) ?? [];
+    const quantidadeParcelas = Number(row.quantidade_parcelas || parcelas.length || 0);
+    const baseRow = {
+      condominio_cnpj: condominio.cnpj ?? "",
+      acordo_id: row.id ?? "",
+      unidade: unidade?.identificacao ?? "",
+      bloco: unidade?.bloco ?? "",
+      responsavel_nome: unidade?.responsavel_nome ?? "",
+      data_acordo: toDate(row.data_acordo),
+      valor_acordo: money(row.valor_acordado),
+      quantidade_parcelas: quantidadeParcelas || "",
+      documento_url: row.documento_url ?? "",
+      observacoes: row.observacoes ?? "",
+    };
+
+    if (parcelas.length === 0) {
+      return [{
+        ...baseRow,
+        parcela_id: "",
+        parcela_numero: null,
+        parcela_tipo: null,
+        parcela_vencimento: null,
+        parcela_valor: null,
+        parcela_status: null,
+        parcela_data_pagamento: null,
+      }];
+    }
+
+    return parcelas.map((parcela) => ({
+      ...baseRow,
+      parcela_id: parcela.id ?? "",
+      parcela_numero: parcela.numero ?? "",
+      parcela_tipo: parcela.tipo_parcela ?? "parcela",
+      parcela_vencimento: toDate(parcela.vencimento),
+      parcela_valor: money(parcela.valor),
+      parcela_status: parcela.status ?? "",
+      parcela_data_pagamento: toDate(parcela.data_pagamento),
+    }));
+  });
+
+  return {
+    condominio,
+    buffer: await criarExcelExportacaoCondominio("acordos", rows, new Date(), { parcelas: parcelasRows }),
+  };
 }
 
 export async function GET(
@@ -281,7 +258,7 @@ export async function GET(
   context: { params: Promise<{ id: string; tipo: string }> },
 ) {
   const { id, tipo: rawTipo } = await context.params;
-  const tipo = rawTipo as ExportTipo;
+  const tipo = rawTipo as CondominioExportTipo;
 
   if (!["unidades", "cobrancas", "acordos"].includes(tipo)) {
     return NextResponse.json({ error: "Tipo de exportação inválido." }, { status: 400 });
@@ -296,10 +273,9 @@ export async function GET(
 
   if (!result) return NextResponse.json({ error: "Condomínio não encontrado." }, { status: 404 });
 
-  const buffer = XLSX.write(result.workbook, { type: "buffer", bookType: "xlsx" });
   const fileName = `gkli-exportacao-${tipo}-${sanitizeFileName(result.condominio.nome)}.xlsx`;
 
-  return new Response(buffer, {
+  return new Response(result.buffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${fileName}"`,

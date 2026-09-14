@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowUpRight, Building2, Filter, Plus } from 'lucide-react'
+import { ArrowUpRight, Building2, Download, Filter, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -73,6 +73,12 @@ export default async function AdministradorasPage({ searchParams }: Props) {
     getParam(params?.acesso_acordo) ||
     ordenar !== 'nome',
   )
+  const exportParams = new URLSearchParams()
+  if (filters.search) exportParams.set('q', filters.search)
+  if (filters.status) exportParams.set('status', filters.status)
+  if (getParam(params?.acesso_acordo)) exportParams.set('acesso_acordo', getParam(params?.acesso_acordo)!)
+  if (ordenar) exportParams.set('ordenar', ordenar)
+  const exportAdministradorasHref = `/api/administradoras/exportacoes/administradoras${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
 
   return (
     <ListPage>
@@ -80,7 +86,15 @@ export default async function AdministradorasPage({ searchParams }: Props) {
         eyebrow="Administradoras"
         title="Cadastro de administradoras"
         description="Controle global das administradoras, seus contatos e a operação externa que destrava planilhas, boletos e registros de acordo."
-        actions={<ButtonLink href="/app/administradoras/nova"><Plus size={16} />Nova administradora</ButtonLink>}
+        actions={
+          <>
+            <ButtonLink href={exportAdministradorasHref} variant="secondary">
+              <Download size={16} />
+              Exportar
+            </ButtonLink>
+            <ButtonLink href="/app/administradoras/nova"><Plus size={16} />Nova administradora</ButtonLink>
+          </>
+        }
       />
 
       <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">

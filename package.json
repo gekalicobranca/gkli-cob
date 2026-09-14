@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit --pretty false --incremental false",
     "test:conversao-lello": "tsx scripts/validate-conversao-lello.ts",
     "test:conversao-habitacional": "tsx scripts/validate-conversao-habitacional.ts",
+    "test:exportacoes-excel": "tsx scripts/validate-exportacoes-excel.ts",
     "test:whatsapp": "tsx scripts/validate-whatsapp-cloud.ts",
     "whatsapp:worker": "node scripts/whatsapp-cloud/worker.mjs",
     "supabase": "supabase",

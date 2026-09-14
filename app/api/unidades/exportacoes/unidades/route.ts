@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import { criarExcelUnidades } from "@/features/unidades/exportacao-excel";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { listUnidades, normalizeUnidadeFilters } from "@/features/unidades/queries";
-
-const UNIDADES_HEADERS = ["condominio", "unidade", "bloco", "carteira", "responsavel"];
 
 function sanitizeFileName(value: string) {
   return String(value || "unidades")
@@ -13,22 +11,6 @@ function sanitizeFileName(value: string) {
     .replace(/^-+|-+$/g, "")
     .toLowerCase()
     .slice(0, 80) || "unidades";
-}
-
-function createWorkbook(rows: Record<string, unknown>[]) {
-  const workbook = XLSX.utils.book_new();
-  const dados = XLSX.utils.json_to_sheet(rows, { header: UNIDADES_HEADERS });
-
-  dados["!cols"] = [
-    { wch: 42 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 28 },
-    { wch: 36 },
-  ];
-
-  XLSX.utils.book_append_sheet(workbook, dados, "DADOS");
-  return workbook;
 }
 
 function normalizeText(value: unknown) {
@@ -68,24 +50,14 @@ export async function GET(request: Request) {
     const data = sortUnidades(await listUnidades(scope, filters), ordenar);
 
     const carteiraNames = new Set<string>();
-    const rows = (data ?? []).map((row: any) => {
+    for (const row of data ?? []) {
       const carteira = Array.isArray(row.carteiras) ? row.carteiras[0] : row.carteiras;
-      const condominio = Array.isArray(row.condominios) ? row.condominios[0] : row.condominios;
       const carteiraNome = carteira?.nome ?? "";
       if (carteiraNome) carteiraNames.add(carteiraNome);
-
-      return {
-        condominio: condominio?.nome ?? "",
-        unidade: row.identificacao ?? "",
-        bloco: row.bloco ?? "",
-        carteira: carteiraNome,
-        responsavel: row.responsavel_nome ?? "",
-      };
-    });
+    }
 
     const carteiraLabel = carteiraNames.size === 1 ? Array.from(carteiraNames)[0] : "todas-as-carteiras-permitidas";
-    const workbook = createWorkbook(rows);
-    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const buffer = await criarExcelUnidades(data ?? []);
     const fileName = `gkli-unidades-${sanitizeFileName(carteiraLabel)}.xlsx`;
 
     return new Response(buffer, {
