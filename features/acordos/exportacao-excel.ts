@@ -34,6 +34,7 @@ type ParcelaReportRow = {
   parcelaTipo: string | null
   parcelaVencimento: string | null
   parcelaValor: number | null
+  parcelaValorRepasse: number | null
   parcelaStatus: string | null
   parcelaPagamento: string | null
   acordoId: string
@@ -48,6 +49,23 @@ function money(value: unknown) {
 function text(value: unknown, fallback = '') {
   const parsed = String(value ?? '').trim()
   return parsed || fallback
+}
+
+function roundCurrency(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function calcularValorRepasseParcela(acordo: any, parcelaValor: unknown) {
+  const valorParcela = money(parcelaValor)
+  const despesaCobrancaValor = money(acordo.despesa_cobranca_valor)
+  const valorAcordado = money(acordo.valor_acordado)
+  const despesaCobrancaPercentual = money(acordo.despesa_cobranca_percentual)
+
+  if (despesaCobrancaValor > 0 && valorAcordado > 0) {
+    return roundCurrency((despesaCobrancaValor * valorParcela) / valorAcordado)
+  }
+
+  return roundCurrency((valorParcela * despesaCobrancaPercentual) / 100)
 }
 
 function unidadeDisplay(row: any) {
@@ -135,6 +153,7 @@ function buildParcelasRows(rows: any[], parcelas: ParcelaAcordo[]): ParcelaRepor
         parcelaTipo: null,
         parcelaVencimento: null,
         parcelaValor: null,
+        parcelaValorRepasse: null,
         parcelaStatus: null,
         parcelaPagamento: null,
         parcelaId: null,
@@ -147,6 +166,7 @@ function buildParcelasRows(rows: any[], parcelas: ParcelaAcordo[]): ParcelaRepor
       parcelaTipo: parcela.tipo_parcela ?? 'parcela',
       parcelaVencimento: parcela.vencimento ?? null,
       parcelaValor: money(parcela.valor),
+      parcelaValorRepasse: calcularValorRepasseParcela(row, parcela.valor),
       parcelaStatus: statusLabel(parcela.status),
       parcelaPagamento: parcela.data_pagamento ?? null,
       parcelaId: parcela.id ?? null,
@@ -184,6 +204,7 @@ const parcelaColumns: ExcelColumn<ParcelaReportRow>[] = [
   { key: 'parcelaTipo', label: 'Tipo', width: 16 },
   { key: 'parcelaVencimento', label: 'Vencimento', width: 16, type: 'date' },
   { key: 'parcelaValor', label: 'Valor da parcela', width: 18, type: 'currency' },
+  { key: 'parcelaValorRepasse', label: 'Valor do repasse da parcela', width: 26, type: 'currency' },
   { key: 'parcelaStatus', label: 'Status da parcela', width: 20 },
   { key: 'parcelaPagamento', label: 'Data de pagamento', width: 18, type: 'date' },
   { key: 'acordoId', label: 'ID do acordo', width: 38 },

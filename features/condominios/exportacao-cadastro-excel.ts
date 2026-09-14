@@ -76,6 +76,7 @@ const parcelasAcordoHeaders = [
   'parcela_tipo',
   'parcela_vencimento',
   'parcela_valor',
+  'parcela_valor_repasse',
   'parcela_status',
   'parcela_data_pagamento',
   'documento_url',
@@ -118,6 +119,7 @@ const widthByHeader: Record<string, number> = {
   parcela_tipo: 18,
   parcela_vencimento: 18,
   parcela_valor: 18,
+  parcela_valor_repasse: 24,
   parcela_status: 18,
   parcela_data_pagamento: 20,
 }
@@ -136,6 +138,7 @@ const typeByHeader: Record<string, ExcelValueType> = {
   parcela_numero: 'integer',
   parcela_vencimento: 'date',
   parcela_valor: 'currency',
+  parcela_valor_repasse: 'currency',
   parcela_data_pagamento: 'date',
 }
 

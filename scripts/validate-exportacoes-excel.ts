@@ -172,6 +172,7 @@ async function validateAcordosCondominio(outputDir: string) {
       parcela_tipo: 'parcela',
       parcela_vencimento: new Date('2026-10-10T00:00:00'),
       parcela_valor: 150,
+      parcela_valor_repasse: 13.64,
       parcela_status: 'pendente',
       parcela_data_pagamento: '',
       documento_url: 'https://example.com/acordo.pdf',
@@ -191,6 +192,7 @@ async function validateAcordosCondominio(outputDir: string) {
       parcela_tipo: 'parcela',
       parcela_vencimento: new Date('2026-11-10T00:00:00'),
       parcela_valor: 150,
+      parcela_valor_repasse: 13.64,
       parcela_status: 'paga',
       parcela_data_pagamento: new Date('2026-11-09T00:00:00'),
       documento_url: 'https://example.com/acordo.pdf',
@@ -222,8 +224,11 @@ async function validateAcordosCondominio(outputDir: string) {
   assert.equal(parcelasSheet.getCell('L6').value instanceof Date, true)
   assert.equal(parcelasSheet.getCell('M6').value, 150)
   assert.equal(parcelasSheet.getCell('M6').numFmt, '"R$" #,##0.00')
-  assert.equal(parcelasSheet.getCell('O7').value instanceof Date, true)
-  assert.equal(parcelasSheet.autoFilter, 'A5:Q7')
+  assert.equal(parcelasSheet.getCell('N5').value, 'parcela_valor_repasse')
+  assert.equal(parcelasSheet.getCell('N6').value, 13.64)
+  assert.equal(parcelasSheet.getCell('N6').numFmt, '"R$" #,##0.00')
+  assert.equal(parcelasSheet.getCell('P7').value instanceof Date, true)
+  assert.equal(parcelasSheet.autoFilter, 'A5:R7')
   assert.equal(exemplos.getCell('N5').value, 'observacoes')
   writeFileSync(`${outputDir}/acordos-condominio.xlsx`, bytes)
 }
@@ -238,6 +243,8 @@ async function validateRelatorioAcordos(outputDir: string) {
     valor_acordado: '1100',
     entrada: '200',
     quantidade_parcelas: 6,
+    despesa_cobranca_percentual: '10',
+    despesa_cobranca_valor: '100',
     status: 'ativo',
     status_financeiro: 'aberto',
     fluxo_status: 'boletos_enviados',
@@ -292,8 +299,11 @@ async function validateRelatorioAcordos(outputDir: string) {
   assert.equal(parcelasSheet.getCell('K6').value instanceof Date, true)
   assert.equal(parcelasSheet.getCell('L6').value, 200)
   assert.equal(parcelasSheet.getCell('L6').numFmt, '"R$" #,##0.00')
-  assert.equal(parcelasSheet.getCell('N6').value instanceof Date, true)
-  assert.equal(parcelasSheet.autoFilter, 'A5:P7')
+  assert.equal(parcelasSheet.getCell('M5').value, 'Valor do repasse da parcela')
+  assert.equal(parcelasSheet.getCell('M6').value, 18.18)
+  assert.equal(parcelasSheet.getCell('M6').numFmt, '"R$" #,##0.00')
+  assert.equal(parcelasSheet.getCell('O6').value instanceof Date, true)
+  assert.equal(parcelasSheet.autoFilter, 'A5:Q7')
   writeFileSync(`${outputDir}/relatorio-acordos.xlsx`, bytes)
 }
 

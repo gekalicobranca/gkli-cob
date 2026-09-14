@@ -25,6 +25,23 @@ function money(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function roundCurrency(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function calcularValorRepasseParcela(acordo: any, parcelaValor: unknown) {
+  const valorParcela = money(parcelaValor);
+  const despesaCobrancaValor = money(acordo.despesa_cobranca_valor);
+  const valorAcordado = money(acordo.valor_acordado);
+  const despesaCobrancaPercentual = money(acordo.despesa_cobranca_percentual);
+
+  if (despesaCobrancaValor > 0 && valorAcordado > 0) {
+    return roundCurrency((despesaCobrancaValor * valorParcela) / valorAcordado);
+  }
+
+  return roundCurrency((valorParcela * despesaCobrancaPercentual) / 100);
+}
+
 async function loadCondominio(id: string) {
   const supabase = await createClient();
   const scope = await getPermittedCarteiras();
@@ -230,6 +247,7 @@ async function exportAcordos(id: string) {
         parcela_tipo: null,
         parcela_vencimento: null,
         parcela_valor: null,
+        parcela_valor_repasse: null,
         parcela_status: null,
         parcela_data_pagamento: null,
       }];
@@ -242,6 +260,7 @@ async function exportAcordos(id: string) {
       parcela_tipo: parcela.tipo_parcela ?? "parcela",
       parcela_vencimento: toDate(parcela.vencimento),
       parcela_valor: money(parcela.valor),
+      parcela_valor_repasse: calcularValorRepasseParcela(row, parcela.valor),
       parcela_status: parcela.status ?? "",
       parcela_data_pagamento: toDate(parcela.data_pagamento),
     }));
