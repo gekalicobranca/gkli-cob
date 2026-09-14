@@ -31,7 +31,7 @@ function formatarData(value?: string | null) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(value))
 }
 
-function proximaExecucao(dia?: number | null, horario?: string | null) {
+function proximaExecucao(dia?: number | null, horario?: string | null, realizadaNoMes = false) {
   if (!dia) return null
   const now = new Date()
   const partes = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
@@ -43,14 +43,14 @@ function proximaExecucao(dia?: number | null, horario?: string | null) {
   let ano = Number(partes.year)
   let mes = Number(partes.month)
   const [hora, minuto] = String(horario ?? '08:00').split(':').map(Number)
-  let data = new Date(ano, mes - 1, dia, hora || 0, minuto || 0)
-  if (data.getTime() <= now.getTime()) {
+  let data = new Date(Date.UTC(ano, mes - 1, dia, (hora || 0) + 3, minuto || 0))
+  if (realizadaNoMes || data.getTime() <= now.getTime()) {
     mes += 1
     if (mes > 12) {
       mes = 1
       ano += 1
     }
-    data = new Date(ano, mes - 1, dia, hora || 0, minuto || 0)
+    data = new Date(Date.UTC(ano, mes - 1, dia, (hora || 0) + 3, minuto || 0))
   }
   return data
 }
@@ -246,16 +246,23 @@ export default async function MaestroPage({ searchParams }: Props) {
   const emFluxo = linhas.filter((linha) => ['blue', 'slate'].includes(linha.resumo.tone)).length
   const atencao = linhas.filter((linha) => ['red', 'yellow'].includes(linha.resumo.tone)).length
   const concluidos = linhas.filter((linha) => linha.resumo.tone === 'green').length
-  const competenciaAtual = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date())
-  const execucoesAgenda = execucoes.filter((row: any) => row.origem === 'agenda_mensal')
+  const partesCompetencia = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(new Date()).map(p => [p.type, p.value]))
+  const competenciaAtual = `${partesCompetencia.year}-${partesCompetencia.month}`
+  // A limpeza do histórico visual não desfaz um ciclo mensal já realizado.
+  const { data: execucoesAgenda, error: agendaError } = await supabase.from('agente_execucoes')
+    .select('condominio_id, competencia, status').in('condominio_id', condominioIds)
+    .eq('origem', 'agenda_mensal').eq('competencia', competenciaAtual).eq('status', 'sucesso')
+  if (agendaError) throw new Error(agendaError.message)
   const agendasConfiguradas = linhas.filter((linha) => linha.condominio.captacao_automatica_habilitada && linha.condominio.captacao_dia_mes && linha.receita?.script_key).length
   const semAgenda = linhas.length - agendasConfiguradas
   const agendasPlanejadas = linhas.filter((linha) => linha.condominio.vencimento_cota_dia).length
   const agendasForaRegra = linhas.filter((linha) => linha.condominio.vencimento_cota_dia && linha.condominio.captacao_dia_mes && diaPlanejadoPorVencimento(linha.condominio.vencimento_cota_dia) !== Number(linha.condominio.captacao_dia_mes)).length
-  const executadosNoMes = execucoesAgenda.filter((row: any) => row.competencia === competenciaAtual && row.status === 'sucesso').length
+  const realizadosNoMes = new Set((execucoesAgenda ?? []).filter((row: any) => row.competencia === competenciaAtual && row.status === 'sucesso').map((row: any) => row.condominio_id))
+  const executadosNoMes = realizadosNoMes.size
+  const proximaAgenda = (linha: any) => proximaExecucao(linha.condominio.captacao_dia_mes, linha.condominio.captacao_horario, realizadosNoMes.has(linha.condominio.id)) ?? proximaExecucaoPorVencimento(linha.condominio.vencimento_cota_dia, linha.condominio.captacao_horario)
   const agendaOrdenada = [...filtradas].sort((a: any, b: any) => {
-    const proximaA = proximaExecucaoPorVencimento(a.condominio.vencimento_cota_dia, a.condominio.captacao_horario)?.getTime() ?? proximaExecucao(a.condominio.captacao_dia_mes, a.condominio.captacao_horario)?.getTime() ?? Number.MAX_SAFE_INTEGER
-    const proximaB = proximaExecucaoPorVencimento(b.condominio.vencimento_cota_dia, b.condominio.captacao_horario)?.getTime() ?? proximaExecucao(b.condominio.captacao_dia_mes, b.condominio.captacao_horario)?.getTime() ?? Number.MAX_SAFE_INTEGER
+    const proximaA = proximaAgenda(a)?.getTime() ?? Number.MAX_SAFE_INTEGER
+    const proximaB = proximaAgenda(b)?.getTime() ?? Number.MAX_SAFE_INTEGER
     return proximaA - proximaB || String(a.condominio.nome_operacional || a.condominio.nome).localeCompare(String(b.condominio.nome_operacional || b.condominio.nome), 'pt-BR')
   })
   const tabQuery = (nextAba: 'pipeline' | 'agenda') => {
@@ -329,12 +336,11 @@ export default async function MaestroPage({ searchParams }: Props) {
       {!agendaOrdenada.length ? <Card className="py-12 text-center"><CalendarClock className="mx-auto text-slate-300" /><p className="mt-3 font-medium text-slate-900">Nenhuma agenda encontrada</p><p className="mt-1 text-sm text-slate-500">Ajuste os filtros ou configure a captação no condomínio.</p></Card> : null}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400 lg:grid-cols-[minmax(280px,1.5fr)_140px_180px_160px_170px_150px_auto]">
-          <span>Condomínio</span><span>Vencimento</span><span>Agenda planejada</span><span>Agenda atual</span><span>Última execução</span><span>Validação</span><span className="text-right">Ações</span>
+          <span>Condomínio</span><span>Vencimento</span><span>Próxima execução</span><span>Agenda atual</span><span>Última execução</span><span>Validação</span><span className="text-right">Ações</span>
         </div>
         <div className="divide-y divide-slate-100">{agendaOrdenada.map((linha: any) => {
-          const proximaPlanejada = proximaExecucaoPorVencimento(linha.condominio.vencimento_cota_dia, linha.condominio.captacao_horario)
-          const proximaAtual = proximaExecucao(linha.condominio.captacao_dia_mes, linha.condominio.captacao_horario)
-          const proxima = proximaPlanejada ?? proximaAtual
+          const realizadaNoMes = realizadosNoMes.has(linha.condominio.id)
+          const proxima = proximaAgenda(linha)
           const diaPlanejado = diaPlanejadoPorVencimento(linha.condominio.vencimento_cota_dia)
           const agendaCompleta = Boolean(linha.condominio.captacao_automatica_habilitada && linha.condominio.captacao_dia_mes && linha.receita?.script_key)
           const foraDaRegra = Boolean(diaPlanejado && linha.condominio.captacao_dia_mes && diaPlanejado !== Number(linha.condominio.captacao_dia_mes))
@@ -343,7 +349,7 @@ export default async function MaestroPage({ searchParams }: Props) {
             <p className="text-slate-700">{linha.condominio.vencimento_cota_dia ? `Dia ${linha.condominio.vencimento_cota_dia}` : 'Não definido'}</p>
             <p className="text-slate-700">{proxima ? formatarData(proxima.toISOString()) : 'Defina dia e horário'}</p>
             <div><Badge tone={agendaCompleta && !foraDaRegra ? 'green' : 'yellow'}>{linha.condominio.captacao_dia_mes ? `Dia ${linha.condominio.captacao_dia_mes} · ${String(linha.condominio.captacao_horario ?? '08:00').slice(0, 5)}` : 'Incompleta'}</Badge>{foraDaRegra ? <p className="mt-1 text-xs text-amber-700">Regra: dia {diaPlanejado}</p> : !linha.receita?.script_key ? <p className="mt-1 text-xs text-amber-700">Agente não vinculado</p> : null}</div>
-            <div><p className="text-slate-700">{rotuloExecucao(linha.execucao?.status)}</p><p className="mt-1 text-xs text-slate-400">{formatarData(linha.execucao?.created_at)}</p></div>
+            <div>{realizadaNoMes ? <Badge tone="green">Realizada no mês</Badge> : <p className="text-slate-700">{rotuloExecucao(linha.execucao?.status)}</p>}<p className="mt-1 text-xs text-slate-400">{formatarData(linha.execucao?.created_at)}</p></div>
             <div>{linha.conversao?.status === 'aguardando_validacao' ? <Badge tone="yellow">Pendente</Badge> : linha.conversao ? <Badge tone="green">Ok</Badge> : <span className="text-slate-400">Sem conversão</span>}</div>
             <div className="flex flex-col items-start gap-2 lg:items-end">
               {linha.execucaoManualAgendada?.agendado_para ? <p className="text-xs text-blue-700">Manual: {formatarData(linha.execucaoManualAgendada.agendado_para)}</p> : null}
