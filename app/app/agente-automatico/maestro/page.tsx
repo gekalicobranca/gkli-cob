@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
 import { Select } from '@/components/ui/select'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
@@ -156,7 +157,7 @@ function EtapaCard({ etapa, ultima }: { etapa: Etapa; ultima: boolean }) {
 
 export default async function MaestroPage({ searchParams }: Props) {
   const params = await searchParams
-  const q = getParam(params?.q).trim()
+  const condominioFiltro = getParam(params?.condominio)
   const aba = getParam(params?.aba) === 'agenda' ? 'agenda' : 'pipeline'
   const carteiraFiltro = getParam(params?.carteira)
   const administradoraFiltro = getParam(params?.administradora)
@@ -228,15 +229,19 @@ export default async function MaestroPage({ searchParams }: Props) {
 
   const carteiras = [...new Map<string, any>(linhas.map((linha: any) => [linha.carteira?.id, linha.carteira] as [string, any]).filter(([id]) => Boolean(id))).values()]
   const administradoras = [...new Set(linhas.map((linha: any) => linha.administradora).filter(Boolean))].sort()
+  const opcoesCondominios = linhas.map((linha: any) => ({
+    id: linha.condominio.id,
+    nome: linha.condominio.nome_operacional || linha.condominio.nome,
+    administradora: linha.administradora || null,
+  })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
   const filtradas = linhas.filter((linha: any) => {
-    const texto = normalizar(`${linha.condominio.nome} ${linha.condominio.nome_operacional} ${linha.condominio.cnpj} ${linha.administradora} ${linha.carteira?.nome}`)
     const agendaOk = !agendaFiltro
       || (agendaFiltro === 'configurada' && linha.condominio.captacao_automatica_habilitada && linha.condominio.captacao_dia_mes)
       || (agendaFiltro === 'sem_agenda' && (!linha.condominio.captacao_automatica_habilitada || !linha.condominio.captacao_dia_mes))
       || (agendaFiltro === 'sem_agente' && !linha.receita?.script_key)
       || (agendaFiltro === 'sem_vencimento' && !linha.condominio.vencimento_cota_dia)
       || (agendaFiltro === 'fora_regra' && linha.condominio.vencimento_cota_dia && linha.condominio.captacao_dia_mes && diaPlanejadoPorVencimento(linha.condominio.vencimento_cota_dia) !== Number(linha.condominio.captacao_dia_mes))
-    return (!q || texto.includes(normalizar(q))) && (!carteiraFiltro || linha.condominio.carteira_id === carteiraFiltro) && (!administradoraFiltro || linha.administradora === administradoraFiltro) && (!statusFiltro || linha.resumo.tone === statusFiltro) && agendaOk
+    return (!condominioFiltro || linha.condominio.id === condominioFiltro) && (!carteiraFiltro || linha.condominio.carteira_id === carteiraFiltro) && (!administradoraFiltro || linha.administradora === administradoraFiltro) && (!statusFiltro || linha.resumo.tone === statusFiltro) && agendaOk
   })
   const grupos = new Map<string, typeof filtradas>()
   for (const linha of filtradas) {
@@ -268,7 +273,7 @@ export default async function MaestroPage({ searchParams }: Props) {
   const tabQuery = (nextAba: 'pipeline' | 'agenda') => {
     const query = new URLSearchParams()
     query.set('aba', nextAba)
-    if (q) query.set('q', q)
+    if (condominioFiltro) query.set('condominio', condominioFiltro)
     if (carteiraFiltro) query.set('carteira', carteiraFiltro)
     if (administradoraFiltro) query.set('administradora', administradoraFiltro)
     if (statusFiltro) query.set('status', statusFiltro)
@@ -294,7 +299,7 @@ export default async function MaestroPage({ searchParams }: Props) {
       </section>
       <Card className="p-4"><form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_220px_240px_190px_auto]">
         <input type="hidden" name="aba" value="pipeline" />
-        <Input name="q" defaultValue={q} placeholder="Condomínio, CNPJ ou administradora" />
+        <div className="min-w-0"><label htmlFor="maestro-condominio" className="sr-only">Condomínio</label><CondominioSearchSelect id="maestro-condominio" name="condominio" options={opcoesCondominios} selectedId={condominioFiltro} defaultToFirst={false} inputClassName="mt-0" /></div>
         <Select name="carteira" defaultValue={carteiraFiltro}><option value="">Todas as carteiras</option>{carteiras.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</Select>
         <Select name="administradora" defaultValue={administradoraFiltro}><option value="">Todas as administradoras</option>{administradoras.map((item) => <option key={item} value={item}>{item}</option>)}</Select>
         <Select name="status" defaultValue={statusFiltro}><option value="">Todos os estados</option><option value="blue">Em andamento</option><option value="slate">Aguardando</option><option value="green">Concluído</option><option value="red">Com erro</option><option value="yellow">Configuração pendente</option></Select>
@@ -327,7 +332,7 @@ export default async function MaestroPage({ searchParams }: Props) {
       </section>
       <Card className="p-4"><form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_220px_240px_190px_auto]">
         <input type="hidden" name="aba" value="agenda" />
-        <Input name="q" defaultValue={q} placeholder="Condomínio, CNPJ ou administradora" />
+        <div className="min-w-0"><label htmlFor="maestro-condominio" className="sr-only">Condomínio</label><CondominioSearchSelect id="maestro-condominio" name="condominio" options={opcoesCondominios} selectedId={condominioFiltro} defaultToFirst={false} inputClassName="mt-0" /></div>
         <Select name="carteira" defaultValue={carteiraFiltro}><option value="">Todas as carteiras</option>{carteiras.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</Select>
         <Select name="administradora" defaultValue={administradoraFiltro}><option value="">Todas as administradoras</option>{administradoras.map((item) => <option key={item} value={item}>{item}</option>)}</Select>
         <Select name="agenda" defaultValue={agendaFiltro}><option value="">Todas as agendas</option><option value="configurada">Com agenda</option><option value="sem_agenda">Sem agenda completa</option><option value="sem_agente">Sem agente vinculado</option><option value="sem_vencimento">Sem vencimento</option><option value="fora_regra">Fora da regra</option></Select>
