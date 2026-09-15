@@ -138,6 +138,12 @@ async function criarExecucaoAgenteReceita(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  const { data: pendente, error: pendenteError } = await supabase.from('agente_execucoes')
+    .select('id').eq('receita_id', receita.id).in('status', ['pendente', 'em_execucao'])
+    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (pendenteError) throw new Error(pendenteError.message)
+  if (pendente) return { execucaoId: pendente.id, condominioId }
+
   const { data: execucao, error } = await supabase
     .from('agente_execucoes')
     .insert({

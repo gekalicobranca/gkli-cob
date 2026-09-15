@@ -1,3 +1,4 @@
+import { ExecutarAgoraButton } from './maestro/executar-agora-button'
 import {
   listAgenteAdministradoras,
   listAgenteExecucoes,
@@ -9,7 +10,7 @@ import { AGENTE_WORKERS } from '@/features/agente-automatico/workers'
 import {
   criarAgenteAdministradora,
   criarAgenteReceita,
-  executarAgenteReceita,
+
   limparAgenteExecucoes,
   marcarExecucaoComoSucessoManual,
   validarArquivoAgente,
@@ -379,10 +380,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
                         <p className="mt-1 text-xs text-slate-500">{receita.administradora?.nome ?? 'Administradora não informada'}</p>
                         {receita.descricao ? <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{receita.descricao}</p> : null}
                       </div>
-                      <form action={executarAgenteReceita} className="shrink-0">
-                        <input type="hidden" name="receita_id" value={receita.id} />
-                        <Button type="submit"><Play size={15} /> Executar coleta</Button>
-                      </form>
+                      <ExecutarAgoraButton receitaId={receita.id} condominioNome={receita.nome} label="Executar coleta" existingExecucaoId={execucoes.find((item) => item.receita_id === receita.id && ['pendente', 'em_execucao'].includes(item.status))?.id} />
                     </article>
                   ))}
                 </div>
@@ -419,6 +417,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
                   <div className="min-w-0 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge tone={statusTone(statusExibido)} label={statusLabel(statusExibido)} />
+                      <ExecutarAgoraButton receitaId={execucao.receita_id} condominioNome={condominioNome} existingExecucaoId={execucao.id} />
                       <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{scriptLabel(execucao.receita?.script_key)}</span>
                       {execucao.competencia ? <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{execucao.competencia}</span> : null}
                       {execucao.origem ? <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{execucao.origem}</span> : null}
