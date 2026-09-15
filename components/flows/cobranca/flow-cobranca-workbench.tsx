@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
+import { useActionState, useEffect, useMemo, useState, type SyntheticEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, RefreshCw, RotateCcw, Trash2, XCircle } from 'lucide-react'
 import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListRows } from '@/components/layout/list-page'
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlowCobranca, enviarFlowCobranca, excluirFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
+import { hasResponsavelVinculado } from '@/features/flows/cobranca/eligibilidade'
 
 type StepId = 'lotes' | 'flows'
 
@@ -144,7 +145,10 @@ export function FlowCobrancaWorkbench({
   initialSelectedIds?: string[]
 }) {
   const [selected, setSelected] = useState<string[]>(initialSelectedIds)
-  const selectedCobrancas = useMemo(() => disponibilidade.filter((cobranca) => selected.includes(cobranca.id)), [disponibilidade, selected])
+  const [createState, createAction] = useActionState(criarFlowsCobranca, null)
+  const elegiveis = useMemo(() => disponibilidade.filter(hasResponsavelVinculado), [disponibilidade])
+  const semResponsavel = disponibilidade.length - elegiveis.length
+  const selectedCobrancas = useMemo(() => elegiveis.filter((cobranca) => selected.includes(cobranca.id)), [elegiveis, selected])
   const grupos = useMemo(() => groupByCarteira(selectedCobrancas), [selectedCobrancas])
   const gruposDisponiveis = useMemo(() => groupByCarteira(disponibilidade), [disponibilidade])
   const [openSteps, setOpenSteps] = useState<Record<StepId, boolean>>({
@@ -164,7 +168,7 @@ export function FlowCobrancaWorkbench({
   }
 
   function toggleGrupo(rows: any[]) {
-    const ids = rows.map((row) => String(row.id)).filter(Boolean)
+    const ids = rows.filter(hasResponsavelVinculado).map((row) => String(row.id)).filter(Boolean)
     const todosSelecionados = ids.length > 0 && ids.every((id) => selected.includes(id))
     setSelected((current) => todosSelecionados
       ? current.filter((id) => !ids.includes(id))
@@ -177,21 +181,27 @@ export function FlowCobrancaWorkbench({
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListCollapsibleSectionHeader title="Lotes + régua" count={grupos.length} />
         </summary>
-        {gruposDisponiveis.length ? <form action={criarFlowsCobranca}>
+        {gruposDisponiveis.length ? <form action={createAction}>
+          {createState?.error ? <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{createState.error}</p> : null}
           {selectedCobrancas.map((cobranca) => <input key={cobranca.id} type="hidden" name="cobranca_id" value={cobranca.id} />)}
           <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
-            <p className="text-sm text-slate-600">{selectedCobrancas.length} de {disponibilidade.length} cobrança(s) ativa(s) selecionada(s), agrupadas em {grupos.length} lote(s) por carteira.</p>
+            <div>
+              <p className="text-sm text-slate-600">{selectedCobrancas.length} de {elegiveis.length} cobrança(s) ativa(s) com responsável selecionada(s), agrupadas em {grupos.length} lote(s) por carteira.</p>
+              {semResponsavel > 0 ? <p className="mt-1 text-xs text-amber-800">{semResponsavel} cobrança(s) sem responsável não entram na seleção. Preencha o responsável no cadastro da unidade para incluí-las no Flow.</p> : null}
+            </div>
           </div>
           <ListRows>
             {gruposDisponiveis.map((grupo) => {
-              const selecionadasNoGrupo = grupo.rows.filter((row) => selected.includes(row.id))
-              const grupoSelecionado = grupo.rows.length > 0 && selecionadasNoGrupo.length === grupo.rows.length
+              const elegiveisNoGrupo = grupo.rows.filter(hasResponsavelVinculado)
+              const selecionadasNoGrupo = elegiveisNoGrupo.filter((row) => selected.includes(row.id))
+              const grupoSelecionado = elegiveisNoGrupo.length > 0 && selecionadasNoGrupo.length === elegiveisNoGrupo.length
               const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
               const defaultRegua = opcoesRegua.find((regua: any) => regua.carteira_id === grupo.carteiraId)?.id ?? opcoesRegua[0]?.id ?? ''
               return <ListRow key={grupo.carteiraId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
                 <div>
-                  <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="checkbox" checked={grupoSelecionado} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)]" />{grupo.carteiraNome}</label>
-                  <p className="mt-1 text-xs text-slate-500">{selecionadasNoGrupo.length} de {grupo.rows.length} cobrança(s) selecionada(s)</p>
+                  <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="checkbox" checked={grupoSelecionado} disabled={elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)]" />{grupo.carteiraNome}</label>
+                  <p className="mt-1 text-xs text-slate-500">{selecionadasNoGrupo.length} de {elegiveisNoGrupo.length} cobrança(s) selecionada(s)</p>
+                  {grupo.rows.length > elegiveisNoGrupo.length ? <p className="mt-1 text-xs text-amber-800">{grupo.rows.length - elegiveisNoGrupo.length} sem responsável</p> : null}
                 </div>
                 <div><p className="text-xs text-slate-400">Total selecionado</p><p className="text-sm font-medium text-slate-800">{formatCurrency(selecionadasNoGrupo.reduce((sum, row) => sum + cobrancaValue(row), 0))}</p></div>
                 <div><p className="text-xs text-slate-400">Lote</p><p className="text-sm text-slate-700">{selecionadasNoGrupo.length ? '1 lote' : 'Não selecionado'}</p></div>

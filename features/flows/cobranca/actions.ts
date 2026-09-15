@@ -12,6 +12,7 @@ import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-perm
 import { requireRole } from '@/utils/auth/require-role'
 import { requireUser } from '@/utils/auth/require-user'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { hasResponsavelVinculado } from './eligibilidade'
 
 type SupabaseAdmin = ReturnType<typeof createAdminClient>
 
@@ -35,11 +36,6 @@ function agendamentoCobranca(payload: unknown, base = new Date()) {
 function flowNome(carteiraNome: string | null | undefined, loteId: string) {
   const carteira = String(carteiraNome ?? 'Carteira').trim() || 'Carteira'
   return `Flow cobrança · ${carteira} · lote ${loteId.slice(0, 8)}`
-}
-
-function hasResponsavelVinculado(cobranca: any) {
-  const unidade = Array.isArray(cobranca?.unidade) ? cobranca.unidade[0] : cobranca?.unidade
-  return Boolean(String(unidade?.responsavel_nome ?? '').trim())
 }
 
 async function getFlow(supabase: SupabaseAdmin, flowId: string, scope: CarteiraScope) {
@@ -99,13 +95,13 @@ export async function recalcularFlowCobranca(supabase: SupabaseAdmin, flowId: st
   if (updateError) throw new Error(`Erro ao atualizar Flow cobrança: ${updateError.message}`)
 }
 
-export async function criarFlowsCobranca(formData: FormData) {
+export async function criarFlowsCobranca(_state: { error: string } | null, formData: FormData): Promise<{ error: string } | null> {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
   const cobrancaIds = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
-  if (!cobrancaIds.length) throw new Error('Selecione ao menos uma cobrança ativa.')
+  if (!cobrancaIds.length) return { error: 'Selecione ao menos uma cobrança ativa.' }
 
   let query = supabase
     .from('cobrancas')
@@ -116,10 +112,10 @@ export async function criarFlowsCobranca(formData: FormData) {
   if (error) throw new Error(`Erro ao carregar cobranças para Flow: ${error.message}`)
   const cobrancas = (data ?? []) as any[]
   if (cobrancas.length !== cobrancaIds.length || cobrancas.some((row) => row.status_operacional !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA && row.status !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA)) {
-    throw new Error('Uma ou mais cobranças não estão em Cobrança ativa.')
+    return { error: 'Uma ou mais cobranças não estão em Cobrança ativa. Atualize a página e revise a seleção.' }
   }
   if (cobrancas.some((row) => !hasResponsavelVinculado(row))) {
-    throw new Error('Uma ou mais cobranças não possuem responsável vinculado. Corrija o cadastro antes de criar o Flow.')
+    return { error: 'Uma ou mais cobranças não possuem responsável vinculado. Corrija o cadastro ou retire essas cobranças da seleção antes de criar o Flow.' }
   }
 
   const { data: vinculadas, error: vinculadasError } = await supabase
@@ -128,14 +124,14 @@ export async function criarFlowsCobranca(formData: FormData) {
     .in('cobranca_id', cobrancaIds)
     .not('cobranca_flow_id', 'is', null)
   if (vinculadasError) throw new Error(`Erro ao verificar vínculos existentes: ${vinculadasError.message}`)
-  if ((vinculadas ?? []).length) throw new Error('Uma ou mais cobranças já estão vinculadas a outro Flow.')
+  if ((vinculadas ?? []).length) return { error: 'Uma ou mais cobranças já estão vinculadas a outro Flow. Atualize a página e revise a seleção.' }
 
   const grupos = new Map<string, any[]>()
   for (const cobranca of cobrancas) {
     const carteiraId = String(cobranca.carteira_id ?? '')
     assertCarteiraPermitida(scope, carteiraId)
     const reguaId = String(formData.get(`regua_id:${carteiraId}`) ?? '').trim()
-    if (!reguaId) throw new Error('Selecione a régua de cada lote antes de criar o Flow.')
+    if (!reguaId) return { error: 'Selecione a régua de cada lote antes de criar o Flow.' }
     const key = `${carteiraId}|${reguaId}`
     const list = grupos.get(key) ?? []
     list.push(cobranca)

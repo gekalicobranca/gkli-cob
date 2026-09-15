@@ -28,6 +28,8 @@ export type FlowCobrancaFilters = {
   condominioId?: string
   vencimentoDe?: string
   vencimentoAte?: string
+  inclusaoDe?: string
+  inclusaoAte?: string
 }
 
 function cleanFilter(value?: string | null) {
@@ -40,12 +42,14 @@ export function normalizeFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) 
     condominioId: cleanFilter(filters.condominioId),
     vencimentoDe: cleanFilter(filters.vencimentoDe),
     vencimentoAte: cleanFilter(filters.vencimentoAte),
+    inclusaoDe: cleanFilter(filters.inclusaoDe),
+    inclusaoAte: cleanFilter(filters.inclusaoAte),
   }
 }
 
 export function hasFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) {
   const normalized = normalizeFlowCobrancaFilters(filters)
-  return Boolean(normalized.carteiraId || normalized.condominioId || normalized.vencimentoDe || normalized.vencimentoAte)
+  return Boolean(normalized.carteiraId || normalized.condominioId || normalized.vencimentoDe || normalized.vencimentoAte || normalized.inclusaoDe || normalized.inclusaoAte)
 }
 
 export async function getFlowCobrancaItens(scope: CarteiraScope, flowId: string) {
@@ -149,6 +153,15 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
 
     if (normalized.vencimentoAte) {
       query = query.lte('vencimento', normalized.vencimentoAte)
+    }
+
+    // Datas de inclusão abrangem o dia inteiro no horário de Brasília.
+    if (normalized.inclusaoDe) {
+      query = query.gte('created_at', `${normalized.inclusaoDe}T00:00:00-03:00`)
+    }
+
+    if (normalized.inclusaoAte) {
+      query = query.lte('created_at', `${normalized.inclusaoAte}T23:59:59.999999-03:00`)
     }
 
     return query
