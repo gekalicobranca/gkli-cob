@@ -1,13 +1,10 @@
+import { resolveFiltrosStatus } from '@/features/cobrancas/filtros-status'
 import { criarExcelRelatorioCobrancas } from '@/features/cobrancas/exportacao-excel'
 import { listCobrancas } from '@/features/cobrancas/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 
 function getParam(searchParams: URLSearchParams, key: string) {
   return String(searchParams.get(key) ?? '').trim()
-}
-
-function getJudicializacaoFilter(searchParams: URLSearchParams) {
-  return getParam(searchParams, 'judicializacao_unidade') || 'nao'
 }
 
 export async function GET(request: Request) {
@@ -17,10 +14,9 @@ export async function GET(request: Request) {
     administradoraId: getParam(searchParams, 'administradora_id'),
     condominioId: getParam(searchParams, 'condominio_id'),
     unidadeId: getParam(searchParams, 'unidade_id'),
-    status: getParam(searchParams, 'status'),
+    ...resolveFiltrosStatus(getParam(searchParams, 'status'), getParam(searchParams, 'judicializacao_unidade')),
     vencimentoDe: getParam(searchParams, 'vencimento_de'),
     vencimentoAte: getParam(searchParams, 'vencimento_ate'),
-    judicializacaoUnidade: getJudicializacaoFilter(searchParams),
     ordenar: getParam(searchParams, 'ordenar') || 'vencimento_asc',
   }
 

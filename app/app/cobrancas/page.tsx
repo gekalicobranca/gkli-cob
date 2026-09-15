@@ -45,9 +45,9 @@ import {
 } from "@/lib/core/status";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 import {
-  COBRANCA_STATUS_JUDICIALIZACAO,
   COBRANCA_STATUS_LABEL,
 } from "@/lib/constants/cobrancas";
+import { resolveFiltrosStatus, STATUS_BLOQUEIOS, STATUS_OPERACIONAIS } from "@/features/cobrancas/filtros-status";
 import { CobrancasBulkForm } from "./cobrancas-bulk-controls";
 
 type PageProps = {
@@ -65,24 +65,7 @@ type PageProps = {
   }>;
 };
 
-const STATUS_FILTERS = [
-  COBRANCA_STATUS_OPERACIONAL.NOVO,
-  COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
-  COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
-  COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO,
-  COBRANCA_STATUS_OPERACIONAL.ACORDO_FIRMADO,
-  COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
-  COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
-  COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
-  COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
-];
-
-const STATUS_FILA_OPERACIONAL = [
-  COBRANCA_STATUS_OPERACIONAL.NOVO,
-  COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
-  COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO,
-  COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO,
-];
+const STATUS_FILTERS = STATUS_OPERACIONAIS;
 
 const PAGE_SIZE = 100;
 const EMPTY_RESUMO = {
@@ -111,39 +94,6 @@ function getParam(value?: string) {
 function getPageParam(value?: string) {
   const page = Number(value ?? 1);
   return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-}
-
-function getJudicializacaoFilter(params: Awaited<NonNullable<PageProps["searchParams"]>>) {
-  const requested = getParam(params.judicializacao_unidade);
-  if (requested) return requested;
-  return (COBRANCA_STATUS_JUDICIALIZACAO as string[]).includes(getParam(params.status)) ? "sim" : "nao";
-}
-
-function getStatusFilter(statusParam: string) {
-  if (!statusParam || statusParam === "operacionais") {
-    return {
-      status: "",
-      statusList: STATUS_FILA_OPERACIONAL,
-      statusSelect: "operacionais",
-      showingAll: false,
-    };
-  }
-
-  if (statusParam === "todos") {
-    return {
-      status: "",
-      statusList: undefined,
-      statusSelect: "todos",
-      showingAll: true,
-    };
-  }
-
-  return {
-    status: statusParam,
-    statusList: undefined,
-    statusSelect: statusParam,
-    showingAll: false,
-  };
 }
 
 function cobrancasHref(params: Record<string, string>, overrides: Record<string, string | null>) {
@@ -278,7 +228,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : {};
   const page = getPageParam(params.page);
   const statusParam = getParam(params.status);
-  const statusFilter = getStatusFilter(statusParam);
+  const statusFilter = resolveFiltrosStatus(statusParam, getParam(params.judicializacao_unidade));
   const filters = {
     search: getParam(params.q),
     administradoraId: getParam(params.administradora_id),
@@ -288,7 +238,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     statusList: statusFilter.statusList,
     vencimentoDe: getParam(params.vencimento_de),
     vencimentoAte: getParam(params.vencimento_ate),
-    judicializacaoUnidade: statusFilter.showingAll ? "todos" : getJudicializacaoFilter(params),
+    judicializacaoUnidade: statusFilter.judicializacaoUnidade,
     ordenar: getParam(params.ordenar) || "vencimento_asc",
   };
   const queryParams = {
@@ -501,11 +451,15 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 <ListFilterField label="Vencimento até" className="xl:col-span-2">
                   <Input name="vencimento_ate" type="date" defaultValue={filters.vencimentoAte} />
                 </ListFilterField>
-                <ListFilterField label="Judicialização" className="xl:col-span-2">
+                <ListFilterField label="Bloqueios" className="xl:col-span-2">
                   <Select name="judicializacao_unidade" defaultValue={filters.judicializacaoUnidade}>
-                    <option value="nao">Extrajudicial</option>
-                    <option value="todos">Incluir judicialização</option>
-                    <option value="sim">Somente judicialização</option>
+                    <option value="nao">Sem bloqueios</option>
+                    <option value="todos">Incluir bloqueios</option>
+                    <option value="bloqueados">Somente bloqueadas</option>
+                    {STATUS_BLOQUEIOS.map((status) => (
+                      <option key={status} value={status}>{COBRANCA_STATUS_LABEL[status]}</option>
+                    ))}
+                    {filters.judicializacaoUnidade === "sim" ? <option value="sim">Unidades com judicialização</option> : null}
                   </Select>
                 </ListFilterField>
                 <ListFilterField label="Ordenar por" className="xl:col-span-3">

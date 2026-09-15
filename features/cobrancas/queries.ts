@@ -1,3 +1,4 @@
+import { applyBloqueioStatusFilter } from './filtros-status'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
@@ -241,12 +242,13 @@ async function applyCobrancaFilters(
   }
 
   const judicializacaoUnidade = filters.judicializacaoUnidade || 'nao'
-  if (judicializacaoUnidade !== 'todos') {
+  scopedQuery = applyBloqueioStatusFilter(scopedQuery, judicializacaoUnidade)
+  if (judicializacaoUnidade === 'nao' || judicializacaoUnidade === 'sim') {
     const unidadeIds = await listAllUnidadeIdsComJudicializacaoAtiva(supabase, scope)
     if (judicializacaoUnidade === 'sim') {
       scopedQuery = scopedQuery.in('unidade_id', unidadeIds.length ? unidadeIds : [EMPTY_UUID])
     } else if (unidadeIds.length > 0) {
-      scopedQuery = scopedQuery.not('unidade_id', 'in', `(${unidadeIds.join(',')})`)
+      scopedQuery = scopedQuery.or(`unidade_id.is.null,unidade_id.not.in.(${unidadeIds.join(',')})`)
     }
   }
 

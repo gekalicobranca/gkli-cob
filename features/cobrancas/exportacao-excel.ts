@@ -34,8 +34,10 @@ type GroupedCobrancaRow = {
 
 function judicializacaoLabel(value?: string) {
   if (value === 'sim') return 'Somente judicialização'
-  if (value === 'todos') return 'Inclui judicialização'
-  return 'Extrajudicial'
+  if (value === 'todos') return 'Incluir bloqueios'
+  if (value === 'bloqueados') return 'Somente bloqueadas'
+  if (value && value !== 'nao') return statusLabel(value)
+  return 'Sem bloqueios'
 }
 
 function ordenacaoLabel(value?: string) {
@@ -215,10 +217,10 @@ export async function criarExcelRelatorioCobrancas(
     { label: 'Busca', value: filters.search || 'Sem filtro' },
     { label: 'Condomínio', value: filters.condominioId || 'Sem filtro' },
     { label: 'Unidade', value: filters.unidadeId || 'Sem filtro' },
-    { label: 'Status', value: filters.status ? statusLabel(filters.status) : 'Todos' },
+    { label: 'Status', value: filters.status ? statusLabel(filters.status) : filters.statusList?.length ? 'Fila operacional' : 'Todos' },
     { label: 'Vencimento de', value: filters.vencimentoDe || 'Sem filtro', type: filters.vencimentoDe ? 'date' : 'text' },
     { label: 'Vencimento até', value: filters.vencimentoAte || 'Sem filtro', type: filters.vencimentoAte ? 'date' : 'text' },
-    { label: 'Judicialização', value: judicializacaoLabel(filters.judicializacaoUnidade) },
+    { label: 'Bloqueios', value: judicializacaoLabel(filters.judicializacaoUnidade) },
     { label: 'Ordenação solicitada na tela', value: ordenacaoLabel(filters.ordenar) },
     { label: 'Ordenação do arquivo', value: 'Carteira / Administradora / Condomínio / Unidade / Vencimento' },
     { label: 'Total de unidades agrupadas', value: groupedRows.length, type: 'integer' },
