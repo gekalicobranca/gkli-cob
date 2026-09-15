@@ -102,11 +102,12 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
           </div>
           <div className="divide-y divide-slate-100">{groups.map((group) => {
             const groupNovas = group.rows.filter(isAtivavel)
+            const groupSemResponsavel = group.rows.filter((row) => isNovo(row) && !hasResponsavel(row)).length
             const groupSelected = groupNovas.length > 0 && groupNovas.every((row) => selectedIds.includes(row.id))
             const value = group.rows.reduce((sum, row) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
             return <details key={group.id} className="group/condominio bg-white">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50/70 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
-                <div className="flex min-w-0 items-center gap-3"><ChevronDown size={18} className="text-slate-400 transition-transform group-open/condominio:rotate-180" /><input aria-label={`Selecionar cobranças de ${group.nome}`} type="checkbox" checked={groupSelected} disabled={groupNovas.length === 0} onClick={(event) => event.stopPropagation()} onChange={() => toggleGroup(group.rows)} className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)]" /><div><p className="text-sm font-semibold text-slate-950">{group.nome}</p><p className="text-xs text-slate-500">{group.rows.length} cobrança(s)</p></div></div>
+                <div className="flex min-w-0 items-center gap-3"><ChevronDown size={18} className="text-slate-400 transition-transform group-open/condominio:rotate-180" /><input aria-label={`Selecionar cobranças de ${group.nome}`} type="checkbox" checked={groupSelected} disabled={groupNovas.length === 0} onClick={(event) => event.stopPropagation()} onChange={() => toggleGroup(group.rows)} className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)]" /><div><p className="text-sm font-semibold text-slate-950">{group.nome}</p><p className="text-xs text-slate-500">{group.rows.length} cobrança(s)</p>{groupSemResponsavel > 0 ? <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"><AlertTriangle size={12} aria-hidden="true" />{groupSemResponsavel} cobrança(s) sem responsável</span> : null}</div></div>
                 <p className="text-sm font-semibold text-slate-950">{formatCurrency(value)}</p>
               </summary>
               <div className="divide-y divide-slate-100 border-t border-slate-100">{group.rows.map((row) => <div key={row.id} className="grid gap-3 px-4 py-3 xl:grid-cols-[32px_minmax(280px,1fr)_150px_150px_160px_48px] xl:items-center">

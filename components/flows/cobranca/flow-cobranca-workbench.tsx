@@ -193,6 +193,17 @@ export function FlowCobrancaWorkbench({
           <ListRows>
             {gruposDisponiveis.map((grupo) => {
               const elegiveisNoGrupo = grupo.rows.filter(hasResponsavelVinculado)
+              const pendenciasPorCondominio = new Map<string, { nome: string; quantidade: number }>()
+              for (const row of grupo.rows.filter((row) => !hasResponsavelVinculado(row))) {
+                const condominio = relation(row.condominio)
+                const id = row.condominio_id || condominio?.id || 'sem-condominio'
+                const pendencia = pendenciasPorCondominio.get(id) ?? {
+                  nome: condominio?.nome_operacional || condominio?.nome || 'Condomínio não informado',
+                  quantidade: 0,
+                }
+                pendencia.quantidade += 1
+                pendenciasPorCondominio.set(id, pendencia)
+              }
               const selecionadasNoGrupo = elegiveisNoGrupo.filter((row) => selected.includes(row.id))
               const grupoSelecionado = elegiveisNoGrupo.length > 0 && selecionadasNoGrupo.length === elegiveisNoGrupo.length
               const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
@@ -202,6 +213,9 @@ export function FlowCobrancaWorkbench({
                   <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="checkbox" checked={grupoSelecionado} disabled={elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)]" />{grupo.carteiraNome}</label>
                   <p className="mt-1 text-xs text-slate-500">{selecionadasNoGrupo.length} de {elegiveisNoGrupo.length} cobrança(s) selecionada(s)</p>
                   {grupo.rows.length > elegiveisNoGrupo.length ? <p className="mt-1 text-xs text-amber-800">{grupo.rows.length - elegiveisNoGrupo.length} sem responsável</p> : null}
+                  {pendenciasPorCondominio.size > 0 ? <ul className="mt-1 space-y-1 text-xs text-amber-800" aria-label="Cobranças sem responsável por condomínio">
+                    {Array.from(pendenciasPorCondominio.entries()).sort(([, a], [, b]) => a.nome.localeCompare(b.nome, 'pt-BR')).map(([id, pendencia]) => <li key={id}>{pendencia.nome}: {pendencia.quantidade} cobrança(s) sem responsável</li>)}
+                  </ul> : null}
                 </div>
                 <div><p className="text-xs text-slate-400">Total selecionado</p><p className="text-sm font-medium text-slate-800">{formatCurrency(selecionadasNoGrupo.reduce((sum, row) => sum + cobrancaValue(row), 0))}</p></div>
                 <div><p className="text-xs text-slate-400">Lote</p><p className="text-sm text-slate-700">{selecionadasNoGrupo.length ? '1 lote' : 'Não selecionado'}</p></div>
