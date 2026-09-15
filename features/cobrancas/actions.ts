@@ -220,7 +220,12 @@ export async function updateCobrancaStatus(formData: FormData) {
   revalidateCobrancaViews(cobrancaId, { dashboard: true })
 }
 
-export async function updateCobrancasStatusEmLote(formData: FormData) {
+export type CobrancasBulkState = { error?: string; success?: string } | null
+
+export async function updateCobrancasStatusEmLote(
+  _previousState: CobrancasBulkState,
+  formData: FormData,
+): Promise<CobrancasBulkState> {
   await requireRole(['admin', 'gestor', 'operador'])
 
   const ids = [...new Set(formData.getAll('cobranca_ids').map((value) => String(value)).filter(Boolean))]
@@ -231,13 +236,14 @@ export async function updateCobrancasStatusEmLote(formData: FormData) {
     COBRANCA_STATUS.NOVO,
     COBRANCA_STATUS.EM_COBRANCA_ATIVA,
     COBRANCA_STATUS.EM_NEGOCIACAO,
+    COBRANCA_STATUS.POSSIVEL_ACORDO,
     COBRANCA_STATUS.PRE_JURIDICO,
     COBRANCA_STATUS.JUDICIALIZADO,
     COBRANCA_STATUS.SUSPENSO,
   ]
 
-  if (ids.length === 0) throw new Error('Selecione ao menos uma cobrança.')
-  if (!allowed.includes(status as (typeof allowed)[number])) throw new Error('Status inválido para alteração em lote.')
+  if (ids.length === 0) return { error: 'Selecione ao menos uma cobrança.' }
+  if (!allowed.includes(status as (typeof allowed)[number])) return { error: 'Status inválido para alteração em lote.' }
 
   const supabase = await createClient()
   const user = await requireUser()
@@ -253,7 +259,7 @@ export async function updateCobrancasStatusEmLote(formData: FormData) {
   }
 
   if (!cobrancas?.length) {
-    throw new Error('Nenhuma cobrança selecionada foi encontrada.')
+    return { error: 'Nenhuma cobrança selecionada foi encontrada.' }
   }
 
   for (const cobranca of cobrancas as any[]) {
@@ -299,6 +305,7 @@ export async function updateCobrancasStatusEmLote(formData: FormData) {
   )
 
   revalidateCobrancaViews(null, { dashboard: true })
+  return { success: `${idsPermitidos.length} cobrança(s) atualizada(s).` }
 }
 
 export async function updateCobrancaFinanceiro(formData: FormData) {

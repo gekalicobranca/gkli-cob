@@ -1,7 +1,9 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { useActionState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
+import { updateCobrancasStatusEmLote } from "@/features/cobrancas/actions";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 
@@ -16,10 +18,31 @@ function BulkSubmitButton() {
   );
 }
 
-export function CobrancasBulkControls() {
-  function toggleAll(checked: boolean) {
-    document
-      .querySelectorAll<HTMLInputElement>('input[name="cobranca_ids"]')
+export function CobrancasBulkForm({ children }: { children: ReactNode }) {
+  const [state, action] = useActionState(updateCobrancasStatusEmLote, null);
+
+  return (
+    <form action={action} className="flex min-h-0 flex-1 flex-col">
+      <CobrancasBulkControls />
+      {state?.error ? (
+        <p role="alert" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-800">
+          {state.error}
+        </p>
+      ) : null}
+      {state?.success ? (
+        <p role="status" className="border-b border-emerald-200 bg-emerald-50 px-5 py-3 text-sm text-emerald-800">
+          {state.success}
+        </p>
+      ) : null}
+      {children}
+    </form>
+  );
+}
+
+function CobrancasBulkControls() {
+  function toggleAll(form: HTMLFormElement | null, checked: boolean) {
+    form
+      ?.querySelectorAll<HTMLInputElement>('input[name="cobranca_ids"]')
       .forEach((input) => {
         input.checked = checked;
       });
@@ -31,7 +54,7 @@ export function CobrancasBulkControls() {
         <input
           type="checkbox"
           className="size-4 rounded border-slate-300"
-          onChange={(event) => toggleAll(event.currentTarget.checked)}
+          onChange={(event) => toggleAll(event.currentTarget.form, event.currentTarget.checked)}
         />
         Selecionar cobranças visíveis
       </label>

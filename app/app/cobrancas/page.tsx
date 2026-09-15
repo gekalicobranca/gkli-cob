@@ -39,7 +39,6 @@ import {
   listUnidadesForSelect,
 } from "@/features/cadastros/queries";
 import { listCobrancasPage, summarizeCobrancas } from "@/features/cobrancas/queries";
-import { updateCobrancasStatusEmLote } from "@/features/cobrancas/actions";
 import {
   COBRANCA_STATUS_OPERACIONAL,
   normalizeStatus,
@@ -49,7 +48,7 @@ import {
   COBRANCA_STATUS_JUDICIALIZACAO,
   COBRANCA_STATUS_LABEL,
 } from "@/lib/constants/cobrancas";
-import { CobrancasBulkControls } from "./cobrancas-bulk-controls";
+import { CobrancasBulkForm } from "./cobrancas-bulk-controls";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -535,8 +534,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
               description="Ajuste os filtros ou importe/cadastre cobranças para iniciar a operação."
             />
           ) : (
-            <form action={updateCobrancasStatusEmLote} className="flex min-h-0 flex-1 flex-col">
-              <CobrancasBulkControls />
+            <CobrancasBulkForm>
               <LiteScrollArea>
                 {groups.map((carteiraGroup) => (
                   <details key={carteiraGroup.carteiraId} className="group/carteira bg-white">
@@ -656,7 +654,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 previousHref={previousHref}
                 nextHref={nextHref}
               />
-            </form>
+            </CobrancasBulkForm>
           )}
         </ListPanel>
       </LiteWorkArea>
