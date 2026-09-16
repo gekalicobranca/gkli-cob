@@ -20,6 +20,7 @@ import { listReguasForSelect } from '@/features/reguas/queries'
 import { CondominioCadastroForm } from '@/features/condominios/components/cadastro-form'
 import { ClassificacaoOperacionalBadge, ClassificacaoOperacionalField } from '@/features/condominios/components/classificacao-operacional'
 import { getCondominioAgenteStatus } from '@/features/agente-automatico/queries'
+import { RelatorioRanking } from '@/features/condominios/components/relatorio-ranking'
 
 type CondominioAba = 'cadastro' | 'cobranca' | 'reguas' | 'historico' | 'auditoria' | 'rankings'
 
@@ -307,8 +308,8 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
         <Card className="overflow-hidden p-0">
           <div className="border-b border-slate-100 p-5">
             <Badge tone="primary">Rankings</Badge>
-            <h2 className="mt-3 text-lg font-medium text-slate-950">Rankings mensais</h2>
-            <p className="mt-1 text-sm text-slate-500">Arquivos gerados pela captação/importação antes do recorte operacional das cobranças.</p>
+            <h2 className="mt-3 text-lg font-medium text-slate-950">Relatórios de inadimplência e rankings</h2>
+            <p className="mt-1 text-sm text-slate-500">PDF gerencial e planilha gerados a partir da captação/importação antes do recorte operacional das cobranças.</p>
           </div>
           {rankings.length === 0 ? (
             <div className="p-5 text-sm text-slate-500">Nenhum ranking mensal gerado para este condomínio.</div>
@@ -406,7 +407,7 @@ function RankingItem({ ranking }: { ranking: any }) {
       <p className="mt-2 text-sm text-slate-600">{item.totalUnidades ?? 0} unidades · {formatCurrency(item.valorTotal ?? 0)}</p>
       {Array.isArray(item.resumoStatus) && item.resumoStatus.length ? <div className="mt-3 flex flex-wrap gap-2">{item.resumoStatus.map((status: any) => <span key={status.status} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{status.status}: {status.unidades}</span>)}</div> : null}
     </div>
-    <ButtonLink href={`/api/captacao-automatizada/conversoes/${ranking.id}/ranking`} variant="secondary"><Download size={16} />Baixar ranking</ButtonLink>
+    <RelatorioRanking id={ranking.id} detalhado={Boolean(ranking.relatorioDetalhado)} atualizadoEm={ranking.relatorioFontesAtualizadasEm} />
   </div>
 }
 function AuditInfo({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-medium text-slate-900">{title}</p><p className="mt-2 text-sm text-slate-500">{text}</p></div> }

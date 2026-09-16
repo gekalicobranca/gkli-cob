@@ -3,6 +3,10 @@
     {
       "path": "/api/jobs/acordos/check-status",
       "schedule": "5 3 * * *"
+    },
+    {
+      "path": "/api/jobs/relatorios-inadimplencia/processar",
+      "schedule": "20 3 * * *"
     }
   ]
 }
