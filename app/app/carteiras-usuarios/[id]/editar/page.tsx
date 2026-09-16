@@ -59,6 +59,14 @@ export default async function EditarCarteiraPage({ params }: EditarCarteiraPageP
             <Input name="percentual_participacao_resultado" type="number" min="0" max="100" step="0.0001" defaultValue={carteira.percentual_participacao_resultado ?? 0} required />
           </FormField>
 
+          <FormField label="Limite diário de e-mails" hint="De 1 a 50. Carteiras com o mesmo domínio remetente compartilham também o teto de 50 envios/dia.">
+            <Input name="email_limite_diario" type="number" min="1" max="50" step="1" defaultValue={carteira.email_limite_diario ?? 50} required />
+          </FormField>
+
+          <FormField label="E-mail de controle dos Flows" hint="Opcional. Recebe cópia oculta (CCO) de cada e-mail enviado pelos Flows desta carteira, incluindo anexos. Deixe vazio para não enviar cópias.">
+            <Input name="email_controle" type="email" defaultValue={carteira.email_controle ?? ''} placeholder="controle@empresa.com.br" />
+          </FormField>
+
           <fieldset className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <legend className="px-1 text-sm font-semibold text-slate-950">Canais de comunicação permitidos</legend>
             <p className="mb-3 mt-1 text-xs text-slate-500">As réguas só poderão gerar mensagens nos canais selecionados para esta carteira.</p>

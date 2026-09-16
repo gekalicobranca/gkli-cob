@@ -1,3 +1,4 @@
+import { executarDisparosEmail } from '@/features/mensageria/email-dispatcher'
 import { NextRequest, NextResponse } from 'next/server'
 import { executarDisparosWhatsapp } from '@/features/mensageria/whatsapp-cloud/dispatcher'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -30,7 +31,8 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     }
 
     const resultado = await executarDisparosWhatsapp(100, { cobrancaFlowId: id })
-    return NextResponse.json({ ok: true, ...resultado }, { headers: { 'Cache-Control': 'private, no-store' } })
+    const email = await executarDisparosEmail(50, id)
+    return NextResponse.json({ ok: true, ...resultado, email }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Falha ao processar o Flow de cobrança.'
     const status = /não autenticado/i.test(message) ? 401 : /permissão|acesso/i.test(message) ? 403 : 500

@@ -102,12 +102,17 @@ function cobrancaValue(row: any) {
   return Number(row?.valor_atualizado ?? row?.valor_original ?? 0)
 }
 
-function groupByCarteira(cobrancas: any[]) {
-  const groups = new Map<string, { carteiraId: string; carteiraNome: string; rows: any[]; total: number }>()
+function groupByCondominio(cobrancas: any[]) {
+  const groups = new Map<string, { condominioId: string; condominioNome: string; reguaId?: string; carteiraId: string; carteiraNome: string; rows: any[]; total: number }>()
   for (const cobranca of cobrancas) {
     const carteiraId = String(cobranca.carteira_id ?? '')
-    if (!carteiraId) continue
-    const current = groups.get(carteiraId) ?? {
+    const condominioId = String(cobranca.condominio_id ?? '')
+    if (!carteiraId || !condominioId) continue
+    const condominio = relation(cobranca.condominio)
+    const current = groups.get(condominioId) ?? {
+      condominioId,
+      condominioNome: condominio?.nome_operacional || condominio?.nome || 'Condomínio',
+      reguaId: condominio?.regua_cobranca_id,
       carteiraId,
       carteiraNome: relation(cobranca.carteira)?.nome ?? 'Carteira',
       rows: [],
@@ -115,9 +120,9 @@ function groupByCarteira(cobrancas: any[]) {
     }
     current.rows.push(cobranca)
     current.total += cobrancaValue(cobranca)
-    groups.set(carteiraId, current)
+    groups.set(condominioId, current)
   }
-  return Array.from(groups.values()).sort((a, b) => a.carteiraNome.localeCompare(b.carteiraNome, 'pt-BR'))
+  return Array.from(groups.values()).sort((a, b) => a.condominioNome.localeCompare(b.condominioNome, 'pt-BR'))
 }
 
 function cobrancaEntity(cobranca: any) {
@@ -144,13 +149,14 @@ export function FlowCobrancaWorkbench({
   initialStep?: StepId
   initialSelectedIds?: string[]
 }) {
-  const [selected, setSelected] = useState<string[]>(initialSelectedIds)
+  const [selectedCondominio, setSelectedCondominio] = useState(() => disponibilidade.find(row => initialSelectedIds.includes(row.id))?.condominio_id ?? '')
   const [createState, createAction] = useActionState(criarFlowsCobranca, null)
   const elegiveis = useMemo(() => disponibilidade.filter(hasResponsavelVinculado), [disponibilidade])
   const semResponsavel = disponibilidade.length - elegiveis.length
-  const selectedCobrancas = useMemo(() => elegiveis.filter((cobranca) => selected.includes(cobranca.id)), [elegiveis, selected])
-  const grupos = useMemo(() => groupByCarteira(selectedCobrancas), [selectedCobrancas])
-  const gruposDisponiveis = useMemo(() => groupByCarteira(disponibilidade), [disponibilidade])
+  const selectedCobrancas = useMemo(() => elegiveis.filter((cobranca) => cobranca.condominio_id === selectedCondominio), [elegiveis, selectedCondominio])
+  const selected = selectedCobrancas.map(row => row.id)
+  const grupos = useMemo(() => groupByCondominio(selectedCobrancas), [selectedCobrancas])
+  const gruposDisponiveis = useMemo(() => groupByCondominio(elegiveis), [elegiveis])
   const [openSteps, setOpenSteps] = useState<Record<StepId, boolean>>({
     lotes: initialStep === 'lotes' || gruposDisponiveis.length > 0,
     flows: initialStep === 'flows' || flows.length > 0,
@@ -168,25 +174,21 @@ export function FlowCobrancaWorkbench({
   }
 
   function toggleGrupo(rows: any[]) {
-    const ids = rows.filter(hasResponsavelVinculado).map((row) => String(row.id)).filter(Boolean)
-    const todosSelecionados = ids.length > 0 && ids.every((id) => selected.includes(id))
-    setSelected((current) => todosSelecionados
-      ? current.filter((id) => !ids.includes(id))
-      : Array.from(new Set([...current, ...ids])))
+    setSelectedCondominio(rows[0]?.condominio_id ?? '')
   }
 
   return <div className="space-y-3">
     <ListPanel>
       <details open={openSteps.lotes} onToggle={(event) => syncStepOpen('lotes', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-          <ListCollapsibleSectionHeader title="Lotes + régua" count={grupos.length} />
+          <ListCollapsibleSectionHeader title="Condomínio + régua" count={gruposDisponiveis.length} />
         </summary>
         {gruposDisponiveis.length ? <form action={createAction}>
           {createState?.error ? <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{createState.error}</p> : null}
           {selectedCobrancas.map((cobranca) => <input key={cobranca.id} type="hidden" name="cobranca_id" value={cobranca.id} />)}
           <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <p className="text-sm text-slate-600">{selectedCobrancas.length} de {elegiveis.length} cobrança(s) ativa(s) com responsável selecionada(s), agrupadas em {grupos.length} lote(s) por carteira.</p>
+              <p className="text-sm text-slate-600">Selecione um condomínio por Flow. Serão incluídas as {selectedCobrancas.length} cobrança(s) elegíveis desse condomínio exibidas pelo filtro.</p>
               {semResponsavel > 0 ? <p className="mt-1 text-xs text-amber-800">{semResponsavel} cobrança(s) sem responsável não entram na seleção. Preencha o responsável no cadastro da unidade para incluí-las no Flow.</p> : null}
             </div>
           </div>
@@ -207,11 +209,13 @@ export function FlowCobrancaWorkbench({
               const selecionadasNoGrupo = elegiveisNoGrupo.filter((row) => selected.includes(row.id))
               const grupoSelecionado = elegiveisNoGrupo.length > 0 && selecionadasNoGrupo.length === elegiveisNoGrupo.length
               const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
-              const defaultRegua = opcoesRegua.find((regua: any) => regua.carteira_id === grupo.carteiraId)?.id ?? opcoesRegua[0]?.id ?? ''
-              return <ListRow key={grupo.carteiraId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
+              const defaultRegua = opcoesRegua.find((regua: any) => regua.id === grupo.reguaId)?.id ?? opcoesRegua.find((regua: any) => regua.carteira_id === grupo.carteiraId)?.id ?? opcoesRegua[0]?.id ?? ''
+              return <ListRow key={grupo.condominioId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
                 <div>
-                  <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="checkbox" checked={grupoSelecionado} disabled={elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)]" />{grupo.carteiraNome}</label>
+                  <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="radio" name="condominio_selecionado" value={grupo.condominioId} checked={grupoSelecionado} disabled={elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 border-slate-300 text-[var(--gkli-primary)]" />{grupo.condominioNome}</label>
+                  <p className="mt-1 text-xs text-slate-500">{grupo.carteiraNome}</p>
                   <p className="mt-1 text-xs text-slate-500">{selecionadasNoGrupo.length} de {elegiveisNoGrupo.length} cobrança(s) selecionada(s)</p>
+                  <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer">Ver cobranças incluídas pelo filtro ({grupo.rows.length})</summary><ul className="mt-2 space-y-2">{grupo.rows.map(row => <li key={row.id}><a href={`/app/cobrancas/${row.id}`} className="underline">Unidade {relation(row.unidade)?.identificacao || '-'} · {row.vencimento} · {formatCurrency(cobrancaValue(row))}</a></li>)}</ul></details>
                   {grupo.rows.length > elegiveisNoGrupo.length ? <p className="mt-1 text-xs text-amber-800">{grupo.rows.length - elegiveisNoGrupo.length} sem responsável</p> : null}
                   {pendenciasPorCondominio.size > 0 ? <ul className="mt-1 space-y-1 text-xs text-amber-800" aria-label="Cobranças sem responsável por condomínio">
                     {Array.from(pendenciasPorCondominio.entries()).sort(([, a], [, b]) => a.nome.localeCompare(b.nome, 'pt-BR')).map(([id, pendencia]) => <li key={id}>{pendencia.nome}: {pendencia.quantidade} cobrança(s) sem responsável</li>)}
@@ -233,7 +237,7 @@ export function FlowCobrancaWorkbench({
             <PendingSubmitButton formAction={desfazerAtivacaoCobrancasFlowCobranca} formNoValidate variant="danger" disabled={selectedCobrancas.length === 0} pendingLabel="Desfazendo..." onClick={(event) => { if (!window.confirm(`Devolver ${selectedCobrancas.length} cobrança(s) para Novas?`)) event.preventDefault() }}><RotateCcw size={16} />Desfazer ativação</PendingSubmitButton>
             <PendingSubmitButton disabled={selectedCobrancas.length === 0} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${grupos.length} Flow(s) de cobrança?`)) event.preventDefault() }}><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
           </div>
-        </form> : <ListEmptyState title="Nenhum lote montado" description="Selecione cobranças novas no painel e clique em Ativar para montar o lote automaticamente." />}
+        </form> : <ListEmptyState title="Nenhum condomínio disponível" description="Selecione um condomínio em Cobranças novas e ative suas cobranças para montar o Flow." />}
       </details>
     </ListPanel>
 
@@ -268,8 +272,8 @@ function FlowRow({ flow }: { flow: any }) {
   }
   const itensResumo = itensLoaded ? itens.length : n(flow.total_mensagens)
 
-  async function loadItens() {
-    if (itensLoaded || itensLoading) return
+  async function loadItens(force = false) {
+    if ((!force && itensLoaded) || itensLoading) return
     setItensLoading(true)
     setItensError('')
     try {
@@ -293,8 +297,7 @@ function FlowRow({ flow }: { flow: any }) {
       const response = await fetch(`/api/flows/cobranca/${flow.id}/processar`, { method: 'POST' })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload?.error || 'Não foi possível processar o Flow.')
-      setItensLoaded(false)
-      setItens([])
+      await loadItens(true)
       router.refresh()
     } catch (error) {
       setProcessarError(error instanceof Error ? error.message : 'Não foi possível processar o Flow.')
@@ -333,7 +336,7 @@ function FlowRow({ flow }: { flow: any }) {
       </div>
       <div className="flex flex-wrap justify-end gap-2">
         {status === 'pronto' || status === 'pausado' ? (
-          <form action={enviarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton pendingLabel={status === 'pausado' ? 'Retomando...' : 'Enviando...'}><Play size={16} />{status === 'pausado' ? 'Retomar' : 'Enviar'}</PendingSubmitButton></form>
+          <form action={enviarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton pendingLabel={status === 'pausado' ? 'Retomando...' : 'Ativando...'}><Play size={16} />{status === 'pausado' ? 'Retomar Flow' : 'Ativar Flow'}</PendingSubmitButton></form>
         ) : null}
         {status === 'em_execucao' ? (
           <>
@@ -356,11 +359,11 @@ function FlowRow({ flow }: { flow: any }) {
       <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-slate-950">Fila de envio</p>
-          <p className="text-xs text-slate-500">Status, destino, agenda e falhas de cada item do Flow.</p>
+          <p className="text-xs text-slate-500">Agenda automática: até 50 e-mails/dia por domínio, respeitando o limite da carteira, das 9h às 18h (Brasília), com intervalo mínimo de 10 minutos.</p>
         </div>
         <span className="text-xs text-slate-400">{counters.falhas ? `${counters.falhas} item(ns) com falha` : 'Sem falhas abertas'}</span>
       </div>
-      {itensLoading ? (
+      {itensLoading || (!itensLoaded && !itensError) ? (
         <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
           Carregando fila do Flow...
         </div>

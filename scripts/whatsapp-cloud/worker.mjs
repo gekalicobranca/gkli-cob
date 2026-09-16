@@ -44,11 +44,11 @@ async function dispatch() {
   })
   const result = await response.json().catch(() => ({}))
   if (!response.ok || result.ok === false) throw new Error(result.error ?? `Dispatcher respondeu HTTP ${response.status}.`)
-  const total = Number(result.enviadas ?? 0) + Number(result.reagendadas ?? 0) + Number(result.falhas ?? 0)
+  const total = Number(result.enviadas ?? 0) + Number(result.reagendadas ?? 0) + Number(result.falhas ?? 0) + Number(result.email?.enviadas ?? 0) + Number(result.email?.falhas ?? 0)
   if (total > 0) console.log(new Date().toISOString(), result)
 }
 
-console.log(`Worker WhatsApp ativo: consulta a cada ${Math.round(intervalMs / 1000)} segundos.`)
+console.log(`Worker de mensagens (e-mail e WhatsApp) ativo: consulta a cada ${Math.round(intervalMs / 1000)} segundos.`)
 while (!stopping) {
   try {
     await dispatch()

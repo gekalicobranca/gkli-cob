@@ -1,10 +1,11 @@
 'use server'
 
+import { consolidarEmailsLote } from './consolidar-emails'
+import { getEmailRemetenteKey } from '@/features/mensageria/email-provider'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { processarReguaCobranca } from '@/features/regua/services/processar-regua-cobranca'
 import { registrarLogMensageria } from '@/features/mensageria/engine/logs'
-import { executarDisparosWhatsapp } from '@/features/mensageria/whatsapp-cloud/dispatcher'
 import { COBRANCA_STATUS_OPERACIONAL } from '@/lib/constants/cobrancas'
 import { LOTE_ITEM_STATUS, LOTE_STATUS, MENSAGEM_STATUS } from '@/lib/core/status'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -12,7 +13,7 @@ import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-perm
 import { requireRole } from '@/utils/auth/require-role'
 import { requireUser } from '@/utils/auth/require-user'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { hasResponsavelVinculado } from './eligibilidade'
+import { hasResponsavelVinculado, unicoCondominio } from './eligibilidade'
 
 type SupabaseAdmin = ReturnType<typeof createAdminClient>
 
@@ -27,15 +28,9 @@ function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null
   }
 }
 
-function agendamentoCobranca(payload: unknown, base = new Date()) {
-  const etapa = payload && typeof payload === 'object' ? (payload as any).etapa : null
-  const delayDias = Math.max(0, Number(etapa?.delay_dias ?? 0) || 0)
-  return new Date(base.getTime() + delayDias * 86_400_000).toISOString()
-}
-
-function flowNome(carteiraNome: string | null | undefined, loteId: string) {
+function flowNome(carteiraNome: string | null | undefined, loteId: string, condominioNome: string) {
   const carteira = String(carteiraNome ?? 'Carteira').trim() || 'Carteira'
-  return `Flow cobrança · ${carteira} · lote ${loteId.slice(0, 8)}`
+  return `Flow cobrança · ${carteira} · ${condominioNome} · lote ${loteId.slice(0, 8)}`
 }
 
 async function getFlow(supabase: SupabaseAdmin, flowId: string, scope: CarteiraScope) {
@@ -105,12 +100,13 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
 
   let query = supabase
     .from('cobrancas')
-    .select('id,carteira_id,status,status_operacional,carteira:carteiras(nome),unidade:unidades(responsavel_nome)')
+    .select('id,carteira_id,condominio_id,status,status_operacional,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional),unidade:unidades(responsavel_nome)')
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
   if (error) throw new Error(`Erro ao carregar cobranças para Flow: ${error.message}`)
   const cobrancas = (data ?? []) as any[]
+  if (!unicoCondominio(cobrancas)) return { error: 'Selecione apenas um condomínio por Flow.' }
   if (cobrancas.length !== cobrancaIds.length || cobrancas.some((row) => row.status_operacional !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA && row.status !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA)) {
     return { error: 'Uma ou mais cobranças não estão em Cobrança ativa. Atualize a página e revise a seleção.' }
   }
@@ -150,6 +146,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
     })
 
     for (const loteId of resultado.loteIds) {
+      await consolidarEmailsLote(loteId)
       const { data: lote } = await supabase
         .from('lotes')
         .select('id,total_avaliadas,total_criadas,total_pendentes,total_erros')
@@ -165,6 +162,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
       const totalFalhas = n(lote?.total_erros)
       const statusInicial = totalMensagens > 0 ? 'pronto' : totalFalhas > 0 ? 'concluido_com_falhas' : 'concluido'
       const carteira = Array.isArray(rows[0]?.carteira) ? rows[0]?.carteira[0] : rows[0]?.carteira
+      const condominio = Array.isArray(rows[0]?.condominio) ? rows[0]?.condominio[0] : rows[0]?.condominio
 
       const { data: flow, error: flowError } = await supabase
         .from('cobranca_flows')
@@ -172,7 +170,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
           carteira_id: carteiraId,
           lote_id: loteId,
           regua_id: reguaId,
-          nome: flowNome(carteira?.nome, loteId),
+          nome: flowNome(carteira?.nome, loteId, condominio?.nome_operacional || condominio?.nome || 'Condomínio'),
           status: statusInicial,
           total_mensagens: totalMensagens,
           total_pendentes: totalMensagens,
@@ -182,6 +180,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
           payload: {
             contexto: 'flow_cobranca',
             cobranca_ids: rows.map((row) => row.id),
+            condominio_id: rows[0].condominio_id,
             lote_id: loteId,
             regua_id: reguaId,
           },
@@ -209,13 +208,14 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
 
   let query = supabase
     .from('cobrancas')
-    .select('id,carteira_id,status,status_operacional,unidade:unidades(responsavel_nome)')
+    .select('id,carteira_id,condominio_id,status,status_operacional,unidade:unidades(responsavel_nome)')
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
   if (error) throw new Error(`Erro ao carregar cobranças filtradas: ${error.message}`)
 
   const rows = (data ?? []) as any[]
+  if (!unicoCondominio(rows)) throw new Error('Selecione apenas um condomínio para ativar as cobranças.')
   const rowsIds = rows.map((row) => row.id).filter(Boolean)
   if (!rowsIds.length) throw new Error('Nenhuma cobrança permitida encontrada no filtro atual.')
 
@@ -259,49 +259,12 @@ export async function enviarFlowCobranca(flowId: string) {
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
   const flow = await getFlow(supabase, flowId, scope)
-  const agora = new Date().toISOString()
-
-  if (!['pronto', 'pausado'].includes(flow.status)) throw new Error('Este Flow não está pronto para envio.')
-
-  const { data: mensagens, error: mensagensError } = await supabase
-    .from('mensagens')
-    .select('id,payload')
-    .eq('cobranca_flow_id', flowId)
-    .in('status', [MENSAGEM_STATUS.PENDENTE_APROVACAO, MENSAGEM_STATUS.APROVADA, MENSAGEM_STATUS.FALHA])
-  if (mensagensError) throw new Error(`Erro ao carregar mensagens do Flow: ${mensagensError.message}`)
-  if (!(mensagens ?? []).length) throw new Error('Este Flow não possui mensagens pendentes para enviar.')
-
-  for (const mensagem of (mensagens ?? []) as any[]) {
-    const agendadaPara = agendamentoCobranca(mensagem.payload, new Date(agora))
-    const { error } = await supabase
-      .from('mensagens')
-      .update({
-        status: MENSAGEM_STATUS.AGENDADA,
-        status_operacional: MENSAGEM_STATUS.AGENDADA,
-        scheduled_at: agendadaPara,
-        agendada_para: agendadaPara,
-        aprovado_por: user.id,
-        aprovado_em: agora,
-        erro: null,
-        erro_envio: null,
-      } as any)
-      .eq('id', mensagem.id)
-    if (error) throw new Error(`Erro ao agendar mensagem do Flow: ${error.message}`)
-  }
-
-  await supabase
-    .from('lote_itens')
-    .update({ status: LOTE_ITEM_STATUS.APROVADO, aprovado_em: agora, operador_id: user.id } as any)
-    .eq('cobranca_flow_id', flowId)
-    .in('status', [LOTE_ITEM_STATUS.CRIADO, LOTE_ITEM_STATUS.ERRO])
-  await supabase
-    .from('lotes')
-    .update({ status: LOTE_STATUS.APROVADO, aprovado_por: user.id, aprovado_em: agora } as any)
-    .eq('id', flow.lote_id)
-  await supabase
-    .from('cobranca_flows')
-    .update({ status: 'em_execucao', iniciado_em: agora, pausado_em: null, atualizado_por: user.id } as any)
-    .eq('id', flowId)
+  if (!['pronto', 'pausado'].includes(flow.status)) throw new Error('Este Flow não está pronto para ativação.')
+  const { data: canais, error: canaisError } = await supabase.from('mensagens').select('canal').eq('cobranca_flow_id', flowId)
+  if (canaisError) throw new Error(canaisError.message)
+  const remetente = canais?.some(m => m.canal === 'email') ? await getEmailRemetenteKey(flow.carteira_id) : ''
+  const { error } = await supabase.rpc('email_ativar_flow', { p_flow: flowId, p_remetente: remetente, p_usuario: user.id })
+  if (error) throw new Error(`Erro ao ativar Flow: ${error.message}`)
 
   const { data: itens } = await supabase.from('lote_itens').select('cobranca_id').eq('cobranca_flow_id', flowId)
   const cobrancaIds = Array.from(new Set((itens ?? []).map((item: any) => item.cobranca_id).filter(Boolean)))
@@ -316,14 +279,13 @@ export async function enviarFlowCobranca(flowId: string) {
   await registrarLogMensageria(supabase as any, {
     carteira_id: flow.carteira_id,
     lote_id: flow.lote_id,
-    evento: flow.status === 'pausado' ? 'flow_cobranca_retomado' : 'flow_cobranca_enviado',
+    evento: flow.status === 'pausado' ? 'flow_cobranca_retomado' : 'flow_cobranca_ativado',
     status_anterior: flow.status,
     status_novo: 'em_execucao',
     descricao: 'Flow cobrança liberado para agenda de disparos.',
     payload: { flow_id: flowId },
   })
 
-  await executarDisparosWhatsapp(100, { cobrancaFlowId: flowId })
 
   revalidatePath('/app/flows/cobranca')
 }
@@ -483,7 +445,7 @@ export async function reenviarItemFlowCobranca(itemId: string) {
 
   const { data: mensagem, error: mensagemError } = await supabase
     .from('mensagens')
-    .select('id,status,status_operacional,payload')
+    .select('id,canal,status,status_operacional,payload')
     .eq('id', mensagemId)
     .maybeSingle()
   if (mensagemError) throw new Error(`Erro ao carregar mensagem do Flow: ${mensagemError.message}`)
@@ -492,7 +454,13 @@ export async function reenviarItemFlowCobranca(itemId: string) {
   if (statusMensagem !== MENSAGEM_STATUS.FALHA) throw new Error('Somente mensagens com falha podem ser reenviadas.')
 
   const agora = new Date().toISOString()
-  const agendadaPara = agendamentoCobranca((mensagem as any).payload, new Date(agora))
+  let agendadaPara = agora
+  if (mensagem.canal === 'email') {
+    const remetente = await getEmailRemetenteKey(flow.carteira_id)
+    const { data, error } = await supabase.rpc('email_reservar_horario', { p_mensagem: mensagemId, p_remetente: remetente })
+    if (error) throw new Error(error.message)
+    agendadaPara = data
+  }
   await supabase
     .from('mensagens')
     .update({
@@ -510,7 +478,7 @@ export async function reenviarItemFlowCobranca(itemId: string) {
   await supabase
     .from('lote_itens')
     .update({ status: LOTE_ITEM_STATUS.APROVADO, erro: null, operador_id: user.id } as any)
-    .eq('id', itemId)
+    .eq('mensagem_id', mensagemId)
   await supabase
     .from('cobranca_flows')
     .update({ status: 'em_execucao', concluido_em: null, proximo_disparo_em: agendadaPara, atualizado_por: user.id } as any)

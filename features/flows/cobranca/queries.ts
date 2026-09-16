@@ -3,6 +3,7 @@ import { COBRANCA_STATUS_OPERACIONAL } from '@/lib/constants/cobrancas'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { separarSaneamento } from './eligibilidade'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 const COBRANCA_SELECT = `
@@ -172,7 +173,6 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     .select(COBRANCA_SELECT)
     .or(`status_operacional.eq.${COBRANCA_STATUS_OPERACIONAL.NOVO},status.eq.${COBRANCA_STATUS_OPERACIONAL.NOVO}`)
     .order('vencimento', { ascending: true })
-    .limit(300)
   painelQuery = applyFilters(painelQuery)
 
   let disponibilidadeQuery = supabase
@@ -180,7 +180,6 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     .select(COBRANCA_SELECT)
     .or(`status_operacional.eq.${COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA},status.eq.${COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA}`)
     .order('vencimento', { ascending: true })
-    .limit(300)
   disponibilidadeQuery = applyFilters(disponibilidadeQuery)
 
   let flowsQuery = supabase
@@ -213,9 +212,18 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     .limit(100)
   flowsQuery = applyCarteiraScope(flowsQuery, scope.carteiraIds)
 
+  async function todasCobrancas(query: any) {
+    const rows: any[] = []
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await query.order('id').range(offset, offset + 499)
+      if (error) return { data: null, error }
+      rows.push(...data)
+      if (data.length < 500) return { data: rows, error: null }
+    }
+  }
   const [{ data: painel, error: painelError }, { data: disponibilidade, error: disponibilidadeError }, { data: flows, error: flowsError }, reguas] = await Promise.all([
-    painelQuery,
-    disponibilidadeQuery,
+    todasCobrancas(painelQuery),
+    todasCobrancas(disponibilidadeQuery),
     flowsQuery,
     reguasPromise,
   ])
@@ -225,26 +233,34 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   if (flowsError && flowsError.code !== '42P01') throw new Error(`Erro ao carregar Flows de cobrança: ${flowsError.message}`)
 
   const flowRows = (flows ?? []) as any[]
-  let cobrancasJaVinculadas = new Set<string>()
+  const cobrancasJaVinculadas = new Set<string>()
   const cobrancaIdsDisponibilidade = (disponibilidade ?? []).map((row: any) => row.id).filter(Boolean)
 
   if (cobrancaIdsDisponibilidade.length) {
-    const { data: vinculados } = await supabase
-      .from('lote_itens')
-      .select('cobranca_id')
-      .in('cobranca_id', cobrancaIdsDisponibilidade)
-      .not('cobranca_flow_id', 'is', null)
-    cobrancasJaVinculadas = new Set((vinculados ?? []).map((row: any) => String(row.cobranca_id)).filter(Boolean))
+    for (let offset = 0; offset < cobrancaIdsDisponibilidade.length; offset += 100) {
+      const { data: vinculados, error } = await supabase
+        .from('lote_itens')
+        .select('cobranca_id')
+        .in('cobranca_id', cobrancaIdsDisponibilidade.slice(offset, offset + 100))
+        .not('cobranca_flow_id', 'is', null)
+      if (error) throw new Error(`Erro ao verificar vínculos de Flow: ${error.message}`)
+      for (const row of vinculados ?? []) if (row.cobranca_id) cobrancasJaVinculadas.add(String(row.cobranca_id))
+    }
   }
 
+  const novas = separarSaneamento(painel ?? [])
+  const ativas = separarSaneamento(disponibilidade ?? [])
+  const normalize = (row: any) => ({ ...row, carteira: relation(row.carteira), condominio: relation(row.condominio), unidade: relation(row.unidade) })
+
   return {
-    painel: (painel ?? []).map((row: any) => ({
+    saneamento: [...new Map([...novas.saneamento, ...ativas.saneamento].map(row => [row.id, row])).values()].map(normalize),
+    painel: novas.aptas.map((row: any) => ({
       ...row,
       carteira: relation(row.carteira),
       condominio: relation(row.condominio),
       unidade: relation(row.unidade),
     })),
-    disponibilidade: (disponibilidade ?? [])
+    disponibilidade: ativas.aptas
       .filter((row: any) => !cobrancasJaVinculadas.has(String(row.id)))
       .map((row: any) => ({
         ...row,

@@ -1,7 +1,6 @@
 import { FileText, Layers, ListChecks, Network, WalletCards, type LucideIcon } from 'lucide-react'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
-import { FlowCobrancaPainelWorkbench } from '@/components/flows/cobranca/cobrancas-painel-workbench'
-import { FlowCobrancaWorkbench } from '@/components/flows/cobranca/flow-cobranca-workbench'
+import { FlowCobrancaAbas } from '@/components/flows/cobranca/flow-cobranca-abas'
 import { ClearFiltersLink, ListCollapsibleFilters, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage } from '@/components/layout/list-page'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -72,7 +71,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
     <PageHeader
       eyebrow="Flows"
       title="Flow cobrança"
-      description="Crie lotes a partir das cobranças novas, vincule uma régua, libere a agenda e monitore os disparos."
+      description="Selecione um condomínio por Flow, vincule a régua e monitore os disparos. Corrija os cadastros pendentes em Saneamento."
       actions={<div className="flex flex-wrap gap-2">
         <ButtonLink href="/app/regua-cobranca" variant="header"><Network size={16} />Réguas</ButtonLink>
         <ButtonLink href="/app/mensageria/templates?tipo=cobranca" variant="header"><FileText size={16} />Templates</ButtonLink>
@@ -114,9 +113,10 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
       </ListFiltersForm>
     </ListCollapsibleFilters>
 
-    <FlowCobrancaPainelWorkbench rows={painelRows} returnQuery={returnQuery.toString()} />
-
-    <FlowCobrancaWorkbench
+    <FlowCobrancaAbas
+      painel={painelRows}
+      saneamento={data.saneamento}
+      returnQuery={returnQuery.toString()}
       disponibilidade={disponibilidadeRows}
       reguas={data.reguas as any[]}
       flows={data.flows as any[]}

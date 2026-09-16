@@ -1,5 +1,7 @@
 "use server";
 
+import { EmailAdiadoError } from "./email-agenda";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
@@ -36,6 +38,9 @@ type MensagemEnvio = {
   conteudo_renderizado: string | null;
   template_id: string | null;
   tentativas_envio: number | null;
+  cobranca_flow_id: string | null;
+  acordo_flow_id: string | null;
+  pre_juridico_flow_id: string | null;
 };
 
 function touchedPaths(loteId?: string | null) {
@@ -80,7 +85,10 @@ async function getMensagemEnvio(supabase: SupabaseClient, id: string) {
       conteudo,
       conteudo_renderizado,
       template_id,
-      tentativas_envio
+      tentativas_envio,
+      cobranca_flow_id,
+      acordo_flow_id,
+      pre_juridico_flow_id
     `,
     )
     .eq("id", id)
@@ -235,7 +243,7 @@ async function atualizarMensagemErro(
       erro_envio: message,
       tentativas_envio: Number(mensagem.tentativas_envio ?? 0) + 1,
     } as any)
-    .eq("id", mensagem.id);
+    .eq("id", mensagem.id).neq("status", MENSAGEM_STATUS.ENVIADA);
 
   assertSupabaseMutation(mensagemError, "Erro ao marcar mensagem com falha");
 
@@ -243,7 +251,7 @@ async function atualizarMensagemErro(
     const { error: itemError } = await supabase
       .from("lote_itens")
       .update({ status: LOTE_ITEM_STATUS.ERRO, erro: message } as any)
-      .eq("id", mensagem.lote_item_id);
+      .eq("id", mensagem.lote_item_id).neq("status", LOTE_ITEM_STATUS.ENVIADO);
 
     assertSupabaseMutation(itemError, "Erro ao marcar item do lote com falha");
   }
@@ -403,6 +411,9 @@ export async function cancelarMensagem(id: string, motivo?: string) {
 export async function enviarMensagemEmail(id: string) {
   const supabase = await createClient();
   const mensagem = await getMensagemEnvio(supabase, id);
+  if (mensagem.canal !== 'email' || ![MENSAGEM_STATUS.APROVADA, MENSAGEM_STATUS.AGENDADA].includes(mensagem.status as any)) {
+    throw new Error('Somente e-mails aprovados podem entrar na agenda.');
+  }
   const conteudo = mensagem.conteudo_renderizado || mensagem.conteudo || "";
   const assunto = await getTemplateAssunto(supabase, mensagem.template_id);
   const now = new Date().toISOString();
@@ -414,19 +425,21 @@ export async function enviarMensagemEmail(id: string) {
         status: MENSAGEM_STATUS.AGENDADA,
         status_operacional: MENSAGEM_STATUS.AGENDADA,
       } as any)
-      .eq("id", id);
+      .eq("id", id).in("status", [MENSAGEM_STATUS.APROVADA, MENSAGEM_STATUS.AGENDADA]);
 
     assertSupabaseMutation(agendaError, "Erro ao marcar mensagem como agendada");
 
     const anexos = await listarAnexosMensagem(createAdminClient(), mensagem.id);
 
-    await sendSmtpEmail({
+    const { emailControle } = await sendSmtpEmail({
       to: mensagem.destinatario || "",
       subject: assunto || "Mensagem GKLI Cobrança",
       text: conteudo,
       attachments: anexos,
     }, {
       carteiraId: mensagem.carteira_id,
+      mensagemId: mensagem.id,
+      copiarControleFlow: Boolean(mensagem.cobranca_flow_id || mensagem.acordo_flow_id || mensagem.pre_juridico_flow_id),
     });
 
     const { error } = await supabase
@@ -448,7 +461,7 @@ export async function enviarMensagemEmail(id: string) {
       const { error: itemError } = await supabase
         .from("lote_itens")
         .update({ status: LOTE_ITEM_STATUS.ENVIADO } as any)
-        .eq("id", mensagem.lote_item_id);
+        .eq("mensagem_id", mensagem.id);
 
       assertSupabaseMutation(itemError, "Erro ao marcar item do lote como enviado");
     }
@@ -467,6 +480,7 @@ export async function enviarMensagemEmail(id: string) {
         destinatario: mensagem.destinatario,
         tentativa: Number(mensagem.tentativas_envio ?? 0) + 1,
         anexos: anexos.length,
+        email_controle: emailControle,
       },
     });
 
@@ -483,6 +497,7 @@ export async function enviarMensagemEmail(id: string) {
       payload: { mensagem_id: mensagem.id, lote_item_id: mensagem.lote_item_id, anexos: anexos.length },
     });
   } catch (error) {
+    if (error instanceof EmailAdiadoError) { touchedPaths(mensagem.lote_id); return; }
     await atualizarMensagemErro(supabase, mensagem, error);
     throw new Error(
       `Erro ao enviar e-mail: ${error instanceof Error ? error.message : String(error)}`,

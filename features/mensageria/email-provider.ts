@@ -1,6 +1,8 @@
+import { reservarDisparoEmail, finalizarDisparoEmail } from './email-agenda'
 import net from 'node:net'
 import tls from 'node:tls'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { normalizarEmailControle } from '@/features/carteiras/email-controle'
 
 export type EmailPayload = {
   to: string
@@ -28,7 +30,9 @@ type SmtpConfig = {
 type SmtpConfigScope = 'carteira' | 'global' | 'fallback_global' | 'environment' | 'missing'
 
 type SmtpSendOptions = {
+  mensagemId?: string
   carteiraId?: string | null
+  copiarControleFlow?: boolean
   overrideConfig?: SmtpConfig
 }
 
@@ -404,7 +408,24 @@ async function upgradeToTls(socket: net.Socket, config: SmtpConfig) {
   })
 }
 
+export async function getEmailRemetenteKey(carteiraId: string) {
+  const config = await getConfig({ carteiraId })
+  return sanitizeAddress(config.from).split('@').pop()!.toLowerCase()
+}
+
 export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig | SmtpSendOptions) {
+  const normalizedOptions = normalizeSendOptions(options)
+  let emailControle: string | null = null
+  const carteiraId = normalizeCarteiraId(normalizedOptions.carteiraId)
+  if (normalizedOptions.copiarControleFlow && carteiraId) {
+    const { data, error } = await createAdminClient()
+      .from('carteiras')
+      .select('email_controle')
+      .eq('id', carteiraId)
+      .single()
+    if (error) throw new Error(`Erro ao consultar e-mail de controle da carteira: ${error.message}`)
+    emailControle = normalizarEmailControle(data.email_controle)
+  }
   const config = await getConfig(options)
   const from = sanitizeAddress(payload.from || config.from)
   const to = sanitizeAddress(payload.to)
@@ -414,9 +435,13 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
   if (!to || !to.includes('@')) throw new Error('Destinatário de e-mail inválido')
   if (!body) throw new Error('Conteúdo do e-mail vazio')
 
-  let socket = await createSocket(config)
-
+  const tentativaId = normalizedOptions.mensagemId
+    ? await reservarDisparoEmail(normalizedOptions.mensagemId, from.split('@').pop()!.toLowerCase()) : null
+  let socket: net.Socket | tls.TLSSocket | undefined
+  let dadosTransmitidos = false
+  let aceito = false
   try {
+    socket = await createSocket(config)
     await readResponse(socket)
     await command(socket, `EHLO ${config.ehloDomain}`, [250])
 
@@ -434,6 +459,10 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
 
     await command(socket, `MAIL FROM:<${from}>`, [250])
     await command(socket, `RCPT TO:<${to}>`, [250, 251])
+    // CCO: recebe a mesma mensagem e anexos, sem expor o endereço nos cabeçalhos.
+    if (emailControle && emailControle.toLowerCase() !== to.toLowerCase()) {
+      await command(socket, `RCPT TO:<${emailControle}>`, [250, 251])
+    }
     await command(socket, 'DATA', [354])
 
     const message = buildMimeMessage({
@@ -444,9 +473,17 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
       attachments: payload.attachments,
     })
 
+    dadosTransmitidos = true
     await command(socket, message, [250])
-    await command(socket, 'QUIT', [221])
+    aceito = true
+    if (tentativaId) await finalizarDisparoEmail(tentativaId, 'enviado')
+    // O aceite de DATA confirma o envio; falha ao encerrar a conexão não autoriza reenvio.
+    await command(socket, 'QUIT', [221]).catch(() => undefined)
+  } catch (error) {
+    if (tentativaId && !aceito) await finalizarDisparoEmail(tentativaId, dadosTransmitidos ? 'incerto' : 'falha')
+    throw error
   } finally {
-    socket.destroy()
+    socket?.destroy()
   }
+  return { emailControle }
 }

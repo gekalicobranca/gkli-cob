@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { normalizeName } from "@/utils/formatters/normalize";
 import { requireAdmin } from "@/utils/auth/require-admin";
+import { normalizarEmailControle } from "./email-controle";
 
 async function findAuthUserIdByEmail(email: string) {
   const admin = createAdminClient();
@@ -75,6 +76,8 @@ function getCarteiraFiscalPayload(formData: FormData) {
 }
 
 function getCarteiraOperacionalPayload(formData: FormData) {
+  const emailLimite = Number(formData.get("email_limite_diario") ?? 50);
+  if (!Number.isInteger(emailLimite) || emailLimite < 1 || emailLimite > 50) throw new Error("Informe um limite de 1 a 50 e-mails por dia.");
   const whatsappHabilitado = formData.get("whatsapp_habilitado") === "on";
   const whatsappRemetenteModo = String(formData.get("whatsapp_remetente_modo") ?? "global").trim();
   if (!["global", "proprio"].includes(whatsappRemetenteModo)) {
@@ -97,6 +100,8 @@ function getCarteiraOperacionalPayload(formData: FormData) {
     operador_id: optionalText(formData, "operador_id"),
     pre_juridico_habilitado: formData.get("pre_juridico_habilitado") === "on",
     email_habilitado: formData.get("email_habilitado") === "on",
+    email_limite_diario: emailLimite,
+    email_controle: normalizarEmailControle(formData.get("email_controle")),
     whatsapp_habilitado: whatsappHabilitado,
     whatsapp_remetente_modo: whatsappRemetenteModo,
     whatsapp_numero_proprio: whatsappRemetenteModo === "proprio" ? whatsappNumeroProprio || null : null,

@@ -982,12 +982,19 @@ export async function processarReguaCobranca(
           continue;
         }
 
-        const { data: mensagemExistente } = await supabase
+        let { data: mensagemExistente } = await supabase
           .from("mensagens")
           .select("id")
           .eq("fingerprint", fingerprint)
           .limit(1)
           .maybeSingle();
+
+        if (!mensagemExistente) {
+          const { data: itemAnterior, error: itemAnteriorError } = await supabase.from("lote_itens")
+            .select("mensagem_id").eq("fingerprint", fingerprint).not("mensagem_id", "is", null).limit(1).maybeSingle();
+          if (itemAnteriorError) throw new Error(itemAnteriorError.message);
+          if (itemAnterior?.mensagem_id) mensagemExistente = { id: itemAnterior.mensagem_id };
+        }
 
         if (mensagemExistente?.id) {
           total.duplicadas += 1;

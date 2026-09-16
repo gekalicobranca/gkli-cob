@@ -4,6 +4,20 @@ Atualizado em 27/08/2026.
 
 ## 1. Objetivo
 
+### Seleção por condomínio e saneamento — 16/09/2026
+
+No Flow de cobrança, a seleção é feita diretamente no condomínio. Tanto a ativação
+de cobranças novas quanto a criação do Flow aceitam um único condomínio por vez.
+As cobranças exibidas pelos filtros podem ser consultadas, mas não selecionadas
+individualmente. O servidor também recusa uma seleção que misture condomínios ou
+carteiras. O nome e o payload do novo Flow identificam o condomínio.
+
+Cobranças novas ou ativas sem responsável da unidade ficam na aba Saneamento,
+fora da seleção operacional. A aba permite abrir o cadastro da unidade. Após a
+correção e a atualização da lista, a cobrança volta à operação conforme o status,
+os filtros e os vínculos de Flow existentes. Essa separação não altera status
+financeiros nem confunde o responsável da unidade com o operador interno.
+
 Esta especificação define o modelo operacional criado no Pré-Jurídico para ser replicado nos fluxos de cobrança e de acordos.
 
 O modelo separa claramente:
@@ -24,6 +38,19 @@ Em termos de operação:
 5. o Flow une lote + régua e controla execução, pausa, cancelamento, falhas e reenvio.
 
 ## 2. Princípio central
+
+### E-mail de controle da carteira
+
+O cadastro da carteira permite informar um e-mail de controle opcional. Ao enviar
+um e-mail vinculado a Flow (cobrança, acordos ou pré-jurídico), o sistema consulta
+esse cadastro e inclui o endereço em cópia oculta (CCO), com o mesmo conteúdo e
+anexos. A regra vale também para reenvios. Sem endereço, não há cópia; se ele for
+igual ao destinatário, não é incluído novamente. A alteração ou remoção do campo
+vale para os próximos disparos, inclusive de mensagens já programadas.
+
+O log de envio registra `email_controle`. Testes de SMTP e mensagens sem vínculo
+com Flow não incluem a cópia. Falhas ao consultar a configuração ou aceitar o
+destinatário de controle interrompem o envio antes da transmissão do conteúdo.
 
 O envio não deve acontecer diretamente a partir de uma lista operacional.
 
@@ -637,3 +664,15 @@ Antes de implementar Cobrança ou Acordos, definir:
 - regras de reenvio;
 - métricas do monitor;
 - eventos de auditoria.
+
+
+### Agenda automática de e-mail — 16/09/2026
+
+- Ativar Flow aprova e reserva a agenda em uma transação. Pausar impede novos disparos; retomar recalcula os horários restantes.
+- Cada carteira começa com 50 e-mails/dia, ajustável entre 1 e 50 no cadastro. O domínio do remetente SMTP compartilha um teto adicional de 50 entre todas as carteiras. Vale o menor limite disponível.
+- Janela de 09h a 18h em America/Sao_Paulo, todos os dias, intervalo mínimo de 10 minutos por carteira e domínio. Excedentes seguem para o próximo dia; sem aumentos automáticos.
+- Reservas e tentativas reais são verificadas no banco com trava transacional. Tentativas SMTP, inclusive falhas, consomem cota. Processar agora e reenvios não contornam o limite.
+- Cobranças da mesma unidade/destinatário no lote são consolidadas, usando a etapa de maior atraso e o valor somado. Todos os itens continuam vinculados à mensagem única e preservam seus fingerprints.
+- A agenda roda pelo Supabase Cron a cada 10 minutos, das 12h às 20h UTC, chamando `/api/jobs/emails/disparar`. A credencial dedicada fica no Vault (gkli_email_agenda_token) e na Vercel (EMAIL_AGENDA_CRON_SECRET). Funciona com o plano Hobby, sem worker local. O worker existente também processa a fila; a reserva atômica impede duplicação entre ambos.
+- Sem confirmação de aceite SMTP, uma transmissão de DATA fica como incerta e bloqueia reenvio automático. Deve ser conferida no provedor antes de uma liberação manual; não há expiração automática dessa proteção.
+- Publicar junto com a migração `20260916170000_agenda_email_carteira.sql`. A nova agenda não ativa Flows por conta própria.

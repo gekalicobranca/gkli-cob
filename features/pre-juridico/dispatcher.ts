@@ -1,3 +1,4 @@
+import { EmailAdiadoError } from '@/features/mensageria/email-agenda'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { sendSmtpEmail } from '@/features/mensageria/email-provider'
 import { listarAnexosMensagem } from '@/features/pre-juridico/documentos'
@@ -98,23 +99,24 @@ export async function executarDisparosPreJuridico(limit = 50) {
     if (!claim) continue
     try {
       const anexos = await listarAnexosMensagem(supabase, mensagem.id)
-      await sendSmtpEmail({
+      const { emailControle } = await sendSmtpEmail({
         to: mensagem.destinatario || '',
         subject: mensagem.email_assunto || 'Mensagem GKLI Cobrança',
         text: mensagem.conteudo_renderizado || mensagem.conteudo || '',
         attachments: anexos,
-      }, { carteiraId: mensagem.carteira_id })
+      }, { mensagemId: mensagem.id, carteiraId: mensagem.carteira_id, copiarControleFlow: Boolean(mensagem.pre_juridico_flow_id) })
       const enviadoEm = new Date().toISOString()
       const { error: updateError } = await supabase.from('mensagens').update({ status: MENSAGEM_STATUS.ENVIADA, status_operacional: MENSAGEM_STATUS.ENVIADA, sent_at: enviadoEm, enviada_em: enviadoEm, ultima_tentativa_em: enviadoEm, proxima_tentativa_em: null, tentativas_envio: tentativa, erro: null, erro_envio: null } as any).eq('id', mensagem.id).eq('status', MENSAGEM_STATUS.AGENDADA)
       if (updateError) throw updateError
       if (mensagem.lote_item_id) await supabase.from('lote_itens').update({ status: LOTE_ITEM_STATUS.ENVIADO } as any).eq('id', mensagem.lote_item_id)
       await marcarProcuracaoMensagemComoEnviada(supabase, mensagem)
-      await registrarLogMensageria(supabase as any, { carteira_id: mensagem.carteira_id, lote_id: mensagem.lote_id, lote_item_id: mensagem.lote_item_id, mensagem_id: mensagem.id, evento: 'pre_juridico_email_enviado_automaticamente', status_anterior: MENSAGEM_STATUS.AGENDADA, status_novo: MENSAGEM_STATUS.ENVIADA, descricao: `E-mail pré-jurídico enviado automaticamente para ${mensagem.destinatario}.`, payload: { tentativa, anexos: anexos.length } })
+      await registrarLogMensageria(supabase as any, { carteira_id: mensagem.carteira_id, lote_id: mensagem.lote_id, lote_item_id: mensagem.lote_item_id, mensagem_id: mensagem.id, evento: 'pre_juridico_email_enviado_automaticamente', status_anterior: MENSAGEM_STATUS.AGENDADA, status_novo: MENSAGEM_STATUS.ENVIADA, descricao: `E-mail pré-jurídico enviado automaticamente para ${mensagem.destinatario}.`, payload: { tentativa, anexos: anexos.length, email_controle: emailControle } })
       resultado.enviadas += 1
     } catch (erro) {
+      if (erro instanceof EmailAdiadoError) continue
       const detalhe = erro instanceof Error ? erro.message : String(erro)
       const falhouEm = new Date().toISOString()
-      await supabase.from('mensagens').update({ status: MENSAGEM_STATUS.FALHA, status_operacional: MENSAGEM_STATUS.FALHA, ultima_tentativa_em: falhouEm, proxima_tentativa_em: null, tentativas_envio: tentativa, erro: detalhe, erro_envio: detalhe } as any).eq('id', mensagem.id)
+      await supabase.from('mensagens').update({ status: MENSAGEM_STATUS.FALHA, status_operacional: MENSAGEM_STATUS.FALHA, ultima_tentativa_em: falhouEm, proxima_tentativa_em: null, tentativas_envio: tentativa, erro: detalhe, erro_envio: detalhe } as any).eq('id', mensagem.id).neq('status', MENSAGEM_STATUS.ENVIADA)
       await registrarLogMensageria(supabase as any, { carteira_id: mensagem.carteira_id, lote_id: mensagem.lote_id, lote_item_id: mensagem.lote_item_id, mensagem_id: mensagem.id, evento: 'pre_juridico_email_falhou', status_anterior: MENSAGEM_STATUS.AGENDADA, status_novo: MENSAGEM_STATUS.FALHA, descricao: detalhe, payload: { tentativa } })
       resultado.falhas += 1
     }
