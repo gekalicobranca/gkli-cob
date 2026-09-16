@@ -598,6 +598,18 @@ export async function processarReguaCobranca(
   const total = novoContador();
   const itens: ResultadoLoteRegua["itens"] = [];
   const lotesPorCarteiraRegua = new Map<string, LoteContext>();
+  const etapasPorRegua = new Map<string, ReturnType<typeof carregarEtapasDeReguaAdmin>>();
+  function carregarEtapas(reguaId: Parameters<typeof carregarEtapasDeReguaAdmin>[0]) {
+    const key = reguaId || "default-cobranca";
+    let etapas = etapasPorRegua.get(key);
+    if (!etapas) {
+      etapas = carregarEtapasDeReguaAdmin(reguaId);
+      etapasPorRegua.set(key, etapas);
+      // Uma falha transitória pode ser tentada novamente na próxima cobrança.
+      void etapas.catch(() => etapasPorRegua.delete(key));
+    }
+    return etapas;
+  }
   const carteiraPermiteCanal = createCarteiraCanalChecker(supabase);
   const cooldownDias = Number(params.cooldownDias ?? 3);
   const ciclo = cicloReferencia();
@@ -813,7 +825,7 @@ export async function processarReguaCobranca(
           continue;
         }
 
-        const etapas = await carregarEtapasDeReguaAdmin(params.reguaId || condominio?.regua_cobranca_id);
+        const etapas = await carregarEtapas(params.reguaId || condominio?.regua_cobranca_id);
         const etapa =
           selecionarEtapa({
             etapas,
