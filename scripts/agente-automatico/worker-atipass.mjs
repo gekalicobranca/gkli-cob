@@ -1,3 +1,4 @@
+import { concluirExecucaoMaestro, caminhoDownloadMaestro } from './concluir-maestro.mjs'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import os from 'node:os'
@@ -402,7 +403,7 @@ async function coletarAtipass(execucao) {
 
     const prefixo = condominioNome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase()
     const filename = `${prefixo}_${dataDownload()}.xls`
-    const localPath = path.join(localDownloadDir, filename)
+    const localPath = await caminhoDownloadMaestro(supabase, execucao.id, localDownloadDir, filename)
     await download.saveAs(localPath)
 
     const bytes = await readFile(localPath)
@@ -427,6 +428,7 @@ async function coletarAtipass(execucao) {
       status_validacao: 'aguardando_validacao',
     })
     if (arquivoError) throw arquivoError
+    await concluirExecucaoMaestro(supabase, execucao.id)
 
     await supabase.from('agente_execucoes').update({
       status: 'sucesso',

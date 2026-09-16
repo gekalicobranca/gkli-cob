@@ -25,6 +25,12 @@ test('validação humana continua monitorada e importação concluída encerra',
   assert.equal(resumirMonitor(e, {}, c, null, now).terminal, false)
   assert.equal(resumirMonitor(e, {}, { ...c, status: 'concluido' }, null, now).terminal, true)
 })
+
+test('conversão do Maestro apresenta importação automática em andamento', () => {
+  const result = resumirMonitor({ ...base, status: 'em_execucao', origem: 'maestro' }, {}, { status: 'aguardando_validacao', criado_em: base.created_at }, null, now)
+  assert.equal(result.state, 'running')
+  assert.match(result.detail, /automáticas em andamento/)
+})
 test('falha da coleta prevalece sobre conversão e preserva a mensagem', () => {
   const result = resumirMonitor({ ...base, status: 'falha', erro_mensagem: 'Portal indisponível' }, {}, { status: 'concluido', criado_em: base.created_at }, null, now)
   assert.equal(result.state, 'error')

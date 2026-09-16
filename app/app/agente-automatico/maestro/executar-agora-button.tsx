@@ -82,6 +82,7 @@ export function ExecutarAgoraButton({ receitaId, condominioNome, disabled = fals
     try {
       const formData = new FormData()
       formData.set('receita_id', receitaId)
+      formData.set('origem', 'maestro')
       const result = await executarAgenteReceitaComAcompanhamento(formData)
       if ('error' in result) throw new Error(result.error)
       setExecucaoId(result.execucaoId)

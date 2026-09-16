@@ -1,3 +1,4 @@
+import { concluirExecucaoMaestro, caminhoDownloadMaestro } from './concluir-maestro.mjs'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import os from 'node:os'
@@ -788,7 +789,7 @@ async function coletarLello(execucao) {
     await exportPage.close().catch(() => {})
 
     const filename = `${normalizarNomeArquivo(condominioNome)}_${codigo}_${dataDownload()}.xls`
-    const localPath = path.join(localDownloadDir, filename)
+    const localPath = await caminhoDownloadMaestro(supabase, execucao.id, localDownloadDir, filename)
     await download.saveAs(localPath)
 
     const bytes = await readFile(localPath)
@@ -813,6 +814,7 @@ async function coletarLello(execucao) {
       status_validacao: 'aguardando_validacao',
     })
     if (arquivoError) throw arquivoError
+    await concluirExecucaoMaestro(supabase, execucao.id)
 
     await supabase.from('agente_execucoes').update({ status: 'sucesso', finalizado_em: new Date().toISOString() }).eq('id', execucao.id)
     await registrarLog(execucao.id, 'concluido', 'Relatório COJUR/Acob XLS da Lello coletado e disponibilizado ao operador.', 'info', {

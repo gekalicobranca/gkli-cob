@@ -205,7 +205,7 @@ export default async function MaestroPage({ searchParams }: Props) {
     const administradoraAgente = primeira(receita?.administradora as any) as any
     const administradora = condominio.administradora || administradoraAgente?.nome || 'Administradora não informada'
     const execucao = execucoes.find((item: any) => item.condominio_id === condominio.id)
-    const execucaoManualAgendada = execucoes.find((item: any) => item.condominio_id === condominio.id && item.status === 'pendente' && item.origem === 'manual_agendada' && item.agendado_para)
+    const execucaoManualAgendada = execucoes.find((item: any) => item.condominio_id === condominio.id && item.status === 'pendente' && ['manual_agendada', 'maestro_agendada'].includes(item.origem) && item.agendado_para)
     const arquivos = execucao?.arquivos ?? []
     const arquivo = [...arquivos].sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)))[0] as any
     const conversao = conversoes.find((item: any) => item.condominio_id === condominio.id)
@@ -358,7 +358,7 @@ export default async function MaestroPage({ searchParams }: Props) {
             <div>{linha.conversao?.status === 'aguardando_validacao' ? <Badge tone="yellow">Pendente</Badge> : linha.conversao ? <Badge tone="green">Ok</Badge> : <span className="text-slate-400">Sem conversão</span>}</div>
             <div className="flex flex-col items-start gap-2 lg:items-end">
               {linha.execucaoManualAgendada?.agendado_para ? <p className="text-xs text-blue-700">Manual: {formatarData(linha.execucaoManualAgendada.agendado_para)}</p> : null}
-              {linha.receita?.id ? <form action={agendarExecucaoAgenteReceita} className="flex flex-wrap justify-start gap-2 lg:justify-end"><input type="hidden" name="receita_id" value={linha.receita.id} /><Input name="agendado_para" type="datetime-local" defaultValue={formatarDateTimeLocal(linha.execucaoManualAgendada?.agendado_para ?? proxima?.toISOString())} className="h-8 w-[178px] text-xs" required /><Button type="submit" size="sm" variant="secondary">Agendar</Button></form> : null}
+              {linha.receita?.id ? <form action={agendarExecucaoAgenteReceita} className="flex flex-wrap justify-start gap-2 lg:justify-end"><input type="hidden" name="origem" value="maestro" /><input type="hidden" name="receita_id" value={linha.receita.id} /><Input name="agendado_para" type="datetime-local" defaultValue={formatarDateTimeLocal(linha.execucaoManualAgendada?.agendado_para ?? proxima?.toISOString())} className="h-8 w-[178px] text-xs" required /><Button type="submit" size="sm" variant="secondary">Agendar</Button></form> : null}
               <div className="flex flex-wrap justify-start gap-2 lg:justify-end">{linha.conversao?.status === 'aguardando_validacao' ? <ButtonLink size="sm" href={`/app/configuracoes/lab/captacao-automatizada/${linha.conversao.id}`}>Validar</ButtonLink> : null}{linha.receita?.id ? <ExecutarAgoraButton receitaId={linha.receita.id} condominioNome={linha.condominio.nome_operacional || linha.condominio.nome} existingExecucaoId={['pendente', 'em_execucao'].includes(linha.execucao?.status) ? linha.execucao.id : undefined} /> : <ButtonLink size="sm" variant="secondary" href="/app/agente-automatico"><Bot size={15} />Agente</ButtonLink>}<ButtonLink size="sm" variant="ghost" href={`/app/condominios/${linha.condominio.id}#cobranca`}><Settings2 size={15} />Configurar</ButtonLink></div>
             </div>
           </div>

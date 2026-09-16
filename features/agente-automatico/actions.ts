@@ -154,6 +154,7 @@ async function criarExecucaoAgenteReceita(formData: FormData) {
       status: 'pendente',
       solicitado_por: user?.id ?? null,
       tentativas: 0,
+      ...(getString(formData, 'origem') === 'maestro' ? { origem: 'maestro' } : {}),
     })
     .select('id')
     .single()
@@ -200,6 +201,7 @@ export async function agendarExecucaoAgenteReceita(formData: FormData) {
   const supabase = await createClient()
   await assertCaptacaoGlobalAtiva(supabase)
 
+  const origem = getString(formData, 'origem') === 'maestro' ? 'maestro_agendada' : 'manual_agendada'
   const receitaId = getString(formData, 'receita_id')
   const agendadoParaLocal = getString(formData, 'agendado_para')
   const agendadoPara = parseDateTimeLocalSaoPaulo(agendadoParaLocal)
@@ -238,7 +240,7 @@ export async function agendarExecucaoAgenteReceita(formData: FormData) {
     .select('id')
     .eq('receita_id', receita.id)
     .eq('status', 'pendente')
-    .eq('origem', 'manual_agendada')
+    .eq('origem', origem)
     .not('agendado_para', 'is', null)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -254,7 +256,7 @@ export async function agendarExecucaoAgenteReceita(formData: FormData) {
     status: 'pendente',
     solicitado_por: user?.id ?? null,
     tentativas: 0,
-    origem: 'manual_agendada',
+    origem,
     agendado_para: agendadoPara.toISOString(),
     erro_mensagem: null,
   }

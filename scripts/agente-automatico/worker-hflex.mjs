@@ -1,3 +1,4 @@
+import { concluirExecucaoMaestro, caminhoDownloadMaestro } from './concluir-maestro.mjs'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import os from 'node:os'
@@ -216,7 +217,7 @@ async function coletar(execucao) {
     const sugerido = download.suggestedFilename() || 'RelatorioDevedores.xls'
     const extensao = path.extname(sugerido) || '.xls'
     const filename = `${nomeArquivo(condominioNome)}_${new Date().toISOString().slice(0, 10)}${extensao}`
-    const localPath = path.join(localDir, filename)
+    const localPath = await caminhoDownloadMaestro(supabase, execucao.id, localDir, filename)
     await download.saveAs(localPath)
     await popup.close().catch(() => {})
 
@@ -232,6 +233,7 @@ async function coletar(execucao) {
       tamanho_bytes: bytes.length, hash_arquivo: hash, status_validacao: 'aguardando_validacao',
     })
     if (arquivoError) throw arquivoError
+    await concluirExecucaoMaestro(supabase, execucao.id)
     await supabase.from('agente_execucoes').update({ status: 'sucesso', finalizado_em: new Date().toISOString() }).eq('id', execucao.id)
     await registrarLog(execucao.id, 'concluido', 'Relatório detalhado HFlex coletado.', 'info', { empreendimento: selecionado, arquivo: filename, caminho_local: localPath })
     console.log(`Execução ${execucao.id}: ${filename} coletado com sucesso.`)

@@ -15,7 +15,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const scope = await getPermittedCarteiras()
     const supabase = await createClient()
     const query = supabase.from('agente_execucoes').select(
-      'id, carteira_id, receita_id, condominio_id, status, tentativas, created_at, iniciado_em, finalizado_em, erro_mensagem, arquivos:agente_arquivos(id,nome_arquivo,status_validacao,created_at)'
+      'id, carteira_id, receita_id, condominio_id, origem, status, tentativas, created_at, iniciado_em, finalizado_em, erro_mensagem, arquivos:agente_arquivos(id,nome_arquivo,status_validacao,created_at)'
     ).eq('id', id)
     const { data: execucao, error } = await applyCarteiraScope(query, scope.carteiraIds).maybeSingle()
     if (error) throw error
