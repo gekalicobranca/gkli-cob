@@ -1,3 +1,5 @@
+import { OperadorField } from '@/features/condominios/components/organizacao-fields'
+import { listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
 import { notFound } from 'next/navigation'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
@@ -17,6 +19,7 @@ type EditarCarteiraPageProps = {
 
 export default async function EditarCarteiraPage({ params }: EditarCarteiraPageProps) {
   await requireAdmin()
+  const operadores = await listOperadoresCadastro()
 
   const { id } = await params
   const carteira = await getCarteiraByIdForAdmin(id)
@@ -43,6 +46,7 @@ export default async function EditarCarteiraPage({ params }: EditarCarteiraPageP
 <Input name="nome" required defaultValue={carteira.nome ?? ''} placeholder="Ex.: Genske Advogados" />
           </FormField>
 
+          <OperadorField operadores={operadores} carteira value={carteira.operador_id} />
           <FormField label="Descrição">
             <Textarea name="descricao" defaultValue={carteira.descricao ?? ''} placeholder="Descrição interna da carteira..." />
           </FormField>

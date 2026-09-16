@@ -13,6 +13,7 @@ export async function GET(request: Request) {
   const filters = normalizeCondominioFilters({
     search: params.get('q') ?? undefined,
     carteiraId: params.get('carteira_id') ?? undefined,
+    grupo: params.get('grupo') ?? undefined,
     administradora: params.get('administradora') ?? undefined,
     status: params.get('status') ?? 'ativo',
   })
@@ -30,6 +31,7 @@ export async function GET(request: Request) {
     }
     const labels = [
       `Status: ${filters.status || 'todos'}`,
+      filters.grupo ? `Grupo: ${filters.grupo}` : '',
       filters.search ? `Busca: ${filters.search}` : '',
       filters.administradora ? `Administradora: ${filters.administradora}` : '',
       filters.carteiraId ? `Carteira: ${rows[0]?.carteiras?.nome || 'selecionada (sem resultados)'}` : 'Carteiras: todas as permitidas',

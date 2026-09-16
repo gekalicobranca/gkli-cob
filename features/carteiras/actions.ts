@@ -94,6 +94,7 @@ function getCarteiraOperacionalPayload(formData: FormData) {
   }
 
   return {
+    operador_id: optionalText(formData, "operador_id"),
     pre_juridico_habilitado: formData.get("pre_juridico_habilitado") === "on",
     email_habilitado: formData.get("email_habilitado") === "on",
     whatsapp_habilitado: whatsappHabilitado,

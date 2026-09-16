@@ -67,7 +67,7 @@ type PageProps = {
 
 const STATUS_FILTERS = STATUS_OPERACIONAIS;
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 500;
 const EMPTY_RESUMO = {
   total: 0,
   totalEmAberto: 0,

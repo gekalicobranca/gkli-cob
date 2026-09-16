@@ -6,6 +6,8 @@ import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/nor
 const CONDOMINIO_SELECT = `
   id,
   carteira_id,
+  grupo,
+  operador_id,
   nome,
   nome_operacional,
   cnpj,
@@ -43,12 +45,13 @@ const CONDOMINIO_SELECT = `
   status,
   observacoes,
   created_at,
-  carteiras(nome)
+  carteiras(nome, operador_id)
 `
 
 export type CondominioFilters = {
   search?: string
   carteiraId?: string
+  grupo?: string
   administradora?: string
   status?: string
 }
@@ -67,13 +70,14 @@ export function normalizeCondominioFilters(filters: CondominioFilters = {}) {
     search: cleanFilter(filters.search),
     carteiraId: cleanFilter(filters.carteiraId),
     administradora: cleanFilter(filters.administradora),
+    grupo: cleanFilter(filters.grupo),
     status: cleanFilter(filters.status),
   }
 }
 
 export function hasCondominioFilters(filters: CondominioFilters = {}) {
   const normalized = normalizeCondominioFilters(filters)
-  return Boolean(normalized.search || normalized.carteiraId || normalized.administradora || normalized.status)
+  return Boolean(normalized.grupo || normalized.search || normalized.carteiraId || normalized.administradora || normalized.status)
 }
 
 export async function listCondominios(scope: CarteiraScope, filters: CondominioFilters = {}, options: { all?: boolean } = {}) {
@@ -91,6 +95,8 @@ export async function listCondominios(scope: CarteiraScope, filters: CondominioF
   if (normalized.carteiraId) {
     query = query.eq('carteira_id', normalized.carteiraId)
   }
+
+  if (normalized.grupo) query = query.eq('grupo', normalized.grupo)
 
   if (normalized.status) {
     query = query.eq('status', normalized.status)

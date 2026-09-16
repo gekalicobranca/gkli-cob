@@ -1,3 +1,6 @@
+import { operadorEfetivoId } from '@/features/condominios/organizacao'
+import { GrupoField, OperadorField } from '@/features/condominios/components/organizacao-fields'
+import { listGruposCondominios, listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Activity, BarChart3, Bot, BotOff, ChevronDown, CircleHelp, ClipboardList, Download, FileClock, History, Home, Landmark, PencilLine, Users } from 'lucide-react'
@@ -39,6 +42,7 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
   const query = await searchParams
   const abaAtiva = normalizeAba(query?.aba)
   const scope = await getPermittedCarteiras()
+  const [grupos, operadores] = await Promise.all([listGruposCondominios(scope), listOperadoresCadastro()])
   const [condominio, carteiras, reguasCobranca, reguasAcordo] = await Promise.all([
     getCondominioIntegral(id, scope),
     listCarteirasForSelect(scope),
@@ -109,6 +113,8 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
         <span className="text-sm text-slate-500">Classificação usada para orientar tom, prioridade e cuidado operacional.</span>
       </div>
 
+      <p className="text-sm text-slate-600">Grupo: {condominio.grupo || 'Sem grupo'} · Operador responsável: {operadores.find(item => item.id === operadorEfetivoId(condominio))?.nome ?? (operadorEfetivoId(condominio) ? 'Indisponível' : 'Não definido')} ({condominio.operador_id ? 'condomínio' : 'herdado da carteira'})</p>
+
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <Kpi icon={<Home size={18} />} label="Unidades" value={String(unidades.length)} detail={`${unidadesAtivas} ativas`} />
         <Kpi icon={<Users size={18} />} label="Responsáveis" value={String(responsaveis.length)} detail={`${responsaveisAtivos} ativos`} />
@@ -150,6 +156,8 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
             <FormField label="Nome oficial do condomínio"><Input name="nome" defaultValue={condominio.nome ?? ''} required /></FormField>
             <FormField label="Nome operacional"><Input name="nome_operacional" defaultValue={condominio.nome_operacional ?? ''} placeholder="Como a operação identifica este condomínio" /></FormField>
             <FormField label="CNPJ"><Input name="cnpj" defaultValue={condominio.cnpj ?? ''} /></FormField>
+            <GrupoField grupos={grupos} value={condominio.grupo} />
+            <OperadorField operadores={operadores} value={condominio.operador_id} />
             <FormField label="Administradora"><Input name="administradora" defaultValue={condominio.administradora ?? ''} /></FormField>
             <FormField label="Máscara da unidade" hint="0 = número, A = letra, * = qualquer caractere. Em branco não bloqueia."><Input name="mascara_unidade" defaultValue={condominio.mascara_unidade ?? ''} placeholder="Ex.: 000000" className="uppercase" /></FormField>
             <FormField label="Máscara do bloco" hint="Será exigida na criação manual e na importação."><Input name="mascara_bloco" defaultValue={condominio.mascara_bloco ?? ''} placeholder="Ex.: 0 ou A" className="uppercase" /></FormField>
@@ -333,6 +341,8 @@ function HiddenCondominioFields({ condominio, activeTab }: { condominio: any; ac
       <HiddenInput name="nome" value={condominio.nome} />
       <HiddenInput name="nome_operacional" value={condominio.nome_operacional} />
       <HiddenInput name="cnpj" value={condominio.cnpj} />
+      <HiddenInput name="grupo" value={condominio.grupo} />
+      <HiddenInput name="operador_id" value={condominio.operador_id} />
       <HiddenInput name="administradora" value={condominio.administradora} />
       <HiddenInput name="mascara_unidade" value={condominio.mascara_unidade} />
       <HiddenInput name="mascara_bloco" value={condominio.mascara_bloco} />

@@ -1,3 +1,5 @@
+import { GrupoField, OperadorField } from '@/features/condominios/components/organizacao-fields'
+import { listGruposCondominios, listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -12,6 +14,7 @@ import { ClassificacaoOperacionalField } from '@/features/condominios/components
 
 export default async function NovoCondominioPage() {
   const scope = await getPermittedCarteiras()
+  const [grupos, operadores] = await Promise.all([listGruposCondominios(scope), listOperadoresCadastro()])
   const carteiras = await listCarteirasForSelect(scope)
 
   return (
@@ -46,6 +49,8 @@ export default async function NovoCondominioPage() {
               <Input name="cnpj" placeholder="Somente números ou formatado" />
             </FormField>
 
+            <GrupoField grupos={grupos} />
+            <OperadorField operadores={operadores} />
             <FormField label="Administradora">
               <Input name="administradora" placeholder="Ex.: Administradora Alfa" />
             </FormField>

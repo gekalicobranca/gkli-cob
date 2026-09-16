@@ -1,3 +1,5 @@
+import { listGruposCondominios, listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
+import { operadorEfetivoId } from '@/features/condominios/organizacao'
 import { sortCondominios } from '@/features/condominios/sort'
 import Link from 'next/link'
 import { ArrowUpRight, Building2, Download, Edit3, FileText, Filter, Plus } from 'lucide-react'
@@ -69,20 +71,23 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
     search: getParam(params?.q),
     carteiraId: getParam(params?.carteira_id),
     administradora: getParam(params?.administradora),
+    grupo: getParam(params?.grupo),
     status: statusParam === undefined ? 'ativo' : statusParam,
   })
 
-  const [rowsBase, carteiras, administradoras] = await Promise.all([
+  const [rowsBase, carteiras, administradoras, grupos, operadores] = await Promise.all([
     listCondominios(scope, filters),
     listCarteirasForSelect(scope),
     listAdministradorasCondominios(scope),
+    listGruposCondominios(scope),
+    listOperadoresCadastro(),
   ])
 
   const ordenar = getParam(params?.ordenar) ?? 'nome'
   const filteredRows = sortCondominios(rowsBase, ordenar)
   const rows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const filtrosAtivos =
-    Boolean(filters.search || filters.carteiraId || filters.administradora || (filters.status && filters.status !== 'ativo')) ||
+    Boolean(filters.grupo || filters.search || filters.carteiraId || filters.administradora || (filters.status && filters.status !== 'ativo')) ||
     ordenar !== 'nome'
   const exportParams = new URLSearchParams()
 
@@ -90,6 +95,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
 
   const exportCondominiosHref = `/api/condominios/exportacoes/condominios${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
   const reportParams = new URLSearchParams({ status: filters.status ?? '', ordenar })
+  if (filters.grupo) reportParams.set('grupo', filters.grupo)
   if (filters.search) reportParams.set('q', filters.search)
   if (filters.carteiraId) reportParams.set('carteira_id', filters.carteiraId)
   if (filters.administradora) reportParams.set('administradora', filters.administradora)
@@ -102,6 +108,7 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
     ? filteredRows.reduce((sum: number, row: any) => sum + Number(row.valor_cota_condominial ?? 0), 0) / filteredRows.length
     : 0
   const paginationParams = {
+    grupo: filters.grupo,
     q: filters.search,
     carteira_id: filters.carteiraId,
     administradora: filters.administradora,
@@ -168,6 +175,12 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                 placeholder="Digite parte da administradora"
               />
             </ListFilterField>
+            <ListFilterField label="Grupo" className="xl:col-span-3">
+              <Select name="grupo" defaultValue={filters.grupo ?? ''}>
+                <option value="">Todos</option>
+                {grupos.map(grupo => <option key={grupo} value={grupo}>{grupo}</option>)}
+              </Select>
+            </ListFilterField>
             <ListFilterField label="Status" className="xl:col-span-1">
               <Select name="status" defaultValue={filters.status ?? ''}>
                 <option value="">Todos</option>
@@ -214,6 +227,10 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                   <ListItemMeta>
                     {row.nome_operacional && row.nome_operacional !== row.nome ? `Oficial: ${row.nome} · ` : ''}
                     {row.administradora ?? '-'} · CNPJ {row.cnpj ?? '-'} · {row.carteiras?.nome ?? '-'}
+                  </ListItemMeta>
+                  <ListItemMeta>
+                    Grupo: {row.grupo || 'Sem grupo'} · Operador: {operadores.find(item => item.id === operadorEfetivoId(row))?.nome ?? (operadorEfetivoId(row) ? 'Indisponível' : 'Não definido')}
+                    {row.operador_id ? ' (condomínio)' : ' (carteira)'}
                   </ListItemMeta>
                 </Link>
 

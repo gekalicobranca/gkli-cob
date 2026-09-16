@@ -1,3 +1,5 @@
+import { OperadorField } from '@/features/condominios/components/organizacao-fields'
+import { listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -9,6 +11,7 @@ import { createCarteira } from '@/features/carteiras/actions'
 
 export default async function NovaCarteiraPage() {
   await requireAdmin()
+  const operadores = await listOperadoresCadastro()
 
   return (
     <div className="space-y-6">
@@ -26,6 +29,7 @@ export default async function NovaCarteiraPage() {
 <Input name="nome" required placeholder="Ex.: Genske Advogados" />
           </FormField>
 
+          <OperadorField operadores={operadores} carteira />
           <FormField label="Descrição">
             <Textarea name="descricao" placeholder="Descrição interna da carteira..." />
           </FormField>
