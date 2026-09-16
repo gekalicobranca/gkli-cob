@@ -71,7 +71,11 @@ export async function limparCobrancasDaNovaImportacao(
 
   let query = supabase
     .from("cobrancas")
-    .select("id")
+    // Preserva tanto o vínculo direto do acordo quanto as cobranças agrupadas.
+    // O status operacional pode continuar como Novo mesmo com acordo existente.
+    .select("id, acordo_cobrancas!left(id), acordos!left(id)")
+    .is("acordo_cobrancas", null)
+    .is("acordos", null)
     .in("condominio_id", condominioIds)
     .in("status_operacional", statusOperacionais)
     .gte("vencimento", `${anoCorrente}-01-01`)
