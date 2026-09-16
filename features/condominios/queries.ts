@@ -317,6 +317,8 @@ export async function listRankingsDoCondominio(condominio: any, scope: CarteiraS
     .map((row: any) => ({
       ...row,
       rankingMensal: row.preview_json?.rankingMensal ?? null,
+      relatorioDetalhado: row.preview_json?.analiseInadimplencia?.qualidade === 'completa',
+      relatorioFontesAtualizadasEm: row.preview_json?.relatorioInadimplenciaContexto?.atualizadoEm ?? null,
     }))
     .filter((row: any) => row.rankingMensal?.xlsxBase64)
 }

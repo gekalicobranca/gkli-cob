@@ -5,6 +5,9 @@ import { createAdminClient } from "@/utils/supabase/admin"
 import { parseRelatorioBuffer } from "@/features/conversao-relatorio/server/parse-relatorio-buffer"
 import { avaliarRecorteAnoCorrente } from "@/features/importacoes/recorte-cobrancas"
 import { buildRankingMensalFromCobrancas } from "@/features/captacao-automatizada/ranking-mensal"
+import { lerAnaliseOriginal } from "@/features/condominios/relatorio-inadimplencia/leitura"
+import { somarValores } from "@/features/condominios/relatorio-inadimplencia/modelo"
+import { competenciaDaDataBase } from "@/features/condominios/relatorio-inadimplencia/gkit-jur"
 
 function normalizar(value: unknown) {
   return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]+/gi, " ").trim().toUpperCase()
@@ -175,6 +178,45 @@ export type ResumoCaptacao = {
   status: "aguardando_validacao"
 }
 
+async function registrarMarcadorRelatorioUnificado(
+  supabase: ReturnType<typeof createAdminClient>,
+  input: {
+    conversaoId: string
+    carteiraId: string
+    condominioId: string
+    dataBase: string | null | undefined
+    preview: any
+  },
+) {
+  const competencia = competenciaDaDataBase(input.dataBase)
+  const elegivelEm = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+  const { error } = await supabase.from("relatorios_inadimplencia_unificados").insert({
+    carteira_id: input.carteiraId,
+    condominio_id: input.condominioId,
+    conversao_relatorio_id: input.conversaoId,
+    status: "pendente",
+    origem: "captacao_maestro",
+    competencia,
+    data_base_financeira: input.dataBase ?? null,
+    elegivel_em: elegivelEm,
+    preview_json: {
+      tipo: "relatorio_inadimplencia_unificado",
+      versao: 1,
+      criadoPor: "captacao_maestro",
+      aguardando: "gkit_jur",
+      financeiro: {
+        arquivo: input.preview?.arquivo ?? null,
+        qualidade: input.preview?.analiseInadimplencia?.qualidade ?? "resumida",
+        dataBase: input.dataBase ?? null,
+      },
+    },
+  } as any).select("id").maybeSingle()
+
+  if (error && error.code !== "23505") {
+    console.warn(`Não foi possível criar marcador do relatório unificado: ${error.message}`)
+  }
+}
+
 /**
  * Capta e converte, mas deliberadamente não grava unidades, cobranças ou parcelas.
  * A confirmação continua no fluxo autenticado do operador.
@@ -235,6 +277,21 @@ export async function processarRelatorioCaptado(
   if (!preview.cobrancas?.length && !preview.semPendencias) preview = parseBbzClock(buffer, nomeArquivo)
   preview = aplicarBlocoPadrao(preview, blocoPadraoCaptacao)
   preview = aplicarFiltroBlocoManager(preview, condominio.nome)
+  // A análise preserva todas as datas, antes do recorte da importação operacional.
+  try {
+    const analise = lerAnaliseOriginal(buffer, nomeArquivo)
+    if (analise) {
+      const escopo = aplicarFiltroBlocoManager(aplicarBlocoPadrao({ cobrancas: analise.recibos }, blocoPadraoCaptacao), condominio.nome)
+      analise.recibos = escopo.cobrancas
+      const ids = new Set(analise.recibos.map(r => r.id))
+      analise.itens = analise.itens.filter(i => ids.has(i.reciboId))
+      analise.totais = somarValores(analise.recibos)
+      if (escopo.inconsistencias?.length) analise.observacoes.push(...escopo.inconsistencias)
+      preview.analiseInadimplencia = analise
+    }
+  } catch (erro) {
+    preview.inconsistencias = [...(preview.inconsistencias ?? []), `Relatório detalhado indisponível: ${erro instanceof Error ? erro.message : 'falha na validação do original'}`]
+  }
   preview = aplicarRecorteOperacionalDeVencimento(preview)
   if (!preview.cobrancas?.length && !preview.semPendencias && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos") || item.includes("fora do ano corrente"))) {
     throw new Error("O relatório não contém cobranças reconhecíveis.")
@@ -263,6 +320,14 @@ export async function processarRelatorioCaptado(
   // O ID do arquivo torna cliques simultâneos idempotentes, sem sobrescrever uma conversão confirmada.
   const conversaoId = conversao?.id ?? (error?.code === '23505' ? options.conversaoId : undefined)
   if (!conversaoId) throw new Error(error?.message || "Falha ao registrar a conversão para validação.")
+
+  await registrarMarcadorRelatorioUnificado(supabase, {
+    conversaoId,
+    carteiraId: condominio.carteira_id,
+    condominioId: condominio.id,
+    dataBase: previewComContexto.analiseInadimplencia?.dataBase ?? null,
+    preview: previewComContexto,
+  })
 
   return {
     conversaoId,
