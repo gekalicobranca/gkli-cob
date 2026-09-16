@@ -144,7 +144,12 @@ function EtapaForm({ reguaId, tipo, templates, etapa, compact = false }: { regua
         <FormField label="Intensidade"><Select name="tom" defaultValue={etapa?.tom ?? 'medio'}><option value="leve">Leve</option><option value="medio">Médio</option><option value="agressivo">Agressivo</option></Select></FormField>
         <FormField label="Ação"><Select name="acao" defaultValue={etapa?.acao ?? 'enviar_mensagem'}><option value="enviar_mensagem">Enviar mensagem</option><option value="gerar_pendencia">Gerar pendência</option><option value="acao_humana">Ação humana</option><option value="follow_up">Follow-up</option></Select></FormField>
         <FormField label={tipo === 'juridico' ? 'Destinatário e documento' : 'Situação do template'}><Select name="categoria_template" defaultValue={etapa?.categoria_template ?? defaultCategoria}>{categorias.map((categoria) => <option key={categoria} value={categoria}>{categoryLabel(categoria)}</option>)}</Select></FormField>
-        <FormField label="Template fixo opcional"><SearchableSelect name="template_id" options={templates.map((tpl: any) => ({ value: tpl.id, label: `${tpl.nome} - ${tpl.canal}` }))} selectedValue={etapa?.template_id ?? ''} placeholder="Resolver automatico por carteira/situacao" /></FormField>
+        <FormField label="Template fixo opcional" hint={templates.length ? 'Selecione um template cadastrado ou mantenha a escolha automática.' : 'Nenhum template ativo disponível para esta carteira.'}>
+          <Select name="template_id" defaultValue={etapa?.template_id ?? ''}>
+            <option value="">Resolver automaticamente por carteira/situação</option>
+            {templates.map((tpl: any) => <option key={tpl.id} value={tpl.id}>{tpl.nome} — {tpl.canal}</option>)}
+          </Select>
+        </FormField>
         <FormField label="Horário início"><Input name="horario_inicio" type="time" defaultValue={etapa?.horario_inicio ?? '09:00'} /></FormField>
         <FormField label="Horário fim"><Input name="horario_fim" type="time" defaultValue={etapa?.horario_fim ?? '18:00'} /></FormField>
         <FormField label="Template oficial WhatsApp"><Input name="whatsapp_template_nome" defaultValue={etapa?.whatsapp_template_nome ?? ''} placeholder="Ex.: gkli_cobranca_inicial" /></FormField>
