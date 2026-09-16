@@ -2,7 +2,8 @@
 
 import { normalizeGrupo } from '@/features/condominios/organizacao'
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
+import { redirect, unstable_rethrow } from 'next/navigation'
+import { captacaoPayload } from '@/features/condominios/captacao-payload'
 import { createClient } from '@/utils/supabase/server'
 import { requireUser } from '@/utils/auth/require-user'
 import { requireRole } from '@/utils/auth/require-role'
@@ -263,9 +264,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const diasReemissaoParcelaAcordoAtrasada = toInteger(formData.get('dias_reemissao_parcela_acordo_atrasada'), 0)
   const classificacaoOperacional = normalizeClassificacaoOperacional(formData.get('classificacao_operacional'))
   const operacaoVirtualHabilitada = checkboxOn(formData.get('operacao_virtual_habilitada'))
-  const captacaoAutomaticaHabilitada = checkboxOn(formData.get('captacao_automatica_habilitada'))
-  const captacaoDiaMes = toOptionalInteger(formData.get('captacao_dia_mes'))
-  const captacaoHorario = String(formData.get('captacao_horario') ?? '08:00').trim() || '08:00'
+  const captacao = captacaoPayload(formData, aba)
   const bloqueioGarantidoraHabilitado = checkboxOn(formData.get('bloqueio_garantidora_habilitado'))
   const bloqueioGarantidoraInicio = monthStart(formData, 'bloqueio_garantidora_inicio')
   const bloqueioGarantidoraFim = monthStart(formData, 'bloqueio_garantidora_fim')
@@ -282,7 +281,6 @@ export async function updateCondominioIntegral(formData: FormData) {
   if (!Number.isFinite(vencimentoCotaDia) || vencimentoCotaDia < 1 || vencimentoCotaDia > 31) throw new Error('Dia de vencimento deve ficar entre 1 e 31.')
   if (!Number.isFinite(inicioCobrancaDias) || inicioCobrancaDias < 0 || inicioCobrancaDias > 365) throw new Error('Início da cobrança deve ficar entre 0 e 365 dias.')
   if (diasCobrancaAtiva < 0 || diasCobrancaAtiva > 3650) throw new Error('Prazo de cobrança ativa deve ficar entre 0 e 3650 dias.')
-  if (captacaoAutomaticaHabilitada && (!captacaoDiaMes || captacaoDiaMes < 1 || captacaoDiaMes > 28)) throw new Error('Informe um dia mensal entre 1 e 28 para a captação automática.')
   if (bloqueioGarantidoraHabilitado && (!bloqueioGarantidoraInicio || !bloqueioGarantidoraFim)) throw new Error('Informe o mês inicial e o mês final do Bloqueio Garantidora.')
   if (bloqueioGarantidoraInicio && bloqueioGarantidoraFim && bloqueioGarantidoraInicio > bloqueioGarantidoraFim) throw new Error('O mês inicial do Bloqueio Garantidora deve ser anterior ou igual ao mês final.')
 
@@ -328,9 +326,7 @@ export async function updateCondominioIntegral(formData: FormData) {
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
     classificacao_operacional: classificacaoOperacional,
     operacao_virtual_habilitada: operacaoVirtualHabilitada,
-    captacao_automatica_habilitada: captacaoAutomaticaHabilitada,
-    captacao_dia_mes: captacaoDiaMes,
-    captacao_horario: captacaoHorario,
+    ...captacao,
     bloqueio_garantidora_habilitado: bloqueioGarantidoraHabilitado,
     bloqueio_garantidora_inicio: bloqueioGarantidoraInicio,
     bloqueio_garantidora_fim: bloqueioGarantidoraFim,
@@ -366,4 +362,14 @@ export async function updateCondominioIntegral(formData: FormData) {
   revalidatePath('/app/condominios')
   revalidatePath(`/app/condominios/${id}`)
   redirect(aba && aba !== 'cadastro' ? `/app/condominios/${id}?aba=${encodeURIComponent(aba)}` : `/app/condominios/${id}`)
+}
+
+export async function salvarCondominioFormulario(_state: { error: string } | null, formData: FormData) {
+  try {
+    await updateCondominioIntegral(formData)
+    return null
+  } catch (error) {
+    unstable_rethrow(error)
+    return { error: error instanceof Error ? error.message : 'Não foi possível salvar o condomínio. Tente novamente.' }
+  }
 }

@@ -17,7 +17,7 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
 import { getCondominioIntegral, listEventosDoCondominio, listImportacoesDoCondominio, listRankingsDoCondominio, listResponsaveisDoCondominio, listUnidadesDoCondominio } from '@/features/condominios/queries'
 import { listReguasForSelect } from '@/features/reguas/queries'
-import { updateCondominioIntegral } from '@/features/condominios/actions'
+import { CondominioCadastroForm } from '@/features/condominios/components/cadastro-form'
 import { ClassificacaoOperacionalBadge, ClassificacaoOperacionalField } from '@/features/condominios/components/classificacao-operacional'
 import { getCondominioAgenteStatus } from '@/features/agente-automatico/queries'
 
@@ -136,7 +136,7 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
         ))}
       </div>
 
-      {['cadastro', 'cobranca', 'reguas'].includes(abaAtiva) ? <form action={updateCondominioIntegral} className="space-y-4">
+      {['cadastro', 'cobranca', 'reguas'].includes(abaAtiva) ? <CondominioCadastroForm>
         <input type="hidden" name="id" value={condominio.id} />
         <input type="hidden" name="aba" value={abaAtiva} />
         <HiddenCondominioFields condominio={condominio} activeTab={abaAtiva} />
@@ -282,7 +282,7 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
           </div>
         </CollapsibleArea> : null}
         <div className="flex justify-end gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><ButtonLink href="/app/condominios" variant="secondary">Cancelar</ButtonLink><Button type="submit">Salvar Condomínio Integral</Button></div>
-      </form> : null}
+      </CondominioCadastroForm> : null}
 
       {abaAtiva === 'historico' ? <section id="historico" className="scroll-mt-24">
         <Card className="overflow-hidden p-0">
