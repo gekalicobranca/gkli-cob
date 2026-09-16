@@ -209,7 +209,12 @@ export function FlowCobrancaWorkbench({
               const selecionadasNoGrupo = elegiveisNoGrupo.filter((row) => selected.includes(row.id))
               const grupoSelecionado = elegiveisNoGrupo.length > 0 && selecionadasNoGrupo.length === elegiveisNoGrupo.length
               const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
-              const defaultRegua = opcoesRegua.find((regua: any) => regua.id === grupo.reguaId)?.id ?? opcoesRegua.find((regua: any) => regua.carteira_id === grupo.carteiraId)?.id ?? opcoesRegua[0]?.id ?? ''
+              const reguasDaCarteira = opcoesRegua.filter((regua: any) => regua.carteira_id === grupo.carteiraId)
+              const defaultRegua = reguasDaCarteira.find((regua: any) => regua.id === grupo.reguaId)?.id
+                ?? reguasDaCarteira[0]?.id
+                ?? opcoesRegua.find((regua: any) => regua.id === grupo.reguaId)?.id
+                ?? opcoesRegua[0]?.id
+                ?? ''
               return <ListRow key={grupo.condominioId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
                 <div>
                   <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="radio" name="condominio_selecionado" value={grupo.condominioId} checked={grupoSelecionado} disabled={elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 border-slate-300 text-[var(--gkli-primary)]" />{grupo.condominioNome}</label>
