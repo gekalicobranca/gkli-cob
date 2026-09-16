@@ -257,6 +257,15 @@ export function FlowCobrancaWorkbench({
   </div>
 }
 
+export function FlowCobrancaHistorico({ flows }: { flows: any[] }) {
+  return <ListPanel>
+    <ListCollapsibleSectionHeader title="Flows concluídos" count={flows.length} />
+    {flows.length
+      ? <ListRows>{flows.map((flow: any) => <FlowRow key={flow.id} flow={flow} />)}</ListRows>
+      : <ListEmptyState title="Nenhum Flow concluído" description="Os flows concluídos aparecerão aqui, com o histórico e os detalhes dos envios." />}
+  </ListPanel>
+}
+
 function FlowRow({ flow }: { flow: any }) {
   const router = useRouter()
   const status = String(flow.status ?? 'pronto')

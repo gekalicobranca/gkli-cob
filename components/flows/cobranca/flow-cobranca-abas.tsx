@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FlowCobrancaPainelWorkbench } from './cobrancas-painel-workbench'
-import { FlowCobrancaWorkbench } from './flow-cobranca-workbench'
+import { FlowCobrancaHistorico, FlowCobrancaWorkbench } from './flow-cobranca-workbench'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 
@@ -15,15 +15,19 @@ export function FlowCobrancaAbas({ painel, disponibilidade, saneamento, reguas, 
 }) {
   const [aba, setAba] = useState('operacao')
   const router = useRouter()
+  const flowsHistorico = flows.filter(flow => ['concluido', 'concluido_com_falhas'].includes(flow.status))
+  const flowsOperacao = flows.filter(flow => !['concluido', 'concluido_com_falhas'].includes(flow.status))
   return <div className="space-y-4">
     <nav aria-label="Abas do Flow de cobrança" className="flex flex-wrap gap-2">
       <Button type="button" variant={aba === 'operacao' ? 'primary' : 'secondary'} aria-pressed={aba === 'operacao'} onClick={() => setAba('operacao')}>Operação</Button>
       <Button type="button" variant={aba === 'saneamento' ? 'primary' : 'secondary'} aria-pressed={aba === 'saneamento'} onClick={() => setAba('saneamento')}>Saneamento ({saneamento.length})</Button>
+      <Button type="button" variant={aba === 'historico' ? 'primary' : 'secondary'} aria-pressed={aba === 'historico'} onClick={() => setAba('historico')}>Histórico ({flowsHistorico.length})</Button>
     </nav>
     <div hidden={aba !== 'operacao'} className="space-y-4">
       <FlowCobrancaPainelWorkbench rows={painel} returnQuery={returnQuery} />
-      <FlowCobrancaWorkbench disponibilidade={disponibilidade} reguas={reguas} flows={flows} initialStep={initialStep} initialSelectedIds={initialSelectedIds} />
+      <FlowCobrancaWorkbench disponibilidade={disponibilidade} reguas={reguas} flows={flowsOperacao} initialStep={initialStep} initialSelectedIds={initialSelectedIds} />
     </div>
+    {aba === 'historico' ? <FlowCobrancaHistorico flows={flowsHistorico} /> : null}
     {aba === 'saneamento' ? <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
         <div><h2 className="font-semibold">Cobranças sem responsável</h2><p className="mt-1 text-sm text-slate-500">Cadastre o responsável da unidade. Ao atualizar a lista, a cobrança volta à operação conforme seu status e os filtros selecionados.</p></div>
