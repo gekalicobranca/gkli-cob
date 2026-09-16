@@ -153,6 +153,22 @@ export async function salvarEtapaRegua(reguaId: string, formData: FormData) {
   const nome = s(formData, 'nome') || `Etapa ${n(formData, 'ordem', 1)}`
   const canal = s(formData, 'canal') || 'whatsapp'
   const template = s(formData, 'template')
+  const scope = await getPermittedCarteiras()
+  const { data: regua, error: reguaError } = await supabase.from('reguas')
+    .select('id, carteira_id').eq('id', reguaId).single()
+  if (reguaError || !regua || (scope.carteiraIds !== null && (!regua.carteira_id || !scope.carteiraIds.includes(regua.carteira_id)))) {
+    throw new Error('Régua não encontrada ou sem permissão.')
+  }
+  const templateId = s(formData, 'template_id') || null
+  let templateNome: string | null = null
+  if (templateId) {
+    const { data: selecionado, error: templateError } = await supabase.from('mensagens_templates')
+      .select('id, nome, ativo, canal, carteira_id').eq('id', templateId).single()
+    if (templateError || !selecionado || !selecionado.ativo) throw new Error('Selecione um template ativo disponível.')
+    if (selecionado.carteira_id && selecionado.carteira_id !== regua.carteira_id) throw new Error('O template pertence a outra carteira.')
+    if (selecionado.canal !== canal) throw new Error('O canal do template deve ser igual ao canal da etapa.')
+    templateNome = selecionado.nome
+  }
 
   const payload = {
     regua_id: reguaId,
@@ -161,7 +177,7 @@ export async function salvarEtapaRegua(reguaId: string, formData: FormData) {
     delay_dias: n(formData, 'delay_dias', 0),
     delay_referencia: s(formData, 'delay_referencia') || 'vencimento',
     canal,
-    template_id: s(formData, 'template_id') || null,
+    template_id: templateId,
     categoria_template: s(formData, 'categoria_template') || (s(formData, 'delay_referencia') === 'parcela' ? 'lembrete_acordo' : 'cobranca_inicial'),
     template: template || null,
     tom: s(formData, 'tom') || 'medio',
@@ -178,7 +194,7 @@ export async function salvarEtapaRegua(reguaId: string, formData: FormData) {
   let error
   let id = etapaId
   if (etapaId) {
-    const response = await supabase.from('regua_etapas').update(payload as any).eq('id', etapaId)
+    const response = await supabase.from('regua_etapas').update(payload as any).eq('id', etapaId).eq('regua_id', reguaId).select('id').single()
     error = response.error
   } else {
     const response = await supabase.from('regua_etapas').insert({ ...payload, created_at: new Date().toISOString() } as any).select('id').single()
@@ -201,6 +217,15 @@ export async function salvarEtapaRegua(reguaId: string, formData: FormData) {
   })
 
   revalidatePath(`/app/mensageria/reguas/${reguaId}`)
+  return { message: templateNome ? `Etapa salva. Template vinculado: ${templateNome}.` : 'Etapa salva com escolha automática de template; nenhum template fixo vinculado.' }
+}
+
+export async function salvarEtapaReguaComRetorno(reguaId: string, _state: { message?: string; error?: string }, formData: FormData): Promise<{ message?: string; error?: string }> {
+  try {
+    return await salvarEtapaRegua(reguaId, formData)
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Não foi possível salvar a etapa.' }
+  }
 }
 
 export async function alternarEtapaRegua(etapaId: string, reguaId: string, ativo: boolean) {

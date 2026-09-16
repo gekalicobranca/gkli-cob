@@ -13,9 +13,10 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
 import { listTemplatesParaLote } from '@/features/lotes/queries'
 import { getReguaOperacional } from '@/features/reguas/queries'
-import { alternarEtapaRegua, atualizarReguaOperacional, excluirReguaOperacional, salvarEtapaRegua } from '@/features/reguas/actions'
+import { alternarEtapaRegua, atualizarReguaOperacional, excluirReguaOperacional } from '@/features/reguas/actions'
 import { TEMPLATE_CATEGORIES, categoryLabel } from '@/features/mensageria/render-template'
 import { ReguaActionButton } from './regua-action-button'
+import { EtapaFormContainer } from './etapa-form-container'
 
 export default async function ReguaDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -107,6 +108,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
                   </div>
                   <p className="mt-3 text-sm font-semibold text-slate-950">{etapa.nome || `Etapa ${etapa.ordem}`}</p>
                   <p className="mt-1 text-sm text-slate-500">{etapa.canal ?? 'whatsapp'} · {etapa.acao ?? 'enviar mensagem'} · {etapa.delay_referencia ?? 'vencimento'}</p>
+                  <p className="mt-2 text-sm font-medium text-slate-700">Template salvo: {etapa.template_id ? templates.find((tpl: any) => tpl.id === etapa.template_id)?.nome || 'Template indisponível' : 'Automático — sem template fixo'}</p>
                   <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{etapa.template || 'Sem fallback textual definido.'}</p>
                   <form action={alternarEtapaRegua.bind(null, etapa.id, regua.id, etapa.ativo === false)} className="mt-3">
                     <Button type="submit" variant="secondary"><PauseCircle size={16} /> {etapa.ativo === false ? 'Reativar etapa' : 'Desativar etapa'}</Button>
@@ -126,14 +128,13 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
 }
 
 function EtapaForm({ reguaId, tipo, templates, etapa, compact = false }: { reguaId: string; tipo: string; templates: any[]; etapa?: any; compact?: boolean }) {
-  const action = salvarEtapaRegua.bind(null, reguaId)
   const defaultReferencia = tipo === 'acordo' ? 'parcela' : 'vencimento'
   const categorias = tipo === 'juridico'
     ? TEMPLATE_CATEGORIES.filter((categoria) => categoria.startsWith('pre_juridico_'))
     : TEMPLATE_CATEGORIES
   const defaultCategoria = tipo === 'juridico' ? 'pre_juridico_carteira' : tipo === 'acordo' ? 'lembrete_acordo' : 'cobranca_inicial'
   return (
-    <form action={action} className="space-y-4">
+    <EtapaFormContainer reguaId={reguaId}>
       {etapa?.id ? <input type="hidden" name="etapa_id" value={etapa.id} /> : null}
       <div className={compact ? "grid gap-4 md:grid-cols-2" : "grid gap-4 lg:grid-cols-4"}>
         <FormField label="Nome"><Input name="nome" defaultValue={etapa?.nome ?? ''} placeholder="Ex.: Primeiro aviso" /></FormField>
@@ -144,9 +145,10 @@ function EtapaForm({ reguaId, tipo, templates, etapa, compact = false }: { regua
         <FormField label="Intensidade"><Select name="tom" defaultValue={etapa?.tom ?? 'medio'}><option value="leve">Leve</option><option value="medio">Médio</option><option value="agressivo">Agressivo</option></Select></FormField>
         <FormField label="Ação"><Select name="acao" defaultValue={etapa?.acao ?? 'enviar_mensagem'}><option value="enviar_mensagem">Enviar mensagem</option><option value="gerar_pendencia">Gerar pendência</option><option value="acao_humana">Ação humana</option><option value="follow_up">Follow-up</option></Select></FormField>
         <FormField label={tipo === 'juridico' ? 'Destinatário e documento' : 'Situação do template'}><Select name="categoria_template" defaultValue={etapa?.categoria_template ?? defaultCategoria}>{categorias.map((categoria) => <option key={categoria} value={categoria}>{categoryLabel(categoria)}</option>)}</Select></FormField>
-        <FormField label="Template fixo opcional" hint={templates.length ? 'Selecione um template cadastrado ou mantenha a escolha automática.' : 'Nenhum template ativo disponível para esta carteira.'}>
-          <Select name="template_id" defaultValue={etapa?.template_id ?? ''}>
-            <option value="">Resolver automaticamente por carteira/situação</option>
+        <FormField label="Template da etapa" hint={templates.length ? 'Escolha um template do mesmo canal e clique em Salvar etapa. A seleção só é vinculada após salvar.' : 'Nenhum template ativo disponível para esta carteira.'}>
+          <Select aria-label="Template da etapa" name="template_id" defaultValue={etapa?.template_id ?? ''}>
+            <option value="">Automático — sem template fixo</option>
+            {etapa?.template_id && !templates.some((tpl: any) => tpl.id === etapa.template_id) ? <option value={etapa.template_id}>Template vinculado indisponível — selecione outro</option> : null}
             {templates.map((tpl: any) => <option key={tpl.id} value={tpl.id}>{tpl.nome} — {tpl.canal}</option>)}
           </Select>
         </FormField>
@@ -161,6 +163,6 @@ function EtapaForm({ reguaId, tipo, templates, etapa, compact = false }: { regua
       </FormField>
       <input type="hidden" name="ativo" value="off" /><label className="inline-flex items-center gap-2 text-sm text-slate-600"><input name="ativo" type="checkbox" value="on" defaultChecked={etapa?.ativo !== false} className="h-4 w-4 rounded border-slate-300" /> Etapa ativa</label>
       <div className="flex justify-end"><Button type="submit"><Plus size={16} /> {etapa?.id ? 'Salvar etapa' : 'Adicionar etapa'}</Button></div>
-    </form>
+    </EtapaFormContainer>
   )
 }
