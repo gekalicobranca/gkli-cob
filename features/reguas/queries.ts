@@ -4,6 +4,25 @@ import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import type { ReguaEtapaResumo, ReguaResumo, ReguaTipo } from './types'
 export type { ReguaEtapaResumo } from './types'
 
+// O editor usa o mesmo acesso administrativo da régua, com o escopo do usuário
+// verificado antes da consulta e templates limitados à carteira e aos globais.
+export async function listTemplatesParaRegua(scope: CarteiraScope, carteiraId: string | null) {
+  if (scope.carteiraIds !== null && carteiraId && !scope.carteiraIds.includes(carteiraId)) {
+    throw new Error('Você não tem permissão para consultar templates desta carteira.')
+  }
+  const supabase = createAdminClient()
+  let query = supabase.from('mensagens_templates')
+    .select('id, nome, canal, carteira_id')
+    .eq('ativo', true)
+    .order('nome', { ascending: true })
+  query = carteiraId
+    ? query.or(`carteira_id.is.null,carteira_id.eq.${carteiraId}`)
+    : query.is('carteira_id', null)
+  const { data, error } = await query
+  if (error) throw new Error(`Erro ao carregar templates da régua: ${error.message}`)
+  return data ?? []
+}
+
 const REGUA_SELECT = `
   id,
   carteira_id,

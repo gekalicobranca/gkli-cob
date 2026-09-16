@@ -11,8 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
-import { listTemplatesParaLote } from '@/features/lotes/queries'
-import { getReguaOperacional } from '@/features/reguas/queries'
+import { getReguaOperacional, listTemplatesParaRegua } from '@/features/reguas/queries'
 import { alternarEtapaRegua, atualizarReguaOperacional, excluirReguaOperacional } from '@/features/reguas/actions'
 import { TEMPLATE_CATEGORIES, categoryLabel } from '@/features/mensageria/render-template'
 import { ReguaActionButton } from './regua-action-button'
@@ -28,7 +27,7 @@ export default async function ReguaDetalhePage({ params }: { params: Promise<{ i
 
   if (!regua) notFound()
 
-  const templates = await listTemplatesParaLote(scope, regua.carteira_id)
+  const templates = await listTemplatesParaRegua(scope, regua.carteira_id)
   const previewHref = regua.tipo === 'juridico' ? '/app/pre-juridico/flow?step=flows' : `/app/mensageria/simulador?aba=${regua.tipo === 'acordo' ? 'acordos' : 'cobrancas'}&regua_id=${regua.id}`
   const backHref = regua.tipo === 'juridico' ? '/app/pre-juridico/regua' : '/app/mensageria/reguas'
 
