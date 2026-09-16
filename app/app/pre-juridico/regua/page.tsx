@@ -14,7 +14,7 @@ export default async function ReguaPreJuridicoPage() {
     listReguasOperacionais(scope, 'juridico'),
     listCarteirasForSelect(scope),
   ])
-  const reguasPorCarteira = reguas.filter((regua: any) => Boolean(regua.carteira_id))
+  const reguasPorCarteira = reguas.filter((regua: any) => Boolean(regua.carteira_id) && regua.ativo === true)
   const carteirasConfiguradas = new Set(reguasPorCarteira.map((regua: any) => regua.carteira_id))
   const carteirasPendentes = carteiras.filter((carteira: any) => !carteirasConfiguradas.has(carteira.id))
 
@@ -36,14 +36,14 @@ export default async function ReguaPreJuridicoPage() {
             <p className="mt-1 text-sm text-slate-500">A régua será aplicada a todos os condomínios vinculados à carteira selecionada.</p>
           </div>
         </div>
-        <form action={criarReguaOperacional} className="mt-5 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_120px_minmax(260px,1.4fr)_auto] lg:items-end">
+        {carteirasPendentes.length ? <form action={criarReguaOperacional} className="mt-5 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_120px_minmax(260px,1.4fr)_auto] lg:items-end">
           <input type="hidden" name="tipo" value="juridico" /><input type="hidden" name="status" value="ativa" /><input type="hidden" name="destinatario_preferencial" value="qualquer" />
           <label className="space-y-1.5"><span className="text-xs font-medium text-slate-600">Nome</span><input name="nome" required placeholder="Ex.: Pré-Jurídico Carteira Sul" className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm" /></label>
-          <label className="space-y-1.5"><span className="text-xs font-medium text-slate-600">Carteira</span><select name="carteira_id" required defaultValue="" className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"><option value="" disabled>Selecione a carteira</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</select></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium text-slate-600">Carteira</span><select name="carteira_id" required defaultValue="" className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"><option value="" disabled>Selecione a carteira</option>{carteirasPendentes.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</select></label>
           <label className="space-y-1.5"><span className="text-xs font-medium text-slate-600">Prioridade</span><input name="prioridade" type="number" defaultValue="90" className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm" /></label>
           <label className="space-y-1.5"><span className="text-xs font-medium text-slate-600">Descrição</span><input name="descricao" placeholder="Objetivo e regra de uso" className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm" /></label>
           <button className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--gkli-primary)] px-4 text-sm font-medium text-white"><Plus size={15} />Criar</button>
-        </form>
+        </form> : <p className="mt-5 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Todas as carteiras disponíveis já possuem uma régua pré-jurídica ativa. Abra a régua abaixo para editar suas etapas.</p>}
       </Card>
 
       <Card className="overflow-hidden p-0">

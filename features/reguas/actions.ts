@@ -80,7 +80,7 @@ export async function criarReguaOperacional(formData: FormData) {
       .limit(1)
       .maybeSingle()
     if (existenteError) throw new Error(`Erro ao verificar régua da carteira: ${existenteError.message}`)
-    if (existente?.id) throw new Error('Esta carteira já possui uma régua pré-jurídica ativa.')
+    if (existente?.id) redirect(`/app/mensageria/reguas/${existente.id}`)
   }
 
   const { data, error } = await supabase
