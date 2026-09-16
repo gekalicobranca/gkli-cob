@@ -115,6 +115,7 @@ export async function avaliarComplianceRegua(ctx: ReguaComplianceContext): Promi
     const intervaloQuery = supabase
       .from('mensagens')
       .select('id', { count: 'exact', head: true })
+      .or('status.neq.cancelada,enviada_em.not.is.null,sent_at.not.is.null')
       .eq('destinatario', ctx.destinatario)
       .eq('canal', canal)
       .gte('created_at', desde.toISOString())
@@ -128,6 +129,7 @@ export async function avaliarComplianceRegua(ctx: ReguaComplianceContext): Promi
     const diarioQuery = supabase
       .from('mensagens')
       .select('id', { count: 'exact', head: true })
+      .or('status.neq.cancelada,enviada_em.not.is.null,sent_at.not.is.null')
       .eq('destinatario', ctx.destinatario)
       .eq('canal', canal)
       .gte('created_at', `${sameDayIso(agora)}T00:00:00.000Z`)

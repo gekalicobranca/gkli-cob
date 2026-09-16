@@ -14,6 +14,7 @@ import { requireRole } from '@/utils/auth/require-role'
 import { requireUser } from '@/utils/auth/require-user'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { hasResponsavelVinculado, unicoCondominio } from './eligibilidade'
+import { dividirCriacaoFlows, LIMITE_COBRANCAS_CHAMADA, LIMITE_EMAILS_FLOW } from './dividir-criacao'
 
 type SupabaseAdmin = ReturnType<typeof createAdminClient>
 
@@ -90,22 +91,24 @@ export async function recalcularFlowCobranca(supabase: SupabaseAdmin, flowId: st
   if (updateError) throw new Error(`Erro ao atualizar Flow cobrança: ${updateError.message}`)
 }
 
-export async function criarFlowsCobranca(_state: { error: string } | null, formData: FormData): Promise<{ error: string } | null> {
+export async function criarFlowsCobranca(_state: { error: string } | null, formData: FormData): Promise<{ error?: string; flowIds?: string[] }> {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
   const cobrancaIds = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
   if (!cobrancaIds.length) return { error: 'Selecione ao menos uma cobrança ativa.' }
+  if (cobrancaIds.length > LIMITE_COBRANCAS_CHAMADA) return { error: 'A criação deve ser feita em partes menores. Atualize a página para usar a divisão automática.' }
 
   let query = supabase
     .from('cobrancas')
-    .select('id,carteira_id,condominio_id,status,status_operacional,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional),unidade:unidades(responsavel_nome)')
+    .select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional),unidade:unidades(responsavel_nome)')
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
   if (error) throw new Error(`Erro ao carregar cobranças para Flow: ${error.message}`)
   const cobrancas = (data ?? []) as any[]
+  if (dividirCriacaoFlows(cobrancas).length > 1) return { error: 'Envie uma parte por vez. Atualize a página para usar a divisão automática.' }
   if (!unicoCondominio(cobrancas)) return { error: 'Selecione apenas um condomínio por Flow.' }
   if (cobrancas.length !== cobrancaIds.length || cobrancas.some((row) => row.status_operacional !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA && row.status !== COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA)) {
     return { error: 'Uma ou mais cobranças não estão em Cobrança ativa. Atualize a página e revise a seleção.' }
@@ -121,6 +124,12 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
     .not('cobranca_flow_id', 'is', null)
   if (vinculadasError) throw new Error(`Erro ao verificar vínculos existentes: ${vinculadasError.message}`)
   if ((vinculadas ?? []).length) return { error: 'Uma ou mais cobranças já estão vinculadas a outro Flow. Atualize a página e revise a seleção.' }
+
+  const { data: pendentesSemFlow, error: pendentesError } = await supabase.from('mensagens')
+    .select('id').in('cobranca_id', cobrancaIds).is('cobranca_flow_id', null)
+    .in('status', ['pendente_aprovacao', 'aprovada', 'agendada']).limit(1)
+  if (pendentesError) throw new Error('Não foi possível conferir mensagens de tentativas anteriores.')
+  if (pendentesSemFlow?.length) return { error: 'Há mensagens pendentes de uma criação anterior sem Flow. Revise o lote interrompido antes de tentar novamente; nenhuma mensagem foi duplicada.' }
 
   const grupos = new Map<string, any[]>()
   for (const cobranca of cobrancas) {
@@ -159,6 +168,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
       if (mensagensError) throw new Error(`Erro ao contar mensagens do Flow: ${mensagensError.message}`)
 
       const totalMensagens = (mensagens ?? []).length
+      if (totalMensagens > LIMITE_EMAILS_FLOW) throw new Error('Esta unidade gerou mais de 20 mensagens distintas. O lote foi preservado para revisão, sem ativar envios.')
       const totalFalhas = n(lote?.total_erros)
       const statusInicial = totalMensagens > 0 ? 'pronto' : totalFalhas > 0 ? 'concluido_com_falhas' : 'concluido'
       const carteira = Array.isArray(rows[0]?.carteira) ? rows[0]?.carteira[0] : rows[0]?.carteira
@@ -190,13 +200,15 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
       if (flowError || !flow?.id) throw new Error(`Erro ao criar Flow cobrança: ${flowError?.message ?? 'Flow não retornado'}`)
 
       flowIds.push(flow.id)
-      await supabase.from('mensagens').update({ cobranca_flow_id: flow.id } as any).eq('lote_id', loteId)
-      await supabase.from('lote_itens').update({ cobranca_flow_id: flow.id } as any).eq('lote_id', loteId)
+      const { error: mensagensVinculoError } = await supabase.from('mensagens').update({ cobranca_flow_id: flow.id } as any).eq('lote_id', loteId)
+      if (mensagensVinculoError) throw new Error('Flow criado, mas o vínculo das mensagens precisa ser revisado antes de continuar.')
+      const { error: itensVinculoError } = await supabase.from('lote_itens').update({ cobranca_flow_id: flow.id } as any).eq('lote_id', loteId)
+      if (itensVinculoError) throw new Error('Flow criado, mas o vínculo das cobranças precisa ser revisado antes de continuar.')
     }
   }
 
   revalidatePath('/app/flows/cobranca')
-  redirect(`/app/flows/cobranca?step=flows&criados=${flowIds.length}`)
+  return { flowIds }
 }
 
 export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {

@@ -9,6 +9,7 @@ import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlowCobranca, enviarFlowCobranca, excluirFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { hasResponsavelVinculado } from '@/features/flows/cobranca/eligibilidade'
+import { dividirCriacaoFlows, LIMITE_EMAILS_FLOW } from '@/features/flows/cobranca/dividir-criacao'
 
 type StepId = 'lotes' | 'flows'
 
@@ -150,17 +151,47 @@ export function FlowCobrancaWorkbench({
   initialSelectedIds?: string[]
 }) {
   const [selectedCondominio, setSelectedCondominio] = useState(() => disponibilidade.find(row => initialSelectedIds.includes(row.id))?.condominio_id ?? '')
-  const [createState, createAction] = useActionState(criarFlowsCobranca, null)
+  const router = useRouter()
+  const [progresso, setProgresso] = useState('')
+  const [openSteps, setOpenSteps] = useState<Record<StepId, boolean>>({
+    lotes: initialStep === 'lotes' || disponibilidade.some(hasResponsavelVinculado),
+    flows: initialStep === 'flows' || flows.length > 0,
+  })
+  const [createState, createAction, criando] = useActionState(async (_state: { error: string } | null, formData: FormData) => {
+    let criados = 0
+    try {
+      const ids = new Set(formData.getAll('cobranca_id').map(String))
+      const partes = dividirCriacaoFlows(disponibilidade.filter(row => ids.has(row.id)))
+      if (!partes.length) return { error: 'Selecione um condomínio para criar os flows.' }
+      for (let index = 0; index < partes.length; index += 1) {
+        setProgresso(`Criando parte ${index + 1} de ${partes.length} · ${criados} flow(s) pronto(s)`)
+        const parte = new FormData()
+        for (const [key, value] of formData.entries()) if (key.startsWith('regua_id:')) parte.set(key, value)
+        for (const row of partes[index]) parte.append('cobranca_id', row.id)
+        const resultado = await criarFlowsCobranca(null, parte)
+        if (resultado.error) throw new Error(resultado.error)
+        criados += resultado.flowIds?.length ?? 0
+      }
+      setProgresso(`${criados} flow(s) criado(s).`)
+      setOpenSteps(current => ({ ...current, flows: true }))
+      router.refresh()
+      return null
+    } catch (error) {
+      setProgresso('')
+      router.refresh()
+      return { error: `${criados ? `${criados} flow(s) já criado(s) foram preservados. ` : ''}${error instanceof Error ? error.message : 'A criação foi interrompida. Atualize a lista antes de continuar.'}` }
+    }
+  }, null)
   const elegiveis = useMemo(() => disponibilidade.filter(hasResponsavelVinculado), [disponibilidade])
   const semResponsavel = disponibilidade.length - elegiveis.length
   const selectedCobrancas = useMemo(() => elegiveis.filter((cobranca) => cobranca.condominio_id === selectedCondominio), [elegiveis, selectedCondominio])
   const selected = selectedCobrancas.map(row => row.id)
+  const plano = useMemo(() => {
+    try { return { quantidade: dividirCriacaoFlows(selectedCobrancas).length, error: '' } }
+    catch (error) { return { quantidade: 0, error: error instanceof Error ? error.message : 'Revise o período selecionado.' } }
+  }, [selectedCobrancas])
   const grupos = useMemo(() => groupByCondominio(selectedCobrancas), [selectedCobrancas])
   const gruposDisponiveis = useMemo(() => groupByCondominio(elegiveis), [elegiveis])
-  const [openSteps, setOpenSteps] = useState<Record<StepId, boolean>>({
-    lotes: initialStep === 'lotes' || gruposDisponiveis.length > 0,
-    flows: initialStep === 'flows' || flows.length > 0,
-  })
 
   useEffect(() => {
     if (!grupos.length) return
@@ -178,17 +209,19 @@ export function FlowCobrancaWorkbench({
   }
 
   return <div className="space-y-3">
+    {progresso ? <p role="status" aria-live="polite" className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">{progresso}</p> : null}
+    {createState?.error ? <p role="alert" className="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{createState.error}</p> : null}
     <ListPanel>
       <details open={openSteps.lotes} onToggle={(event) => syncStepOpen('lotes', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListCollapsibleSectionHeader title="Condomínio + régua" count={gruposDisponiveis.length} />
         </summary>
         {gruposDisponiveis.length ? <form action={createAction}>
-          {createState?.error ? <p role="alert" className="border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{createState.error}</p> : null}
           {selectedCobrancas.map((cobranca) => <input key={cobranca.id} type="hidden" name="cobranca_id" value={cobranca.id} />)}
           <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className="text-sm text-slate-600">Selecione um condomínio por Flow. Serão incluídas as {selectedCobrancas.length} cobrança(s) elegíveis desse condomínio exibidas pelo filtro.</p>
+              <p className="mt-1 text-xs text-slate-500">Criação automática em partes menores, com até {LIMITE_EMAILS_FLOW} e-mails por Flow. As cobranças da mesma unidade ficam juntas. Mantenha esta página aberta até concluir.</p>
               {semResponsavel > 0 ? <p className="mt-1 text-xs text-amber-800">{semResponsavel} cobrança(s) sem responsável não entram na seleção. Preencha o responsável no cadastro da unidade para incluí-las no Flow.</p> : null}
             </div>
           </div>
@@ -217,7 +250,7 @@ export function FlowCobrancaWorkbench({
                 ?? ''
               return <ListRow key={grupo.condominioId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
                 <div>
-                  <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="radio" name="condominio_selecionado" value={grupo.condominioId} checked={grupoSelecionado} disabled={elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 border-slate-300 text-[var(--gkli-primary)]" />{grupo.condominioNome}</label>
+                  <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="radio" name="condominio_selecionado" value={grupo.condominioId} checked={grupoSelecionado} disabled={criando || elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 border-slate-300 text-[var(--gkli-primary)]" />{grupo.condominioNome}</label>
                   <p className="mt-1 text-xs text-slate-500">{grupo.carteiraNome}</p>
                   <p className="mt-1 text-xs text-slate-500">{selecionadasNoGrupo.length} de {elegiveisNoGrupo.length} cobrança(s) selecionada(s)</p>
                   <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer">Ver cobranças incluídas pelo filtro ({grupo.rows.length})</summary><ul className="mt-2 space-y-2">{grupo.rows.map(row => <li key={row.id}><a href={`/app/cobrancas/${row.id}`} className="underline">Unidade {relation(row.unidade)?.identificacao || '-'} · {row.vencimento} · {formatCurrency(cobrancaValue(row))}</a></li>)}</ul></details>
@@ -227,10 +260,10 @@ export function FlowCobrancaWorkbench({
                   </ul> : null}
                 </div>
                 <div><p className="text-xs text-slate-400">Total selecionado</p><p className="text-sm font-medium text-slate-800">{formatCurrency(selecionadasNoGrupo.reduce((sum, row) => sum + cobrancaValue(row), 0))}</p></div>
-                <div><p className="text-xs text-slate-400">Lote</p><p className="text-sm text-slate-700">{selecionadasNoGrupo.length ? '1 lote' : 'Não selecionado'}</p></div>
+                <div><p className="text-xs text-slate-400">Lotes</p><p className="text-sm text-slate-700">{selecionadasNoGrupo.length ? `${plano.quantidade} parte(s)` : 'Não selecionado'}</p></div>
                 <label className="text-xs font-medium text-slate-600">
                   Régua do Flow
-                  <select name={`regua_id:${grupo.carteiraId}`} required={selecionadasNoGrupo.length > 0} disabled={selecionadasNoGrupo.length === 0} defaultValue={defaultRegua} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400">
+                  <select name={`regua_id:${grupo.carteiraId}`} required={selecionadasNoGrupo.length > 0} disabled={criando || selecionadasNoGrupo.length === 0} defaultValue={defaultRegua} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400">
                     <option value="" disabled>Selecione</option>
                     {opcoesRegua.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}{regua.carteira_id ? '' : ' · global'}</option>)}
                   </select>
@@ -238,9 +271,10 @@ export function FlowCobrancaWorkbench({
               </ListRow>
             })}
           </ListRows>
+          {plano.error ? <p role="alert" className="px-4 py-3 text-sm text-rose-800">{plano.error}</p> : null}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
-            <PendingSubmitButton formAction={desfazerAtivacaoCobrancasFlowCobranca} formNoValidate variant="danger" disabled={selectedCobrancas.length === 0} pendingLabel="Desfazendo..." onClick={(event) => { if (!window.confirm(`Devolver ${selectedCobrancas.length} cobrança(s) para Novas?`)) event.preventDefault() }}><RotateCcw size={16} />Desfazer ativação</PendingSubmitButton>
-            <PendingSubmitButton disabled={selectedCobrancas.length === 0} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${grupos.length} Flow(s) de cobrança?`)) event.preventDefault() }}><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
+            <PendingSubmitButton formAction={desfazerAtivacaoCobrancasFlowCobranca} formNoValidate variant="danger" disabled={criando || selectedCobrancas.length === 0} pendingLabel="Desfazendo..." onClick={(event) => { if (!window.confirm(`Devolver ${selectedCobrancas.length} cobrança(s) para Novas?`)) event.preventDefault() }}><RotateCcw size={16} />Desfazer ativação</PendingSubmitButton>
+            <PendingSubmitButton disabled={criando || !plano.quantidade || Boolean(plano.error)} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${plano.quantidade} Flow(s) em partes, com até ${LIMITE_EMAILS_FLOW} e-mails cada?`)) event.preventDefault() }}><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
           </div>
         </form> : <ListEmptyState title="Nenhum condomínio disponível" description="Selecione um condomínio em Cobranças novas e ative suas cobranças para montar o Flow." />}
       </details>
