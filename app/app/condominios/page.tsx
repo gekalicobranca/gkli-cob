@@ -2,7 +2,7 @@ import { listGruposCondominios, listOperadoresCadastro } from '@/features/condom
 import { operadorEfetivoId } from '@/features/condominios/organizacao'
 import { sortCondominios } from '@/features/condominios/sort'
 import Link from 'next/link'
-import { ArrowUpRight, Building2, Download, Edit3, FileText, Filter, Plus } from 'lucide-react'
+import { ArrowUpRight, Building2, ChevronDown, Download, Edit3, FileText, Filter, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -86,6 +86,17 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
   const ordenar = getParam(params?.ordenar) ?? 'nome'
   const filteredRows = sortCondominios(rowsBase, ordenar)
   const rows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const carteiraGroups = new Map<string, { nome: string; rows: typeof rows }>()
+  for (const row of rows) {
+    const carteiraId = row.carteira_id ?? 'sem-carteira'
+    let group = carteiraGroups.get(carteiraId)
+    if (!group) {
+      group = { nome: row.carteiras?.nome ?? 'Carteira não informada', rows: [] }
+      carteiraGroups.set(carteiraId, group)
+    }
+    group.rows.push(row)
+  }
+  const groups = [...carteiraGroups.entries()].sort(([, a], [, b]) => a.nome.localeCompare(b.nome, 'pt-BR'))
   const filtrosAtivos =
     Boolean(filters.grupo || filters.search || filters.carteiraId || filters.administradora || (filters.status && filters.status !== 'ativo')) ||
     ordenar !== 'nome'
@@ -214,8 +225,20 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
             description="Ajuste os filtros ou cadastre/importe condomínios para compor a base cadastral."
           />
         ) : (
-          <ListRows>
-            {rows.map((row: any) => (
+          <div>
+            {groups.map(([carteiraId, group]) => (
+              <details key={carteiraId} className="group/carteira bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-200 bg-slate-100/80 px-4 py-3 transition hover:bg-slate-200/70 first:border-t-0 [&::-webkit-details-marker]:hidden">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open/carteira:rotate-180" />
+                    <div className="min-w-0">
+                      <ListItemTitle className="font-semibold">{group.nome}</ListItemTitle>
+                      <ListItemMeta className="mt-0.5">{group.rows.length} condomínio(s) nesta página</ListItemMeta>
+                    </div>
+                  </div>
+                </summary>
+                <ListRows>
+            {group.rows.map((row: any) => (
               <ListRow
                 key={row.id}
                 className="xl:grid-cols-[minmax(320px,1.5fr)_110px_140px_130px_160px_170px]"
@@ -256,7 +279,10 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
                 </div>
               </ListRow>
             ))}
-          </ListRows>
+                </ListRows>
+              </details>
+            ))}
+          </div>
         )}
         <ListPagination
           page={page}
