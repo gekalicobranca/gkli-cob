@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect, useMemo, useState, type SyntheticEvent } from 'react'
+import { useActionState, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, RefreshCw, RotateCcw, Trash2, XCircle } from 'lucide-react'
 import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListRows } from '@/components/layout/list-page'
@@ -291,12 +291,12 @@ export function FlowCobrancaWorkbench({
         {flows.length ? <>
           <AtivacaoLoteFlows flows={flows} selected={flowsSelecionados} onSelectedChange={setFlowsSelecionados} onBusyChange={setAtivandoLote} />
           <fieldset disabled={ativandoLote} className="min-w-0">
-            <ListRows>{flows.map((flow: any) => <div key={flow.id} className="flex items-start gap-1">
+            <FlowsAgrupados flows={flows} renderFlow={(flow: any) => <div key={flow.id} className="flex items-start gap-1">
               {flow.status === 'pronto' && Number(flow.total_mensagens) > 0 ? <label className="shrink-0 py-6 pl-4">
                 <input type="checkbox" aria-label={`Selecionar ${flow.nome}`} checked={flowsSelecionados.includes(flow.id)} onChange={event => setFlowsSelecionados(current => event.target.checked ? [...current, flow.id] : current.filter(id => id !== flow.id))} />
               </label> : null}
               <div className="min-w-0 flex-1"><FlowRow flow={flow} /></div>
-            </div>)}</ListRows>
+            </div>} />
           </fieldset>
         </> : <ListEmptyState title="Nenhum Flow criado ainda" description="Depois de criar um Flow, ele aparecerá aqui para envio e monitoramento." />}
       </details>
@@ -308,9 +308,40 @@ export function FlowCobrancaHistorico({ flows }: { flows: any[] }) {
   return <ListPanel>
     <ListCollapsibleSectionHeader title="Flows concluídos" count={flows.length} />
     {flows.length
-      ? <ListRows>{flows.map((flow: any) => <FlowRow key={flow.id} flow={flow} />)}</ListRows>
+      ? <FlowsAgrupados flows={flows} renderFlow={flow => <FlowRow key={flow.id} flow={flow} />} />
       : <ListEmptyState title="Nenhum Flow concluído" description="Os flows concluídos aparecerão aqui, com o histórico e os detalhes dos envios." />}
   </ListPanel>
+}
+
+function FlowsAgrupados({ flows, renderFlow }: { flows: any[]; renderFlow: (flow: any) => ReactNode }) {
+  const carteiras = new Map<string, { nome: string; flows: any[]; condominios: Map<string, { nome: string; flows: any[] }> }>()
+  for (const flow of flows) {
+    const carteiraId = flow.carteira_id || 'sem-carteira'
+    if (!carteiras.has(carteiraId)) carteiras.set(carteiraId, { nome: relation(flow.carteira)?.nome || 'Sem carteira', flows: [], condominios: new Map() })
+    const carteira = carteiras.get(carteiraId)!
+    carteira.flows.push(flow)
+    const condominioId = flow.payload?.condominio_id || 'sem-condominio'
+    const condominio = relation(flow.condominio)
+    if (!carteira.condominios.has(condominioId)) carteira.condominios.set(condominioId, { nome: condominio?.nome_operacional || condominio?.nome || 'Condomínio não informado', flows: [] })
+    carteira.condominios.get(condominioId)!.flows.push(flow)
+  }
+  const resumo = (rows: any[]) => {
+    const total = (campo: string) => rows.reduce((sum, flow) => sum + n(flow[campo]), 0)
+    return `${rows.length} flows · ${total('total_pendentes')} pendentes · ${total('total_agendadas')} agendadas · ${total('total_enviadas')} enviadas · ${total('total_falhas')} falhas`
+  }
+  return <div className="space-y-3 p-3">{[...carteiras.entries()].sort((a, b) => a[1].nome.localeCompare(b[1].nome, 'pt-BR')).map(([id, carteira]) =>
+    <details key={id} open className="overflow-hidden rounded-lg border border-slate-200">
+      <summary className="cursor-pointer bg-slate-100 px-4 py-3 text-sm font-semibold">
+        {carteira.nome}<span className="mt-1 block text-xs font-normal text-slate-600">{carteira.condominios.size} condomínio(s) · {resumo(carteira.flows)}</span>
+      </summary>
+      <div className="space-y-2 p-2">{[...carteira.condominios.entries()].sort((a, b) => a[1].nome.localeCompare(b[1].nome, 'pt-BR')).map(([condominioId, condominio]) =>
+        <details key={condominioId} className="overflow-hidden rounded-lg border border-slate-100">
+          <summary className="cursor-pointer bg-slate-50 px-4 py-3 text-sm font-medium">
+            {condominio.nome}<span className="mt-1 block text-xs font-normal text-slate-500">{resumo(condominio.flows)}</span>
+          </summary>
+          <ListRows>{condominio.flows.map(renderFlow)}</ListRows>
+        </details>)}</div>
+    </details>)}</div>
 }
 
 function FlowRow({ flow }: { flow: any }) {

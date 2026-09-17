@@ -234,6 +234,14 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   if (flowsError && flowsError.code !== '42P01') throw new Error(`Erro ao carregar Flows de cobrança: ${flowsError.message}`)
 
   const flowRows = (flows ?? []) as any[]
+  const condominioIds = [...new Set(flowRows.map(flow => flow.payload?.condominio_id).filter(Boolean))] as string[]
+  const condominiosFlows = new Map<string, any>()
+  for (let offset = 0; offset < condominioIds.length; offset += 100) {
+    const { data, error } = await applyCarteiraScope(supabase.from('condominios')
+      .select('id,nome,nome_operacional').in('id', condominioIds.slice(offset, offset + 100)), scope.carteiraIds)
+    if (error) throw new Error('Erro ao carregar condomínios dos flows.')
+    for (const condominio of data ?? []) condominiosFlows.set(condominio.id, condominio)
+  }
   const cobrancasJaVinculadas = new Set<string>()
   const cobrancaIdsDisponibilidade = (disponibilidade ?? []).map((row: any) => row.id).filter(Boolean)
 
@@ -282,6 +290,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     reguas,
     flows: flowRows.map((flow) => ({
       ...flow,
+      condominio: condominiosFlows.get(flow.payload?.condominio_id) ?? null,
       carteira: relation(flow.carteira),
       regua: relation(flow.regua),
       lote: relation(flow.lote),
