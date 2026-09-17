@@ -1,3 +1,4 @@
+import { MaestroAtivacaoControle } from './maestro-ativacao-controle'
 import Link from 'next/link'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
@@ -7,7 +8,11 @@ import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { retomarMontagemMaestro } from '@/features/flows/cobranca/maestro-actions'
 import { MaestroRefresh } from './maestro-refresh'
 
-export async function MaestroMontagens({ condominioIds, carteiraId, status, mostrarVazio = false }: { condominioIds?: string[]; carteiraId?: string; status?: string; mostrarVazio?: boolean } = {}) {
+type FiltrosMontagem = { condominioIds?: string[]; carteiraId?: string; status?: string; mostrarVazio?: boolean }
+export async function MaestroMontagens(props: FiltrosMontagem = {}) {
+  return <><MaestroAtivacaoControle carteiraId={props.carteiraId} /><Montagens {...props} /></>
+}
+async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = false }: { condominioIds?: string[]; carteiraId?: string; status?: string; mostrarVazio?: boolean } = {}) {
   const scope = await getPermittedCarteiras()
   const db = createAdminClient()
   let query = applyCarteiraScope(db.from('maestro_flow_montagens')
@@ -17,7 +22,7 @@ export async function MaestroMontagens({ condominioIds, carteiraId, status, most
   if (carteiraId) query = query.eq('carteira_id', carteiraId)
   if (status && ['pendente', 'processando', 'concluido', 'atencao'].includes(status)) query = query.eq('status', status)
   const { data, error, count } = await query
-  if (error) return <Card><p className="text-sm text-amber-800">Não foi possível consultar a montagem automática dos flows.</p></Card>
+  if (error) return <Card><p className="text-sm text-amber-800">NÃ£o foi possÃ­vel consultar a montagem automÃ¡tica dos flows.</p></Card>
   if (!data?.length) return mostrarVazio ? <Card><p className="text-sm text-slate-500">Nenhuma montagem de flows encontrada para estes filtros.</p></Card> : null
   const flowsPorCondominio = new Map<string, { id: string; status: string }[]>()
   const idsEncontrados = [...new Set<string>(data.map((job: any) => job.condominio_id))]
@@ -34,28 +39,28 @@ export async function MaestroMontagens({ condominioIds, carteiraId, status, most
     }
     if ((flows?.length ?? 0) < 500) break
   }
-  const labels: Record<string,string> = { pendente: 'Na fila', processando: 'Montando flows', concluido: 'Montagem concluída', atencao: 'Requer atenção' }
+  const labels: Record<string,string> = { pendente: 'Na fila', processando: 'Montando flows', concluido: 'Montagem concluÃ­da', atencao: 'Requer atenÃ§Ã£o' }
   return <Card className="space-y-3">
     <MaestroRefresh ativo={data.some((job: any) => ['pendente', 'processando'].includes(job.status))} />
-    <div><h2 className="font-semibold">Montagem de flows pelo Maestro</h2><p className="text-sm text-slate-500">A montagem continua com a página fechada. Os flows aguardam sua revisão e ativação manual em lote.</p></div>
+    <div><h2 className="font-semibold">Montagem de flows pelo Maestro</h2><p className="text-sm text-slate-500">A montagem continua com a pÃ¡gina fechada. Os flows aguardam sua revisÃ£o e ativaÃ§Ã£o manual em lote.</p></div>
     <div className="divide-y divide-slate-100">{data.map((job: any) => {
       const condominio = Array.isArray(job.condominio) ? job.condominio[0] : job.condominio
       const partes = job.plano?.length ?? 0
-      const vinculadas = (job.pendencias ?? []).filter((p: any) => p.motivo === 'Já vinculada a outro Flow')
-      const pendencias = (job.pendencias ?? []).filter((p: any) => p.motivo !== 'Já vinculada a outro Flow')
+      const vinculadas = (job.pendencias ?? []).filter((p: any) => p.motivo === 'JÃ¡ vinculada a outro Flow')
+      const pendencias = (job.pendencias ?? []).filter((p: any) => p.motivo !== 'JÃ¡ vinculada a outro Flow')
       const flows = flowsPorCondominio.get(job.condominio_id) ?? []
       const destaMontagem = flows.filter(flow => (job.flow_ids ?? []).includes(flow.id)).length
       const prontos = flows.filter(flow => flow.status === 'pronto').length
       return <div key={job.id} className="space-y-2 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3"><div>
           <p className="text-sm font-medium">{condominio?.nome_operacional || condominio?.nome}</p>
-          <p className="text-xs text-slate-500">{labels[job.status]}{partes > 0 ? ` · ${job.parte}/${partes} partes` : job.status === 'concluido' ? ' · Nenhuma nova cobrança elegível nesta avaliação' : ''}</p>
+          <p className="text-xs text-slate-500">{labels[job.status]}{partes > 0 ? ` Â· ${job.parte}/${partes} partes` : job.status === 'concluido' ? ' Â· Nenhuma nova cobranÃ§a elegÃ­vel nesta avaliaÃ§Ã£o' : ''}</p>
         </div>
-        {['atencao', 'concluido'].includes(job.status) ? <form action={retomarMontagemMaestro.bind(null, job.id)}><PendingSubmitButton variant="secondary" size="sm" pendingLabel="Enfileirando...">{job.status === 'atencao' ? 'Retomar montagem' : 'Reavaliar pendências'}</PendingSubmitButton></form> : null}</div>
-        <p className="text-xs text-slate-600">{flowsIndisponiveis ? 'Total de flows temporariamente indisponível.' : `${flows.length} flow(s) no condomínio · ${destaMontagem} desta montagem do Maestro · ${flows.length - destaMontagem} de outras montagens, inclusive manuais · ${prontos} pronto(s) para ativar`}</p>
-        {vinculadas.length ? <p className="text-xs text-emerald-700">{vinculadas.length} cobrança(s) já incluída(s) em flows na última avaliação.</p> : null}
+        {['atencao', 'concluido'].includes(job.status) ? <form action={retomarMontagemMaestro.bind(null, job.id)}><PendingSubmitButton variant="secondary" size="sm" pendingLabel="Enfileirando...">{job.status === 'atencao' ? 'Retomar montagem' : 'Reavaliar pendÃªncias'}</PendingSubmitButton></form> : null}</div>
+        <p className="text-xs text-slate-600">{flowsIndisponiveis ? 'Total de flows temporariamente indisponÃ­vel.' : `${flows.length} flow(s) no condomÃ­nio Â· ${destaMontagem} desta montagem do Maestro Â· ${flows.length - destaMontagem} de outras montagens, inclusive manuais Â· ${prontos} pronto(s) para ativar`}</p>
+        {vinculadas.length ? <p className="text-xs text-emerald-700">{vinculadas.length} cobranÃ§a(s) jÃ¡ incluÃ­da(s) em flows na Ãºltima avaliaÃ§Ã£o.</p> : null}
         {job.erro ? <p className="text-sm text-rose-700">{job.erro}</p> : null}
-        {pendencias.length ? <details className="text-xs text-slate-600"><summary className="cursor-pointer">{pendencias.length} cobrança(s) com pendências na última avaliação</summary><ul className="mt-2 space-y-1">{pendencias.map((p: any, index: number) => <li key={index}><Link href={`/app/cobrancas/${p.cobranca_id}`} className="underline">Abrir cobrança</Link> · {p.motivo}{p.saneamento ? ' · Saneamento' : ''}</li>)}</ul></details> : null}
+        {pendencias.length ? <details className="text-xs text-slate-600"><summary className="cursor-pointer">{pendencias.length} cobranÃ§a(s) com pendÃªncias na Ãºltima avaliaÃ§Ã£o</summary><ul className="mt-2 space-y-1">{pendencias.map((p: any, index: number) => <li key={index}><Link href={`/app/cobrancas/${p.cobranca_id}`} className="underline">Abrir cobranÃ§a</Link> Â· {p.motivo}{p.saneamento ? ' Â· Saneamento' : ''}</li>)}</ul></details> : null}
       </div>
     })}</div>
     {(count ?? 0) > data.length ? <p className="text-xs text-slate-500">Mostrando as 100 montagens atualizadas mais recentemente.</p> : null}
