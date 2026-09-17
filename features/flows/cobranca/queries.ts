@@ -209,8 +209,9 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
       lote:lotes(id,status,total_avaliadas,total_criadas,total_pendentes,total_enviadas,total_erros)
     `)
     .order('created_at', { ascending: false })
-    .limit(100)
   flowsQuery = applyCarteiraScope(flowsQuery, scope.carteiraIds)
+  if (normalized.carteiraId) flowsQuery = flowsQuery.eq('carteira_id', normalized.carteiraId)
+  if (normalized.condominioId) flowsQuery = flowsQuery.eq('payload->>condominio_id', normalized.condominioId)
 
   async function todasCobrancas(query: any) {
     const rows: any[] = []
@@ -224,7 +225,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const [{ data: painel, error: painelError }, { data: disponibilidade, error: disponibilidadeError }, { data: flows, error: flowsError }, reguas] = await Promise.all([
     todasCobrancas(painelQuery),
     todasCobrancas(disponibilidadeQuery),
-    flowsQuery,
+    todasCobrancas(flowsQuery),
     reguasPromise,
   ])
 

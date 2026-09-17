@@ -10,6 +10,7 @@ import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlow
 import { formatCurrency } from '@/utils/formatters/currency'
 import { hasResponsavelVinculado } from '@/features/flows/cobranca/eligibilidade'
 import { dividirCriacaoFlows, LIMITE_EMAILS_FLOW } from '@/features/flows/cobranca/dividir-criacao'
+import { AtivacaoLoteFlows } from './ativacao-lote'
 
 type StepId = 'lotes' | 'flows'
 
@@ -153,6 +154,8 @@ export function FlowCobrancaWorkbench({
   const [selectedCondominio, setSelectedCondominio] = useState(() => disponibilidade.find(row => initialSelectedIds.includes(row.id))?.condominio_id ?? '')
   const router = useRouter()
   const [progresso, setProgresso] = useState('')
+  const [flowsSelecionados, setFlowsSelecionados] = useState<string[]>([])
+  const [ativandoLote, setAtivandoLote] = useState(false)
   const [openSteps, setOpenSteps] = useState<Record<StepId, boolean>>({
     lotes: initialStep === 'lotes' || disponibilidade.some(hasResponsavelVinculado),
     flows: initialStep === 'flows' || flows.length > 0,
@@ -285,7 +288,17 @@ export function FlowCobrancaWorkbench({
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListCollapsibleSectionHeader title="Flows" count={flows.length} />
         </summary>
-        {flows.length ? <ListRows>{flows.map((flow: any) => <FlowRow key={flow.id} flow={flow} />)}</ListRows> : <ListEmptyState title="Nenhum Flow criado ainda" description="Depois de criar um Flow, ele aparecerá aqui para envio e monitoramento." />}
+        {flows.length ? <>
+          <AtivacaoLoteFlows flows={flows} selected={flowsSelecionados} onSelectedChange={setFlowsSelecionados} onBusyChange={setAtivandoLote} />
+          <fieldset disabled={ativandoLote} className="min-w-0">
+            <ListRows>{flows.map((flow: any) => <div key={flow.id} className="flex items-start gap-1">
+              {flow.status === 'pronto' && Number(flow.total_mensagens) > 0 ? <label className="shrink-0 py-6 pl-4">
+                <input type="checkbox" aria-label={`Selecionar ${flow.nome}`} checked={flowsSelecionados.includes(flow.id)} onChange={event => setFlowsSelecionados(current => event.target.checked ? [...current, flow.id] : current.filter(id => id !== flow.id))} />
+              </label> : null}
+              <div className="min-w-0 flex-1"><FlowRow flow={flow} /></div>
+            </div>)}</ListRows>
+          </fieldset>
+        </> : <ListEmptyState title="Nenhum Flow criado ainda" description="Depois de criar um Flow, ele aparecerá aqui para envio e monitoramento." />}
       </details>
     </ListPanel>
   </div>
