@@ -99,7 +99,7 @@ async function coletar(execucao) {
     const downloads = process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(), 'Downloads')
     await mkdir(downloads, { recursive: true })
 
-    browserSession = await criarContextoChromeIsolado(chromium, rootDir, 'graiche', {
+    browserSession = await criarContextoChromeIsolado(chromium, rootDir, execucao.id === 'diagnostico' ? 'graiche-diagnostico' : 'graiche', {
       channel: process.env.AGENTE_BROWSER_CHANNEL || 'chrome',
       headless: String(process.env.AGENTE_HEADLESS || 'true').toLowerCase() === 'true', chromiumSandbox: true, acceptDownloads: true, viewport: null,
     })
