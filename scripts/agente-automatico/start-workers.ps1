@@ -7,7 +7,8 @@ $workers = @(
   @{ Script = 'agente:worker:verti'; Log = 'verti-worker' },
   @{ Script = 'agente:worker:lello'; Log = 'lello-worker' },
   @{ Script = 'agente:worker:atipass'; Log = 'atipass-worker' },
-  @{ Script = 'agente:worker:hflex'; Log = 'hflex-worker' }
+  @{ Script = 'agente:worker:hflex'; Log = 'hflex-worker' },
+  @{ Script = 'agente:worker:graiche'; Log = 'graiche-worker' }
 )
 
 foreach ($worker in $workers) {
