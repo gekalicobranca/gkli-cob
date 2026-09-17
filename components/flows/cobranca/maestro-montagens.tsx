@@ -7,20 +7,24 @@ import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { retomarMontagemMaestro } from '@/features/flows/cobranca/maestro-actions'
 import { MaestroRefresh } from './maestro-refresh'
 
-export async function MaestroMontagens() {
+export async function MaestroMontagens({ condominioIds, carteiraId, status, mostrarVazio = false }: { condominioIds?: string[]; carteiraId?: string; status?: string; mostrarVazio?: boolean } = {}) {
   const scope = await getPermittedCarteiras()
   const db = createAdminClient()
-  const { data, error, count } = await applyCarteiraScope(db.from('maestro_flow_montagens')
+  let query = applyCarteiraScope(db.from('maestro_flow_montagens')
     .select('id,condominio_id,status,parte,plano,flow_ids,pendencias,erro,condominio:condominios(nome,nome_operacional)', { count: 'exact' }), scope.carteiraIds)
     .order('updated_at', { ascending: false }).limit(100)
+  if (condominioIds) query = query.in('condominio_id', condominioIds.length ? condominioIds : ['00000000-0000-0000-0000-000000000000'])
+  if (carteiraId) query = query.eq('carteira_id', carteiraId)
+  if (status && ['pendente', 'processando', 'concluido', 'atencao'].includes(status)) query = query.eq('status', status)
+  const { data, error, count } = await query
   if (error) return <Card><p className="text-sm text-amber-800">Não foi possível consultar a montagem automática dos flows.</p></Card>
-  if (!data?.length) return null
+  if (!data?.length) return mostrarVazio ? <Card><p className="text-sm text-slate-500">Nenhuma montagem de flows encontrada para estes filtros.</p></Card> : null
   const flowsPorCondominio = new Map<string, { id: string; status: string }[]>()
-  const condominioIds = [...new Set(data.map(job => job.condominio_id))]
+  const idsEncontrados = [...new Set<string>(data.map((job: any) => job.condominio_id))]
   let flowsIndisponiveis = false
   for (let offset = 0; ; offset += 500) {
     const { data: flows, error: flowsError } = await applyCarteiraScope(db.from('cobranca_flows')
-      .select('id,status,payload').in('payload->>condominio_id', condominioIds), scope.carteiraIds)
+      .select('id,status,payload').in('payload->>condominio_id', idsEncontrados), scope.carteiraIds)
       .order('id').range(offset, offset + 499)
     if (flowsError) { flowsIndisponiveis = true; break }
     for (const flow of flows ?? []) {
@@ -32,7 +36,7 @@ export async function MaestroMontagens() {
   }
   const labels: Record<string,string> = { pendente: 'Na fila', processando: 'Montando flows', concluido: 'Montagem concluída', atencao: 'Requer atenção' }
   return <Card className="space-y-3">
-    <MaestroRefresh ativo={data.some(job => ['pendente', 'processando'].includes(job.status))} />
+    <MaestroRefresh ativo={data.some((job: any) => ['pendente', 'processando'].includes(job.status))} />
     <div><h2 className="font-semibold">Montagem de flows pelo Maestro</h2><p className="text-sm text-slate-500">A montagem continua com a página fechada. Os flows aguardam sua revisão e ativação manual em lote.</p></div>
     <div className="divide-y divide-slate-100">{data.map((job: any) => {
       const condominio = Array.isArray(job.condominio) ? job.condominio[0] : job.condominio

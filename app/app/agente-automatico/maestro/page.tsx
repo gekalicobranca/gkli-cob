@@ -159,7 +159,8 @@ function EtapaCard({ etapa, ultima }: { etapa: Etapa; ultima: boolean }) {
 export default async function MaestroPage({ searchParams }: Props) {
   const params = await searchParams
   const condominioFiltro = getParam(params?.condominio)
-  const aba = getParam(params?.aba) === 'agenda' ? 'agenda' : 'pipeline'
+  const aba = getParam(params?.aba) === 'flows' ? 'flows' : getParam(params?.aba) === 'agenda' ? 'agenda' : 'pipeline'
+  const montagemStatus = getParam(params?.montagem_status)
   const carteiraFiltro = getParam(params?.carteira)
   const administradoraFiltro = getParam(params?.administradora)
   const statusFiltro = getParam(params?.status)
@@ -271,13 +272,14 @@ export default async function MaestroPage({ searchParams }: Props) {
     const proximaB = proximaAgenda(b)?.getTime() ?? Number.MAX_SAFE_INTEGER
     return proximaA - proximaB || String(a.condominio.nome_operacional || a.condominio.nome).localeCompare(String(b.condominio.nome_operacional || b.condominio.nome), 'pt-BR')
   })
-  const tabQuery = (nextAba: 'pipeline' | 'agenda') => {
+  const tabQuery = (nextAba: 'pipeline' | 'agenda' | 'flows') => {
     const query = new URLSearchParams()
     query.set('aba', nextAba)
     if (condominioFiltro) query.set('condominio', condominioFiltro)
     if (carteiraFiltro) query.set('carteira', carteiraFiltro)
     if (administradoraFiltro) query.set('administradora', administradoraFiltro)
-    if (statusFiltro) query.set('status', statusFiltro)
+    if (statusFiltro && nextAba !== 'flows') query.set('status', statusFiltro)
+    if (montagemStatus && nextAba === 'flows') query.set('montagem_status', montagemStatus)
     if (agendaFiltro) query.set('agenda', agendaFiltro)
     return `/app/agente-automatico/maestro?${query.toString()}`
   }
@@ -289,6 +291,7 @@ export default async function MaestroPage({ searchParams }: Props) {
     <Card className="flex flex-wrap items-center gap-2 p-2">
       <Link href={tabQuery('pipeline')} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${aba === 'pipeline' ? 'bg-slate-950 !text-white shadow-sm' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'}`}>Pipeline</Link>
       <Link href={tabQuery('agenda')} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${aba === 'agenda' ? 'bg-slate-950 !text-white shadow-sm' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'}`}>Agenda</Link>
+      <Link href={tabQuery('flows')} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${aba === 'flows' ? 'bg-slate-950 !text-white shadow-sm' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'}`}>Flows</Link>
     </Card>
 
     {aba === 'pipeline' ? <>
@@ -298,7 +301,6 @@ export default async function MaestroPage({ searchParams }: Props) {
         <Kpi icon={<Check size={18} />} label="Ciclos concluídos" value={concluidos} helper="chegaram à régua" />
         <Kpi icon={<TriangleAlert size={18} />} label="Atenção" value={atencao} helper="erro ou configuração" tone="amber" />
       </section>
-      <MaestroMontagens />
       <Card className="p-4"><form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_220px_240px_190px_auto]">
         <input type="hidden" name="aba" value="pipeline" />
         <div className="min-w-0"><label htmlFor="maestro-condominio" className="sr-only">Condomínio</label><CondominioSearchSelect id="maestro-condominio" name="condominio" options={opcoesCondominios} selectedId={condominioFiltro} defaultToFirst={false} inputClassName="mt-0" /></div>
@@ -325,6 +327,16 @@ export default async function MaestroPage({ searchParams }: Props) {
         </details>
       })}
       <Card className="flex items-start gap-3 border-blue-100 bg-blue-50 text-sm text-blue-900"><Clock3 size={18} className="mt-0.5 shrink-0" /><div><p className="font-medium">O Maestro usa os registros reais de cada etapa.</p><p className="mt-1 text-blue-800">Quando uma conversão ainda exige validação manual, ela aparece como bloqueio. Esse indicador identifica os fluxos que ainda precisam ser liberados para operação integralmente autônoma.</p></div></Card>
+    </> : aba === 'flows' ? <>
+      <Card className="p-4"><form className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <input type="hidden" name="aba" value="flows" />
+        <div><label htmlFor="flows-condominio" className="sr-only">Condomínio</label><CondominioSearchSelect id="flows-condominio" name="condominio" options={opcoesCondominios} selectedId={condominioFiltro} defaultToFirst={false} inputClassName="mt-0" /></div>
+        <Select name="carteira" aria-label="Carteira" defaultValue={carteiraFiltro}><option value="">Todas as carteiras</option>{carteiras.map(item => <option key={item.id} value={item.id}>{item.nome}</option>)}</Select>
+        <Select name="administradora" aria-label="Administradora" defaultValue={administradoraFiltro}><option value="">Todas as administradoras</option>{administradoras.map(item => <option key={item} value={item}>{item}</option>)}</Select>
+        <Select name="montagem_status" aria-label="Status da montagem" defaultValue={montagemStatus}><option value="">Todos os status</option><option value="pendente">Na fila</option><option value="processando">Montando flows</option><option value="concluido">Concluída</option><option value="atencao">Requer atenção</option></Select>
+        <div className="flex gap-2"><Button type="submit"><Filter size={16} />Filtrar</Button><ButtonLink variant="secondary" href="/app/agente-automatico/maestro?aba=flows">Limpar</ButtonLink></div>
+      </form></Card>
+      <MaestroMontagens mostrarVazio carteiraId={carteiraFiltro} status={montagemStatus} condominioIds={condominioFiltro || administradoraFiltro ? linhas.filter(linha => (!condominioFiltro || linha.condominio.id === condominioFiltro) && (!administradoraFiltro || linha.administradora === administradoraFiltro)).map(linha => linha.condominio.id) : undefined} />
     </> : <>
       <section className="grid gap-3 md:grid-cols-4">
         <Kpi icon={<CalendarClock size={18} />} label="Planejadas pela regra" value={agendasPlanejadas} helper="vencimento + 10 dias" />
