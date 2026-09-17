@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -9,8 +9,8 @@ import { FlowCobrancaHistorico, FlowCobrancaWorkbench } from './flow-cobranca-wo
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 
-export function FlowCobrancaAbas({ painel, disponibilidade, saneamento, reguas, flows, initialStep, initialSelectedIds, returnQuery }: {
-  painel: any[]; disponibilidade: any[]; saneamento: any[]; reguas: any[]; flows: any[]
+export function FlowCobrancaAbas({ maestro, painel, disponibilidade, saneamento, reguas, flows, initialStep, initialSelectedIds, returnQuery }: {
+  maestro: ReactNode; painel: any[]; disponibilidade: any[]; saneamento: any[]; reguas: any[]; flows: any[]
   initialStep?: 'lotes' | 'flows'; initialSelectedIds: string[]; returnQuery: string
 }) {
   const [aba, setAba] = useState('operacao')
@@ -22,7 +22,9 @@ export function FlowCobrancaAbas({ painel, disponibilidade, saneamento, reguas, 
       <Button type="button" variant={aba === 'operacao' ? 'primary' : 'secondary'} aria-pressed={aba === 'operacao'} onClick={() => setAba('operacao')}>Operação</Button>
       <Button type="button" variant={aba === 'saneamento' ? 'primary' : 'secondary'} aria-pressed={aba === 'saneamento'} onClick={() => setAba('saneamento')}>Saneamento ({saneamento.length})</Button>
       <Button type="button" variant={aba === 'historico' ? 'primary' : 'secondary'} aria-pressed={aba === 'historico'} onClick={() => setAba('historico')}>Histórico ({flowsHistorico.length})</Button>
+      <Button type="button" variant={aba === 'maestro' ? 'primary' : 'secondary'} aria-pressed={aba === 'maestro'} onClick={() => setAba('maestro')}>Maestro</Button>
     </nav>
+    {aba === 'maestro' ? maestro : null}
     <div hidden={aba !== 'operacao'} className="space-y-4">
       <FlowCobrancaPainelWorkbench rows={painel} returnQuery={returnQuery} />
       <FlowCobrancaWorkbench disponibilidade={disponibilidade} reguas={reguas} flows={flowsOperacao} initialStep={initialStep} initialSelectedIds={initialSelectedIds} />

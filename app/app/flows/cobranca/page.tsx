@@ -114,8 +114,8 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
       </ListFiltersForm>
     </ListCollapsibleFilters>
 
-    <MaestroMontagens />
     <FlowCobrancaAbas
+      maestro={<MaestroMontagens mostrarVazio carteiraId={filters.carteiraId} condominioIds={filters.condominioId ? [filters.condominioId] : undefined} />}
       painel={painelRows}
       saneamento={data.saneamento}
       returnQuery={returnQuery.toString()}
