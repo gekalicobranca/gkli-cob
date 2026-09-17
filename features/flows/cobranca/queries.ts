@@ -251,17 +251,27 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
 
   const novas = separarSaneamento(painel ?? [])
   const ativas = separarSaneamento(disponibilidade ?? [])
+  let montagensQuery = applyCarteiraScope(supabase.from('maestro_flow_montagens').select('pendencias'), scope.carteiraIds)
+  if (normalized.carteiraId) montagensQuery = montagensQuery.eq('carteira_id', normalized.carteiraId)
+  if (normalized.condominioId) montagensQuery = montagensQuery.eq('condominio_id', normalized.condominioId)
+  const { data: montagens, error: montagensError } = await montagensQuery
+  if (montagensError && !['42P01', 'PGRST205'].includes(montagensError.code)) throw new Error('Não foi possível conferir o saneamento do Maestro.')
+  const motivos = new Map<string, string>()
+  for (const job of montagens ?? []) for (const p of (job.pendencias ?? []) as any[]) if (p.saneamento) motivos.set(p.cobranca_id, p.motivo)
+  const saneamentoMaestro = [...(painel ?? []), ...(disponibilidade ?? [])].filter((row: any) => motivos.has(row.id))
+    .map((row: any) => ({ ...row, motivo_saneamento: motivos.get(row.id) }))
   const normalize = (row: any) => ({ ...row, carteira: relation(row.carteira), condominio: relation(row.condominio), unidade: relation(row.unidade) })
 
   return {
-    saneamento: [...new Map([...novas.saneamento, ...ativas.saneamento].map(row => [row.id, row])).values()].map(normalize),
-    painel: novas.aptas.map((row: any) => ({
+    saneamento: [...new Map([...novas.saneamento, ...ativas.saneamento, ...saneamentoMaestro].map(row => [row.id, row])).values()].map(normalize),
+    painel: novas.aptas.filter((row: any) => !motivos.has(row.id)).map((row: any) => ({
       ...row,
       carteira: relation(row.carteira),
       condominio: relation(row.condominio),
       unidade: relation(row.unidade),
     })),
     disponibilidade: ativas.aptas
+      .filter((row: any) => !motivos.has(row.id))
       .filter((row: any) => !cobrancasJaVinculadas.has(String(row.id)))
       .map((row: any) => ({
         ...row,

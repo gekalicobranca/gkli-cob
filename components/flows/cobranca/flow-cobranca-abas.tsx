@@ -30,11 +30,11 @@ export function FlowCobrancaAbas({ painel, disponibilidade, saneamento, reguas, 
     {aba === 'historico' ? <FlowCobrancaHistorico flows={flowsHistorico} /> : null}
     {aba === 'saneamento' ? <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
-        <div><h2 className="font-semibold">Cobranças sem responsável</h2><p className="mt-1 text-sm text-slate-500">Cadastre o responsável da unidade. Ao atualizar a lista, a cobrança volta à operação conforme seu status e os filtros selecionados.</p></div>
+        <div><h2 className="font-semibold">Cobranças para saneamento</h2><p className="mt-1 text-sm text-slate-500">Corrija o responsável ou o e-mail da unidade. Para pendências do Maestro, use Reavaliar pendências na montagem após a correção.</p></div>
         <Button type="button" variant="secondary" onClick={() => router.refresh()}>Atualizar lista</Button>
       </div>
-      {!saneamento.length ? <p className="p-5 text-sm text-slate-500">Nenhuma cobrança sem responsável neste filtro.</p> : <div className="divide-y divide-slate-100">{saneamento.map(row => <div key={row.id} className="grid items-center gap-3 p-4 lg:grid-cols-[minmax(260px,1fr)_140px_150px_auto]">
-        <div><p className="text-sm font-semibold">{row.condominio?.nome_operacional || row.condominio?.nome || 'Condomínio não informado'}</p><p className="text-sm text-slate-600">{row.unidade?.bloco ? `Bloco ${row.unidade.bloco} · ` : ''}Unidade {row.unidade?.identificacao || 'não vinculada'}</p><p className="text-xs text-amber-700">Responsável da unidade não cadastrado</p></div>
+      {!saneamento.length ? <p className="p-5 text-sm text-slate-500">Nenhuma cobrança para saneamento neste filtro.</p> : <div className="divide-y divide-slate-100">{saneamento.map(row => <div key={row.id} className="grid items-center gap-3 p-4 lg:grid-cols-[minmax(260px,1fr)_140px_150px_auto]">
+        <div><p className="text-sm font-semibold">{row.condominio?.nome_operacional || row.condominio?.nome || 'Condomínio não informado'}</p><p className="text-sm text-amber-700">{row.motivo_saneamento || 'Responsável da unidade não cadastrado'}</p><p className="text-sm text-slate-600">{row.unidade?.bloco ? `Bloco ${row.unidade.bloco} · ` : ''}Unidade {row.unidade?.identificacao || 'não vinculada'}</p></div>
         <div className="text-sm">{formatDateBR(row.vencimento)}</div>
         <div className="text-sm font-medium">{formatCurrency(Number(row.valor_atualizado ?? row.valor_original ?? 0))}</div>
         <ButtonLink href={row.unidade_id ? `/app/unidades/${row.unidade_id}` : `/app/cobrancas/${row.id}`} variant="secondary">{row.unidade_id ? 'Corrigir unidade' : 'Abrir cobrança'}</ButtonLink>

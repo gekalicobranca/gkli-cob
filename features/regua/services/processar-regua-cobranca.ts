@@ -118,6 +118,8 @@ type ProcessarReguaParams = {
   contato?: string;
   cobrancaIds?: string[];
   reguaId?: string;
+  loteRetomadaId?: string;
+  montagemMaestro?: boolean;
 };
 
 type Contadores = ReguaContadores;
@@ -674,6 +676,31 @@ export async function processarReguaCobranca(
     carregarPreferenciasDestinatarioReguas(supabase, reguaIds),
   ]);
 
+  const processadas = new Set<string>();
+  const mensagensRetomada = new Map<string, any>();
+  if (params.loteRetomadaId) {
+    if (!params.carteiraId || !params.reguaId) throw new Error('Retomada exige carteira e régua explícitas.');
+    const { data: anterior, error } = await supabase.from('lotes').select('id,carteira_id,regua_id')
+      .eq('id', params.loteRetomadaId).single();
+    if (error || anterior.carteira_id !== params.carteiraId || anterior.regua_id !== params.reguaId) throw new Error('Lote incompatível com a montagem.');
+    const { data: registrados, error: itensError } = await supabase.from('lote_itens').select('cobranca_id,status').eq('lote_id', anterior.id);
+    const { data: mensagens, error: mensagensError } = await supabase.from('mensagens').select('*').eq('lote_id', anterior.id);
+    if (itensError || mensagensError) throw new Error('Não foi possível recuperar o progresso da montagem.');
+    const contadores = novoContador();
+    for (const item of registrados ?? []) {
+      processadas.add(item.cobranca_id);
+      contadores.avaliadas++;
+      if (item.status === 'criado') contadores.criadas++;
+      else if (item.status === 'erro') contadores.erros++;
+      else if (item.status === 'duplicada') contadores.duplicadas++;
+      else contadores.puladas++;
+    }
+    for (const mensagem of mensagens ?? []) mensagensRetomada.set(mensagem.cobranca_id, mensagem);
+    lotesPorCarteiraRegua.set(`${params.carteiraId}|${params.reguaId}`, {
+      id: anterior.id, carteiraId: params.carteiraId, reguaId: params.reguaId, reguaReferencia: params.reguaId, contadores,
+    });
+  }
+
   async function getLote(row: CobrancaReguaRow): Promise<LoteContext> {
     const carteiraId = row.carteira_id;
     if (!carteiraId) throw new Error("Cobrança sem carteira_id.");
@@ -702,6 +729,7 @@ export async function processarReguaCobranca(
 
   try {
     for (const row of rows) {
+      if (processadas.has(row.id)) continue;
       const lote = await getLote(row);
       total.avaliadas += 1;
       lote.contadores.avaliadas += 1;
@@ -709,6 +737,23 @@ export async function processarReguaCobranca(
       try {
         const condominio = row.condominios;
         const unidade = row.unidades;
+        // Se a chamada caiu após gravar a mensagem, reconstitui apenas seu item.
+        const recuperada = mensagensRetomada.get(row.id);
+        if (recuperada) {
+          if (recuperada.status !== 'pendente_aprovacao' || recuperada.cobranca_flow_id) throw new Error('Mensagem da retomada já foi alterada.');
+          const itemId = await criarItemLote({ supabase, loteId: lote.id, row, status: LOTE_ITEM_STATUS.CRIADO,
+            mensagemId: recuperada.id, fingerprint: recuperada.fingerprint, reguaEtapaId: recuperada.regua_etapa_id,
+            motivo: 'Mensagem recuperada após interrupção da montagem.', payload: recuperada.payload });
+          const { error: vinculoError } = await supabase.from('mensagens').update({ lote_item_id: itemId }).eq('id', recuperada.id);
+          if (vinculoError) throw new Error(vinculoError.message);
+          total.criadas++; lote.contadores.criadas++;
+          continue;
+        }
+        if (params.montagemMaestro && !['novo', 'em_cobranca_ativa'].includes(String(row.status_operacional))) {
+          await criarItemLote({ supabase, loteId: lote.id, row, status: LOTE_ITEM_STATUS.PULADA, motivo: 'Status alterado; cobrança fora da montagem automática.' });
+          total.puladas++; lote.contadores.puladas++;
+          continue;
+        }
         const expiracaoPreJuridico = avaliarExpiracaoPreJuridico(row);
         const podeExpirarParaPreJuridico =
           !row.automacao_bloqueada &&
@@ -920,6 +965,7 @@ export async function processarReguaCobranca(
         });
 
         const compliance = await avaliarComplianceRegua({
+          prepararParaAgenda: params.montagemMaestro === true && canal === 'email',
           carteiraId: row.carteira_id,
           condominioId: condominio?.id ?? null,
           unidadeId: unidade?.id ?? null,

@@ -11,6 +11,7 @@ export type ReguaComplianceContext = {
   destinatario?: string | null
   canal?: Canal
   agora?: Date
+  prepararParaAgenda?: boolean
 }
 
 export type ReguaComplianceResult = {
@@ -98,11 +99,11 @@ export async function avaliarComplianceRegua(ctx: ReguaComplianceContext): Promi
   const fim = minutesOfDay(regra?.janela_fim, DEFAULT_WINDOW_END)
   const weekend = agora.getDay() === 0 || agora.getDay() === 6
 
-  if (weekend && regra?.permitir_finais_semana === false) {
+  if (!ctx.prepararParaAgenda && weekend && regra?.permitir_finais_semana === false) {
     return { permitido: false, motivo: 'Compliance: finais de semana bloqueados para automação.', regra: 'fim_de_semana' }
   }
 
-  if (atualMin < inicio || atualMin > fim) {
+  if (!ctx.prepararParaAgenda && (atualMin < inicio || atualMin > fim)) {
     return { permitido: false, motivo: `Compliance: fora da janela permitida (${regra?.janela_inicio ?? DEFAULT_WINDOW_START} às ${regra?.janela_fim ?? DEFAULT_WINDOW_END}).`, regra: 'janela_horario' }
   }
 

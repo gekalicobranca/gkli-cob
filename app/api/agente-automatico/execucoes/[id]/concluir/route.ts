@@ -3,6 +3,7 @@ import { requireCronSecret } from '@/app/api/_lib/auth'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { processarRelatorioCaptado } from '@/features/captacao-automatizada/processar-relatorio'
 import { POST as confirmarConversao } from '@/app/api/conversao-relatorio/confirmar/route'
+import { enfileirarMontagemMaestro } from '@/features/flows/cobranca/maestro-montagem'
 
 export const runtime = 'nodejs'
 
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }))
     const result = await response.json()
     if (!response.ok || !result.ok) throw new Error(result.error || 'Falha na importação.')
+    await enfileirarMontagemMaestro(id, arquivo.id)
     const { error: updateError } = await db.from('agente_arquivos').update({ status_validacao: 'validado' }).eq('id', arquivo.id)
     if (updateError) throw new Error(updateError.message)
     const { error: logError } = await db.from('agente_logs').insert({
@@ -56,7 +58,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       metadata_json: { conversao_id: arquivo.id },
     })
     if (logError) throw new Error(logError.message)
-    return NextResponse.json({ ok: true, conversaoId: arquivo.id })
+    return NextResponse.json({ ok: true, conversaoId: arquivo.id, montagemFlows: 'enfileirada' })
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Falha ao concluir execução.' }, { status: 500 })
   }

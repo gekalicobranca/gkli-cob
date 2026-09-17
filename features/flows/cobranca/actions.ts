@@ -116,6 +116,10 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
   if (cobrancas.some((row) => !hasResponsavelVinculado(row))) {
     return { error: 'Uma ou mais cobranças não possuem responsável vinculado. Corrija o cadastro ou retire essas cobranças da seleção antes de criar o Flow.' }
   }
+  const { data: montagens, error: montagemError } = await supabase.from('maestro_flow_montagens')
+    .select('id').eq('condominio_id', cobrancas[0].condominio_id).in('status', ['pendente', 'processando', 'atencao']).limit(1)
+  if (montagemError && montagemError.code !== '42P01' && montagemError.code !== 'PGRST205') throw new Error('Não foi possível conferir a fila do Maestro.')
+  if (montagens?.length) return { error: 'Este condomínio tem uma montagem do Maestro em andamento ou aguardando revisão. Acompanhe a montagem antes de criar flows manualmente.' }
 
   const { data: vinculadas, error: vinculadasError } = await supabase
     .from('lote_itens')

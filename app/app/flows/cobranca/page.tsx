@@ -1,6 +1,7 @@
 import { FileText, Layers, ListChecks, Network, WalletCards, type LucideIcon } from 'lucide-react'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
 import { FlowCobrancaAbas } from '@/components/flows/cobranca/flow-cobranca-abas'
+import { MaestroMontagens } from '@/components/flows/cobranca/maestro-montagens'
 import { ClearFiltersLink, ListCollapsibleFilters, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage } from '@/components/layout/list-page'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -113,6 +114,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
       </ListFiltersForm>
     </ListCollapsibleFilters>
 
+    <MaestroMontagens />
     <FlowCobrancaAbas
       painel={painelRows}
       saneamento={data.saneamento}

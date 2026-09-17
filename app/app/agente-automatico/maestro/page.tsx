@@ -14,6 +14,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
+import { MaestroMontagens } from '@/components/flows/cobranca/maestro-montagens'
 import { agendarExecucaoAgenteReceita, alternarCaptacaoGlobal } from '@/features/agente-automatico/actions'
 import { ExecutarAgoraButton } from './executar-agora-button'
 
@@ -282,6 +283,7 @@ export default async function MaestroPage({ searchParams }: Props) {
   }
 
   return <main className="space-y-4">
+    <MaestroMontagens />
     <PageHeader eyebrow="Automação" title="Maestro" description="Comande o ciclo completo de cada condomínio — agenda, agente remoto, conversão, importação e régua de cobrança." actions={<><form action={alternarCaptacaoGlobal}><input type="hidden" name="ativo" value={captacaoAtiva ? 'false' : 'true'} /><Button type="submit" variant="header">{captacaoAtiva ? <PowerOff size={16} /> : <Power size={16} />}{captacaoAtiva ? 'Desligar captação' : 'Ligar captação'}</Button></form><ButtonLink href="/app/agente-automatico" variant="header"><Bot size={16} />Agentes</ButtonLink><ButtonLink href={tabQuery(aba)} variant="header"><RefreshCw size={16} />Atualizar</ButtonLink></>} />
     <Card className={`flex items-center justify-between gap-4 border ${captacaoAtiva ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}><div className="flex items-center gap-3"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${captacaoAtiva ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{captacaoAtiva ? <Power size={18} /> : <PowerOff size={18} />}</span><div><p className={`text-sm font-semibold ${captacaoAtiva ? 'text-emerald-900' : 'text-rose-900'}`}>Captação {captacaoAtiva ? 'ligada' : 'desligada'}</p><p className={`text-xs ${captacaoAtiva ? 'text-emerald-700' : 'text-rose-700'}`}>{captacaoAtiva ? 'Agendas e execuções automáticas estão liberadas.' : 'Novas execuções estão pausadas; agendas e filas foram preservadas.'}</p></div></div>{controleGlobal?.atualizado_em ? <span className="hidden text-xs text-slate-500 md:block">Alterado em {formatarData(controleGlobal.atualizado_em)}</span> : null}</Card>
 
