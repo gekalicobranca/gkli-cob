@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { enviarFlowCobranca } from '@/features/flows/cobranca/actions'
 
-export function AtivacaoLoteFlows({ flows, selected, onSelectedChange, onBusyChange }: {
+export function AtivacaoLoteFlows({ flows, selected, onSelectedChange, onBusyChange, onSelectAllChange }: {
   flows: any[]
   selected: string[]
   onSelectedChange: (ids: string[]) => void
   onBusyChange: (busy: boolean) => void
+  onSelectAllChange: (checked: boolean) => void
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -54,7 +55,7 @@ export function AtivacaoLoteFlows({ flows, selected, onSelectedChange, onBusyCha
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-800">
-          <input type="checkbox" checked={todos} disabled={busy || !prontos.length} onChange={() => onSelectedChange(todos ? [] : prontos.map(flow => flow.id))} />
+          <input type="checkbox" checked={todos} disabled={busy || !prontos.length} onChange={event => { onSelectedChange(event.target.checked ? prontos.map(flow => flow.id) : []); onSelectAllChange(event.target.checked) }} />
           Selecionar todos os prontos ({prontos.length})
         </label>
         <p className="mt-1 text-xs text-slate-500">{selecionados.length} Flow(s) selecionado(s) · {mensagens} mensagem(ns). A agenda respeita os limites por carteira e remetente.</p>

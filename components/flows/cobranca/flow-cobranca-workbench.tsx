@@ -154,6 +154,8 @@ export function FlowCobrancaWorkbench({
   const [selectedCondominio, setSelectedCondominio] = useState(() => disponibilidade.find(row => initialSelectedIds.includes(row.id))?.condominio_id ?? '')
   const router = useRouter()
   const [progresso, setProgresso] = useState('')
+  const [somenteProntos, setSomenteProntos] = useState(false)
+  const flowsVisiveis = somenteProntos ? flows.filter(flow => flow.status === 'pronto' && Number(flow.total_mensagens) > 0) : flows
   const [flowsSelecionados, setFlowsSelecionados] = useState<string[]>([])
   const [ativandoLote, setAtivandoLote] = useState(false)
   const [openSteps, setOpenSteps] = useState<Record<StepId, boolean>>({
@@ -286,12 +288,13 @@ export function FlowCobrancaWorkbench({
     <ListPanel>
       <details open={openSteps.flows} onToggle={(event) => syncStepOpen('flows', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-          <ListCollapsibleSectionHeader title="Flows" count={flows.length} />
+          <ListCollapsibleSectionHeader title="Flows" count={flowsVisiveis.length} />
         </summary>
         {flows.length ? <>
-          <AtivacaoLoteFlows flows={flows} selected={flowsSelecionados} onSelectedChange={setFlowsSelecionados} onBusyChange={setAtivandoLote} />
+          <AtivacaoLoteFlows flows={flows} selected={flowsSelecionados} onSelectedChange={setFlowsSelecionados} onBusyChange={setAtivandoLote} onSelectAllChange={setSomenteProntos} />
+          {somenteProntos ? <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm"><span>{flowsVisiveis.length ? `Exibindo somente os ${flowsVisiveis.length} flows prontos.` : 'Nenhum flow pronto restante.'}</span><Button type="button" variant="secondary" disabled={ativandoLote} onClick={() => setSomenteProntos(false)}>Mostrar todos</Button></div> : null}
           <fieldset disabled={ativandoLote} className="min-w-0">
-            <FlowsAgrupados flows={flows} renderFlow={(flow: any) => <div key={flow.id} className="flex items-start gap-1">
+            <FlowsAgrupados flows={flowsVisiveis} renderFlow={(flow: any) => <div key={flow.id} className="flex items-start gap-1">
               {flow.status === 'pronto' && Number(flow.total_mensagens) > 0 ? <label className="shrink-0 py-6 pl-4">
                 <input type="checkbox" aria-label={`Selecionar ${flow.nome}`} checked={flowsSelecionados.includes(flow.id)} onChange={event => setFlowsSelecionados(current => event.target.checked ? [...current, flow.id] : current.filter(id => id !== flow.id))} />
               </label> : null}
