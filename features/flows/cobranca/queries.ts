@@ -242,6 +242,18 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     if (error) throw new Error('Erro ao carregar condomínios dos flows.')
     for (const condominio of data ?? []) condominiosFlows.set(condominio.id, condominio)
   }
+  const canaisFlows = new Map<string, Set<string>>()
+  for (let offset = 0; offset < flowRows.length; offset += 100) {
+    const ids = flowRows.slice(offset, offset + 100).map(flow => flow.id)
+    const { data, error } = await todasCobrancas(supabase.from('mensagens')
+      .select('id,cobranca_flow_id,canal').in('cobranca_flow_id', ids))
+    if (error) throw new Error('Erro ao carregar canais dos flows.')
+    for (const mensagem of data ?? []) {
+      if (!mensagem.canal) continue
+      if (!canaisFlows.has(mensagem.cobranca_flow_id)) canaisFlows.set(mensagem.cobranca_flow_id, new Set())
+      canaisFlows.get(mensagem.cobranca_flow_id)!.add(mensagem.canal)
+    }
+  }
   const cobrancasJaVinculadas = new Set<string>()
   const cobrancaIdsDisponibilidade = (disponibilidade ?? []).map((row: any) => row.id).filter(Boolean)
 
@@ -291,6 +303,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     flows: flowRows.map((flow) => ({
       ...flow,
       condominio: condominiosFlows.get(flow.payload?.condominio_id) ?? null,
+      canais: [...(canaisFlows.get(flow.id) ?? [])].sort(),
       carteira: relation(flow.carteira),
       regua: relation(flow.regua),
       lote: relation(flow.lote),

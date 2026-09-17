@@ -329,6 +329,16 @@ function FlowsAgrupados({ flows, renderFlow }: { flows: any[]; renderFlow: (flow
     const total = (campo: string) => rows.reduce((sum, flow) => sum + n(flow[campo]), 0)
     return `${rows.length} flows · ${total('total_pendentes')} pendentes · ${total('total_agendadas')} agendadas · ${total('total_enviadas')} enviadas · ${total('total_falhas')} falhas`
   }
+  const agruparCanais = (rows: any[]) => {
+    const grupos = new Map<string, any[]>()
+    for (const flow of rows) {
+      const canais = [...new Set<string>(flow.canais ?? [])].sort()
+      const nome = canais.length ? canais.map(canal => canal === 'email' ? 'E-mail' : canal === 'whatsapp' ? 'WhatsApp' : canal).join(' + ') : 'Canal não informado'
+      if (!grupos.has(nome)) grupos.set(nome, [])
+      grupos.get(nome)!.push(flow)
+    }
+    return [...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
+  }
   return <div className="space-y-3 p-3">{[...carteiras.entries()].sort((a, b) => a[1].nome.localeCompare(b[1].nome, 'pt-BR')).map(([id, carteira]) =>
     <details key={id} open className="overflow-hidden rounded-lg border border-slate-200">
       <summary className="cursor-pointer bg-slate-100 px-4 py-3 text-sm font-semibold">
@@ -339,7 +349,13 @@ function FlowsAgrupados({ flows, renderFlow }: { flows: any[]; renderFlow: (flow
           <summary className="cursor-pointer bg-slate-50 px-4 py-3 text-sm font-medium">
             {condominio.nome}<span className="mt-1 block text-xs font-normal text-slate-500">{resumo(condominio.flows)}</span>
           </summary>
-          <ListRows>{condominio.flows.map(renderFlow)}</ListRows>
+          <div className="space-y-2 p-2">{agruparCanais(condominio.flows).map(([canal, rows]) =>
+            <details key={canal} open className="overflow-hidden rounded-lg border border-slate-100">
+              <summary className="cursor-pointer bg-white px-4 py-3 text-sm font-medium">
+                {canal}<span className="mt-1 block text-xs font-normal text-slate-500">{resumo(rows)}</span>
+              </summary>
+              <ListRows>{rows.map(renderFlow)}</ListRows>
+            </details>)}</div>
         </details>)}</div>
     </details>)}</div>
 }
