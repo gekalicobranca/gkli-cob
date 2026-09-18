@@ -57,7 +57,7 @@ export function FlowCobrancaAbas({ maestro, painel, disponibilidade, saneamento,
     {aba === 'historico' ? <FlowCobrancaHistorico flows={flowsHistorico} /> : null}
     {aba === 'saneamento' ? <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
-        <div><h2 className="font-semibold">Cobranças para saneamento</h2><p className="mt-1 text-sm text-slate-500">Corrija o responsável ou o e-mail da unidade. Para pendências do Maestro, use Reavaliar pendências na montagem após a correção.</p></div>
+        <div><h2 className="font-semibold">Cobranças para saneamento</h2><p className="mt-1 text-sm text-slate-500">Corrija o responsável ou o e-mail da unidade. Para pendências do Maestro, use Reavaliar pendências na montagem após a correção.</p><p className="mt-1 text-xs text-slate-500">O Excel respeita os filtros e inclui contatos por unidade, campos para correção, cobranças e resumo por condomínio.</p></div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={() => router.refresh()}>Atualizar lista</Button>
           <Button type="button" variant="secondary" disabled={!saneamento.length} loading={exportando} loadingLabel="Gerando Excel…" onClick={exportarSaneamento}><Download size={16} aria-hidden="true" />Exportar Excel</Button>

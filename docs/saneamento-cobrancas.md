@@ -1,5 +1,17 @@
 # Saneamento de Cobranças
 
+## Exportação do Saneamento em Flow cobrança
+
+Em Flow cobrança > Saneamento, **Exportar Excel** respeita os filtros de carteira, condomínio, vencimento e inclusão, além das permissões do usuário. O arquivo contém:
+
+- **Contatos para corrigir**: uma linha por unidade, reunindo as pendências e a quantidade de cobranças afetadas. Cobranças sem unidade vinculada permanecem separadas. As colunas amarelas permitem anotar responsável, e-mail, telefone corrigidos e observações.
+- **Cobranças**: detalhes de cada parcela e os contatos cadastrados.
+- **Resumo**: quantidade e valor por condomínio.
+
+O preenchimento da planilha não atualiza os cadastros automaticamente. Após atualizar a unidade no app, use **Reavaliar pendências** na montagem do Maestro.
+
+Validação da exportação: `node node_modules/tsx/dist/cli.mjs --test scripts/validate-exportacao-saneamento.ts`.
+
 Implementação da mesa de limpeza cadastral criada em Gestão > Saneamento de cobranças.
 
 ## Fluxo
