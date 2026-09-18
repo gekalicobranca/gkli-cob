@@ -379,6 +379,54 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
   return rows
 }
 
+// Exportação integral: paginação explícita evita o limite padrão do PostgREST.
+export async function listCobrancasCatalogo(scope: CarteiraScope, filters: CobrancaListFilters = {}) {
+  const supabase = await createClient()
+  let query = supabase.from('cobrancas').select(`
+    id, competencia, vencimento, valor_original, valor_atualizado,
+    status, status_operacional, status_financeiro, carteira_id, condominio_id, unidade_id,
+    carteiras(nome), condominios(nome, inicio_cobranca_dias),
+    unidades(identificacao, bloco, responsavel_nome, telefone, email, acao_judicial)
+  `)
+  query = applyCarteiraScope(query, scope.carteiraIds)
+  query = (await applyCobrancaFilters(query, supabase, scope, { ...filters, judicializacaoUnidade: 'todos', status: '', statusList: undefined })).query
+  query = query.order('id')
+  const rows = []
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await query.range(offset, offset + 499)
+    if (error) throw new Error(`Erro ao carregar catálogo: ${error.message}`)
+    rows.push(...normalizeRelationsList(data ?? [], ['carteiras', 'condominios', 'unidades']))
+    if (!data || data.length < 500) break
+  }
+  // A situação pertence à unidade, mesmo quando a cota que originou o caso
+  // está fora do intervalo de vencimentos escolhido para o catálogo.
+  const unidadeIds = uniqueStrings(rows.map(row => row.unidade_id))
+  const sinais = new Map<string, { juridico: boolean; pre: boolean }>()
+  for (let start = 0; start < unidadeIds.length; start += 200) {
+    const ids = unidadeIds.slice(start, start + 200)
+    for (const table of ['cobrancas', 'pre_juridico_casos'] as const) {
+      let source = supabase.from(table).select(table === 'cobrancas'
+        ? 'id,unidade_id,status,status_operacional'
+        : 'id,unidade_id,etapa,distribuicao_status').in('unidade_id', ids)
+      source = applyCarteiraScope(source, scope.carteiraIds)
+      source = source.order('id')
+      for (let offset = 0; ; offset += 500) {
+        const { data, error } = await source.range(offset, offset + 499)
+        if (error) throw new Error(`Erro ao identificar situação jurídica do catálogo: ${error.message}`)
+        for (const item of (data ?? []) as unknown as Array<{ unidade_id: string; status?: string; status_operacional?: string; etapa?: string; distribuicao_status?: string }>) {
+          const atual = sinais.get(item.unidade_id) ?? { juridico: false, pre: false }
+          const estado = table === 'cobrancas' ? getCobrancaStatusOperacional(item) : item.etapa
+          atual.juridico ||= estado === 'judicializado' || item.distribuicao_status === 'distribuido'
+          atual.pre ||= estado === 'pre_juridico' || (table === 'pre_juridico_casos' && !['judicializado', 'encerrado', 'cancelado', 'arquivado'].includes(estado ?? ''))
+          sinais.set(item.unidade_id, atual)
+        }
+        if (!data || data.length < 500) break
+      }
+    }
+  }
+  return rows.map(row => ({ ...row, indicativo_catalogo: sinais.get(row.unidade_id) }))
+}
+
 export async function listCobrancasPage(
   scope: CarteiraScope,
   filters: CobrancaListFilters = {},

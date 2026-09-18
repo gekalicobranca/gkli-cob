@@ -320,6 +320,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 <FileText size={16} />
                 Executivo
               </ButtonLink>
+              <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo', '/catalogo')} prefetch={false} variant="secondary" title="Cotas na regra de cobrança, incluindo jurídico e pré-jurídico">
+                <FileText size={16} />
+                Catálogo PDF
+              </ButtonLink>
               <ButtonLink href="/app/cobrancas/nova">
                 <Plus size={16} />
                 Nova cobrança
