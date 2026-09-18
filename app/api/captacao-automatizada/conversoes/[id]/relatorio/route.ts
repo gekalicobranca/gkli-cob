@@ -23,7 +23,7 @@ async function carregar(id: string) {
     const { data: acesso, error: acessoError } = await db.from('usuarios_carteiras').select('carteira_id').eq('user_id', auth.user!.id).eq('carteira_id', row.carteira_id).maybeSingle()
     if (acessoError || !acesso) return { response: NextResponse.json({ error: 'Você não tem acesso a esta carteira.' }, { status: 403 }) }
   }
-  const { data: condominio, error: condoError } = await db.from('condominios').select('id, nome, nome_operacional, cnpj, carteira_id').eq('id', row.condominio_id).eq('carteira_id', row.carteira_id).maybeSingle()
+  const { data: condominio, error: condoError } = await db.from('condominios').select('id, nome, nome_operacional, cnpj, carteira_id, inicio_cobranca_dias, dias_apos_vencimento_regua').eq('id', row.condominio_id).eq('carteira_id', row.carteira_id).maybeSingle()
   if (condoError || !condominio) return { response: NextResponse.json({ error: 'Condomínio do ranking não encontrado nesta carteira.' }, { status: 404 }) }
   return { db, row, condominio }
 }
@@ -34,7 +34,7 @@ async function responder(ctx: Awaited<ReturnType<typeof carregar>>, preview: any
   const analise: AnaliseInadimplencia = preview.analiseInadimplencia ?? analiseResumida(preview.rankingMensal, ctx.row!.nome_arquivo)
   if (!analise.recibos.length) return NextResponse.json({ error: 'Não há dados financeiros neste ranking. Anexe o relatório original.' }, { status: 422 })
   const bytes = await gerarPdfInadimplencia(analise, preview.relatorioInadimplenciaContexto ?? {}, {
-    nome: ctx.condominio!.nome, cnpj: ctx.condominio!.cnpj,
+    inicioCobrancaDias: ctx.condominio!.dias_apos_vencimento_regua ?? ctx.condominio!.inicio_cobranca_dias, nome: ctx.condominio!.nome, cnpj: ctx.condominio!.cnpj,
     indicacoesApp: (unidades ?? []).map(u => ({ bloco: u.bloco ?? '', unidade: u.identificacao ?? '', acaoJudicial: Boolean(u.acao_judicial) })),
   })
   const nomeArquivo = nomeArquivoRelatorio(ctx.condominio!.cnpj, ctx.condominio!.nome)

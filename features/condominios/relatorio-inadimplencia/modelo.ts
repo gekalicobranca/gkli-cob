@@ -54,11 +54,11 @@ export function dataIso(v: unknown): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null
   const d = new Date(iso + 'T00:00:00Z'); return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === iso ? iso : null
 }
-export function cortes(dataBase: string) {
+export function cortes(dataBase: string, dias = 60) {
   const d = new Date(dataBase + 'T00:00:00Z'); const cinco = new Date(d)
   cinco.setUTCFullYear(d.getUTCFullYear() - 5)
   if (cinco.getUTCMonth() !== d.getUTCMonth()) cinco.setUTCDate(0)
-  return { sessenta: new Date(d.getTime() - 60 * 86400000).toISOString().slice(0, 10), cinco: cinco.toISOString().slice(0, 10) }
+  return { sessenta: new Date(d.getTime() - dias * 86400000).toISOString().slice(0, 10), cinco: cinco.toISOString().slice(0, 10) }
 }
 export function natureza(historico: string, conta = '', formato = ''): NaturezaDebito {
   const s = normalizar(historico)
@@ -111,13 +111,13 @@ function unidadeExplicitaNoTitulo(parte: string, condominio: string) {
   return match && nomeCondominioParaAssociacao(match[1]) === nomeCondominioParaAssociacao(condominio)
     ? chaveUnidade(match[3], match[2]) : null
 }
-export function consolidar(analise: AnaliseInadimplencia, contexto: ContextoRelatorio = {}, app: Array<{ bloco: string; unidade: string; acaoJudicial: boolean }> = []): UnidadeRelatorio[] {
-  const groups = new Map<string, ReciboRelatorio[]>(); const c = cortes(analise.dataBase)
+export function consolidar(analise: AnaliseInadimplencia, contexto: ContextoRelatorio = {}, app: Array<{ bloco: string; unidade: string; acaoJudicial: boolean }> = [], inicioCobrancaDias?: number): UnidadeRelatorio[] {
+  const groups = new Map<string, ReciboRelatorio[]>(); const c = cortes(analise.dataBase, inicioCobrancaDias)
   for (const r of analise.recibos) { const k = chaveUnidade(r.bloco, r.unidade); groups.set(k, [...(groups.get(k) ?? []), r]) }
   return [...groups].map(([chave, rs]) => {
     const nomes = [...new Set(rs.map(r => r.responsavel).filter(Boolean))]
     const datas = rs.map(r => r.vencimento).filter((v): v is string => Boolean(v)).sort()
-    const idadeDisponivel = analise.qualidade === 'completa' && rs.every(r => r.vencimento)
+    const idadeDisponivel = rs.every(r => r.vencimento)
     const faixa = (pred: (v: string) => boolean) => idadeDisponivel ? rs.filter(r => pred(r.vencimento!)).reduce((s, r) => s + r.total, 0) : null
     const processos = (contexto.processos ?? []).flatMap(p => {
       if (!p.cobrancaPropria) return []
@@ -130,11 +130,30 @@ export function consolidar(analise: AnaliseInadimplencia, contexto: ContextoRela
     })
     const conferencia = contexto.conferenciasUnidades?.find(u => chaveUnidade(u.bloco, u.unidade) === chave)
     return { ...somarValores(rs), chave, bloco: rs[0].bloco, unidade: rs[0].unidade, responsaveis: nomes,
-      mais60: faixa(d => d < c.sessenta), mais5: faixa(d => d < c.cinco), entre60e5: faixa(d => d < c.sessenta && d > c.cinco),
+      mais60: faixa(d => inicioCobrancaDias == null ? d < c.sessenta : d <= c.sessenta), mais5: faixa(d => d < c.cinco), entre60e5: faixa(d => (inicioCobrancaDias == null ? d < c.sessenta : d <= c.sessenta) && d > c.cinco),
       maisAntigo: datas[0] ?? null, maisRecente: datas.at(-1) ?? null, processos,
       preJuridico: conferencia?.situacao === 'pre_distribuicao' || (contexto.preJuridico ?? []).some(p => chaveUnidade(p.bloco, p.unidade) === chave),
       conferencia,
       indicacaoApp: app.some(u => chaveUnidade(u.bloco, u.unidade) === chave && u.acaoJudicial),
     }
   }).sort((a, b) => b.total - a.total)
+}
+
+
+/** Categorias exclusivas por recibo; correspondência apenas nominal não judicializa saldo. */
+export function distribuirInadimplencia(analise: AnaliseInadimplencia, units: UnidadeRelatorio[], dias: number) {
+  const valores = { administradora: 0, ativa: 0, preJuridico: 0, judicial: 0, semData: 0 }
+  const limite = cortes(analise.dataBase, dias).sessenta
+  const byKey = new Map(units.map(u => [u.chave, u]))
+  for (const r of analise.recibos) {
+    const u = byKey.get(chaveUnidade(r.bloco, r.unidade))
+    const judicial = u?.conferencia?.situacao === 'judicial' || u?.indicacaoApp || u?.processos.some(p => p.vinculoNoRelatorio === 'unidade' && estadoProcesso(p) !== 'historico')
+    if (u?.conferencia?.situacao === 'pre_distribuicao') valores.preJuridico += r.total
+    else if (judicial) valores.judicial += r.total
+    else if (u?.preJuridico) valores.preJuridico += r.total
+    else if (!r.vencimento) valores.semData += r.total
+    else if (r.vencimento <= limite) valores.ativa += r.total
+    else valores.administradora += r.total
+  }
+  return valores
 }

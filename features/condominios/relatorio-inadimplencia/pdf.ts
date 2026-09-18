@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { PDFDocument, PDFPage, StandardFonts, rgb } from 'pdf-lib'
-import { AnaliseInadimplencia, ContextoRelatorio, DISCLAIMER, UnidadeRelatorio, chaveUnidade, consolidar, cortes, estadoProcesso, marcaEscritorio } from './modelo'
+import { AnaliseInadimplencia, ContextoRelatorio, DISCLAIMER, UnidadeRelatorio, chaveUnidade, consolidar, cortes, estadoProcesso, marcaEscritorio, distribuirInadimplencia } from './modelo'
 import { descricaoLimitacaoJur } from './gkit-jur'
 
 const W = 595.28, H = 841.89, X = 40, WIDTH = 515, TOP = 665, BOTTOM = 130
@@ -20,7 +20,7 @@ function rowColor(u: UnidadeRelatorio) {
   if (u.conferencia?.situacao === 'pre_distribuicao') return undefined
   return u.processos.some(p => estadoProcesso(p) === 'recente') ? green : u.processos.some(p => estadoProcesso(p) === 'suspenso') ? yellow : undefined
 }
-export async function gerarPdfInadimplencia(analise: AnaliseInadimplencia, contexto: ContextoRelatorio, options: { nome: string; cnpj?: string; indicacoesApp?: Array<{ bloco: string; unidade: string; acaoJudicial: boolean }>; template?: Uint8Array }) {
+export async function gerarPdfInadimplencia(analise: AnaliseInadimplencia, contexto: ContextoRelatorio, options: { inicioCobrancaDias?: number | null; nome: string; cnpj?: string; indicacoesApp?: Array<{ bloco: string; unidade: string; acaoJudicial: boolean }>; template?: Uint8Array }) {
   const doc = await PDFDocument.create(); const regular = await doc.embedFont(StandardFonts.Helvetica); const bold = await doc.embedFont(StandardFonts.HelveticaBold)
   const template = await PDFDocument.load(options.template ?? await readFile(path.join(process.cwd(), 'public/templates/genske-papel-timbrado.pdf')))
   const original = template.getPage(0); const box = original.getMediaBox()
@@ -68,7 +68,8 @@ export async function gerarPdfInadimplencia(analise: AnaliseInadimplencia, conte
       draw(r.values, r.fill ?? (i % 2 ? '#F5F2F6' : '#FFFFFF'))
     }); y -= 10
   }
-  const units = consolidar(analise, contexto, options.indicacoesApp), c = cortes(analise.dataBase)
+  const dias = Math.max(0, Number(options.inicioCobrancaDias ?? 30))
+  const units = consolidar(analise, contexto, options.indicacoesApp, dias), c = cortes(analise.dataBase, dias)
   const soma = (key: 'mais60' | 'mais5' | 'entre60e5') => units.some(u => u[key] === null) ? null : units.reduce((s, u) => s + u[key]!, 0)
   next(); text(options.nome, { size: 20, gap: 10 }); text('Relatório consolidado de inadimplência', { size: 14 })
   text(`Posição financeira: ${date(analise.dataBase)}${options.cnpj ? ` | CNPJ ${options.cnpj}` : ''}`)
@@ -77,13 +78,32 @@ export async function gerarPdfInadimplencia(analise: AnaliseInadimplencia, conte
   text(DISCLAIMER)
   text(`${units.length} unidades | ${analise.qualidade === 'completa' ? `${analise.recibos.length} recibos` : 'Base resumida'} | Saldo atualizado: R$ ${money(analise.totais.total)}`)
   table(['Composição', 'Valor (R$)'], (['principal', 'multa', 'correcaoJuros', 'total'] as const).map((k, i) => ({ values: [['Principal', 'Multa', 'Correção e juros', 'TOTAL'][i], money(analise.totais[k])] })), [360, 155])
-  table(['Faixa de vencimento', 'Unidades', 'Saldo atualizado (R$)'], [['Mais de 60 dias', 'mais60'], ['Mais de 5 anos', 'mais5'], ['Mais de 60 dias e menos de 5 anos', 'entre60e5']].map(([label, key]) => ({ values: [label, soma(key as 'mais60') === null ? 'Não disponível' : String(units.filter(u => (u[key as 'mais60'] ?? 0) > 0).length), money(soma(key as 'mais60'))] })), [290, 75, 150])
+  table(['Faixa de vencimento', 'Unidades', 'Saldo atualizado (R$)'], [[`Na régua (D+${dias})`, 'mais60'], ['Mais de 5 anos', 'mais5'], [`Na régua (D+${dias}) e menos de 5 anos`, 'entre60e5']].map(([label, key]) => ({ values: [label, soma(key as 'mais60') === null ? 'Não disponível' : String(units.filter(u => (u[key as 'mais60'] ?? 0) > 0).length), money(soma(key as 'mais60'))] })), [290, 75, 150])
   text('As faixas são subconjuntos do saldo total e não devem ser somadas entre si. Os valores atualizados acima representam recibos completos, com todas as naturezas e encargos.')
   if (analise.qualidade === 'resumida') text(analise.observacoes[0])
   const datas = analise.recibos.map(r => r.vencimento).filter((d): d is string => Boolean(d)).sort()
   if (datas.length) text(`Vencimento mais antigo: ${date(datas[0])}. Mais recente: ${date(datas.at(-1))}.`)
+  next('Distribuição da inadimplência')
+  text(`Régua deste condomínio: D+${dias}. Posição financeira: ${date(analise.dataBase)}.`)
+  const distribuicao = distribuirInadimplencia(analise, units, dias)
+  const barras = [
+    ['Administradora', distribuicao.administradora, '#7C8A9A'],
+    ['Cobrança Ativa', distribuicao.ativa, '#007A9B'],
+    ['Pré-jurídico', distribuicao.preJuridico, '#D99B24'],
+    ['Processo judicial', distribuicao.judicial, purple],
+  ] as const
+  const maximo = Math.max(1, ...barras.map(b => b[1]))
+  for (const [label, valor, cor] of barras) {
+    text(`${label} - R$ ${money(valor)}`, { bold: true, gap: 5 })
+    page.drawRectangle({ x: X, y: y - 18, width: WIDTH, height: 18, color: color('#F0EDF2') })
+    if (valor > 0) page.drawRectangle({ x: X, y: y - 18, width: WIDTH * valor / maximo, height: 18, color: color(cor) })
+    y -= 36
+  }
+  text('Administradora: vencimentos antes do início da régua. Cobrança Ativa: débitos que atingiram o prazo, sem classificação judicial ou pré-jurídica. As categorias não se sobrepõem.')
+  text('A classificação judicial considera a indicação no app, conferência ou processo não encerrado vinculado expressamente à unidade; não afirma que todas as parcelas estejam incluídas nos autos. Correspondência apenas nominal não altera a categoria.')
+  if (distribuicao.semData) text(`Saldo sem vencimento disponível, fora das barras: R$ ${money(distribuicao.semData)}. É necessário o detalhamento para dividir entre Administradora e Cobrança Ativa.`)
   next('Critérios, conferência e legenda')
-  text(`Mais de 60 dias: vencimento anterior a ${date(c.sessenta)}. Mais de 5 anos: anterior a ${date(c.cinco)}. Os limites são estritos. Não se atribui o saldo integral da unidade à idade do vencimento mais antigo.`)
+  text(`Régua do condomínio: D+${dias}, vencimento até ${date(c.sessenta)} (inclusive). Mais de 5 anos: anterior a ${date(c.cinco)}. O limite de cinco anos é estrito. Não se atribui o saldo integral da unidade à idade do vencimento mais antigo.`)
   if (analise.dataBaseInferida) text('Não havia data no nome do arquivo; foi adotada a data de geração. Informe a data-base ao anexar as fontes, se necessário.')
   const limitacaoJur = descricaoLimitacaoJur(contexto)
   if (limitacaoJur) text(limitacaoJur)
@@ -93,7 +113,7 @@ export async function gerarPdfInadimplencia(analise: AnaliseInadimplencia, conte
     ['N', 'Processo relacionado por nome. Unidade e vencimentos abrangidos precisam de confirmação.'], ['G / O / NI', 'Genske Advogados / outro escritório informado / escritório não identificado. Lidiane Genske Baia = Genske, conforme confirmação do solicitante.'], ['D / APP', 'Pré-distribuição informada / indicação judicial no cadastro do app, sem confirmação de situação processual.'], ['[H]', 'Somente processos extintos, cancelados ou arquivados relacionados.'], ['5P / 5S', 'Saldo com mais de 5 anos com / sem processo relacionado identificado. Não é conclusão sobre prescrição.'], ['S', 'Sem correspondência nos dados disponíveis; não comprova ausência de ação.'], ['Verde', 'Movimentação recente informada, sem encerramento indicado. Publicação recente não confirma isoladamente andamento atual.'], ['Amarelo', 'Processo expressamente suspenso.'],
   ].map(values => ({ values, fill: values[0] === 'Verde' ? green : values[0] === 'Amarelo' ? yellow : undefined })), [95, 420])
   text('U: unidade expressamente identificada na fonte processual. O vínculo não confirma quais parcelas estão abrangidas pelo processo.')
-  next('Processos e unidades acima de 60 dias')
+  next(`Processos e unidades na régua (D+${dias})`)
   if (soma('mais60') === null) text('Anexe a origem detalhada para calcular os valores e as unidades por faixa de vencimento.')
   else {
     const groups = new Map<string, UnidadeRelatorio[]>()
@@ -101,7 +121,7 @@ export async function gerarPdfInadimplencia(analise: AnaliseInadimplencia, conte
       const label = u.conferencia?.situacao === 'pre_distribuicao' ? 'Pré-distribuição (conferência)' : u.processos.length ? u.processos.every(p => estadoProcesso(p) === 'historico') ? 'Processo histórico / encerrado informado' : 'Processo relacionado (conferir situação)' : u.preJuridico ? 'Pré-distribuição' : u.conferencia?.situacao === 'judicial' ? 'Judicial informado (conferência)' : u.indicacaoApp ? 'Indicação judicial no app' : 'Sem correspondência'
       groups.set(label, [...(groups.get(label) ?? []), u])
     }
-    table(['Vínculo', 'Unidades', 'Saldo > 60 dias (R$)'], [...groups].map(([label, us]) => ({ values: [label, String(us.length), money(us.reduce((s, u) => s + u.mais60!, 0))] })), [300, 65, 150])
+    table(['Vínculo', 'Unidades', `Saldo D+${dias} (R$)`], [...groups].map(([label, us]) => ({ values: [label, String(us.length), money(us.reduce((s, u) => s + u.mais60!, 0))] })), [300, 65, 150])
   }
   if (contexto.processos === undefined) text('Nenhuma relação de processos foi anexada. As indicações do app não substituem a conferência dos autos.')
   text(`Pré-jurídico: ${contexto.preJuridico === undefined ? 'relação não anexada' : `${contexto.preJuridico.length} registro(s) deste condomínio na fonte recebida`}.`)
@@ -113,7 +133,7 @@ export async function gerarPdfInadimplencia(analise: AnaliseInadimplencia, conte
   const rowsFor = (us: UnidadeRelatorio[]) => us.map(u => ({ values: [u.bloco ? `${u.bloco}/${u.unidade}` : u.unidade, u.responsaveis.join(' / '), money(u.total), money(u.mais60), money(u.mais5), marca(u)], fill: rowColor(u) }))
   next('Relação completa de unidades')
   text('Valores atualizados dos recibos completos. As cores e marcas indicam processos relacionados ao cadastro, não confirmam a inclusão de cada débito nos autos.')
-  table(['Unidade', 'Responsável', 'Saldo total', '> 60 dias', '> 5 anos', 'Marcas'], rowsFor(units), [62, 137, 82, 82, 82, 70])
+  table(['Unidade', 'Responsável', 'Saldo total', `D+${dias}`, '> 5 anos', 'Marcas'], rowsFor(units), [62, 137, 82, 82, 82, 70])
   const recibosById = new Map(analise.recibos.map(r => [r.id, r]))
   const categories = [...new Set(analise.itens.map(i => i.natureza))].sort((a, b) => a === 'Taxa condominial' ? -1 : b === 'Taxa condominial' ? 1 : a.localeCompare(b, 'pt-BR'))
   for (const category of categories) {
@@ -127,7 +147,7 @@ export async function gerarPdfInadimplencia(analise: AnaliseInadimplencia, conte
     const elegiveis = units.map(u => {
       const valor = its.filter(i => {
         const r = recibosById.get(i.reciboId)
-        return r && chaveUnidade(r.bloco, r.unidade) === u.chave && r.vencimento && r.vencimento < c.sessenta && r.vencimento > c.cinco
+        return r && chaveUnidade(r.bloco, r.unidade) === u.chave && r.vencimento && r.vencimento <= c.sessenta && r.vencimento > c.cinco
       }).reduce((s, i) => s + (i[field] ?? 0), 0)
       return { u, valor }
     }).filter(r => r.valor > 0)
@@ -138,7 +158,7 @@ export async function gerarPdfInadimplencia(analise: AnaliseInadimplencia, conte
       ['Indicação judicial no app, sem relação numerada', elegiveis.filter(r => !r.u.processos.length && !r.u.preJuridico && !r.u.conferencia && r.u.indicacaoApp)],
       ['Sem correspondência nas fontes', elegiveis.filter(r => !r.u.processos.length && !r.u.preJuridico && !r.u.conferencia && !r.u.indicacaoApp)],
     ] as const
-    text('Recorte: vencidos há mais de 60 dias e menos de 5 anos.', { bold: true })
+    text(`Recorte: na régua D+${dias} e menos de 5 anos.`, { bold: true })
     table(['Vínculo', 'Unidades', 'Valor do recorte (R$)'], grupos.map(([label, rs]) => ({ values: [label, String(rs.length), money(rs.reduce((s, r) => s + r.valor, 0))] })), [300, 65, 150])
     const rows = units.flatMap(u => {
       const ids = new Set(analise.recibos.filter(r => chaveUnidade(r.bloco, r.unidade) === u.chave).map(r => r.id))
@@ -147,10 +167,10 @@ export async function gerarPdfInadimplencia(analise: AnaliseInadimplencia, conte
       const sum = (cut?: string) => sub.filter(i => !cut || (recibosById.get(i.reciboId)?.vencimento ?? '9999') < cut).reduce((s, i) => s + i[field]!, 0)
       return [{ values: [u.bloco ? `${u.bloco}/${u.unidade}` : u.unidade, u.responsaveis.join(' / '), money(sum()), money(sum(c.sessenta)), money(sum(c.cinco)), marca(u)], fill: rowColor(u) }]
     })
-    if (rows.length) table(['Unidade', 'Responsável', 'Valor total', '> 60 dias', '> 5 anos', 'Marcas'], rows, [62, 137, 82, 82, 82, 70])
+    if (rows.length) table(['Unidade', 'Responsável', 'Valor total', `D+${dias}`, '> 5 anos', 'Marcas'], rows, [62, 137, 82, 82, 82, 70])
     else text('Nenhum valor não nulo quantificado nesta natureza.')
   }
-  if (units.some(u => (u.mais5 ?? 0) > 0)) { next('Débitos com mais de 5 anos'); table(['Unidade', 'Responsável', 'Saldo total', '> 60 dias', '> 5 anos', 'Marcas'], rowsFor(units.filter(u => (u.mais5 ?? 0) > 0)), [62, 137, 82, 82, 82, 70]) }
+  if (units.some(u => (u.mais5 ?? 0) > 0)) { next('Débitos com mais de 5 anos'); table(['Unidade', 'Responsável', 'Saldo total', `D+${dias}`, '> 5 anos', 'Marcas'], rowsFor(units.filter(u => (u.mais5 ?? 0) > 0)), [62, 137, 82, 82, 82, 70]) }
   for (const propria of [true, false]) {
     next(propria ? 'Cadastro de cobranças e execuções' : 'Demais processos - informação adicional')
     const ps = (contexto.processos ?? []).filter(p => p.cobrancaPropria === propria)
