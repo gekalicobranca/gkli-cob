@@ -2457,7 +2457,7 @@ function extractSuperlogicaCondominio(text: string) {
   const match = normalized.match(
     /Condom[íi]nio:\s*\d+\s*-\s*([^\n]+?)(?:\s{2,}CNPJ:|\s+CNPJ:|$)/i,
   );
-  if (match) return normalize(match[1]);
+  if (match) return normalize(match[1]).replace(/\s*[ÍI]ndice\s+econ[oô]mico\s*:.*$/i, "").trim();
 
   const looseLine = normalized
     .split("\n")
@@ -2467,7 +2467,7 @@ function extractSuperlogicaCondominio(text: string) {
   return looseLine
     ? normalize(
         looseLine.replace(/.*Condom[íi]nio:\s*\d+\s*-\s*/i, ""),
-      ).replace(/\s*CNPJ:.*$/i, "")
+      ).replace(/\s*(?:CNPJ|[ÍI]ndice\s+econ[oô]mico)\s*:.*$/i, "").trim()
     : null;
 }
 
@@ -3594,7 +3594,7 @@ function detectSuperlogicaPendentesCobrancas(text: string): DeteccaoPdfCobrancas
   const normalized = normalizePdfText(text);
   const loose = normalizeForLooseMatch(normalized);
   const condominioDetectado =
-    normalized.match(/Condom[ií]nio\s*:\s*\d+\s*-\s*([^\n]+)/i)?.[1]?.trim() ??
+    normalized.match(/Condom[ií]nio\s*:\s*\d+\s*-\s*([^\n]+)/i)?.[1]?.replace(/\s*[ÍI]ndice\s+econ[oô]mico\s*:.*$/i, "").trim() ??
     null;
 
   const sinais = [
