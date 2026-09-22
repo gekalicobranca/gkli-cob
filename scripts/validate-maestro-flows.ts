@@ -2,7 +2,23 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
-import { motivoExclusaoMaestro, motivoSaneamentoMaestro } from '../features/flows/cobranca/maestro-elegibilidade'
+import { classificarPendenciasMaestro, motivoExclusaoMaestro, motivoSaneamentoMaestro } from '../features/flows/cobranca/maestro-elegibilidade'
+
+test('somente responsável e e-mail ficam pendentes, inclusive em avaliações antigas', () => {
+  const motivos = [
+    'Responsável não cadastrado', 'E-mail ausente ou inválido',
+    'Já vinculada a outro Flow', 'Já vinculada a outro Flow de e-mail',
+    'Ainda não atingiu D+30', 'Acordo vigente', 'Automação bloqueada',
+    'Débito quitado ou renegociado', 'Status fora da cobrança automática', 'Falha na montagem',
+  ]
+  const registros = motivos.map((motivo, index) => ({ cobranca_id: String(index), motivo, saneamento: index < 2 }))
+  const resultado = classificarPendenciasMaestro(registros)
+  assert.deepEqual(resultado.pendencias, registros.slice(0, 2))
+  assert.deepEqual(resultado.vinculadas, registros.slice(2, 4))
+  assert.deepEqual(resultado.excluidas, registros.slice(4))
+  assert.equal(classificarPendenciasMaestro(registros.slice(2)).pendencias.length, 0)
+  assert.deepEqual(classificarPendenciasMaestro([]), { pendencias: [], vinculadas: [], excluidas: [] })
+})
 
 test('bloqueios, acordo vigente, prazo e contatos são verificados antes da montagem', () => {
   const row = { status_operacional: 'novo', status: 'novo', vencimento: '2020-01-01', status_financeiro: 'em_aberto' }

@@ -14,3 +14,21 @@ export function motivoSaneamentoMaestro(nome: unknown, email: unknown) {
   if (!/^[^\s@;,]+@[^\s@;,]+\.[^\s@;,]+$/.test(String(email ?? '').trim())) return 'E-mail ausente ou inválido'
   return null
 }
+
+type PendenciaMaestro = { cobranca_id: string; motivo: string; saneamento?: boolean }
+
+export function classificarPendenciasMaestro(registros: PendenciaMaestro[]) {
+  const pendencias: PendenciaMaestro[] = []
+  const vinculadas: PendenciaMaestro[] = []
+  const excluidas: PendenciaMaestro[] = []
+  for (const registro of registros) {
+    if (['Responsável não cadastrado', 'E-mail ausente ou inválido'].includes(registro.motivo)) {
+      pendencias.push(registro)
+    } else if (['Já vinculada a outro Flow', 'Já vinculada a outro Flow de e-mail'].includes(registro.motivo)) {
+      vinculadas.push(registro)
+    } else {
+      excluidas.push(registro)
+    }
+  }
+  return { pendencias, vinculadas, excluidas }
+}

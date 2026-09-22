@@ -6,6 +6,7 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import { Card } from '@/components/ui/card'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { retomarMontagemMaestro } from '@/features/flows/cobranca/maestro-actions'
+import { classificarPendenciasMaestro } from '@/features/flows/cobranca/maestro-elegibilidade'
 import { MaestroRefresh } from './maestro-refresh'
 
 type FiltrosMontagem = { condominioIds?: string[]; carteiraId?: string; status?: string; mostrarVazio?: boolean }
@@ -47,8 +48,7 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
     <div className="divide-y divide-slate-100">{data.map((job: any) => {
       const condominio = Array.isArray(job.condominio) ? job.condominio[0] : job.condominio
       const partes = job.plano?.length ?? 0
-      const vinculadas = (job.pendencias ?? []).filter((p: any) => p.motivo === 'Já vinculada a outro Flow')
-      const pendencias = (job.pendencias ?? []).filter((p: any) => p.motivo !== 'Já vinculada a outro Flow')
+      const { pendencias, vinculadas, excluidas } = classificarPendenciasMaestro(job.pendencias ?? [])
       const flows = flowsPorCondominio.get(job.condominio_id) ?? []
       const destaMontagem = flows.filter(flow => (job.flow_ids ?? []).includes(flow.id)).length
       const prontos = flows.filter(flow => flow.status === 'pronto').length
@@ -57,11 +57,12 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
           <p className="text-sm font-medium">{condominio?.nome_operacional || condominio?.nome}</p>
           <p className="text-xs text-slate-500">{labels[job.status]}{partes > 0 ? ` · ${job.parte}/${partes} partes` : job.status === 'concluido' ? ' · Nenhuma nova cobrança elegível nesta avaliação' : ''}</p>
         </div>
-        {['atencao', 'concluido'].includes(job.status) ? <form action={retomarMontagemMaestro.bind(null, job.id)}><PendingSubmitButton variant="secondary" size="sm" pendingLabel="Enfileirando...">{job.status === 'atencao' ? 'Retomar montagem' : 'Reavaliar pendências'}</PendingSubmitButton></form> : null}</div>
+        {job.status === 'atencao' || (job.status === 'concluido' && pendencias.length > 0) ? <form action={retomarMontagemMaestro.bind(null, job.id)}><PendingSubmitButton variant="secondary" size="sm" pendingLabel="Enfileirando...">{job.status === 'atencao' ? 'Retomar montagem' : 'Reavaliar pendências'}</PendingSubmitButton></form> : null}</div>
         <p className="text-xs text-slate-600">{flowsIndisponiveis ? 'Total de flows temporariamente indisponível.' : `${flows.length} flow(s) no condomínio · ${destaMontagem} desta montagem do Maestro · ${flows.length - destaMontagem} de outras montagens, inclusive manuais · ${prontos} pronto(s) para ativar`}</p>
         {vinculadas.length ? <p className="text-xs text-emerald-700">{vinculadas.length} cobrança(s) já incluída(s) em flows na última avaliação.</p> : null}
         {job.erro ? <p className="text-sm text-rose-700">{job.erro}</p> : null}
-        {pendencias.length ? <details className="text-xs text-slate-600"><summary className="cursor-pointer">{pendencias.length} cobrança(s) com pendências na última avaliação</summary><ul className="mt-2 space-y-1">{pendencias.map((p: any, index: number) => <li key={index}><Link href={`/app/cobrancas/${p.cobranca_id}`} className="underline">Abrir cobrança</Link> · {p.motivo}{p.saneamento ? ' · Saneamento' : ''}</li>)}</ul></details> : null}
+        {pendencias.length ? <details className="text-xs text-slate-600"><summary className="cursor-pointer">{pendencias.length} cobrança(s) com pendências de responsável ou e-mail</summary><p className="mt-2">Após corrigir o cadastro, use Reavaliar pendências.</p><ul className="mt-2 space-y-1">{pendencias.map((p, index) => <li key={index}><Link href={`/app/cobrancas/${p.cobranca_id}`} className="underline">Abrir cobrança</Link> · {p.motivo}</li>)}</ul></details> : null}
+        {excluidas.length ? <details className="text-xs text-slate-500"><summary className="cursor-pointer">{excluidas.length} cobrança(s) não incluída(s) por outros motivos</summary><ul className="mt-2 space-y-1">{excluidas.map((p, index) => <li key={index}><Link href={`/app/cobrancas/${p.cobranca_id}`} className="underline">Abrir cobrança</Link> · {p.motivo}</li>)}</ul></details> : null}
       </div>
     })}</div>
     {(count ?? 0) > data.length ? <p className="text-xs text-slate-500">Mostrando as 100 montagens atualizadas mais recentemente.</p> : null}

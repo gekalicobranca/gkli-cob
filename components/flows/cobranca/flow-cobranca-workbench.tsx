@@ -215,6 +215,21 @@ export function FlowCobrancaWorkbench({
   }, [selectedCobrancas])
   const grupos = useMemo(() => groupByCondominio(selectedCobrancas), [selectedCobrancas])
   const gruposDisponiveis = useMemo(() => groupByCondominio(elegiveis), [elegiveis])
+  const carteirasDisponiveis = useMemo(() => {
+    const carteiras = new Map<string, { id: string; nome: string; grupos: typeof gruposDisponiveis; quantidade: number }>()
+    for (const grupo of gruposDisponiveis) {
+      const carteira = carteiras.get(grupo.carteiraId) ?? {
+        id: grupo.carteiraId,
+        nome: grupo.carteiraNome,
+        grupos: [],
+        quantidade: 0,
+      }
+      carteira.grupos.push(grupo)
+      carteira.quantidade += grupo.rows.length
+      carteiras.set(grupo.carteiraId, carteira)
+    }
+    return [...carteiras.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [gruposDisponiveis])
 
   useEffect(() => {
     if (!grupos.length) return
@@ -248,47 +263,54 @@ export function FlowCobrancaWorkbench({
               {semResponsavel > 0 ? <p className="mt-1 text-xs text-amber-800">{semResponsavel} cobrança(s) sem responsável não entram na seleção. Preencha o responsável no cadastro da unidade para incluí-las no Flow.</p> : null}
             </div>
           </div>
-          <ListRows>
-            {gruposDisponiveis.map((grupo) => {
-              const elegiveisNoGrupo = grupo.rows.filter(hasResponsavelVinculado)
-              const pendenciasPorCondominio = new Map<string, { nome: string; quantidade: number }>()
-              for (const row of grupo.rows.filter((row) => !hasResponsavelVinculado(row))) {
-                const condominio = relation(row.condominio)
-                const id = row.condominio_id || condominio?.id || 'sem-condominio'
-                const pendencia = pendenciasPorCondominio.get(id) ?? {
-                  nome: condominio?.nome_operacional || condominio?.nome || 'Condomínio não informado',
-                  quantidade: 0,
-                }
-                pendencia.quantidade += 1
-                pendenciasPorCondominio.set(id, pendencia)
-              }
-              const selecionadasNoGrupo = elegiveisNoGrupo.filter((row) => selected.includes(row.id))
-              const grupoSelecionado = grupo.condominioId === selectedCondominio
-              const opcoesRegua = opcoesDoGrupo(grupo.rows)
-              const defaultRegua = reguaDoGrupo(grupo.rows)
-              return <ListRow key={grupo.condominioId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
-                <div>
-                  <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="radio" name="condominio_selecionado" value={grupo.condominioId} checked={grupoSelecionado} disabled={criando || elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 border-slate-300 text-[var(--gkli-primary)]" />{grupo.condominioNome}</label>
-                  <p className="mt-1 text-xs text-slate-500">{grupo.carteiraNome}</p>
-                  <p className="mt-1 text-xs text-slate-500">{selecionadasNoGrupo.length} de {elegiveisNoGrupo.length} cobrança(s) selecionada(s)</p>
-                  <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer">Ver cobranças incluídas pelo filtro ({grupo.rows.length})</summary><ul className="mt-2 space-y-2">{grupo.rows.map(row => <li key={row.id}><a href={`/app/cobrancas/${row.id}`} className="underline">Unidade {relation(row.unidade)?.identificacao || '-'} · {row.vencimento} · {formatCurrency(cobrancaValue(row))}</a></li>)}</ul></details>
-                  {grupo.rows.length > elegiveisNoGrupo.length ? <p className="mt-1 text-xs text-amber-800">{grupo.rows.length - elegiveisNoGrupo.length} sem responsável</p> : null}
-                  {pendenciasPorCondominio.size > 0 ? <ul className="mt-1 space-y-1 text-xs text-amber-800" aria-label="Cobranças sem responsável por condomínio">
-                    {Array.from(pendenciasPorCondominio.entries()).sort(([, a], [, b]) => a.nome.localeCompare(b.nome, 'pt-BR')).map(([id, pendencia]) => <li key={id}>{pendencia.nome}: {pendencia.quantidade} cobrança(s) sem responsável</li>)}
-                  </ul> : null}
-                </div>
-                <div><p className="text-xs text-slate-400">Total selecionado</p><p className="text-sm font-medium text-slate-800">{formatCurrency(selecionadasNoGrupo.reduce((sum, row) => sum + cobrancaValue(row), 0))}</p></div>
-                <div><p className="text-xs text-slate-400">Lotes</p><p className="text-sm text-slate-700">{selecionadasNoGrupo.length ? `${plano.quantidade} parte(s)` : 'Não selecionado'}</p></div>
-                <label className="text-xs font-medium text-slate-600">
-                  Régua do Flow
-                  <select name={`regua_id:${grupo.carteiraId}`} required={selecionadasNoGrupo.length > 0} disabled={criando || !grupoSelecionado} value={defaultRegua} onChange={event => setReguasSelecionadas(current => ({ ...current, [grupo.condominioId]: event.target.value }))} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400">
-                    <option value="" disabled>Selecione</option>
-                    {opcoesRegua.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}{regua.carteira_id ? '' : ' · global'}</option>)}
-                  </select>
-                </label>
-              </ListRow>
-            })}
-          </ListRows>
+          <div className="space-y-3 p-3">
+            {carteirasDisponiveis.map((carteira) => <details key={carteira.id} open className="overflow-hidden rounded-lg border border-slate-200">
+              <summary className="cursor-pointer bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-950">
+                {carteira.nome}
+                <span className="mt-1 block text-xs font-normal text-slate-600">{carteira.grupos.length} condomínio(s) · {carteira.quantidade} cobrança(s)</span>
+              </summary>
+              <ListRows>
+                {carteira.grupos.map((grupo) => {
+                  const elegiveisNoGrupo = grupo.rows.filter(hasResponsavelVinculado)
+                  const pendenciasPorCondominio = new Map<string, { nome: string; quantidade: number }>()
+                  for (const row of grupo.rows.filter((row) => !hasResponsavelVinculado(row))) {
+                    const condominio = relation(row.condominio)
+                    const id = row.condominio_id || condominio?.id || 'sem-condominio'
+                    const pendencia = pendenciasPorCondominio.get(id) ?? {
+                      nome: condominio?.nome_operacional || condominio?.nome || 'Condomínio não informado',
+                      quantidade: 0,
+                    }
+                    pendencia.quantidade += 1
+                    pendenciasPorCondominio.set(id, pendencia)
+                  }
+                  const selecionadasNoGrupo = elegiveisNoGrupo.filter((row) => selected.includes(row.id))
+                  const grupoSelecionado = grupo.condominioId === selectedCondominio
+                  const opcoesRegua = opcoesDoGrupo(grupo.rows)
+                  const defaultRegua = reguaDoGrupo(grupo.rows)
+                  return <ListRow key={grupo.condominioId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
+                    <div>
+                      <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="radio" name="condominio_selecionado" value={grupo.condominioId} checked={grupoSelecionado} disabled={criando || elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 border-slate-300 text-[var(--gkli-primary)]" />{grupo.condominioNome}</label>
+                      <p className="mt-1 text-xs text-slate-500">{selecionadasNoGrupo.length} de {elegiveisNoGrupo.length} cobrança(s) selecionada(s)</p>
+                      <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer">Ver cobranças incluídas pelo filtro ({grupo.rows.length})</summary><ul className="mt-2 space-y-2">{grupo.rows.map(row => <li key={row.id}><a href={`/app/cobrancas/${row.id}`} className="underline">Unidade {relation(row.unidade)?.identificacao || '-'} · {row.vencimento} · {formatCurrency(cobrancaValue(row))}</a></li>)}</ul></details>
+                      {grupo.rows.length > elegiveisNoGrupo.length ? <p className="mt-1 text-xs text-amber-800">{grupo.rows.length - elegiveisNoGrupo.length} sem responsável</p> : null}
+                      {pendenciasPorCondominio.size > 0 ? <ul className="mt-1 space-y-1 text-xs text-amber-800" aria-label="Cobranças sem responsável por condomínio">
+                        {Array.from(pendenciasPorCondominio.entries()).sort(([, a], [, b]) => a.nome.localeCompare(b.nome, 'pt-BR')).map(([id, pendencia]) => <li key={id}>{pendencia.nome}: {pendencia.quantidade} cobrança(s) sem responsável</li>)}
+                      </ul> : null}
+                    </div>
+                    <div><p className="text-xs text-slate-400">Total selecionado</p><p className="text-sm font-medium text-slate-800">{formatCurrency(selecionadasNoGrupo.reduce((sum, row) => sum + cobrancaValue(row), 0))}</p></div>
+                    <div><p className="text-xs text-slate-400">Lotes</p><p className="text-sm text-slate-700">{selecionadasNoGrupo.length ? `${plano.quantidade} parte(s)` : 'Não selecionado'}</p></div>
+                    <label className="text-xs font-medium text-slate-600">
+                      Régua do Flow
+                      <select name={`regua_id:${grupo.carteiraId}`} required={selecionadasNoGrupo.length > 0} disabled={criando || !grupoSelecionado} value={defaultRegua} onChange={event => setReguasSelecionadas(current => ({ ...current, [grupo.condominioId]: event.target.value }))} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400">
+                        <option value="" disabled>Selecione</option>
+                        {opcoesRegua.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}{regua.carteira_id ? '' : ' · global'}</option>)}
+                      </select>
+                    </label>
+                  </ListRow>
+                })}
+              </ListRows>
+            </details>)}
+          </div>
           {plano.error ? <p role="alert" className="px-4 py-3 text-sm text-rose-800">{plano.error}</p> : null}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
             <label className="mr-auto inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="criar_pausado" value="true" disabled={criando} />Criar pausados, sem agendar envios</label>
