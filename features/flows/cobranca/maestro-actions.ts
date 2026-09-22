@@ -16,7 +16,8 @@ export async function retomarMontagemMaestro(id: string) {
     ...(job.lote_id ? {} : { plano: null, parte: 0, pendencias: [] }) }).eq('id', id).eq('status', job.status)
   if (updateError) throw new Error(updateError.message)
   revalidatePath('/app/agente-automatico/maestro')
-  revalidatePath('/app/flows/cobranca')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
 }
 
 
@@ -29,7 +30,8 @@ export async function configurarAtivacaoMaestro(carteiraId: string, ativo: boole
   const { error: ue } = await db.from('maestro_flow_controle').upsert({ carteira_id: carteiraId, ativo, updated_at: new Date().toISOString() })
   if (ue) throw new Error(ue.message)
   revalidatePath('/app/agente-automatico/maestro')
-  revalidatePath('/app/flows/cobranca')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
 }
 
 export async function retomarAtivacaoMaestro(flowId: string) {
@@ -41,5 +43,6 @@ export async function retomarAtivacaoMaestro(flowId: string) {
   const { error: ue } = await db.from('maestro_flow_ativacoes').update({ status: 'pendente', erro: null, updated_at: new Date().toISOString() }).eq('flow_id', flowId).eq('status', 'atencao')
   if (ue) throw new Error(ue.message)
   revalidatePath('/app/agente-automatico/maestro')
-  revalidatePath('/app/flows/cobranca')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
 }

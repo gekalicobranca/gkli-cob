@@ -1,6 +1,7 @@
 'use server'
 
 import { validarCriacaoPorCanal } from './vinculos-canais'
+import { canalFlowCobranca, flowCobrancaPath } from './rotas'
 import { consolidarEmailsLote } from './consolidar-emails'
 import { getEmailRemetenteKey } from '@/features/mensageria/email-provider'
 import { revalidatePath } from 'next/cache'
@@ -200,7 +201,8 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
     }
   }
 
-  revalidatePath('/app/flows/cobranca')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
   return { flowIds }
 }
 
@@ -252,10 +254,16 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
   const returnQuery = String(formData.get('return_query') ?? '').trim()
   const nextParams = new URLSearchParams(returnQuery)
   nextParams.set('step', 'lotes')
+  nextParams.set('aba', 'gerar')
+  nextParams.delete('pagina')
   nextParams.set('ativadas', String(elegiveis.length))
-  nextParams.set('selecionadas', elegiveis.join(','))
-  revalidatePath('/app/flows/cobranca')
-  redirect(`/app/flows/cobranca?${nextParams.toString()}`)
+  nextParams.set('condominio', rows[0].condominio_id)
+  nextParams.delete('selecionadas')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
+  const returnPath = flowCobrancaPath(canalFlowCobranca(nextParams.get('canal')))
+  nextParams.delete('canal')
+  redirect(`${returnPath}?${nextParams.toString()}`)
 }
 
 export async function enviarFlowCobranca(flowId: string) {
@@ -292,7 +300,8 @@ export async function enviarFlowCobranca(flowId: string) {
   })
 
 
-  revalidatePath('/app/flows/cobranca')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
 }
 
 export async function pausarFlowCobranca(flowId: string) {
@@ -314,7 +323,8 @@ export async function pausarFlowCobranca(flowId: string) {
     .update({ status: 'pausado', pausado_em: agora, proximo_disparo_em: null, atualizado_por: user.id } as any)
     .eq('id', flowId)
   if (error) throw new Error(`Erro ao pausar Flow: ${error.message}`)
-  revalidatePath('/app/flows/cobranca')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
 }
 
 export async function cancelarFlowCobranca(flowId: string) {
@@ -346,7 +356,8 @@ export async function cancelarFlowCobranca(flowId: string) {
     .eq('id', flowId)
   if (error) throw new Error(`Erro ao cancelar Flow: ${error.message}`)
 
-  revalidatePath('/app/flows/cobranca')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
 }
 
 export async function desfazerAtivacaoCobrancasFlowCobranca(formData: FormData) {
@@ -395,7 +406,8 @@ export async function desfazerAtivacaoCobrancasFlowCobranca(formData: FormData) 
     if (updateError) throw new Error(`Erro ao desfazer ativação das cobranças: ${updateError.message}`)
   }
 
-  revalidatePath('/app/flows/cobranca')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
 }
 
 export async function excluirFlowCobranca(flowId: string) {
@@ -424,7 +436,8 @@ export async function excluirFlowCobranca(flowId: string) {
   const { error: deleteLoteError } = await supabase.from('lotes').delete().eq('id', flow.lote_id)
   if (deleteLoteError) throw new Error(`Erro ao excluir lote: ${deleteLoteError.message}`)
 
-  revalidatePath('/app/flows/cobranca')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
 }
 
 export async function reenviarItemFlowCobranca(itemId: string) {
@@ -490,5 +503,6 @@ export async function reenviarItemFlowCobranca(itemId: string) {
     .eq('id', flowId)
 
   await recalcularFlowCobranca(supabase, flowId)
-  revalidatePath('/app/flows/cobranca')
+  revalidatePath('/app/flows/cobranca/email')
+  revalidatePath('/app/flows/cobranca/whatsapp')
 }

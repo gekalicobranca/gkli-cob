@@ -3,15 +3,17 @@
 import { reguasDisponiveis } from '@/features/flows/cobranca/canais'
 import { useActionState, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, RefreshCw, RotateCcw, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronRight, CirclePause, FileSignature, LoaderCircle, Play, RefreshCw, RotateCcw, Trash2, XCircle } from 'lucide-react'
 import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListRows } from '@/components/layout/list-page'
 import { Button } from '@/components/ui/button'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
+import { ImportProgressIndicator } from '@/components/feedback/import-progress-indicator'
 import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlowCobranca, enviarFlowCobranca, excluirFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { hasResponsavelVinculado } from '@/features/flows/cobranca/eligibilidade'
 import { dividirCriacaoFlows, LIMITE_EMAILS_FLOW } from '@/features/flows/cobranca/dividir-criacao'
 import { AtivacaoLoteFlows } from './ativacao-lote'
+import { flowCobrancaPath, type CanalFlowCobranca } from '@/features/flows/cobranca/rotas'
 
 type StepId = 'lotes' | 'flows'
 
@@ -140,19 +142,25 @@ function cobrancaEntity(cobranca: any) {
 }
 
 export function FlowCobrancaWorkbench({
+  canal,
+  mode,
+  returnQuery,
   disponibilidade,
   reguas,
   flows,
   initialStep,
   initialSelectedIds = [],
 }: {
+  canal: CanalFlowCobranca
+  mode: 'gerar' | 'flows'
+  returnQuery: string
   disponibilidade: any[]
   reguas: any[]
   flows: any[]
   initialStep?: StepId
   initialSelectedIds?: string[]
 }) {
-  const [selectedCondominio, setSelectedCondominio] = useState(() => disponibilidade.find(row => initialSelectedIds.includes(row.id))?.condominio_id ?? '')
+  const [selectedCondominio, setSelectedCondominio] = useState(() => disponibilidade.find(row => initialSelectedIds.includes(row.id))?.condominio_id ?? (new Set(disponibilidade.map(row => row.condominio_id)).size === 1 ? disponibilidade[0]?.condominio_id : ''))
   const [reguasSelecionadas, setReguasSelecionadas] = useState<Record<string, string>>({})
   function opcoesDoGrupo(rows: any[]) {
     const ids = new Set(rows.flatMap(row => reguasDisponiveis(row, reguas).map(regua => regua.id)))
@@ -194,8 +202,13 @@ export function FlowCobrancaWorkbench({
         criados += resultado.flowIds?.length ?? 0
       }
       setProgresso(`${criados} flow(s) criado(s).`)
-      setOpenSteps(current => ({ ...current, flows: true }))
-      router.refresh()
+      const query = new URLSearchParams(returnQuery)
+      query.set('aba', 'flows')
+      query.set('criados', String(criados))
+      query.delete('pagina')
+      query.delete('status')
+      for (const key of ['inclusao_de', 'inclusao_ate', 'vencimento_de', 'vencimento_ate', 'selecionadas', 'ativadas', 'step']) query.delete(key)
+      router.push(`${flowCobrancaPath(canal)}?${query}`)
       return null
     } catch (error) {
       setProgresso('')
@@ -209,11 +222,11 @@ export function FlowCobrancaWorkbench({
   const reguaSelecionada = reguaDoGrupo(rowsDoCondominio)
   const selectedCobrancas = rowsDoCondominio.filter(row => reguasDisponiveis(row, reguas).some(regua => regua.id === reguaSelecionada))
   const selected = selectedCobrancas.map(row => row.id)
-  const plano = useMemo(() => {
+  const plano = (() => {
     try { return { quantidade: dividirCriacaoFlows(selectedCobrancas).length, error: '' } }
     catch (error) { return { quantidade: 0, error: error instanceof Error ? error.message : 'Revise o período selecionado.' } }
-  }, [selectedCobrancas])
-  const grupos = useMemo(() => groupByCondominio(selectedCobrancas), [selectedCobrancas])
+  })()
+  const grupos = groupByCondominio(selectedCobrancas)
   const gruposDisponiveis = useMemo(() => groupByCondominio(elegiveis), [elegiveis])
   const carteirasDisponiveis = useMemo(() => {
     const carteiras = new Map<string, { id: string; nome: string; grupos: typeof gruposDisponiveis; quantidade: number }>()
@@ -247,18 +260,19 @@ export function FlowCobrancaWorkbench({
   }
 
   return <div className="space-y-3">
+    <ImportProgressIndicator active={criando} title="Criando flows de cobrança" steps={['Criar flows em partes']} currentStep={0} detail={progresso || 'Preparando a criação dos flows...'} />
     {progresso ? <p role="status" aria-live="polite" className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">{progresso}</p> : null}
     {createState?.error ? <p role="alert" className="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{createState.error}</p> : null}
-    <ListPanel>
+    {mode === 'gerar' ? <ListPanel>
       <details open={openSteps.lotes} onToggle={(event) => syncStepOpen('lotes', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListCollapsibleSectionHeader title="Condomínio + régua" count={gruposDisponiveis.length} />
         </summary>
-        {gruposDisponiveis.length ? <form action={createAction}>
+        {gruposDisponiveis.length ? <form action={createAction} data-global-pending="off">
           {selectedCobrancas.map((cobranca) => <input key={cobranca.id} type="hidden" name="cobranca_id" value={cobranca.id} />)}
           <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <p className="text-sm text-slate-600">Selecione um condomínio por Flow. Serão incluídas as {selectedCobrancas.length} cobrança(s) disponíveis para os canais da régua selecionada. E-mail e WhatsApp podem ter Flows separados.</p>
+              <p className="text-sm text-slate-600">Selecione um condomínio por Flow de {canal === 'email' ? 'e-mail' : 'WhatsApp'}. Serão incluídas as {selectedCobrancas.length} cobrança(s) disponíveis para os canais da régua selecionada. Réguas mistas incluem todos os seus canais.</p>
               <p className="mt-1 text-xs text-slate-500">Criação automática em partes menores, com até {LIMITE_EMAILS_FLOW} mensagens por Flow. As cobranças da mesma unidade ficam juntas. Mantenha esta página aberta até concluir.</p>
               {semResponsavel > 0 ? <p className="mt-1 text-xs text-amber-800">{semResponsavel} cobrança(s) sem responsável não entram na seleção. Preencha o responsável no cadastro da unidade para incluí-las no Flow.</p> : null}
             </div>
@@ -319,9 +333,9 @@ export function FlowCobrancaWorkbench({
           </div>
         </form> : <ListEmptyState title="Nenhum condomínio disponível" description="Não há cobranças com canal disponível neste filtro. Confira os filtros e os Flows já existentes." />}
       </details>
-    </ListPanel>
+    </ListPanel> : null}
 
-    <ListPanel>
+    {mode === 'flows' ? <ListPanel>
       <details open={openSteps.flows} onToggle={(event) => syncStepOpen('flows', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
           <ListCollapsibleSectionHeader title="Flows" count={flowsVisiveis.length} />
@@ -337,18 +351,18 @@ export function FlowCobrancaWorkbench({
               <div className="min-w-0 flex-1"><FlowRow flow={flow} /></div>
             </div>} />
           </fieldset>
-        </> : <ListEmptyState title="Nenhum Flow criado ainda" description="Depois de criar um Flow, ele aparecerá aqui para envio e monitoramento." />}
+        </> : <ListEmptyState title="Nenhum Flow neste filtro" description="Ajuste os filtros ou use Gerar flows para preparar novas cobranças." />}
       </details>
-    </ListPanel>
+    </ListPanel> : null}
   </div>
 }
 
 export function FlowCobrancaHistorico({ flows }: { flows: any[] }) {
   return <ListPanel>
-    <ListCollapsibleSectionHeader title="Flows concluídos" count={flows.length} />
+    <ListCollapsibleSectionHeader title="Histórico de flows" count={flows.length} />
     {flows.length
       ? <FlowsAgrupados flows={flows} renderFlow={flow => <FlowRow key={flow.id} flow={flow} />} />
-      : <ListEmptyState title="Nenhum Flow concluído" description="Os flows concluídos aparecerão aqui, com o histórico e os detalhes dos envios." />}
+      : <ListEmptyState title="Nenhum Flow no histórico deste filtro" description="Flows concluídos ou cancelados aparecem aqui para consulta." />}
   </ListPanel>
 }
 
@@ -368,33 +382,17 @@ function FlowsAgrupados({ flows, renderFlow }: { flows: any[]; renderFlow: (flow
     const total = (campo: string) => rows.reduce((sum, flow) => sum + n(flow[campo]), 0)
     return `${rows.length} flows · ${total('total_pendentes')} pendentes · ${total('total_agendadas')} agendadas · ${total('total_enviadas')} enviadas · ${total('total_falhas')} falhas`
   }
-  const agruparCanais = (rows: any[]) => {
-    const grupos = new Map<string, any[]>()
-    for (const flow of rows) {
-      const canais = [...new Set<string>(flow.canais ?? [])].sort()
-      const nome = canais.length ? canais.map(canal => canal === 'email' ? 'E-mail' : canal === 'whatsapp' ? 'WhatsApp' : canal).join(' + ') : 'Canal não informado'
-      if (!grupos.has(nome)) grupos.set(nome, [])
-      grupos.get(nome)!.push(flow)
-    }
-    return [...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
-  }
   return <div className="space-y-3 p-3">{[...carteiras.entries()].sort((a, b) => a[1].nome.localeCompare(b[1].nome, 'pt-BR')).map(([id, carteira]) =>
     <details key={id} open className="overflow-hidden rounded-lg border border-slate-200">
       <summary className="cursor-pointer bg-slate-100 px-4 py-3 text-sm font-semibold">
         {carteira.nome}<span className="mt-1 block text-xs font-normal text-slate-600">{carteira.condominios.size} condomínio(s) · {resumo(carteira.flows)}</span>
       </summary>
       <div className="space-y-2 p-2">{[...carteira.condominios.entries()].sort((a, b) => a[1].nome.localeCompare(b[1].nome, 'pt-BR')).map(([condominioId, condominio]) =>
-        <details key={condominioId} className="overflow-hidden rounded-lg border border-slate-100">
+        <details key={condominioId} open className="overflow-hidden rounded-lg border border-slate-100">
           <summary className="cursor-pointer bg-slate-50 px-4 py-3 text-sm font-medium">
             {condominio.nome}<span className="mt-1 block text-xs font-normal text-slate-500">{resumo(condominio.flows)}</span>
           </summary>
-          <div className="space-y-2 p-2">{agruparCanais(condominio.flows).map(([canal, rows]) =>
-            <details key={canal} open className="overflow-hidden rounded-lg border border-slate-100">
-              <summary className="cursor-pointer bg-white px-4 py-3 text-sm font-medium">
-                {canal}<span className="mt-1 block text-xs font-normal text-slate-500">{resumo(rows)}</span>
-              </summary>
-              <ListRows>{rows.map(renderFlow)}</ListRows>
-            </details>)}</div>
+          <ListRows>{condominio.flows.map(renderFlow)}</ListRows>
         </details>)}</div>
     </details>)}</div>
 }
@@ -410,6 +408,7 @@ function FlowRow({ flow }: { flow: any }) {
   const [itensLoading, setItensLoading] = useState(false)
   const [itensError, setItensError] = useState('')
   const [processando, setProcessando] = useState(false)
+  const [processarEtapa, setProcessarEtapa] = useState(0)
   const [processarError, setProcessarError] = useState('')
   const counters = {
     pendentes: n(flow.total_pendentes),
@@ -438,12 +437,14 @@ function FlowRow({ flow }: { flow: any }) {
 
   async function processarAgora() {
     if (processando) return
+    setProcessarEtapa(0)
     setProcessando(true)
     setProcessarError('')
     try {
       const response = await fetch(`/api/flows/cobranca/${flow.id}/processar`, { method: 'POST' })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload?.error || 'Não foi possível processar o Flow.')
+      setProcessarEtapa(1)
       await loadItens(true)
       router.refresh()
     } catch (error) {
@@ -455,20 +456,21 @@ function FlowRow({ flow }: { flow: any }) {
 
   return <details className="group/flow" onToggle={(event) => { if (event.currentTarget.open) void loadItens() }}>
     <summary className="list-none [&::-webkit-details-marker]:hidden">
-      <ListRow className="cursor-pointer bg-white lg:grid-cols-[minmax(320px,1.2fr)_minmax(360px,1fr)_190px_24px]">
+      <ListRow className="cursor-pointer bg-white lg:grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(220px,1fr)_150px_20px]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(status)}`}>{FLOW_STATUS_LABEL[status] ?? status}</span>
             <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600"><FileSignature size={13} />{n(flow.total_mensagens)} mensagens</span>
+            {flow.canais?.length > 1 ? <span title="As ações deste Flow se aplicam a todos os seus canais." className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-800">Múltiplos canais</span> : null}
           </div>
           <p className="mt-2 truncate text-sm font-semibold text-slate-950">{flow.nome}</p>
           <p className="mt-1 truncate text-xs text-slate-500">{carteira?.nome || 'Carteira'} · {regua?.nome || 'Régua'} · Lote {String(flow.lote_id ?? '').slice(0, 8)}</p>
         </div>
         <div className="grid grid-cols-4 gap-2">
-          <FlowCounter label="Pend." value={counters.pendentes} />
-          <FlowCounter label="Agenda" value={counters.agendadas} tone="sky" />
-          <FlowCounter label="Env." value={counters.enviadas} tone="emerald" />
-          <FlowCounter label="Falha" value={counters.falhas} tone={counters.falhas ? 'rose' : 'slate'} />
+          <FlowCounter label="Pendentes" value={counters.pendentes} />
+          <FlowCounter label="Agendadas" value={counters.agendadas} tone="sky" />
+          <FlowCounter label="Enviadas" value={counters.enviadas} tone="emerald" />
+          <FlowCounter label="Falhas" value={counters.falhas} tone={counters.falhas ? 'rose' : 'slate'} />
         </div>
         <div><p className="text-xs text-slate-400">Próximo disparo</p><p className="text-sm font-medium text-slate-800">{formatDateTimeBR(flow.proximo_disparo_em)}</p></div>
         <ChevronRight size={17} className="text-slate-400 transition group-open/flow:rotate-90" />
@@ -487,8 +489,8 @@ function FlowRow({ flow }: { flow: any }) {
         ) : null}
         {status === 'em_execucao' ? (
           <>
-            <Button type="button" disabled={processando} onClick={() => void processarAgora()}>
-              <RefreshCw size={16} className={processando ? 'animate-spin' : ''} />{processando ? 'Processando...' : 'Processar agora'}
+            <Button type="button" loading={processando} loadingLabel="Processando..." onClick={() => void processarAgora()}>
+              <RefreshCw size={16} />Processar agora
             </Button>
             <form action={pausarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton variant="secondary" pendingLabel="Pausando..."><CirclePause size={16} />Pausar</PendingSubmitButton></form>
           </>
@@ -500,23 +502,25 @@ function FlowRow({ flow }: { flow: any }) {
           <form action={excluirFlowCobranca.bind(null, flow.id)} onSubmit={(event) => { if (!window.confirm('Excluir permanentemente este Flow, o lote e as mensagens nunca enviadas?')) event.preventDefault() }}><PendingSubmitButton variant="danger" pendingLabel="Excluindo..."><Trash2 size={16} />Excluir Flow</PendingSubmitButton></form>
         ) : null}
       </div>
-      {processarError ? <p className="text-xs font-medium text-rose-700 lg:col-span-2">{processarError}</p> : null}
+      {processarError ? <p role="alert" className="text-xs font-medium text-rose-700 lg:col-span-2">{processarError}</p> : null}
+      <ImportProgressIndicator active={processando} title="Processando Flow de cobrança" steps={['Processar Flow', 'Atualizar fila de envio']} currentStep={processarEtapa} detail={`${flow.nome} · ${processarEtapa === 0 ? 'Processando mensagens...' : 'Atualizando fila de envio...'}`} />
     </div>
     <div className="border-t border-slate-100 bg-white px-4 py-3">
       <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-slate-950">Fila de envio</p>
-          <p className="text-xs text-slate-500">Agenda automática: até 50 e-mails/dia por domínio, respeitando o limite da carteira, das 9h às 18h (Brasília), com intervalo mínimo de 10 minutos.</p>
+          <p className="text-xs text-slate-500">{flow.canais?.includes('email') ? 'Agenda automática: até 50 e-mails/dia por domínio, respeitando o limite da carteira, das 9h às 18h (Brasília), com intervalo mínimo de 10 minutos.' : 'Agenda automática conforme a régua, os limites da carteira e a disponibilidade do canal WhatsApp.'}</p>
         </div>
         <span className="text-xs text-slate-400">{counters.falhas ? `${counters.falhas} item(ns) com falha` : 'Sem falhas abertas'}</span>
       </div>
       {itensLoading || (!itensLoaded && !itensError) ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+        <div role="status" aria-live="polite" aria-busy="true" className="flex items-center gap-2 rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+          <LoaderCircle size={16} className="animate-spin text-[var(--gkli-primary)]" aria-hidden="true" />
           Carregando fila do Flow...
         </div>
       ) : itensError ? (
-        <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
-          {itensError}
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
+          <span>{itensError}</span><Button type="button" variant="secondary" size="sm" onClick={() => void loadItens(true)}>Tentar novamente</Button>
         </div>
       ) : itens.length ? (
         <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">

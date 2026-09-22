@@ -6,6 +6,8 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { separarSaneamento } from './eligibilidade'
+import { motivosSaneamentoAtuais } from './saneamento-atual'
+import { aplicarCanalNaConsultaFlows, canaisDasMensagensFlow, FLOW_CANAIS_SELECT } from './consulta-canais'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 const COBRANCA_SELECT = `
@@ -136,13 +138,27 @@ export async function getFlowCobrancaItens(scope: CarteiraScope, flowId: string)
   }))
 }
 
-export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: FlowCobrancaFilters = {}) {
+export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: FlowCobrancaFilters = {}, options: { somenteSaneamento?: boolean } = {}) {
   const supabase = createAdminClient()
   const normalized = normalizeFlowCobrancaFilters(filters)
-  const reguasPromise = listReguasForSelect(scope, 'cobranca')
+  const reguas = await listReguasForSelect(scope, 'cobranca')
+  for (let offset = 0; offset < reguas.length; offset += 80) {
+    const parte = reguas.slice(offset, offset + 80)
+    const { data: etapas, error } = await supabase.from('regua_etapas').select('regua_id,canal,ativo').in('regua_id', parte.map(r => r.id))
+    if (error) throw new Error('Não foi possível conferir os canais das réguas.')
+    for (const regua of parte) regua.etapas = (etapas ?? []).filter(e => e.regua_id === regua.id) as any
+  }
+  const reguasDoCanal = filtrarReguasPorCanal(reguas, normalized.canal)
 
   function applyFilters(query: any) {
     query = applyCarteiraScope(query, scope.carteiraIds)
+
+    // Cobranças não possuem canal próprio. Restrinja às carteiras que podem
+    // operar neste canal, mantendo cadastros sem contato para saneamento.
+    if (normalized.canal && !reguasDoCanal.some(regua => !regua.carteira_id)) {
+      const carteirasDoCanal = [...new Set(reguasDoCanal.map(regua => regua.carteira_id).filter(Boolean))]
+      query = query.in('carteira_id', carteirasDoCanal.length ? carteirasDoCanal : ['00000000-0000-0000-0000-000000000000'])
+    }
 
     if (normalized.carteiraId) {
       query = query.eq('carteira_id', normalized.carteiraId)
@@ -186,6 +202,86 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     .order('vencimento', { ascending: true })
   disponibilidadeQuery = applyFilters(disponibilidadeQuery)
 
+  async function todasCobrancas(query: any) {
+    const rows: any[] = []
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await query.order('id').range(offset, offset + 499)
+      if (error) return { data: null, error }
+      rows.push(...data)
+      if (data.length < 500) return { data: rows, error: null }
+    }
+  }
+  const [{ data: painel, error: painelError }, { data: disponibilidade, error: disponibilidadeError }] = await Promise.all([
+    todasCobrancas(painelQuery),
+    todasCobrancas(disponibilidadeQuery),
+  ])
+
+  if (painelError) throw new Error(`Erro ao carregar cobranças novas para Flow: ${painelError.message}`)
+  if (disponibilidadeError) throw new Error(`Erro ao carregar cobranças disponíveis para Flow: ${disponibilidadeError.message}`)
+
+  const canaisOcupados = options.somenteSaneamento ? new Map<string, Set<string>>() : await carregarCanaisOcupados(supabase, (disponibilidade ?? []).map((row: any) => row.id))
+
+  const novas = separarSaneamento(painel ?? [])
+  const ativas = separarSaneamento(disponibilidade ?? [])
+  let montagensQuery = applyCarteiraScope(supabase.from('maestro_flow_montagens').select('id,condominio_id,regua_id,pendencias'), scope.carteiraIds)
+  if (normalized.carteiraId) montagensQuery = montagensQuery.eq('carteira_id', normalized.carteiraId)
+  if (normalized.condominioId) montagensQuery = montagensQuery.eq('condominio_id', normalized.condominioId)
+  const { data: montagens, error: montagensError } = normalized.canal && normalized.canal !== 'email'
+    ? { data: [], error: null } : await todasCobrancas(montagensQuery)
+  if (montagensError && !['42P01', 'PGRST205'].includes(montagensError.code)) throw new Error('Não foi possível conferir o saneamento do Maestro.')
+  const cobrancasAtuais = [...(painel ?? []), ...(disponibilidade ?? [])]
+  const idsAtuais = new Set(cobrancasAtuais.map(row => row.id))
+  const montagensComPendencias = (montagens ?? []).filter((job: any) =>
+    (job.pendencias ?? []).some((p: any) => p.saneamento && idsAtuais.has(p.cobranca_id)))
+  const idsCondominios = [...new Set(montagensComPendencias.map((job: any) => job.condominio_id))]
+  const apoios: any[] = []
+  for (let offset = 0; offset < idsCondominios.length; offset += 100) {
+    const { data, error } = await todasCobrancas(supabase.from('responsaveis_unidades')
+      .select('id,condominio_id,unidade,bloco,responsavel_nome,email,tipo_responsavel')
+      .in('condominio_id', idsCondominios.slice(offset, offset + 100)).eq('ativo', true))
+    if (error) throw new Error('Não foi possível conferir os contatos atuais do saneamento.')
+    apoios.push(...(data ?? []))
+  }
+  const idsReguas = [...new Set(montagensComPendencias.map((job: any) => job.regua_id).filter(Boolean))]
+  const preferencias = new Map<string, string>()
+  for (let offset = 0; offset < idsReguas.length; offset += 100) {
+    const { data, error } = await supabase.from('reguas').select('id,destinatario_preferencial').in('id', idsReguas.slice(offset, offset + 100))
+    if (error) throw new Error('Não foi possível conferir os destinatários do saneamento.')
+    for (const regua of data ?? []) preferencias.set(regua.id, regua.destinatario_preferencial)
+  }
+  const motivos = motivosSaneamentoAtuais(cobrancasAtuais, montagensComPendencias, apoios, preferencias)
+  const saneamentoMaestro = [...(painel ?? []), ...(disponibilidade ?? [])].filter((row: any) => motivos.has(row.id))
+    .map((row: any) => ({ ...row, motivo_saneamento: motivos.get(row.id) }))
+  const normalize = (row: any) => ({ ...row, carteira: relation(row.carteira), condominio: relation(row.condominio), unidade: relation(row.unidade) })
+
+  return {
+    saneamento: [...new Map([...novas.saneamento, ...ativas.saneamento, ...saneamentoMaestro].map(row => [row.id, row])).values()].map(normalize),
+    painel: options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id)).map((row: any) => ({
+      ...row,
+      carteira: relation(row.carteira),
+      condominio: relation(row.condominio),
+      unidade: relation(row.unidade),
+    })),
+    disponibilidade: options.somenteSaneamento ? [] : ativas.aptas
+      .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
+      .filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
+      .map((row: any) => ({
+        ...row,
+        carteira: relation(row.carteira),
+        condominio: relation(row.condominio),
+        unidade: relation(row.unidade),
+      })),
+    reguas: options.somenteSaneamento ? [] : reguasDoCanal,
+    flows: [] as any[],
+    hasNext: false,
+  }
+}
+
+export const FLOWS_PAGE_SIZE = 30
+
+export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: FlowCobrancaFilters, options: { page: number; historico: boolean; status?: string }) {
+  const supabase = createAdminClient()
+  const normalized = normalizeFlowCobrancaFilters(filters)
   let flowsQuery = supabase
     .from('cobranca_flows')
     .select(`
@@ -208,6 +304,8 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
       created_at,
       updated_at,
       payload,
+      ${FLOW_CANAIS_SELECT},
+      ${normalized.canal ? 'regua_canal:reguas(etapas:regua_etapas!inner(canal)),' : ''}
       carteira:carteiras(nome),
       regua:reguas(nome,etapas:regua_etapas(canal,ativo)),
       lote:lotes(id,status,total_avaliadas,total_criadas,total_pendentes,total_enviadas,total_erros)
@@ -216,35 +314,19 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   flowsQuery = applyCarteiraScope(flowsQuery, scope.carteiraIds)
   if (normalized.carteiraId) flowsQuery = flowsQuery.eq('carteira_id', normalized.carteiraId)
   if (normalized.condominioId) flowsQuery = flowsQuery.eq('payload->>condominio_id', normalized.condominioId)
+  flowsQuery = aplicarCanalNaConsultaFlows(flowsQuery, normalized.canal)
 
-  async function todasCobrancas(query: any) {
-    const rows: any[] = []
-    for (let offset = 0; ; offset += 500) {
-      const { data, error } = await query.order('id').range(offset, offset + 499)
-      if (error) return { data: null, error }
-      rows.push(...data)
-      if (data.length < 500) return { data: rows, error: null }
-    }
-  }
-  const [{ data: painel, error: painelError }, { data: disponibilidade, error: disponibilidadeError }, { data: flows, error: flowsError }, reguas] = await Promise.all([
-    todasCobrancas(painelQuery),
-    todasCobrancas(disponibilidadeQuery),
-    todasCobrancas(flowsQuery),
-    reguasPromise,
-  ])
 
-  if (painelError) throw new Error(`Erro ao carregar cobranças novas para Flow: ${painelError.message}`)
-  if (disponibilidadeError) throw new Error(`Erro ao carregar cobranças disponíveis para Flow: ${disponibilidadeError.message}`)
-  if (flowsError && flowsError.code !== '42P01') throw new Error(`Erro ao carregar Flows de cobrança: ${flowsError.message}`)
-
-  for (let offset = 0; offset < reguas.length; offset += 80) {
-    const parte = reguas.slice(offset, offset + 80)
-    const { data: etapas, error } = await supabase.from('regua_etapas').select('*').in('regua_id', parte.map(r => r.id))
-    if (error) throw new Error('Não foi possível conferir os canais das réguas.')
-    for (const regua of parte) regua.etapas = (etapas ?? []).filter(e => e.regua_id === regua.id)
-  }
-
-  const reguasDoCanal = filtrarReguasPorCanal(reguas, normalized.canal)
+  const statuses = options.historico ? ['concluido', 'concluido_com_falhas', 'cancelado'] : ['pronto', 'em_execucao', 'pausado']
+  flowsQuery = flowsQuery.in('status', statuses)
+  if (options.status && statuses.includes(options.status)) flowsQuery = flowsQuery.eq('status', options.status)
+  if (normalized.inclusaoDe) flowsQuery = flowsQuery.gte('created_at', normalized.inclusaoDe + 'T00:00:00-03:00')
+  if (normalized.inclusaoAte) flowsQuery = flowsQuery.lte('created_at', normalized.inclusaoAte + 'T23:59:59.999999-03:00')
+  const offset = (options.page - 1) * FLOWS_PAGE_SIZE
+  const { data, error } = await flowsQuery.order('id').range(offset, offset + FLOWS_PAGE_SIZE)
+  if (error && error.code !== '42P01') throw new Error('Erro ao carregar flows: ' + error.message)
+  const hasNext = (data?.length ?? 0) > FLOWS_PAGE_SIZE
+  const flows = (data ?? []).slice(0, FLOWS_PAGE_SIZE)
   const flowRows = (flows ?? []) as any[]
   const condominioIds = [...new Set(flowRows.map(flow => flow.payload?.condominio_id).filter(Boolean))] as string[]
   const condominiosFlows = new Map<string, any>()
@@ -254,59 +336,33 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     if (error) throw new Error('Erro ao carregar condomínios dos flows.')
     for (const condominio of data ?? []) condominiosFlows.set(condominio.id, condominio)
   }
-  const canaisFlows = new Map<string, Set<string>>()
-  for (let offset = 0; offset < flowRows.length; offset += 100) {
-    const ids = flowRows.slice(offset, offset + 100).map(flow => flow.id)
-    const { data, error } = await todasCobrancas(supabase.from('mensagens')
-      .select('id,cobranca_flow_id,canal').in('cobranca_flow_id', ids))
-    if (error) throw new Error('Erro ao carregar canais dos flows.')
-    for (const mensagem of data ?? []) {
-      if (!mensagem.canal) continue
-      if (!canaisFlows.has(mensagem.cobranca_flow_id)) canaisFlows.set(mensagem.cobranca_flow_id, new Set())
-      canaisFlows.get(mensagem.cobranca_flow_id)!.add(mensagem.canal)
-    }
-  }
-  const canaisOcupados = await carregarCanaisOcupados(supabase, (disponibilidade ?? []).map((row: any) => row.id))
-
-  const novas = separarSaneamento(painel ?? [])
-  const ativas = separarSaneamento(disponibilidade ?? [])
-  let montagensQuery = applyCarteiraScope(supabase.from('maestro_flow_montagens').select('pendencias'), scope.carteiraIds)
-  if (normalized.carteiraId) montagensQuery = montagensQuery.eq('carteira_id', normalized.carteiraId)
-  if (normalized.condominioId) montagensQuery = montagensQuery.eq('condominio_id', normalized.condominioId)
-  const { data: montagens, error: montagensError } = await montagensQuery
-  if (montagensError && !['42P01', 'PGRST205'].includes(montagensError.code)) throw new Error('Não foi possível conferir o saneamento do Maestro.')
-  const motivos = new Map<string, string>()
-  for (const job of montagens ?? []) for (const p of (job.pendencias ?? []) as any[]) if (p.saneamento) motivos.set(p.cobranca_id, p.motivo)
-  const saneamentoMaestro = [...(painel ?? []), ...(disponibilidade ?? [])].filter((row: any) => motivos.has(row.id))
-    .map((row: any) => ({ ...row, motivo_saneamento: motivos.get(row.id) }))
-  const normalize = (row: any) => ({ ...row, carteira: relation(row.carteira), condominio: relation(row.condominio), unidade: relation(row.unidade) })
 
   return {
-    saneamento: [...new Map([...novas.saneamento, ...ativas.saneamento, ...saneamentoMaestro].map(row => [row.id, row])).values()].map(normalize),
-    painel: novas.aptas.filter((row: any) => !motivos.has(row.id)).map((row: any) => ({
-      ...row,
-      carteira: relation(row.carteira),
-      condominio: relation(row.condominio),
-      unidade: relation(row.unidade),
-    })),
-    disponibilidade: ativas.aptas
-      .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
-      .filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
-      .map((row: any) => ({
-        ...row,
-        carteira: relation(row.carteira),
-        condominio: relation(row.condominio),
-        unidade: relation(row.unidade),
-      })),
-    reguas: reguasDoCanal,
-    flows: filtrarFlowsPorCanal(flowRows.map((flow) => ({
+    painel: [] as any[], disponibilidade: [] as any[], saneamento: [] as any[], reguas: [] as any[], hasNext,
+    flows: filtrarFlowsPorCanal(flowRows.map(({ canal_email, canal_whatsapp, canal_manual, ...flow }) => {
+      delete flow.regua_canal
+      return {
       ...flow,
       condominio: condominiosFlows.get(flow.payload?.condominio_id) ?? null,
-      canais: [...new Set([...(canaisFlows.get(flow.id) ?? []), ...(flow.payload?.canais ?? []), ...(relation(flow.regua)?.etapas ?? []).map((e: any) => e.canal).filter(Boolean)])].sort(),
+      canais: [...new Set([...canaisDasMensagensFlow({ canal_email, canal_whatsapp, canal_manual }), ...(flow.payload?.canais ?? []), ...(relation(flow.regua)?.etapas ?? []).map((e: any) => e.canal).filter(Boolean)])].sort(),
       carteira: relation(flow.carteira),
       regua: relation(flow.regua),
       lote: relation(flow.lote),
       itens: [],
-    })), normalized.canal),
+      }
+    }), normalized.canal),
+  }
+}
+
+export async function listFlowCobrancaCondominios(scope: CarteiraScope, carteiraId?: string) {
+  const db = createAdminClient()
+  const rows: Array<{ id: string; nome: string; nome_operacional: string | null }> = []
+  for (let offset = 0; ; offset += 500) {
+    let query = applyCarteiraScope(db.from('condominios').select('id,nome,nome_operacional'), scope.carteiraIds)
+    if (carteiraId) query = query.eq('carteira_id', carteiraId)
+    const { data, error } = await query.order('nome').order('id').range(offset, offset + 499)
+    if (error) throw new Error('Não foi possível carregar os condomínios dos filtros.')
+    rows.push(...(data ?? []))
+    if ((data?.length ?? 0) < 500) return rows
   }
 }

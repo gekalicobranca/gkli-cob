@@ -66,6 +66,6 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
       </div>
     })}</div>
     {(count ?? 0) > data.length ? <p className="text-xs text-slate-500">Mostrando as 100 montagens atualizadas mais recentemente.</p> : null}
-    <Link href="/app/flows/cobranca?step=flows" className="text-sm font-medium underline">Revisar e ativar flows em lote</Link>
+    <Link href="/app/flows/cobranca/email?step=flows" className="text-sm font-medium underline">Revisar e ativar flows em lote</Link>
   </Card>
 }

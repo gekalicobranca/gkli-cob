@@ -36,5 +36,5 @@ export async function conferirWhatsappWeb(form: FormData) {
     p_observacao: String(form.get('observacao') ?? '').trim(),
   })
   if (error) throw new Error(error.message)
-  for (const path of ['/app/configuracoes/whatsapp-web','/app/flows/cobranca','/app/flows/acordos','/app/pre-juridico/flow','/app/lotes']) revalidatePath(path)
+  for (const path of ['/app/configuracoes/whatsapp-web','/app/flows/cobranca/email','/app/flows/cobranca/whatsapp','/app/flows/acordos','/app/pre-juridico/flow','/app/lotes']) revalidatePath(path)
 }

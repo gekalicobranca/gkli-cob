@@ -8,6 +8,7 @@ export async function GET(request: Request) {
   const scope = await getPermittedCarteiras()
   const { searchParams: params } = new URL(request.url)
   const filters = normalizeFlowCobrancaFilters({
+    canal: params.get('canal') ?? undefined,
     carteiraId: params.get('carteira') ?? undefined,
     condominioId: params.get('condominio') ?? undefined,
     vencimentoDe: params.get('vencimento_de') ?? undefined,
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
     inclusaoDe: params.get('inclusao_de') ?? undefined,
     inclusaoAte: params.get('inclusao_ate') ?? undefined,
   })
-  const { saneamento } = await getFlowCobrancaPageData(scope, filters)
+  const { saneamento } = await getFlowCobrancaPageData(scope, filters, { somenteSaneamento: true })
   const generatedAt = new Date()
   const buffer = await criarExcelSaneamento(saneamento, generatedAt)
   return new Response(buffer, {

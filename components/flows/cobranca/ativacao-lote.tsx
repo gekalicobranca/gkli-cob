@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { ImportProgressIndicator } from '@/components/feedback/import-progress-indicator'
 import { enviarFlowCobranca } from '@/features/flows/cobranca/actions'
 
 export function AtivacaoLoteFlows({ flows, selected, onSelectedChange, onBusyChange, onSelectAllChange }: {
@@ -56,13 +57,14 @@ export function AtivacaoLoteFlows({ flows, selected, onSelectedChange, onBusyCha
       <div>
         <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-800">
           <input type="checkbox" checked={todos} disabled={busy || !prontos.length} onChange={event => { onSelectedChange(event.target.checked ? prontos.map(flow => flow.id) : []); onSelectAllChange(event.target.checked) }} />
-          Selecionar todos os prontos ({prontos.length})
+          Selecionar prontos desta página ({prontos.length})
         </label>
         <p className="mt-1 text-xs text-slate-500">{selecionados.length} Flow(s) selecionado(s) · {mensagens} mensagem(ns). A agenda respeita os limites por carteira e remetente.</p>
       </div>
-      <Button type="button" disabled={busy || !selecionados.length} onClick={() => void ativar()}>{busy ? 'Ativando flows...' : 'Ativar selecionados'}</Button>
+      <Button type="button" disabled={!selecionados.length} loading={busy} loadingLabel="Ativando flows..." onClick={() => void ativar()}>Ativar selecionados</Button>
     </div>
     {progresso ? <p role="status" aria-live="polite" className="text-sm text-slate-700">{progresso}</p> : null}
+    <ImportProgressIndicator active={busy} title="Ativando flows de cobrança" steps={['Ativar flows selecionados']} currentStep={0} detail={progresso} />
     {falhas.length ? <ul role="alert" className="space-y-1 text-sm text-rose-800">{falhas.map((falha, index) => <li key={index}>{falha.nome}: {falha.motivo}</li>)}</ul> : null}
   </div>
 }
