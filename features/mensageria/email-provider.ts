@@ -1,4 +1,4 @@
-import { reservarDisparoEmail, finalizarDisparoEmail } from './email-agenda'
+import { reservarDisparoEmail, finalizarDisparoEmail, EmailAdiadoError } from './email-agenda'
 import net from 'node:net'
 import tls from 'node:tls'
 import { googleToken, openGoogleSecret, xoauth2 } from './google-oauth'
@@ -415,6 +415,8 @@ async function upgradeToTls(socket: net.Socket, config: SmtpConfig) {
 }
 
 export async function getEmailRemetenteKey(carteiraId: string) {
+  const { data: device } = await createAdminClient().from('thunderbird_dispositivos').select('email').eq('carteira_id', carteiraId).eq('ativo', true).eq('automatico', true).maybeSingle()
+  if (device) return device.email.split('@').pop()!.toLowerCase()
   const config = await getConfig({ carteiraId })
   return sanitizeAddress(config.from).split('@').pop()!.toLowerCase()
 }
@@ -423,6 +425,11 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
   const normalizedOptions = normalizeSendOptions(options)
   let emailControle: string | null = null
   const carteiraId = normalizeCarteiraId(normalizedOptions.carteiraId)
+  if (carteiraId) {
+    const { data, error } = await createAdminClient().from('carteiras').select('email_transporte').eq('id', carteiraId).single()
+    if (error) throw new Error('Não foi possível verificar o transporte de e-mail.')
+    if (data.email_transporte === 'thunderbird') throw new EmailAdiadoError('Aguardando o Thunderbird local.')
+  }
   if (normalizedOptions.copiarControleFlow && carteiraId) {
     const { data, error } = await createAdminClient()
       .from('carteiras')

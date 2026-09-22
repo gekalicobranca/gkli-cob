@@ -8,7 +8,7 @@ import { recalcularReferenciasMensagem } from './whatsapp-cloud/flows'
 export async function executarDisparosEmail(limit = 50, cobrancaFlowId?: string) {
   const db = createAdminClient()
   // Somente mensagens que entraram explicitamente na nova agenda podem ser disparadas.
-  let query = db.from('mensagens').select('*,reserva:email_agenda!inner(mensagem_id)').eq('canal', 'email').eq('status', 'agendada')
+  let query = db.from('mensagens').select('*,carteira:carteiras!inner(email_transporte),reserva:email_agenda!inner(mensagem_id)').neq('carteira.email_transporte', 'thunderbird').eq('canal', 'email').eq('status', 'agendada')
     .is('pre_juridico_flow_id', null).lte('agendada_para', new Date().toISOString())
     .order('agendada_para').limit(Math.max(1, Math.min(limit || 50, 100)))
   if (cobrancaFlowId) query = query.eq('cobranca_flow_id', cobrancaFlowId)
