@@ -20,6 +20,7 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
     .order('updated_at', { ascending: false }).limit(100)
   if (condominioIds) query = query.in('condominio_id', condominioIds.length ? condominioIds : ['00000000-0000-0000-0000-000000000000'])
   if (carteiraId) query = query.eq('carteira_id', carteiraId)
+  query = status === 'arquivado' ? query.not('arquivado_em', 'is', null) : query.is('arquivado_em', null)
   if (status && ['pendente', 'processando', 'concluido', 'atencao'].includes(status)) query = query.eq('status', status)
   const { data, error, count } = await query
   if (error) return <Card><p className="text-sm text-amber-800">Não foi possível consultar a montagem automática dos flows.</p></Card>
