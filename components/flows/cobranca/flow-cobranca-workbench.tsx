@@ -295,7 +295,7 @@ export function FlowCobrancaWorkbench({
             <PendingSubmitButton formAction={desfazerAtivacaoCobrancasFlowCobranca} formNoValidate variant="danger" disabled={criando || selectedCobrancas.length === 0} pendingLabel="Desfazendo..." onClick={(event) => { if (!window.confirm(`Devolver ${selectedCobrancas.length} cobrança(s) para Novas?`)) event.preventDefault() }}><RotateCcw size={16} />Desfazer ativação</PendingSubmitButton>
             <PendingSubmitButton disabled={criando || !plano.quantidade || Boolean(plano.error)} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${plano.quantidade} Flow(s) em partes, com até ${LIMITE_EMAILS_FLOW} mensagens cada?`)) event.preventDefault() }}><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
           </div>
-        </form> : <ListEmptyState title="Nenhum condomínio disponível" description="Selecione um condomínio em Cobranças novas e ative suas cobranças para montar o Flow." />}
+        </form> : <ListEmptyState title="Nenhum condomínio disponível" description="Não há cobranças com canal disponível neste filtro. Confira os filtros e os Flows já existentes." />}
       </details>
     </ListPanel>
 

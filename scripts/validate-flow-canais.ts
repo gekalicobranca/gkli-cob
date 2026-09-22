@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { canaisDaRegua, conflitoDeCanais, reguasDisponiveis, filtrarFlowsPorCanal } from '../features/flows/cobranca/canais'
+import { canaisDaRegua, conflitoDeCanais, reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from '../features/flows/cobranca/canais'
 import { carregarCanaisOcupados, validarCriacaoPorCanal } from '../features/flows/cobranca/vinculos-canais'
 
 const email = { id: 'email', carteira_id: 'a', etapas: [{ canal: 'email' }] }
 const web = { id: 'web', carteira_id: 'a', etapas: [{ canal: 'whatsapp' }] }
+test('filtro de e-mail exclui régua WhatsApp e cobranças disponíveis apenas para WhatsApp', () => {
+  const reguas = [email, web]
+  const row = { carteira_id: 'a', canais_ocupados: ['email'] }
+  assert.deepEqual(filtrarReguasPorCanal(reguas, 'email'), [email])
+  assert.deepEqual(reguasDisponiveis(row, filtrarReguasPorCanal(reguas, 'email')), [])
+  assert.deepEqual(reguasDisponiveis(row, filtrarReguasPorCanal(reguas, 'whatsapp')), [web])
+  assert.deepEqual(filtrarReguasPorCanal(reguas), reguas)
+  assert.deepEqual(filtrarReguasPorCanal([{ etapas: [{ canal: 'email', ativo: false }, { canal: 'whatsapp' }] }], 'email'), [])
+})
 test('filtro de comunicação inclui Flows mistos nos dois canais e preserva todos sem filtro', () => {
   const flows = [{ id: 'e', canais: ['email'] }, { id: 'w', canais: ['whatsapp'] }, { id: 'm', canais: ['email', 'whatsapp'] }, { id: 'v', canais: [] }]
   assert.deepEqual(filtrarFlowsPorCanal(flows, 'email').map(f => f.id), ['e', 'm'])

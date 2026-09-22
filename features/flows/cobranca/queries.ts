@@ -1,5 +1,5 @@
 import { carregarCanaisOcupados } from './vinculos-canais'
-import { reguasDisponiveis, filtrarFlowsPorCanal } from './canais'
+import { reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from './canais'
 import { listReguasForSelect } from '@/features/reguas/queries'
 import { COBRANCA_STATUS_OPERACIONAL } from '@/lib/constants/cobrancas'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -244,6 +244,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     for (const regua of parte) regua.etapas = (etapas ?? []).filter(e => e.regua_id === regua.id)
   }
 
+  const reguasDoCanal = filtrarReguasPorCanal(reguas, normalized.canal)
   const flowRows = (flows ?? []) as any[]
   const condominioIds = [...new Set(flowRows.map(flow => flow.payload?.condominio_id).filter(Boolean))] as string[]
   const condominiosFlows = new Map<string, any>()
@@ -290,14 +291,14 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     })),
     disponibilidade: ativas.aptas
       .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
-      .filter((row: any) => reguasDisponiveis(row, reguas).length > 0)
+      .filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
       .map((row: any) => ({
         ...row,
         carteira: relation(row.carteira),
         condominio: relation(row.condominio),
         unidade: relation(row.unidade),
       })),
-    reguas,
+    reguas: reguasDoCanal,
     flows: filtrarFlowsPorCanal(flowRows.map((flow) => ({
       ...flow,
       condominio: condominiosFlows.get(flow.payload?.condominio_id) ?? null,
