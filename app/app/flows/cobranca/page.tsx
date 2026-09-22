@@ -16,7 +16,7 @@ import { formatCurrency } from '@/utils/formatters/currency'
 
 export const maxDuration = 300
 
-type Params = Promise<{ step?: string; criados?: string; ativadas?: string; selecionadas?: string; carteira?: string; condominio?: string; vencimento?: string; vencimento_de?: string; vencimento_ate?: string; inclusao_de?: string; inclusao_ate?: string }>
+type Params = Promise<{ canal?: string; step?: string; criados?: string; ativadas?: string; selecionadas?: string; carteira?: string; condominio?: string; vencimento?: string; vencimento_de?: string; vencimento_ate?: string; inclusao_de?: string; inclusao_ate?: string }>
 
 function safeStep(value: unknown) {
   const step = String(value ?? '')
@@ -34,6 +34,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
   const params = await searchParams
   const scope = await getPermittedCarteiras()
   const filters = normalizeFlowCobrancaFilters({
+    canal: params.canal,
     carteiraId: params.carteira,
     condominioId: params.condominio,
     vencimentoDe: params.vencimento_de,
@@ -54,6 +55,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
   const valorNovo = painelRows.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
   const unidades = new Set(painelRows.map((row: any) => row.unidade_id).filter(Boolean)).size
   const returnQuery = new URLSearchParams()
+  if (filters.canal) returnQuery.set('canal', filters.canal)
   if (filters.carteiraId) returnQuery.set('carteira', filters.carteiraId)
   if (filters.condominioId) returnQuery.set('condominio', filters.condominioId)
   if (filters.vencimentoDe) returnQuery.set('vencimento_de', filters.vencimentoDe)
@@ -106,6 +108,7 @@ export default async function FlowCobrancaPage({ searchParams }: { searchParams:
       <ListFiltersForm action="/app/flows/cobranca" className="grid-cols-1 md:grid-cols-2 xl:grid-cols-6">
         <ListFilterField label="Carteira" className="xl:col-span-2"><Select name="carteira" defaultValue={filters.carteiraId ?? ''}><option value="">Todas</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></ListFilterField>
         <ListFilterField label="Condomínio" className="xl:col-span-4"><CondominioSearchSelect name="condominio" options={condominios.map((row: any) => ({ id: row.id, nome: row.nome_operacional || row.nome || 'Condomínio não informado', administradora: null })) as any[]} selectedId={filters.condominioId ?? ''} defaultToFirst={false} inputClassName="" /></ListFilterField>
+        <ListFilterField label="Tipo de comunicação" className="xl:col-span-2"><Select name="canal" defaultValue={filters.canal ?? ''}><option value="">Todos</option><option value="email">E-mail</option><option value="whatsapp">WhatsApp</option><option value="manual">Manual</option></Select></ListFilterField>
         <ListFilterField label="Vencimento de"><Input type="date" name="vencimento_de" defaultValue={filters.vencimentoDe ?? ''} /></ListFilterField>
         <ListFilterField label="Vencimento até"><Input type="date" name="vencimento_ate" defaultValue={filters.vencimentoAte ?? ''} /></ListFilterField>
         <ListFilterField label="Data de inclusão de"><Input type="date" name="inclusao_de" defaultValue={filters.inclusaoDe ?? ''} /></ListFilterField>

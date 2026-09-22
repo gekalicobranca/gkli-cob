@@ -1,3 +1,5 @@
+import { carregarCanaisOcupados } from './vinculos-canais'
+import { conflitoDeCanais } from './canais'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { ACORDO_STATUS_VIGENTES } from '@/lib/core/status'
 import { processarReguaCobranca } from '@/features/regua/services/processar-regua-cobranca'
@@ -42,15 +44,15 @@ async function planejar(db: ReturnType<typeof createAdminClient>, job: any) {
     const ids = rows.slice(offset, offset + 100).map(r => r.id)
     const [a, v] = await Promise.all([
       db.from('acordos').select('cobranca_id').in('cobranca_id', ids).in('status', ACORDO_STATUS_VIGENTES),
-      db.from('lote_itens').select('cobranca_id').in('cobranca_id', ids).not('cobranca_flow_id', 'is', null),
+      carregarCanaisOcupados(db, ids),
     ])
-    if (a.error || v.error) throw new Error('Não foi possível conferir acordos e flows anteriores.')
-    a.data.forEach(r => acordos.add(r.cobranca_id)); v.data.forEach(r => vinculadas.add(r.cobranca_id))
+    if (a.error) throw new Error('Não foi possível conferir acordos e flows anteriores.')
+    a.data.forEach(r => acordos.add(r.cobranca_id)); v.forEach((canais, id) => { if (conflitoDeCanais(canais, ['email'])) vinculadas.add(id) })
   }
   const elegiveis: any[] = [], pendencias: any[] = []
   for (const row of rows) {
     const unidade = relation(row.unidade)
-    let motivo = vinculadas.has(row.id) ? 'Já vinculada a outro Flow' : motivoExclusaoMaestro(row, Number(condominio.dias_apos_vencimento_regua ?? condominio.inicio_cobranca_dias ?? 30), acordos.has(row.id))
+    let motivo = vinculadas.has(row.id) ? 'Já vinculada a outro Flow de e-mail' : motivoExclusaoMaestro(row, Number(condominio.dias_apos_vencimento_regua ?? condominio.inicio_cobranca_dias ?? 30), acordos.has(row.id))
     let saneamento = false
     if (!motivo) {
       const contatos = (apoios ?? []).filter(a => String(a.unidade).trim().toLowerCase() === String(unidade?.identificacao).trim().toLowerCase() && (!a.bloco || String(a.bloco).trim().toLowerCase() === String(unidade?.bloco ?? '').trim().toLowerCase()))

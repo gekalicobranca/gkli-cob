@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { separarSaneamento, unicoCondominio } from '../features/flows/cobranca/eligibilidade'
 import { hasResponsavelVinculado } from '../features/flows/cobranca/eligibilidade'
+import { dividirCriacaoFlows, LIMITE_COBRANCAS_CHAMADA } from '../features/flows/cobranca/dividir-criacao'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
@@ -35,6 +36,7 @@ test('ações do servidor rejeitam mistura de condomínios antes de gravar ou pr
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   const unexpected = () => { throw new Error('Operação inesperada após seleção inválida') }
   const deps: Record<string, any> = {
+    './dividir-criacao': { dividirCriacaoFlows, LIMITE_COBRANCAS_CHAMADA },
     '@/utils/auth/require-role': { requireRole: async () => {} },
     '@/utils/auth/require-user': { requireUser: async () => ({ id: 'user' }) },
     '@/utils/auth/get-permitted-carteiras': { getPermittedCarteiras: async () => ({ carteiraIds: ['genske'] }) },

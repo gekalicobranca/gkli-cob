@@ -1,3 +1,5 @@
+import { carregarCanaisOcupados } from './vinculos-canais'
+import { reguasDisponiveis, filtrarFlowsPorCanal } from './canais'
 import { listReguasForSelect } from '@/features/reguas/queries'
 import { COBRANCA_STATUS_OPERACIONAL } from '@/lib/constants/cobrancas'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -25,6 +27,7 @@ const COBRANCA_SELECT = `
 `
 
 export type FlowCobrancaFilters = {
+  canal?: string
   carteiraId?: string
   condominioId?: string
   vencimentoDe?: string
@@ -39,6 +42,7 @@ function cleanFilter(value?: string | null) {
 
 export function normalizeFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) {
   return {
+    canal: ['email', 'whatsapp', 'manual'].includes(filters.canal ?? '') ? filters.canal : undefined,
     carteiraId: cleanFilter(filters.carteiraId),
     condominioId: cleanFilter(filters.condominioId),
     vencimentoDe: cleanFilter(filters.vencimentoDe),
@@ -50,7 +54,7 @@ export function normalizeFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) 
 
 export function hasFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) {
   const normalized = normalizeFlowCobrancaFilters(filters)
-  return Boolean(normalized.carteiraId || normalized.condominioId || normalized.vencimentoDe || normalized.vencimentoAte || normalized.inclusaoDe || normalized.inclusaoAte)
+  return Boolean(normalized.canal || normalized.carteiraId || normalized.condominioId || normalized.vencimentoDe || normalized.vencimentoAte || normalized.inclusaoDe || normalized.inclusaoAte)
 }
 
 export async function getFlowCobrancaItens(scope: CarteiraScope, flowId: string) {
@@ -205,7 +209,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
       updated_at,
       payload,
       carteira:carteiras(nome),
-      regua:reguas(nome),
+      regua:reguas(nome,etapas:regua_etapas(canal,ativo)),
       lote:lotes(id,status,total_avaliadas,total_criadas,total_pendentes,total_enviadas,total_erros)
     `)
     .order('created_at', { ascending: false })
@@ -233,6 +237,13 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   if (disponibilidadeError) throw new Error(`Erro ao carregar cobranças disponíveis para Flow: ${disponibilidadeError.message}`)
   if (flowsError && flowsError.code !== '42P01') throw new Error(`Erro ao carregar Flows de cobrança: ${flowsError.message}`)
 
+  for (let offset = 0; offset < reguas.length; offset += 80) {
+    const parte = reguas.slice(offset, offset + 80)
+    const { data: etapas, error } = await supabase.from('regua_etapas').select('*').in('regua_id', parte.map(r => r.id))
+    if (error) throw new Error('Não foi possível conferir os canais das réguas.')
+    for (const regua of parte) regua.etapas = (etapas ?? []).filter(e => e.regua_id === regua.id)
+  }
+
   const flowRows = (flows ?? []) as any[]
   const condominioIds = [...new Set(flowRows.map(flow => flow.payload?.condominio_id).filter(Boolean))] as string[]
   const condominiosFlows = new Map<string, any>()
@@ -254,20 +265,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
       canaisFlows.get(mensagem.cobranca_flow_id)!.add(mensagem.canal)
     }
   }
-  const cobrancasJaVinculadas = new Set<string>()
-  const cobrancaIdsDisponibilidade = (disponibilidade ?? []).map((row: any) => row.id).filter(Boolean)
-
-  if (cobrancaIdsDisponibilidade.length) {
-    for (let offset = 0; offset < cobrancaIdsDisponibilidade.length; offset += 100) {
-      const { data: vinculados, error } = await supabase
-        .from('lote_itens')
-        .select('cobranca_id')
-        .in('cobranca_id', cobrancaIdsDisponibilidade.slice(offset, offset + 100))
-        .not('cobranca_flow_id', 'is', null)
-      if (error) throw new Error(`Erro ao verificar vínculos de Flow: ${error.message}`)
-      for (const row of vinculados ?? []) if (row.cobranca_id) cobrancasJaVinculadas.add(String(row.cobranca_id))
-    }
-  }
+  const canaisOcupados = await carregarCanaisOcupados(supabase, (disponibilidade ?? []).map((row: any) => row.id))
 
   const novas = separarSaneamento(painel ?? [])
   const ativas = separarSaneamento(disponibilidade ?? [])
@@ -291,8 +289,8 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
       unidade: relation(row.unidade),
     })),
     disponibilidade: ativas.aptas
-      .filter((row: any) => !motivos.has(row.id))
-      .filter((row: any) => !cobrancasJaVinculadas.has(String(row.id)))
+      .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
+      .filter((row: any) => reguasDisponiveis(row, reguas).length > 0)
       .map((row: any) => ({
         ...row,
         carteira: relation(row.carteira),
@@ -300,14 +298,14 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
         unidade: relation(row.unidade),
       })),
     reguas,
-    flows: flowRows.map((flow) => ({
+    flows: filtrarFlowsPorCanal(flowRows.map((flow) => ({
       ...flow,
       condominio: condominiosFlows.get(flow.payload?.condominio_id) ?? null,
-      canais: [...(canaisFlows.get(flow.id) ?? [])].sort(),
+      canais: [...new Set([...(canaisFlows.get(flow.id) ?? []), ...(flow.payload?.canais ?? []), ...(relation(flow.regua)?.etapas ?? []).map((e: any) => e.canal).filter(Boolean)])].sort(),
       carteira: relation(flow.carteira),
       regua: relation(flow.regua),
       lote: relation(flow.lote),
       itens: [],
-    })),
+    })), normalized.canal),
   }
 }

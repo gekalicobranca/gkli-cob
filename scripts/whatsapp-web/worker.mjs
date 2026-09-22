@@ -10,12 +10,15 @@ import { deliver, normalizePhone } from './delivery.mjs'
 const { Client, LocalAuth, MessageMedia } = whatsapp
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const session = process.env.WHATSAPP_WEB_SESSION ?? 'gekali'
+const connectOnly = process.argv.includes('--connect-only')
+const pairByCode = process.argv.includes('--pair-by-code')
 if (!/^[a-zA-Z0-9_-]{1,60}$/.test(session)) throw new Error('WHATSAPP_WEB_SESSION inválida.')
 const expectedPhone = normalizePhone(process.env.WHATSAPP_WEB_PHONE)
 if (!expectedPhone) throw new Error('Configure WHATSAPP_WEB_PHONE com o número brasileiro da sessão.')
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Configure as credenciais do Supabase no ambiente local.')
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
 const client = new Client({
+  ...(pairByCode ? { pairWithPhoneNumber: { phoneNumber: expectedPhone, showNotification: true, intervalMs: 180000 } } : {}),
   authStrategy: new LocalAuth({ clientId: session, dataPath: path.resolve(root, process.env.WHATSAPP_WEB_AUTH_PATH || '.whatsapp-web/auth') }),
   webVersionCache: { type: 'none' },
   puppeteer: { headless: true, ...(process.env.WHATSAPP_WEB_CHROME_PATH ? { executablePath: process.env.WHATSAPP_WEB_CHROME_PATH } : {}) },
@@ -24,6 +27,8 @@ let ready = false
 let stopping = false
 let connection = 'iniciando'
 let connectedPhone = null
+let pairingCode = null
+let pairingCodeExpiresAt = null
 async function timeout(promise, ms = 45000) {
   let timer
   try { return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Tempo excedido; confira a conversa antes de reenviar.')),ms);timer.unref()})]) }
@@ -34,8 +39,15 @@ async function heartbeat() {
   const status={ id: session, numero: connectedPhone, status: connection, atualizado_em: new Date().toISOString() }
   check(await db.from('whatsapp_web_sessoes').upsert(status))
   await mkdir(path.join(root,'.whatsapp-web'),{recursive:true})
-  await writeFile(path.join(root,'.whatsapp-web',`status-${session}.json`),JSON.stringify({...status,pid:process.pid}))
+  await writeFile(path.join(root,'.whatsapp-web',`status-${session}.json`),JSON.stringify({...status,pid:process.pid,connectOnly,pairByCode,pairingCode:connection === 'aguardando_qr' ? pairingCode : null,pairingCodeExpiresAt}))
 }
+client.on('code', (code) => {
+  ready = false; connection = 'aguardando_qr'
+  pairingCode = code
+  pairingCodeExpiresAt = new Date(Date.now() + 180000).toISOString()
+  console.log(`Código de vinculação da sessão ${session} disponível no painel local.`)
+  heartbeat().catch(error => console.error('Falha ao atualizar código:', error.message))
+})
 client.on('qr', async (value) => {
   ready = false; connection = 'aguardando_qr'
   console.log('WhatsApp > Dispositivos conectados > Conectar dispositivo. Leia este QR Code:')
@@ -48,11 +60,12 @@ client.on('qr', async (value) => {
   } catch { console.error('Não foi possível salvar a imagem do QR Code; use o QR do terminal.') }
 })
 client.on('ready', () => {
+  pairingCode = null; pairingCodeExpiresAt = null
   rm(path.join(root,'.whatsapp-web',`qr-${session}.png`),{force:true}).catch(()=>{})
   connectedPhone = normalizePhone(client.info?.wid?.user)
   ready = connectedPhone === expectedPhone
   connection = ready ? 'conectado' : 'numero_incorreto'
-  console.log(ready ? `Sessão ${session} conectada. Processamento dos Flows habilitado.` : 'Número conectado diferente de WHATSAPP_WEB_PHONE. Nenhum envio será feito.')
+  console.log(ready ? `Sessão ${session} conectada. ${connectOnly ? 'Modo de conexão: envios desabilitados.' : 'Processamento dos Flows habilitado.'}` : 'Número conectado diferente de WHATSAPP_WEB_PHONE. Nenhum envio será feito.')
 })
 client.on('disconnected', () => { ready = false; connection = 'desconectado'; console.error('Sessão desconectada. Reinicie o worker para reconectar.'); stopping = true })
 client.on('auth_failure', () => { ready = false; connection = 'falha_autenticacao'; stopping = true })
@@ -112,7 +125,7 @@ try {
   await timeout(client.initialize(), 900000)
   while (!stopping) {
     await heartbeat()
-    if (ready) {
+    if (ready && !connectOnly) {
       const message = check(await db.rpc('whatsapp_web_reservar', { p_sessao: session, p_numero: expectedPhone }))
       if (message) {
         const outcome = await deliver({ message, prepare, confirm, send: (...args) => timeout(client.sendMessage(...args)), finish })

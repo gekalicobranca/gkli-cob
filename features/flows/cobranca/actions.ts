@@ -1,5 +1,6 @@
 'use server'
 
+import { validarCriacaoPorCanal } from './vinculos-canais'
 import { consolidarEmailsLote } from './consolidar-emails'
 import { getEmailRemetenteKey } from '@/features/mensageria/email-provider'
 import { revalidatePath } from 'next/cache'
@@ -97,6 +98,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
   const cobrancaIds = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
+  const criarPausado = formData.get('criar_pausado') === 'true'
   if (!cobrancaIds.length) return { error: 'Selecione ao menos uma cobrança ativa.' }
   if (cobrancaIds.length > LIMITE_COBRANCAS_CHAMADA) return { error: 'A criação deve ser feita em partes menores. Atualize a página para usar a divisão automática.' }
 
@@ -116,25 +118,6 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
   if (cobrancas.some((row) => !hasResponsavelVinculado(row))) {
     return { error: 'Uma ou mais cobranças não possuem responsável vinculado. Corrija o cadastro ou retire essas cobranças da seleção antes de criar o Flow.' }
   }
-  const { data: montagens, error: montagemError } = await supabase.from('maestro_flow_montagens')
-    .select('id').eq('condominio_id', cobrancas[0].condominio_id).in('status', ['pendente', 'processando', 'atencao']).limit(1)
-  if (montagemError && montagemError.code !== '42P01' && montagemError.code !== 'PGRST205') throw new Error('Não foi possível conferir a fila do Maestro.')
-  if (montagens?.length) return { error: 'Este condomínio tem uma montagem do Maestro em andamento ou aguardando revisão. Acompanhe a montagem antes de criar flows manualmente.' }
-
-  const { data: vinculadas, error: vinculadasError } = await supabase
-    .from('lote_itens')
-    .select('cobranca_id')
-    .in('cobranca_id', cobrancaIds)
-    .not('cobranca_flow_id', 'is', null)
-  if (vinculadasError) throw new Error(`Erro ao verificar vínculos existentes: ${vinculadasError.message}`)
-  if ((vinculadas ?? []).length) return { error: 'Uma ou mais cobranças já estão vinculadas a outro Flow. Atualize a página e revise a seleção.' }
-
-  const { data: pendentesSemFlow, error: pendentesError } = await supabase.from('mensagens')
-    .select('id').in('cobranca_id', cobrancaIds).is('cobranca_flow_id', null)
-    .in('status', ['pendente_aprovacao', 'aprovada', 'agendada']).limit(1)
-  if (pendentesError) throw new Error('Não foi possível conferir mensagens de tentativas anteriores.')
-  if (pendentesSemFlow?.length) return { error: 'Há mensagens pendentes de uma criação anterior sem Flow. Revise o lote interrompido antes de tentar novamente; nenhuma mensagem foi duplicada.' }
-
   const grupos = new Map<string, any[]>()
   for (const cobranca of cobrancas) {
     const carteiraId = String(cobranca.carteira_id ?? '')
@@ -150,12 +133,16 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
   const flowIds: string[] = []
   for (const [key, rows] of grupos.entries()) {
     const [carteiraId, reguaId] = key.split('|')
+    let canais: string[]
+    try { canais = await validarCriacaoPorCanal(supabase, rows, reguaId) }
+    catch (error) { return { error: error instanceof Error ? error.message : 'Não foi possível conferir os canais.' } }
     const resultado = await processarReguaCobranca({
       scope,
       origem: 'manual',
       cobrancaIds: rows.map((row) => row.id),
       reguaId,
       cooldownDias: 0,
+      prepararFlowPausado: criarPausado,
     })
 
     for (const loteId of resultado.loteIds) {
@@ -174,7 +161,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
       const totalMensagens = (mensagens ?? []).length
       if (totalMensagens > LIMITE_EMAILS_FLOW) throw new Error('Esta unidade gerou mais de 20 mensagens distintas. O lote foi preservado para revisão, sem ativar envios.')
       const totalFalhas = n(lote?.total_erros)
-      const statusInicial = totalMensagens > 0 ? 'pronto' : totalFalhas > 0 ? 'concluido_com_falhas' : 'concluido'
+      const statusInicial = totalMensagens > 0 ? (criarPausado ? 'pausado' : 'pronto') : totalFalhas > 0 ? 'concluido_com_falhas' : 'concluido'
       const carteira = Array.isArray(rows[0]?.carteira) ? rows[0]?.carteira[0] : rows[0]?.carteira
       const condominio = Array.isArray(rows[0]?.condominio) ? rows[0]?.condominio[0] : rows[0]?.condominio
 
@@ -186,6 +173,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
           regua_id: reguaId,
           nome: flowNome(carteira?.nome, loteId, condominio?.nome_operacional || condominio?.nome || 'Condomínio'),
           status: statusInicial,
+          pausado_em: statusInicial === 'pausado' ? new Date().toISOString() : null,
           total_mensagens: totalMensagens,
           total_pendentes: totalMensagens,
           total_falhas: totalFalhas,
@@ -193,6 +181,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
           atualizado_por: user.id,
           payload: {
             contexto: 'flow_cobranca',
+            canais,
             cobranca_ids: rows.map((row) => row.id),
             condominio_id: rows[0].condominio_id,
             lote_id: loteId,

@@ -120,6 +120,9 @@ type ProcessarReguaParams = {
   reguaId?: string;
   loteRetomadaId?: string;
   montagemMaestro?: boolean;
+  // Preparação manual sem ativação: permite rascunhar o canal desabilitado.
+  // As mensagens continuam pendentes de aprovação, nunca agendadas para envio.
+  prepararFlowPausado?: boolean;
 };
 
 type Contadores = ReguaContadores;
@@ -883,7 +886,7 @@ export async function processarReguaCobranca(
         }
 
         const canal = etapa.canal ?? "whatsapp";
-        if (!(await carteiraPermiteCanal(row.carteira_id, canal))) {
+        if (!(await carteiraPermiteCanal(row.carteira_id, canal)) && !params.prepararFlowPausado) {
           const motivo = `${nomeCanalComunicacao(canal)} não está habilitado para esta carteira.`;
           total.puladas += 1;
           lote.contadores.puladas += 1;
@@ -965,7 +968,7 @@ export async function processarReguaCobranca(
         });
 
         const compliance = await avaliarComplianceRegua({
-          prepararParaAgenda: params.montagemMaestro === true && canal === 'email',
+          prepararParaAgenda: params.prepararFlowPausado === true || (params.montagemMaestro === true && canal === 'email'),
           carteiraId: row.carteira_id,
           condominioId: condominio?.id ?? null,
           unidadeId: unidade?.id ?? null,
@@ -1086,8 +1089,8 @@ export async function processarReguaCobranca(
             conteudo_renderizado: mensagem,
             status: MENSAGEM_STATUS.PENDENTE_APROVACAO,
             status_operacional: MENSAGEM_STATUS.PENDENTE_APROVACAO,
-            scheduled_at: new Date().toISOString(),
-            agendada_para: new Date().toISOString(),
+            scheduled_at: params.prepararFlowPausado ? null : new Date().toISOString(),
+            agendada_para: params.prepararFlowPausado ? null : new Date().toISOString(),
             lote_id: lote.id,
             regua_etapa_id: reguaEtapaId,
             fingerprint,

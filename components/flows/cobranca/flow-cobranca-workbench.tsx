@@ -1,5 +1,6 @@
 'use client'
 
+import { reguasDisponiveis } from '@/features/flows/cobranca/canais'
 import { useActionState, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, RefreshCw, RotateCcw, Trash2, XCircle } from 'lucide-react'
@@ -152,6 +153,21 @@ export function FlowCobrancaWorkbench({
   initialSelectedIds?: string[]
 }) {
   const [selectedCondominio, setSelectedCondominio] = useState(() => disponibilidade.find(row => initialSelectedIds.includes(row.id))?.condominio_id ?? '')
+  const [reguasSelecionadas, setReguasSelecionadas] = useState<Record<string, string>>({})
+  function opcoesDoGrupo(rows: any[]) {
+    const ids = new Set(rows.flatMap(row => reguasDisponiveis(row, reguas).map(regua => regua.id)))
+    return reguas.filter(regua => ids.has(regua.id))
+  }
+  function reguaDoGrupo(rows: any[]) {
+    const opcoes = opcoesDoGrupo(rows)
+    const row = rows[0]
+    const escolhida = reguasSelecionadas[row?.condominio_id]
+    return opcoes.find(regua => regua.id === escolhida)?.id
+      ?? opcoes.find(regua => regua.carteira_id === row?.carteira_id && regua.id === relation(row?.condominio)?.regua_cobranca_id)?.id
+      ?? opcoes.find(regua => regua.carteira_id === row?.carteira_id)?.id
+      ?? opcoes.find(regua => regua.id === relation(row?.condominio)?.regua_cobranca_id)?.id
+      ?? opcoes[0]?.id ?? ''
+  }
   const router = useRouter()
   const [progresso, setProgresso] = useState('')
   const [somenteProntos, setSomenteProntos] = useState(false)
@@ -171,7 +187,7 @@ export function FlowCobrancaWorkbench({
       for (let index = 0; index < partes.length; index += 1) {
         setProgresso(`Criando parte ${index + 1} de ${partes.length} · ${criados} flow(s) pronto(s)`)
         const parte = new FormData()
-        for (const [key, value] of formData.entries()) if (key.startsWith('regua_id:')) parte.set(key, value)
+        for (const [key, value] of formData.entries()) if (key.startsWith('regua_id:') || key === 'criar_pausado') parte.set(key, value)
         for (const row of partes[index]) parte.append('cobranca_id', row.id)
         const resultado = await criarFlowsCobranca(null, parte)
         if (resultado.error) throw new Error(resultado.error)
@@ -189,7 +205,9 @@ export function FlowCobrancaWorkbench({
   }, null)
   const elegiveis = useMemo(() => disponibilidade.filter(hasResponsavelVinculado), [disponibilidade])
   const semResponsavel = disponibilidade.length - elegiveis.length
-  const selectedCobrancas = useMemo(() => elegiveis.filter((cobranca) => cobranca.condominio_id === selectedCondominio), [elegiveis, selectedCondominio])
+  const rowsDoCondominio = elegiveis.filter(row => row.condominio_id === selectedCondominio)
+  const reguaSelecionada = reguaDoGrupo(rowsDoCondominio)
+  const selectedCobrancas = rowsDoCondominio.filter(row => reguasDisponiveis(row, reguas).some(regua => regua.id === reguaSelecionada))
   const selected = selectedCobrancas.map(row => row.id)
   const plano = useMemo(() => {
     try { return { quantidade: dividirCriacaoFlows(selectedCobrancas).length, error: '' } }
@@ -225,8 +243,8 @@ export function FlowCobrancaWorkbench({
           {selectedCobrancas.map((cobranca) => <input key={cobranca.id} type="hidden" name="cobranca_id" value={cobranca.id} />)}
           <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <p className="text-sm text-slate-600">Selecione um condomínio por Flow. Serão incluídas as {selectedCobrancas.length} cobrança(s) elegíveis desse condomínio exibidas pelo filtro.</p>
-              <p className="mt-1 text-xs text-slate-500">Criação automática em partes menores, com até {LIMITE_EMAILS_FLOW} e-mails por Flow. As cobranças da mesma unidade ficam juntas. Mantenha esta página aberta até concluir.</p>
+              <p className="text-sm text-slate-600">Selecione um condomínio por Flow. Serão incluídas as {selectedCobrancas.length} cobrança(s) disponíveis para os canais da régua selecionada. E-mail e WhatsApp podem ter Flows separados.</p>
+              <p className="mt-1 text-xs text-slate-500">Criação automática em partes menores, com até {LIMITE_EMAILS_FLOW} mensagens por Flow. As cobranças da mesma unidade ficam juntas. Mantenha esta página aberta até concluir.</p>
               {semResponsavel > 0 ? <p className="mt-1 text-xs text-amber-800">{semResponsavel} cobrança(s) sem responsável não entram na seleção. Preencha o responsável no cadastro da unidade para incluí-las no Flow.</p> : null}
             </div>
           </div>
@@ -245,14 +263,9 @@ export function FlowCobrancaWorkbench({
                 pendenciasPorCondominio.set(id, pendencia)
               }
               const selecionadasNoGrupo = elegiveisNoGrupo.filter((row) => selected.includes(row.id))
-              const grupoSelecionado = elegiveisNoGrupo.length > 0 && selecionadasNoGrupo.length === elegiveisNoGrupo.length
-              const opcoesRegua = reguas.filter((regua: any) => !regua.carteira_id || regua.carteira_id === grupo.carteiraId)
-              const reguasDaCarteira = opcoesRegua.filter((regua: any) => regua.carteira_id === grupo.carteiraId)
-              const defaultRegua = reguasDaCarteira.find((regua: any) => regua.id === grupo.reguaId)?.id
-                ?? reguasDaCarteira[0]?.id
-                ?? opcoesRegua.find((regua: any) => regua.id === grupo.reguaId)?.id
-                ?? opcoesRegua[0]?.id
-                ?? ''
+              const grupoSelecionado = grupo.condominioId === selectedCondominio
+              const opcoesRegua = opcoesDoGrupo(grupo.rows)
+              const defaultRegua = reguaDoGrupo(grupo.rows)
               return <ListRow key={grupo.condominioId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
                 <div>
                   <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="radio" name="condominio_selecionado" value={grupo.condominioId} checked={grupoSelecionado} disabled={criando || elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 border-slate-300 text-[var(--gkli-primary)]" />{grupo.condominioNome}</label>
@@ -268,7 +281,7 @@ export function FlowCobrancaWorkbench({
                 <div><p className="text-xs text-slate-400">Lotes</p><p className="text-sm text-slate-700">{selecionadasNoGrupo.length ? `${plano.quantidade} parte(s)` : 'Não selecionado'}</p></div>
                 <label className="text-xs font-medium text-slate-600">
                   Régua do Flow
-                  <select name={`regua_id:${grupo.carteiraId}`} required={selecionadasNoGrupo.length > 0} disabled={criando || selecionadasNoGrupo.length === 0} defaultValue={defaultRegua} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400">
+                  <select name={`regua_id:${grupo.carteiraId}`} required={selecionadasNoGrupo.length > 0} disabled={criando || !grupoSelecionado} value={defaultRegua} onChange={event => setReguasSelecionadas(current => ({ ...current, [grupo.condominioId]: event.target.value }))} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400">
                     <option value="" disabled>Selecione</option>
                     {opcoesRegua.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}{regua.carteira_id ? '' : ' · global'}</option>)}
                   </select>
@@ -278,8 +291,9 @@ export function FlowCobrancaWorkbench({
           </ListRows>
           {plano.error ? <p role="alert" className="px-4 py-3 text-sm text-rose-800">{plano.error}</p> : null}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
+            <label className="mr-auto inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="criar_pausado" value="true" disabled={criando} />Criar pausados, sem agendar envios</label>
             <PendingSubmitButton formAction={desfazerAtivacaoCobrancasFlowCobranca} formNoValidate variant="danger" disabled={criando || selectedCobrancas.length === 0} pendingLabel="Desfazendo..." onClick={(event) => { if (!window.confirm(`Devolver ${selectedCobrancas.length} cobrança(s) para Novas?`)) event.preventDefault() }}><RotateCcw size={16} />Desfazer ativação</PendingSubmitButton>
-            <PendingSubmitButton disabled={criando || !plano.quantidade || Boolean(plano.error)} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${plano.quantidade} Flow(s) em partes, com até ${LIMITE_EMAILS_FLOW} e-mails cada?`)) event.preventDefault() }}><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
+            <PendingSubmitButton disabled={criando || !plano.quantidade || Boolean(plano.error)} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${plano.quantidade} Flow(s) em partes, com até ${LIMITE_EMAILS_FLOW} mensagens cada?`)) event.preventDefault() }}><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
           </div>
         </form> : <ListEmptyState title="Nenhum condomínio disponível" description="Selecione um condomínio em Cobranças novas e ative suas cobranças para montar o Flow." />}
       </details>

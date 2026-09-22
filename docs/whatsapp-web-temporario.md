@@ -20,6 +20,10 @@ As três sessões locais preparadas usam arquivos `.env.whatsapp-*`, ignorados p
 
 Executar cada comando em seu próprio processo. O computador deve permanecer ligado, com internet e sem suspensão. Não executar a mesma sessão em dois processos. Os perfis persistem em `.whatsapp-web/auth` e não devem ser copiados para Git, hospedagem pública ou compartilhamentos. `WHATSAPP_WEB_CHROME_PATH` permite usar um Chrome instalado quando necessário.
 
+Para conectar e conferir a linha sem reservar nem enviar mensagens, acrescentar `-- --connect-only` ao comando npm, por exemplo: `npm run start:gekali --prefix scripts/whatsapp-web -- --connect-only`. O painel identifica esse modo após a conexão. Para habilitar o processamento, encerrar esse processo e iniciar novamente sem a opção.
+
+Para vincular por código em vez de QR, acrescentar também `--pair-by-code`: `npm run start:azevedo --prefix scripts/whatsapp-web -- --connect-only --pair-by-code`. O painel local apresenta o código, renovado a cada três minutos, para confirmação no WhatsApp do celular da linha configurada. O código fica apenas no estado local, sem gravação no banco ou nos logs. O login feito em outro navegador não conecta o worker.
+
 `WHATSAPP_WEB_AUTH_PATH` permite uma pasta de perfil alternativa. A sessão local Azevedo usa `.whatsapp-web/auth-azevedo`, após reinicialização de um perfil que ainda não tinha sido autenticado. Não trocar a pasta de uma sessão autenticada sem planejar nova leitura de QR Code. A espera inicial pelo QR expira após 15 minutos; nesse caso reiniciar o comando da sessão.
 
 ## Execução e limites
