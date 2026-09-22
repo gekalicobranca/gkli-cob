@@ -435,5 +435,9 @@ export const backupSchemaFiles: ReadonlyArray<{ name: string; content: string }>
   {
     "name": "schema/migrations/20260918160000_saneamento_preservar_historico.sql",
     "content": "-- Preserve operational history when an import replaces its original debt.\nalter table public.saneamento_cobrancas\n drop constraint saneamento_cobrancas_cobranca_id_fkey,\n add constraint saneamento_cobrancas_cobranca_id_fkey\n foreign key (cobranca_id) references public.cobrancas(id) on delete set null;\n"
+  },
+  {
+    "name": "schema/migrations/20260922180000_google_smtp_oauth.sql",
+    "content": "alter table public.integracoes_smtp_config add column if not exists auth_method text not null default 'password'\n  check (auth_method in ('password', 'google_oauth'));\ncreate table if not exists public.integracoes_smtp_google_tokens (\n  config_id uuid primary key references public.integracoes_smtp_config(id) on delete cascade,\n  refresh_token_encrypted text not null,\n  email text not null,\n  atualizado_em timestamptz not null default now()\n);\nalter table public.integracoes_smtp_google_tokens enable row level security;\nrevoke all on public.integracoes_smtp_google_tokens from anon, authenticated;\ngrant all on public.integracoes_smtp_google_tokens to service_role;\n"
   }
 ]

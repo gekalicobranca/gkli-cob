@@ -1,6 +1,7 @@
 import { reservarDisparoEmail, finalizarDisparoEmail } from './email-agenda'
 import net from 'node:net'
 import tls from 'node:tls'
+import { googleToken, openGoogleSecret, xoauth2 } from './google-oauth'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { normalizarEmailControle } from '@/features/carteiras/email-controle'
 
@@ -17,6 +18,7 @@ export type EmailPayload = {
 }
 
 type SmtpConfig = {
+  oauthConfigId?: string
   host: string
   port: number
   user?: string
@@ -37,6 +39,7 @@ type SmtpSendOptions = {
 }
 
 export type PublicSmtpConfigStatus = {
+  authMethod?: 'password' | 'google_oauth'
   source: 'database' | 'environment' | 'missing'
   configScope: SmtpConfigScope
   carteiraId: string | null
@@ -82,6 +85,7 @@ function rowToConfig(data: any): SmtpConfig | null {
   if (!from) return null
 
   return {
+    oauthConfigId: data.auth_method === 'google_oauth' ? data.id : undefined,
     host: data.host,
     port: Number(data.porta ?? 587),
     user: data.usuario ?? undefined,
@@ -101,13 +105,14 @@ async function getDatabaseConfig(carteiraId?: string | null): Promise<SmtpConfig
   if (normalizedCarteiraId) {
     const scopedQuery = supabase
       .from('integracoes_smtp_config')
-      .select('ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
+      .select('id,auth_method,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
       .eq('ativo', true)
       .eq('carteira_id', normalizedCarteiraId)
       .order('atualizado_em', { ascending: false })
       .limit(1)
 
     const { data, error } = await scopedQuery.maybeSingle()
+    if (error) throw new Error('Não foi possível consultar o SMTP da carteira.')
     if (!error) {
       const config = rowToConfig(data)
       if (config) return config
@@ -116,7 +121,7 @@ async function getDatabaseConfig(carteiraId?: string | null): Promise<SmtpConfig
 
   const { data, error } = await supabase
     .from('integracoes_smtp_config')
-    .select('ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
+    .select('id,auth_method,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
     .eq('ativo', true)
     .is('carteira_id', null)
     .order('atualizado_em', { ascending: false })
@@ -130,6 +135,7 @@ async function getDatabaseConfig(carteiraId?: string | null): Promise<SmtpConfig
 function databaseStatus(data: any, configScope: SmtpConfigScope, carteiraId: string | null): PublicSmtpConfigStatus {
   const from = data.remetente || data.usuario || null
   return {
+    authMethod: data.auth_method === 'google_oauth' ? 'google_oauth' : 'password',
     source: 'database',
     configScope,
     carteiraId,
@@ -156,7 +162,7 @@ export async function getSmtpConfigStatus(carteiraId?: string | null): Promise<P
     if (normalizedCarteiraId) {
       const scopedQuery = supabase
         .from('integracoes_smtp_config')
-        .select('carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
+        .select('auth_method,carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
         .eq('carteira_id', normalizedCarteiraId)
         .order('atualizado_em', { ascending: false })
         .limit(1)
@@ -170,7 +176,7 @@ export async function getSmtpConfigStatus(carteiraId?: string | null): Promise<P
 
     const globalQuery = supabase
       .from('integracoes_smtp_config')
-      .select('carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
+      .select('auth_method,carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
       .is('carteira_id', null)
       .order('atualizado_em', { ascending: false })
       .limit(1)
@@ -451,7 +457,14 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
       await command(socket, `EHLO ${config.ehloDomain}`, [250])
     }
 
-    if (config.user && config.pass) {
+    if (config.oauthConfigId) {
+      if (config.host !== 'smtp.gmail.com' || !config.secure || config.port !== 465 || !config.user) throw new Error('Configuração Google SMTP inválida.')
+      const { data, error } = await createAdminClient().from('integracoes_smtp_google_tokens')
+        .select('refresh_token_encrypted,email').eq('config_id', config.oauthConfigId).single()
+      if (error || !data || data.email.toLowerCase() !== config.user.toLowerCase()) throw new Error('Reconecte a conta Google da carteira.')
+      const token = await googleToken({ grant_type: 'refresh_token', refresh_token: openGoogleSecret(data.refresh_token_encrypted) })
+      await command(socket, `AUTH XOAUTH2 ${xoauth2(config.user, token.access_token)}`, [235], { label: 'AUTH XOAUTH2' })
+    } else if (config.user && config.pass) {
       await command(socket, 'AUTH LOGIN', [334])
       await command(socket, Buffer.from(config.user).toString('base64'), [334], { label: 'AUTH LOGIN' })
       await command(socket, Buffer.from(config.pass).toString('base64'), [235], { label: 'AUTH LOGIN' })

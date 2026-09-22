@@ -5,8 +5,14 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/utils/auth/require-user";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { sendSmtpEmail } from "@/features/mensageria/email-provider";
+import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 
 const PAGE_PATH = "/app/configuracoes/integracoes";
+
+async function authorizeCarteira(carteiraId: string | null) {
+  const scope = await getPermittedCarteiras();
+  if (!scope.isAdmin && (!carteiraId || !scope.carteiraIds?.includes(carteiraId))) throw new Error("Carteira não autorizada.");
+}
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -33,6 +39,7 @@ export async function salvarConfiguracaoSmtp(formData: FormData) {
   const user = await requireUser();
   const supabase = createAdminClient();
   const carteiraId = getCarteiraParam(formData) || null;
+  await authorizeCarteira(carteiraId);
 
   const host = formString(formData, "host");
   const porta = Number(formString(formData, "porta") || 587);
@@ -50,7 +57,7 @@ export async function salvarConfiguracaoSmtp(formData: FormData) {
 
   let currentQuery = supabase
     .from("integracoes_smtp_config")
-    .select("id,senha")
+    .select("id,senha,auth_method,usuario")
     .order("atualizado_em", { ascending: false })
     .limit(1);
 
@@ -60,6 +67,10 @@ export async function salvarConfiguracaoSmtp(formData: FormData) {
 
   if (currentError) {
     redirectWithResult("error", `Nao foi possivel carregar a configuracao: ${currentError.message}`, carteiraId);
+  }
+
+  if (atual?.auth_method === 'google_oauth' && (usuario !== atual.usuario || host !== 'smtp.gmail.com' || porta !== 465 || !secure || senha)) {
+    redirectWithResult('error', 'Esta conta usa Google OAuth. Mantenha o e-mail, SSL e servidor Google; não informe senha.', carteiraId);
   }
 
   const payload = {
@@ -92,6 +103,7 @@ export async function testarConfiguracaoSmtp(formData: FormData) {
   await requireUser();
 
   const carteiraId = getCarteiraParam(formData) || null;
+  await authorizeCarteira(carteiraId);
   const destinatario = formString(formData, "destinatario_teste");
   if (!destinatario || !destinatario.includes("@")) {
     redirectWithResult("error", "Informe um destinatario de teste valido.", carteiraId);

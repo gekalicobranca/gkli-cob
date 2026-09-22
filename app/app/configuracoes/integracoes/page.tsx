@@ -4,6 +4,7 @@ import { getSmtpConfigStatus } from "@/features/mensageria/email-provider";
 import { salvarConfiguracaoSmtp, testarConfiguracaoSmtp } from "@/features/configuracoes/smtp-actions";
 import { listCarteiras } from "@/features/carteiras/queries";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
+import { conectarGoogleSmtp } from "@/features/configuracoes/google-smtp-actions";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -132,8 +133,11 @@ export const dynamic = "force-dynamic";
 export default async function IntegracoesPage({ searchParams }: PageProps) {
   const emptyParams: Record<string, string | string[] | undefined> = {};
   const params = searchParams ? await searchParams : emptyParams;
-  const selectedCarteiraId = singleParam(params.carteira) === "global" ? "" : singleParam(params.carteira) || "";
   const scope = await getPermittedCarteiras();
+  const selectedCarteiraId = singleParam(params.carteira) === "global" ? "" : singleParam(params.carteira) || (scope.isAdmin ? "" : scope.carteiraIds?.[0] || "");
+  if (!scope.isAdmin && (!selectedCarteiraId || !scope.carteiraIds?.includes(selectedCarteiraId))) {
+    return <p>Selecione uma carteira autorizada para configurar o SMTP.</p>;
+  }
   const [status, carteiras] = await Promise.all([
     getSmtpConfigStatus(selectedCarteiraId),
     listCarteiras(scope),
@@ -244,6 +248,14 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
           </div>
         </form>
 
+        {selectedCarteiraId && <form action={conectarGoogleSmtp} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <input type="hidden" name="carteira_id" value={selectedCarteiraId} />
+          <h2 className="text-xl font-semibold text-slate-950">Conta Google</h2>
+          {status.authMethod === 'google_oauth' && <p className="mt-2 text-sm text-emerald-700">Autorização Google cadastrada para {status.user}.</p>}
+          <p className="my-3 text-sm text-slate-600">Conecte o e-mail cadastrado nesta carteira pelo Google, sem informar a senha. A autorização permite o envio automático por SMTP.</p>
+          <PendingSubmitButton pendingLabel="Conectando…" disabled={!process.env.GOOGLE_SMTP_CLIENT_ID || !process.env.GOOGLE_SMTP_CLIENT_SECRET || !process.env.GOOGLE_SMTP_ENCRYPTION_KEY || !process.env.GOOGLE_SMTP_REDIRECT_URI}>Conectar com Google</PendingSubmitButton>
+          {!process.env.GOOGLE_SMTP_CLIENT_ID && <p className="mt-2 text-sm text-amber-700">A conexão Google aguarda configuração pelo administrador.</p>}
+        </form>}
         <form action={testarConfiguracaoSmtp} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <input type="hidden" name="carteira_id" value={selectedCarteiraValue} />
           <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Teste</span>
