@@ -1,3 +1,4 @@
+import { resumirValoresCobrancas } from './subtotais'
 import { applyBloqueioStatusFilter } from './filtros-status'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -30,6 +31,7 @@ export type CobrancaPageOptions = {
 }
 
 export type CobrancaResumo = {
+  porCarteira: ReturnType<typeof resumirValoresCobrancas>['porCarteira']
   total: number
   totalEmAberto: number
   totalNegociacao: number
@@ -568,7 +570,7 @@ export async function summarizeCobrancas(scope: CarteiraScope, filters: Cobranca
   for (let from = 0; ; from += pageSize) {
     let query = supabase
       .from('cobrancas')
-      .select('id,valor_original,valor_atualizado,status,status_operacional,status_financeiro')
+      .select('id,carteira_id,condominio_id,valor_original,valor_atualizado,status,status_operacional,status_financeiro,carteiras(nome),condominios(nome)')
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
@@ -584,21 +586,13 @@ export async function summarizeCobrancas(scope: CarteiraScope, filters: Cobranca
     if (!data || data.length < pageSize) break
   }
 
-  const withoutOpenValue = new Set<string>([
-    COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
-    COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
-    COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
-    COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
-  ])
   const totalNegociacao = rows
     .filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO)
     .reduce((sum, row) => sum + Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100), 0) / 100
 
   return {
     total: rows.length,
-    totalEmAberto: rows
-      .filter((row) => !withoutOpenValue.has(getCobrancaStatusOperacional(row)))
-      .reduce((sum, row) => sum + Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100), 0) / 100,
+    ...resumirValoresCobrancas(normalizeRelationsList(rows, ['carteiras', 'condominios'])),
     totalNegociacao,
     novas: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.NOVO).length,
     ativas: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA).length,

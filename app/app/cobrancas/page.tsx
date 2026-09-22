@@ -38,7 +38,7 @@ import {
   listCondominiosForSelect,
   listUnidadesForSelect,
 } from "@/features/cadastros/queries";
-import { listCobrancasPage, summarizeCobrancas } from "@/features/cobrancas/queries";
+import { listCobrancasPage, summarizeCobrancas, type CobrancaResumo } from "@/features/cobrancas/queries";
 import {
   COBRANCA_STATUS_OPERACIONAL,
   normalizeStatus,
@@ -68,7 +68,8 @@ type PageProps = {
 const STATUS_FILTERS = STATUS_OPERACIONAIS;
 
 const PAGE_SIZE = 500;
-const EMPTY_RESUMO = {
+const EMPTY_RESUMO: CobrancaResumo = {
+  porCarteira: [],
   total: 0,
   totalEmAberto: 0,
   totalNegociacao: 0,
@@ -298,7 +299,18 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
       : Promise.resolve([]),
   ]);
   const rows = pageData.rows;
-  const groups = groupCobrancas(rows);
+  const pageGroups = groupCobrancas(rows);
+  const groups = resumo.porCarteira.map((carteira) => {
+    const visible = pageGroups.find((group) => group.carteiraId === carteira.carteiraId);
+    return {
+      ...carteira,
+      cobrancasCount: visible?.cobrancasCount ?? 0,
+      condominios: carteira.condominios.map((condominio) => ({
+        ...condominio,
+        cobrancas: visible?.condominios.find((group) => group.condominioId === condominio.condominioId)?.cobrancas ?? [],
+      })),
+    };
+  });
   const ativas = resumo.ativas;
   const previousHref = page > 1 ? cobrancasHref(queryParams, { page: String(page - 1) }) : undefined;
   const nextHref = page * PAGE_SIZE < pageData.total ? cobrancasHref(queryParams, { page: String(page + 1) }) : undefined;
@@ -334,7 +346,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
       </LitePageHeader>
 
       <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label="Em aberto" value={formatCurrency(resumo.totalEmAberto)} hint="Todas as páginas, conforme os filtros" icon={<WalletCards size={18} />} />
+        <KpiCard label="Em aberto" value={formatCurrency(resumo.totalEmAberto)} hint="Soma das carteiras em todas as páginas, conforme os filtros" icon={<WalletCards size={18} />} />
 
         {[
           [
@@ -502,12 +514,12 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                         <div className="min-w-0">
                           <ListItemTitle className="font-semibold">{carteiraGroup.carteira}</ListItemTitle>
                           <ListItemMeta className="mt-0.5">
-                            {carteiraGroup.condominios.length} condomínio(s) · {carteiraGroup.cobrancasCount} cobrança(s) nesta página
+                            {carteiraGroup.condominios.length} condomínio(s) · {carteiraGroup.quantidade} cobrança(s) no total · {carteiraGroup.cobrancasCount} nesta página
                           </ListItemMeta>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-slate-500">Subtotal nesta página</p>
+                        <p className="text-xs text-slate-500">Em aberto · todas as páginas</p>
                         <p className="text-sm font-semibold text-slate-800">{formatCurrency(carteiraGroup.valor)}</p>
                       </div>
                     </summary>
@@ -520,16 +532,17 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                               <ChevronDown size={16} className="shrink-0 text-slate-400 transition-transform group-open/condominio:rotate-180" />
                               <div className="min-w-0">
                               <ListItemTitle>{group.condominio}</ListItemTitle>
-                              <ListItemMeta className="mt-0.5">{group.cobrancas.length} cobrança(s) nesta página</ListItemMeta>
+                              <ListItemMeta className="mt-0.5">{group.quantidade} cobrança(s) no total · {group.cobrancas.length} nesta página</ListItemMeta>
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs text-slate-500">Subtotal nesta página</p>
+                              <p className="text-xs text-slate-500">Em aberto · todas as páginas</p>
                               <p className="text-sm font-semibold text-slate-700">{formatCurrency(group.valor)}</p>
                             </div>
                           </summary>
 
                           <div className="divide-y divide-slate-100">
+                            {group.cobrancas.length === 0 ? <p className="px-7 py-3 text-sm text-slate-500">As cobranças deste condomínio estão em outras páginas.</p> : null}
                             {group.cobrancas.map((row: any) => {
                         const status = getCobrancaStatusOperacional(row);
                         const priority = getPriority(status, row.vencimento);
