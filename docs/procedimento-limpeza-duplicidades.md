@@ -188,3 +188,15 @@ node node_modules/tsx/dist/cli.mjs scripts/simular-limpeza-duplicidades.ts outpu
 Replay dos 204 grupos: 105 `ja_existente`, 99 `divergente`, zero `novo`. O replay fornece ao conciliador somente o registro anterior e os dados da reimportação, para reproduzir a condição de entrada; os testes sintéticos separados verificam filtros e paginação.
 
 A simulação offline valida hashes/identidades/valores e gera `simulacao-limpeza.json` e `simulacao-limpeza.md`. Resultado: 83 propostas condicionais de preservação, 121 grupos sem escolha e **zero grupos liberados**. Todos possuem mensagens ou itens de lote, além do inventário completo e da atualização do snapshot ainda necessários. As propostas não são decisões finais: `preservar_id`, `arquivar_ids` e `operacoes` continuam vazios no plano aplicável. O script não tem cliente de banco nem modo de aplicação. Não houve arquivamento, baixa, suspensão ou envio.
+
+## 13. Ensaio do primeiro piloto
+
+Conferidos os pares do Rio Negro nas unidades 001313, 001717, 001008, 001716 e 001519. O excesso potencial desses cinco pares é R$ 4.793,75. A coleta detalhada encontrou 14 mensagens (cinco enviadas, nove canceladas), cinco tentativas de e-mail marcadas como enviadas, nenhuma entrada na agenda atual de e-mail, nenhum envio Thunderbird e nenhum anexo vinculado às mensagens consultadas. Não foi feita consulta ao provedor para comprovar entrega.
+
+Os payloads das cinco mensagens enviadas contêm as duas cópias de cada débito, com valor dobrado no contexto interno. O corpo de texto e o assunto salvos não exibem esse valor. Uma mensagem está ligada às duas cópias; isso não demonstra dois envios. O histórico será preservado integralmente, incluindo seu contexto original.
+
+Foram encontradas cinco pendências abertas de cobrança ausente no relatório, vinculadas aos registros antigos da conversão. Precisam de revisão contra as fontes: não serão encerradas automaticamente nem tratadas como pagamento. A proposta de preservação prioriza o registro diretamente referenciado pela mensagem enviada, sem alterar vínculos históricos. Em quatro casos é o registro da importação; em 001716 é o registro da conversão.
+
+O protótipo em `scripts/limpeza-duplicidades/` passou nos testes locais de arquivamento, idempotência, atomicidade e reversão condicionada à imagem posterior. Com os dados reais, recusou os cinco grupos por pendência aberta. No cenário hipotético de pendências já resolvidas, exclusivamente em PGlite descartável, a projeção passou de dez para cinco registros e de R$ 9.587,50 para R$ 4.793,75, sem modificar mensagens; a reversão foi integral.
+
+**Não é uma entrega de arquivamento ativo no aplicativo.** Ainda faltam a integração de todos os consumidores, o inventário real de dependências e o ensaio com schema/triggers/concorrência reais, além do acesso administrativo. O SQL do protótipo não pertence às migrações de implantação. Limites e comandos em `scripts/limpeza-duplicidades/README.md`. Resultados detalhados em `outputs/auditoria-cobrancas-2026-09-22/ensaio-piloto.json` e `decisoes-piloto.md`. Nenhum registro de produção foi arquivado, modificado ou reenviado nesta etapa.
