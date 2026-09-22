@@ -26,6 +26,7 @@ import {
   type CobrancaImportadaConciliacao,
 } from "./cobrancas-conciliacao";
 import { formatOrigemImportacao } from "./origem-importacao";
+import { observacoesComRecibo } from "./identidade-recibo";
 import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
 import {
   avaliarBloqueioGarantidora,
@@ -1803,6 +1804,7 @@ async function importarCobrancas(
       payload.unidade_id = unidade.id;
       if (unidade.criada) resultado.criados += 1;
 
+      payload.observacoes = observacoesComRecibo(payload);
       const importadaConciliacao: CobrancaImportadaConciliacao = {
         carteira_id: payload.carteira_id,
         condominio_id: payload.condominio_id,
@@ -1831,7 +1833,7 @@ async function importarCobrancas(
         resultado.divergentes += 1;
         resultado.ignorados += 1;
         resultado.erros.push(
-          `Linha ${linha}: cobranca parecida encontrada com divergencia de valores (${conciliacao.cobrancaId}). Revise antes de importar.`,
+          `Linha ${linha}: ${conciliacao.motivo} (${conciliacao.cobrancaId}).`,
         );
         continue;
       }

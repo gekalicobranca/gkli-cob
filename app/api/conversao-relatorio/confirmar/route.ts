@@ -393,7 +393,7 @@ export async function POST(request: NextRequest) {
         })
         cobrancasDivergentes += 1
         inconsistencias.push(
-          `Unidade ${unidadeLabel}: cobrança parecida encontrada com divergência de valores (${conciliacao.cobrancaId}).`
+          `Unidade ${unidadeLabel}: ${conciliacao.motivo} (${conciliacao.cobrancaId}).`
         )
         continue
       }

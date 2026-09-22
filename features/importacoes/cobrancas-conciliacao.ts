@@ -1,3 +1,5 @@
+import { competenciaNormalizada, identidadeRecibo } from "./identidade-recibo";
+
 type SupabaseLike = {
   from: (table: string) => any;
 };
@@ -76,7 +78,7 @@ type RegistrarPendenciasAusentesParams = {
 
 function cents(value: number | string | null | undefined) {
   const numeric = Number(value ?? 0);
-  if (!Number.isFinite(numeric)) return 0;
+  if (!Number.isFinite(numeric)) throw new Error("Valor inválido para conciliação de cobrança.");
   return Math.round(numeric * 100);
 }
 
@@ -90,7 +92,7 @@ function normalizeText(value: string | null | undefined) {
 }
 
 function referenciaDaCobranca(cobranca: CobrancaImportadaConciliacao) {
-  return normalizeText(
+  return identidadeRecibo(cobranca)?.recibo ?? normalizeText(
     cobranca.recibo ||
       cobranca.referencia ||
       cobranca.competencia ||
@@ -105,7 +107,7 @@ export function chaveConciliacaoCobranca(cobranca: CobrancaImportadaConciliacao)
     cobranca.unidade_id ?? "",
     cobranca.vencimento ?? "",
     referenciaDaCobranca(cobranca),
-    cents(cobranca.valor_original || cobranca.valor_atualizado),
+    cents(cobranca.valor_original ?? cobranca.valor_atualizado),
   ].join("|");
 }
 
@@ -113,6 +115,9 @@ function temMesmaReferencia(
   importada: CobrancaImportadaConciliacao,
   existente: CobrancaExistente,
 ) {
+  const reciboImportado = identidadeRecibo(importada);
+  const reciboExistente = identidadeRecibo(existente);
+  if (reciboImportado || reciboExistente) return Boolean(reciboImportado && reciboExistente && reciboImportado.recibo === reciboExistente.recibo);
   const referencia = referenciaDaCobranca(importada);
   if (!referencia) return true;
 
@@ -128,52 +133,33 @@ function temMesmaCompetencia(
 ) {
   if (!importada.competencia && !existente.competencia) return true;
   if (!importada.competencia || !existente.competencia) return true;
-  return normalizeText(importada.competencia) === normalizeText(existente.competencia);
+  return competenciaNormalizada(importada.competencia) === competenciaNormalizada(existente.competencia);
 }
 
 function statusAberto(existente: CobrancaExistente) {
   const financeiro = normalizeText(existente.status_financeiro);
   const operacional = normalizeText(existente.status_operacional);
 
-  return !["quitado", "cancelado", "baixado"].includes(financeiro || operacional);
+  return ![financeiro, operacional].some((status) => ["quitado", "cancelado", "baixado"].includes(status));
 }
 
 function classificarCandidato(
   importada: CobrancaImportadaConciliacao,
   existente: CobrancaExistente,
 ) {
-  const mesmoValorOriginal =
-    cents(importada.valor_original || importada.valor_atualizado) ===
-    cents(existente.valor_original || existente.valor_atualizado);
-  const mesmoValorAtualizado =
-    cents(importada.valor_atualizado || importada.valor_original) ===
-    cents(existente.valor_atualizado || existente.valor_original);
-
-  if (
-    existente.vencimento === importada.vencimento &&
-    mesmoValorOriginal &&
-    temMesmaCompetencia(importada, existente) &&
-    temMesmaReferencia(importada, existente)
-  ) {
-    return {
-      status: "ja_existente" as const,
-      motivo: "Cobrança equivalente já existe na base.",
-    };
+  const reciboImportado = identidadeRecibo(importada);
+  const reciboExistente = identidadeRecibo(existente);
+  const mesmoRecibo = Boolean(reciboImportado && reciboExistente && reciboImportado.recibo === reciboExistente.recibo);
+  const mesmaReferencia = temMesmaReferencia(importada, existente);
+  const mesmoVencimento = existente.vencimento === importada.vencimento;
+  if (!mesmoRecibo && !(mesmoVencimento && mesmaReferencia && temMesmaCompetencia(importada, existente) && statusAberto(existente))) return null;
+  const mesmoOriginal = cents(importada.valor_original ?? importada.valor_atualizado) === cents(existente.valor_original ?? existente.valor_atualizado);
+  const mesmoAtualizado = cents(importada.valor_atualizado ?? importada.valor_original) === cents(existente.valor_atualizado ?? existente.valor_original);
+  const marcadorConflitante = mesmoRecibo && reciboImportado?.marcador !== reciboExistente?.marcador;
+  if (!mesmoVencimento || !temMesmaCompetencia(importada, existente) || !mesmoOriginal || !mesmoAtualizado || marcadorConflitante || !statusAberto(existente)) {
+    return { status: "divergente" as const, motivo: "Recibo já cadastrado com divergência de valores, competência, vencimento ou situação. Revise o registro existente." };
   }
-
-  if (
-    existente.vencimento === importada.vencimento &&
-    temMesmaCompetencia(importada, existente) &&
-    temMesmaReferencia(importada, existente) &&
-    !mesmoValorAtualizado
-  ) {
-    return {
-      status: "divergente" as const,
-      motivo: "Cobrança parecida encontrada, mas com valor diferente.",
-    };
-  }
-
-  return null;
+  return { status: "ja_existente" as const, motivo: "Cobrança equivalente já existe na base." };
 }
 
 function isMesmoLancamentoImportado(
@@ -385,35 +371,29 @@ export async function conciliarCobrancaImportada(
 ): Promise<ResultadoConciliacaoCobranca> {
   const chave = chaveConciliacaoCobranca(cobranca);
 
-  let query = supabase
-    .from("cobrancas")
-    .select(
-      "id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status_financeiro, status_operacional",
-    )
-    .eq("unidade_id", cobranca.unidade_id)
-    .limit(25);
-
-  if (cobranca.vencimento) {
-    query = query.eq("vencimento", cobranca.vencimento);
+  const resultados: Array<{ candidata: CobrancaExistente; resultado: NonNullable<ReturnType<typeof classificarCandidato>> }> = [];
+  // Com recibo, buscar todas as datas e situações evita recriar cotas quitadas ou reemitidas.
+  for (let from = 0; ; from += 500) {
+    let query = supabase.from("cobrancas")
+      .select("id, carteira_id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status_financeiro, status_operacional")
+      .eq("unidade_id", cobranca.unidade_id);
+    if (cobranca.condominio_id) query = query.eq("condominio_id", cobranca.condominio_id);
+    // A transferência de carteira não transforma o recibo da mesma unidade em outro débito.
+    if (!identidadeRecibo(cobranca) && cobranca.carteira_id) query = query.eq("carteira_id", cobranca.carteira_id);
+    if (!identidadeRecibo(cobranca) && cobranca.vencimento) query = query.eq("vencimento", cobranca.vencimento);
+    const { data, error } = await query.order("id").range(from, from + 499);
+    if (error) throw new Error(`Erro ao conciliar cobrança importada: ${error.message}`);
+    for (const candidata of (data ?? []) as CobrancaExistente[]) {
+      const resultado = classificarCandidato(cobranca, candidata);
+      if (resultado) resultados.push({ candidata, resultado });
+    }
+    if (!data || data.length < 500) break;
   }
-
-  const { data, error } = await query;
-  if (error) {
-    throw new Error(`Erro ao conciliar cobrança importada: ${error.message}`);
-  }
-
-  const candidatas = ((data ?? []) as CobrancaExistente[]).filter(statusAberto);
-
-  for (const candidata of candidatas) {
-    const resultado = classificarCandidato(cobranca, candidata);
-    if (!resultado) continue;
-
-    return {
-      ...resultado,
-      chave,
-      cobrancaId: candidata.id,
-    };
-  }
+  if (resultados.length > 1) return {
+    status: "divergente", chave, cobrancaId: resultados[0].candidata.id,
+    motivo: "Mais de um registro corresponde ao débito. Revise a duplicidade existente antes de importar.",
+  };
+  if (resultados.length === 1) return { ...resultados[0].resultado, chave, cobrancaId: resultados[0].candidata.id };
 
   return {
     status: "novo",
