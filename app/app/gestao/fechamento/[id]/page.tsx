@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import { requireGestor } from '@/utils/auth/require-gestor'
+import { FiscalQueuePanel } from '@/features/fechamento/fiscal/queue-panel'
 import {
   apurarFechamentoPeriodo,
   abrirPeriodoFechamento,
@@ -385,6 +386,8 @@ export default async function FechamentoDetalhePage({ params }: { params: Promis
           </>
         }
       />
+
+      <FiscalQueuePanel periodoId={id} status={periodo.status} />
 
       <section className="grid gap-3 md:grid-cols-5">
         <Kpi title="Pagamentos recebidos" value={String(resumo.pagamentos)} detail={`${resumo.acordos} acordo(s) · ${formatCurrency(resumo.valorPago)}`} icon={ClipboardList} />

@@ -1,4 +1,5 @@
 import { criarExcelRelatorioAcordos } from '@/features/acordos/exportacao-excel'
+import { carregarParcelasRelatorio } from '@/features/acordos/parcelas-relatorio'
 import { listAcordosComSaudeFiltered } from '@/features/acordos/queries'
 import { createClient } from '@/utils/supabase/server'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
@@ -27,14 +28,14 @@ export async function GET(request: Request) {
 
   if (acordoIds.length > 0) {
     const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('parcelas_acordo')
-      .select('id, acordo_id, numero, tipo_parcela, valor, vencimento, status, data_pagamento')
-      .in('acordo_id', acordoIds)
-      .order('numero', { ascending: true })
-
-    if (error) throw new Error(`Erro ao carregar parcelas dos acordos: ${error.message}`)
-    parcelas = data ?? []
+    parcelas = await carregarParcelasRelatorio(acordoIds, (ids, from, to) =>
+      supabase
+        .from('parcelas_acordo')
+        .select('id, acordo_id, numero, tipo_parcela, valor, vencimento, status, data_pagamento, valor_repasse_informado')
+        .in('acordo_id', ids)
+        .order('id', { ascending: true })
+        .range(from, to),
+    )
   }
 
   const buffer = await criarExcelRelatorioAcordos(filters, rows, parcelas)

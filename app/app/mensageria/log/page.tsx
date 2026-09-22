@@ -57,6 +57,10 @@ function eventLabel(value: string | null | undefined) {
     mensagem_editada_revisao_lote: 'Mensagem editada',
     retorno_manual_registrado: 'Retorno manual',
     whatsapp_web_enviado_manual: 'WhatsApp manual',
+    whatsapp_web_enviado: 'WhatsApp Web enviado',
+    whatsapp_web_falha: 'WhatsApp Web: falha antes do envio',
+    whatsapp_web_incerto: 'WhatsApp Web: conferir envio',
+    whatsapp_web_conferencia: 'WhatsApp Web: conferência administrativa',
   }
 
   const key = String(value ?? '')

@@ -1,0 +1,4 @@
+-- Placeholder local para alinhar o histórico com o banco remoto.
+-- A versão 20260909230000 já consta aplicada no Supabase vinculado, mas o
+-- arquivo correspondente não está presente neste checkout. Mantê-la aqui
+-- permite aplicar migrations posteriores sem reparar o histórico remoto.

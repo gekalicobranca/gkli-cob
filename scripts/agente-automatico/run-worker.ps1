@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('agente:worker', 'agente:worker:manager', 'agente:worker:square-guarulhos', 'agente:worker:verti', 'agente:worker:lello', 'agente:worker:atipass', 'agente:worker:hflex', 'agente:worker:graiche')]
+  [ValidateSet('agente:worker', 'agente:worker:manager', 'agente:worker:square-guarulhos', 'agente:worker:verti', 'agente:worker:lello', 'agente:worker:atipass', 'agente:worker:hflex', 'agente:worker:graiche', 'captacao:worker')]
   [string]$NpmScript,
   [Parameter(Mandatory = $true)]
   [string]$LogName

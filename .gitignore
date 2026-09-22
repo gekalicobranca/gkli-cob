@@ -18,3 +18,7 @@ restore-work/
 *.backup.enc
 *.backup.enc.sha256
 .vercel
+
+# Credenciais de sessões e planilhas operacionais locais
+.whatsapp-web/
+public/processos/

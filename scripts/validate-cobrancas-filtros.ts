@@ -11,7 +11,8 @@ test('fila inicial omite bloqueios e mantém os status operacionais', () => {
     assert.ok(!filtros.statusList?.includes(status as any))
     assert.ok(!STATUS_OPERACIONAIS.includes(status as any))
   }
-  assert.ok(STATUS_OPERACIONAIS.includes('acordo_firmado'))
+  assert.ok(STATUS_BLOQUEIOS.includes('possivel_acordo'))
+  assert.ok(STATUS_BLOQUEIOS.includes('acordo_firmado'))
 })
 
 test('selecionar bloqueio funciona mesmo com status operacional selecionado', () => {

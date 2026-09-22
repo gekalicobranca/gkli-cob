@@ -8,6 +8,7 @@
     "start": "next start -p 3000",
     "lint": "eslint",
     "typecheck": "tsc --noEmit --pretty false --incremental false",
+    "test:fiscal": "tsx --test scripts/validate-fiscal-core.ts",
     "test:conversao-lello": "tsx scripts/validate-conversao-lello.ts",
     "test:conversao-habitacional": "tsx scripts/validate-conversao-habitacional.ts",
     "test:exportacoes-excel": "tsx scripts/validate-exportacoes-excel.ts",
@@ -34,11 +35,11 @@
     "agente:worker:graiche": "node scripts/agente-automatico/worker-graiche.mjs",
     "agente:programar-teste-madrugada": "node scripts/agente-automatico/programar-teste-madrugada.mjs",
     "agente:importar-acessos": "node scripts/agente-automatico/importar-acessos-administradoras.mjs",
+    "relatorio-inadimplencia:processar-pendentes": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/relatorios-inadimplencia/processar-pendentes.ts",
     "condominios:atualizar-dados-operacao": "node scripts/atualizar-condominios-dados-operacao.mjs",
     "captacao:worker": "tsx scripts/captacao-automatizada/worker.ts",
     "prebuild": "npm run backup:generate-schema",
-    "test:dependencias": "tsx scripts/validate-dependency-updates.ts",
-    "relatorio-inadimplencia:processar-pendentes": "node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/relatorios-inadimplencia/processar-pendentes.ts"
+    "test:dependencias": "tsx scripts/validate-dependency-updates.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
@@ -59,7 +60,7 @@
     "zod": "latest"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.3.14",
+    "@electric-sql/pglite": "0.3.14",
     "@tailwindcss/postcss": "4.2.4",
     "@types/node": "^22",
     "@types/react": "^19",

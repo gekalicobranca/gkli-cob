@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { requireGestor } from '@/utils/auth/require-gestor'
 import type { FechamentoPeriodo, FechamentoStatus } from './types'
+import { sendFiscalPeriod } from './fiscal/service'
 
 const STATUS_BLOQUEIA_EDICAO = new Set<FechamentoStatus>(['fechado', 'faturado'])
 const STATUS_BLOQUEIA_APURACAO = new Set<FechamentoStatus>(['fechado', 'faturado', 'cancelado'])
@@ -221,7 +222,12 @@ export async function enviarPeriodoParaConferencia(formData: FormData) {
 }
 
 export async function fecharPeriodo(formData: FormData) {
-  await mudarStatusFechamento(getRequiredString(formData, 'periodo_id'), 'fechado', 'Período fechado e congelado para faturamento.')
+  const periodoId = getRequiredString(formData, 'periodo_id')
+  await mudarStatusFechamento(periodoId, 'fechado', 'Período fechado e congelado para faturamento.')
+  // A fila é gravada pelo trigger na transação do fechamento; falhas HTTP não
+  // desfazem o fechamento nem perdem a referência necessária ao reenvio.
+  await sendFiscalPeriod(await createClient(), periodoId)
+  revalidatePath(`/app/gestao/fechamento/${periodoId}`)
 }
 
 export async function marcarPeriodoComoFaturado(formData: FormData) {

@@ -309,7 +309,7 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
           <div className="border-b border-slate-100 p-5">
             <Badge tone="primary">Rankings</Badge>
             <h2 className="mt-3 text-lg font-medium text-slate-950">Relatórios de inadimplência e rankings</h2>
-            <p className="mt-1 text-sm text-slate-500">PDF gerencial e planilha gerados a partir da captação/importação antes do recorte operacional das cobranças.</p>
+            <p className="mt-1 text-sm text-slate-500">Relatório no padrão Genske: natureza dos débitos, atrasos acima de 60 dias e 5 anos, processos e escritórios. Base completa da captação, antes do recorte operacional.</p>
           </div>
           {rankings.length === 0 ? (
             <div className="p-5 text-sm text-slate-500">Nenhum ranking mensal gerado para este condomínio.</div>

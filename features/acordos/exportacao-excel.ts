@@ -10,7 +10,7 @@ import type { ListAcordosComSaudePageFilters } from './queries'
 
 type AcordosReportFilters = ListAcordosComSaudePageFilters & { ordenar: string }
 
-type ParcelaAcordo = {
+export type ParcelaAcordo = {
   id?: string | null
   acordo_id?: string | null
   numero?: number | string | null
@@ -19,6 +19,7 @@ type ParcelaAcordo = {
   vencimento?: string | null
   status?: string | null
   data_pagamento?: string | null
+  valor_repasse_informado?: number | string | null
 }
 
 type ParcelaReportRow = {
@@ -55,8 +56,13 @@ function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
-function calcularValorRepasseParcela(acordo: any, parcelaValor: unknown) {
-  const valorParcela = money(parcelaValor)
+function calcularValorRepasseParcela(acordo: any, parcela: ParcelaAcordo) {
+  const informado = parcela.valor_repasse_informado
+  if (informado != null && String(informado).trim() !== '') {
+    const valor = Number(informado)
+    if (Number.isFinite(valor) && valor >= 0) return roundCurrency(valor)
+  }
+  const valorParcela = money(parcela.valor)
   const despesaCobrancaValor = money(acordo.despesa_cobranca_valor)
   const valorAcordado = money(acordo.valor_acordado)
   const despesaCobrancaPercentual = money(acordo.despesa_cobranca_percentual)
@@ -166,7 +172,7 @@ function buildParcelasRows(rows: any[], parcelas: ParcelaAcordo[]): ParcelaRepor
       parcelaTipo: parcela.tipo_parcela ?? 'parcela',
       parcelaVencimento: parcela.vencimento ?? null,
       parcelaValor: money(parcela.valor),
-      parcelaValorRepasse: calcularValorRepasseParcela(row, parcela.valor),
+      parcelaValorRepasse: calcularValorRepasseParcela(row, parcela),
       parcelaStatus: statusLabel(parcela.status),
       parcelaPagamento: parcela.data_pagamento ?? null,
       parcelaId: parcela.id ?? null,

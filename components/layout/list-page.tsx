@@ -12,6 +12,7 @@ type BaseProps<T extends HTMLElement = HTMLDivElement> = HTMLAttributes<T> & {
 
 type ListSearchFieldProps = {
   name?: string
+  list?: string
   defaultValue?: string
   placeholder: string
   label?: string
@@ -171,12 +172,12 @@ export function ListFilterField({ label, className, children }: { label: string;
   )
 }
 
-export function ListSearchField({ name = 'q', defaultValue, placeholder, label = 'Busca', className }: ListSearchFieldProps) {
+export function ListSearchField({ name = 'q', list, defaultValue, placeholder, label = 'Busca', className }: ListSearchFieldProps) {
   return (
     <ListFilterField label={label} className={className}>
       <div className="relative">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <Input name={name} className="pl-9" placeholder={placeholder} defaultValue={defaultValue ?? ''} />
+        <Input name={name} list={list} autoComplete={list ? 'off' : undefined} className="pl-9" placeholder={placeholder} defaultValue={defaultValue ?? ''} />
       </div>
     </ListFilterField>
   )

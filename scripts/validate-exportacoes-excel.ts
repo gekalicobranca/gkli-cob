@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import ExcelJS from 'exceljs'
 import { criarExcelRelatorioAcordos } from '../features/acordos/exportacao-excel'
+import { carregarParcelasRelatorio } from '../features/acordos/parcelas-relatorio'
 import { criarExcelAdministradoras } from '../features/administradoras/exportacao-excel'
 import { criarExcelRelatorioCobrancas } from '../features/cobrancas/exportacao-excel'
 import { criarExcelExportacaoCondominio } from '../features/condominios/exportacao-cadastro-excel'
@@ -304,10 +305,34 @@ async function validateRelatorioAcordos(outputDir: string) {
   assert.equal(parcelasSheet.getCell('M6').numFmt, '"R$" #,##0.00')
   assert.equal(parcelasSheet.getCell('O6').value instanceof Date, true)
   assert.equal(parcelasSheet.autoFilter, 'A5:Q7')
+  const informadoWorkbook = await loadWorkbook(await criarExcelRelatorioAcordos(
+    { ordenar: 'data_desc' }, rows,
+    [{ ...parcelas[0], valor_repasse_informado: '92.15' }, { ...parcelas[1], valor_repasse_informado: 0 }],
+  ))
+  assert.equal(informadoWorkbook.getWorksheet('PARCELAS')!.getCell('M6').value, 92.15)
+  assert.equal(informadoWorkbook.getWorksheet('PARCELAS')!.getCell('M7').value, 0)
   writeFileSync(`${outputDir}/relatorio-acordos.xlsx`, bytes)
 }
 
+async function validateParcelasPaginadas() {
+  const ids = Array.from({ length: 101 }, (_, i) => `acordo-${i}`)
+  const fonte = Array.from({ length: 1501 }, (_, i) => ({
+    id: `parcela-${i}`, acordo_id: i < 1500 ? ids[0] : ids[100], numero: i + 1,
+  }))
+  const result = await carregarParcelasRelatorio([...ids, ids[0]], async (batch, from, to) => ({
+    data: fonte.filter(p => batch.includes(p.acordo_id)).slice(from, to + 1), error: null,
+  }))
+  assert.deepEqual(result, fonte)
+  assert.equal(new Set(result.map(p => p.id)).size, 1501)
+  await assert.rejects(
+    carregarParcelasRelatorio(ids, async () => ({ data: null, error: { message: 'consulta indisponível' } })),
+    /consulta indisponível/,
+  )
+  assert.deepEqual(await carregarParcelasRelatorio([], async () => { throw new Error('Não deve consultar') }), [])
+}
+
 async function main() {
+  await validateParcelasPaginadas()
   const outputDir = '.codex-tmp/exportacoes-excel'
   mkdirSync(outputDir, { recursive: true })
   await validateCondominios(outputDir)

@@ -75,12 +75,13 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
     status: statusParam === undefined ? 'ativo' : statusParam,
   })
 
-  const [rowsBase, carteiras, administradoras, grupos, operadores] = await Promise.all([
+  const [rowsBase, carteiras, administradoras, grupos, operadores, sugestoesCondominios] = await Promise.all([
     listCondominios(scope, filters),
     listCarteirasForSelect(scope),
     listAdministradorasCondominios(scope),
     listGruposCondominios(scope),
     listOperadoresCadastro(),
+    listCondominios(scope, { ...filters, search: undefined }, { all: true }),
   ])
 
   const ordenar = getParam(params?.ordenar) ?? 'nome'
@@ -166,10 +167,20 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
 
           <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
             <ListSearchField
+              list="condominios-busca-sugestoes"
               placeholder="Nome, nome operacional, CNPJ ou administradora"
               defaultValue={filters.search ?? ''}
               className="xl:col-span-4"
             />
+            <datalist id="condominios-busca-sugestoes">
+              {sugestoesCondominios.map((condominio) => (
+                <option
+                  key={condominio.id}
+                  value={condominio.nome}
+                  label={[condominio.nome_operacional, condominio.cnpj, condominio.administradora].filter(Boolean).join(' · ')}
+                />
+              ))}
+            </datalist>
             <ListFilterField label="Carteira" className="xl:col-span-2">
               <Select name="carteira_id" defaultValue={filters.carteiraId ?? ''}>
                 <option value="">Todas</option>

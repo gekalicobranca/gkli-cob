@@ -256,14 +256,17 @@ async function collectBbzCondominio(execution) {
     if (/\bIN JARDIM SUL\b/i.test(nomePortal)) {
       await log(execution.id, 'condominio_pre_acesso', 'Inicializando a sessão por outro condomínio antes do In Jardim Sul.')
       const apoio = page.getByText(/CLOCK VILA ROMANA/i, { exact: false }).first()
-      if (!await apoio.isVisible({ timeout: 8_000 }).catch(() => false)) {
+      if (!await apoio.waitFor({ state: 'visible', timeout: 8_000 }).then(() => true).catch(() => false)) {
         throw new Error('Condomínio de apoio não localizado para inicializar o acesso do In Jardim Sul.')
       }
+      const relacaoCondominiosUrl = page.url()
       const apoioContainer = apoio.locator('xpath=ancestor::*[.//a or .//button][1]')
       const apoioAcessar = apoioContainer.getByText(/Acessar/i).first()
       if (await apoioAcessar.isVisible().catch(() => false)) await apoioAcessar.click()
       else await apoio.click()
       await page.waitForLoadState('domcontentloaded')
+      await page.getByText(/bem vindo ao,?\s*CLOCK VILA ROMANA/i).first()
+        .waitFor({ state: 'visible', timeout: 60_000 })
 
       // Abrir o relatório no condomínio de apoio é o passo que inicializa o
       // módulo de relatórios para o In Jardim Sul nesta sessão.
@@ -281,15 +284,25 @@ async function collectBbzCondominio(execution) {
       const consultarApoio = page.getByRole('button', { name: /Consultar|Avançar/i })
         .or(page.getByText(/Consultar|Avançar/i)).first()
       await consultarApoio.click()
-      await page.getByText(/Exportar Excel/i).first().waitFor({ state: 'visible', timeout: 60_000 })
+      const exportarApoio = page.getByText(/Exportar Excel/i).first()
+      await exportarApoio.waitFor({ state: 'visible', timeout: 60_000 })
+      await page.getByText(/CONDOM[IÍ]NIO:\s*820\s*-\s*CLOCK VILA ROMANA/i).first()
+        .waitFor({ state: 'visible', timeout: 60_000 })
+      const [downloadApoio] = await Promise.all([
+        page.waitForEvent('download', { timeout: 120_000 }),
+        exportarApoio.click(),
+      ])
+      const falhaDownloadApoio = await downloadApoio.failure()
+      if (falhaDownloadApoio) throw new Error(`Falha ao exportar relatório de apoio do Clock: ${falhaDownloadApoio}`)
+      // O arquivo de apoio apenas prepara a sessão; nunca entra na importação do In Jardim.
+      await downloadApoio.delete()
+      await log(execution.id, 'condominio_pre_acesso_exportado', 'Relatório do Clock exportado. Retornando à relação de condomínios na mesma sessão.')
 
-      for (let tentativaVolta = 0; tentativaVolta < 4; tentativaVolta++) {
-        await page.goBack({ waitUntil: 'domcontentloaded' })
-        const principalInJardim = page.locator('div.card.principal').filter({ hasText: /IN JARDIM SUL GALLERY/i }).first()
-        if (await principalInJardim.isVisible({ timeout: 5_000 }).catch(() => false)) break
-      }
+      // O histórico inclui redirecionamentos do portal e não tem um número fixo de voltas.
+      await page.goto(relacaoCondominiosUrl, { waitUntil: 'domcontentloaded' })
       await page.locator('div.card.principal').filter({ hasText: /IN JARDIM SUL GALLERY/i })
         .first().waitFor({ state: 'visible', timeout: 60_000 })
+      await log(execution.id, 'condominio_pre_acesso_concluido', 'Relação carregada e cartão principal do In Jardim Sul localizado.')
     }
 
     await log(execution.id, 'condominio', `Localizando o condomínio ${condominioNome}.`)
@@ -317,6 +330,11 @@ async function collectBbzCondominio(execution) {
     await page.waitForTimeout(2_000)
     await page.waitForLoadState('domcontentloaded')
 
+    if (/\bIN JARDIM SUL\b/i.test(nomePortal)) {
+      await page.getByText(/bem vindo ao,?\s*(?:CONDOM[IÍ]NIO\s+)?IN JARDIM SUL GALLERY/i).first()
+        .waitFor({ state: 'visible', timeout: 60_000 })
+    }
+
     // O CondoPro mantém duas cópias do menu, sendo uma oculta. A rota direta
     // reproduz o mesmo clique sem depender da variação visual do menu lateral.
     await page.goto(new URL('/bin/rt/rtPendentes.asp', page.url()).href, {
@@ -336,6 +354,10 @@ async function collectBbzCondominio(execution) {
     await consultar.click()
     const exportar = page.getByText(/Exportar Excel/i).first()
     await exportar.waitFor({ state: 'visible', timeout: 60_000 })
+    if (/\bIN JARDIM SUL\b/i.test(nomePortal)) {
+      await page.getByText(/CONDOM[IÍ]NIO:\s*364\s*-\s*(?:CONDOM[IÍ]NIO\s+)?IN JARDIM SUL GALLERY/i).first()
+        .waitFor({ state: 'visible', timeout: 60_000 })
+    }
     const downloadPromise = page.waitForEvent('download', { timeout: 120_000 })
     await exportar.click()
     const download = await downloadPromise

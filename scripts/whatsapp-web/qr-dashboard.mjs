@@ -1,0 +1,22 @@
+import http from 'node:http'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const dir=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../.whatsapp-web')
+const sessions=[['genske','Genske Advogados','(11) 3502-7774'],['gekali','GEKALI','(11) 99339-3982'],['azevedo','Azevedo Araújo','(11) 92148-6828']]
+const html=`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conectar WhatsApp dos Flows</title><style>body{font:16px system-ui;background:#f1f5f9;color:#0f172a;margin:0;padding:32px}h1{margin:0 0 12px}p{line-height:1.6}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px}article{background:white;border:1px solid #e2e8f0;border-radius:20px;padding:24px}img{width:100%;max-width:420px}small{display:block;color:#64748b}b{color:#047857}</style><h1>Conectar WhatsApp dos Flows</h1><p>No celular de cada linha: <b>WhatsApp → Dispositivos conectados → Conectar dispositivo</b>.<br>Após conectar, os Flows ativos serão processados no horário programado, das 9h às 18h. Mantenha este computador ligado.</p><main>${sessions.map(([id,name,number])=>`<article><h2>${name}</h2><p>${number}</p><p id="status-${id}">Aguardando worker…</p><img id="qr-${id}" alt="QR Code para conectar ${name}" hidden><small>QR Code atualizado automaticamente.</small></article>`).join('')}</main><script>
+const sessions=${JSON.stringify(sessions.map(x=>x[0]))};
+const labels={aguardando_qr:'Leia o QR Code abaixo',conectado:'Conectado — pronto para processar os Flows',iniciando:'Iniciando a conexão…',numero_incorreto:'Número incorreto: reconecte a linha indicada',parado:'Worker parado',desconectado:'Desconectado — reinicie o worker',erro:'Erro — confira o terminal do worker',conferencia_necessaria:'Envio incerto — confira a conversa',falha_autenticacao:'Falha de autenticação — reinicie o worker'};
+async function refresh(){await Promise.all(sessions.map(async id=>{const img=document.getElementById('qr-'+id);const label=document.getElementById('status-'+id);try{const r=await fetch('/status-'+id+'.json?t='+Date.now());if(!r.ok)throw Error();const s=await r.json();const stale=Date.now()-new Date(s.atualizado_em).getTime()>120000;label.textContent=stale?'Worker sem conexão recente':labels[s.status]||s.status;img.hidden=stale||s.status!=='aguardando_qr';if(!img.hidden)img.src='/qr-'+id+'.png?t='+Date.now()}catch{label.textContent='Worker não iniciado';img.hidden=true}}))};refresh();setInterval(refresh,5000);
+</script></html>`
+const server=http.createServer(async(req,res)=>{
+  if (!['127.0.0.1:3877','localhost:3877'].includes(req.headers.host)) {res.writeHead(403);res.end();return}
+  res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY')
+  const pathname=new URL(req.url,'http://127.0.0.1:3877').pathname
+  if(pathname==='/'){res.setHeader('Content-Type','text/html; charset=utf-8');res.end(html);return}
+  const match=/^\/(qr|status)-(genske|gekali|azevedo)\.(png|json)$/.exec(pathname)
+  if(!match || (match[1]==='qr')!==(match[3]==='png')){res.writeHead(404);res.end();return}
+  try{const data=await readFile(path.join(dir,pathname.slice(1)));res.setHeader('Content-Type',match[3]==='png'?'image/png':'application/json');res.end(data)}catch{res.writeHead(404);res.end()}
+})
+server.listen(3877,'127.0.0.1',()=>console.log('Conexão das sessões: http://127.0.0.1:3877'))

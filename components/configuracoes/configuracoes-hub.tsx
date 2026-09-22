@@ -55,6 +55,13 @@ const groups: Array<{
     description: 'Modelos e canais de comunicação parametrizados sem poluir a rotina do operador.',
     cards: [
       {
+        title: 'WhatsApp Web temporário',
+        description: 'Vincule sessões conectadas e acompanhe o envio automático dos Flows.',
+        href: '/app/configuracoes/whatsapp-web',
+        icon: Plug,
+        tag: 'Admin',
+      },
+      {
         title: 'Templates',
         description: 'Configure mensagens de WhatsApp, e-mail e SMS.',
         href: '/app/mensageria/templates',

@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { carregarParcelasRelatorio } from "./parcelas-relatorio";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import {
@@ -1346,16 +1347,14 @@ async function getParcelasDosAcordos(acordoIds: string[]) {
   if (ids.length === 0) return [] as any[];
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("parcelas_acordo")
-    .select("id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento")
-    .in("acordo_id", ids);
-
-  if (error) {
-    return [] as any[];
-  }
-
-  return (data ?? []) as any[];
+  return await carregarParcelasRelatorio(ids, (batch, from, to) =>
+    supabase
+      .from("parcelas_acordo")
+      .select("id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento,valor_repasse_informado")
+      .in("acordo_id", batch)
+      .order("id", { ascending: true })
+      .range(from, to),
+  ) as any[];
 }
 
 function calculateAgreementSummary(acordos: any[], parcelas: any[]): AgreementPerformanceSummary {

@@ -62,7 +62,9 @@ export async function executarDisparosWhatsapp(limit = 50, options: WhatsAppDisp
   const agora = new Date().toISOString()
   let query = supabase
     .from('mensagens')
-    .select('id,carteira_id,lote_id,lote_item_id,cobranca_id,acordo_id,destinatario,payload,tentativas_envio,regua_etapa_id,cobranca_flow_id,acordo_flow_id,pre_juridico_flow_id')
+    .select('id,carteira_id,lote_id,lote_item_id,cobranca_id,acordo_id,destinatario,payload,tentativas_envio,regua_etapa_id,cobranca_flow_id,acordo_flow_id,pre_juridico_flow_id,carteira:carteiras!inner(whatsapp_transporte)')
+    .eq('carteira.whatsapp_transporte', 'cloud')
+    .or('provider.is.null,provider.neq.whatsapp_web')
     .eq('canal', 'whatsapp')
     .eq('status', MENSAGEM_STATUS.AGENDADA)
     .lte('agendada_para', agora)

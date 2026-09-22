@@ -42,7 +42,11 @@ async function concluirPipeline(resumo: Awaited<ReturnType<typeof processarRelat
     conversaoId: resumo.conversaoId,
     condominioId: resumo.condominioId,
     carteiraId: resumo.carteiraId,
+    limparCobrancasAnteriores: false,
   }, "Importação automática")
+  if (String(process.env.CAPTACAO_AUTOMATIZADA_PROCESSAR_REGUA || "true").toLowerCase() === "false") {
+    return "importado_sem_regua"
+  }
   await executarEtapaHttp(`${baseUrl}/api/regua/processar`, secret, {
     conversaoId: resumo.conversaoId,
     condominioId: resumo.condominioId,
@@ -62,6 +66,7 @@ async function arquivosElegiveis() {
   const { readdir } = await import("node:fs/promises")
   return (await readdir(entrada, { withFileTypes: true }))
     .filter((item) => item.isFile() && /^[A-Z0-9_]+_\d{4}-\d{2}-\d{2}\.xlsx?$/i.test(item.name))
+    .filter((item) => !process.env.CAPTACAO_AUTOMATIZADA_ARQUIVO || item.name === process.env.CAPTACAO_AUTOMATIZADA_ARQUIVO)
     .map((item) => item.name).sort()
 }
 
@@ -84,7 +89,9 @@ async function main() {
           const automatico = await concluirPipeline(resumo)
           await rename(origem, await destinoUnico(processados, nome))
           console.log(automatico
-            ? `${nome}: pipeline concluído (${resumo.cobrancas} cobranças); régua acionada.`
+            ? automatico === "importado_sem_regua"
+              ? `${nome}: importação concluída (${resumo.cobrancas} cobranças); disparos da régua desativados na configuração.`
+              : `${nome}: pipeline concluído (${resumo.cobrancas} cobranças); régua acionada.`
             : `${nome}: convertido (${resumo.cobrancas} cobranças); aguardando validação do operador.`)
         } catch (error) {
           console.error(`${nome}: ${error instanceof Error ? error.message : error}`)
