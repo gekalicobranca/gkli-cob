@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
@@ -95,7 +96,7 @@ function statusLabel(value?: string | null) {
 export async function getKeilaEligibilitySummary(scope: CarteiraScope) {
   const supabase = await createClient();
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(
       `
@@ -108,7 +109,7 @@ export async function getKeilaEligibilitySummary(scope: CarteiraScope) {
       status_financeiro,
       condominios(nome, operacao_virtual_habilitada)
     `,
-    );
+    ));
 
   query = applyCarteiraScope(query, scope.carteiraIds);
 

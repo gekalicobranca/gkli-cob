@@ -1,4 +1,5 @@
 'use server'
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
@@ -52,9 +53,9 @@ export async function alterarUnidadeCobrancaPeloSaneamento(formData: FormData) {
   if (!cobrancaId) throw new Error('Cobrança obrigatória para correção.')
   if (!unidadeDestinoId) throw new Error('Unidade destino obrigatória.')
 
-  const { data: cobranca, error: cobrancaError } = await supabase
+  const { data: cobranca, error: cobrancaError } = await somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, condominio_id, unidade_id, competencia, vencimento, status, status_operacional, unidades:unidade_id(identificacao, bloco, responsavel_nome)')
+    .select('id, carteira_id, condominio_id, unidade_id, competencia, vencimento, status, status_operacional, unidades:unidade_id(identificacao, bloco, responsavel_nome)'))
     .eq('id', cobrancaId)
     .maybeSingle()
 

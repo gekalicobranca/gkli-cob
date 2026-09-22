@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import * as XLSX from "xlsx"
 import { ACORDO_STATUS_VIGENTES } from "@/lib/constants/acordos"
 import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas"
@@ -265,9 +266,9 @@ export async function classificarRankingMensalComApp(
   }
   const unidadeIds = [...unidadeByKey.values()].map((item) => item.id).filter(Boolean)
   const [cobrancasResult, acordosResult] = unidadeIds.length ? await Promise.all([
-    supabase
+    somenteCobrancasCanonicas(supabase
       .from("cobrancas")
-      .select("id, unidade_id, status_operacional, vencimento, created_at")
+      .select("id, unidade_id, status_operacional, vencimento, created_at"))
       .in("unidade_id", unidadeIds)
       .order("created_at", { ascending: false }),
     supabase

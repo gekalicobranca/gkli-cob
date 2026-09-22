@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
@@ -84,7 +85,7 @@ export async function getCockpitInteligente(scope: CarteiraScope) {
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
     .select(`
       id,
@@ -100,7 +101,7 @@ export async function getCockpitInteligente(scope: CarteiraScope) {
       ultima_interacao_at,
       condominios(nome),
       unidades(identificacao, responsavel_nome)
-    `)
+    `))
     .in('status_operacional', COBRANCA_STATUS_OPERACIONAIS_ATIVOS)
     .order('vencimento', { ascending: true })
     .limit(160)

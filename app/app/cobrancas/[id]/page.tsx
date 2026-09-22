@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import { cobrancaArquivada } from '@/lib/core/cobranca-arquivamento'
 import { Card } from '@/components/ui/card'
 import { StatusBadge } from '@/components/data/status-badge'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -66,6 +68,29 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
   ])
 
   if (!cobranca) notFound()
+
+  if (cobrancaArquivada(cobranca)) {
+    return (
+      <div className="space-y-6">
+        <Card className="space-y-3 p-6">
+          <h1 className="text-xl font-semibold">Cobrança arquivada por duplicidade</h1>
+          <p>Este registro foi preservado para consulta do histórico. O débito é acompanhado no registro abaixo.</p>
+          <Link className="font-medium text-cyan-800 underline" href={`/app/cobrancas/${cobranca.duplicada_de_id}`}>Abrir cobrança preservada</Link>
+          <p className="text-sm text-slate-500">Valor registrado no histórico: {formatCurrency(cobranca.valor_atualizado ?? cobranca.valor_original)}</p>
+        </Card>
+        <CobrancaTimeline eventos={eventosOperacionais} interacoes={interacoes} />
+        <Card className="space-y-4 p-6">
+          <h2 className="font-semibold">Mensagens históricas</h2>
+          {mensagens.length === 0 ? <p>Nenhuma mensagem diretamente vinculada a este registro.</p> : mensagens.map(mensagem => (
+            <div key={mensagem.id} className="border-t pt-4">
+              <p className="text-sm text-slate-500">{mensagem.canal} · {mensagem.status}</p>
+              <p className="whitespace-pre-wrap text-sm">{mensagem.conteudo_renderizado || mensagem.conteudo}</p>
+            </div>
+          ))}
+        </Card>
+      </div>
+    )
+  }
 
   const statusOperacionalReal = getCobrancaStatusOperacional(cobranca)
   const statusFinanceiro = getCobrancaStatusFinanceiro(cobranca)

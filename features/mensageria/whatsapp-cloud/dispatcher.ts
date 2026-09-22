@@ -2,6 +2,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { LOTE_ITEM_STATUS, MENSAGEM_STATUS } from '@/lib/core/status'
 import { registrarLogMensageria } from '@/features/mensageria/engine/logs'
 import { getWhatsAppCloudConfig, sendWhatsAppTemplate, WhatsAppProviderError, normalizeWhatsAppPhone } from './provider'
+import { validarMensagemSemCobrancaArquivada } from '../validar-arquivamento'
 import { recalcularReferenciasMensagem } from './flows'
 
 type ScheduledMessage = {
@@ -121,6 +122,7 @@ export async function executarDisparosWhatsapp(limit = 50, options: WhatsAppDisp
     const recipient = normalizeWhatsAppPhone(message.destinatario)
     let senderPhoneNumberId: string | null = null
     try {
+      await validarMensagemSemCobrancaArquivada(supabase, message.id)
       if (!recipient) throw new WhatsAppProviderError('Número de WhatsApp inválido.', { status: 400, code: 'invalid_recipient', retryable: false })
       if (await destinatarioBloqueado(supabase, message.destinatario, recipient)) {
         throw new WhatsAppProviderError('Destinatário bloqueado ou com opt-out para WhatsApp.', { status: 400, code: 'recipient_blocked', retryable: false })

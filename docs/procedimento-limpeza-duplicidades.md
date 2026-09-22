@@ -2,7 +2,7 @@
 
 Preparado em 22/09/2026, a partir da auditoria da base de produção iniciada às 19h03 (Brasília).
 
-**Estado: procedimento proposto. Nenhuma limpeza executada.** Os campos de arquivamento, as proteções e as operações descritas abaixo precisam ser implementados e testados antes da execução. O manifesto preliminar registra candidatos; não é um arquivo executável nem autorização para alterações automáticas.
+**Estado em 22/09/2026, 20h03 (Brasília): prevenção e estrutura de arquivamento instaladas; nenhum registro arquivado.** As migrações de recibo e arquivamento estão ativas, com conferência de integridade dos 2.745 registros. O manifesto preliminar registra candidatos; não é um arquivo executável. A aplicação do piloto depende do manifesto final, snapshot protegido e conferência de ausência de trabalho em trânsito.
 
 ## 1. Objetivo e escopo
 
@@ -91,7 +91,7 @@ Casos que obrigatoriamente exigem decisão individual:
 
 Usar arquivamento lógico específico para duplicidade, com referência explícita ao registro canônico. Não usar suspensão de cobrança como substituto: suspensão é uma situação operacional real e pode distorcer relatórios ou ser revertida por uma ação comum.
 
-Uma implementação possível é `duplicada_de_id`, `duplicidade_lote_id`, `duplicidade_motivo` e `duplicidade_arquivada_em`, acompanhados de um log de operações antes/depois. São campos propostos, ainda não existentes para este procedimento. Impedir autorreferência e cadeias/ciclos: toda cópia aponta diretamente para um registro canônico válido, da mesma identidade.
+Implementados `duplicada_de_id`, `duplicidade_lote_id` e `duplicidade_arquivada_em`, acompanhados da tabela restrita `cobrancas_duplicidade_execucoes`, com manifesto e imagens antes/depois. O motivo faz parte do manifesto. A proteção impede alterações pelo aplicativo, autorreferência e cadeias/ciclos: toda cópia aponta diretamente para um registro canônico válido, da mesma identidade.
 
 Antes de arquivar, implementar e testar o tratamento de duplicatas em todos os consumidores: card, subtotais, listagens, exportações, indicadores, geração de boletos/documentos, criação de acordos, filtros por unidade judicializada, importação, flows, cron e workers. Uma cópia arquivada não pode entrar novamente em somas, reservas ou envios, nem provocar bloqueio jurídico da unidade apenas por seu status histórico. O histórico continua consultável com indicação do registro preservado.
 
@@ -175,7 +175,7 @@ Implementados: extração compartilhada de recibo, conciliação paginada sem li
 
 A migração `20260923010000_cobrancas_recibo_guard.sql` prepara um contador protegido por chave única de unidade/recibo. A carga inicial registra as colisões legadas sem alterar cobranças nem escolher um canônico. Triggers mantêm o contador em inserções, alterações de identidade e exclusões; o conflito da chave única desfaz a escrita inteira. Recibos sem identidade reconhecível ou cobranças sem unidade ficam fora dessa proteção, exigindo conferência específica. A remoção do último registro libera sua identidade, para manter o funcionamento da substituição de cargas já existente no sistema. O procedimento de limpeza continua proibindo exclusão física.
 
-**Ativação da migração pendente:** a consulta de verificação pelo CLI/Management API retornou HTTP 403 por falta de privilégio. Nenhuma DDL foi enviada à produção. Testes locais em PGlite verificaram preservação dos registros legados, colisões, rollback e manutenção do contador. PGlite não substitui um ensaio de transações concorrentes em conexões PostgreSQL distintas; esse ensaio permanece requisito antes da ativação. Não considerar a proteção de concorrência ativa apenas pela publicação do app.
+**Migração ativa desde 22/09/2026, 19h49 (Brasília).** O acesso direto autorizado ao banco, com certificado TLS validado, resolveu o bloqueio da Management API. O ensaio com duas conexões PostgreSQL confirmou espera pela transação concorrente, rejeição de recibo repetido após commit e permissão após rollback. A ativação preservou o hash integral dos 2.745 registros. Evidências: `teste-concorrencia-recibos.json` e `ativacao-trava-recibos.json`, no diretório de auditoria.
 
 Comandos reproduzíveis (fontes locais de auditoria contêm dados restritos e não devem ser versionadas):
 
@@ -195,8 +195,12 @@ Conferidos os pares do Rio Negro nas unidades 001313, 001717, 001008, 001716 e 0
 
 Os payloads das cinco mensagens enviadas contêm as duas cópias de cada débito, com valor dobrado no contexto interno. O corpo de texto e o assunto salvos não exibem esse valor. Uma mensagem está ligada às duas cópias; isso não demonstra dois envios. O histórico será preservado integralmente, incluindo seu contexto original.
 
-Foram encontradas cinco pendências abertas de cobrança ausente no relatório, vinculadas aos registros antigos da conversão. Precisam de revisão contra as fontes: não serão encerradas automaticamente nem tratadas como pagamento. A proposta de preservação prioriza o registro diretamente referenciado pela mensagem enviada, sem alterar vínculos históricos. Em quatro casos é o registro da importação; em 001716 é o registro da conversão.
+Foram encontradas cinco pendências abertas de cobrança ausente no relatório, vinculadas aos registros antigos da conversão. A conciliação offline com as linhas persistidas da importação reconhece os cinco recibos e propõe resolver esses alertas como falsos positivos, sem baixa ou mudança jurídica. A execução deve conferir novamente a fonte real e seu hash. O inventário completo encontrou cinco parcelas financeiras ligadas às cobranças antigas; portanto, a decisão atual é preservar o registro da conversão nos cinco pares, mantendo as parcelas e todas as mensagens em seus vínculos originais. Isso substitui a proposta inicial baseada apenas na mensagem enviada.
 
 O protótipo em `scripts/limpeza-duplicidades/` passou nos testes locais de arquivamento, idempotência, atomicidade e reversão condicionada à imagem posterior. Com os dados reais, recusou os cinco grupos por pendência aberta. No cenário hipotético de pendências já resolvidas, exclusivamente em PGlite descartável, a projeção passou de dez para cinco registros e de R$ 9.587,50 para R$ 4.793,75, sem modificar mensagens; a reversão foi integral.
 
-**Não é uma entrega de arquivamento ativo no aplicativo.** Ainda faltam a integração de todos os consumidores, o inventário real de dependências e o ensaio com schema/triggers/concorrência reais, além do acesso administrativo. O SQL do protótipo não pertence às migrações de implantação. Limites e comandos em `scripts/limpeza-duplicidades/README.md`. Resultados detalhados em `outputs/auditoria-cobrancas-2026-09-22/ensaio-piloto.json` e `decisoes-piloto.md`. Nenhum registro de produção foi arquivado, modificado ou reenviado nesta etapa.
+O inventário real consultou referências UUID/JSON/arrays em 100 tabelas, restrições, triggers, views, funções e jobs. O ensaio PostgreSQL em schema isolado preservou 14 mensagens e cinco parcelas, passou de dez para cinco cobranças canônicas, bloqueou nova mensagem e alteração dos campos de arquivo pelo `service_role`, e reverteu as somas. Esse ensaio copia colunas, checks e índices; não reproduz integralmente RLS, FKs e todos os triggers originais.
+
+As migrações `20260923020000` e `20260923021000` foram instaladas sem arquivar registros. Os resultados das 18 views foram comparados antes/depois, sem alteração. O aplicativo integra 73 consultas diretas, subtotais, elegibilidade, documentos, importações e validação adicional antes de envio. O histórico continua acessível e a página da cópia é somente leitura. A reserva atômica de e-mail, WhatsApp e início de envio Thunderbird usam a elegibilidade protegida no banco. A variável `COBRANCAS_ARQUIVAMENTO_ATIVO` é ativa por padrão; nunca desativá-la com cópias arquivadas, pois isso recolocaria cópias em consultas antigas. Em bancos novos, aplicar as migrações antes de publicar esta versão.
+
+O SQL do protótipo continua separado das migrações e não deve ser instalado em produção. Os resultados iniciais `ensaio-piloto.json` são históricos e não representam aplicação real. Evidências atuais: `teste-integracao-arquivamento.json`, `conciliacao-pendencias-piloto.json` e `ativacao-base-arquivamento.json`. Nenhuma mensagem foi enviada pela limpeza.

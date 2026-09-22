@@ -4,6 +4,7 @@ import tls from 'node:tls'
 import { googleToken, openGoogleSecret, xoauth2 } from './google-oauth'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { normalizarEmailControle } from '@/features/carteiras/email-controle'
+import { validarMensagemSemCobrancaArquivada } from './validar-arquivamento'
 
 export type EmailPayload = {
   to: string
@@ -423,6 +424,7 @@ export async function getEmailRemetenteKey(carteiraId: string) {
 
 export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig | SmtpSendOptions) {
   const normalizedOptions = normalizeSendOptions(options)
+  if (normalizedOptions.mensagemId) await validarMensagemSemCobrancaArquivada(createAdminClient(), normalizedOptions.mensagemId)
   let emailControle: string | null = null
   const carteiraId = normalizeCarteiraId(normalizedOptions.carteiraId)
   if (carteiraId) {

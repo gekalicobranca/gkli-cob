@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
@@ -154,7 +155,7 @@ async function listCondominios(scope: CarteiraScope, filters: RelatorioFilters) 
 
 async function listCobrancas(scope: CarteiraScope, filters: RelatorioFilters) {
   const supabase = await createClient()
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
     .select(`
       id,
@@ -167,7 +168,7 @@ async function listCobrancas(scope: CarteiraScope, filters: RelatorioFilters) {
       status_operacional,
       condominios(id, nome, nome_operacional, cnpj, administradora, status, carteiras(nome)),
       unidades(identificacao, bloco, responsavel_nome)
-    `)
+    `))
     .order('vencimento', { ascending: true })
 
   query = applyCarteiraScope(query, scope.carteiraIds)

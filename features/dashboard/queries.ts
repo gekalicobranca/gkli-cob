@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
@@ -195,7 +196,7 @@ export async function getDashboardMetrics(scope: CarteiraScope) {
 export async function getManagementDashboard(scope: CarteiraScope) {
   const supabase = await createClient();
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(
       `
@@ -211,7 +212,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
       carteira_id,
       condominios(nome)
     `,
-    )
+    ))
     .order("vencimento", { ascending: true });
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds);
@@ -547,7 +548,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
 export async function getManagementDashboardTabs(scope: CarteiraScope) {
   const supabase = await createClient();
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(
       `
@@ -566,7 +567,7 @@ export async function getManagementDashboardTabs(scope: CarteiraScope) {
       condominios(nome),
       unidades(identificacao, bloco, responsavel_nome)
     `,
-    )
+    ))
     .order("vencimento", { ascending: true });
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds);

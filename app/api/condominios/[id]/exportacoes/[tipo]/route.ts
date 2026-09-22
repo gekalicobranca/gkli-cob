@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../../../../../lib/core/cobranca-arquivamento'
 import { NextResponse } from "next/server";
 import { criarExcelExportacaoCondominio, type CondominioExportTipo } from "@/features/condominios/exportacao-cadastro-excel";
 import { createClient } from "@/utils/supabase/server";
@@ -94,7 +95,7 @@ async function exportCobrancas(id: string) {
   const { supabase, scope, condominio } = await loadCondominio(id);
   if (!condominio) return null;
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(`
       competencia,
@@ -113,7 +114,7 @@ async function exportCobrancas(id: string) {
         telefone,
         email
       )
-    `)
+    `))
     .eq("condominio_id", condominio.id)
     .order("vencimento", { ascending: false });
 

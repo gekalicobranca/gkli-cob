@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas, arquivamentoDuplicidadesAtivo } from '../../lib/core/cobranca-arquivamento'
 import { resumirValoresCobrancas } from './subtotais'
 import { applyBloqueioStatusFilter } from './filtros-status'
 import { createClient } from '@/utils/supabase/server'
@@ -63,9 +64,9 @@ async function getUnidadeIdsComJudicializacaoAtiva(
   const ids = uniqueStrings(unidadeIds)
   if (ids.length === 0) return new Set<string>()
 
-  const { data, error } = await supabase
+  const { data, error } = await somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('unidade_id, status, status_operacional')
+    .select('unidade_id, status, status_operacional'))
     .in('unidade_id', ids)
     .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(',')}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(',')})`)
 
@@ -80,9 +81,9 @@ async function listAllUnidadeIdsComJudicializacaoAtiva(
   supabase: Awaited<ReturnType<typeof createClient>>,
   scope: CarteiraScope,
 ) {
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('unidade_id, carteira_id')
+    .select('unidade_id, carteira_id'))
     .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(',')}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(',')})`)
     .not('unidade_id', 'is', null)
 
@@ -329,7 +330,7 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
   const supabase = await createClient()
   const limit = Number(filters.limit ?? 0)
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
     .select(`
       id,
@@ -352,7 +353,7 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
       carteiras(nome),
       condominios(nome, cnpj, administradora, vencimento_cota_dia, inicio_cobranca_dias, regua_cobranca_id),
       unidades(identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email)
-    `)
+    `))
 
   query = applyCarteiraScope(query, scope.carteiraIds)
   query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
@@ -384,12 +385,12 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
 // Exportação integral: paginação explícita evita o limite padrão do PostgREST.
 export async function listCobrancasCatalogo(scope: CarteiraScope, filters: CobrancaListFilters = {}) {
   const supabase = await createClient()
-  let query = supabase.from('cobrancas').select(`
+  let query = somenteCobrancasCanonicas(supabase.from('cobrancas').select(`
     id, competencia, vencimento, valor_original, valor_atualizado,
     status, status_operacional, status_financeiro, carteira_id, condominio_id, unidade_id,
     carteiras(nome), condominios(nome, inicio_cobranca_dias),
     unidades(identificacao, bloco, responsavel_nome, telefone, email, acao_judicial)
-  `)
+  `))
   query = applyCarteiraScope(query, scope.carteiraIds)
   query = (await applyCobrancaFilters(query, supabase, scope, { ...filters, judicializacaoUnidade: 'todos', status: '', statusList: undefined })).query
   query = query.order('id')
@@ -410,6 +411,7 @@ export async function listCobrancasCatalogo(scope: CarteiraScope, filters: Cobra
       let source = supabase.from(table).select(table === 'cobrancas'
         ? 'id,unidade_id,status,status_operacional'
         : 'id,unidade_id,etapa,distribuicao_status').in('unidade_id', ids)
+      if (table === 'cobrancas') source = somenteCobrancasCanonicas(source)
       source = applyCarteiraScope(source, scope.carteiraIds)
       source = source.order('id')
       for (let offset = 0; ; offset += 500) {
@@ -445,7 +447,7 @@ export async function listCobrancasPage(
     const batchSize = 1000
 
     for (let batchFrom = 0; ; batchFrom += batchSize) {
-      let relatedQuery = supabase
+      let relatedQuery = somenteCobrancasCanonicas(supabase
         .from('cobrancas')
         .select(`
           id,
@@ -468,7 +470,7 @@ export async function listCobrancasPage(
           carteiras(nome),
           condominios(nome),
           unidades(identificacao, bloco, responsavel_nome)
-        `)
+        `))
 
       relatedQuery = applyCarteiraScope(relatedQuery, scope.carteiraIds)
       relatedQuery = (await applyCobrancaFilters(relatedQuery, supabase, scope, filters)).query
@@ -501,7 +503,7 @@ export async function listCobrancasPage(
   }
 
   async function buildQuery(withCount: boolean) {
-    let query = supabase
+    let query = somenteCobrancasCanonicas(supabase
       .from('cobrancas')
       .select(`
         id,
@@ -524,7 +526,7 @@ export async function listCobrancasPage(
         carteiras(nome),
         condominios(nome),
         unidades(identificacao, bloco, responsavel_nome)
-      `, withCount ? { count: 'exact' } : undefined)
+      `, withCount ? { count: 'exact' } : undefined))
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
@@ -568,9 +570,9 @@ export async function summarizeCobrancas(scope: CarteiraScope, filters: Cobranca
   const rows: any[] = []
 
   for (let from = 0; ; from += pageSize) {
-    let query = supabase
+    let query = somenteCobrancasCanonicas(supabase
       .from('cobrancas')
-      .select('id,carteira_id,condominio_id,valor_original,valor_atualizado,status,status_operacional,status_financeiro,carteiras(nome),condominios(nome)')
+      .select('id,carteira_id,condominio_id,valor_original,valor_atualizado,status,status_operacional,status_financeiro,carteiras(nome),condominios(nome)'))
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
@@ -608,6 +610,7 @@ export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {
     .from('cobrancas')
     .select(`
       id,
+      ${arquivamentoDuplicidadesAtivo() ? 'duplicada_de_id,duplicidade_arquivada_em,duplicidade_lote_id,' : ''}
       carteira_id,
       condominio_id,
       unidade_id,
@@ -630,7 +633,7 @@ export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {
       updated_at,
       condominios(nome, cnpj, administradora, inicio_cobranca_dias, regua_cobranca_id, regua_acordo_id),
       unidades(identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email)
-    `)
+    ` as string)
     .eq('id', id)
     .maybeSingle()
 

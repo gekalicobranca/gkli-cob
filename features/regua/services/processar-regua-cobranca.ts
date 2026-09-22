@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
 import { createAdminClient } from "@/utils/supabase/admin";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import {
@@ -623,7 +624,7 @@ export async function processarReguaCobranca(
     : null;
 
   const data = await fetchAllRows((from, to) => {
-    let query: any = supabase
+    let query: any = somenteCobrancasCanonicas(supabase
       .from("cobrancas")
       .select(
         `
@@ -644,7 +645,7 @@ export async function processarReguaCobranca(
         condominios(id, nome, inicio_cobranca_dias, dias_apos_vencimento_regua, dias_cobranca_ativa, pre_juridico_habilitado, intensidade_regua, regua_cobranca_id),
         unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
       `,
-      )
+      ))
       .in("status_operacional", COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[])
       .order("vencimento", { ascending: true })
       .range(from, to);

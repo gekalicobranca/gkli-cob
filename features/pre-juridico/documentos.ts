@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import crypto from "node:crypto";
 import type { createAdminClient } from "@/utils/supabase/admin";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
@@ -206,7 +207,7 @@ function normalizeRows(rows: any[]) {
 }
 
 async function carregarCobrancas(supabase: SupabaseAdmin, ids: string[], scope: CarteiraScope) {
-  let query = supabase.from("cobrancas").select(`
+  let query = somenteCobrancasCanonicas(supabase.from("cobrancas").select(`
     id, carteira_id, condominio_id, unidade_id, status, status_financeiro,
     status_operacional, valor_original, valor_atualizado, vencimento, competencia, created_at,
     carteiras:carteira_id (id,nome,pre_juridico_habilitado),
@@ -215,7 +216,7 @@ async function carregarCobrancas(supabase: SupabaseAdmin, ids: string[], scope: 
       endereco_bairro,endereco_cidade,endereco_uf,endereco_cep,administradora_id
     ),
     unidades:unidade_id (id,identificacao,bloco,responsavel_nome,responsavel_documento,email,telefone)
-  `).in("id", ids).order("vencimento", { ascending: true });
+  `)).in("id", ids).order("vencimento", { ascending: true });
   query = applyCarteiraScope(query, scope.carteiraIds);
   const { data, error } = await query;
   if (error) throw new Error(`Erro ao carregar cobranças para documento: ${error.message}`);

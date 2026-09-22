@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
@@ -210,11 +211,11 @@ export async function getCarteiraProdutividadeData(
     carteirasQuery = carteirasQuery.in('id', scope.carteiraIds)
   }
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
     .select(
       'id, carteira_id, operador_id, status_operacional, status_financeiro, valor_original, valor_atualizado, vencimento, ultima_interacao_at, created_at',
-    )
+    ))
     .order('created_at', { ascending: false })
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
 

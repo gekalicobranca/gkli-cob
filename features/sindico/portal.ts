@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { redirect } from "next/navigation";
 
 import { createAdminClient } from "@/utils/supabase/admin";
@@ -192,7 +193,7 @@ export async function getSindicoPortalOverview(mode: SindicoPortalMode = "ativos
   let termosRows: any[] = [];
 
   if (condominioIds.length > 0) {
-    const { data: cobrancas, error: cobrancasError } = await admin
+    const { data: cobrancas, error: cobrancasError } = await somenteCobrancasCanonicas(admin
       .from("cobrancas")
       .select(`
         id,
@@ -207,7 +208,7 @@ export async function getSindicoPortalOverview(mode: SindicoPortalMode = "ativos
         status_financeiro,
         condominios:condominio_id (id, nome),
         unidades:unidade_id (id, identificacao, bloco, responsavel_nome)
-      `)
+      `))
       .in("condominio_id", condominioIds)
       .order("vencimento", { ascending: true });
 

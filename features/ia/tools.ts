@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 
@@ -13,9 +14,9 @@ export async function getResumoOperacionalIa(
     }
   }
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('valor_atualizado, valor_original')
+    .select('valor_atualizado, valor_original'))
 
   let condominiosQuery = supabase
     .from('condominios')

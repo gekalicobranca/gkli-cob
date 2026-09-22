@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
@@ -70,9 +71,9 @@ export async function getProximasAcoesInbox(scope: CarteiraScope): Promise<Proxi
     .eq("status", "gerado");
   lotesGeradosQuery = applyCarteiraScope(lotesGeradosQuery, scope.carteiraIds);
 
-  let cobrancasContatoQuery = supabase
+  let cobrancasContatoQuery = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
-    .select("id, unidades(telefone,email)")
+    .select("id, unidades(telefone,email)"))
     .in("status_operacional", COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[])
     .limit(500);
   cobrancasContatoQuery = applyCarteiraScope(cobrancasContatoQuery, scope.carteiraIds);

@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../../../../../lib/core/cobranca-arquivamento'
 import { NextResponse } from "next/server";
 
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
@@ -212,9 +213,9 @@ async function carregarDados(ids: string[]) {
   let cobrancas: any[] = [];
 
   if (unidadeIds.length > 0 && condominioIds.length > 0) {
-    let cobrancasQuery = supabase
+    let cobrancasQuery = somenteCobrancasCanonicas(supabase
       .from("cobrancas")
-      .select("id,carteira_id,condominio_id,unidade_id,competencia,vencimento,valor_original,valor_atualizado,status,status_operacional,status_financeiro")
+      .select("id,carteira_id,condominio_id,unidade_id,competencia,vencimento,valor_original,valor_atualizado,status,status_operacional,status_financeiro"))
       .in("unidade_id", unidadeIds)
       .in("condominio_id", condominioIds)
       .order("vencimento", { ascending: true });

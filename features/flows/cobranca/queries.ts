@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
 import { carregarCanaisOcupados } from './vinculos-canais'
 import { reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from './canais'
 import { listReguasForSelect } from '@/features/reguas/queries'
@@ -188,16 +189,16 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     return query
   }
 
-  let painelQuery = supabase
+  let painelQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select(COBRANCA_SELECT)
+    .select(COBRANCA_SELECT))
     .or(`status_operacional.eq.${COBRANCA_STATUS_OPERACIONAL.NOVO},status.eq.${COBRANCA_STATUS_OPERACIONAL.NOVO}`)
     .order('vencimento', { ascending: true })
   painelQuery = applyFilters(painelQuery)
 
-  let disponibilidadeQuery = supabase
+  let disponibilidadeQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select(COBRANCA_SELECT)
+    .select(COBRANCA_SELECT))
     .or(`status_operacional.eq.${COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA},status.eq.${COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA}`)
     .order('vencimento', { ascending: true })
   disponibilidadeQuery = applyFilters(disponibilidadeQuery)

@@ -1,4 +1,5 @@
 'use server'
+import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
 
 import { validarCriacaoPorCanal } from './vinculos-canais'
 import { canalFlowCobranca, flowCobrancaPath } from './rotas'
@@ -103,9 +104,9 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
   if (!cobrancaIds.length) return { error: 'Selecione ao menos uma cobrança ativa.' }
   if (cobrancaIds.length > LIMITE_COBRANCAS_CHAMADA) return { error: 'A criação deve ser feita em partes menores. Atualize a página para usar a divisão automática.' }
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional),unidade:unidades(responsavel_nome)')
+    .select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional),unidade:unidades(responsavel_nome)'))
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
@@ -213,9 +214,9 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
   const cobrancaIds = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
   if (!cobrancaIds.length) throw new Error('Nenhuma cobrança filtrada para ativar.')
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id,carteira_id,condominio_id,status,status_operacional,unidade:unidades(responsavel_nome)')
+    .select('id,carteira_id,condominio_id,status,status_operacional,unidade:unidades(responsavel_nome)'))
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
@@ -370,9 +371,9 @@ export async function desfazerAtivacaoCobrancasFlowCobranca(formData: FormData) 
   const idChunks = Array.from({ length: Math.ceil(cobrancaIds.length / 100) }, (_, index) => cobrancaIds.slice(index * 100, (index + 1) * 100))
   const cobrancas: any[] = []
   for (const ids of idChunks) {
-    let query = supabase
+    let query = somenteCobrancasCanonicas(supabase
       .from('cobrancas')
-      .select('id,carteira_id,status,status_operacional')
+      .select('id,carteira_id,status,status_operacional'))
       .in('id', ids)
     query = applyCarteiraScope(query, scope.carteiraIds)
     const { data, error } = await query

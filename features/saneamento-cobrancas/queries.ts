@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
@@ -319,7 +320,7 @@ export async function listCobrancasParaCorrecaoUnidade(
   const unidadeIds = q ? await listUnidadeIdsMatchingCorrecao(supabase, scope, q, condominioId) : []
   const condominioIds = q && !condominioId ? await listCondominioIdsMatchingCorrecao(supabase, scope, q) : []
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
     .select(`
       id,
@@ -336,7 +337,7 @@ export async function listCobrancasParaCorrecaoUnidade(
       created_at,
       condominios(nome),
       unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
-    `)
+    `))
     .order('created_at', { ascending: false })
     .limit(120)
 
@@ -447,7 +448,7 @@ export async function listPossiveisUnidadesDuplicadas(
 
   const [cobrancasResult, acordosResult] = unidadeIds.length
     ? await Promise.all([
-      supabase.from('cobrancas').select('id, unidade_id').in('unidade_id', unidadeIds).limit(10000),
+      somenteCobrancasCanonicas(supabase.from('cobrancas').select('id, unidade_id')).in('unidade_id', unidadeIds).limit(10000),
       supabase.from('acordos').select('id, unidade_id').in('unidade_id', unidadeIds).limit(10000),
     ])
     : [{ data: [], error: null }, { data: [], error: null }]

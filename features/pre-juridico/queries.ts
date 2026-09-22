@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -32,7 +33,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
   // A fila é calculada no servidor. O escopo do usuário continua sendo
   // aplicado explicitamente por carteira, sem depender do estado da sessão RLS.
   const supabase = createAdminClient()
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
     .select(`
       id, carteira_id, condominio_id, unidade_id, competencia, vencimento,
@@ -40,7 +41,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
       carteira:carteiras(nome,pre_juridico_habilitado),
       condominio:condominios(nome,nome_operacional,administradora,inicio_cobranca_dias,dias_cobranca_ativa,pre_juridico_habilitado),
       unidade:unidades(identificacao,bloco,responsavel_nome)
-    `)
+    `))
     .in('status_operacional', STATUS_VISIVEIS)
     .order('vencimento', { ascending: true })
     .limit(5000)
@@ -103,7 +104,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
 
   const unidadeIds = Array.from(new Set(resultado.map((row: any) => row.unidade_id).filter(Boolean)))
   if (!unidadeIds.length) return resultado
-  let todasQuery = supabase.from('cobrancas').select('unidade_id,valor_original,valor_atualizado').in('unidade_id', unidadeIds)
+  let todasQuery = somenteCobrancasCanonicas(supabase.from('cobrancas').select('unidade_id,valor_original,valor_atualizado')).in('unidade_id', unidadeIds)
   todasQuery = applyCarteiraScope(todasQuery, scope.carteiraIds)
   const { data: todas, error: todasError } = await todasQuery
   if (todasError) throw new Error(`Erro ao totalizar cobranças por unidade: ${todasError.message}`)
@@ -124,7 +125,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
 export async function listCobrancasAgrupadasPreJuridico(scope: CarteiraScope, ids: string[]) {
   if (!ids.length) return []
   const supabase = createAdminClient()
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
     .select(`
       id, carteira_id, condominio_id, unidade_id, competencia, vencimento,
@@ -132,7 +133,7 @@ export async function listCobrancasAgrupadasPreJuridico(scope: CarteiraScope, id
       carteira:carteiras(nome),
       condominio:condominios(nome,nome_operacional,administradora),
       unidade:unidades(identificacao,bloco,responsavel_nome)
-    `)
+    `))
     .in('id', ids)
     .order('vencimento', { ascending: true })
   query = applyCarteiraScope(query, scope.carteiraIds)
@@ -177,9 +178,9 @@ export async function listPreJuridicoCasos(scope: CarteiraScope) {
   const unidadeIds = Array.from(new Set(rows.map((row) => row.unidade_id).filter(Boolean))) as string[]
   if (!unidadeIds.length) return rows
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id,unidade_id,valor_original,valor_atualizado,vencimento,status,status_financeiro,status_operacional')
+    .select('id,unidade_id,valor_original,valor_atualizado,vencimento,status,status_financeiro,status_operacional'))
     .in('unidade_id', unidadeIds)
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
   const { data: cobrancas, error: cobrancasError } = await cobrancasQuery

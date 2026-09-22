@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../../../lib/core/cobranca-arquivamento'
 import {
   Bot, Building2, CalendarClock, Check, ChevronDown, ChevronRight, CircleDot, Clock3,
   FileCheck2, Filter, Gauge, History, Layers3, Power, PowerOff, RefreshCw, Route, Settings2, TriangleAlert,
@@ -190,7 +191,7 @@ export default async function MaestroPage({ searchParams }: Props) {
   const reguaExecucoes = reguaExecucoesResult.data ?? []
   const conversaoIdsConcluidas = conversoes.filter((row: any) => ['concluido', 'concluido_com_alertas'].includes(row.status)).map((row: any) => row.id)
   const { data: cobrancasImportadas } = conversaoIdsConcluidas.length
-    ? await admin.from('cobrancas').select('id, condominio_id, conversao_relatorio_id').in('conversao_relatorio_id', conversaoIdsConcluidas).limit(5000)
+    ? await somenteCobrancasCanonicas(admin.from('cobrancas').select('id, condominio_id, conversao_relatorio_id')).in('conversao_relatorio_id', conversaoIdsConcluidas).limit(5000)
     : { data: [] as any[] }
   const cobrancaIds = (cobrancasImportadas ?? []).map((row: any) => row.id)
   const { data: mensagensRegua } = cobrancaIds.length

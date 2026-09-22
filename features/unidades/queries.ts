@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
@@ -493,7 +494,7 @@ export async function getLaudoPreJuridicoDaUnidade(
 
   const unidade = normalizeRelations(unidadeRaw as any, ['condominios', 'carteiras']) as any
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
     .select(`
       id,
@@ -513,7 +514,7 @@ export async function getLaudoPreJuridicoDaUnidade(
       status_financeiro,
       ultima_interacao_at,
       created_at
-    `)
+    `))
     .eq('unidade_id', id)
     .order('vencimento', { ascending: true })
 

@@ -1,12 +1,13 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 async function loadEstadosOperacionais(supabase: Awaited<ReturnType<typeof createClient>>, scope: CarteiraScope) {
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, status, status_operacional, score_prioridade, proxima_acao_em, updated_at, vencimento, valor_atualizado, dias_atraso')
+    .select('id, carteira_id, status, status_operacional, score_prioridade, proxima_acao_em, updated_at, vencimento, valor_atualizado, dias_atraso'))
     .order('score_prioridade', { ascending: false })
     .limit(80)
 

@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../../../../lib/core/cobranca-arquivamento'
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -329,7 +330,7 @@ async function getDashboardData(params: SearchParams) {
     }
   }
 
-  const { data: cobrancasData, error: cobrancasError } = await admin
+  const { data: cobrancasData, error: cobrancasError } = await somenteCobrancasCanonicas(admin
     .from("cobrancas")
     .select(`
       id,
@@ -342,7 +343,7 @@ async function getDashboardData(params: SearchParams) {
       status_operacional,
       status_financeiro,
       unidades:unidade_id (id, identificacao, bloco, responsavel_nome)
-    `)
+    `))
     .eq("condominio_id", selectedCondominioId)
     .order("vencimento", { ascending: true });
 

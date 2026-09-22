@@ -1,6 +1,8 @@
 import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
+import { cobrancaArquivada } from '@/lib/core/cobranca-arquivamento'
 
 type Row = {
+  duplicada_de_id?: string | null
   carteira_id?: string | null; condominio_id?: string | null
   valor_atualizado?: number | string | null; valor_original?: number | string | null
   status?: string | null; status_operacional?: string | null
@@ -15,6 +17,7 @@ export function resumirValoresCobrancas(rows: Row[]) {
   }>()
   let centavos = 0
   for (const row of rows) {
+    if (cobrancaArquivada(row)) continue
     const valor = excluidos.has(getCobrancaStatusOperacional(row)) ? 0
       : Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100)
     const carteiraId = row.carteira_id ?? 'sem-carteira'

@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
@@ -165,9 +166,9 @@ export async function getCentralAnalitica(scope: CarteiraScope): Promise<Central
   let carteirasQuery = supabase.from('carteiras').select('id, nome').eq('ativo', true)
   carteirasQuery = applyCarteiraScope(carteirasQuery, scope.carteiraIds, 'id')
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, operador_id, status_operacional, status_financeiro, valor_original, valor_atualizado, vencimento, created_at')
+    .select('id, carteira_id, operador_id, status_operacional, status_financeiro, valor_original, valor_atualizado, vencimento, created_at'))
     .order('created_at', { ascending: false })
     .limit(5000)
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)

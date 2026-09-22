@@ -1,6 +1,8 @@
 import { diasDesdeVencimento } from '@/features/regua/engine'
+import { cobrancaArquivada } from '@/lib/core/cobranca-arquivamento'
 
 export function motivoExclusaoMaestro(row: any, inicio: number, acordo: boolean) {
+  if (cobrancaArquivada(row)) return 'Cobrança arquivada por duplicidade'
   if (row.automacao_bloqueada) return 'Automação bloqueada'
   if (acordo) return 'Acordo vigente'
   if (!['novo', 'em_cobranca_ativa'].includes(row.status_operacional) || ['possivel_acordo', 'acordo_firmado', 'acordo_efetivado', 'pre_juridico', 'judicializado', 'suspenso'].includes(row.status)) return 'Status fora da cobrança automática'

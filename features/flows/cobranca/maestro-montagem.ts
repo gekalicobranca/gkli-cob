@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
 import { carregarCanaisOcupados } from './vinculos-canais'
 import { conflitoDeCanais } from './canais'
 import { createAdminClient } from '@/utils/supabase/admin'
@@ -32,7 +33,7 @@ async function planejar(db: ReturnType<typeof createAdminClient>, job: any) {
   if (!regua) throw new Error('Cadastre uma régua de cobrança por e-mail ativa para esta carteira.')
   const rows: any[] = []
   for (let offset = 0; ; offset += 500) {
-    const { data, error } = await db.from('cobrancas').select('id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,vencimento,unidade:unidades(identificacao,bloco,responsavel_nome,email)')
+    const { data, error } = await somenteCobrancasCanonicas(db.from('cobrancas').select('id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,vencimento,unidade:unidades(identificacao,bloco,responsavel_nome,email)'))
       .eq('conversao_relatorio_id', job.conversao_id).eq('condominio_id', job.condominio_id).eq('carteira_id', job.carteira_id).order('id').range(offset, offset + 499)
     if (error) throw new Error(error.message)
     rows.push(...(data ?? [])); if ((data ?? []).length < 500) break

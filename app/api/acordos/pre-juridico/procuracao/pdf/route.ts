@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../../../../../lib/core/cobranca-arquivamento'
 import { NextResponse } from "next/server";
 
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
@@ -390,7 +391,7 @@ async function carregarAcordos(ids: string[]) {
 async function carregarCobrancas(ids: string[]) {
   const supabase = await createClient();
   const scope = await getPermittedCarteiras();
-  let query = supabase.from("cobrancas").select(`
+  let query = somenteCobrancasCanonicas(supabase.from("cobrancas").select(`
     id, carteira_id, condominio_id, unidade_id, status, status_financeiro,
     status_operacional, valor_original, valor_atualizado, vencimento, created_at,
     carteiras:carteira_id (id,nome,pre_juridico_habilitado),
@@ -399,7 +400,7 @@ async function carregarCobrancas(ids: string[]) {
       endereco_bairro,endereco_cidade,endereco_uf,endereco_cep,administradora_id
     ),
     unidades:unidade_id (id,identificacao,bloco,responsavel_nome,responsavel_documento,email,telefone)
-  `).in("id", ids).order("vencimento", { ascending: false });
+  `)).in("id", ids).order("vencimento", { ascending: false });
   query = applyCarteiraScope(query, scope.carteiraIds);
   const { data, error } = await query;
   if (error) throw new Error(`Erro ao carregar cobrancas para procuracao: ${error.message}`);

@@ -1,4 +1,5 @@
 'use server'
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -108,7 +109,7 @@ export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
   const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', casoId)
   if (error) throw new Error(`Erro ao atualizar distribuição: ${error.message}`)
 
-  const { data: cobrancas } = await supabase.from('cobrancas').select('id').eq('unidade_id', caso.unidade_id)
+  const { data: cobrancas } = await somenteCobrancasCanonicas(supabase.from('cobrancas').select('id')).eq('unidade_id', caso.unidade_id)
   for (const cobranca of (cobrancas ?? []) as any[]) {
     await registrarEventoOperacional(supabase as any, {
       carteiraId: caso.carteira_id,
@@ -294,7 +295,7 @@ export async function gerarProcuracoesPreJuridico(formData: FormData) {
   }
   revalidatePath('/app/pre-juridico/processamento')
   const unidadeIds = Array.from(new Set(casos.map((caso) => caso.unidade_id).filter(Boolean)))
-  let cobrancasQuery = supabase.from('cobrancas').select('id').in('unidade_id', unidadeIds)
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase.from('cobrancas').select('id')).in('unidade_id', unidadeIds)
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
   const { data: cobrancasUnidades, error: cobrancasError } = await cobrancasQuery
   if (cobrancasError) throw new Error(`Procurações geradas, mas houve erro ao agrupar as cobranças: ${cobrancasError.message}`)
@@ -476,9 +477,9 @@ export async function gerarLaudosPreJuridico(formData: FormData) {
   const unidadesNovas = unidadesSelecionadas.filter((unidadeId) => !unidadesExistentes.has(unidadeId))
   if (!unidadesNovas.length) throw new Error('As unidades selecionadas já possuem laudo gerado ou processamento iniciado.')
 
-  let cobrancasUnidadesQuery = supabase
+  let cobrancasUnidadesQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id,carteira_id,condominio_id,unidade_id,status_financeiro')
+    .select('id,carteira_id,condominio_id,unidade_id,status_financeiro'))
     .in('unidade_id', unidadesNovas)
   cobrancasUnidadesQuery = applyCarteiraScope(cobrancasUnidadesQuery, scope.carteiraIds)
   const { data: cobrancasUnidades, error: cobrancasError } = await cobrancasUnidadesQuery

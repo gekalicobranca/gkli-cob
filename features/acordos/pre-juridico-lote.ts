@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createAdminClient } from "@/utils/supabase/admin";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
 import { registrarEventoOperacional } from "@/features/operacional/service";
@@ -312,7 +313,7 @@ async function carregarCobrancas(
   cobrancaIds: string[],
   scope: CarteiraScope,
 ) {
-  let query: any = supabase
+  let query: any = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(`
       id, carteira_id, condominio_id, unidade_id, status, status_financeiro,
@@ -323,7 +324,7 @@ async function carregarCobrancas(
         administradoras:administradora_id (id,nome,email)
       ),
       unidades:unidade_id (id,identificacao,bloco,responsavel_nome,email,telefone)
-    `)
+    `))
     .in("id", cobrancaIds);
 
   if (scope.carteiraIds !== null) {
@@ -336,7 +337,7 @@ async function carregarCobrancas(
   if (referencias.length !== cobrancaIds.length) throw new Error("Uma ou mais cobranças não estão disponíveis para a régua pré-jurídica.");
   const unidadeIds = unique(referencias.map((row) => row.unidade_id));
 
-  let todasQuery: any = supabase
+  let todasQuery: any = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(`
       id, carteira_id, condominio_id, unidade_id, status, status_financeiro,
@@ -347,7 +348,7 @@ async function carregarCobrancas(
         administradoras:administradora_id (id,nome,email)
       ),
       unidades:unidade_id (id,identificacao,bloco,responsavel_nome,email,telefone)
-    `)
+    `))
     .in("unidade_id", unidadeIds);
   if (scope.carteiraIds !== null) {
     todasQuery = todasQuery.in("carteira_id", scope.carteiraIds.length ? scope.carteiraIds : ["00000000-0000-0000-0000-000000000000"]);

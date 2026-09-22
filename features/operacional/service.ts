@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RegistrarEventoInput, TransicionarEstadoInput } from "./types";
 
@@ -94,9 +95,9 @@ async function carregarEstadoAtual(
   input: TransicionarEstadoInput,
 ) {
   if (input.entidadeTipo === "cobranca") {
-    const { data, error } = await supabase
+    const { data, error } = await somenteCobrancasCanonicas(supabase
       .from("cobrancas")
-      .select("status, status_operacional")
+      .select("status, status_operacional"))
       .eq("id", input.entidadeId)
       .maybeSingle();
 

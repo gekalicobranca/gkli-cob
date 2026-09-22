@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { carregarParcelasRelatorio } from "./parcelas-relatorio";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
@@ -40,9 +41,9 @@ async function getUnidadeIdsComJudicializacaoAtiva(
   }
 
   const unidadesMarcadas = new Set((data ?? []).map((row: any) => row.id).filter(Boolean));
-  const { data: cobrancas, error: cobrancasError } = await supabase
+  const { data: cobrancas, error: cobrancasError } = await somenteCobrancasCanonicas(supabase
     .from("cobrancas")
-    .select("unidade_id, status, status_operacional")
+    .select("unidade_id, status, status_operacional"))
     .in("unidade_id", ids)
     .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")})`);
   if (cobrancasError) throw new Error(`Erro ao verificar judicialização por unidade: ${cobrancasError.message}`);
@@ -319,7 +320,7 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
 export async function listCobrancasElegiveisParaAcordo(scope?: CarteiraScope) {
   const supabase = await createClient();
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(
       `
@@ -354,7 +355,7 @@ export async function listCobrancasElegiveisParaAcordo(scope?: CarteiraScope) {
         credito_administradora
       )
     `,
-    )
+    ))
     .order("vencimento", { ascending: true });
 
   if (scope) {
@@ -468,9 +469,9 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
   let unidadeId = params.unidadeId?.trim();
 
   if (!unidadeId && cobrancaId) {
-    let origemQuery = supabase
+    let origemQuery = somenteCobrancasCanonicas(supabase
       .from("cobrancas")
-      .select("id, unidade_id")
+      .select("id, unidade_id"))
       .eq("id", cobrancaId)
       .maybeSingle();
 
@@ -494,7 +495,7 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
       cobrancas: [],
     };
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(
       `
@@ -530,7 +531,7 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
         credito_administradora
       )
     `,
-    )
+    ))
     .eq("unidade_id", unidadeId)
     .order("vencimento", { ascending: true });
 
@@ -565,7 +566,7 @@ export async function listCobrancasSelecionadasParaAcordo(
   if (ids.length === 0) return [];
 
   const supabase = await createClient();
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(
       `
@@ -601,7 +602,7 @@ export async function listCobrancasSelecionadasParaAcordo(
         credito_administradora
       )
     `,
-    )
+    ))
     .in("id", ids)
     .order("vencimento", { ascending: true });
 

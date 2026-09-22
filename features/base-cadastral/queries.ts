@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
@@ -44,9 +45,9 @@ export type BaseOperationalMetrics = {
 export async function getCondominioOperationalMetrics(condominioId: string, scope: CarteiraScope): Promise<BaseOperationalMetrics> {
   const supabase = await createClient()
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, valor_atualizado, status_operacional, status_financeiro, vencimento')
+    .select('id, carteira_id, valor_atualizado, status_operacional, status_financeiro, vencimento'))
     .eq('condominio_id', condominioId)
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
@@ -104,9 +105,9 @@ export async function getCondominioOperationalMetrics(condominioId: string, scop
 export async function getUnidadeOperationalMetrics(unidadeId: string, scope: CarteiraScope): Promise<BaseOperationalMetrics> {
   const supabase = await createClient()
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, valor_atualizado, status_operacional, status_financeiro, vencimento')
+    .select('id, carteira_id, valor_atualizado, status_operacional, status_financeiro, vencimento'))
     .eq('unidade_id', unidadeId)
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
@@ -164,9 +165,9 @@ export async function getUnidadeOperationalMetrics(unidadeId: string, scope: Car
 export async function listCobrancasDaUnidade(unidadeId: string, scope: CarteiraScope) {
   const supabase = await createClient()
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, competencia, vencimento, valor_original, valor_atualizado, status_operacional, status_financeiro, created_at')
+    .select('id, carteira_id, competencia, vencimento, valor_original, valor_atualizado, status_operacional, status_financeiro, created_at'))
     .eq('unidade_id', unidadeId)
     .order('vencimento', { ascending: false })
     .limit(8)
@@ -199,9 +200,9 @@ export async function listAcordosDaUnidade(unidadeId: string, scope: CarteiraSco
 export async function listUnidadesCriticasDoCondominio(condominioId: string, scope: CarteiraScope) {
   const supabase = await createClient()
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, unidade_id, valor_atualizado, vencimento, status_operacional, status_financeiro, unidades(id, identificacao, bloco, responsavel_nome, telefone, email)')
+    .select('id, carteira_id, unidade_id, valor_atualizado, vencimento, status_operacional, status_financeiro, unidades(id, identificacao, bloco, responsavel_nome, telefone, email)'))
     .eq('condominio_id', condominioId)
     .order('vencimento', { ascending: true })
     .limit(50)
@@ -283,9 +284,9 @@ export async function globalSearch(scope: CarteiraScope, term?: string) {
     .limit(20)
   unidadesQuery = applyCarteiraScope(unidadesQuery, scope.carteiraIds)
 
-  let cobrancasQuery = supabase
+  let cobrancasQuery = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, competencia, vencimento, valor_atualizado, status_operacional, status_financeiro, condominios(nome, nome_operacional), unidades(identificacao, responsavel_nome)')
+    .select('id, carteira_id, competencia, vencimento, valor_atualizado, status_operacional, status_financeiro, condominios(nome, nome_operacional), unidades(identificacao, responsavel_nome)'))
     .or(`competencia.ilike.%${q}%,competencia.ilike.%${lastTerm}%,status_operacional.ilike.%${q}%,status_financeiro.ilike.%${q}%`)
     .order('vencimento', { ascending: false })
     .limit(8)

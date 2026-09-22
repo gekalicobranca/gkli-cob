@@ -1,4 +1,5 @@
 "use server";
+import { somenteCobrancasCanonicas } from '@/lib/core/cobranca-arquivamento';
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
@@ -715,7 +716,7 @@ async function monitorarNegociacoesKeila(
     };
   }
 
-  const { data: itens, error: itensError } = await supabase
+  const { data: itens, error: itensError } = await somenteCobrancasCanonicas(supabase
     .from("lote_itens")
     .select(`
       id,
@@ -762,7 +763,7 @@ async function monitorarNegociacoesKeila(
     `)
     .in("lote_id", loteIds)
     .eq("retorno_tipo", "quer_negociar")
-    .order("retorno_registrado_em", { ascending: false });
+    .order("retorno_registrado_em", { ascending: false }), 'cobranca.duplicada_de_id');
 
   if (itensError) {
     throw new Error(`Erro ao monitorar retornos de negociação da Keila: ${itensError.message}`);

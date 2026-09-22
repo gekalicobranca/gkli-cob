@@ -1,4 +1,5 @@
 'use server'
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -36,9 +37,9 @@ async function assertCobrancaPermitida(
   cobrancaId: string,
   carteiraIdInformada?: string | null,
 ) {
-  const { data, error } = await supabase
+  const { data, error } = await somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id')
+    .select('id, carteira_id'))
     .eq('id', cobrancaId)
     .maybeSingle()
 
@@ -177,9 +178,9 @@ export async function updateCobrancaStatus(formData: FormData) {
   const supabase = await createClient()
   const user = await requireUser()
 
-  const { data: atual } = await supabase
+  const { data: atual } = await somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, status_operacional, status')
+    .select('id, carteira_id, status_operacional, status'))
     .eq('id', cobrancaId)
     .maybeSingle()
 
@@ -249,9 +250,9 @@ export async function updateCobrancasStatusEmLote(
   const user = await requireUser()
   const scope = await getPermittedCarteiras()
 
-  const { data: cobrancas, error: consultaError } = await supabase
+  const { data: cobrancas, error: consultaError } = await somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, status_operacional, status')
+    .select('id, carteira_id, status_operacional, status'))
     .in('id', ids)
 
   if (consultaError) {
@@ -330,9 +331,9 @@ export async function updateCobrancaFinanceiro(formData: FormData) {
 
   const supabase = await createClient()
 
-  const { data: atualFinanceiro } = await supabase
+  const { data: atualFinanceiro } = await somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id, carteira_id, valor_original, valor_atualizado, juros, multa, correcao, desconto')
+    .select('id, carteira_id, valor_original, valor_atualizado, juros, multa, correcao, desconto'))
     .eq('id', cobrancaId)
     .maybeSingle()
 

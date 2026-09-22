@@ -1,4 +1,5 @@
 "use server";
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
 import { EmailAdiadoError } from "./email-agenda";
 
@@ -1237,9 +1238,9 @@ async function moverCobrancaParaNegociacaoPorRetorno(
 ) {
   if (input.retorno !== "quer_negociar" || !input.cobrancaId) return;
 
-  const { data: cobranca, error: cobrancaError } = await supabase
+  const { data: cobranca, error: cobrancaError } = await somenteCobrancasCanonicas(supabase
     .from("cobrancas")
-    .select("id, carteira_id, status, status_operacional")
+    .select("id, carteira_id, status, status_operacional"))
     .eq("id", input.cobrancaId)
     .maybeSingle();
 

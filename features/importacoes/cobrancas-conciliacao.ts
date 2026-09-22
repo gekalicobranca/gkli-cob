@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { competenciaNormalizada, identidadeRecibo } from "./identidade-recibo";
 
 type SupabaseLike = {
@@ -201,11 +202,11 @@ async function listarCobrancasAbertasDoEscopo(
   const pageSize = 1000;
 
   for (let from = 0; ; from += pageSize) {
-    let query = supabase
+    let query = somenteCobrancasCanonicas(supabase
       .from("cobrancas")
       .select(
         "id, carteira_id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status_financeiro, status_operacional, unidades:unidade_id(identificacao, bloco)",
-      )
+      ))
       .in("condominio_id", condominioIds)
       .range(from, from + pageSize - 1);
 
@@ -374,8 +375,8 @@ export async function conciliarCobrancaImportada(
   const resultados: Array<{ candidata: CobrancaExistente; resultado: NonNullable<ReturnType<typeof classificarCandidato>> }> = [];
   // Com recibo, buscar todas as datas e situações evita recriar cotas quitadas ou reemitidas.
   for (let from = 0; ; from += 500) {
-    let query = supabase.from("cobrancas")
-      .select("id, carteira_id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status_financeiro, status_operacional")
+    let query = somenteCobrancasCanonicas(supabase.from("cobrancas")
+      .select("id, carteira_id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status_financeiro, status_operacional"))
       .eq("unidade_id", cobranca.unidade_id);
     if (cobranca.condominio_id) query = query.eq("condominio_id", cobranca.condominio_id);
     // A transferência de carteira não transforma o recibo da mesma unidade em outro débito.

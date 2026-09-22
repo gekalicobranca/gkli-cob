@@ -1,4 +1,5 @@
 'use server'
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -46,13 +47,13 @@ export async function solicitarPlanilhaDebitosIndividual(formData: FormData) {
   let unidade: any = null
 
   if (origem === 'cobranca') {
-    const { data, error } = await supabase
+    const { data, error } = await somenteCobrancasCanonicas(supabase
       .from('cobrancas')
       .select(`
         id, carteira_id, condominio_id, unidade_id, competencia, vencimento,
         unidades:unidade_id(id, identificacao, bloco, responsavel_nome),
         condominios:condominio_id(id, nome, administradora_id)
-      `)
+      `))
       .eq('id', id)
       .maybeSingle()
 

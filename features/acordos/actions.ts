@@ -1,4 +1,5 @@
 "use server";
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -678,13 +679,13 @@ export async function createAcordo(formData: FormData) {
 
   const supabase = await createClient();
 
-  const { data: cobrancas, error: cobrancasError } = await supabase
+  const { data: cobrancas, error: cobrancasError } = await somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(
       `id, carteira_id, condominio_id, unidade_id, status, status_operacional, valor_atualizado, valor_original, juros, multa, correcao, desconto, vencimento, competencia,
       condominios:condominio_id (id, nome, administradora_id, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada),
       unidades:unidade_id (id, identificacao, bloco, responsavel_nome, responsavel_documento, email, telefone, credito_administradora)`,
-    )
+    ))
     .in("id", cobrancaIds);
 
   if (cobrancasError) {
@@ -787,9 +788,9 @@ export async function createAcordo(formData: FormData) {
     );
   }
 
-  const { data: judicializacaoUnidade, error: judicializacaoUnidadeError } = await supabase
+  const { data: judicializacaoUnidade, error: judicializacaoUnidadeError } = await somenteCobrancasCanonicas(supabase
     .from("cobrancas")
-    .select("id")
+    .select("id"))
     .eq("unidade_id", cobrancaPrincipal.unidade_id)
     .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")})`)
     .limit(1);
@@ -1106,7 +1107,7 @@ export async function solicitarPlanilhaDebitosAdministradora(formData: FormData)
   let cobrancaReferencia: any = null;
 
   if (idsParaConsulta.length > 0) {
-    const { data, error } = await supabase
+    const { data, error } = await somenteCobrancasCanonicas(supabase
       .from("cobrancas")
       .select(
         `
@@ -1128,7 +1129,7 @@ export async function solicitarPlanilhaDebitosAdministradora(formData: FormData)
           responsavel_nome
         )
       `,
-      )
+      ))
       .in("id", idsParaConsulta)
       .limit(1);
 
@@ -1140,7 +1141,7 @@ export async function solicitarPlanilhaDebitosAdministradora(formData: FormData)
   }
 
   if (!cobrancaReferencia && unidadeIdInformada) {
-    const { data, error } = await supabase
+    const { data, error } = await somenteCobrancasCanonicas(supabase
       .from("cobrancas")
       .select(
         `
@@ -1162,7 +1163,7 @@ export async function solicitarPlanilhaDebitosAdministradora(formData: FormData)
           responsavel_nome
         )
       `,
-      )
+      ))
       .eq("unidade_id", unidadeIdInformada)
       .order("vencimento", { ascending: true })
       .limit(1);
@@ -1296,7 +1297,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
   const observacoes = String(formData.get("observacoes") ?? "").trim();
 
-  const { data: cobrancas, error: cobrancasError } = await supabase
+  const { data: cobrancas, error: cobrancasError } = await somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(
       `
@@ -1320,7 +1321,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
         responsavel_nome
       )
     `,
-    )
+    ))
     .in("id", cobrancaIds);
 
   if (cobrancasError) {

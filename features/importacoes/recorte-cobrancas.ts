@@ -1,3 +1,4 @@
+import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
 
 type SupabaseLike = {
@@ -69,11 +70,11 @@ export async function limparCobrancasDaNovaImportacao(
     ? params.statusOperacionais
     : [COBRANCA_STATUS_OPERACIONAL.NOVO];
 
-  let query = supabase
+  let query = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     // Preserva tanto o vínculo direto do acordo quanto as cobranças agrupadas.
     // O status operacional pode continuar como Novo mesmo com acordo existente.
-    .select("id, acordo_cobrancas!left(id), acordos!left(id)")
+    .select("id, acordo_cobrancas!left(id), acordos!left(id)"))
     .is("acordo_cobrancas", null)
     .is("acordos", null)
     .in("condominio_id", condominioIds)
