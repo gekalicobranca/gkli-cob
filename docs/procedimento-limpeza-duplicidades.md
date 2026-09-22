@@ -2,7 +2,7 @@
 
 Preparado em 22/09/2026, a partir da auditoria da base de produção iniciada às 19h03 (Brasília).
 
-**Estado em 22/09/2026, 20h03 (Brasília): prevenção e estrutura de arquivamento instaladas; nenhum registro arquivado.** As migrações de recibo e arquivamento estão ativas, com conferência de integridade dos 2.745 registros. O manifesto preliminar registra candidatos; não é um arquivo executável. A aplicação do piloto depende do manifesto final, snapshot protegido e conferência de ausência de trabalho em trânsito.
+**Estado em 22/09/2026, 20h24 (Brasília): piloto de cinco pares aplicado e conferido.** As migrações de recibo e arquivamento estão ativas. Os 2.745 registros continuam no banco: 2.740 canônicos e cinco cópias históricas. O manifesto preliminar permanece como evidência da auditoria inicial, não como executor para o restante. Resultado e escopo efetivamente aplicado na seção 14.
 
 ## 1. Objetivo e escopo
 
@@ -204,3 +204,26 @@ O inventário real consultou referências UUID/JSON/arrays em 100 tabelas, restr
 As migrações `20260923020000` e `20260923021000` foram instaladas sem arquivar registros. Os resultados das 18 views foram comparados antes/depois, sem alteração. O aplicativo integra 73 consultas diretas, subtotais, elegibilidade, documentos, importações e validação adicional antes de envio. O histórico continua acessível e a página da cópia é somente leitura. A reserva atômica de e-mail, WhatsApp e início de envio Thunderbird usam a elegibilidade protegida no banco. A variável `COBRANCAS_ARQUIVAMENTO_ATIVO` é ativa por padrão; nunca desativá-la com cópias arquivadas, pois isso recolocaria cópias em consultas antigas. Em bancos novos, aplicar as migrações antes de publicar esta versão.
 
 O SQL do protótipo continua separado das migrações e não deve ser instalado em produção. Os resultados iniciais `ensaio-piloto.json` são históricos e não representam aplicação real. Evidências atuais: `teste-integracao-arquivamento.json`, `conciliacao-pendencias-piloto.json` e `ativacao-base-arquivamento.json`. Nenhuma mensagem foi enviada pela limpeza.
+
+## 14. Resultado do piloto aplicado
+
+Lote `79df4c89-2533-4d3b-8833-04484586dee6`, concluído em 22/09/2026 às 20h23min24s (Brasília). Manifesto SHA-256 `17d0835b322c39bf53bd5befda15200ffa761d1c9e65d0c7224d95a80296efa1`. Aplicativo publicado em produção no commit `460ea9c` antes da aplicação.
+
+Arquivadas cinco cópias novas do Rio Negro, preservando os cinco registros antigos com parcelas. Competências completadas a partir das linhas de importação conferidas. Cinco alertas falsos de ausência resolvidos com motivo/fonte, sem baixa ou mudança financeira/jurídica. As 14 mensagens, cinco tentativas de envio, cinco parcelas, itens e históricos permaneceram intactos. As nove mensagens que contêm cópia arquivada estão inelegíveis pelo bloqueio SQL; as outras continuam em seu status terminal. Nenhum envio foi realizado pela limpeza.
+
+| Carteira | Quantidade após piloto | Valor da fila após piloto |
+| --- | ---: | ---: |
+| Genske Advogados | 1.511 | R$ 1.711.440,80 |
+| GEKALI | 305 | R$ 397.976,40 |
+| Azevedo Araújo | 431 | R$ 255.238,69 |
+| **Total** | **2.247** | **R$ 2.364.655,89** |
+
+Redução exata de cinco registros operacionais e R$ 4.793,75, com igualdade entre card e subtotais globais das carteiras nos mesmos filtros. O Rio Negro passou de 199 registros/R$ 202.008,80 para 194/R$ 197.215,05. Reimportação conferida somente em leitura: cinco recibos `ja_existente`, zero `novo`, todos apontando para os IDs preservados.
+
+Backup suplementar criptografado com AES-256-GCM, chave DPAPI do perfil Windows atual, checksum e restauração em schema isolado. Testados aplicação, falha intermediária com rollback, repetição idempotente e reversão. O executor grava no banco imagens anteriores/posteriores dos registros alterados e hashes de todas as dependências; a fonte completa fica no backup, evitando uploads grandes dentro da transação. A reversão conserva a auditoria e exige imagem posterior intacta; timestamps de atualização avançam normalmente.
+
+A primeira tentativa em produção foi desfeita por timeout do inventário, sem aplicação parcial. A consulta de inventário recebeu orçamento de 60 segundos; mutações continuam com 30 segundos e obtenção de locks com quatro segundos. A execução final durou aproximadamente 80 segundos. Os dois agendadores foram pausados e restaurados ao estado anterior; foi confirmada ausência de envios em trânsito. Locks abrangem as tabelas públicas inventariadas, preservando leituras e bloqueando escritas durante a janela. Essa estratégia precisa ser reduzida/otimizada antes de lotes maiores.
+
+Os outros 199 grupos da auditoria inicial não foram incluídos. O total da fila ainda não representa saldo líquido integralmente conciliado com acordos, pagamentos e bases jurídicas.
+
+Evidências em `outputs/auditoria-cobrancas-2026-09-22/`: `resultado-piloto.md`, `piloto-producao-aplicar.json`, `verificacao-final-piloto.json`, `fila-depois-piloto.json`, `teste-executor-piloto.json`, `replay-piloto-producao.json`, `controle-janela-piloto.json` e `backup-piloto/verificacao.json`. Dados restritos não são versionados. Executor administrativo em `scripts/limpeza-duplicidades/piloto-transacional.mjs`; não expor como RPC ou endpoint do aplicativo.
