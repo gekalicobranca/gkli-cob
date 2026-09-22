@@ -7,6 +7,7 @@ import QRCode from 'qrcode'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { deliver, normalizePhone } from './delivery.mjs'
 import { sendWithReceipt } from './receipt.mjs'
+import { recordContactIssue } from './contact-issue.mjs'
 
 const { Client, LocalAuth, MessageMedia } = whatsapp
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -130,6 +131,7 @@ try {
       const message = check(await db.rpc('whatsapp_web_reservar', { p_sessao: session, p_numero: expectedPhone }))
       if (message) {
         const outcome = await deliver({ message, prepare, confirm, send: (...args) => timeout(sendWithReceipt(client, ...args)), finish })
+        await recordContactIssue(db, message, outcome).catch(error => console.error(`Falha ao registrar pendência de telefone da mensagem ${message.id}: ${error.message}`))
         console.log(`${new Date().toISOString()} mensagem=${message.id} resultado=${outcome.state}`)
         if (outcome.state === 'incerto') { connection = 'conferencia_necessaria'; stopping = true }
       }

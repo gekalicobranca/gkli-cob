@@ -11,7 +11,7 @@
     "start:genske": "node --env-file=../../.env.local --env-file=../../.env.whatsapp-genske worker.mjs",
     "start:gekali": "node --env-file=../../.env.local --env-file=../../.env.whatsapp-gekali worker.mjs",
     "start:azevedo": "node --env-file=../../.env.local --env-file=../../.env.whatsapp-azevedo worker.mjs",
-    "test": "node --test worker.test.mjs receipt.test.mjs"
+    "test": "node --test worker.test.mjs receipt.test.mjs contact-issue.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.108.1",
