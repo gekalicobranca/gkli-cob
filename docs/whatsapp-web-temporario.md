@@ -35,6 +35,7 @@ Para vincular por código em vez de QR, acrescentar também `--pair-by-code`: `n
 - Recibos, status da mensagem, todos os itens vinculados, contadores de lote/Flow, procuração e logs são atualizados em uma transação. “Enviada” indica retorno do cliente Web, não comprovação de entrega ou leitura.
 - A API oficial ignora carteiras Web. O banco também impede reservas por workers Cloud antigos durante a transição. Mensagens já assumidas pelo Web não são transferidas automaticamente para a API.
 - Falha anterior à transmissão fica disponível para reenvio pelo Flow. Qualquer erro após iniciar transmissão, inclusive envio parcial, fica incerto e bloqueia a linha; não há expiração automática.
+- Se o envio de texto não retornar ID, o worker consulta a conversa de destino sem retransmitir. Só recupera o recibo quando encontra uma única mensagem própria com texto integral idêntico, ID que não existia antes da tentativa, horário compatível e ACK do servidor. Sem essa evidência, mantém o resultado incerto. Anexos continuam exigindo o recibo direto.
 - Queda do worker após reservar também mantém a reserva bloqueada. Não apagar reservas para forçar repetição.
 
 ## Conferência de resultados incertos
@@ -55,6 +56,6 @@ Integração não oficial baseada em [whatsapp-web.js](https://wwebjs.dev/guide/
 
 ## Validação
 
-`node --test scripts/validate-whatsapp-web.mjs scripts/whatsapp-web/worker.test.mjs`
+`node --test scripts/validate-whatsapp-web.mjs scripts/whatsapp-web/worker.test.mjs scripts/whatsapp-web/receipt.test.mjs`
 
 Testes usam PostgreSQL local via PGlite e cliente simulado: isolamento de carteira/linha, pausa, agenda, Cloud antigo, reserva única, conclusão idempotente, atualização dos itens, resultados incertos, conferência administrativa, bloqueio de reenvio e falhas de anexos/recibos. Não enviam mensagens reais. Executar também `npm run typecheck`.
