@@ -334,7 +334,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
       </LitePageHeader>
 
       <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label="Em aberto" value={formatCurrency(resumo.totalEmAberto)} icon={<WalletCards size={18} />} />
+        <KpiCard label="Em aberto" value={formatCurrency(resumo.totalEmAberto)} hint="Todas as páginas, conforme os filtros" icon={<WalletCards size={18} />} />
 
         {[
           [
@@ -506,7 +506,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                           </ListItemMeta>
                         </div>
                       </div>
-                      <p className="text-sm font-semibold text-slate-800">{formatCurrency(carteiraGroup.valor)}</p>
+                      <div className="text-right">
+                        <p className="text-xs text-slate-500">Subtotal nesta página</p>
+                        <p className="text-sm font-semibold text-slate-800">{formatCurrency(carteiraGroup.valor)}</p>
+                      </div>
                     </summary>
 
                     <div className="divide-y divide-slate-100">
@@ -520,7 +523,10 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                               <ListItemMeta className="mt-0.5">{group.cobrancas.length} cobrança(s) nesta página</ListItemMeta>
                               </div>
                             </div>
-                            <p className="text-sm font-semibold text-slate-700">{formatCurrency(group.valor)}</p>
+                            <div className="text-right">
+                              <p className="text-xs text-slate-500">Subtotal nesta página</p>
+                              <p className="text-sm font-semibold text-slate-700">{formatCurrency(group.valor)}</p>
+                            </div>
                           </summary>
 
                           <div className="divide-y divide-slate-100">

@@ -522,11 +522,11 @@ export async function listCobrancasPage(
         carteiras(nome),
         condominios(nome),
         unidades(identificacao, bloco, responsavel_nome)
-      `, withCount ? { count: 'planned' } : undefined)
+      `, withCount ? { count: 'exact' } : undefined)
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
-    query = applyCobrancaOrder(query, options.orderBy)
+    query = applyCobrancaOrder(query, options.orderBy).order('id', { ascending: true })
     return query.range(from, to)
   }
 
@@ -568,11 +568,11 @@ export async function summarizeCobrancas(scope: CarteiraScope, filters: Cobranca
   for (let from = 0; ; from += pageSize) {
     let query = supabase
       .from('cobrancas')
-      .select('id,valor_atualizado,status,status_operacional,status_financeiro')
+      .select('id,valor_original,valor_atualizado,status,status_operacional,status_financeiro')
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
-    query = query.range(from, from + pageSize - 1)
+    query = query.order('id', { ascending: true }).range(from, from + pageSize - 1)
 
     const { data, error } = await query
 
@@ -592,13 +592,13 @@ export async function summarizeCobrancas(scope: CarteiraScope, filters: Cobranca
   ])
   const totalNegociacao = rows
     .filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO)
-    .reduce((sum, row) => sum + Number(row.valor_atualizado ?? 0), 0)
+    .reduce((sum, row) => sum + Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100), 0) / 100
 
   return {
     total: rows.length,
     totalEmAberto: rows
       .filter((row) => !withoutOpenValue.has(getCobrancaStatusOperacional(row)))
-      .reduce((sum, row) => sum + Number(row.valor_atualizado ?? 0), 0),
+      .reduce((sum, row) => sum + Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100), 0) / 100,
     totalNegociacao,
     novas: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.NOVO).length,
     ativas: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA).length,
