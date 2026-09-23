@@ -57,7 +57,7 @@ export function FlowCobrancaAbas({ canal, aba, condominioSelecionado, maestro, p
       <FlowCobrancaWorkbench key={`gerar-${returnQuery}`} canal={canal} mode="gerar" returnQuery={returnQuery} disponibilidade={disponibilidade} reguas={reguas} flows={[]} initialStep={initialStep} initialSelectedIds={initialSelectedIds} />
     </div> : null}
     {aba === 'flows' ? <FlowCobrancaWorkbench key={`flows-${returnQuery}`} canal={canal} mode="flows" returnQuery={returnQuery} disponibilidade={[]} reguas={[]} flows={flows} initialStep="flows" /> : null}
-    {aba === 'historico' ? <FlowCobrancaHistorico flows={flows} /> : null}
+    {aba === 'historico' ? <FlowCobrancaHistorico flows={flows} porAgenda={new URLSearchParams(returnQuery).get('ordenar')?.startsWith('agenda_')} /> : null}
     {aba === 'saneamento' ? <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
         <div><h2 className="font-semibold">Cobranças para saneamento</h2><p className="mt-1 text-sm text-slate-500">Corrija o responsável ou {canal === 'email' ? 'o e-mail' : 'o telefone'} da unidade.{canal === 'email' ? ' Para pendências do Maestro, use Reavaliar pendências na montagem após a correção.' : ''}</p><p className="mt-1 text-xs text-slate-500">O Excel respeita os filtros e inclui contatos por unidade, campos para correção, cobranças e resumo por condomínio.</p></div>

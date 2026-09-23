@@ -13,9 +13,9 @@ import { listCarteiras } from '@/features/carteiras/queries'
 import { getFlowCobrancaPageData, getFlowCobrancaMonitorData, listFlowCobrancaCondominios, FLOWS_PAGE_SIZE, hasFlowCobrancaFilters, normalizeFlowCobrancaFilters } from '@/features/flows/cobranca/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatCurrency } from '@/utils/formatters/currency'
-import { flowCobrancaPath, flowCobrancaAba, flowCobrancaPagina, type CanalFlowCobranca } from '@/features/flows/cobranca/rotas'
+import { flowCobrancaPath, flowCobrancaAba, flowCobrancaPagina, flowCobrancaOrdem, type CanalFlowCobranca } from '@/features/flows/cobranca/rotas'
 
-export type FlowCobrancaParams = Promise<{ aba?: string; pagina?: string; status?: string; canal?: string; step?: string; criados?: string; ativadas?: string; selecionadas?: string; carteira?: string; condominio?: string; vencimento?: string; vencimento_de?: string; vencimento_ate?: string; inclusao_de?: string; inclusao_ate?: string }>
+export type FlowCobrancaParams = Promise<{ aba?: string; pagina?: string; ordenar?: string; status?: string; canal?: string; step?: string; criados?: string; ativadas?: string; selecionadas?: string; carteira?: string; condominio?: string; vencimento?: string; vencimento_de?: string; vencimento_ate?: string; inclusao_de?: string; inclusao_ate?: string }>
 
 function safeStep(value: unknown) {
   const step = String(value ?? '')
@@ -35,6 +35,7 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
   const canalLabel = canal === 'email' ? 'E-mail' : 'WhatsApp'
   const aba = flowCobrancaAba(params.aba, canal, params.step)
   const page = flowCobrancaPagina(params.pagina)
+  const ordenar = flowCobrancaOrdem(params.ordenar)
   const monitor = aba === 'flows' || aba === 'historico'
   const detalhesCobrancas = aba === 'gerar' || aba === 'saneamento'
   const scope = await getPermittedCarteiras()
@@ -47,9 +48,9 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
     inclusaoDe: params.inclusao_de,
     inclusaoAte: params.inclusao_ate,
   })
-  const hasFilters = hasFlowCobrancaFilters({ ...filters, canal: undefined }) || Boolean(monitor && params.status)
+  const hasFilters = hasFlowCobrancaFilters({ ...filters, canal: undefined }) || Boolean(monitor && (params.status || ordenar !== 'criacao_desc'))
   const dataPromise = monitor
-    ? getFlowCobrancaMonitorData(scope, filters, { page, historico: aba === 'historico', status: params.status })
+    ? getFlowCobrancaMonitorData(scope, filters, { page, historico: aba === 'historico', status: params.status, ordenar })
     : aba === 'saneamento' || (aba === 'gerar' && filters.condominioId)
       ? getFlowCobrancaPageData(scope, filters, { somenteSaneamento: aba === 'saneamento' })
       : Promise.resolve({ painel: [], disponibilidade: [], saneamento: [], reguas: [], flows: [], hasNext: false })
@@ -64,6 +65,7 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
   const valorNovo = painelRows.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
   const unidades = new Set(painelRows.map((row: any) => row.unidade_id).filter(Boolean)).size
   const returnQuery = new URLSearchParams({ aba })
+  if (monitor) returnQuery.set('ordenar', ordenar)
   if (monitor && params.status) returnQuery.set('status', params.status)
   if (filters.canal) returnQuery.set('canal', filters.canal)
   if (filters.carteiraId) returnQuery.set('carteira', filters.carteiraId)
@@ -134,7 +136,8 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
       <ListFiltersForm action={basePath} className="grid-cols-1 md:grid-cols-2 xl:grid-cols-6">
         <input type="hidden" name="aba" value={aba} />
         <ListFilterField label="Carteira" className="xl:col-span-2"><Select name="carteira" defaultValue={filters.carteiraId ?? ''}><option value="">Todas</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></ListFilterField>
-        <ListFilterField label="Condomínio" className="xl:col-span-4"><CondominioSearchSelect name="condominio" options={condominios.map((row: any) => ({ id: row.id, nome: row.nome_operacional || row.nome || 'Condomínio não informado', administradora: null })) as any[]} selectedId={filters.condominioId ?? ''} defaultToFirst={false} inputClassName="" /></ListFilterField>
+        <ListFilterField label="Condomínio" className="xl:col-span-2"><CondominioSearchSelect name="condominio" options={condominios.map((row: any) => ({ id: row.id, nome: row.nome_operacional || row.nome || 'Condomínio não informado', administradora: null })) as any[]} selectedId={filters.condominioId ?? ''} defaultToFirst={false} inputClassName="" /></ListFilterField>
+        {monitor ? <ListFilterField label="Ordenar por" className="xl:col-span-2"><Select name="ordenar" defaultValue={ordenar}><option value="criacao_desc">Criação mais recente</option><option value="agenda_asc">Agenda: próximos disparos primeiro</option><option value="agenda_desc">Agenda: disparos mais distantes primeiro</option></Select></ListFilterField> : null}
         {detalhesCobrancas ? <><ListFilterField label="Vencimento de"><Input type="date" name="vencimento_de" defaultValue={filters.vencimentoDe ?? ''} /></ListFilterField>
         <ListFilterField label="Vencimento até"><Input type="date" name="vencimento_ate" defaultValue={filters.vencimentoAte ?? ''} /></ListFilterField></> : null}
         {aba !== 'maestro' ? <><ListFilterField label={monitor ? 'Criação de' : 'Inclusão de'}><Input type="date" name="inclusao_de" defaultValue={filters.inclusaoDe ?? ''} /></ListFilterField>

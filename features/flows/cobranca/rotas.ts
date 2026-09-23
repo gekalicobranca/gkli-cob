@@ -1,4 +1,9 @@
 export type CanalFlowCobranca = 'email' | 'whatsapp'
+export type OrdemFlowCobranca = 'criacao_desc' | 'agenda_asc' | 'agenda_desc'
+
+export function flowCobrancaOrdem(value: unknown): OrdemFlowCobranca {
+  return value === 'agenda_asc' || value === 'agenda_desc' ? value : 'criacao_desc'
+}
 export type FlowCobrancaAba = 'flows' | 'gerar' | 'saneamento' | 'historico' | 'maestro'
 
 export function flowCobrancaAba(value: unknown, canal: CanalFlowCobranca, step?: string): FlowCobrancaAba {

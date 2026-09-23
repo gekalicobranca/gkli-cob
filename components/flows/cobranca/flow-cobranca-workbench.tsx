@@ -344,7 +344,7 @@ export function FlowCobrancaWorkbench({
           <AtivacaoLoteFlows flows={flows} selected={flowsSelecionados} onSelectedChange={setFlowsSelecionados} onBusyChange={setAtivandoLote} onSelectAllChange={setSomenteProntos} />
           {somenteProntos ? <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm"><span>{flowsVisiveis.length ? `Exibindo somente os ${flowsVisiveis.length} flows prontos.` : 'Nenhum flow pronto restante.'}</span><Button type="button" variant="secondary" disabled={ativandoLote} onClick={() => setSomenteProntos(false)}>Mostrar todos</Button></div> : null}
           <fieldset disabled={ativandoLote} className="min-w-0">
-            <FlowsAgrupados flows={flowsVisiveis} renderFlow={(flow: any) => <div key={flow.id} className="flex items-start gap-1">
+            <FlowsAgrupados porAgenda={new URLSearchParams(returnQuery).get('ordenar')?.startsWith('agenda_')} flows={flowsVisiveis} renderFlow={(flow: any) => <div key={flow.id} className="flex items-start gap-1">
               {flow.status === 'pronto' && Number(flow.total_mensagens) > 0 ? <label className="shrink-0 py-6 pl-4">
                 <input type="checkbox" aria-label={`Selecionar ${flow.nome}`} checked={flowsSelecionados.includes(flow.id)} onChange={event => setFlowsSelecionados(current => event.target.checked ? [...current, flow.id] : current.filter(id => id !== flow.id))} />
               </label> : null}
@@ -357,16 +357,17 @@ export function FlowCobrancaWorkbench({
   </div>
 }
 
-export function FlowCobrancaHistorico({ flows }: { flows: any[] }) {
+export function FlowCobrancaHistorico({ flows, porAgenda = false }: { flows: any[]; porAgenda?: boolean }) {
   return <ListPanel>
     <ListCollapsibleSectionHeader title="Histórico de flows" count={flows.length} />
     {flows.length
-      ? <FlowsAgrupados flows={flows} renderFlow={flow => <FlowRow key={flow.id} flow={flow} />} />
+      ? <FlowsAgrupados porAgenda={porAgenda} flows={flows} renderFlow={flow => <FlowRow key={flow.id} flow={flow} />} />
       : <ListEmptyState title="Nenhum Flow no histórico deste filtro" description="Flows concluídos ou cancelados aparecem aqui para consulta." />}
   </ListPanel>
 }
 
-function FlowsAgrupados({ flows, renderFlow }: { flows: any[]; renderFlow: (flow: any) => ReactNode }) {
+function FlowsAgrupados({ flows, renderFlow, porAgenda = false }: { flows: any[]; renderFlow: (flow: any) => ReactNode; porAgenda?: boolean }) {
+  if (porAgenda) return <ListRows>{flows.map(renderFlow)}</ListRows>
   const carteiras = new Map<string, { nome: string; flows: any[]; condominios: Map<string, { nome: string; flows: any[] }> }>()
   for (const flow of flows) {
     const carteiraId = flow.carteira_id || 'sem-carteira'

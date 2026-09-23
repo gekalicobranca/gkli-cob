@@ -1,4 +1,5 @@
 import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
+import { flowCobrancaOrdem, type OrdemFlowCobranca } from './rotas'
 import { carregarCanaisOcupados } from './vinculos-canais'
 import { reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from './canais'
 import { listReguasForSelect } from '@/features/reguas/queries'
@@ -280,7 +281,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
 
 export const FLOWS_PAGE_SIZE = 30
 
-export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: FlowCobrancaFilters, options: { page: number; historico: boolean; status?: string }) {
+export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: FlowCobrancaFilters, options: { page: number; historico: boolean; status?: string; ordenar?: OrdemFlowCobranca }) {
   const supabase = createAdminClient()
   const normalized = normalizeFlowCobrancaFilters(filters)
   let flowsQuery = supabase
@@ -311,7 +312,11 @@ export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: 
       regua:reguas(nome,etapas:regua_etapas(canal,ativo)),
       lote:lotes(id,status,total_avaliadas,total_criadas,total_pendentes,total_enviadas,total_erros)
     `)
-    .order('created_at', { ascending: false })
+  const ordem = flowCobrancaOrdem(options.ordenar)
+  if (ordem !== 'criacao_desc') {
+    flowsQuery = flowsQuery.order('proximo_disparo_em', { ascending: ordem === 'agenda_asc', nullsFirst: false })
+  }
+  flowsQuery = flowsQuery.order('created_at', { ascending: false })
   flowsQuery = applyCarteiraScope(flowsQuery, scope.carteiraIds)
   if (normalized.carteiraId) flowsQuery = flowsQuery.eq('carteira_id', normalized.carteiraId)
   if (normalized.condominioId) flowsQuery = flowsQuery.eq('payload->>condominio_id', normalized.condominioId)
