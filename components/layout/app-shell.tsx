@@ -96,7 +96,7 @@ const sections: SidebarSection[] = [
     title: 'Flows',
     items: [
       { label: 'Flows e-mails', href: '/app/flows/cobranca/email', icon: 'inbox' },
-      { label: 'Flows WhatsApp', href: '/app/flows/cobranca/whatsapp', icon: 'message' },
+      { label: 'Flows WhatsApps', href: '/app/flows/cobranca/whatsapp', icon: 'message' },
       { label: 'Flows acordos', href: '/app/flows/acordos', icon: 'handshake' },
     ],
   },
