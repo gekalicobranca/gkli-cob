@@ -129,15 +129,15 @@ async function applyUnidadeFilters(
   }
 
   if (filters.contato === 'sem_telefone') {
-    scopedQuery = scopedQuery.is('telefone', null)
+    scopedQuery = scopedQuery.or('telefone.is.null,telefone.eq.""')
   }
 
   if (filters.contato === 'sem_email') {
-    scopedQuery = scopedQuery.is('email', null)
+    scopedQuery = scopedQuery.or('email.is.null,email.eq.""')
   }
 
   if (filters.contato === 'incompleto') {
-    scopedQuery = scopedQuery.or('telefone.is.null,email.is.null,responsavel_nome.is.null')
+    scopedQuery = scopedQuery.or('telefone.is.null,telefone.eq."",email.is.null,email.eq."",responsavel_nome.is.null,responsavel_nome.eq.""')
   }
 
   if (filters.search) {
@@ -208,35 +208,32 @@ export async function listUnidadesPage(
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
-  async function buildQuery(withCount: boolean) {
+  async function buildQuery() {
     let query = supabase
       .from('unidades')
-      .select(UNIDADE_SELECT, withCount ? { count: 'planned' } : undefined)
+      .select(UNIDADE_SELECT, { count: 'exact' })
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyUnidadeFilters(query, scope, normalized)).query
     query = applyUnidadeOrder(query, options.orderBy)
-    return query.range(from, to)
+    return query.order('id', { ascending: true }).range(from, to)
   }
 
-  let { data, error, count } = await buildQuery(true)
-
-  if (error) {
-    const retry = await buildQuery(false)
-    data = retry.data
-    error = retry.error
-    count = null
-  }
+  const { data, error, count } = await buildQuery()
 
   if (error) {
     throw new Error(`Erro ao carregar unidades: ${error.message}`)
+  }
+
+  if (count === null) {
+    throw new Error('Não foi possível contar as unidades filtradas.')
   }
 
   const rows = normalizeRelationsList((data ?? []) as any[], ['condominios', 'carteiras']) as any[]
 
   return {
     rows,
-    total: count ?? from + rows.length + (rows.length === pageSize ? 1 : 0),
+    total: count,
     page,
     pageSize,
   }
@@ -255,7 +252,7 @@ export async function summarizeUnidades(scope: CarteiraScope, filters: UnidadeFi
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyUnidadeFilters(query, scope, normalized)).query
-    query = query.range(from, from + pageSize - 1)
+    query = query.order('id', { ascending: true }).range(from, from + pageSize - 1)
 
     const { data, error } = await query
 

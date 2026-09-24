@@ -66,7 +66,7 @@ function getPageParam(value: string | string[] | undefined) {
 function unidadesHref(params: Record<string, string | undefined>, page: number) {
   const query = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
-    if (value) query.set(key, value)
+    if (value !== undefined) query.set(key, value)
   }
   if (page > 1) query.set('page', String(page))
   const qs = query.toString()
@@ -177,7 +177,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   const groups = groupUnidades(rows)
 
   const filtrosAtivos =
-    Boolean(filters.search || filters.carteiraId || filters.condominioId || filters.contato || (filters.status && filters.status !== 'ativa')) ||
+    Boolean(filters.search || filters.carteiraId || filters.condominioId || filters.contato || filters.status !== 'ativa') ||
     ordenar !== 'condominio'
   const exportParams = new URLSearchParams()
 
@@ -193,7 +193,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
     q: filters.search,
     carteira_id: filters.carteiraId,
     condominio_id: filters.condominioId,
-    status: filters.status,
+    status: filters.status ?? '',
     contato: filters.contato,
     ordenar,
   }
@@ -292,7 +292,12 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
           </ListFiltersForm>
         </ListPanelHeader>
 
-        {rows.length === 0 ? (
+        {'error' in pageData && pageData.error ? (
+          <ListEmptyState
+            title="Não foi possível carregar as unidades"
+            description={pageData.error}
+          />
+        ) : rows.length === 0 ? (
           <ListEmptyState
             title="Nenhuma unidade encontrada"
             description="Ajuste os filtros ou cadastre/importe unidades para iniciar a operação."
