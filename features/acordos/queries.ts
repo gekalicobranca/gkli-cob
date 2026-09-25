@@ -9,6 +9,8 @@ import {
   COBRANCA_STATUS_JUDICIALIZACAO,
 } from "@/lib/constants/cobrancas";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
+import { ACORDO_STATUS, ACORDO_STATUS_VIGENTES } from "@/lib/constants/acordos";
+import { normalizeStatus } from "@/lib/core/status";
 import {
   PRE_JURIDICO_EVENT_CODES,
   criarPreJuridicoSteps,
@@ -588,6 +590,7 @@ export async function listCobrancasSelecionadasParaAcordo(
       condominios:condominio_id (
         id,
         nome,
+        inicio_cobranca_dias,
         parcelas_acordo_sem_aprovacao_sindico,
         dias_reemissao_parcela_acordo_atrasada
       ),
@@ -905,11 +908,12 @@ function filterAcordosPageRows(rows: any[], filters: ListAcordosComSaudePageFilt
 }
 
 function resumoAcordosPage(rows: any[]) {
-  const ativos = rows.filter((row: any) => row.status === "ativo").length;
-  const atraso = rows.filter((row: any) => row.status === "em atraso").length;
-  const rompidos = rows.filter((row: any) => row.status === "rompido").length;
-  const valorAtivo = rows
-    .filter((row: any) => ["ativo", "em atraso"].includes(row.status))
+  const normalizados = rows.map((row) => ({ ...row, status: normalizeStatus(row.status) }));
+  const ativos = normalizados.filter((row) => [ACORDO_STATUS.ATIVO, ACORDO_STATUS.EM_DIA].includes(row.status)).length;
+  const atraso = normalizados.filter((row) => row.status === ACORDO_STATUS.EM_ATRASO).length;
+  const rompidos = normalizados.filter((row) => [ACORDO_STATUS.QUEBRADO, "rompido"].includes(row.status)).length;
+  const valorAtivo = normalizados
+    .filter((row) => ACORDO_STATUS_VIGENTES.includes(row.status))
     .reduce((sum, row) => sum + Number(row.valor_acordado ?? 0), 0);
 
   return { ativos, atraso, rompidos, valorAtivo };

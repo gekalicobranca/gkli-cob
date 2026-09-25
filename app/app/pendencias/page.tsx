@@ -263,6 +263,12 @@ function FilterLink({ href, active, children }: { href: string; active: boolean;
 }
 
 function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
+  if (pendencia.tipo === 'aprovacao_acordo_fora_regua') {
+    return <Link className="text-sm font-medium text-[var(--gkli-primary)] underline"
+      href={`/app/acordos/novo?aprovacao_fora_regua=${encodeURIComponent(String(pendencia.payload?.aprovacao_id ?? ''))}`}>
+      Conferir proposta e decisão
+    </Link>
+  }
   if (pendencia.status === 'resolvida' || pendencia.status === 'cancelada') {
     return (
       <div className="flex justify-end">
@@ -338,6 +344,7 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
       <div className="pt-1">
         <input
           form="pendencias-bulk-form"
+          disabled={pendencia.tipo === 'aprovacao_acordo_fora_regua'}
           data-pendencia-checkbox
           type="checkbox"
           name="pendencia_ids"

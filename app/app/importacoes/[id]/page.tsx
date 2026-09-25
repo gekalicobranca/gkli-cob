@@ -1,4 +1,4 @@
-﻿import { notFound } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { AlertTriangle, CheckCircle2, FileCheck2, ShieldX, WalletCards } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
@@ -12,6 +12,7 @@ import { getImportacaoDetalhe, listImportacaoItens } from '@/features/importacoe
 import { confirmarImportacao } from '@/features/importacoes/actions'
 import { priorityTone } from '@/features/importacoes/preview-rules'
 import { ConfirmarImportacaoButton } from './confirmar-importacao-button'
+import { PreviewLogDownloadButton } from './preview-log-download-button'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -56,7 +57,7 @@ function labelTipo(tipo: string) {
   if (tipo === 'unidades') return 'Responsáveis'
   if (tipo === 'cobrancas') return 'Cobranças'
   if (tipo === 'condominios') return 'Condomínios'
-  if (tipo === 'acordos_extra') return 'Legado · Acordos extra'
+  if (tipo === 'acordos_extra') return 'Acordos existentes · Extrajudicial'
   if (tipo === 'acordos_judiciais') return 'Legado · Acordos judiciais'
   return tipo
 }
@@ -87,7 +88,7 @@ function previewMetaSecundaria(payload: Record<string, any>, tipo: string) {
 
 function descricaoLinha(payload: Record<string, any>, tipo: string) {
   if (isLegacy(tipo)) {
-    return `${payload.responsavel_nome || 'Responsável não informado'} · acordo ${payload.numero_processo ? `proc. ${payload.numero_processo}` : 'extrajudicial'}`
+    return `${payload.responsavel_nome || 'Responsável não informado'} · acordo ${payload.numero_processo ? `proc. ${payload.numero_processo}` : 'extrajudicial'}${payload.periodo_negociado ? ` · período ${payload.periodo_negociado}` : ''}`
   }
 
   if (tipo === 'condominios') return payload.nome || 'Condomínio sem nome'
@@ -202,6 +203,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
         actions={
           <>
             <ButtonLink href="/app/importacoes" variant="secondary">Voltar</ButtonLink>
+            <PreviewLogDownloadButton importacao={importacao as Record<string, any>} itens={itens} />
             {canConfirm ? (
               <form id="confirmar-importacao-form" action={confirmarImportacao}>
                 <input type="hidden" name="importacao_id" value={importacao.id} />
@@ -214,17 +216,21 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
 
 
       {resultadoFinal ? (
-        <Card className="border-emerald-200 bg-emerald-50/80 p-5">
+        <Card className={resultadoFinal.sucesso === false ? "border-rose-200 bg-rose-50/80 p-5" : "border-emerald-200 bg-emerald-50/80 p-5"}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex gap-3">
-              <div className="mt-0.5 rounded-2xl bg-white p-2 text-emerald-700 shadow-sm">
-                <FileCheck2 size={20} />
+              <div className={resultadoFinal.sucesso === false ? "mt-0.5 rounded-2xl bg-white p-2 text-rose-700 shadow-sm" : "mt-0.5 rounded-2xl bg-white p-2 text-emerald-700 shadow-sm"}>
+                {resultadoFinal.sucesso === false ? <ShieldX size={20} /> : <FileCheck2 size={20} />}
               </div>
               <div>
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-emerald-700">Importação efetivada</p>
-                <h2 className="mt-2 text-lg font-medium text-slate-950">{resultadoFinal.mensagem ?? 'Importação concluída com sucesso.'}</h2>
+                <p className={resultadoFinal.sucesso === false ? "text-xs font-medium uppercase tracking-[0.16em] text-rose-700" : "text-xs font-medium uppercase tracking-[0.16em] text-emerald-700"}>
+                  {resultadoFinal.sucesso === false ? 'Importação não efetivada' : 'Importação efetivada'}
+                </p>
+                <h2 className="mt-2 text-lg font-medium text-slate-950">{resultadoFinal.mensagem ?? (resultadoFinal.sucesso === false ? 'A importação terminou com erro.' : 'Importação concluída com sucesso.')}</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Resultado gravado em {formatDateBR(resumo.finalizada_em)}. O arquivo saiu do modo preview e os dados válidos já foram aplicados na base.
+                  {resultadoFinal.sucesso === false
+                    ? `Tentativa registrada em ${formatDateBR(resumo.finalizada_em)}. Nenhum item com erro foi aplicado; corrija a causa e tente confirmar novamente.`
+                    : `Resultado gravado em ${formatDateBR(resumo.finalizada_em)}. Os dados válidos já foram aplicados na base.`}
                 </p>
               </div>
             </div>
@@ -384,6 +390,8 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                       {payload.unidade_nova ? <Badge tone="yellow">unidade nova</Badge> : null}
                       {payload.fora_regua_cobranca ? <Badge tone="slate">fora da régua</Badge> : null}
                       {payload.importar_cobranca === false ? <Badge tone="slate">somente histórico</Badge> : null}
+                      {isLegacy(importacaoTipo) && payload.quantidade_cobrancas_acordo != null ? <Badge tone="green">{payload.quantidade_cobrancas_acordo} no acordo</Badge> : null}
+                      {isLegacy(importacaoTipo) && Number(payload.quantidade_cobrancas_posteriores || 0) > 0 ? <Badge tone="slate">{payload.quantidade_cobrancas_posteriores} posteriores fora</Badge> : null}
                     </div>
                     {erros.length > 0 ? <div className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-xs text-red-700">{erros.join(' · ')}</div> : null}
                     {alertasPositivos.length > 0 ? <div className="mt-3 rounded-2xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{alertasPositivos.join(' · ')}</div> : null}

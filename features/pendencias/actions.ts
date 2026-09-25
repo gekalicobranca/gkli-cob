@@ -33,6 +33,7 @@ async function updatePendenciaStatus(formData: FormData, status: 'aberta' | 'em_
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
+    .neq('tipo', 'aprovacao_acordo_fora_regua')
 
   if (scope.carteiraIds !== null) {
     if (scope.carteiraIds.length === 0) return { ok: false, message: 'Usuário sem carteira vinculada.' }
@@ -71,6 +72,7 @@ async function updatePendenciasStatusEmLote(formData: FormData, status: 'resolvi
       updated_at: now,
     })
     .in('id', ids)
+    .neq('tipo', 'aprovacao_acordo_fora_regua')
 
   if (scope.carteiraIds !== null) {
     if (scope.carteiraIds.length === 0) return { ok: false, message: 'Usuário sem carteira vinculada.' }

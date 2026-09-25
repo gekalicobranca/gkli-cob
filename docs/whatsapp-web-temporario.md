@@ -1,6 +1,6 @@
 # WhatsApp Web temporário para Flows
 
-Implementado em 17/09/2026. Transporte automático alternativo por carteira, preservando o canal `whatsapp`, o conteúdo renderizado, anexos e a agenda dos Flows de cobrança, acordos e pré-jurídico.
+Implementado em 17/09/2026. Atualização de 23/09/2026: veja [Central e recuperação dos workers](whatsapp-worker-recovery.md) para supervisão automática e continuidade da fila. Transporte automático alternativo por carteira, preservando o canal `whatsapp`, o conteúdo renderizado, anexos e a agenda dos Flows de cobrança, acordos e pré-jurídico.
 
 ## Instalação e conexão
 
@@ -15,7 +15,7 @@ As três sessões locais preparadas usam arquivos `.env.whatsapp-*`, ignorados p
 | Carteira | Sessão | Número | Comando, na raiz do projeto |
 | --- | --- | --- | --- |
 | Genske Advogados | genske | 551135027774 | `npm run start:genske --prefix scripts/whatsapp-web` |
-| GEKALI | gekali | 5511993393982 | `npm run start:gekali --prefix scripts/whatsapp-web` |
+| GEKALI | gekali | 5511914750545 | `npm run start:gekali --prefix scripts/whatsapp-web` |
 | Azevedo Araújo | azevedo | 5511921486828 | `npm run start:azevedo --prefix scripts/whatsapp-web` |
 
 Executar cada comando em seu próprio processo. O computador deve permanecer ligado, com internet e sem suspensão. Não executar a mesma sessão em dois processos. Os perfis persistem em `.whatsapp-web/auth` e não devem ser copiados para Git, hospedagem pública ou compartilhamentos. `WHATSAPP_WEB_CHROME_PATH` permite usar um Chrome instalado quando necessário.
@@ -34,10 +34,10 @@ Para vincular por código em vez de QR, acrescentar também `--pair-by-code`: `n
 - Nova conferência de Flow e sessão imediatamente antes do envio. Pausa/cancelamento impede novas reservas; uma transmissão já iniciada pode terminar.
 - Recibos, status da mensagem, todos os itens vinculados, contadores de lote/Flow, procuração e logs são atualizados em uma transação. “Enviada” indica retorno do cliente Web, não comprovação de entrega ou leitura.
 - A API oficial ignora carteiras Web. O banco também impede reservas por workers Cloud antigos durante a transição. Mensagens já assumidas pelo Web não são transferidas automaticamente para a API.
-- Falha anterior à transmissão fica disponível para reenvio pelo Flow. Qualquer erro após iniciar transmissão, inclusive envio parcial, fica incerto e bloqueia a linha; não há expiração automática.
+- Falha anterior à transmissão fica disponível para reenvio pelo Flow. Qualquer erro após iniciar transmissão, inclusive envio parcial, fica incerto. A tentativa não expira nem é repetida automaticamente; com a migração de recuperação, outras mensagens continuam.
 - A resposta “Número não encontrado no WhatsApp” também cria uma pendência `telefone_sem_whatsapp` na Central de Pendências, vinculada à carteira, unidade e número. O telefone é preservado para conferência e eventual uso em ligações. Falhas temporárias e envios incertos não geram essa marcação. Um identificador determinístico evita duplicar a pendência entre parcelas ou reabrir uma correção já resolvida; a marcação não equivale a opt-out nem apaga o contato.
 - Se o envio de texto não retornar ID, o worker consulta a conversa de destino sem retransmitir. Só recupera o recibo quando encontra uma única mensagem própria com texto integral idêntico, ID que não existia antes da tentativa, horário compatível e ACK do servidor. Sem essa evidência, mantém o resultado incerto. Anexos continuam exigindo o recibo direto.
-- Queda do worker após reservar também mantém a reserva bloqueada. Não apagar reservas para forçar repetição.
+- Após uma queda, o supervisor encerra o processo anterior e converte reservas pendentes em resultados incertos antes de continuar. Não apagar reservas para forçar repetição.
 
 ## Conferência de resultados incertos
 
@@ -47,7 +47,7 @@ Parar o worker e conferir a conversa no WhatsApp. Na página de configuração, 
 - **Nada enviado**: libera reenvio explícito pelo Flow, sem reagendar automaticamente.
 - **Envio parcial**: completar os anexos na conversa e depois confirmar o conjunto; a aplicação impede liberar o reenvio integral quando existem recibos parciais.
 
-Reiniciar o worker após a conferência. Desconexão ou falha de autenticação exige reinício e, se necessário, novo QR Code. A tela mostra o último heartbeat; atualizar a página para renovar o estado.
+Reiniciar o worker após a conferência. Desconexões são recuperadas pelo supervisor. Falha de autenticação pode exigir novo QR Code. A tela mostra o último heartbeat; atualizar a página para renovar o estado.
 
 ## Retorno à API oficial
 

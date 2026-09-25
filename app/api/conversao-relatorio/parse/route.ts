@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { parseRelatorioBuffer } from "@/features/conversao-relatorio/server/parse-relatorio-buffer"
 import { requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
+import { decodeConversionUpload } from "@/features/conversao-relatorio/server/decode-upload"
+import { MAX_SERVER_UPLOAD_BYTES } from "@/features/conversao-relatorio/upload-limits"
 
 export const runtime = "nodejs"
 
@@ -19,8 +21,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    if (file.size > MAX_SERVER_UPLOAD_BYTES) {
+      return NextResponse.json({ ok: false, error: "Arquivo enviado excede 4 MB. Atualize a página para usar a compactação automática." }, { status: 413 })
+    }
+    const encoding = String(formData.get("file_encoding") ?? "")
+    let buffer: Buffer
+    try {
+      buffer = decodeConversionUpload(Buffer.from(await file.arrayBuffer()), encoding)
+    } catch (error) {
+      return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Arquivo inválido." }, { status: 400 })
+    }
     const condominioCnpj = String(formData.get("condominio_cnpj") ?? "")
       .replace(/\D/g, "")
       .trim()
@@ -29,7 +39,7 @@ export async function POST(request: NextRequest) {
     const result = await parseRelatorioBuffer({
       buffer,
       filename: file.name,
-      mimeType: file.type,
+      mimeType: encoding ? String(formData.get("original_mime_type") ?? "") : file.type,
       condominioCnpj,
       tipoConversao,
     })

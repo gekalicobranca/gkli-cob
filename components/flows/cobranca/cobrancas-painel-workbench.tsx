@@ -15,6 +15,7 @@ import { formatDateBR } from '@/utils/formatters/date'
 
 type Row = {
   id: string
+  carteira_id?: string | null
   condominio_id?: string | null
   unidade_id?: string | null
   vencimento?: string | null
@@ -24,6 +25,7 @@ type Row = {
   status?: string | null
   status_operacional?: string | null
   status_financeiro?: string | null
+  carteira?: { nome?: string | null } | null
   condominio?: { nome?: string | null; nome_operacional?: string | null } | null
   unidade?: { identificacao?: string | null; bloco?: string | null; responsavel_nome?: string | null } | null
 }
@@ -47,15 +49,29 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
   const bloqueadasSemResponsavel = novas.length - ativaveis.length
   const selectedIds = ativaveis.filter(row => row.condominio_id === selectedCondominio).map(row => row.id)
   const groups = useMemo(() => {
-    const map = new Map<string, { id: string; nome: string; rows: Row[] }>()
+    type CondominioGroup = { id: string; nome: string; rows: Row[] }
+    const map = new Map<string, { id: string; nome: string; total: number; quantidade: number; condominios: Map<string, CondominioGroup> }>()
     for (const row of rows) {
+      const carteiraId = row.carteira_id || 'sem-carteira'
+      const carteira = map.get(carteiraId) ?? {
+        id: carteiraId,
+        nome: row.carteira?.nome || 'Carteira não informada',
+        total: 0,
+        quantidade: 0,
+        condominios: new Map<string, CondominioGroup>(),
+      }
       const id = row.condominio_id || 'sem-condominio'
       const nome = row.condominio?.nome_operacional || row.condominio?.nome || 'Condomínio não informado'
-      const group = map.get(id) ?? { id, nome, rows: [] }
+      const group = carteira.condominios.get(id) ?? { id, nome, rows: [] }
       group.rows.push(row)
-      map.set(id, group)
+      carteira.condominios.set(id, group)
+      carteira.total += Number(row.valor_atualizado ?? row.valor_original ?? 0)
+      carteira.quantidade += 1
+      map.set(carteiraId, carteira)
     }
-    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    return Array.from(map.values())
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+      .map(carteira => ({ ...carteira, condominios: Array.from(carteira.condominios.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')) }))
   }, [rows])
 
   const toggleGroup = (groupRows: Row[]) => {
@@ -84,7 +100,7 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
             <ListCollapsibleSectionHeader title="Cobranças novas" count={0} />
           </summary>
           <div className="p-5">
-            <EmptyState title="Nenhuma cobrança nova" description="Não há cobranças novas neste filtro." />
+            <EmptyState title="Nenhuma cobrança nova" description="Nenhuma cobrança nova nesta página." />
           </div>
         </details> : <details open className="group bg-white">
           <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
@@ -96,7 +112,15 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
               <p className="text-sm text-slate-500">{selectedIds.length} de {ativaveis.length} apta(s){bloqueadasSemResponsavel ? ` · ${bloqueadasSemResponsavel} sem responsável` : ''}</p>
             </div>
           </div>
-          <div className="divide-y divide-slate-100">{groups.map((group) => {
+          <div className="space-y-3 p-3">{groups.map((carteira) => <details key={carteira.id} open className="group/carteira overflow-hidden rounded-lg border border-slate-200">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-100 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <div className="flex min-w-0 items-center gap-3">
+                <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform group-open/carteira:rotate-180" />
+                <div><p className="text-sm font-semibold text-slate-950">{carteira.nome}</p><p className="text-xs text-slate-500">{carteira.condominios.length} condomínio(s) · {carteira.quantidade} cobrança(s)</p></div>
+              </div>
+              <p className="shrink-0 text-sm font-semibold text-slate-950">{formatCurrency(carteira.total)}</p>
+            </summary>
+            <div className="divide-y divide-slate-100 border-t border-slate-200 pl-3">{carteira.condominios.map((group) => {
             const groupNovas = group.rows.filter(isAtivavel)
             const groupSemResponsavel = group.rows.filter((row) => isNovo(row) && !hasResponsavel(row)).length
             const groupSelected = groupNovas.length > 0 && groupNovas.every((row) => selectedIds.includes(row.id))
@@ -114,7 +138,8 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
                 <ButtonLink href={`/app/cobrancas/${row.id}`} variant="ghost" size="sm" aria-label="Abrir cobrança"><ArrowUpRight size={14} /></ButtonLink>
               </div>)}</div>
             </details>
-          })}</div>
+            })}</div>
+          </details>)}</div>
         </details>}
       </Card>
     </div>

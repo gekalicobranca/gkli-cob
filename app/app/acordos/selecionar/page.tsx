@@ -187,6 +187,7 @@ export default async function SelecionarCobrancasAcordoPage({
                     <th className="px-4 py-3">Competência</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-right">Valor</th>
+                    <th className="px-4 py-3">Cota do mês</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -222,6 +223,12 @@ export default async function SelecionarCobrancasAcordoPage({
                         <td className="px-4 py-3 align-top text-right font-semibold text-slate-950">
                           {formatCurrency(getValorAtualizado(cobranca))}
                         </td>
+                        <td className="px-4 py-3 align-top">
+                          <label className="flex items-start gap-2 text-xs text-slate-600">
+                            <input type="checkbox" name="cotasSemDespesas" value={cobranca.id} disabled={bloqueada} className="mt-1 accent-[var(--gkli-primary)]" />
+                            Sem despesas somente à vista (autorizada pela administradora)
+                          </label>
+                        </td>
                       </tr>
                     );
                   })}
@@ -239,7 +246,7 @@ export default async function SelecionarCobrancasAcordoPage({
                 Seleção livre por unidade
               </h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                Marque apenas os recibos que farão parte do acordo. Débitos fora
+                Marque apenas os recibos que farão parte do acordo. Para incluir a cota do mês fora da régua, selecione o recibo e marque a opção somente com autorização da administradora. A isenção de despesas vale apenas à vista; no parcelamento, a cota também gera despesas. Débitos fora
                 da régua aparecem aqui também; cobranças já bloqueadas para novo
                 acordo ficam travadas. Unidades com judicialização ativa também bloqueiam novas dívidas/vincendas para acordo.
               </p>

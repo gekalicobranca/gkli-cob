@@ -4,6 +4,34 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/utils/auth/require-admin'
 import { createAdminClient } from '@/utils/supabase/admin'
 
+export async function controlarWhatsappWorker(form: FormData) {
+  const user = await requireAdmin()
+  const sessao = String(form.get('sessao') ?? '')
+  const acao = String(form.get('acao') ?? '')
+  if (!/^[a-zA-Z0-9_-]{1,60}$/.test(sessao) || !['iniciar', 'pausar', 'reiniciar'].includes(acao)) throw new Error('Comando inválido.')
+  const db = createAdminClient()
+  const { data, error: lookupError } = await db.from('carteiras').select('id').eq('whatsapp_web_sessao', sessao).limit(1)
+  if (lookupError || !data?.length) throw new Error('Sessão não configurada.')
+  const { error } = await db.from('whatsapp_worker_controles').upsert({
+    sessao, habilitado: acao !== 'pausar', reiniciar_id: crypto.randomUUID(),
+    solicitado_por: user.id, atualizado_em: new Date().toISOString(),
+  })
+  if (error) throw new Error('Não foi possível solicitar o comando ao supervisor.')
+  revalidatePath('/app/configuracoes/whatsapp-web')
+}
+
+export async function reenviarWhatsappIncerto(form: FormData) {
+  const user = await requireAdmin()
+  if (form.get('aceitar_duplicidade') !== 'on') throw new Error('Confirme o risco de duplicidade.')
+  const { error } = await createAdminClient().rpc('whatsapp_web_reenviar_incerto', {
+    p_token: String(form.get('token') ?? ''), p_usuario: user.id,
+    p_observacao: String(form.get('observacao') ?? '').trim(),
+  })
+  if (error) throw new Error(error.message)
+  revalidatePath('/app/configuracoes/whatsapp-web')
+  revalidatePath('/app/flows/cobranca/whatsapp')
+}
+
 export async function configurarWhatsappWeb(form: FormData) {
   await requireAdmin()
   const id = String(form.get('carteira_id') ?? '')

@@ -11,9 +11,9 @@ import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import type { CanalFlowCobranca, FlowCobrancaAba } from '@/features/flows/cobranca/rotas'
 
-export function FlowCobrancaAbas({ canal, aba, condominioSelecionado, maestro, painel, disponibilidade, saneamento, saneamentoTotal, reguas, flows, initialStep, initialSelectedIds, returnQuery }: {
+export function FlowCobrancaAbas({ canal, aba, maestro, painel, disponibilidade, saneamento, saneamentoTotal, reguas, flows, initialStep, initialSelectedIds, returnQuery }: {
   canal: CanalFlowCobranca
-  aba: FlowCobrancaAba; condominioSelecionado: boolean
+  aba: FlowCobrancaAba
   saneamentoTotal: number
   maestro: ReactNode; painel: any[]; disponibilidade: any[]; saneamento: any[]; reguas: any[]; flows: any[]
   initialStep?: 'lotes' | 'flows'; initialSelectedIds: string[]; returnQuery: string
@@ -47,13 +47,12 @@ export function FlowCobrancaAbas({ canal, aba, condominioSelecionado, maestro, p
   }
   return <div className="space-y-4">
     {aba === 'flows' || aba === 'historico' ? <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 className="text-base font-semibold text-slate-950">{aba === 'flows' ? 'Acompanhar envios' : 'Consultar histórico'}</h2><p className="mt-1 text-sm text-slate-500">{aba === 'flows' ? 'Abra um flow para ver a fila e as ações disponíveis.' : 'Flows concluídos e cancelados, com os detalhes dos envios.'}</p></div>
+      <div><h2 className="text-base font-semibold text-slate-950">{aba === 'flows' ? 'Acompanhar envios' : 'Consultar histórico'}</h2></div>
       <Button type="button" variant="secondary" loading={atualizando} loadingLabel="Atualizando..." onClick={() => startRefresh(() => router.refresh())}>Atualizar</Button>
     </div> : null}
     {aba === 'maestro' ? maestro : null}
-    {aba === 'gerar' && !condominioSelecionado ? <Card className="p-6"><h2 className="font-semibold text-slate-950">Escolha um condomínio para começar</h2><p className="mt-2 text-sm text-slate-600">Use o filtro acima para carregar as cobranças do condomínio. Depois, ative as cobranças novas, escolha a régua e gere os flows.</p></Card> : null}
-    {aba === 'gerar' && condominioSelecionado ? <div className="space-y-4">
-      {painel.length ? <FlowCobrancaPainelWorkbench rows={painel} returnQuery={returnQuery} /> : null}
+    {aba === 'gerar' ? <div className="space-y-4">
+      <FlowCobrancaPainelWorkbench rows={painel} returnQuery={returnQuery} />
       <FlowCobrancaWorkbench key={`gerar-${returnQuery}`} canal={canal} mode="gerar" returnQuery={returnQuery} disponibilidade={disponibilidade} reguas={reguas} flows={[]} initialStep={initialStep} initialSelectedIds={initialSelectedIds} />
     </div> : null}
     {aba === 'flows' ? <FlowCobrancaWorkbench key={`flows-${returnQuery}`} canal={canal} mode="flows" returnQuery={returnQuery} disponibilidade={[]} reguas={[]} flows={flows} initialStep="flows" /> : null}
@@ -66,12 +65,12 @@ export function FlowCobrancaAbas({ canal, aba, condominioSelecionado, maestro, p
             setAtualizacaoSolicitada(true)
             startRefresh(() => router.refresh())
           }}>Atualizar lista</Button>
-          <Button type="button" variant="secondary" disabled={!saneamentoTotal} loading={exportando} loadingLabel="Gerando Excel…" onClick={exportarSaneamento}><Download size={16} aria-hidden="true" />Exportar Excel</Button>
+          <Button type="button" variant="secondary" loading={exportando} loadingLabel="Gerando Excel…" onClick={exportarSaneamento}><Download size={16} aria-hidden="true" />Exportar todos os resultados</Button>
         </div>
       </div>
       {erroExportacao ? <p role="alert" className="px-4 py-3 text-sm text-rose-700">{erroExportacao}</p> : null}
-      {atualizacaoSolicitada && !atualizando ? <p role="status" className="px-4 py-3 text-sm text-slate-600">Lista atualizada. {saneamentoTotal} cobrança(s) ainda precisam de correção nos filtros atuais.</p> : null}
-      {!saneamento.length ? <p className="p-5 text-sm text-slate-500">Nenhuma cobrança para saneamento neste filtro.</p> : <div className="divide-y divide-slate-100">{saneamento.map(row => <div key={row.id} className="grid items-center gap-3 p-4 lg:grid-cols-[minmax(260px,1fr)_140px_150px_auto]">
+      {atualizacaoSolicitada && !atualizando ? <p role="status" className="px-4 py-3 text-sm text-slate-600">Lista atualizada. {saneamentoTotal} cobrança(s) precisam de correção nesta página.</p> : null}
+      {!saneamento.length ? <p className="p-5 text-sm text-slate-500">Nenhuma cobrança para saneamento nesta página.</p> : <div className="divide-y divide-slate-100">{saneamento.map(row => <div key={row.id} className="grid items-center gap-3 p-4 lg:grid-cols-[minmax(260px,1fr)_140px_150px_auto]">
         <div><p className="text-sm font-semibold">{row.condominio?.nome_operacional || row.condominio?.nome || 'Condomínio não informado'}</p><p className="text-sm text-amber-700">{row.motivo_saneamento || 'Responsável da unidade não cadastrado'}</p><p className="text-sm text-slate-600">{row.unidade?.bloco ? `Bloco ${row.unidade.bloco} · ` : ''}Unidade {row.unidade?.identificacao || 'não vinculada'}</p></div>
         <div className="text-sm">{formatDateBR(row.vencimento)}</div>
         <div className="text-sm font-medium">{formatCurrency(Number(row.valor_atualizado ?? row.valor_original ?? 0))}</div>

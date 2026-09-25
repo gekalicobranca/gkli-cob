@@ -1,6 +1,12 @@
 import { createHash } from "crypto";
 import { inflateSync } from "zlib";
 import * as XLSX from "xlsx";
+import { detectBrcondosResponsaveis, parseBrcondosResponsaveis } from "./brcondos-responsaveis";
+import { detectBrcondosCobrancas, parseBrcondosCobrancas } from "./brcondos-cobrancas";
+import { detectSuperlogicaSimplificada, extractSimplificadaRows, parseSimplificadaRows } from "./superlogica-simplificada";
+import { detectHausyInadimplencia, parseHausyInadimplencia } from "./hausy-inadimplencia";
+import { extractPdfVisualText } from "./pdf-visual-text";
+import { detectSuperlogicaResumida, parseSuperlogicaResumida } from "./superlogica-resumida";
 import { avaliarRecorteAnoCorrente } from "@/features/importacoes/recorte-cobrancas";
 import type { RankingMensalCaptacao } from "@/features/captacao-automatizada/ranking-mensal";
 
@@ -32,6 +38,7 @@ export type CobrancaPreview = {
   recibo?: string;
   vencimento?: string | null;
   valorPrincipal?: number;
+  desconto?: number;
   multa?: number;
   correcao?: number;
   juros?: number;
@@ -116,7 +123,7 @@ type PdfTextQualityReport = {
   };
 };
 
-type ReciboCondopro = {
+export type ReciboCondopro = {
   bloco: string;
   unidade: string;
   responsavel: string;
@@ -126,6 +133,7 @@ type ReciboCondopro = {
   recibo: string;
   vencimento: string;
   valorPrincipal: number;
+  desconto?: number;
   multa: number;
   correcao: number;
   juros: number;
@@ -1152,6 +1160,8 @@ function roundMoney(value: number) {
 }
 
 function valorAtualizadoDaCobranca(cobranca: CobrancaPreview) {
+  // BRCondos supplies a reconciled net total, which can be below principal.
+  if (cobranca.desconto !== undefined) return roundMoney(cobranca.valorTotal);
   const valorPrincipal = cobranca.valorPrincipal ?? cobranca.valorTotal ?? 0;
   const encargos =
     (cobranca.multa ?? 0) + (cobranca.correcao ?? 0) + (cobranca.juros ?? 0);
@@ -1330,7 +1340,7 @@ function buildXlsxBase64PadraoGkli(
   return output.toString("base64");
 }
 
-function buildPreviewFromRecibos({
+export function buildPreviewFromRecibos({
   origem,
   filename,
   recibos,
@@ -1372,6 +1382,7 @@ function buildPreviewFromRecibos({
         recibo: recibo.recibo,
         vencimento: recibo.vencimento,
         valorPrincipal: recibo.valorPrincipal,
+        desconto: recibo.desconto,
         multa: recibo.multa,
         correcao: recibo.correcao,
         juros: recibo.juros,
@@ -1824,13 +1835,15 @@ function analyzePdfTextQuality(text: string): PdfTextQualityReport {
 
   const isSuperlogica = sinaisSuperlogica >= 5 && blocosSuperlogica > 0;
   const isHflex = sinaisHflex >= 5 && blocosHflex > 0;
+  const isBrcondos = detectBrcondosResponsaveis(normalized) !== null;
+  const estruturaReconhecida = isSuperlogica || isHflex || isBrcondos;
 
   let score = 100;
   if (caracteres < 1200) score -= 45;
   if (ratioControles > 0.01) score -= 45;
   if (ratioControles > 0.03) score -= 30;
   if (palavrasLegiveis < 12) score -= 25;
-  if (!isSuperlogica && !isHflex) score -= 25;
+  if (!estruturaReconhecida) score -= 25;
   score = Math.max(0, Math.min(100, Math.round(score)));
 
   const detalhes = {
@@ -1861,7 +1874,7 @@ function analyzePdfTextQuality(text: string): PdfTextQualityReport {
     };
   }
 
-  if (!isSuperlogica && !isHflex) {
+  if (!estruturaReconhecida) {
     return {
       ok: false,
       score,
@@ -2007,7 +2020,8 @@ function uniqueValues(values: string[]) {
 
 function extractEmails(value: string) {
   const matches =
-    normalize(value).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [];
+    // PDF fields can be glued: "a@example.com.brE-mail - b@example.com".
+    normalize(value).replace(/E-mail\s*[-:]\s+/gi, " ").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [];
   return uniqueValues(matches.map((email) => email.toLowerCase()));
 }
 
@@ -3304,12 +3318,12 @@ function splitSuperlogicaUnitBlocks(text: string) {
 
 function extractSuperlogicaTipoPessoa(value: string) {
   const match = value.match(
-    /Tipo\s+de\s+pessoa:\s*([^\n]+?)(?:\s{2,}|\s+(?:CPF|CNPJ|Data\s+de\s+nascimento|Tipo\s+de\s+identidade):|$)/i,
+    /Tipo\s+de\s+pessoa:\s*([^\n]+?)(?:\s{2,}|\s*(?:CPF|CNPJ|Data\s+de\s+nascimento|Tipo\s+de\s+identidade):|$)/i,
   );
   return match ? normalize(match[1]) : "";
 }
 
-function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
+export function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
   const blocks = splitSuperlogicaUnitBlocks(text);
   const unidades: UnidadeConversaoPreview[] = [];
 
@@ -3317,7 +3331,7 @@ function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
     const dadosPessoais = extractSuperlogicaSection(
       block.text,
       /Dados\s+pessoais/i,
-      [/Telefone\/e-mail/i, /Dados\s+gerais/i, /Rateio\/fra[çc][õo]es/i],
+      [/Telefone\/e-mail/i, /Dados\s+gerais/i, /Rateio\/fra[çc][õo]es/i, /Emitido\s+em/i, /Condom[ií]nio:/i],
     );
     const dadosPagador = extractSuperlogicaSection(
       block.text,
@@ -3327,6 +3341,8 @@ function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
         /Bloquear\s+reenvio/i,
         /Observa[çc][õo]es/i,
         /Rateio\/fra[çc][õo]es/i,
+        /Emitido\s+em/i,
+        /Condom[ií]nio:/i,
       ],
     );
     const contatoCliente = extractSuperlogicaSection(
@@ -3349,9 +3365,11 @@ function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
       ],
     );
 
-    const documentoFonte = [dadosPagador, dadosPessoais, block.text].filter(Boolean).join("\n");
+    // Only personal/payer sections contain the person's document. A repeated
+    // page header inside the unit block carries the condominium's CNPJ.
+    const documentoFonte = [dadosPagador, dadosPessoais].filter(Boolean).join("\n");
     const documentoMatch = documentoFonte.match(
-      /(?:^|[^A-Z0-9])(CPF|CNPJ)\s*:\s*([0-9.\/-]+)/i,
+      /(CPF|CNPJ)\s*:\s*([0-9.\/-]+)/i,
     );
     const tipoUnidadeMatch = block.text.match(
       /Tipo\s+de\s+unidade:\s*([^\n]+?)(?:\s{2,}|\s+Dias\s+de\s+prazo:|$)/i,
@@ -3684,7 +3702,7 @@ function totaisFromMoneyList(values: number[]) {
   return null;
 }
 
-function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondopro[] {
+export function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
   const lines = normalizePdfText(text)
     .split("\n")
@@ -3799,7 +3817,8 @@ function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondopro[] {
         ? reciboMatch[1] || ""
         : reciboMatch[2] || "";
       const marcadorEncontrado = normalizeMarcadorOrigem(
-        /^\d/.test(reciboMatch[1] ?? "") ? reciboMatch[2] : reciboMatch[1],
+        (/^\d/.test(reciboMatch[1] ?? "") ? reciboMatch[2] : reciboMatch[1]) ??
+          line.match(/,\d{2}\s*(AE|AJ|A|J|D|B|P)\s*$/i)?.[1],
       );
       const vencimentoEncontrado = /^\d/.test(reciboMatch[1] ?? "")
         ? reciboMatch[3] || ""
@@ -3847,6 +3866,72 @@ function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondopro[] {
 
   flushReciboPendente();
 
+  // Contacts are printed after the unit total, sometimes on the following page.
+  // Collect them separately and attach them to every receipt of that unit.
+  const cadastros = new Map<string, { documento: string; cliente: string[]; unidade: string[]; totais?: ReturnType<typeof totaisFromMoneyList> }>();
+  let cadastro: ReturnType<typeof cadastros.get>;
+  let agenda: "cliente" | "unidade" | null = null;
+  for (const line of lines) {
+    const header = line.match(/^Bloco:\s*(\S+)\s+Unidade:\s*(\S+)\s+(.+?)(?:\s+(CPF|CNPJ)\s*:\s*([\d.\-/]+))?$/i);
+    if (header) {
+      const key = `${header[1]}::${header[2]}`;
+      const sameUnit = cadastro === cadastros.get(key) && cadastro !== undefined;
+      cadastro = cadastros.get(key) ?? { documento: "", cliente: [], unidade: [] };
+      if (header[5]) cadastro.documento = cleanDocument(header[5]);
+      cadastros.set(key, cadastro);
+      if (!sameUnit) agenda = null;
+      continue;
+    }
+    if (!cadastro) continue;
+    if (/^Agenda de contatos d[ao] (cliente|unidade)/i.test(line)) {
+      agenda = /cliente/i.test(line) ? "cliente" : "unidade";
+      continue;
+    }
+    if (/^Total\s+(?:Geral\s+)?da\s+Unidade\s*:/i.test(line)) {
+      cadastro.totais = totaisFromMoneyList(moneyMatchesFromText(line));
+      agenda = null;
+      continue;
+    }
+    if (agenda && /^(?:Celular|Telefone|E-mail|Outros)\s*[:-]?/i.test(line)) cadastro[agenda].push(line);
+  }
+  for (const recibo of recibos) {
+    const data = cadastros.get(`${recibo.bloco}::${recibo.unidade}`);
+    if (!data) continue;
+    const cliente = extractContactSummary(data.cliente.join("\n"));
+    const unidade = extractContactSummary(data.unidade.join("\n"));
+    recibo.responsavelDocumento = data.documento || undefined;
+    recibo.telefone = cliente.telefone || unidade.telefone || undefined;
+    recibo.email = cliente.email || unidade.email || undefined;
+    recibo.detalhesOrigem = [
+      ...formatAdditionalContactsObservacao(cliente),
+      data.unidade.length ? `Agenda da unidade: ${uniqueValues(data.unidade).join("; ")}` : "",
+    ].filter(Boolean).join(" | ") || undefined;
+  }
+  const totalsOf = (items: ReciboCondopro[]) => ({
+    valorPrincipal: roundMoney(items.reduce((sum, item) => sum + item.valorPrincipal, 0)),
+    multa: roundMoney(items.reduce((sum, item) => sum + item.multa, 0)),
+    correcao: roundMoney(items.reduce((sum, item) => sum + item.correcao, 0)),
+    juros: roundMoney(items.reduce((sum, item) => sum + item.juros, 0)),
+    valorTotal: roundMoney(items.reduce((sum, item) => sum + item.valorTotal, 0)),
+  });
+  const checkTotals = (items: ReciboCondopro[], expected: NonNullable<ReturnType<typeof totaisFromMoneyList>>, label: string) => {
+    const actual = totalsOf(items);
+    if ((Object.keys(actual) as (keyof typeof actual)[]).some((key) => Math.abs(actual[key] - expected[key]) > 0.011)) {
+      throw new Error(`Superlógica: totais divergentes em ${label}. A planilha não foi gerada.`);
+    }
+  };
+  if (recibos.length) {
+    for (const [key, data] of cadastros) {
+      if (data.totais) checkTotals(recibos.filter((item) => `${item.bloco}::${item.unidade}` === key), data.totais, `unidade ${key}`);
+    }
+    const summary = lines.find((line) => /^Quantidade de Unidades inadimplentes do Condom[íi]nio:/i.test(line));
+    if (summary) {
+      const expectedCount = Number(summary.match(/Condom[íi]nio:\s*(\d+)/i)?.[1]);
+      if (expectedCount !== cadastros.size) throw new Error("Superlógica: quantidade de unidades divergente do relatório.");
+      const totals = totaisFromMoneyList(moneyMatchesFromText(summary));
+      if (totals) checkTotals(recibos, totals, "total geral");
+    }
+  }
   return recibos;
 }
 
@@ -5100,6 +5185,20 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
     }
 
     const text = await extractPdfText(input);
+    const simplificada = detectSuperlogicaSimplificada(text);
+    if (simplificada) {
+      try {
+        const expectedCount = Number(text.match(/Quantidade de Cond[ôo]mino:\s*(\d+)/i)?.[1]);
+        return buildPreviewFromUnidadesPdf({
+          filename: input.filename,
+          unidades: parseSimplificadaRows(await extractSimplificadaRows(input.buffer), expectedCount),
+          condominioCnpj: input.condominioCnpj,
+          padraoDetectado: simplificada,
+        });
+      } catch (error) {
+        return { ok: false, error: `Relação de Condôminos Simplificada: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    }
     const deteccaoHabitaFallback = detectHabitaUnidades(
       normalizeHabitaDecodedText(text),
     );
@@ -5110,6 +5209,16 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
         ok: false,
         error: buildPdfQualityError(qualidadeTexto),
       };
+    }
+
+    const deteccaoBrcondos = detectBrcondosResponsaveis(text);
+    if (deteccaoBrcondos) {
+      return buildPreviewFromUnidadesPdf({
+        filename: input.filename,
+        unidades: parseBrcondosResponsaveis(text),
+        condominioCnpj: input.condominioCnpj,
+        padraoDetectado: deteccaoBrcondos,
+      });
     }
 
     const deteccaoSuperlogica = detectSuperlogicaUnidades(text);
@@ -5170,7 +5279,7 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
     return {
       ok: false,
       error:
-        "PDF lido, mas nenhum padrão ativo de Unidades foi reconhecido com segurança. Nesta versão, os parsers ativos são Superlógica - Relatório de Unidades - Completo e Hflex / LiveFacilities - Relatório de Unidades. Se o PDF foi tratado por OCR externo, confirme se ele ficou com texto selecionável e estrutura de tabela preservada.",
+        "PDF lido, mas nenhum padrão ativo de Responsáveis/Unidades foi reconhecido com segurança. Os parsers PDF ativos são BRCondos - Lista de Moradores, Habita e Superlógica - Relatório de Unidades - Completo e Hflex / LiveFacilities - Relatório de Unidades. Se o PDF foi tratado por OCR externo, confirme se ele ficou com texto selecionável e estrutura de tabela preservada.",
     };
   }
 
@@ -5225,6 +5334,51 @@ export async function parseRelatorioBuffer(
 
   if (isPdfInput(input)) {
     const text = await extractPdfText(input);
+    const resumida = detectSuperlogicaResumida(text);
+    if (resumida) {
+      try {
+        const recibos = parseSuperlogicaResumida(await extractPdfVisualText(input.buffer));
+        const result = buildPreviewFromRecibos({
+          origem: "Superlógica - Relação Resumida de Pendentes", filename: input.filename,
+          recibos, condominioCnpj: input.condominioCnpj,
+          origemSistema: "Superlógica Condomínios", padraoDetectado: resumida,
+        });
+        if (result.ok) {
+          const total = roundMoney(recibos.reduce((sum, item) => sum + item.valorTotal, 0));
+          result.preview.inconsistencias.push(`Relatório completo conferido: ${recibos.length} recibos, total de R$ ${moneyToCsv(total)}. A exportação segue o recorte operacional por ano de vencimento.`);
+        }
+        return result;
+      } catch (error) {
+        return { ok: false, error: `Relação Resumida de Pendentes: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    }
+    const hausy = detectHausyInadimplencia(text);
+    if (hausy) {
+      try {
+        return buildPreviewFromRecibos({
+          origem: "Hausy / myHausy - Inadimplência", filename: input.filename,
+          recibos: parseHausyInadimplencia(await extractPdfVisualText(input.buffer), text), condominioCnpj: input.condominioCnpj,
+          origemSistema: "myHausy", padraoDetectado: hausy,
+        });
+      } catch (error) {
+        return { ok: false, error: `Hausy: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    }
+    const deteccaoBrcondos = detectBrcondosCobrancas(text);
+    if (deteccaoBrcondos) {
+      const parsed = parseBrcondosCobrancas(text);
+      if (parsed.ok === false) return parsed;
+      const result = buildPreviewFromRecibos({
+        origem: "BRCondos - Relatório de Contas a Receber",
+        filename: input.filename,
+        recibos: parsed.recibos,
+        condominioCnpj: input.condominioCnpj,
+        origemSistema: "BRCondos",
+        padraoDetectado: deteccaoBrcondos,
+      });
+      if (result.ok) result.preview.inconsistencias.push(...parsed.inconsistencias);
+      return result;
+    }
     const deteccaoSuperlogica = detectSuperlogicaPendentesCobrancas(text);
     const deteccaoHflex = detectHflexLiveFacilitiesCobrancas(text);
     const deteccaoSlaviero = detectSlavieroCobrancas(text);
@@ -5352,7 +5506,12 @@ export async function parseRelatorioBuffer(
       deteccaoSuperlogica.ok &&
       deteccaoSuperlogica.confianca >= deteccaoHflex.confianca
     ) {
-      const recibos = parseSuperlogicaPendentesCobrancasPdf(text);
+      let recibos: ReciboCondopro[];
+      try {
+        recibos = parseSuperlogicaPendentesCobrancasPdf(text);
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
 
       const padraoDetectado = buildPadraoDetectado(
         PADRAO_SUPERLOGICA_PENDENTES_COBRANCAS,

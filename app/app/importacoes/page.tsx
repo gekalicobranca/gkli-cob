@@ -61,12 +61,12 @@ const importCards = [
   },
   {
     tipo: "acordos_extra",
-    title: "Legado · Acordos extra",
+    title: "Acordos existentes · Extra",
     description:
-      "Acordos extrajudiciais anteriores, parcelas, status, documentos e histórico.",
+      "Migração controlada de acordos extrajudiciais ativos, vinculando apenas cobranças do período negociado.",
     icon: Scale,
     templateHref: "/templates/importacao-acordos-extra.xlsx",
-    guardrail: "Cria acordo e parcelas somente depois do preview confirmado.",
+    guardrail: "Preview cruza período negociado x cobranças e mantém mensalidades posteriores fora do acordo.",
     impact: "Migração histórica",
   },
   {
@@ -82,7 +82,7 @@ const importCards = [
 ];
 
 const activeImportCards = importCards.filter(
-  (card) => card.tipo !== "acordos_extra" && card.tipo !== "acordos_judiciais",
+  (card) => card.tipo !== "acordos_judiciais",
 );
 
 function labelTipo(tipo: string) {

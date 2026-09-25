@@ -12,6 +12,46 @@ type RecognizedTemplate = {
 
 const templates: RecognizedTemplate[] = [
   {
+    nome: "Superlógica · Pendentes resumidos",
+    categoria: "Cobranças",
+    status: "Ativo",
+    cobertura: "PDF · Relação Resumida de Pendentes",
+    descricao:
+      "Preserva recibos e marcadores de acordo/jurídico, confere subtotais e total geral e aplica o recorte operacional por ano de vencimento.",
+  },
+  {
+    nome: "Superlógica · Condôminos simplificada",
+    categoria: "Unidades",
+    status: "Ativo",
+    cobertura: "PDF · Relação de Condôminos Simplificada",
+    descricao:
+      "Lê as colunas de bloco, unidade, cliente e contatos, preservando contatos que continuam em outra página e conferindo a quantidade de cadastros.",
+  },
+  {
+    nome: "Hausy / myHausy · Cobranças",
+    categoria: "Cobranças",
+    status: "Ativo",
+    cobertura: "PDF · Inadimplência",
+    descricao:
+      "Converte cada recibo em uma cobrança, preservando bloco e unidade e conferindo composição, encargos e totais do relatório.",
+  },
+  {
+    nome: "BRCondos · Cobranças",
+    categoria: "Cobranças",
+    status: "Ativo",
+    cobertura: "PDF · Relatório de Contas a Receber",
+    descricao:
+      "Converte faturas em aberto, preserva acordos e a situação de vencimento e confere quantidades e valores com os totalizadores do relatório.",
+  },
+  {
+    nome: "BRCondos · Responsáveis",
+    categoria: "Unidades",
+    status: "Ativo",
+    cobertura: "PDF · Lista de Moradores",
+    descricao:
+      "Preserva proprietários e moradores/locatários por unidade, com telefones e e-mails, e gera a planilha de Importações/Responsáveis.",
+  },
+  {
     nome: "Superlógica · Unidades",
     categoria: "Unidades",
     status: "Ativo",

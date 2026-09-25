@@ -9,13 +9,7 @@ import type {
   TipoConversaoRelatorio,
 } from "../server/parse-relatorio-buffer";
 
-const MAX_SERVER_UPLOAD_BYTES = 4 * 1024 * 1024;
-
-function formatFileSize(bytes: number) {
-  return `${(bytes / 1024 / 1024).toLocaleString("pt-BR", {
-    maximumFractionDigits: 1,
-  })} MB`;
-}
+import { createConversionFormData } from "../prepare-upload";
 
 function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -155,20 +149,10 @@ export function ConversionUploadCard({
     setCondominioCnpj("");
 
     if (!file) return;
-    if (file.size > MAX_SERVER_UPLOAD_BYTES) {
-      setSelectedFile(null);
-      setError(
-        `Arquivo muito grande para processar online (${formatFileSize(file.size)}). O limite seguro deste conversor na Vercel é ${formatFileSize(MAX_SERVER_UPLOAD_BYTES)}. Use uma versão reduzida do PDF ou gere a planilha em conversão local.`,
-      );
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("tipo_conversao", tipoConversao);
+      const formData = await createConversionFormData(file, tipoConversao);
 
       const response = await fetch("/api/conversao-relatorio/parse", {
         method: "POST",
@@ -191,10 +175,7 @@ export function ConversionUploadCard({
       if (autoCondominio) {
         setCondominioCnpj(autoCondominio.cnpj);
 
-        const enrichedFormData = new FormData();
-        enrichedFormData.append("file", file);
-        enrichedFormData.append("tipo_conversao", tipoConversao);
-        enrichedFormData.append("condominio_cnpj", autoCondominio.cnpj);
+        const enrichedFormData = await createConversionFormData(file, tipoConversao, autoCondominio.cnpj);
 
         const enrichedResponse = await fetch("/api/conversao-relatorio/parse", {
           method: "POST",
@@ -231,10 +212,7 @@ export function ConversionUploadCard({
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("tipo_conversao", tipoConversao);
-      formData.append("condominio_cnpj", cnpj);
+      const formData = await createConversionFormData(selectedFile, tipoConversao, cnpj);
 
       const response = await fetch("/api/conversao-relatorio/parse", {
         method: "POST",

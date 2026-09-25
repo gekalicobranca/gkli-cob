@@ -17,6 +17,10 @@ import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 import { calculateAgreementInsight } from "@/features/acordos/insights";
 
+import { calcularDespesasAcordo } from "@/features/acordos/calculo-despesas";
+
+import type { FormularioPropostaForaRegua } from "@/features/acordos/aprovacao-fora-regua";
+
 type CobrancaOption = {
   id: string;
   carteira_id: string;
@@ -48,6 +52,11 @@ type AcordoSimulatorFormProps = {
   cobrancas: CobrancaOption[];
   initialCobrancaId?: string;
   selectedCobrancaIds?: string[];
+  cotasSemDespesas?: string[];
+  formularioInicial?: FormularioPropostaForaRegua;
+  contemCobrancasForaRegua?: boolean;
+  aprovacaoForaReguaStatus?: string;
+  acordoJaCriado?: boolean;
   bloqueadoPorPendenciaPlanilha?: boolean;
   bloqueadoPorPendenciaAprovacaoSindico?: boolean;
   aprovacaoSindicoSolicitada?: boolean;
@@ -113,6 +122,11 @@ export function AcordoSimulatorForm({
   cobrancas,
   initialCobrancaId,
   selectedCobrancaIds = [],
+  cotasSemDespesas = [],
+  formularioInicial = {},
+  contemCobrancasForaRegua = false,
+  aprovacaoForaReguaStatus,
+  acordoJaCriado = false,
   bloqueadoPorPendenciaPlanilha = false,
   bloqueadoPorPendenciaAprovacaoSindico = false,
   aprovacaoSindicoSolicitada = false,
@@ -130,21 +144,22 @@ export function AcordoSimulatorForm({
   const initial =
     cobrancas.find((item) => item.id === initialCobrancaId) ?? cobrancas[0];
   const [cobrancaId, setCobrancaId] = useState(initial?.id ?? "");
-  const [tipo, setTipo] = useState("extrajudicial");
-  const [numeroProcesso, setNumeroProcesso] = useState("");
+  const [tipo, setTipo] = useState(formularioInicial.tipo || "extrajudicial");
+  const [numeroProcesso, setNumeroProcesso] = useState(formularioInicial.numero_processo || "");
   const [despesaCobrancaPercentual, setDespesaCobrancaPercentual] =
-    useState("10,00");
-  const [entrada, setEntrada] = useState("0,00");
-  const [usarCreditoAdministradora, setUsarCreditoAdministradora] = useState(false);
-  const [entradaVencimento, setEntradaVencimento] = useState(() => toISODate(new Date()));
-  const [quantidadeParcelas, setQuantidadeParcelas] = useState("3");
+    useState(formularioInicial.despesa_cobranca_percentual || "10,00");
+  const [entrada, setEntrada] = useState(formularioInicial.entrada || "0,00");
+  const [usarCreditoAdministradora, setUsarCreditoAdministradora] = useState(formularioInicial.usar_credito_administradora === "on");
+  const [entradaVencimento, setEntradaVencimento] = useState(() => formularioInicial.entrada_vencimento || toISODate(new Date()));
+  const [quantidadeParcelas, setQuantidadeParcelas] = useState(formularioInicial.quantidade_parcelas || "3");
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => {
+    if (formularioInicial.primeiro_vencimento) return formularioInicial.primeiro_vencimento;
     const date = new Date();
     date.setDate(date.getDate() + 7);
     return toISODate(date);
   });
-  const [documentoUrl, setDocumentoUrl] = useState("");
-  const [observacoes, setObservacoes] = useState("");
+  const [documentoUrl, setDocumentoUrl] = useState(formularioInicial.documento_url || "");
+  const [observacoes, setObservacoes] = useState(formularioInicial.observacoes || "");
 
   const isSelecaoAgrupada = selectedCobrancaIds.length > 0;
   const cobrancasSelecionadas = isSelecaoAgrupada
@@ -207,9 +222,12 @@ export function AcordoSimulatorForm({
       ? Math.min(creditoDisponivel, valorOriginal)
       : 0;
     const valorAposCredito = roundMoney(valorOriginal - creditoUtilizado);
-    const despesaCobranca = roundMoney(
-      valorAposCredito * (percentualDespesa / 100),
+    const calculo = calcularDespesasAcordo(
+      cobrancasSelecionadas.map((item) => ({ id: item.id, valor: getValorAtualizado(item) })),
+      cotasSemDespesas, percentualDespesa, creditoUtilizado,
+      { quantidadeParcelas: Number(quantidadeParcelas), entrada: parseMoney(entrada) },
     );
+    const despesaCobranca = calculo.despesa;
     const total = roundMoney(valorAposCredito + despesaCobranca);
     const entradaNumber = parseMoney(entrada);
     const parcelasCount = Math.max(1, Number(quantidadeParcelas) || 1);
@@ -226,7 +244,7 @@ export function AcordoSimulatorForm({
     }> = [];
     let acumulado = 0;
 
-    for (let index = 1; index <= parcelasCount; index++) {
+    for (let index = 1; index <= parcelasCount && saldo > 0; index++) {
       const isLast = index === parcelasCount;
       const valor = isLast ? roundMoney(saldo - acumulado) : roundMoney(base);
       acumulado = roundMoney(acumulado + valor);
@@ -238,6 +256,7 @@ export function AcordoSimulatorForm({
     }
 
     return {
+      isencaoAplicada: calculo.isencaoAplicada,
       valorOriginal,
       creditoDisponivel,
       creditoUtilizado,
@@ -252,6 +271,7 @@ export function AcordoSimulatorForm({
     };
   }, [
     cobrancasSelecionadas,
+    cotasSemDespesas,
     despesaCobrancaPercentual,
     entrada,
     entradaVencimento,
@@ -332,6 +352,9 @@ export function AcordoSimulatorForm({
       "",
       "Resumo financeiro:",
       `Valor das cobranças: ${formatCurrency(preview.valorOriginal)}`,
+      ...(cotasSemDespesas.length ? [preview.isencaoAplicada
+        ? "Cota do mês à vista, sem despesas de cobrança, com autorização da administradora."
+        : "Cota do mês incluída com despesas de cobrança: pagamento parcelado."] : []),
       `Despesa de cobrança (${preview.percentualDespesa.toLocaleString("pt-BR")}%): ${formatCurrency(preview.despesaCobranca)}`,
       `Valor total proposto: ${formatCurrency(preview.total)}`,
       `Entrada: ${formatCurrency(preview.entrada)}`,
@@ -387,8 +410,15 @@ export function AcordoSimulatorForm({
           value={cobranca.id}
         />
       ))}
+      {cotasSemDespesas.map((id) => <input key={id} type="hidden" name="cotas_sem_despesas" value={id} />)}
       <input type="hidden" name="cobranca_id_origem" value={cobrancaSelecionada?.id ?? cobrancaId} />
       <Card className="space-y-5">
+        {cotasSemDespesas.length > 0 && (
+          <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <input type="checkbox" name="cota_mes_autorizada" defaultChecked={formularioInicial.cota_mes_autorizada === "on"} required className="mt-1" />
+            Confirmo que a administradora autorizou a inclusão da cota do mês fora da régua. A isenção de despesas vale apenas para pagamento à vista (uma parcela sem entrada ou quitação integral na entrada). No parcelamento, as despesas incidem também sobre a cota do mês.
+          </label>
+        )}
         {isSelecaoAgrupada ? (
           <div className="space-y-3 rounded-2xl border border-[#DDE5E2] bg-[#F6F8F7] p-4">
             <div>
@@ -416,6 +446,9 @@ export function AcordoSimulatorForm({
                     </p>
                     <p className="text-xs text-slate-500">
                       Status {cobranca.status_operacional ?? cobranca.status}
+                      {cotasSemDespesas.includes(cobranca.id) && (preview.isencaoAplicada
+                        ? " · Cota do mês — sem despesas (à vista)"
+                        : " · Cota do mês — com despesas (parcelado)")}
                     </p>
                   </div>
                   <p className="text-sm font-semibold text-slate-950">
@@ -723,6 +756,10 @@ export function AcordoSimulatorForm({
           </div>
         ) : null}
 
+        {contemCobrancasForaRegua && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          Esta seleção contém parcelas fora da régua. Ao continuar, o sistema verificará a aprovação do gestor/admin e abrirá uma pendência se necessário.
+          O acordo e seus envios só serão gerados após aprovação das mesmas condições, independentemente da opção de isenção de despesas.
+        </div>}
         <div className="flex flex-col justify-end gap-2 md:flex-row">
           {!exigeAprovacaoSindico ? (
             <Button
@@ -737,11 +774,13 @@ export function AcordoSimulatorForm({
           ) : null}
           <Button
             type="submit"
-            disabled={bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
+            disabled={acordoJaCriado || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
             loading={isCreatingAcordo}
             loadingLabel="Criando acordo..."
           >
-            Criar acordo e iniciar fluxo
+            {contemCobrancasForaRegua && aprovacaoForaReguaStatus !== "aprovada"
+              ? "Solicitar aprovação do gestor"
+              : "Criar acordo e iniciar fluxo"}
           </Button>
         </div>
         <p className="text-right text-xs leading-5 text-slate-500">

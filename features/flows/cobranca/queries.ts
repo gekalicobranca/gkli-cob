@@ -137,10 +137,20 @@ export async function getFlowCobrancaItens(scope: CarteiraScope, flowId: string)
     ...item,
     cobranca: relation(item.cobranca),
     mensagem: relation(item.mensagem),
-  }))
+  })).filter((item) => {
+    const mensagem = item.mensagem
+    const status = mensagem?.status_operacional ?? mensagem?.status ?? item.status
+    // O cancelamento de elegibilidade vale para toda a mensagem consolidada,
+    // inclusive quando a mudança ocorreu em outra parcela da mesma unidade.
+    const canceladaPorElegibilidade = ['cancelada', 'cancelado'].includes(status)
+      && String(mensagem?.erro ?? '').startsWith('Envio cancelado: cobrança fora da cobrança ativa.')
+    return !canceladaPorElegibilidade
+  })
 }
 
-export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: FlowCobrancaFilters = {}, options: { somenteSaneamento?: boolean } = {}) {
+export const COBRANCAS_FLOW_PAGE_SIZE = 100
+
+export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: FlowCobrancaFilters = {}, options: { somenteSaneamento?: boolean; page?: number } = {}) {
   const supabase = createAdminClient()
   const normalized = normalizeFlowCobrancaFilters(filters)
   const reguas = await listReguasForSelect(scope, 'cobranca')
@@ -213,25 +223,36 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
       if (data.length < 500) return { data: rows, error: null }
     }
   }
-  const [{ data: painel, error: painelError }, { data: disponibilidade, error: disponibilidadeError }] = await Promise.all([
-    todasCobrancas(painelQuery),
-    todasCobrancas(disponibilidadeQuery),
+  // A exportação continua completa; somente a tela solicita uma página.
+  async function carregarPagina(query: any) {
+    if (options.page === undefined) return { ...await todasCobrancas(query), hasNext: false }
+    const offset = (Math.max(1, options.page) - 1) * COBRANCAS_FLOW_PAGE_SIZE
+    const { data, error } = await query.order('id').range(offset, offset + COBRANCAS_FLOW_PAGE_SIZE)
+    return { data: (data ?? []).slice(0, COBRANCAS_FLOW_PAGE_SIZE), error, hasNext: (data?.length ?? 0) > COBRANCAS_FLOW_PAGE_SIZE }
+  }
+  const [painelResult, disponibilidadeResult] = await Promise.all([
+    carregarPagina(painelQuery),
+    carregarPagina(disponibilidadeQuery),
   ])
+  const { data: painel, error: painelError } = painelResult
+  const { data: disponibilidade, error: disponibilidadeError } = disponibilidadeResult
 
   if (painelError) throw new Error(`Erro ao carregar cobranças novas para Flow: ${painelError.message}`)
   if (disponibilidadeError) throw new Error(`Erro ao carregar cobranças disponíveis para Flow: ${disponibilidadeError.message}`)
 
-  const canaisOcupados = options.somenteSaneamento ? new Map<string, Set<string>>() : await carregarCanaisOcupados(supabase, (disponibilidade ?? []).map((row: any) => row.id))
+  const canaisPromise = options.somenteSaneamento ? Promise.resolve(new Map<string, Set<string>>()) : carregarCanaisOcupados(supabase, (disponibilidade ?? []).map((row: any) => row.id))
 
   const novas = separarSaneamento(painel ?? [])
   const ativas = separarSaneamento(disponibilidade ?? [])
+  const cobrancasAtuais = [...(painel ?? []), ...(disponibilidade ?? [])]
+  const condominiosAtuais = [...new Set(cobrancasAtuais.map(row => row.condominio_id).filter(Boolean))]
   let montagensQuery = applyCarteiraScope(supabase.from('maestro_flow_montagens').select('id,condominio_id,regua_id,pendencias'), scope.carteiraIds)
   if (normalized.carteiraId) montagensQuery = montagensQuery.eq('carteira_id', normalized.carteiraId)
   if (normalized.condominioId) montagensQuery = montagensQuery.eq('condominio_id', normalized.condominioId)
-  const { data: montagens, error: montagensError } = normalized.canal && normalized.canal !== 'email'
-    ? { data: [], error: null } : await todasCobrancas(montagensQuery)
+  const montagensPromise = (normalized.canal && normalized.canal !== 'email') || !condominiosAtuais.length
+    ? Promise.resolve({ data: [], error: null }) : todasCobrancas(options.page === undefined ? montagensQuery : montagensQuery.in('condominio_id', condominiosAtuais))
+  const [{ data: montagens, error: montagensError }, canaisOcupados] = await Promise.all([montagensPromise, canaisPromise])
   if (montagensError && !['42P01', 'PGRST205'].includes(montagensError.code)) throw new Error('Não foi possível conferir o saneamento do Maestro.')
-  const cobrancasAtuais = [...(painel ?? []), ...(disponibilidade ?? [])]
   const idsAtuais = new Set(cobrancasAtuais.map(row => row.id))
   const montagensComPendencias = (montagens ?? []).filter((job: any) =>
     (job.pendencias ?? []).some((p: any) => p.saneamento && idsAtuais.has(p.cobranca_id)))
@@ -275,11 +296,32 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
       })),
     reguas: options.somenteSaneamento ? [] : reguasDoCanal,
     flows: [] as any[],
-    hasNext: false,
+    hasNext: painelResult.hasNext || disponibilidadeResult.hasNext,
   }
 }
 
 export const FLOWS_PAGE_SIZE = 30
+
+export type FlowCondominioOption = { id: string; carteira_id: string | null; nome: string; nome_operacional: string | null }
+
+export async function searchFlowCondominios(scope: CarteiraScope, options: { term?: string; carteiraId?: string; id?: string }) {
+  const term = String(options.term ?? '').replace(/[^\p{L}\p{N}\s-]/gu, '').trim().slice(0, 80)
+  if (!options.id && term.length < 2) return [] as FlowCondominioOption[]
+  let query = applyCarteiraScope(createAdminClient().from('condominios')
+    .select('id,carteira_id,nome,nome_operacional'), scope.carteiraIds)
+  if (options.carteiraId) query = query.eq('carteira_id', options.carteiraId)
+  if (options.id) query = query.eq('id', options.id)
+  else query = query.or(`nome.ilike.%${term}%,nome_operacional.ilike.%${term}%`)
+  const { data, error } = await query.order('nome').order('id').limit(options.id ? 1 : 30)
+  if (error) throw new Error('Não foi possível buscar os condomínios.')
+  return (data ?? []) as FlowCondominioOption[]
+}
+
+export async function listFlowCarteiras(scope: CarteiraScope) {
+  const { data, error } = await applyCarteiraScope(createAdminClient().from('carteiras').select('id,nome').order('nome'), scope.carteiraIds, 'id')
+  if (error) throw new Error('Não foi possível carregar as carteiras.')
+  return data ?? []
+}
 
 export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: FlowCobrancaFilters, options: { page: number; historico: boolean; status?: string; ordenar?: OrdemFlowCobranca }) {
   const supabase = createAdminClient()
@@ -305,7 +347,8 @@ export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: 
       concluido_em,
       created_at,
       updated_at,
-      payload,
+      condominio_id:payload->>condominio_id,
+      flow_canais:payload->canais,
       ${FLOW_CANAIS_SELECT},
       ${normalized.canal ? 'regua_canal:reguas(etapas:regua_etapas!inner(canal)),' : ''}
       carteira:carteiras(nome),
@@ -333,7 +376,7 @@ export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: 
   if (error && error.code !== '42P01') throw new Error('Erro ao carregar flows: ' + error.message)
   const hasNext = (data?.length ?? 0) > FLOWS_PAGE_SIZE
   const flows = (data ?? []).slice(0, FLOWS_PAGE_SIZE)
-  const flowRows = (flows ?? []) as any[]
+  const flowRows = (flows ?? []).map(({ condominio_id, flow_canais, ...flow }: any) => ({ ...flow, payload: { condominio_id, canais: flow_canais ?? [] } }))
   const condominioIds = [...new Set(flowRows.map(flow => flow.payload?.condominio_id).filter(Boolean))] as string[]
   const condominiosFlows = new Map<string, any>()
   for (let offset = 0; offset < condominioIds.length; offset += 100) {
@@ -362,9 +405,9 @@ export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: 
 
 export async function listFlowCobrancaCondominios(scope: CarteiraScope, carteiraId?: string) {
   const db = createAdminClient()
-  const rows: Array<{ id: string; nome: string; nome_operacional: string | null }> = []
+  const rows: Array<{ id: string; carteira_id: string | null; nome: string; nome_operacional: string | null }> = []
   for (let offset = 0; ; offset += 500) {
-    let query = applyCarteiraScope(db.from('condominios').select('id,nome,nome_operacional'), scope.carteiraIds)
+    let query = applyCarteiraScope(db.from('condominios').select('id,carteira_id,nome,nome_operacional'), scope.carteiraIds)
     if (carteiraId) query = query.eq('carteira_id', carteiraId)
     const { data, error } = await query.order('nome').order('id').range(offset, offset + 499)
     if (error) throw new Error('Não foi possível carregar os condomínios dos filtros.')

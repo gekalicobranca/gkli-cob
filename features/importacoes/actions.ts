@@ -40,6 +40,8 @@ import {
 import { sincronizarResponsavelComUnidadeOperacional } from "@/features/responsaveis-unidades/sync-unidade";
 import { normalizeCondominioName } from "@/features/condominios/normalize-name";
 import { assertUnidadeMatchesMasks } from "@/features/unidades/mask";
+import { ACORDO_STATUS, PARCELA_ACORDO_STATUS } from "@/lib/constants/acordos";
+import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -319,6 +321,309 @@ function calcularValorAcordoComDespesa(payload: Record<string, any>) {
   };
 }
 
+
+function monthKeyFromValue(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const iso = raw.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+
+  const br = raw.match(/^(\d{1,2})\/(\d{4})$/);
+  if (br) return `${br[2]}-${String(Number(br[1])).padStart(2, "0")}`;
+
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) {
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+
+  return null;
+}
+
+function monthIndex(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  return year * 12 + month - 1;
+}
+
+type LegacyDuplicateCharge = {
+  mantida_id: string;
+  excluida_id: string;
+  vencimento: string | null;
+  valor_original: number;
+  competencia_mantida: string | null;
+  competencia_excluida: string | null;
+  criterio: string;
+};
+
+function dedupeLegacyAgreementCharges(cobrancas: any[]) {
+  const selectedByKey = new Map<string, any>();
+  const duplicates: LegacyDuplicateCharge[] = [];
+
+  const preferenceScore = (cobranca: any) => {
+    const competencia = monthKeyFromValue(cobranca.competencia);
+    const vencimento = monthKeyFromValue(cobranca.vencimento);
+    if (competencia && vencimento && competencia === vencimento) return 2;
+    if (competencia) return 1;
+    return 0;
+  };
+
+  const prefer = (a: any, b: any) => {
+    const scoreA = preferenceScore(a);
+    const scoreB = preferenceScore(b);
+    if (scoreA !== scoreB) return scoreA > scoreB ? a : b;
+
+    // Desempate estável para que o mesmo preview sempre escolha a mesma cobrança.
+    return String(a.id ?? "").localeCompare(String(b.id ?? "")) <= 0 ? a : b;
+  };
+
+  for (const cobranca of cobrancas) {
+    const vencimento = String(cobranca.vencimento ?? "").slice(0, 10);
+    const valorOriginal = roundMoney(Number(cobranca.valor_original ?? 0));
+    const unidadeId = String(cobranca.unidade_id ?? "");
+
+    // Sem vencimento ou sem valor positivo, não presumimos duplicidade.
+    const key =
+      vencimento && Number.isFinite(valorOriginal) && valorOriginal > 0
+        ? `${unidadeId}|${vencimento}|${valorOriginal.toFixed(2)}`
+        : `id:${String(cobranca.id ?? "")}`;
+
+    const existing = selectedByKey.get(key);
+    if (!existing) {
+      selectedByKey.set(key, cobranca);
+      continue;
+    }
+
+    const kept = prefer(existing, cobranca);
+    const excluded = kept === existing ? cobranca : existing;
+    selectedByKey.set(key, kept);
+
+    const competenciaMantida = optionalString(kept.competencia);
+    const competenciaExcluida = optionalString(excluded.competencia);
+    duplicates.push({
+      mantida_id: String(kept.id),
+      excluida_id: String(excluded.id),
+      vencimento: optionalString(kept.vencimento),
+      valor_original: valorOriginal,
+      competencia_mantida: competenciaMantida,
+      competencia_excluida: competenciaExcluida,
+      criterio:
+        competenciaMantida && !competenciaExcluida
+          ? "priorizada cobrança com competência preenchida"
+          : "desempate determinístico por ID",
+    });
+  }
+
+  const selecionadas = Array.from(selectedByKey.values()).sort((a, b) => {
+    const dateCompare = String(a.vencimento ?? a.competencia ?? "").localeCompare(
+      String(b.vencimento ?? b.competencia ?? ""),
+    );
+    if (dateCompare !== 0) return dateCompare;
+    return String(a.id ?? "").localeCompare(String(b.id ?? ""));
+  });
+
+  return { selecionadas, duplicates };
+}
+
+function expandMonthRange(start: string, end: string) {
+  const startIndex = monthIndex(start);
+  const endIndex = monthIndex(end);
+  if (endIndex < startIndex || endIndex - startIndex > 240) return [] as string[];
+
+  const months: string[] = [];
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const year = Math.floor(index / 12);
+    const month = (index % 12) + 1;
+    months.push(`${year}-${String(month).padStart(2, "0")}`);
+  }
+  return months;
+}
+
+function parsePeriodoNegociadoMonths(value: unknown) {
+  const raw = String(value ?? "").trim().toUpperCase();
+  const months = new Set<string>();
+  if (!raw) return months;
+
+  const normalized = raw
+    .replace(/\s+/g, " ")
+    .replace(/ATÉ/g, "ATE");
+
+  const rangeRegex = /(\d{1,2})\s*\/\s*(\d{4})\s*(?:A|ATE|-)\s*(\d{1,2})\s*\/\s*(\d{4})/g;
+  let match: RegExpExecArray | null;
+  while ((match = rangeRegex.exec(normalized)) !== null) {
+    const start = `${match[2]}-${String(Number(match[1])).padStart(2, "0")}`;
+    const end = `${match[4]}-${String(Number(match[3])).padStart(2, "0")}`;
+    expandMonthRange(start, end).forEach((month) => months.add(month));
+  }
+
+  const monthRegex = /(\d{1,2})\s*\/\s*(\d{4})/g;
+  while ((match = monthRegex.exec(normalized)) !== null) {
+    const month = Number(match[1]);
+    if (month >= 1 && month <= 12) {
+      months.add(`${match[2]}-${String(month).padStart(2, "0")}`);
+    }
+  }
+
+  return months;
+}
+
+function parseParcelaReferencia(value: unknown, fallbackTotal = 0) {
+  const raw = String(value ?? "").trim().replace(/\s+/g, "");
+  const match = raw.match(/^(\d{1,3})\/(\d{1,3})$/);
+  if (match) {
+    return { atual: Number(match[1]), total: Number(match[2]) };
+  }
+
+  const numeric = Number(raw.replace(",", "."));
+  if (Number.isFinite(numeric) && numeric > 0 && numeric < 1 && fallbackTotal > 0) {
+    const atual = Math.max(1, Math.round(numeric * fallbackTotal));
+    return { atual, total: fallbackTotal };
+  }
+
+  return { atual: 0, total: fallbackTotal };
+}
+
+function shiftMonthsClampedIso(dateIso: string, months: number) {
+  const match = String(dateIso ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const monthIndexValue = year * 12 + (month - 1) + months;
+  const targetYear = Math.floor(monthIndexValue / 12);
+  const targetMonthIndex = ((monthIndexValue % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonthIndex + 1, 0)).getUTCDate();
+  const targetDay = Math.min(day, lastDay);
+
+  return `${targetYear}-${String(targetMonthIndex + 1).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
+}
+
+function subtractMonthsIso(dateIso: string, months: number) {
+  return shiftMonthsClampedIso(dateIso, -months);
+}
+
+function buildHistoricalParcelas(params: {
+  valorAcordado: number;
+  totalParcelas: number;
+  parcelaAtual: number;
+  primeiroVencimento: string;
+  valorParcelaReferencia?: number;
+  permitirRateioIgual?: boolean;
+  primeiraParcelaEspecial?: boolean;
+}) {
+  const {
+    valorAcordado,
+    totalParcelas,
+    parcelaAtual,
+    primeiroVencimento,
+    valorParcelaReferencia = 0,
+    permitirRateioIgual = false,
+    primeiraParcelaEspecial = false,
+  } = params;
+
+  const erros: string[] = [];
+  const alertas: string[] = [];
+  const valores: number[] = [];
+
+  if (totalParcelas <= 0) erros.push("Quantidade total de parcelas inválida");
+  if (parcelaAtual <= 0) erros.push("Parcela atual inválida");
+  if (parcelaAtual >= totalParcelas) {
+    erros.push("Acordo finalizado ou na última parcela; não deve ser importado como acordo ativo");
+  }
+  if (!primeiroVencimento) erros.push("Não foi possível determinar o primeiro vencimento");
+
+  if (erros.length > 0) return { parcelas: [], erros, alertas };
+
+  if (valorParcelaReferencia > 0 && totalParcelas > 1) {
+    if (primeiraParcelaEspecial) {
+      const restante = roundMoney(valorAcordado - valorParcelaReferencia);
+      if (restante <= 0) {
+        erros.push("Valor da entrada/parcela inicial é incompatível com o valor total do acordo");
+      } else {
+        valores.push(roundMoney(valorParcelaReferencia));
+        const baseRestante = Math.floor((restante / (totalParcelas - 1)) * 100) / 100;
+        let acumuladoRestante = 0;
+        for (let index = 2; index <= totalParcelas; index += 1) {
+          const valor = index === totalParcelas
+            ? roundMoney(restante - acumuladoRestante)
+            : roundMoney(baseRestante);
+          acumuladoRestante = roundMoney(acumuladoRestante + valor);
+          valores.push(valor);
+        }
+        alertas.push(
+          `Primeira parcela/entrada preservada em ${valorParcelaReferencia.toFixed(2)}; saldo restante distribuído entre ${totalParcelas - 1} parcela(s).`,
+        );
+      }
+    } else {
+      const primeiroValor = roundMoney(valorAcordado - valorParcelaReferencia * (totalParcelas - 1));
+      if (primeiroValor > 0) {
+        valores.push(primeiroValor);
+        for (let index = 2; index <= totalParcelas; index += 1) {
+          valores.push(roundMoney(valorParcelaReferencia));
+        }
+        const soma = roundMoney(valores.reduce((total, valor) => total + valor, 0));
+        valores[valores.length - 1] = roundMoney(valores[valores.length - 1] + (valorAcordado - soma));
+        if (Math.abs(primeiroValor - valorParcelaReferencia) > Math.max(1, valorParcelaReferencia * 0.05)) {
+          alertas.push(
+            `Primeira parcela estimada em ${primeiroValor.toFixed(2)} para conciliar o valor total; demais parcelas usam ${valorParcelaReferencia.toFixed(2)}.`,
+          );
+        }
+      } else if (!permitirRateioIgual) {
+        erros.push(
+          "Valor da parcela de referência é incompatível com o valor total/quantidade. Revise a linha ou informe rateio_igual_confirmado=sim.",
+        );
+      }
+    }
+  }
+
+  if (valores.length === 0) {
+    const base = Math.floor((valorAcordado / totalParcelas) * 100) / 100;
+    let acumulado = 0;
+    for (let index = 1; index <= totalParcelas; index += 1) {
+      const valor = index === totalParcelas
+        ? roundMoney(valorAcordado - acumulado)
+        : roundMoney(base);
+      acumulado = roundMoney(acumulado + valor);
+      valores.push(valor);
+    }
+    if (valorParcelaReferencia > 0) {
+      alertas.push("Parcelas rateadas igualmente por confirmação explícita da planilha.");
+    }
+  }
+
+  const parcelas = valores.map((valor, index) => ({
+    numero: index + 1,
+    tipo_parcela: "parcela",
+    valor,
+    vencimento: shiftMonthsClampedIso(primeiroVencimento, index) ?? primeiroVencimento,
+    status:
+      index + 1 <= parcelaAtual
+        ? PARCELA_ACORDO_STATUS.PAGA
+        : PARCELA_ACORDO_STATUS.PENDENTE,
+  }));
+
+  return { parcelas, erros, alertas };
+}
+
+function calcularValorAcordoHistorico(payload: Record<string, any>) {
+  const valorAcordadoInformado = Number(payload.valor_acordado ?? payload.valor_total ?? 0);
+  if (valorAcordadoInformado > 0) {
+    return {
+      valorOriginal: roundMoney(Number(payload.valor_original ?? valorAcordadoInformado)),
+      despesaPercentual: roundMoney(Number(payload.despesa_cobranca_percentual ?? 0)),
+      despesaValor: roundMoney(Number(payload.despesa_cobranca_valor ?? 0)),
+      valorAcordado: roundMoney(valorAcordadoInformado),
+    };
+  }
+  return calcularValorAcordoComDespesa(payload);
+}
+
+function yesLike(value: unknown) {
+  return ["sim", "s", "yes", "1", "true"].includes(normalizeKey(String(value ?? "")));
+}
+
 function parseImportFile(fileName: string, buffer: ArrayBuffer): ParsedImportFile {
   return parseXlsx(fileName, buffer);
 }
@@ -431,6 +736,117 @@ function unidadeKey(params: {
     .toLowerCase()}|${String(params.identificacao ?? "")
     .trim()
     .toLowerCase()}`;
+}
+
+function legacyUnitToken(value: unknown) {
+  return normalizeKey(String(value ?? ""))
+    .replace(/[^a-z0-9]/g, "")
+    .replace(/^0+(?=\d)/, "");
+}
+
+function legacyBlockToken(value: unknown) {
+  const token = legacyUnitToken(value);
+  if (["", "0", "00", "000", "sembloco", "na", "n"].includes(token)) return "";
+
+  // Normaliza zeros de máscara sem misturar blocos realmente diferentes:
+  // 03 -> 3, Q03 -> q3, BL03 -> bl3.
+  const numeric = token.match(/^0*(\d+)$/);
+  if (numeric) return String(Number(numeric[1]));
+  const prefixed = token.match(/^([a-z]+)0*(\d+)$/);
+  if (prefixed) return `${prefixed[1]}${Number(prefixed[2])}`;
+
+  return token;
+}
+
+function legacyResponsibleToken(value: unknown) {
+  return normalizeKey(String(value ?? "")).replace(/[^a-z0-9]/g, "");
+}
+
+function legacyUnitVariants(identificacao: unknown, bloco: unknown) {
+  const unit = legacyUnitToken(identificacao);
+  const block = legacyBlockToken(bloco);
+  const variants = new Set<string>();
+  if (unit) variants.add(unit);
+
+  if (unit && block && unit.startsWith(block) && unit.length > block.length) {
+    variants.add(unit.slice(block.length));
+  }
+
+  // Alguns relatórios antigos trazem quadra/lote também dentro da unidade
+  // (ex.: bloco Q03 + unidade Q3L008). Mantemos uma variante sem o prefixo
+  // do bloco para comparar com cadastros que guardam somente L008.
+  if (unit && /^q\d+l\d+$/i.test(unit)) {
+    const lote = unit.match(/^q\d+(l\d+)$/i)?.[1];
+    if (lote) variants.add(legacyUnitToken(lote));
+  }
+
+  return variants;
+}
+
+function findLegacyUnitMatch(params: {
+  unidades: UnidadeImportacaoRow[];
+  identificacao: unknown;
+  bloco: unknown;
+  responsavelNome?: unknown;
+}) {
+  const { unidades, identificacao, bloco, responsavelNome } = params;
+  const informedBlock = legacyBlockToken(bloco);
+  const informedVariants = legacyUnitVariants(identificacao, bloco);
+
+  const scored = unidades
+    .map((unidade) => {
+      const candidateBlock = legacyBlockToken(unidade.bloco);
+      const candidateVariants = legacyUnitVariants(unidade.identificacao, unidade.bloco);
+      const unitMatches = [...informedVariants].some((item) => candidateVariants.has(item));
+      const blockCompatible =
+        informedBlock === candidateBlock || !informedBlock || !candidateBlock;
+      const exactBlock = informedBlock === candidateBlock;
+      const responsibleMatches =
+        Boolean(responsavelNome) &&
+        legacyResponsibleToken(responsavelNome) !== "" &&
+        legacyResponsibleToken(responsavelNome) === legacyResponsibleToken(unidade.responsavel_nome);
+
+      const blockConflict = Boolean(
+        informedBlock && candidateBlock && informedBlock !== candidateBlock,
+      );
+
+      let score = 0;
+      if (!blockConflict && unitMatches) score += 100;
+      if (!blockConflict && exactBlock) score += 30;
+      else if (!blockConflict && blockCompatible) score += 10;
+      if (!blockConflict && responsibleMatches) score += 25;
+
+      // Nome do responsável sozinho só serve como desempate/último recurso;
+      // nunca deve vencer um identificador de unidade incompatível quando há
+      // múltiplas unidades do mesmo titular.
+      if (!unitMatches && responsibleMatches && exactBlock) score = Math.max(score, 45);
+      if (!unitMatches && responsibleMatches && !informedBlock) score = Math.max(score, 35);
+
+      return { unidade, score, unitMatches, exactBlock, responsibleMatches };
+    })
+    .filter((item) => item.score >= 35)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length === 0) return { unidade: undefined, motivo: null as string | null, ambiguo: false };
+
+  const topScore = scored[0].score;
+  const top = scored.filter((item) => item.score === topScore);
+  if (top.length !== 1) {
+    return {
+      unidade: undefined,
+      motivo: `Correspondência ambígua: ${top.length} unidades candidatas após normalização`,
+      ambiguo: true,
+    };
+  }
+
+  const match = top[0];
+  return {
+    unidade: match.unidade,
+    motivo: match.unitMatches
+      ? "Unidade localizada por normalização de máscara/formatação"
+      : "Unidade localizada por responsável e bloco",
+    ambiguo: false,
+  };
 }
 
 function cnpjKeyFromPayload(payload: Record<string, any>) {
@@ -585,18 +1001,28 @@ async function resolveUnidadesByCondominioIds(
   condominioIds: string[],
 ) {
   const ids = [...new Set(condominioIds.filter(Boolean))];
+  const unidades: UnidadeImportacaoRow[] = [];
+  const pageSize = 1000;
 
-  const { data, error } = await supabase
-    .from("unidades")
-    .select(
-      "id, condominio_id, carteira_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email",
-    )
-    .in("condominio_id", ids.length > 0 ? ids : [EMPTY_UUID]);
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("unidades")
+      .select(
+        "id, condominio_id, carteira_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email",
+      )
+      .in("condominio_id", ids.length > 0 ? ids : [EMPTY_UUID])
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
 
-  if (error) throw new Error(`Erro ao consultar unidades: ${error.message}`);
+    if (error) throw new Error(`Erro ao consultar unidades: ${error.message}`);
+
+    const page = (data ?? []) as UnidadeImportacaoRow[];
+    unidades.push(...page);
+    if (page.length < pageSize) break;
+  }
 
   return new Map<string, UnidadeImportacaoRow>(
-    ((data ?? []) as UnidadeImportacaoRow[]).map((unidade) => [
+    unidades.map((unidade) => [
       unidadeKey({
         condominio_id: unidade.condominio_id,
         identificacao: unidade.identificacao,
@@ -612,20 +1038,30 @@ async function resolveResponsaveisApoioByCondominioIds(
   condominioIds: string[],
 ) {
   const ids = [...new Set(condominioIds.filter(Boolean))];
+  const responsaveis: ResponsavelUnidadeApoioRow[] = [];
+  const pageSize = 1000;
 
-  const { data, error } = await supabase
-    .from("responsaveis_unidades")
-    .select(
-      "id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, email",
-    )
-    .eq("ativo", true)
-    .in("condominio_id", ids.length > 0 ? ids : [EMPTY_UUID]);
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("responsaveis_unidades")
+      .select(
+        "id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, email",
+      )
+      .eq("ativo", true)
+      .in("condominio_id", ids.length > 0 ? ids : [EMPTY_UUID])
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
 
-  if (error)
-    throw new Error(`Erro ao consultar responsáveis de apoio: ${error.message}`);
+    if (error)
+      throw new Error(`Erro ao consultar responsáveis de apoio: ${error.message}`);
+
+    const page = (data ?? []) as ResponsavelUnidadeApoioRow[];
+    responsaveis.push(...page);
+    if (page.length < pageSize) break;
+  }
 
   return new Map<string, ResponsavelUnidadeApoioRow>(
-    ((data ?? []) as ResponsavelUnidadeApoioRow[]).map((responsavel) => [
+    responsaveis.map((responsavel) => [
       unidadeKey({
         condominio_id: responsavel.condominio_id,
         identificacao: responsavel.unidade,
@@ -765,15 +1201,25 @@ function validateSimplePayload(tipo: string, payload: Record<string, any>) {
     if (!payload.unidade && !payload.identificacao) erros.push("Unidade vazia");
     if (!payload.data_acordo) erros.push("Data do acordo vazia");
     const valorBaseAcordo = parseMoney(
-      payload.valor_original ??
+      payload.valor_acordado ??
+        payload.valor_total ??
+        payload.valor_original ??
         payload.valor_cobranca ??
-        payload.valor_atualizado ??
-        payload.valor_acordado,
+        payload.valor_atualizado,
     );
-    if (valorBaseAcordo <= 0) erros.push("Valor original da cobrança inválido");
-    if (Number(payload.quantidade_parcelas || 0) <= 0)
-      erros.push("Quantidade de parcelas inválida");
-    if (!payload.primeiro_vencimento) erros.push("Primeiro vencimento vazio");
+    if (valorBaseAcordo <= 0) erros.push("Valor do acordo inválido");
+    if (!payload.periodo_negociado)
+      erros.push("Período negociado vazio");
+
+    const parcela = parseParcelaReferencia(
+      payload.parcela_atual ?? payload.parcela,
+      Number(payload.quantidade_parcelas || 0),
+    );
+    const totalParcelas = Number(payload.quantidade_parcelas || parcela.total || 0);
+    if (totalParcelas <= 0) erros.push("Quantidade de parcelas inválida");
+    if (parcela.atual <= 0) erros.push("Parcela atual inválida");
+    if (!payload.primeiro_vencimento && !payload.vencimento_parcela_atual)
+      erros.push("Informe primeiro vencimento ou vencimento da parcela atual");
     if (tipo === "acordos_judiciais" && !payload.numero_processo)
       erros.push("Número do processo vazio");
   }
@@ -1111,41 +1557,436 @@ async function enrichLegacyPreview(
     supabase,
     condominioIds,
   );
+  const unidadesPorCondominio = new Map<string, UnidadeImportacaoRow[]>();
+  const unidadesById = new Map<string, UnidadeImportacaoRow>();
+  for (const unidade of unidadesByKey.values()) {
+    unidadesById.set(unidade.id, unidade);
+    const atuais = unidadesPorCondominio.get(unidade.condominio_id) ?? [];
+    atuais.push(unidade);
+    unidadesPorCondominio.set(unidade.condominio_id, atuais);
+  }
 
-  return rows.map((row) => {
+  // Em cargas históricas preparadas a partir de um relatório atual do COB,
+  // a cobrança de referência resolve a unidade de forma determinística.
+  // Ela serve apenas como ponte para unidade_id; só entra no acordo se também
+  // pertencer ao período negociado pelas regras normais abaixo.
+  const cobrancaReferenciaIds = Array.from(
+    new Set(
+      rows
+        .map((row) => String(row.payload.cobranca_referencia_id ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+  const cobrancasReferenciaById = new Map<string, any>();
+  const unidadesReferenciaById = new Map<string, UnidadeImportacaoRow>();
+  const condominiosReferenciaById = new Map<string, CondominioImportacaoRow>();
+  if (cobrancaReferenciaIds.length > 0) {
+    const { data: cobrancasReferencia, error: cobrancasReferenciaError } = await supabase
+      .from("cobrancas")
+      .select("id, carteira_id, condominio_id, unidade_id, competencia, vencimento")
+      .in("id", cobrancaReferenciaIds);
+
+    if (cobrancasReferenciaError) {
+      throw new Error(
+        `Erro ao localizar cobranças de referência: ${cobrancasReferenciaError.message}`,
+      );
+    }
+
+    for (const cobranca of cobrancasReferencia ?? []) {
+      cobrancasReferenciaById.set(String((cobranca as any).id), cobranca);
+    }
+
+    const condominioReferenciaIds = Array.from(
+      new Set(
+        (cobrancasReferencia ?? [])
+          .map((cobranca: any) => String(cobranca?.condominio_id ?? "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (condominioReferenciaIds.length > 0) {
+      const { data: condominiosReferencia, error: condominiosReferenciaError } = await supabase
+        .from("condominios")
+        .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
+        .in("id", condominioReferenciaIds);
+
+      if (condominiosReferenciaError) {
+        throw new Error(
+          `Erro ao localizar condomínios das cobranças de referência: ${condominiosReferenciaError.message}`,
+        );
+      }
+
+      for (const condominio of (condominiosReferencia ?? []) as CondominioImportacaoRow[]) {
+        condominiosReferenciaById.set(condominio.id, condominio);
+      }
+    }
+
+    // Não reutilizar unidadesById aqui: ele é montado a partir de unidadesByKey,
+    // que deduplica unidades com a mesma máscara (condomínio + bloco + identificação).
+    // Uma cobrança pode apontar legitimamente para o ID que foi sobrescrito nesse Map.
+    // Por isso buscamos as unidades referenciadas diretamente pelos IDs das cobranças.
+    const unidadeReferenciaIds = Array.from(
+      new Set(
+        (cobrancasReferencia ?? [])
+          .map((cobranca: any) => String(cobranca?.unidade_id ?? "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (unidadeReferenciaIds.length > 0) {
+      const { data: unidadesReferencia, error: unidadesReferenciaError } = await supabase
+        .from("unidades")
+        .select(
+          "id, condominio_id, carteira_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email",
+        )
+        .in("id", unidadeReferenciaIds);
+
+      if (unidadesReferenciaError) {
+        throw new Error(
+          `Erro ao localizar unidades das cobranças de referência: ${unidadesReferenciaError.message}`,
+        );
+      }
+
+      for (const unidade of (unidadesReferencia ?? []) as UnidadeImportacaoRow[]) {
+        unidadesReferenciaById.set(unidade.id, unidade);
+      }
+    }
+  }
+
+  const resolved = rows.map((row) => {
     const payload = { ...row.payload };
     const erros = [...row.erros];
     const alertas = [...(row.alertas ?? [])];
     const condominioCnpj = cnpjKeyFromPayload(payload);
-    const condominio = condominiosByCnpj.get(condominioCnpj);
+    const identificacao = payload.unidade || payload.identificacao;
+    const cobrancaReferenciaId = String(payload.cobranca_referencia_id ?? "").trim();
+    const cobrancaReferencia = cobrancaReferenciaId
+      ? cobrancasReferenciaById.get(cobrancaReferenciaId)
+      : undefined;
+    let condominio = condominiosByCnpj.get(condominioCnpj);
+
+    // Se o CNPJ histórico não existir mais no cadastro, uma cobrança de referência
+    // válida pode resolver o condomínio atual de forma determinística. Isso é útil
+    // em migrações nas quais o empreendimento foi recadastrado com outro CNPJ/nome.
+    if (!condominio && cobrancaReferencia) {
+      const condominioReferenciaId = String(cobrancaReferencia.condominio_id ?? "").trim();
+      const condominioReferencia = condominiosReferenciaById.get(condominioReferenciaId);
+
+      if (condominioReferencia) {
+        condominio = condominioReferencia;
+        const cnpjAtual = normalizeCnpj(condominioReferencia.cnpj ?? "");
+        alertas.push(
+          `Condomínio localizado pela cobrança de referência porque o CNPJ informado (${condominioCnpj || "vazio"}) não existe no cadastro atual${cnpjAtual ? `; CNPJ atual: ${cnpjAtual}` : ""}.`,
+        );
+        payload.condominio_cnpj = cnpjAtual || payload.condominio_cnpj;
+        payload.cnpj = cnpjAtual || payload.cnpj;
+      }
+    }
 
     if (!condominio) erros.push("Condomínio não encontrado pelo CNPJ");
+    let unidade: UnidadeImportacaoRow | undefined;
+    let unidadeMatchMotivo: string | null = null;
 
-    const identificacao = payload.unidade || payload.identificacao;
-    const unidade =
-      condominio && identificacao
-        ? unidadesByKey.get(
-            unidadeKey({
-              condominio_id: condominio.id,
-              identificacao,
-              bloco: payload.bloco,
-            }),
-          )
-        : undefined;
+    if (cobrancaReferenciaId && !cobrancaReferencia) {
+      erros.push(`Cobrança de referência não encontrada no COB: ${cobrancaReferenciaId}`);
+    }
 
-    if (!unidade) erros.push("Unidade não encontrada para vínculo do legado");
+    if (cobrancaReferencia && condominio) {
+      if (String(cobrancaReferencia.condominio_id ?? "") !== condominio.id) {
+        erros.push(
+          `Cobrança de referência pertence a outro condomínio: ${cobrancaReferenciaId}`,
+        );
+      } else {
+        const unidadeReferenciaId = String(cobrancaReferencia.unidade_id ?? "").trim();
+        const unidadeReferencia =
+          unidadesReferenciaById.get(unidadeReferenciaId) ??
+          unidadesById.get(unidadeReferenciaId);
 
-    const calculo = calcularValorAcordoComDespesa(payload);
-    const valorAcordado = calculo.valorAcordado;
-    const entrada = Number(payload.entrada ?? 0);
-    const quantidadeParcelas = Number(payload.quantidade_parcelas || 0);
+        if (!unidadeReferencia) {
+          alertas.push(
+            `A unidade_id da cobrança de referência não está disponível no cadastro atual; tentando localizar a unidade pela máscara: ${cobrancaReferenciaId}`,
+          );
+        } else if (String(unidadeReferencia.condominio_id ?? "") !== condominio.id) {
+          erros.push(
+            `Unidade da cobrança de referência pertence a outro condomínio: ${cobrancaReferenciaId}`,
+          );
+        } else {
+          unidade = unidadeReferencia;
+          unidadeMatchMotivo = "Unidade localizada pela cobrança de referência";
+        }
+      }
+    }
 
-    if (entrada > valorAcordado)
-      erros.push("Entrada maior que o valor acordado");
-    if (quantidadeParcelas > 60)
-      alertas.push(
-        "Acordo com mais de 60 parcelas; confira se a planilha XLSX está correta",
+    if (!unidade) {
+      unidade =
+        condominio && identificacao
+          ? unidadesByKey.get(
+              unidadeKey({
+                condominio_id: condominio.id,
+                identificacao,
+                bloco: payload.bloco,
+              }),
+            )
+          : undefined;
+    }
+
+    if (!unidade && condominio && identificacao) {
+      const fuzzy = findLegacyUnitMatch({
+        unidades: unidadesPorCondominio.get(condominio.id) ?? [],
+        identificacao,
+        bloco: payload.bloco,
+        responsavelNome: payload.responsavel_nome,
+      });
+      unidade = fuzzy.unidade;
+      unidadeMatchMotivo = fuzzy.motivo;
+
+      if (unidade && fuzzy.motivo) {
+        alertas.push(
+          `${fuzzy.motivo}: informado ${String(payload.bloco ?? "-")}/${String(identificacao)} → cadastro ${String(unidade.bloco ?? "-")}/${String(unidade.identificacao)}`,
+        );
+      } else if (fuzzy.ambiguo && fuzzy.motivo) {
+        erros.push(fuzzy.motivo);
+      }
+    }
+
+    if (!unidade) erros.push("Unidade não encontrada para vínculo do acordo histórico");
+
+    return { row, payload, erros, alertas, condominio, unidade, identificacao, unidadeMatchMotivo };
+  });
+
+  const unidadeIds = Array.from(
+    new Set(resolved.map((item) => item.unidade?.id).filter(Boolean) as string[]),
+  );
+
+  const cobrancasByUnidade = new Map<string, any[]>();
+  if (unidadeIds.length > 0) {
+    const { data: cobrancas, error: cobrancasError } = await supabase
+      .from("cobrancas")
+      .select(
+        "id, carteira_id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, juros, multa, correcao, desconto, status, status_operacional, status_financeiro, duplicada_de_id",
+      )
+      .in("unidade_id", unidadeIds);
+
+    if (cobrancasError) {
+      throw new Error(`Erro ao localizar cobranças históricas: ${cobrancasError.message}`);
+    }
+
+    for (const cobranca of cobrancas ?? []) {
+      const unidadeId = String((cobranca as any).unidade_id ?? "");
+      if (!unidadeId) continue;
+      const atual = cobrancasByUnidade.get(unidadeId) ?? [];
+      atual.push(cobranca);
+      cobrancasByUnidade.set(unidadeId, atual);
+    }
+  }
+
+  const previewResolved = resolved.map((item) => {
+    const { payload, unidade } = item;
+    const periodoMonths = parsePeriodoNegociadoMonths(payload.periodo_negociado);
+    const cobrancasUnidade = unidade ? cobrancasByUnidade.get(unidade.id) ?? [] : [];
+    const cobrancasCanonicas = cobrancasUnidade.filter((cobranca) => !cobranca.duplicada_de_id);
+    const cobrancasArquivadas = cobrancasUnidade.filter((cobranca) => Boolean(cobranca.duplicada_de_id));
+    const mesesOrdenados = Array.from(periodoMonths).sort();
+    const inicioPeriodo = mesesOrdenados[0] ?? null;
+    const fimPeriodo = mesesOrdenados[mesesOrdenados.length - 1] ?? null;
+
+    const dentroDoPeriodo = (cobranca: any) => {
+      const competencia = monthKeyFromValue(cobranca.competencia);
+      const vencimento = monthKeyFromValue(cobranca.vencimento);
+      return Boolean(
+        (competencia && periodoMonths.has(competencia)) ||
+          (vencimento && periodoMonths.has(vencimento)),
       );
+    };
+
+    const cobrancasPeriodoBrutas = cobrancasCanonicas
+      .filter(dentroDoPeriodo)
+      .sort((a, b) => String(a.vencimento ?? a.competencia ?? "").localeCompare(String(b.vencimento ?? b.competencia ?? "")));
+    const dedupePeriodo = dedupeLegacyAgreementCharges(cobrancasPeriodoBrutas);
+    const cobrancasPeriodo = dedupePeriodo.selecionadas;
+    const cobrancasDuplicadasPeriodo = dedupePeriodo.duplicates;
+
+    const cobrancasArquivadasPeriodo = cobrancasArquivadas
+      .filter(dentroDoPeriodo)
+      .sort((a, b) => String(a.vencimento ?? a.competencia ?? "").localeCompare(String(b.vencimento ?? b.competencia ?? "")));
+
+    const cobrancasPosteriores = cobrancasCanonicas.filter((cobranca) => {
+      if (!fimPeriodo) return false;
+      const key = monthKeyFromValue(cobranca.competencia) ?? monthKeyFromValue(cobranca.vencimento);
+      return Boolean(key && monthIndex(key) > monthIndex(fimPeriodo));
+    });
+
+    const mesesEncontrados = new Set(
+      cobrancasPeriodo
+        .map((cobranca) => monthKeyFromValue(cobranca.competencia) ?? monthKeyFromValue(cobranca.vencimento))
+        .filter(Boolean) as string[],
+    );
+    const mesesArquivados = new Set(
+      cobrancasArquivadasPeriodo
+        .map((cobranca) => monthKeyFromValue(cobranca.competencia) ?? monthKeyFromValue(cobranca.vencimento))
+        .filter(Boolean) as string[],
+    );
+    const mesesSemCobranca = mesesOrdenados.filter((month) => !mesesEncontrados.has(month));
+    const mesesSomenteArquivados = mesesSemCobranca.filter((month) => mesesArquivados.has(month));
+
+    return {
+      ...item,
+      periodoMonths,
+      inicioPeriodo,
+      fimPeriodo,
+      cobrancasPeriodo,
+      cobrancasDuplicadasPeriodo,
+      cobrancasArquivadasPeriodo,
+      cobrancasPosteriores,
+      mesesSemCobranca,
+      mesesSomenteArquivados,
+    };
+  });
+
+  const cobrancaIds = Array.from(
+    new Set(previewResolved.flatMap((item) => item.cobrancasPeriodo.map((cobranca) => String(cobranca.id)))),
+  );
+  const linksByCobranca = new Map<string, any[]>();
+  if (cobrancaIds.length > 0) {
+    const { data: links, error: linksError } = await supabase
+      .from("acordo_cobrancas")
+      .select("cobranca_id, acordo_id, acordos:acordo_id(id,status,data_acordo,unidade_id)")
+      .in("cobranca_id", cobrancaIds);
+
+    if (linksError) {
+      throw new Error(`Erro ao validar vínculos existentes de acordo: ${linksError.message}`);
+    }
+
+    for (const link of links ?? []) {
+      const cobrancaId = String((link as any).cobranca_id ?? "");
+      const atual = linksByCobranca.get(cobrancaId) ?? [];
+      atual.push(link);
+      linksByCobranca.set(cobrancaId, atual);
+    }
+  }
+
+  const acordosByUnidade = new Map<string, any[]>();
+  if (unidadeIds.length > 0) {
+    const { data: acordos, error: acordosError } = await supabase
+      .from("acordos")
+      .select("id, unidade_id, data_acordo, status, valor_acordado")
+      .in("unidade_id", unidadeIds);
+
+    if (acordosError) {
+      throw new Error(`Erro ao validar acordos existentes: ${acordosError.message}`);
+    }
+
+    for (const acordo of acordos ?? []) {
+      const unidadeId = String((acordo as any).unidade_id ?? "");
+      const atual = acordosByUnidade.get(unidadeId) ?? [];
+      atual.push(acordo);
+      acordosByUnidade.set(unidadeId, atual);
+    }
+  }
+
+  return previewResolved.map((item) => {
+    const { row, payload, erros: baseErros, alertas: baseAlertas, condominio, unidade, identificacao } = item;
+    const erros = [...baseErros];
+    const alertas = [...baseAlertas];
+    const calculo = calcularValorAcordoHistorico(payload);
+    const valorAcordado = calculo.valorAcordado;
+
+    if (item.periodoMonths.size === 0) {
+      erros.push("Período negociado inválido; use MM/AAAA, intervalos com A ou meses separados por E/vírgula");
+    }
+    if (unidade && item.cobrancasPeriodo.length === 0) {
+      alertas.push(
+        "Nenhuma cobrança canônica do período está disponível no COB; o acordo será importado como histórico da unidade, sem vínculo em acordo_cobrancas e sem alterar cobranças atuais.",
+      );
+    }
+    if (item.cobrancasArquivadasPeriodo.length > 0) {
+      alertas.push(
+        `${item.cobrancasArquivadasPeriodo.length} cobrança(s) arquivada(s)/duplicada(s) do período foram localizada(s) apenas como evidência histórica e não serão vinculadas ao acordo.`,
+      );
+    }
+    if (item.cobrancasDuplicadasPeriodo.length > 0) {
+      alertas.push(
+        `${item.cobrancasDuplicadasPeriodo.length} cobrança(s) canônica(s) aparentemente duplicada(s) no período foram excluída(s) do vínculo por terem o mesmo vencimento e valor original; o log registra qual cobrança foi mantida.`,
+      );
+    }
+
+    const cobrancasJaVinculadas = item.cobrancasPeriodo.filter((cobranca) =>
+      (linksByCobranca.get(String(cobranca.id)) ?? []).length > 0,
+    );
+    if (cobrancasJaVinculadas.length > 0) {
+      erros.push(
+        `${cobrancasJaVinculadas.length} cobrança(s) do período já estão vinculadas a outro acordo`,
+      );
+    }
+
+    const acordoMesmoDia = unidade
+      ? (acordosByUnidade.get(unidade.id) ?? []).find(
+          (acordo) =>
+            String(acordo.data_acordo ?? "") === String(payload.data_acordo ?? "") &&
+            String(acordo.status ?? "") !== ACORDO_STATUS.CANCELADO,
+        )
+      : null;
+    if (acordoMesmoDia) {
+      erros.push(`Já existe acordo desta unidade com data ${payload.data_acordo} (${acordoMesmoDia.id})`);
+    }
+
+    if (item.cobrancasPosteriores.length > 0) {
+      alertas.push(
+        `${item.cobrancasPosteriores.length} cobrança(s) posterior(es) ao período negociado ficarão fora do acordo e continuarão normais no COB`,
+      );
+    }
+    if (item.mesesSemCobranca.length > 0) {
+      alertas.push(
+        `${item.mesesSemCobranca.length} competência(s) do período não possuem cobrança canônica localizada: ${item.mesesSemCobranca.slice(0, 8).join(", ")}${item.mesesSemCobranca.length > 8 ? "…" : ""}`,
+      );
+    }
+
+    const parcelaReferencia = parseParcelaReferencia(
+      payload.parcela_atual,
+      Number(payload.quantidade_parcelas || 0),
+    );
+    const totalParcelas = Number(payload.quantidade_parcelas || parcelaReferencia.total || 0);
+    const parcelaAtual = Number(payload.parcela_atual_numero || parcelaReferencia.atual || 0);
+    const primeiroVencimento = String(payload.primeiro_vencimento ?? "");
+    const parcelasHistoricas = buildHistoricalParcelas({
+      valorAcordado,
+      totalParcelas,
+      parcelaAtual,
+      primeiroVencimento,
+      valorParcelaReferencia: Number(payload.valor_parcela_referencia || 0),
+      permitirRateioIgual: Boolean(payload.rateio_igual_confirmado),
+      primeiraParcelaEspecial:
+        parcelaAtual === 1 && normalizeKey(String(payload.composicao_acordo ?? "")).includes("entrada"),
+    });
+    erros.push(...parcelasHistoricas.erros);
+    alertas.push(...parcelasHistoricas.alertas);
+
+    const valorBaseCobrancas = roundMoney(
+      item.cobrancasPeriodo.reduce(
+        (total, cobranca) => total + Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0),
+        0,
+      ),
+    );
+    if (valorBaseCobrancas > 0 && valorAcordado > 0) {
+      const limiteSuperiorVinculo = roundMoney(valorAcordado * 1.25);
+      if (valorBaseCobrancas > limiteSuperiorVinculo) {
+        erros.push(
+          `Valor das cobranças que seriam vinculadas (${valorBaseCobrancas.toFixed(2)}) supera em mais de 25% o valor histórico do acordo (${valorAcordado.toFixed(2)}); revise as cobranças antes de importar.`,
+        );
+      } else {
+        const diferencaPercentual =
+          Math.abs(valorAcordado - valorBaseCobrancas) / Math.max(valorAcordado, valorBaseCobrancas);
+        if (diferencaPercentual > 0.25) {
+          alertas.push(
+            `Valor atual das cobranças do período (${valorBaseCobrancas.toFixed(2)}) difere mais de 25% do valor histórico do acordo (${valorAcordado.toFixed(2)}).`,
+          );
+        }
+      }
+    }
+
+    if (Number(payload.entrada ?? 0) > 0) {
+      alertas.push("Campo entrada foi preservado apenas como informação do acordo; a sequência histórica segue a numeração informada em parcela_atual.");
+    }
 
     return {
       ...row,
@@ -1160,13 +2001,49 @@ async function enrichLegacyPreview(
         despesa_cobranca_percentual: calculo.despesaPercentual,
         despesa_cobranca_valor: calculo.despesaValor,
         valor_acordado: valorAcordado,
-        responsavel_nome:
-          payload.responsavel_nome || unidade?.responsavel_nome || null,
-        prioridade_estimada: erros.length ? "bloqueada" : "baixa",
-        score_estimado: erros.length ? 0 : 20,
+        responsavel_nome: payload.responsavel_nome || unidade?.responsavel_nome || null,
+        periodo_inicio: item.inicioPeriodo,
+        periodo_fim: item.fimPeriodo,
+        cobranca_ids_acordo: item.cobrancasPeriodo.map((cobranca) => cobranca.id),
+        cobrancas_acordo: item.cobrancasPeriodo.map((cobranca) => ({
+          id: cobranca.id,
+          competencia: cobranca.competencia ?? null,
+          vencimento: cobranca.vencimento ?? null,
+          valor_original: Number(cobranca.valor_original ?? 0),
+          valor_atualizado: Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0),
+        })),
+        quantidade_cobrancas_acordo: item.cobrancasPeriodo.length,
+        quantidade_cobrancas_duplicadas_periodo: item.cobrancasDuplicadasPeriodo.length,
+        cobrancas_duplicadas_periodo_preview: item.cobrancasDuplicadasPeriodo,
+        quantidade_cobrancas_arquivadas_periodo: item.cobrancasArquivadasPeriodo.length,
+        cobrancas_arquivadas_periodo_preview: item.cobrancasArquivadasPeriodo.slice(0, 12).map((cobranca) => ({
+          id: cobranca.id,
+          competencia: cobranca.competencia ?? null,
+          vencimento: cobranca.vencimento ?? null,
+          duplicada_de_id: cobranca.duplicada_de_id ?? null,
+        })),
+        quantidade_cobrancas_posteriores: item.cobrancasPosteriores.length,
+        cobrancas_posteriores_preview: item.cobrancasPosteriores.slice(0, 12).map((cobranca) => ({
+          id: cobranca.id,
+          competencia: cobranca.competencia ?? null,
+          vencimento: cobranca.vencimento ?? null,
+        })),
+        meses_sem_cobranca: item.mesesSemCobranca,
+        meses_somente_arquivados: item.mesesSomenteArquivados,
+        somente_historico: Boolean(unidade && item.cobrancasPeriodo.length === 0),
+        unidade_match_motivo: item.unidadeMatchMotivo ?? null,
+        valor_base_cobrancas: valorBaseCobrancas,
+        parcela_atual_numero: parcelaAtual,
+        quantidade_parcelas: totalParcelas,
+        parcelas_importacao: parcelasHistoricas.parcelas,
+        parcelas_pagas_importacao: parcelasHistoricas.parcelas.filter((parcela) => parcela.status === PARCELA_ACORDO_STATUS.PAGA).length,
+        prioridade_estimada: erros.length ? "bloqueada" : alertas.length ? "media" : "baixa",
+        score_estimado: erros.length ? 0 : alertas.length ? 55 : 20,
         acao_sugerida: erros.length
-          ? "Corrigir vínculo antes de importar"
-          : "Importar acordo legado e gerar parcelas",
+          ? "Corrigir antes de importar"
+          : item.cobrancasPeriodo.length === 0
+            ? `Importar acordo histórico sem vínculo de cobranças; ${item.cobrancasPosteriores.length} posterior(es) permanecem normais no COB`
+            : `Importar acordo histórico com ${item.cobrancasPeriodo.length} cobrança(s); ${item.cobrancasPosteriores.length} posterior(es) ficam fora`,
       },
       valido: erros.length === 0,
       erros,
@@ -1192,7 +2069,7 @@ function mensagemPorTipo(tipo: string, importados: number, criados = 0) {
   if (tipo === "unidades")
     return `Importação concluída: ${importados} responsáveis importados.`;
   if (tipo === "acordos_extra" || tipo === "acordos_judiciais")
-    return `Importação legada concluída: ${importados} acordos importados e ${criados} parcelas criadas.`;
+    return `Importação histórica concluída: ${importados} acordos importados e ${criados} parcelas reconstruídas.`;
   return `Importação concluída: ${importados} registros importados.`;
 }
 
@@ -1260,60 +2137,83 @@ async function finalizarImportacao(params: {
   revalidatePath("/app/pendencias");
   revalidatePath("/app");
 
-  redirect(`/app/importacoes/${importacaoId}?resultado=sucesso&tipo=${tipo}`);
+  redirect(`/app/importacoes/${importacaoId}?resultado=${resultado.sucesso ? "sucesso" : "erro"}&tipo=${tipo}`);
 }
 
 function normalizeSimplePayload(
   tipo: string,
   rowPayload: Record<string, string>,
 ) {
+  const legacy = tipo === "acordos_extra" || tipo === "acordos_judiciais";
+  const parcelaRaw = rowPayload.parcela_atual ?? rowPayload.parcela ?? "";
+  const quantidadeInformada = Number(rowPayload.quantidade_parcelas || 0);
+  const parcelaReferencia = parseParcelaReferencia(parcelaRaw, quantidadeInformada);
+  const quantidadeParcelas = quantidadeInformada || parcelaReferencia.total || 0;
+  const vencimentoParcelaAtual = normalizeDate(
+    rowPayload.vencimento_parcela_atual ?? rowPayload.vencimento_do_boleto ?? "",
+  );
+  const primeiroVencimentoInformado = normalizeDate(rowPayload.primeiro_vencimento ?? "");
+  const primeiroVencimento = primeiroVencimentoInformado || (
+    vencimentoParcelaAtual && parcelaReferencia.atual > 0
+      ? subtractMonthsIso(vencimentoParcelaAtual, parcelaReferencia.atual - 1) ?? ""
+      : ""
+  );
+
   const payload = {
     ...rowPayload,
     cnpj: getDocumento(rowPayload, CONDOMINIO_CNPJ_KEYS, 14),
     condominio_cnpj: getDocumento(rowPayload, CONDOMINIO_CNPJ_KEYS, 14),
     data_acordo: normalizeDate(rowPayload.data_acordo ?? ""),
-    primeiro_vencimento: normalizeDate(rowPayload.primeiro_vencimento ?? ""),
-    valor_original:
-      tipo === "acordos_extra" || tipo === "acordos_judiciais"
-        ? parseMoney(
-            rowPayload.valor_original ??
-              rowPayload.valor_cobranca ??
-              rowPayload.valor_atualizado ??
-              rowPayload.valor_acordado ??
-              "",
-          )
-        : rowPayload.valor_original,
-    despesa_cobranca_percentual:
-      tipo === "acordos_extra" || tipo === "acordos_judiciais"
-        ? parseMoney(
-            rowPayload.despesa_cobranca_percentual ??
-              rowPayload.despesa_percentual ??
-              "",
-          )
-        : rowPayload.despesa_cobranca_percentual,
-    despesa_cobranca_valor:
-      tipo === "acordos_extra" || tipo === "acordos_judiciais"
-        ? parseMoney(
-            rowPayload.despesa_cobranca_valor ?? rowPayload.despesa_valor ?? "",
-          )
-        : rowPayload.despesa_cobranca_valor,
-    valor_acordado:
-      tipo === "acordos_extra" || tipo === "acordos_judiciais"
-        ? parseMoney(rowPayload.valor_acordado ?? "")
-        : rowPayload.valor_acordado,
-    entrada:
-      tipo === "acordos_extra" || tipo === "acordos_judiciais"
-        ? parseMoney(rowPayload.entrada ?? "")
-        : rowPayload.entrada,
-    quantidade_parcelas:
-      tipo === "acordos_extra" || tipo === "acordos_judiciais"
-        ? Number(rowPayload.quantidade_parcelas || 0)
-        : rowPayload.quantidade_parcelas,
-    status:
-      rowPayload.status ||
-      (tipo === "acordos_extra" || tipo === "acordos_judiciais"
-        ? "ativo"
-        : rowPayload.status),
+    primeiro_vencimento: primeiroVencimento,
+    vencimento_parcela_atual: vencimentoParcelaAtual,
+    periodo_negociado:
+      rowPayload.periodo_negociado ??
+      rowPayload.periodo ??
+      rowPayload.competencias_negociadas ??
+      "",
+    parcela_atual: parcelaRaw,
+    valor_original: legacy
+      ? parseMoney(
+          rowPayload.valor_original ??
+            rowPayload.valor_cobranca ??
+            rowPayload.valor_atualizado ??
+            rowPayload.valor_total ??
+            rowPayload.valor_acordado ??
+            "",
+        )
+      : rowPayload.valor_original,
+    despesa_cobranca_percentual: legacy
+      ? parseMoney(
+          rowPayload.despesa_cobranca_percentual ??
+            rowPayload.despesa_percentual ??
+            "",
+        )
+      : rowPayload.despesa_cobranca_percentual,
+    despesa_cobranca_valor: legacy
+      ? parseMoney(
+          rowPayload.despesa_cobranca_valor ?? rowPayload.despesa_valor ?? "",
+        )
+      : rowPayload.despesa_cobranca_valor,
+    valor_acordado: legacy
+      ? parseMoney(rowPayload.valor_acordado ?? rowPayload.valor_total ?? "")
+      : rowPayload.valor_acordado,
+    entrada: legacy ? parseMoney(rowPayload.entrada ?? "") : rowPayload.entrada,
+    valor_parcela_referencia: legacy
+      ? parseMoney(
+          rowPayload.valor_parcela_referencia ??
+            rowPayload.valor_parcela ??
+            rowPayload.boleto_do_mes ??
+            "",
+        )
+      : rowPayload.valor_parcela_referencia,
+    quantidade_parcelas: legacy ? quantidadeParcelas : rowPayload.quantidade_parcelas,
+    parcela_atual_numero: legacy ? parcelaReferencia.atual : rowPayload.parcela_atual_numero,
+    rateio_igual_confirmado: legacy
+      ? yesLike(rowPayload.rateio_igual_confirmado)
+      : rowPayload.rateio_igual_confirmado,
+    composicao_acordo:
+      rowPayload.composicao_acordo ?? rowPayload.composicao_do_acordo ?? "",
+    status: rowPayload.status || (legacy ? ACORDO_STATUS.EM_DIA : rowPayload.status),
   };
 
   if (tipo === "condominios") return normalizeCondominioPayload(payload);
@@ -1326,6 +2226,7 @@ export async function createImportacaoPreview(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
 
   const tipo = String(formData.get("tipo") ?? "");
+  if (tipo === "acordos_extra") await requireRole(["admin", "gestor"]);
   const condominioIdPadrao = String(formData.get("condominio_id_padrao") ?? "").trim();
   let importacaoId: string;
 
@@ -1355,8 +2256,8 @@ async function createImportacaoPreviewInternal(formData: FormData) {
     tipo === "cobrancas" &&
     (recorteRegua === "validas_na_regua" || recorteRegua === "mais_recentes");
 
-  if (isLegacyImportType(tipo))
-    throw new Error("Importações legadas foram desativadas.");
+  if (tipo === "acordos_judiciais")
+    throw new Error("Importação histórica judicial permanece desativada.");
 
   if (!isValidImportType(tipo)) throw new Error("Tipo de importação inválido.");
   if (!(file instanceof File)) throw new Error("Arquivo obrigatório.");
@@ -1449,7 +2350,9 @@ async function createImportacaoPreviewInternal(formData: FormData) {
     : totalValidas;
   const totalSomenteHistorico = tipo === "cobrancas"
     ? itens.filter((item) => item.valido && item.payload.importar_cobranca === false).length
-    : 0;
+    : isLegacyImportType(tipo)
+      ? itens.filter((item) => item.valido && item.payload.somente_historico === true).length
+      : 0;
   const valorTotalValido = itens
     .filter((item) => item.valido)
     .reduce(
@@ -1501,7 +2404,7 @@ async function createImportacaoPreviewInternal(formData: FormData) {
           ? somenteValidasNaRegua ? "ja_na_regua" : "todos"
           : null,
         regra_chave: isLegacyImportType(tipo)
-          ? "Legados exigem condomínio e unidade existentes; acordo e parcelas são criados somente na confirmação."
+          ? "Acordos históricos: condomínio/unidade existentes, cobranças localizadas pelo período negociado, cobranças posteriores preservadas fora do acordo e gravação somente após confirmação."
           : tipo === "cobrancas"
             ? "Layout GKLI por recibo: usa condomínio selecionado/CNPJ quando houver, cruza unidade no banco e aceita multa, correção e juros opcionais."
             : "Linhas duplicadas ou com vínculo inseguro ficam bloqueadas no preview.",
@@ -2110,119 +3013,216 @@ async function importarLegados(
   tipo: string,
   payloads: Record<string, any>[],
 ) {
-  const created: { table: string; ids: string[] }[] = [];
   let importados = 0;
   let parcelasCriadas = 0;
   const erros: string[] = [];
 
-  try {
-    for (const payload of payloads) {
-      const calculo = calcularValorAcordoComDespesa(payload);
+  for (const [index, payload] of payloads.entries()) {
+    const linha = Number(payload.__linha ?? index + 1);
+    const tipoAcordo = tipo === "acordos_judiciais" ? "judicial" : "extrajudicial";
+
+    try {
+      if (tipoAcordo === "judicial") {
+        throw new Error("Importação histórica judicial permanece desativada");
+      }
+      if (!payload.carteira_id || !payload.condominio_id || !payload.unidade_id) {
+        throw new Error("Carteira, condomínio e unidade são obrigatórios");
+      }
+
+      const cobrancas = Array.isArray(payload.cobrancas_acordo)
+        ? payload.cobrancas_acordo
+        : [];
+      const parcelas = Array.isArray(payload.parcelas_importacao)
+        ? payload.parcelas_importacao
+        : [];
+
+      if (parcelas.length === 0) {
+        throw new Error("Nenhuma parcela histórica calculada para o acordo");
+      }
+
+      const calculo = calcularValorAcordoHistorico(payload);
       const valorAcordado = calculo.valorAcordado;
-      const entrada = Number(payload.entrada ?? 0);
-      const quantidadeParcelas = Number(payload.quantidade_parcelas || 1);
-      const tipoAcordo =
-        tipo === "acordos_judiciais" ? "judicial" : "extrajudicial";
+      const somaBase = roundMoney(
+        cobrancas.reduce(
+          (total: number, cobranca: any) =>
+            total + Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0),
+          0,
+        ),
+      );
+
+      let totalAlocado = 0;
+      const itensAcordo = cobrancas.map((cobranca: any, itemIndex: number) => {
+        const base = Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0);
+        const proporcao = somaBase > 0 ? base / somaBase : 1 / cobrancas.length;
+        const valorTotal = itemIndex === cobrancas.length - 1
+          ? roundMoney(valorAcordado - totalAlocado)
+          : roundMoney(valorAcordado * proporcao);
+        totalAlocado = roundMoney(totalAlocado + valorTotal);
+
+        return {
+          cobranca_id: cobranca.id,
+          valor_original_no_acordo: Number(cobranca.valor_original ?? 0),
+          valor_atualizado_no_acordo: base,
+          encargos_no_acordo: roundMoney(Math.max(0, valorTotal - base)),
+          valor_total_no_acordo: Math.max(0, valorTotal),
+        };
+      });
+
+      const observacoesBase = [
+        String(payload.observacoes ?? "").trim(),
+        "Importado como acordo histórico; sem disparo de termo, e-mail ou solicitação de boleto.",
+        cobrancas.length === 0
+          ? "Importado sem vínculo de cobranças porque o período histórico não possui cobrança canônica disponível no COB; cobranças atuais não foram alteradas."
+          : "",
+        payload.periodo_negociado ? `Período negociado: ${payload.periodo_negociado}.` : "",
+        payload.parcela_atual ? `Parcela de referência: ${payload.parcela_atual}.` : "",
+        payload.composicao_acordo ? `Composição original: ${payload.composicao_acordo}.` : "",
+      ].filter(Boolean).join(" ");
+
+      let acordoId = "";
+      const principal = itensAcordo[0];
+      const parcelasBanco = parcelas.map((parcela: any) => {
+        const status = String(parcela.status || PARCELA_ACORDO_STATUS.PENDENTE);
+        const paga = status === PARCELA_ACORDO_STATUS.PAGA;
+        return {
+          numero: parcela.numero,
+          tipo_parcela: parcela.tipo_parcela || "parcela",
+          valor: parcela.valor,
+          vencimento: parcela.vencimento,
+          status,
+          // A planilha histórica informa a posição da parcela, mas não a data real
+          // de cada pagamento anterior. Para satisfazer a integridade de
+          // parcelas_acordo e preservar a cronologia histórica, usamos o próprio
+          // vencimento como data de pagamento reconstruída somente nas parcelas
+          // marcadas como pagas.
+          data_pagamento: paga ? parcela.vencimento : null,
+        };
+      });
 
       const { data: acordo, error: acordoError } = await supabase
         .from("acordos")
         .insert({
           carteira_id: payload.carteira_id,
-          cobranca_id: null,
+          cobranca_id: principal?.cobranca_id || null,
           condominio_id: payload.condominio_id,
           unidade_id: payload.unidade_id,
           tipo: tipoAcordo,
-          numero_processo:
-            tipoAcordo === "judicial" ? payload.numero_processo : null,
+          numero_processo: null,
           valor_acordado: valorAcordado,
-          entrada,
+          entrada: Number(payload.entrada ?? 0),
           despesa_cobranca_percentual: calculo.despesaPercentual,
           despesa_cobranca_valor: calculo.despesaValor,
           data_acordo: payload.data_acordo,
-          status: payload.status || "ativo",
+          status: ACORDO_STATUS.EM_DIA,
+          fluxo_status: "acordo_efetivado",
+          exige_aprovacao_sindico: false,
           documento_url: payload.documento_url || null,
-          observacoes:
-            payload.observacoes || "Importado pelo fluxo de legados.",
+          observacoes: [
+            observacoesBase,
+            parcelasBanco.some((parcela: any) => parcela.data_pagamento)
+              ? "Datas de pagamento anteriores reconstruídas pela data de vencimento, pois a fonte histórica informa a posição da parcela e não a data efetiva de cada pagamento."
+              : "",
+          ].filter(Boolean).join(" "),
         })
         .select("id")
         .single();
 
-      if (acordoError) {
-        erros.push(
-          `Linha de ${payload.responsavel_nome || payload.unidade || "legado"}: ${acordoError.message}`,
+      if (acordoError || !acordo?.id) {
+        throw new Error(
+          `Erro ao criar acordo histórico: ${acordoError?.message ?? "acordo não retornado"}`,
         );
-        continue;
       }
 
-      created.push({ table: "acordos", ids: [acordo.id] });
+      acordoId = String(acordo.id);
 
-      const saldoParcelado = roundMoney(valorAcordado - entrada);
-      const parcelas = [];
+      if (itensAcordo.length > 0) {
+        const { error: itensError } = await supabase.from("acordo_cobrancas").insert(
+          itensAcordo.map((item: any) => ({
+            acordo_id: acordoId,
+            ...item,
+          })),
+        );
 
-      if (entrada > 0) {
-        parcelas.push({
-          acordo_id: acordo.id,
-          numero: 0,
-          tipo_parcela: "entrada",
-          valor: entrada,
-          vencimento: payload.data_acordo || toISODate(new Date()),
-          status: "aberta",
-        });
-      }
-
-      const baseParcela =
-        Math.floor((saldoParcelado / quantidadeParcelas) * 100) / 100;
-      let acumulado = 0;
-
-      for (let index = 1; index <= quantidadeParcelas; index += 1) {
-        const isLast = index === quantidadeParcelas;
-        const valor = isLast
-          ? roundMoney(saldoParcelado - acumulado)
-          : roundMoney(baseParcela);
-        acumulado = roundMoney(acumulado + valor);
-        parcelas.push({
-          acordo_id: acordo.id,
-          numero: index,
-          tipo_parcela: "parcela",
-          valor,
-          vencimento: toISODate(
-            addMonths(
-              new Date(`${payload.primeiro_vencimento}T00:00:00`),
-              index - 1,
-            ),
-          ),
-          status: "aberta",
-        });
-      }
-
-      if (parcelas.length > 0) {
-        const { data: parcelasInseridas, error: parcelasError } = await supabase
-          .from("parcelas_acordo")
-          .insert(parcelas)
-          .select("id");
-
-        if (parcelasError) {
-          erros.push(
-            `Parcelas do acordo ${acordo.id}: ${parcelasError.message}`,
-          );
-          continue;
+        if (itensError) {
+          await supabase.from("acordos").delete().eq("id", acordoId);
+          throw new Error(`Erro ao vincular cobranças ao acordo histórico: ${itensError.message}`);
         }
-
-        created.push({
-          table: "parcelas_acordo",
-          ids: (parcelasInseridas ?? []).map((parcela: any) => parcela.id),
-        });
-        parcelasCriadas += parcelas.length;
       }
 
-      importados += 1;
-    }
+      const { error: parcelasError } = await supabase.from("parcelas_acordo").insert(
+        parcelasBanco.map((parcela: any) => ({
+          acordo_id: acordoId,
+          ...parcela,
+        })),
+      );
 
-    return { importados, criados: parcelasCriadas, erros };
-  } catch (error) {
-    await rollbackCreatedRows(supabase, created);
-    throw error;
+      if (parcelasError) {
+        await supabase.from("acordos").delete().eq("id", acordoId);
+        throw new Error(`Erro ao criar parcelas do acordo histórico: ${parcelasError.message}`);
+      }
+
+      const parcelasPagas = parcelas.filter(
+        (parcela: any) => String(parcela.status) === PARCELA_ACORDO_STATUS.PAGA,
+      ).length;
+
+      const { error: updateError } = await supabase
+        .from("acordos")
+        .update({
+          quantidade_parcelas: Number(payload.quantidade_parcelas || parcelas.length),
+          status_financeiro: parcelasPagas > 0 ? "parcial" : "em_aberto",
+          fluxo_status: "acordo_efetivado",
+        })
+        .eq("id", acordoId);
+
+      if (updateError) {
+        await supabase.from("acordos").delete().eq("id", acordoId);
+        throw new Error(`Erro ao finalizar metadados do acordo: ${updateError.message}`);
+      }
+
+      if (cobrancas.length > 0) {
+        const cobrancaIds = cobrancas.map((cobranca: any) => cobranca.id).filter(Boolean);
+        const { error: cobrancasError } = await supabase
+          .from("cobrancas")
+          .update({
+            status: COBRANCA_STATUS_OPERACIONAL.ACORDO_FIRMADO,
+            status_operacional: COBRANCA_STATUS_OPERACIONAL.ACORDO_FIRMADO,
+          })
+          .in("id", cobrancaIds);
+
+        if (cobrancasError) {
+          await supabase.from("acordos").delete().eq("id", acordoId);
+          throw new Error(`Erro ao atualizar cobranças do acordo histórico: ${cobrancasError.message}`);
+        }
+      }
+
+      await registrarAuditoriaImportacao({
+        supabase,
+        importacaoId: String(payload.importacao_id ?? ""),
+        tipo,
+        evento: "acordo.historico_importado",
+        titulo: "Acordo histórico importado",
+        descricao: `Acordo ${acordoId} importado com ${cobrancas.length} cobrança(s) do período negociado e ${parcelas.length} parcela(s).`,
+        payload: {
+          acordo_id: acordoId,
+          unidade_id: payload.unidade_id,
+          periodo_negociado: payload.periodo_negociado,
+          cobranca_ids: cobrancas.map((cobranca: any) => cobranca.id),
+          cobrancas_posteriores_ignoradas: Number(payload.quantidade_cobrancas_posteriores || 0),
+          parcela_atual: payload.parcela_atual,
+          parcelas_pagas: parcelasPagas,
+        },
+      });
+
+      parcelasCriadas += parcelas.length;
+      importados += 1;
+    } catch (error) {
+      erros.push(
+        `Linha ${linha}: ${error instanceof Error ? error.message : "erro desconhecido"}`,
+      );
+    }
   }
+
+  return { importados, criados: parcelasCriadas, erros };
 }
 
 export async function confirmarImportacao(formData: FormData) {
@@ -2251,8 +3251,9 @@ export async function confirmarImportacao(formData: FormData) {
   if (!isValidImportType(importacao.tipo))
     throw new Error("Tipo de importação inválido.");
 
-  if (isLegacyImportType(importacao.tipo))
-    throw new Error("Importações legadas foram desativadas.");
+  if (importacao.tipo === "acordos_judiciais")
+    throw new Error("Importação histórica judicial permanece desativada.");
+  if (importacao.tipo === "acordos_extra") await requireRole(["admin", "gestor"]);
 
   const { data: itens, error: itensError } = await supabase
     .from("importacao_itens")

@@ -6,12 +6,13 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "supervisor": "node --env-file=../../.env.local supervisor.mjs",
     "qr": "node qr-dashboard.mjs",
     "start": "node --env-file=../../.env.local worker.mjs",
     "start:genske": "node --env-file=../../.env.local --env-file=../../.env.whatsapp-genske worker.mjs",
     "start:gekali": "node --env-file=../../.env.local --env-file=../../.env.whatsapp-gekali worker.mjs",
     "start:azevedo": "node --env-file=../../.env.local --env-file=../../.env.whatsapp-azevedo worker.mjs",
-    "test": "node --test worker.test.mjs receipt.test.mjs contact-issue.test.mjs"
+    "test": "node --test worker.test.mjs receipt.test.mjs contact-issue.test.mjs recovery.test.mjs browser-health.test.mjs resilient-client.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.108.1",

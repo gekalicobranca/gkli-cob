@@ -59,7 +59,7 @@ export function AtivacaoLoteFlows({ flows, selected, onSelectedChange, onBusyCha
           <input type="checkbox" checked={todos} disabled={busy || !prontos.length} onChange={event => { onSelectedChange(event.target.checked ? prontos.map(flow => flow.id) : []); onSelectAllChange(event.target.checked) }} />
           Selecionar prontos desta página ({prontos.length})
         </label>
-        <p className="mt-1 text-xs text-slate-500">{selecionados.length} Flow(s) selecionado(s) · {mensagens} mensagem(ns). A agenda respeita os limites por carteira e remetente.</p>
+        <p className="mt-1 text-xs text-slate-500">{selecionados.length} Flow(s) selecionado(s) · {mensagens} mensagem(ns).</p>
       </div>
       <Button type="button" disabled={!selecionados.length} loading={busy} loadingLabel="Ativando flows..." onClick={() => void ativar()}>Ativar selecionados</Button>
     </div>

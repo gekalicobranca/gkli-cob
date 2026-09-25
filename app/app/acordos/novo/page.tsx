@@ -1,3 +1,7 @@
+import { createClient } from "@/utils/supabase/server";
+import { requireUser } from "@/utils/auth/require-user";
+import { AprovacaoForaReguaCard } from "@/components/acordos/aprovacao-fora-regua-card";
+import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { ButtonLink } from "@/components/ui/button";
@@ -17,8 +21,10 @@ type PageProps = {
     cobranca_id?: string;
     cobranca_id_origem?: string;
     cobrancaIds?: string | string[];
+    cotasSemDespesas?: string | string[];
     unidade_id?: string;
     sindico?: string;
+    aprovacao_fora_regua?: string;
   }>;
 };
 
@@ -38,7 +44,21 @@ function normalizeIds(value?: string | string[] | null) {
 export default async function NovoAcordoPage({ searchParams }: PageProps) {
   const query = await searchParams;
   const legacyCobrancaId = query.cobrancaId ?? query.cobranca_id ?? query.cobranca_id_origem;
-  const selectedIds = normalizeIds(query.cobrancaIds);
+  const supabase = await createClient();
+  const user = await requireUser();
+  let aprovacao: any = null;
+  if (query.aprovacao_fora_regua) {
+    const { data, error } = await supabase.from("acordos_aprovacoes_fora_regua")
+      .select("id,status,proposta,formulario,recibos_fora_regua,justificativa,acordo_id")
+      .eq("id", query.aprovacao_fora_regua).maybeSingle();
+    if (error || !data) throw new Error("Proposta de aprovação indisponível para este usuário.");
+    aprovacao = data;
+  }
+  const selectedIds = aprovacao
+    ? aprovacao.proposta.itens.map((item: any) => String(item.cobranca_id))
+    : normalizeIds(query.cobrancaIds);
+  const cotasSemDespesas = normalizeIds(aprovacao?.formulario?.cotas_sem_despesas ?? query.cotasSemDespesas)
+    .filter((id) => selectedIds.includes(id));
   const scope = await getPermittedCarteiras();
 
   if (legacyCobrancaId && selectedIds.length === 0) {
@@ -95,7 +115,9 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
     : { reincidencia: 0, rompimentos: 0 };
   const returnParams = new URLSearchParams();
   if (selectedIds.length > 0) returnParams.set("cobrancaIds", selectedIds.join(","));
+  if (cotasSemDespesas.length) returnParams.set("cotasSemDespesas", cotasSemDespesas.join(","));
   if (query.sindico) returnParams.set("sindico", query.sindico);
+  if (aprovacao) returnParams.set("aprovacao_fora_regua", aprovacao.id);
   const currentPath = `/app/acordos/novo${returnParams.size > 0 ? `?${returnParams.toString()}` : ""}`;
 
   return (
@@ -114,10 +136,20 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
         }
       />
 
+      {aprovacao && <AprovacaoForaReguaCard aprovacao={aprovacao} podeDecidir={["admin", "gestor"].includes(user.perfil)} />}
       <AcordoSimulatorForm
+        key={aprovacao ? `${aprovacao.id}:${aprovacao.status}` : selectedIds.join(",")}
+        formularioInicial={aprovacao?.formulario}
+        aprovacaoForaReguaStatus={aprovacao?.status}
+        acordoJaCriado={Boolean(aprovacao?.acordo_id)}
+        contemCobrancasForaRegua={(cobrancas as any[]).some((cobranca) => avaliarReguaImportacao({
+          vencimento: cobranca.vencimento,
+          inicioCobrancaDias: cobranca.condominios?.inicio_cobranca_dias,
+        }).foraRegua)}
         cobrancas={cobrancas as any}
         initialCobrancaId={legacyCobrancaId ?? selectedIds[0]}
         selectedCobrancaIds={selectedIds}
+        cotasSemDespesas={cotasSemDespesas}
         bloqueadoPorPendenciaPlanilha={Boolean(pendenciaPlanilha)}
         bloqueadoPorPendenciaAprovacaoSindico={Boolean(pendenciaAprovacaoSindico)}
         aprovacaoSindicoSolicitada={query.sindico === "solicitada"}

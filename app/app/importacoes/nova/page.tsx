@@ -46,11 +46,11 @@ const importTypes = [
   },
   {
     value: "acordos_extra",
-    label: "Legado · Acordos extra",
+    label: "Acordos existentes · Extrajudicial",
     templateHref: "/templates/importacao-acordos-extra.xlsx",
     header:
-      "condominio_cnpj;unidade;bloco;responsavel_nome;data_acordo;valor_original;despesa_cobranca_percentual;entrada;quantidade_parcelas;primeiro_vencimento;status;documento_url;observacoes",
-    rule: "Legados extrajudiciais exigem condomínio e unidade já cadastrados. A confirmação cria acordos e parcelas somente depois do preview.",
+      "condominio_cnpj;unidade;bloco;responsavel_nome;data_acordo;valor_acordado;periodo_negociado;parcela_atual;vencimento_parcela_atual;valor_parcela_referencia;quantidade_parcelas;composicao_acordo;rateio_igual_confirmado;observacoes",
+    rule: "O preview localiza a unidade, busca no banco somente cobranças pertencentes ao período negociado e deixa cobranças posteriores fora do acordo. Acordos finalizados e cobranças já vinculadas a outro acordo são bloqueados.",
   },
   {
     value: "acordos_judiciais",
@@ -63,7 +63,7 @@ const importTypes = [
 ];
 
 const activeImportTypes = importTypes.filter(
-  (item) => item.value !== "acordos_extra" && item.value !== "acordos_judiciais",
+  (item) => item.value !== "acordos_judiciais",
 );
 
 function getSelectedType(tipo?: string) {
@@ -177,7 +177,6 @@ export default async function NovaImportacaoPage({
                   name="recorte_regua"
                   type="checkbox"
                   value="validas_na_regua"
-                  defaultChecked
                   className="mt-1 h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)] focus:ring-[var(--gkli-primary)]"
                 />
                 <span>
@@ -185,7 +184,7 @@ export default async function NovaImportacaoPage({
                     Importar somente cobranças válidas na régua
                   </span>
                   <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    Considera o vencimento e o D+ configurado em cada condomínio. Cobranças que ainda não alcançaram a régua permanecem apenas no histórico desta importação.
+                    Desmarcada por padrão para carregar também parcelas mais recentes que a régua. Se marcar, essas parcelas permanecerão apenas no histórico da importação.
                   </span>
                 </span>
               </label>
@@ -195,8 +194,9 @@ export default async function NovaImportacaoPage({
               <div className="flex items-start gap-2">
                 <AlertTriangle size={16} className="mt-0.5 shrink-0" />
                 <p>
-                  Confira o template e revise o preview antes de confirmar.
-                  Importação errada pode contaminar cobrança, acordo e régua.
+                  {selected.value === "acordos_extra"
+                    ? "Esta carga é histórica: não gera termo, e-mail ou solicitação de boleto. Confira especialmente período negociado, parcela atual e as cobranças que o preview encontrou."
+                    : "Confira o template e revise o preview antes de confirmar. Importação errada pode contaminar cobrança, acordo e régua."}
                 </p>
               </div>
             </div>

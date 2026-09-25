@@ -1,4 +1,5 @@
 'use client'
+import { FlowWorkerStatus, FlowWorkerExplanation } from './flow-worker-status'
 
 import { reguasDisponiveis } from '@/features/flows/cobranca/canais'
 import { useActionState, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
@@ -22,7 +23,7 @@ const n = (value: unknown) => Number(value ?? 0) || 0
 
 const FLOW_STATUS_LABEL: Record<string, string> = {
   pronto: 'Pronto',
-  em_execucao: 'Em execução',
+  em_execucao: 'Flow ativo',
   pausado: 'Pausado',
   cancelado: 'Cancelado',
   concluido: 'Concluído',
@@ -331,7 +332,7 @@ export function FlowCobrancaWorkbench({
             <PendingSubmitButton formAction={desfazerAtivacaoCobrancasFlowCobranca} formNoValidate variant="danger" disabled={criando || selectedCobrancas.length === 0} pendingLabel="Desfazendo..." onClick={(event) => { if (!window.confirm(`Devolver ${selectedCobrancas.length} cobrança(s) para Novas?`)) event.preventDefault() }}><RotateCcw size={16} />Desfazer ativação</PendingSubmitButton>
             <PendingSubmitButton disabled={criando || !plano.quantidade || Boolean(plano.error)} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${plano.quantidade} Flow(s) em partes, com até ${LIMITE_EMAILS_FLOW} mensagens cada?`)) event.preventDefault() }}><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
           </div>
-        </form> : <ListEmptyState title="Nenhum condomínio disponível" description="Não há cobranças com canal disponível neste filtro. Confira os filtros e os Flows já existentes." />}
+        </form> : <ListEmptyState title="Nenhum condomínio disponível" description="Nenhuma cobrança disponível nesta página." />}
       </details>
     </ListPanel> : null}
 
@@ -341,14 +342,14 @@ export function FlowCobrancaWorkbench({
           <ListCollapsibleSectionHeader title="Flows" count={flowsVisiveis.length} />
         </summary>
         {flows.length ? <>
-          <AtivacaoLoteFlows flows={flows} selected={flowsSelecionados} onSelectedChange={setFlowsSelecionados} onBusyChange={setAtivandoLote} onSelectAllChange={setSomenteProntos} />
+          {flows.some(flow => flow.status === 'pronto' && Number(flow.total_mensagens) > 0) ? <AtivacaoLoteFlows flows={flows} selected={flowsSelecionados} onSelectedChange={setFlowsSelecionados} onBusyChange={setAtivandoLote} onSelectAllChange={setSomenteProntos} /> : null}
           {somenteProntos ? <div className="flex items-center justify-between gap-3 px-4 py-2 text-sm"><span>{flowsVisiveis.length ? `Exibindo somente os ${flowsVisiveis.length} flows prontos.` : 'Nenhum flow pronto restante.'}</span><Button type="button" variant="secondary" disabled={ativandoLote} onClick={() => setSomenteProntos(false)}>Mostrar todos</Button></div> : null}
           <fieldset disabled={ativandoLote} className="min-w-0">
             <FlowsAgrupados porAgenda={new URLSearchParams(returnQuery).get('ordenar')?.startsWith('agenda_')} flows={flowsVisiveis} renderFlow={(flow: any) => <div key={flow.id} className="flex items-start gap-1">
               {flow.status === 'pronto' && Number(flow.total_mensagens) > 0 ? <label className="shrink-0 py-6 pl-4">
                 <input type="checkbox" aria-label={`Selecionar ${flow.nome}`} checked={flowsSelecionados.includes(flow.id)} onChange={event => setFlowsSelecionados(current => event.target.checked ? [...current, flow.id] : current.filter(id => id !== flow.id))} />
               </label> : null}
-              <div className="min-w-0 flex-1"><FlowRow flow={flow} /></div>
+              <div className="min-w-0 flex-1"><FlowRow flow={flow} showContext={new URLSearchParams(returnQuery).get('ordenar')?.startsWith('agenda_')} /></div>
             </div>} />
           </fieldset>
         </> : <ListEmptyState title="Nenhum Flow neste filtro" description="Ajuste os filtros ou use Gerar flows para preparar novas cobranças." />}
@@ -361,7 +362,7 @@ export function FlowCobrancaHistorico({ flows, porAgenda = false }: { flows: any
   return <ListPanel>
     <ListCollapsibleSectionHeader title="Histórico de flows" count={flows.length} />
     {flows.length
-      ? <FlowsAgrupados porAgenda={porAgenda} flows={flows} renderFlow={flow => <FlowRow key={flow.id} flow={flow} />} />
+      ? <FlowsAgrupados porAgenda={porAgenda} flows={flows} renderFlow={flow => <FlowRow key={flow.id} flow={flow} showContext={porAgenda} />} />
       : <ListEmptyState title="Nenhum Flow no histórico deste filtro" description="Flows concluídos ou cancelados aparecem aqui para consulta." />}
   </ListPanel>
 }
@@ -381,7 +382,7 @@ function FlowsAgrupados({ flows, renderFlow, porAgenda = false }: { flows: any[]
   }
   const resumo = (rows: any[]) => {
     const total = (campo: string) => rows.reduce((sum, flow) => sum + n(flow[campo]), 0)
-    return `${rows.length} flows · ${total('total_pendentes')} pendentes · ${total('total_agendadas')} agendadas · ${total('total_enviadas')} enviadas · ${total('total_falhas')} falhas`
+    return `${rows.length} flows${total('total_falhas') ? ` · ${total('total_falhas')} falhas` : ''}`
   }
   return <div className="space-y-3 p-3">{[...carteiras.entries()].sort((a, b) => a[1].nome.localeCompare(b[1].nome, 'pt-BR')).map(([id, carteira]) =>
     <details key={id} open className="overflow-hidden rounded-lg border border-slate-200">
@@ -398,7 +399,8 @@ function FlowsAgrupados({ flows, renderFlow, porAgenda = false }: { flows: any[]
     </details>)}</div>
 }
 
-function FlowRow({ flow }: { flow: any }) {
+function FlowRow({ flow, showContext = false }: { flow: any; showContext?: boolean }) {
+  const [expanded, setExpanded] = useState(false)
   const router = useRouter()
   const status = String(flow.status ?? 'pronto')
   const carteira = relation(flow.carteira)
@@ -455,17 +457,18 @@ function FlowRow({ flow }: { flow: any }) {
     }
   }
 
-  return <details className="group/flow" onToggle={(event) => { if (event.currentTarget.open) void loadItens() }}>
+  return <details className="group/flow" onToggle={(event) => { setExpanded(event.currentTarget.open); if (event.currentTarget.open) void loadItens() }}>
     <summary className="list-none [&::-webkit-details-marker]:hidden">
       <ListRow className="cursor-pointer bg-white lg:grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(220px,1fr)_150px_20px]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
+            {['pronto', 'em_execucao', 'pausado'].includes(status) ? <FlowWorkerStatus carteiraId={flow.carteira_id} /> : null}
             <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(status)}`}>{FLOW_STATUS_LABEL[status] ?? status}</span>
             <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600"><FileSignature size={13} />{n(flow.total_mensagens)} mensagens</span>
             {flow.canais?.length > 1 ? <span title="As ações deste Flow se aplicam a todos os seus canais." className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-800">Múltiplos canais</span> : null}
           </div>
-          <p className="mt-2 truncate text-sm font-semibold text-slate-950">{flow.nome}</p>
-          <p className="mt-1 truncate text-xs text-slate-500">{carteira?.nome || 'Carteira'} · {regua?.nome || 'Régua'} · Lote {String(flow.lote_id ?? '').slice(0, 8)}</p>
+          {showContext ? <p className="mt-2 truncate text-xs text-slate-500">{carteira?.nome} · {flow.condominio?.nome_operacional || flow.condominio?.nome || 'Condomínio não informado'}</p> : null}
+          <p title={flow.nome} className="mt-2 truncate text-sm font-semibold text-slate-950">{regua?.nome || 'Flow'} · {String(flow.lote_id ?? flow.id).slice(0, 8)}</p>
         </div>
         <div className="grid grid-cols-4 gap-2">
           <FlowCounter label="Pendentes" value={counters.pendentes} />
@@ -473,15 +476,17 @@ function FlowRow({ flow }: { flow: any }) {
           <FlowCounter label="Enviadas" value={counters.enviadas} tone="emerald" />
           <FlowCounter label="Falhas" value={counters.falhas} tone={counters.falhas ? 'rose' : 'slate'} />
         </div>
-        <div><p className="text-xs text-slate-400">Próximo disparo</p><p className="text-sm font-medium text-slate-800">{formatDateTimeBR(flow.proximo_disparo_em)}</p></div>
+        <div><p className="text-xs text-slate-400">Agendado para</p><p className="text-sm font-medium text-slate-800">{formatDateTimeBR(flow.proximo_disparo_em)}</p></div>
         <ChevronRight size={17} className="text-slate-400 transition group-open/flow:rotate-90" />
       </ListRow>
     </summary>
+    {expanded ? <>
     <div className="grid gap-4 border-t border-slate-100 bg-slate-50/70 px-5 py-4 lg:grid-cols-[1fr_auto] lg:items-center">
       <div>
-        <p className="text-sm font-semibold text-slate-950">Resumo do monitor</p>
+        {['pronto', 'em_execucao', 'pausado'].includes(status) ? <FlowWorkerExplanation carteiraId={flow.carteira_id} /> : null}
+        <p className="text-sm font-semibold text-slate-950">{flow.nome}</p>
         <p className="mt-1 text-xs text-slate-500">
-          Criado em {formatDateTimeBR(flow.created_at)} · {itensResumo} item(ns) no Flow · Lote {lote?.status ? lote.status : 'sem status'}
+          {carteira?.nome} · {formatDateTimeBR(flow.created_at)} · {itensResumo} itens · {lote?.status}
         </p>
       </div>
       <div className="flex flex-wrap justify-end gap-2">
@@ -510,7 +515,6 @@ function FlowRow({ flow }: { flow: any }) {
       <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-slate-950">Fila de envio</p>
-          <p className="text-xs text-slate-500">{flow.canais?.includes('email') ? 'Agenda automática: até 50 e-mails/dia por domínio, respeitando o limite da carteira, das 9h às 18h (Brasília), com intervalo mínimo de 10 minutos.' : 'Agenda automática conforme a régua, os limites da carteira e a disponibilidade do canal WhatsApp.'}</p>
         </div>
         <span className="text-xs text-slate-400">{counters.falhas ? `${counters.falhas} item(ns) com falha` : 'Sem falhas abertas'}</span>
       </div>
@@ -536,10 +540,11 @@ function FlowRow({ flow }: { flow: any }) {
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-          Nenhum item vinculado a este Flow ainda.
+          Nenhum item para exibir na fila deste Flow.
         </div>
       )}
     </div>
+    </> : null}
   </details>
 }
 

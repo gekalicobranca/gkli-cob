@@ -55,8 +55,8 @@ const groups: Array<{
     description: 'Modelos e canais de comunicação parametrizados sem poluir a rotina do operador.',
     cards: [
       {
-        title: 'WhatsApp Web temporário',
-        description: 'Vincule sessões conectadas e acompanhe o envio automático dos Flows.',
+        title: 'Workers de WhatsApp',
+        description: 'Conecte, pause e recupere workers. Confira pendências e autorize reenvios.',
         href: '/app/configuracoes/whatsapp-web',
         icon: Plug,
         tag: 'Admin',

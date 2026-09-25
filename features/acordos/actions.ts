@@ -1,4 +1,7 @@
 "use server";
+
+import { propostaFinanceiraParaAprovacao, guardarFormularioProposta } from "./aprovacao-fora-regua";
+import { calcularDespesasAcordo, validarCotasSemDespesas } from "./calculo-despesas";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
 import { revalidatePath } from "next/cache";
@@ -647,16 +650,19 @@ export async function createAcordo(formData: FormData) {
   const despesaCobrancaPercentual = toNumber(
     formData.get("despesa_cobranca_percentual"),
   );
-  const despesaCobrancaValorInformado = toNumber(
-    formData.get("despesa_cobranca_valor"),
-  );
+
   const entrada = toNumber(formData.get("entrada"));
   const usarCreditoAdministradora = formData.get("usar_credito_administradora") === "on";
   const entradaVencimento = String(formData.get("entrada_vencimento") ?? "");
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
   const primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
-  const observacoes = String(formData.get("observacoes") ?? "").trim();
+  const cotasSemDespesas = normalizeUuidList(formData.getAll("cotas_sem_despesas"));
+  validarCotasSemDespesas(cotasSemDespesas, cobrancaIds, formData.get("cota_mes_autorizada") === "on");
+  const observacoes = [
+    String(formData.get("observacoes") ?? "").trim(),
+    cotasSemDespesas.length ? `Cota do mês fora da régua. Isenção de despesas somente à vista; no parcelamento, despesas aplicadas. Autorização da administradora confirmada por ${user.id}. Recibos: ${cotasSemDespesas.join(", ")}.` : "",
+  ].filter(Boolean).join("\n");
 
   if (cobrancaIds.length === 0)
     throw new Error("Selecione ao menos uma cobrança para o acordo.");
@@ -838,11 +844,12 @@ export async function createAcordo(formData: FormData) {
     ? roundMoney(Math.min(creditoDisponivel, valorBaseCobranca))
     : 0;
   const valorBaseAposCredito = roundMoney(valorBaseCobranca - creditoAdministradoraUtilizado);
-  const despesaCobrancaValor = roundMoney(
-    despesaCobrancaValorInformado > 0
-      ? despesaCobrancaValorInformado
-      : valorBaseAposCredito * (despesaCobrancaPercentual / 100),
+  const calculoDespesas = calcularDespesasAcordo(
+    cobrancasComValores.map((item) => ({ id: item.id, valor: item.valor_base_acordo })),
+    cotasSemDespesas, despesaCobrancaPercentual, creditoAdministradoraUtilizado,
+    { quantidadeParcelas, entrada },
   );
+  const despesaCobrancaValor = calculoDespesas.despesa;
   const valorAcordado = roundMoney(valorBaseAposCredito + despesaCobrancaValor);
 
   if (valorBaseCobranca <= 0)
@@ -865,11 +872,9 @@ export async function createAcordo(formData: FormData) {
     parcelasPermitidasSemSindico > 0 && quantidadeParcelas > parcelasPermitidasSemSindico;
   const fluxoStatusInicial = "boletos_solicitados";
 
-  const itensAcordo = cobrancasComValores.map((item) => {
-    const proporcao =
-      valorBaseCobranca > 0 ? item.valor_base_acordo / valorBaseCobranca : 0;
-    const despesaRateada = roundMoney(despesaCobrancaValor * proporcao);
-    const creditoRateado = roundMoney(creditoAdministradoraUtilizado * proporcao);
+  const itensAcordo = cobrancasComValores.map((item, index) => {
+    const despesaRateada = calculoDespesas.itens[index].despesa;
+    const creditoRateado = calculoDespesas.itens[index].credito;
 
     return {
       cobranca_id: item.id,
@@ -899,7 +904,7 @@ export async function createAcordo(formData: FormData) {
     Math.floor((saldoParcelado / quantidadeParcelas) * 100) / 100;
   let acumulado = 0;
 
-  for (let index = 1; index <= quantidadeParcelas; index++) {
+  for (let index = 1; index <= quantidadeParcelas && saldoParcelado > 0; index++) {
     const isLast = index === quantidadeParcelas;
     const valor = isLast
       ? roundMoney(saldoParcelado - acumulado)
@@ -918,9 +923,7 @@ export async function createAcordo(formData: FormData) {
     });
   }
 
-  const { data: acordoIdData, error: acordoError } = await supabase.rpc(
-    "criar_acordo_financeiro",
-    {
+  const parametrosFinanceiros = {
       p_carteira_id: cobrancaPrincipal.carteira_id,
       p_cobranca_id: cobrancaPrincipal.id,
       p_condominio_id: cobrancaPrincipal.condominio_id,
@@ -929,7 +932,7 @@ export async function createAcordo(formData: FormData) {
       p_numero_processo: tipo === "judicial" ? numeroProcesso : null,
       p_valor_acordado: valorAcordado,
       p_entrada: entrada,
-      p_despesa_cobranca_percentual: despesaCobrancaPercentual,
+      p_despesa_cobranca_percentual: despesaCobrancaValor > 0 ? despesaCobrancaPercentual : 0,
       p_despesa_cobranca_valor: despesaCobrancaValor,
       p_data_acordo: toISODate(new Date()),
       p_status: ACORDO_STATUS.ATIVO,
@@ -940,7 +943,26 @@ export async function createAcordo(formData: FormData) {
       p_itens: itensAcordo,
       p_parcelas: parcelas,
       p_cobranca_status: COBRANCA_STATUS.EM_NEGOCIACAO,
-    } as any,
+    };
+  const { data: aprovacao, error: aprovacaoError } = await supabase.rpc(
+    "solicitar_aprovacao_acordo_fora_regua", {
+      p_carteira_id: cobrancaPrincipal.carteira_id,
+      p_condominio_id: cobrancaPrincipal.condominio_id,
+      p_unidade_id: cobrancaPrincipal.unidade_id,
+      p_cobranca_id: cobrancaPrincipal.id,
+      p_proposta: propostaFinanceiraParaAprovacao(parametrosFinanceiros),
+      p_formulario: guardarFormularioProposta(formData),
+    },
+  );
+  if (aprovacaoError) throw new Error(`Erro ao verificar aprovação do gestor: ${aprovacaoError.message}`);
+  if (aprovacao?.acordo_id) throw new Error("Esta proposta já foi utilizada em um acordo.");
+  if (aprovacao && aprovacao.status !== "aprovada") {
+    revalidatePath("/app/pendencias");
+    revalidatePath("/app/inbox");
+    redirect(`/app/acordos/novo?aprovacao_fora_regua=${encodeURIComponent(aprovacao.id)}`);
+  }
+  const { data: acordoIdData, error: acordoError } = await supabase.rpc(
+    "criar_acordo_financeiro", parametrosFinanceiros as any,
   );
 
   if (acordoError || !acordoIdData) {
@@ -1037,6 +1059,9 @@ export async function createAcordo(formData: FormData) {
     payload: {
       cobranca_id: cobrancaPrincipal.id,
       cobranca_ids: cobrancaIds,
+      cotas_sem_despesas: calculoDespesas.isencaoAplicada ? cotasSemDespesas : [],
+      cotas_mes: cotasSemDespesas,
+      cota_mes_autorizada: cotasSemDespesas.length > 0,
       valor_base_cobranca: valorBaseCobranca,
       credito_administradora_utilizado: creditoAdministradoraUtilizado,
       valor_base_apos_credito: valorBaseAposCredito,
@@ -1289,13 +1314,17 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
   const tipo = String(formData.get("tipo") ?? "extrajudicial");
   const numeroProcesso = String(formData.get("numero_processo") ?? "").trim();
   const despesaCobrancaPercentual = toNumber(formData.get("despesa_cobranca_percentual"));
-  const despesaCobrancaValor = toNumber(formData.get("despesa_cobranca_valor"));
-  const valorAcordado = toNumber(formData.get("valor_acordado"));
+
   const entrada = toNumber(formData.get("entrada"));
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
   const primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
-  const observacoes = String(formData.get("observacoes") ?? "").trim();
+  const cotasSemDespesas = normalizeUuidList(formData.getAll("cotas_sem_despesas"));
+  validarCotasSemDespesas(cotasSemDespesas, cobrancaIds, formData.get("cota_mes_autorizada") === "on");
+  const observacoes = [
+    String(formData.get("observacoes") ?? "").trim(),
+    cotasSemDespesas.length ? `Cota do mês fora da régua. Isenção de despesas somente à vista; no parcelamento, despesas aplicadas. Autorização da administradora confirmada por ${user.id}. Recibos: ${cotasSemDespesas.join(", ")}.` : "",
+  ].filter(Boolean).join("\n");
 
   const { data: cobrancas, error: cobrancasError } = await somenteCobrancasCanonicas(supabase
     .from("cobrancas")
@@ -1306,7 +1335,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
       condominio_id,
       unidade_id,
       valor_atualizado,
-      valor_original,
+      valor_original, juros, multa, correcao, desconto,
       vencimento,
       competencia,
       condominios:condominio_id (
@@ -1318,7 +1347,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
         id,
         identificacao,
         bloco,
-        responsavel_nome
+        responsavel_nome, credito_administradora
       )
     `,
     ))
@@ -1356,6 +1385,17 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
     ? cobrancaReferenciaAny.unidades[0]
     : cobrancaReferenciaAny.unidades;
   const administradoraId = condominioReferencia?.administradora_id ?? null;
+  if (despesaCobrancaPercentual < 0) throw new Error("Despesa de cobrança inválida.");
+  const calculo = calcularDespesasAcordo(cobrancas.map((item) => ({
+    id: item.id,
+    valor: Number(item.valor_atualizado ?? 0) || Math.max(0,
+      Number(item.valor_original ?? 0) + Number(item.juros ?? 0) + Number(item.multa ?? 0)
+      + Number(item.correcao ?? 0) - Number(item.desconto ?? 0)),
+  })), cotasSemDespesas, despesaCobrancaPercentual,
+    formData.get("usar_credito_administradora") === "on" ? Number(unidadeReferencia?.credito_administradora ?? 0) : 0,
+    { quantidadeParcelas, entrada });
+  const despesaCobrancaValor = calculo.despesa;
+  const valorAcordado = calculo.total;
 
   const { data: pendenciaPlanilha, error: pendenciaPlanilhaError } = await supabase
     .from("central_pendencias")
@@ -1436,6 +1476,9 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
         entrada,
         quantidade_parcelas: quantidadeParcelas,
         primeiro_vencimento: primeiroVencimento || null,
+        cotas_sem_despesas: calculo.isencaoAplicada ? cotasSemDespesas : [],
+        cotas_mes: cotasSemDespesas,
+        cota_mes_autorizada: cotasSemDespesas.length > 0,
         despesa_cobranca_percentual: despesaCobrancaPercentual,
         despesa_cobranca_valor: despesaCobrancaValor,
         documento_url: documentoUrl || null,
@@ -1448,7 +1491,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
   revalidatePath("/app/pendencias");
   revalidatePath("/app/acordos/novo");
 
-  redirect(`/app/acordos/novo?cobrancaIds=${encodeURIComponent(cobrancaIds.join(","))}&sindico=solicitada`);
+  redirect(`/app/acordos/novo?cobrancaIds=${encodeURIComponent(cobrancaIds.join(","))}&cotasSemDespesas=${encodeURIComponent(cotasSemDespesas.join(","))}&sindico=solicitada`);
 }
 
 export async function marcarParcelaComoPaga(formData: FormData) {

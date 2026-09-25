@@ -1,5 +1,21 @@
 # Motor de Conversão — padrões ativos
 
+## Superlógica · Pendentes resumidos
+
+Incluído `superlogica-pendentes-resumida-cobrancas-v1`, com leitura das colunas por posição, conferência de subtotais e total geral, preservação de marcadores por recibo e recorte operacional anual. Veja [mapeamento e validação com o relatório Legus/Domo](conversor-superlogica-pendentes-resumida.md).
+
+## Hausy e relação simplificada
+
+Incluídos `hausy-inadimplencia-cobrancas-v1` e `superlogica-condominos-simplificada-v1`, com conferência de totais e contatos entre páginas. O relatório de unidades completo continua no padrão Superlógica existente, com correção de e-mails colados. Veja [mapeamento e validação com Ateliê 365](conversor-hausy-atelie.md).
+
+## BRCondos · Cobranças
+
+O padrão `brcondos-contas-receber-cobrancas-v1` converte o Relatório de Contas a Receber em CSV/XLSX de cobranças, com uma linha por fatura, identificação de acordos, situação original de vencimento e conferência dos totalizadores. Veja o [mapeamento e a validação](conversor-brcondos-cobrancas.md).
+
+## BRCondos · Responsáveis
+
+O padrão `brcondos-lista-moradores-responsaveis-v1` reconhece o PDF Lista de Moradores e gera o CSV/XLSX oficial de Importações/Responsáveis. Preserva proprietários e moradores/locatários da mesma unidade, contatos múltiplos e cadastros divididos entre páginas. Veja o [mapeamento e a validação](conversor-brcondos-responsaveis.md).
+
 ## Ajuste desta entrega
 
 O motor passa a separar três conceitos:
