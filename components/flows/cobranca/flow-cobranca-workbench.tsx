@@ -351,10 +351,11 @@ export function FlowCobrancaWorkbench({
             </details>)}
           </div>
           {plano.error ? <p role="alert" className="px-4 py-3 text-sm text-rose-800">{plano.error}</p> : null}
+          {plano.quantidade > 0 ? <p className="px-5 py-3 text-sm text-slate-700">Serão criados {plano.quantidade} flows para {grupos.length} condomínios, em sequência. Os envios dependem de ativação posterior.</p> : null}
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
             <label className="mr-auto inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="criar_pausado" value="true" disabled={criando} />Criar pausados, sem agendar envios</label>
             <PendingSubmitButton formAction={desfazerAtivacaoCobrancasFlowCobranca} formNoValidate variant="danger" disabled={criando || selectedCobrancas.length === 0} pendingLabel="Desfazendo..." onClick={(event) => { if (!window.confirm(`Devolver ${selectedCobrancas.length} cobrança(s) para Novas?`)) event.preventDefault() }}><RotateCcw size={16} />Desfazer ativação</PendingSubmitButton>
-            <PendingSubmitButton disabled={criando || carregandoSelecao || !plano.quantidade || Boolean(plano.error)} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${plano.quantidade} Flow(s) em sequência para ${grupos.length} condomínio(s), com até ${LIMITE_EMAILS_FLOW} mensagens cada?`)) event.preventDefault() }}><CheckCircle2 size={16} />Gerar flows em sequência</PendingSubmitButton>
+            <PendingSubmitButton disabled={criando || carregandoSelecao || !plano.quantidade || Boolean(plano.error)} pendingLabel="Criando flows..."><CheckCircle2 size={16} />Gerar flows em sequência</PendingSubmitButton>
           </div>
         </form> : <ListEmptyState title="Nenhum condomínio disponível" description="Nenhuma cobrança disponível nesta página." />}
       </details>
