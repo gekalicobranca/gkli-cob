@@ -13,6 +13,8 @@ import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlow
 import { formatCurrency } from '@/utils/formatters/currency'
 import { hasResponsavelVinculado } from '@/features/flows/cobranca/eligibilidade'
 import { dividirCriacaoFlows, LIMITE_EMAILS_FLOW } from '@/features/flows/cobranca/dividir-criacao'
+import { planejarFlowsSequenciais } from '@/features/flows/cobranca/criacao-sequencial'
+import { carregarSelecaoFlows } from '@/features/flows/cobranca/selecao-actions'
 import { AtivacaoLoteFlows } from './ativacao-lote'
 import { flowCobrancaPath, type CanalFlowCobranca } from '@/features/flows/cobranca/rotas'
 
@@ -161,7 +163,12 @@ export function FlowCobrancaWorkbench({
   initialStep?: StepId
   initialSelectedIds?: string[]
 }) {
-  const [selectedCondominio, setSelectedCondominio] = useState(() => disponibilidade.find(row => initialSelectedIds.includes(row.id))?.condominio_id ?? (new Set(disponibilidade.map(row => row.condominio_id)).size === 1 ? disponibilidade[0]?.condominio_id : ''))
+  const [todosDisponiveis, setTodosDisponiveis] = useState<any[] | null>(null)
+  const [carregandoSelecao, setCarregandoSelecao] = useState(false)
+  const [erroSelecao, setErroSelecao] = useState('')
+  const [processadas, setProcessadas] = useState<string[]>([])
+  const disponiveis = (todosDisponiveis ?? disponibilidade).filter(row => !processadas.includes(row.id))
+  const [selectedCondominios, setSelectedCondominios] = useState<string[]>(() => [...new Set(disponibilidade.filter(row => initialSelectedIds.includes(row.id) || new Set(disponibilidade.map(row => row.condominio_id)).size === 1).map(row => row.condominio_id))])
   const [reguasSelecionadas, setReguasSelecionadas] = useState<Record<string, string>>({})
   function opcoesDoGrupo(rows: any[]) {
     const ids = new Set(rows.flatMap(row => reguasDisponiveis(row, reguas).map(regua => regua.id)))
@@ -191,16 +198,19 @@ export function FlowCobrancaWorkbench({
     let criados = 0
     try {
       const ids = new Set(formData.getAll('cobranca_id').map(String))
-      const partes = dividirCriacaoFlows(disponibilidade.filter(row => ids.has(row.id)))
+      const reguasPorCondominio = Object.fromEntries([...formData.entries()].filter(([key]) => key.startsWith('regua_condominio:')).map(([key, value]) => [key.slice('regua_condominio:'.length), String(value)]))
+      const partes = planejarFlowsSequenciais(disponiveis.filter(row => ids.has(row.id)), reguasPorCondominio)
       if (!partes.length) return { error: 'Selecione um condomínio para criar os flows.' }
       for (let index = 0; index < partes.length; index += 1) {
         setProgresso(`Criando parte ${index + 1} de ${partes.length} · ${criados} flow(s) pronto(s)`)
         const parte = new FormData()
-        for (const [key, value] of formData.entries()) if (key.startsWith('regua_id:') || key === 'criar_pausado') parte.set(key, value)
-        for (const row of partes[index]) parte.append('cobranca_id', row.id)
+        parte.set(`regua_id:${partes[index].carteiraId}`, partes[index].reguaId)
+        if (formData.get('criar_pausado') === 'true') parte.set('criar_pausado', 'true')
+        for (const row of partes[index].cobrancas) parte.append('cobranca_id', row.id)
         const resultado = await criarFlowsCobranca(null, parte)
         if (resultado.error) throw new Error(resultado.error)
         criados += resultado.flowIds?.length ?? 0
+        setProcessadas(current => [...current, ...partes[index].cobrancas.map(row => row.id)])
       }
       setProgresso(`${criados} flow(s) criado(s).`)
       const query = new URLSearchParams(returnQuery)
@@ -217,14 +227,12 @@ export function FlowCobrancaWorkbench({
       return { error: `${criados ? `${criados} flow(s) já criado(s) foram preservados. ` : ''}${error instanceof Error ? error.message : 'A criação foi interrompida. Atualize a lista antes de continuar.'}` }
     }
   }, null)
-  const elegiveis = useMemo(() => disponibilidade.filter(hasResponsavelVinculado), [disponibilidade])
-  const semResponsavel = disponibilidade.length - elegiveis.length
-  const rowsDoCondominio = elegiveis.filter(row => row.condominio_id === selectedCondominio)
-  const reguaSelecionada = reguaDoGrupo(rowsDoCondominio)
-  const selectedCobrancas = rowsDoCondominio.filter(row => reguasDisponiveis(row, reguas).some(regua => regua.id === reguaSelecionada))
+  const elegiveis = disponiveis.filter(hasResponsavelVinculado)
+  const semResponsavel = disponiveis.length - elegiveis.length
+  const selectedCobrancas = groupByCondominio(elegiveis).filter(grupo => selectedCondominios.includes(grupo.condominioId)).flatMap(grupo => grupo.rows.filter(row => reguasDisponiveis(row, reguas).some(regua => regua.id === reguaDoGrupo(grupo.rows))))
   const selected = selectedCobrancas.map(row => row.id)
   const plano = (() => {
-    try { return { quantidade: dividirCriacaoFlows(selectedCobrancas).length, error: '' } }
+    try { return { quantidade: planejarFlowsSequenciais(selectedCobrancas, Object.fromEntries(groupByCondominio(selectedCobrancas).map(grupo => [grupo.condominioId, reguaDoGrupo(grupo.rows)]))).length, error: '' } }
     catch (error) { return { quantidade: 0, error: error instanceof Error ? error.message : 'Revise o período selecionado.' } }
   })()
   const grupos = groupByCondominio(selectedCobrancas)
@@ -257,13 +265,27 @@ export function FlowCobrancaWorkbench({
   }
 
   function toggleGrupo(rows: any[]) {
-    setSelectedCondominio(rows[0]?.condominio_id ?? '')
+    const id = rows[0]?.condominio_id
+    setSelectedCondominios(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])
+  }
+
+  async function selecionarTodos() {
+    setCarregandoSelecao(true)
+    setErroSelecao('')
+    try {
+      const rows = await carregarSelecaoFlows(canal, returnQuery)
+      setTodosDisponiveis(rows)
+      setProcessadas([])
+      setSelectedCondominios([...new Set(rows.map(row => row.condominio_id))])
+    } catch (error) { setErroSelecao(error instanceof Error ? error.message : 'Não foi possível carregar a seleção.') }
+    finally { setCarregandoSelecao(false) }
   }
 
   return <div className="space-y-3">
     <ImportProgressIndicator active={criando} title="Criando flows de cobrança" steps={['Criar flows em partes']} currentStep={0} detail={progresso || 'Preparando a criação dos flows...'} />
     {progresso ? <p role="status" aria-live="polite" className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">{progresso}</p> : null}
     {createState?.error ? <p role="alert" className="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{createState.error}</p> : null}
+    {erroSelecao ? <p role="alert" className="text-sm text-rose-800">{erroSelecao}</p> : null}
     {mode === 'gerar' ? <ListPanel>
       <details open={openSteps.lotes} onToggle={(event) => syncStepOpen('lotes', event)} className="group bg-white">
         <summary className="cursor-pointer list-none transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
@@ -273,7 +295,9 @@ export function FlowCobrancaWorkbench({
           {selectedCobrancas.map((cobranca) => <input key={cobranca.id} type="hidden" name="cobranca_id" value={cobranca.id} />)}
           <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <p className="text-sm text-slate-600">Selecione um condomínio por Flow de {canal === 'email' ? 'e-mail' : 'WhatsApp'}. Serão incluídas as {selectedCobrancas.length} cobrança(s) disponíveis para os canais da régua selecionada. Réguas mistas incluem todos os seus canais.</p>
+              <p className="text-sm text-slate-600">Selecione os condomínios para gerar flows de {canal === 'email' ? 'e-mail' : 'WhatsApp'} em sequência. {selectedCobrancas.length} cobrança(s) selecionada(s). Cada Flow mantém um único condomínio e sua régua. Réguas mistas incluem todos os seus canais.</p>
+              <div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="secondary" disabled={criando || carregandoSelecao} onClick={selecionarTodos}>{carregandoSelecao ? 'Carregando todas as páginas...' : 'Selecionar todos dos filtros'}</Button><Button type="button" variant="secondary" disabled={criando || carregandoSelecao} onClick={() => setSelectedCondominios([])}>Limpar seleção</Button></div>
+              {todosDisponiveis ? <p className="mt-1 text-xs text-slate-500">Todas as páginas dos filtros foram carregadas para seleção.</p> : null}
               <p className="mt-1 text-xs text-slate-500">Criação automática em partes menores, com até {LIMITE_EMAILS_FLOW} mensagens por Flow. As cobranças da mesma unidade ficam juntas. Mantenha esta página aberta até concluir.</p>
               {semResponsavel > 0 ? <p className="mt-1 text-xs text-amber-800">{semResponsavel} cobrança(s) sem responsável não entram na seleção. Preencha o responsável no cadastro da unidade para incluí-las no Flow.</p> : null}
             </div>
@@ -299,12 +323,12 @@ export function FlowCobrancaWorkbench({
                     pendenciasPorCondominio.set(id, pendencia)
                   }
                   const selecionadasNoGrupo = elegiveisNoGrupo.filter((row) => selected.includes(row.id))
-                  const grupoSelecionado = grupo.condominioId === selectedCondominio
+                  const grupoSelecionado = selectedCondominios.includes(grupo.condominioId)
                   const opcoesRegua = opcoesDoGrupo(grupo.rows)
                   const defaultRegua = reguaDoGrupo(grupo.rows)
                   return <ListRow key={grupo.condominioId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
                     <div>
-                      <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="radio" name="condominio_selecionado" value={grupo.condominioId} checked={grupoSelecionado} disabled={criando || elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 border-slate-300 text-[var(--gkli-primary)]" />{grupo.condominioNome}</label>
+                      <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="checkbox" name="condominio_selecionado" value={grupo.condominioId} checked={grupoSelecionado} disabled={criando || carregandoSelecao || elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 border-slate-300 text-[var(--gkli-primary)]" />{grupo.condominioNome}</label>
                       <p className="mt-1 text-xs text-slate-500">{selecionadasNoGrupo.length} de {elegiveisNoGrupo.length} cobrança(s) selecionada(s)</p>
                       <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer">Ver cobranças incluídas pelo filtro ({grupo.rows.length})</summary><ul className="mt-2 space-y-2">{grupo.rows.map(row => <li key={row.id}><a href={`/app/cobrancas/${row.id}`} className="underline">Unidade {relation(row.unidade)?.identificacao || '-'} · {row.vencimento} · {formatCurrency(cobrancaValue(row))}</a></li>)}</ul></details>
                       {grupo.rows.length > elegiveisNoGrupo.length ? <p className="mt-1 text-xs text-amber-800">{grupo.rows.length - elegiveisNoGrupo.length} sem responsável</p> : null}
@@ -313,10 +337,10 @@ export function FlowCobrancaWorkbench({
                       </ul> : null}
                     </div>
                     <div><p className="text-xs text-slate-400">Total selecionado</p><p className="text-sm font-medium text-slate-800">{formatCurrency(selecionadasNoGrupo.reduce((sum, row) => sum + cobrancaValue(row), 0))}</p></div>
-                    <div><p className="text-xs text-slate-400">Lotes</p><p className="text-sm text-slate-700">{selecionadasNoGrupo.length ? `${plano.quantidade} parte(s)` : 'Não selecionado'}</p></div>
+                    <div><p className="text-xs text-slate-400">Lotes</p><p className="text-sm text-slate-700">{selecionadasNoGrupo.length ? (plano.error ? 'Revisar seleção' : `${dividirCriacaoFlows(selecionadasNoGrupo).length} parte(s)`) : 'Não selecionado'}</p></div>
                     <label className="text-xs font-medium text-slate-600">
                       Régua do Flow
-                      <select name={`regua_id:${grupo.carteiraId}`} required={selecionadasNoGrupo.length > 0} disabled={criando || !grupoSelecionado} value={defaultRegua} onChange={event => setReguasSelecionadas(current => ({ ...current, [grupo.condominioId]: event.target.value }))} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400">
+                      <select name={`regua_condominio:${grupo.condominioId}`} required={selecionadasNoGrupo.length > 0} disabled={criando || carregandoSelecao || !grupoSelecionado} value={defaultRegua} onChange={event => setReguasSelecionadas(current => ({ ...current, [grupo.condominioId]: event.target.value }))} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50 disabled:text-slate-400">
                         <option value="" disabled>Selecione</option>
                         {opcoesRegua.map((regua: any) => <option key={regua.id} value={regua.id}>{regua.nome}{regua.carteira_id ? '' : ' · global'}</option>)}
                       </select>
@@ -330,7 +354,7 @@ export function FlowCobrancaWorkbench({
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
             <label className="mr-auto inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="criar_pausado" value="true" disabled={criando} />Criar pausados, sem agendar envios</label>
             <PendingSubmitButton formAction={desfazerAtivacaoCobrancasFlowCobranca} formNoValidate variant="danger" disabled={criando || selectedCobrancas.length === 0} pendingLabel="Desfazendo..." onClick={(event) => { if (!window.confirm(`Devolver ${selectedCobrancas.length} cobrança(s) para Novas?`)) event.preventDefault() }}><RotateCcw size={16} />Desfazer ativação</PendingSubmitButton>
-            <PendingSubmitButton disabled={criando || !plano.quantidade || Boolean(plano.error)} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${plano.quantidade} Flow(s) em partes, com até ${LIMITE_EMAILS_FLOW} mensagens cada?`)) event.preventDefault() }}><CheckCircle2 size={16} />Criar Flow</PendingSubmitButton>
+            <PendingSubmitButton disabled={criando || carregandoSelecao || !plano.quantidade || Boolean(plano.error)} pendingLabel="Criando flows..." onClick={(event) => { if (!window.confirm(`Criar ${plano.quantidade} Flow(s) em sequência para ${grupos.length} condomínio(s), com até ${LIMITE_EMAILS_FLOW} mensagens cada?`)) event.preventDefault() }}><CheckCircle2 size={16} />Gerar flows em sequência</PendingSubmitButton>
           </div>
         </form> : <ListEmptyState title="Nenhum condomínio disponível" description="Nenhuma cobrança disponível nesta página." />}
       </details>

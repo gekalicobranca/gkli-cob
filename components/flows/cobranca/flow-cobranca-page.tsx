@@ -129,7 +129,7 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
         </div>
       </Card>)}
     </ListKpiGrid> : null}
-    {aba === 'gerar' ? <p className="text-xs text-slate-500">Indicadores de todas as cobranças elegíveis nos filtros aplicados. Seleção limitada à página atual.</p> : null}
+    {aba === 'gerar' ? <p className="text-xs text-slate-500">Indicadores de todas as cobranças elegíveis nos filtros aplicados. Use Selecionar todos dos filtros para incluir as outras páginas.</p> : null}
     {monitor ? <p className="text-xs text-slate-500">Indicadores desta página.</p> : null}
 
     <ListCollapsibleFilters defaultOpen={hasFilters || aba === 'gerar'} actions={<ClearFiltersLink href={`${basePath}?aba=${aba}`} show={hasFilters} />}>

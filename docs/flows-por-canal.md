@@ -12,6 +12,8 @@ Flows e réguas mistos continuam presentes em cada canal correspondente; suas a�
 
 ## Navegação e carregamento
 
+Em **Gerar flows**, as caixas de seleção permitem escolher vários condomínios. **Selecionar todos dos filtros** consulta todas as páginas do canal e do escopo permitido, preservando carteira, condomínio e datas. Cada condomínio mantém sua própria régua. **Gerar flows em sequência** cria uma parte por chamada, com progresso, sem misturar condomínios ou carteiras. Em caso de erro, interrompe a sequência, informa quantos flows foram preservados e remove da seleção as partes já concluídas. A criação não ativa os flows; a opção de criar pausados continua disponível.
+
 A abertura padrão é **Acompanhar**, com até 30 flows por página, filtros de status, carteira, condomínio e data de criação. Os indicadores e a seleção em lote referem-se à página exibida. **Histórico** consulta separadamente os flows concluídos e cancelados, também com paginação no banco. A fila de mensagens só é buscada quando o Flow é aberto.
 
 **Gerar flows** avalia todas as cobranças dos filtros aplicados, em lotes de consulta, e remove impedimentos de cadastro e conflitos de canal antes de paginar. Cada página apresenta até 100 cobranças novas elegíveis e 100 ativas disponíveis. Os indicadores mostram os totais elegíveis dos filtros, enquanto a seleção fica limitada à página atual e a um condomínio por vez. Os vínculos são consultados com concorrência limitada a quatro grupos de cobranças. Após gerar, a navegação retorna para Acompanhar no mesmo condomínio. A ativação de cobranças retorna para Gerar flows e não inclui uma lista extensa de IDs na URL.
