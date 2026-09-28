@@ -12,8 +12,7 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
     for (const canal of canais) current.add(canal)
     map.set(id, current)
   }
-  for (let start = 0; start < ids.length; start += 80) {
-    const parte = ids.slice(start, start + 80)
+  async function carregarParte(parte: string[]) {
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await db.from('lote_itens')
         .select('id,cobranca_id,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(payload,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal)')
@@ -38,6 +37,12 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
       for (const row of data ?? []) if (row.cobranca_id) add(row.cobranca_id, [row.canal || '*'])
       if ((data ?? []).length < 500) break
     }
+  }
+  // A contagem de disponíveis verifica todo o recorte. Limite a concorrência
+  // para não serializar dezenas de consultas nem sobrecarregar o banco.
+  for (let start = 0; start < ids.length; start += 320) {
+    const partes = [0, 80, 160, 240].map(offset => ids.slice(start + offset, Math.min(start + offset + 80, start + 320)))
+    await Promise.all(partes.filter(parte => parte.length > 0).map(carregarParte))
   }
   return map
 }

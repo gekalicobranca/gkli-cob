@@ -223,9 +223,10 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
       if (data.length < 500) return { data: rows, error: null }
     }
   }
-  // A exportação continua completa; somente a tela solicita uma página.
+  // Gerar flows precisa avaliar a elegibilidade no conjunto filtrado inteiro.
+  // Paginar antes dos vínculos pode produzir páginas vazias e totais incorretos.
   async function carregarPagina(query: any) {
-    if (options.page === undefined) return { ...await todasCobrancas(query), hasNext: false }
+    if (!options.somenteSaneamento || options.page === undefined) return { ...await todasCobrancas(query), hasNext: false }
     const offset = (Math.max(1, options.page) - 1) * COBRANCAS_FLOW_PAGE_SIZE
     const { data, error } = await query.order('id').range(offset, offset + COBRANCAS_FLOW_PAGE_SIZE)
     return { data: (data ?? []).slice(0, COBRANCAS_FLOW_PAGE_SIZE), error, hasNext: (data?.length ?? 0) > COBRANCAS_FLOW_PAGE_SIZE }
@@ -276,27 +277,26 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const saneamentoMaestro = [...(painel ?? []), ...(disponibilidade ?? [])].filter((row: any) => motivos.has(row.id))
     .map((row: any) => ({ ...row, motivo_saneamento: motivos.get(row.id) }))
   const normalize = (row: any) => ({ ...row, carteira: relation(row.carteira), condominio: relation(row.condominio), unidade: relation(row.unidade) })
+  const painelElegivel = options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id)).map(normalize)
+  const disponibilidadeElegivel = options.somenteSaneamento ? [] : ativas.aptas
+    .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
+    .filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
+    .map(normalize)
+  const offset = (Math.max(1, options.page ?? 1) - 1) * COBRANCAS_FLOW_PAGE_SIZE
+  const paginar = (rows: any[]) => options.page === undefined ? rows : rows.slice(offset, offset + COBRANCAS_FLOW_PAGE_SIZE)
 
   return {
     saneamento: [...new Map([...novas.saneamento, ...ativas.saneamento, ...saneamentoMaestro].map(row => [row.id, row])).values()].map(normalize),
-    painel: options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id)).map((row: any) => ({
-      ...row,
-      carteira: relation(row.carteira),
-      condominio: relation(row.condominio),
-      unidade: relation(row.unidade),
-    })),
-    disponibilidade: options.somenteSaneamento ? [] : ativas.aptas
-      .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
-      .filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
-      .map((row: any) => ({
-        ...row,
-        carteira: relation(row.carteira),
-        condominio: relation(row.condominio),
-        unidade: relation(row.unidade),
-      })),
+    painel: paginar(painelElegivel),
+    disponibilidade: paginar(disponibilidadeElegivel),
+    totalDisponibilidade: disponibilidadeElegivel.length,
+    totalPainel: painelElegivel.length,
+    valorPainel: painelElegivel.reduce((sum, row) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0),
+    unidadesPainel: new Set(painelElegivel.map(row => row.unidade_id).filter(Boolean)).size,
     reguas: options.somenteSaneamento ? [] : reguasDoCanal,
     flows: [] as any[],
-    hasNext: painelResult.hasNext || disponibilidadeResult.hasNext,
+    hasNext: options.somenteSaneamento ? painelResult.hasNext || disponibilidadeResult.hasNext
+      : options.page !== undefined && Math.max(painelElegivel.length, disponibilidadeElegivel.length) > offset + COBRANCAS_FLOW_PAGE_SIZE,
   }
 }
 

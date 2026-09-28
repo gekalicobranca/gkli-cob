@@ -14,7 +14,7 @@ Flows e réguas mistos continuam presentes em cada canal correspondente; suas a�
 
 A abertura padrão é **Acompanhar**, com até 30 flows por página, filtros de status, carteira, condomínio e data de criação. Os indicadores e a seleção em lote referem-se à página exibida. **Histórico** consulta separadamente os flows concluídos e cancelados, também com paginação no banco. A fila de mensagens só é buscada quando o Flow é aberto.
 
-**Gerar flows** exige escolher um condomínio antes de consultar cobranças e vínculos de canais. Após gerar, a navegação retorna para Acompanhar no mesmo condomínio. A ativação de cobranças retorna para Gerar flows e não inclui uma lista extensa de IDs na URL.
+**Gerar flows** avalia todas as cobranças dos filtros aplicados, em lotes de consulta, e remove impedimentos de cadastro e conflitos de canal antes de paginar. Cada página apresenta até 100 cobranças novas elegíveis e 100 ativas disponíveis. Os indicadores mostram os totais elegíveis dos filtros, enquanto a seleção fica limitada à página atual e a um condomínio por vez. Os vínculos são consultados com concorrência limitada a quatro grupos de cobranças. Após gerar, a navegação retorna para Acompanhar no mesmo condomínio. A ativação de cobranças retorna para Gerar flows e não inclui uma lista extensa de IDs na URL.
 
 Cada aba carrega apenas seus próprios dados. **Saneamento** não consulta flows nem vínculos de mensagens, exibe 50 cobranças por página e exporta todos os registros dos filtros aplicados. Sua consulta ainda avalia o conjunto completo de cobranças filtradas para conferir pendências atuais. **Maestro** só é consultado ao abrir sua aba. A troca de abas não faz pré-carregamento das consultas das demais áreas.
 

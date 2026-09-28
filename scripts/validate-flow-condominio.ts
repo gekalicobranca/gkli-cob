@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { separarSaneamento, unicoCondominio } from '../features/flows/cobranca/eligibilidade'
 import { hasResponsavelVinculado } from '../features/flows/cobranca/eligibilidade'
 import { dividirCriacaoFlows, LIMITE_COBRANCAS_CHAMADA } from '../features/flows/cobranca/dividir-criacao'
+import { somenteCobrancasCanonicas } from '../lib/core/cobranca-arquivamento'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
@@ -36,6 +37,7 @@ test('ações do servidor rejeitam mistura de condomínios antes de gravar ou pr
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   const unexpected = () => { throw new Error('Operação inesperada após seleção inválida') }
   const deps: Record<string, any> = {
+    '../../../lib/core/cobranca-arquivamento': { somenteCobrancasCanonicas },
     './dividir-criacao': { dividirCriacaoFlows, LIMITE_COBRANCAS_CHAMADA },
     '@/utils/auth/require-role': { requireRole: async () => {} },
     '@/utils/auth/require-user': { requireUser: async () => ({ id: 'user' }) },
@@ -43,7 +45,8 @@ test('ações do servidor rejeitam mistura de condomínios antes de gravar ou pr
     '@/utils/auth/apply-carteira-scope': { applyCarteiraScope: (query: any) => query },
     '@/utils/supabase/admin': { createAdminClient: () => ({ from: (table: string) => {
       assert.equal(table, 'cobrancas')
-      return { select: () => ({ in: async () => ({ data: rows }) }), update: unexpected, insert: unexpected }
+      const query = { is: (column: string, value: null) => { assert.equal(column, 'duplicada_de_id'); assert.equal(value, null); return query }, in: async () => ({ data: rows }) }
+      return { select: () => query, update: unexpected, insert: unexpected }
     } }) },
     './eligibilidade': { unicoCondominio, hasResponsavelVinculado },
   }

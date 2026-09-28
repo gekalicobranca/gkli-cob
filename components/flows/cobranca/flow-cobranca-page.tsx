@@ -63,8 +63,8 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
   const painelRows = (data.painel ?? []) as any[]
   const disponibilidadeRows = (data.disponibilidade ?? []) as any[]
   const selecionadas = selectedIds(params.selecionadas)
-  const valorNovo = painelRows.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
-  const unidades = new Set(painelRows.map((row: any) => row.unidade_id).filter(Boolean)).size
+  const valorNovo = Number('valorPainel' in data ? data.valorPainel : 0)
+  const unidades = Number('unidadesPainel' in data ? data.unidadesPainel : 0)
   const returnQuery = new URLSearchParams({ aba })
   if (monitor) returnQuery.set('ordenar', ordenar)
   if (monitor && status) returnQuery.set('status', status)
@@ -83,8 +83,8 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
     { label: 'Falhas para revisar', value: data.flows.reduce((sum, flow) => sum + Number(flow.total_falhas ?? 0), 0) },
   ] : [
     { label: 'Valor novo', value: formatCurrency(valorNovo), icon: WalletCards, tone: 'bg-[var(--gkli-primary-light)] text-[var(--gkli-primary)]' },
-    { label: 'Novas', value: painelRows.length, tag: 'painel', tagClass: 'bg-emerald-50 text-emerald-700' },
-    { label: 'Cobranças ativas', value: disponibilidadeRows.length, icon: Layers, tone: 'bg-violet-50 text-violet-700' },
+    { label: 'Novas', value: Number('totalPainel' in data ? data.totalPainel : 0), tag: 'painel', tagClass: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Ativas disponíveis', value: Number('totalDisponibilidade' in data ? data.totalDisponibilidade : 0), icon: Layers, tone: 'bg-violet-50 text-violet-700' },
     { label: 'Unidades', value: unidades, icon: ListChecks, tone: 'bg-blue-50 text-blue-700' },
   ]
 
@@ -129,7 +129,7 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
         </div>
       </Card>)}
     </ListKpiGrid> : null}
-    {detalhesCobrancas ? <p className="text-xs text-slate-500">Indicadores e seleção desta página.</p> : null}
+    {aba === 'gerar' ? <p className="text-xs text-slate-500">Indicadores de todas as cobranças elegíveis nos filtros aplicados. Seleção limitada à página atual.</p> : null}
     {monitor ? <p className="text-xs text-slate-500">Indicadores desta página.</p> : null}
 
     <ListCollapsibleFilters defaultOpen={hasFilters || aba === 'gerar'} actions={<ClearFiltersLink href={`${basePath}?aba=${aba}`} show={hasFilters} />}>
@@ -161,7 +161,7 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
       initialSelectedIds={selecionadas}
     /></FlowWorkerProvider>
     {monitor || detalhesCobrancas ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <p className="text-sm text-slate-600">Página {page} · {monitor ? 'Até ' + FLOWS_PAGE_SIZE + ' flows por página' : 'Até ' + COBRANCAS_FLOW_PAGE_SIZE + ' cobranças novas e ' + COBRANCAS_FLOW_PAGE_SIZE + ' ativas consultadas por página'}</p>
+      <p className="text-sm text-slate-600">Página {page} · {monitor ? 'Até ' + FLOWS_PAGE_SIZE + ' flows por página' : 'Até ' + COBRANCAS_FLOW_PAGE_SIZE + ' cobranças novas e ' + COBRANCAS_FLOW_PAGE_SIZE + (aba === 'gerar' ? ' ativas elegíveis por página' : ' ativas consultadas por página')}</p>
       <div className="flex gap-2">{page > 1 ? <ButtonLink href={pageHref(page - 1)} prefetch={false} variant="secondary">Anterior</ButtonLink> : null}{hasNext ? <ButtonLink href={pageHref(page + 1)} prefetch={false} variant="secondary">Próxima</ButtonLink> : null}</div>
     </div> : null}
   </ListPage>
