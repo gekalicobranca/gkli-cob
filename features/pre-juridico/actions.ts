@@ -71,6 +71,7 @@ export async function atualizarEtapaPreJuridico(formData: FormData) {
   if (error) throw new Error(`Erro ao atualizar etapa pré-jurídica: ${error.message}`)
 
   revalidatePath('/app/pre-juridico')
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/flow')
 }
@@ -127,6 +128,7 @@ export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
     })
   }
 
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/flow')
   revalidatePath('/app/cobrancas')
@@ -168,6 +170,7 @@ export async function confirmarJuridicoPreJuridico(formData: FormData) {
   const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', casoId)
   if (error) throw new Error(`Erro ao confirmar o jurídico: ${error.message}`)
 
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/flow')
 }
@@ -210,6 +213,7 @@ export async function confirmarJuridicoPreJuridicoEmMassa(formData: FormData) {
   const { error } = await supabase.from('pre_juridico_casos').update(payload).in('id', casoIds)
   if (error) throw new Error(`Erro ao confirmar jurídico em massa: ${error.message}`)
 
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/flow')
 }
@@ -268,6 +272,7 @@ export async function atualizarCertidaoPreJuridico(formData: FormData) {
     })
   }
 
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/flow')
 }
@@ -293,6 +298,7 @@ export async function gerarProcuracoesPreJuridico(formData: FormData) {
   for (const caso of casos) {
     await registrarEventoOperacional(supabase as any, { carteiraId: caso.carteira_id, entidadeTipo: 'cobranca', entidadeId: caso.cobranca_id, eventoCodigo: 'cobranca.pre_juridico.procuracao_gerada', titulo: 'Procuração gerada', descricao: 'Procuração preparada para coleta da assinatura do síndico.', severidade: 'info', payload: { caso_id: caso.id, condominio_id: caso.condominio_id, unidade_id: caso.unidade_id }, origem: 'manual', auditavel: true, required: true, userId: user.id })
   }
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
   const unidadeIds = Array.from(new Set(casos.map((caso) => caso.unidade_id).filter(Boolean)))
   let cobrancasQuery = somenteCobrancasCanonicas(supabase.from('cobrancas').select('id')).in('unidade_id', unidadeIds)
@@ -333,6 +339,7 @@ export async function criarLoteProcuracoesPreJuridico(formData: FormData) {
     if (vinculoError) throw new Error(`Lote criado, mas não foi possível vinculá-lo aos casos: ${vinculoError.message}`)
   }
 
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/flow')
   if (resultado.loteId) redirect(`/app/lotes/${resultado.loteId}?pre_juridico=1`)
@@ -363,6 +370,7 @@ export async function atualizarProcuracaoPreJuridico(formData: FormData) {
   if (status === 'assinada') { payload.procuracao_gerada_em = caso.procuracao_gerada_em ?? agora; payload.procuracao_assinada_em = caso.procuracao_assinada_em ?? agora; payload.etapa = 'confirmar_juridico' }
   const { error } = await supabase.from('pre_juridico_casos').update(payload).eq('id', casoId)
   if (error) throw new Error(`Erro ao atualizar procuração: ${error.message}`)
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
 }
 
@@ -408,6 +416,7 @@ export async function atualizarProcuracoesPreJuridicoEmMassa(formData: FormData)
     if (error) throw new Error(`Erro ao atualizar procuração: ${error.message}`)
   }
 
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/flow')
 }
@@ -423,10 +432,11 @@ export async function encaminharCobrancasPreJuridico(formData: FormData) {
   const elegiveis = (await listPreJuridicoCobrancas(scope)).filter((row: any) => row.situacao_pre_juridico === 'elegivel' && ids.includes(row.id))
   if (elegiveis.length !== ids.length) throw new Error('Uma ou mais cobranças não estão elegíveis para o pré-jurídico.')
 
-  const { error: updateError } = await supabase
+  const { data: encaminhadas, error: updateError } = await supabase
     .from('cobrancas')
-    .update({ status: 'pre_juridico', status_operacional: 'pre_juridico' })
+    .update({ status: 'pre_distribuicao', status_operacional: 'pre_distribuicao' })
     .in('id', ids)
+    .select('id,status_operacional')
   if (updateError) throw new Error(`Erro ao encaminhar cobranças: ${updateError.message}`)
 
   for (const row of elegiveis as any[]) {
@@ -435,12 +445,12 @@ export async function encaminharCobrancasPreJuridico(formData: FormData) {
       entidadeTipo: 'cobranca',
       entidadeId: row.id,
       eventoCodigo: 'cobranca.pre_juridico.encaminhada',
-      titulo: 'Cobrança encaminhada ao pré-jurídico',
+      titulo: 'Cobrança encaminhada para preparação documental',
       descricao: `Cobrança vencida há ${row.dias_atraso} dias; regra D+${row.prazo_total}.`,
       severidade: 'alerta',
       payload: { cobranca_id: row.id, condominio_id: row.condominio_id, unidade_id: row.unidade_id },
       antes: { status_operacional: row.status_operacional ?? row.status ?? null },
-      depois: { status_operacional: 'pre_juridico' },
+      depois: { status_operacional: encaminhadas?.find(item => item.id === row.id)?.status_operacional },
       origem: 'manual',
       auditavel: true,
       required: true,
@@ -449,6 +459,7 @@ export async function encaminharCobrancasPreJuridico(formData: FormData) {
   }
 
   revalidatePath('/app/pre-juridico')
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/flow')
 }
@@ -529,6 +540,7 @@ export async function gerarLaudosPreJuridico(formData: FormData) {
   }
 
   revalidatePath('/app/pre-juridico')
+  revalidatePath('/app/cobrancas', 'layout')
   revalidatePath('/app/pre-juridico/processamento')
   revalidatePath('/app/pre-juridico/flow')
   const cobrancasAgrupadasIds = (cobrancasUnidades ?? []).map((row: any) => row.id)

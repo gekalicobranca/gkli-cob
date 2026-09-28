@@ -77,6 +77,7 @@ type GestaoAcordo = DashboardAcordo & {
 
 const CLOSED_COBRANCA_STATUSES = [
   COBRANCA_STATUS.ACORDO_EFETIVADO,
+  COBRANCA_STATUS.PRE_DISTRIBUICAO,
   COBRANCA_STATUS.PRE_JURIDICO,
   COBRANCA_STATUS.JUDICIALIZADO,
   COBRANCA_STATUS.SUSPENSO,
@@ -339,7 +340,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
 
   const valorJudicializado = cobrancasList
     .filter((item) =>
-      [COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(
+      [COBRANCA_STATUS.PRE_DISTRIBUICAO, COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(
         getCobrancaOperationalStatus(item) as any,
       ),
     )
@@ -485,7 +486,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
       label: "Judicialização",
       status: traffic(judicializacaoPercent, 6, 14),
       value: `${judicializacaoPercent}%`,
-      description: "peso do valor em pré-jurídico ou judicializado no estoque",
+      description: "peso do valor em pré-distribuição, pré-jurídico ou judicializado no estoque",
     },
     {
       label: "Carteira sem toque",
@@ -521,7 +522,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
     ).length,
     acordosEmRisco: acordosEmRisco.length,
     judicializados: cobrancasList.filter((item) =>
-      [COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(
+      [COBRANCA_STATUS.PRE_DISTRIBUICAO, COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(
         getCobrancaOperationalStatus(item) as any,
       ),
     ).length,
@@ -645,7 +646,7 @@ export async function getManagementDashboardTabs(scope: CarteiraScope) {
     (item) => getCobrancaOperationalStatus(item) === COBRANCA_STATUS.EM_NEGOCIACAO,
   );
   const judicializadas = cobrancasList.filter((item) =>
-    [COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(
+    [COBRANCA_STATUS.PRE_DISTRIBUICAO, COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(
       getCobrancaOperationalStatus(item) as any,
     ),
   );
@@ -724,7 +725,7 @@ export async function getManagementDashboardTabs(scope: CarteiraScope) {
     current.value += money(item.valor_atualizado);
     current.vencidas += safeDate(item.vencimento) && safeDate(item.vencimento)! < now ? 1 : 0;
     current.negociacao += operational === COBRANCA_STATUS.EM_NEGOCIACAO ? 1 : 0;
-    current.judicializadas += [COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(operational as any) ? 1 : 0;
+    current.judicializadas += [COBRANCA_STATUS.PRE_DISTRIBUICAO, COBRANCA_STATUS.PRE_JURIDICO, COBRANCA_STATUS.JUDICIALIZADO].includes(operational as any) ? 1 : 0;
     cobrancasPorCarteiraMap.set(nome, current);
   }
 

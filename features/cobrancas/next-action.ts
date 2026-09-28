@@ -82,6 +82,11 @@ export function calcularProximaAcaoCobranca(params: {
     titulo = 'Iniciar cobrança'
     descricao = 'Cobrança nova precisa de primeiro movimento operacional.'
     acao = 'Registrar primeiro contato'
+  } else if (status === COBRANCA_STATUS_OPERACIONAL.PRE_DISTRIBUICAO) {
+    score = 30
+    titulo = 'Preparar procuração e solicitar CRI'
+    descricao = 'Cobrança fora do ativo, aguardando procuração e solicitação da CRI para passar ao pré-jurídico.'
+    acao = 'Completar documentação'
   } else if (status === COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO) {
     score = 30
     titulo = 'Preparar documentação jurídica'

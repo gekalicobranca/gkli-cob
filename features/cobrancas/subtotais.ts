@@ -10,7 +10,7 @@ type Row = {
 }
 
 export function resumirValoresCobrancas(rows: Row[]) {
-  const excluidos = new Set(['acordo_efetivado', 'pre_juridico', 'judicializado', 'suspenso'])
+  const excluidos = new Set(['acordo_efetivado', 'pre_distribuicao', 'pre_juridico', 'judicializado', 'suspenso'])
   const carteiras = new Map<string, {
     carteiraId: string; carteira: string; centavos: number; quantidade: number
     condominios: Map<string, { condominioId: string; condominio: string; centavos: number; quantidade: number }>

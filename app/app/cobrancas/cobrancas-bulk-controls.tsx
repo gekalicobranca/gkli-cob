@@ -65,6 +65,7 @@ function CobrancasBulkControls() {
           <option value="em_cobranca_ativa">Ativar cobrança</option>
           <option value="em_negociacao">Mover para negociação</option>
           <option value="possivel_acordo">Marcar possível acordo</option>
+          <option value="pre_distribuicao">Mover para pré-distribuição</option>
           <option value="pre_juridico">Mover para pré-jurídico</option>
           <option value="judicializado">Judicializar</option>
           <option value="novo">Marcar como nova</option>

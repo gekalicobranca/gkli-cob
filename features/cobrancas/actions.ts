@@ -167,6 +167,7 @@ export async function updateCobrancaStatus(formData: FormData) {
     COBRANCA_STATUS.EM_NEGOCIACAO,
     COBRANCA_STATUS.ACORDO_FIRMADO,
     COBRANCA_STATUS.ACORDO_EFETIVADO,
+    COBRANCA_STATUS.PRE_DISTRIBUICAO,
     COBRANCA_STATUS.PRE_JURIDICO,
     COBRANCA_STATUS.JUDICIALIZADO,
     COBRANCA_STATUS.SUSPENSO,
@@ -187,10 +188,12 @@ export async function updateCobrancaStatus(formData: FormData) {
   const scope = await getPermittedCarteiras()
   assertCarteiraPermitida(scope, (atual as any)?.carteira_id)
 
-  const { error } = await supabase
+  const { data: atualizada, error } = await supabase
     .from('cobrancas')
     .update({ status, status_operacional: status })
     .eq('id', cobrancaId)
+    .select('status_operacional')
+    .single()
 
   if (error) {
     throw new Error(`Erro ao atualizar status da cobrança: ${error.message}`)
@@ -202,9 +205,9 @@ export async function updateCobrancaStatus(formData: FormData) {
     entidadeId: cobrancaId,
     eventoCodigo: 'cobranca.status_alterado',
     estadoAnterior: getCobrancaStatusOperacional(atual as any),
-    estadoNovo: status,
+    estadoNovo: atualizada.status_operacional,
     titulo: 'Status da cobrança alterado',
-    descricao: `Status alterado para ${status}.`,
+    descricao: `Status alterado para ${atualizada.status_operacional}.`,
     severidade:
       status === COBRANCA_STATUS.PRE_JURIDICO ||
       status === COBRANCA_STATUS.JUDICIALIZADO ||
@@ -212,7 +215,7 @@ export async function updateCobrancaStatus(formData: FormData) {
         ? 'alerta'
         : 'info',
     antes: { status_operacional: getCobrancaStatusOperacional(atual as any) },
-    depois: { status_operacional: status },
+    depois: { status_operacional: atualizada.status_operacional },
     origem: 'manual',
     auditavel: true,
     userId: user?.id ?? null,
@@ -238,6 +241,7 @@ export async function updateCobrancasStatusEmLote(
     COBRANCA_STATUS.EM_COBRANCA_ATIVA,
     COBRANCA_STATUS.EM_NEGOCIACAO,
     COBRANCA_STATUS.POSSIVEL_ACORDO,
+    COBRANCA_STATUS.PRE_DISTRIBUICAO,
     COBRANCA_STATUS.PRE_JURIDICO,
     COBRANCA_STATUS.JUDICIALIZADO,
     COBRANCA_STATUS.SUSPENSO,
@@ -269,15 +273,17 @@ export async function updateCobrancasStatusEmLote(
 
   const idsPermitidos = (cobrancas as any[]).map((cobranca) => cobranca.id)
 
-  const { error } = await supabase
+  const { data: atualizadas, error } = await supabase
     .from('cobrancas')
     .update({ status, status_operacional: status })
     .in('id', idsPermitidos)
+    .select('id,status_operacional')
 
   if (error) {
     throw new Error(`Erro ao atualizar cobranças em lote: ${error.message}`)
   }
 
+  const statusSalvos = new Map((atualizadas ?? []).map(row => [row.id, row.status_operacional]))
   await Promise.all(
     (cobrancas as any[]).map((cobranca) =>
       registrarEventoOperacional(supabase as any, {
@@ -286,9 +292,9 @@ export async function updateCobrancasStatusEmLote(
         entidadeId: cobranca.id,
         eventoCodigo: 'cobranca.status_alterado_lote',
         estadoAnterior: getCobrancaStatusOperacional(cobranca),
-        estadoNovo: status,
+        estadoNovo: statusSalvos.get(cobranca.id),
         titulo: 'Status alterado em lote',
-        descricao: observacao || `Status alterado em lote para ${status}.`,
+        descricao: observacao || `Status alterado em lote para ${statusSalvos.get(cobranca.id)}.`,
         severidade:
           status === COBRANCA_STATUS.PRE_JURIDICO ||
           status === COBRANCA_STATUS.JUDICIALIZADO ||
@@ -296,7 +302,7 @@ export async function updateCobrancasStatusEmLote(
             ? 'alerta'
             : 'info',
         antes: { status_operacional: getCobrancaStatusOperacional(cobranca) },
-        depois: { status_operacional: status },
+        depois: { status_operacional: statusSalvos.get(cobranca.id) },
         origem: 'manual',
         auditavel: true,
         userId: user?.id ?? null,

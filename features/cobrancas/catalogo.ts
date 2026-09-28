@@ -30,7 +30,7 @@ export function montarCatalogo(rows: CotaCatalogo[], dataBase: string): Condomin
     const chave = chaveUnidade(r), atual = indicativos.get(chave) ?? { juridico: false, pre: false }
     const status = getCobrancaStatusOperacional(r)
     atual.juridico ||= Boolean(r.unidades?.acao_judicial) || status === 'judicializado' || Boolean(r.indicativo_catalogo?.juridico)
-    atual.pre ||= status === 'pre_juridico' || Boolean(r.indicativo_catalogo?.pre)
+    atual.pre ||= ['pre_distribuicao', 'pre_juridico'].includes(status) || Boolean(r.indicativo_catalogo?.pre)
     indicativos.set(chave, atual)
   }
   const vistos = new Set<string>()
@@ -38,7 +38,7 @@ export function montarCatalogo(rows: CotaCatalogo[], dataBase: string): Condomin
     if (vistos.has(r.id)) continue
     vistos.add(r.id)
     const status = getCobrancaStatusOperacional(r)
-    if (!['novo', 'em_cobranca_ativa', 'em_negociacao', 'possivel_acordo', 'pre_juridico', 'judicializado'].includes(status)) continue
+    if (!['novo', 'em_cobranca_ativa', 'em_negociacao', 'possivel_acordo', 'pre_distribuicao', 'pre_juridico', 'judicializado'].includes(status)) continue
     if (['quitado', 'pago', 'cancelado', 'renegociado'].includes(String(r.status_financeiro ?? '').toLowerCase())) continue
     const diasInformados = Number(r.condominios?.inicio_cobranca_dias ?? 30)
     const dias = Number.isFinite(diasInformados) ? Math.max(0, diasInformados) : 30

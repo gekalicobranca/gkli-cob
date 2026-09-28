@@ -5,7 +5,7 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 
 const STATUS_ELEGIVEIS = new Set(['novo', 'em_cobranca_ativa', 'em_negociacao', 'possivel_acordo'])
-const STATUS_VISIVEIS = [...STATUS_ELEGIVEIS, 'pre_juridico']
+const STATUS_VISIVEIS = [...STATUS_ELEGIVEIS, 'pre_distribuicao', 'pre_juridico']
 
 function dateOnly(value: unknown) {
   const normalized = String(value ?? '').slice(0, 10)
@@ -79,7 +79,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
     const prazoAtivo = Number(condominio?.dias_cobranca_ativa ?? 60)
     const prazoTotal = Number(condominio?.inicio_cobranca_dias ?? 0) + prazoAtivo
     const diasAtraso = due ? daysBetween(due, today) : 0
-    const encaminhado = operational === 'pre_juridico'
+    const encaminhado = ['pre_distribuicao', 'pre_juridico'].includes(operational)
     const elegivel = Boolean(
       carteira?.pre_juridico_habilitado &&
       condominio?.pre_juridico_habilitado &&

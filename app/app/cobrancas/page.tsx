@@ -137,6 +137,7 @@ function getPriority(status: string, vencimento?: string | null) {
   if (
     [
       COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO,
+      COBRANCA_STATUS_OPERACIONAL.PRE_DISTRIBUICAO,
       COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO,
       COBRANCA_STATUS_OPERACIONAL.SUSPENSO,
       COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO,
@@ -148,6 +149,7 @@ function getPriority(status: string, vencimento?: string | null) {
 
     if (
       normalized === COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO ||
+      normalized === COBRANCA_STATUS_OPERACIONAL.PRE_DISTRIBUICAO ||
       normalized === COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO
     ) {
       return { label: "Baixa", className: "bg-red-50 text-red-700" };

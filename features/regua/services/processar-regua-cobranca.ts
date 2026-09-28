@@ -765,7 +765,7 @@ export async function processarReguaCobranca(
           !acordosAtivos.has(row.id);
 
         if (expiracaoPreJuridico.expirada && podeExpirarParaPreJuridico) {
-          const motivo = "Cobrança expirada após a régua e movida automaticamente para pré-jurídico.";
+          const motivo = "Cobrança expirada após a régua e encaminhada automaticamente para preparação documental.";
           const payloadExpiracao = {
             origem: "expiracao_regua_pre_juridico",
             dias_atraso: expiracaoPreJuridico.diasAtraso,
@@ -778,8 +778,8 @@ export async function processarReguaCobranca(
           const { error: updateError } = await supabase
             .from("cobrancas")
             .update({
-              status: COBRANCA_STATUS.PRE_JURIDICO,
-              status_operacional: COBRANCA_STATUS.PRE_JURIDICO,
+              status: COBRANCA_STATUS.PRE_DISTRIBUICAO,
+              status_operacional: COBRANCA_STATUS.PRE_DISTRIBUICAO,
             } as any)
             .eq("id", row.id);
 
@@ -790,7 +790,7 @@ export async function processarReguaCobranca(
             entidadeTipo: "cobranca",
             entidadeId: row.id,
             eventoCodigo: "cobranca.pre_juridico_expiracao_regua",
-            titulo: "Cobrança movida para pré-jurídico",
+            titulo: "Cobrança encaminhada para preparação documental",
             descricao: motivo,
             severidade: "alerta",
             payload: payloadExpiracao,

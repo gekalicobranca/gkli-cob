@@ -104,7 +104,7 @@ export default async function NovoCondominioPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <label className="flex items-start gap-3 text-sm text-slate-700"><input type="checkbox" name="pre_juridico_habilitado" className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" /><span><span className="block font-medium text-slate-950">Enviar automaticamente ao Pré-Jurídico</span><span className="mt-1 block text-xs leading-5 text-slate-500">Após o prazo de cobrança ativa, envia cobranças sem acordo. Desmarcado, nenhuma mudança automática acontece.</span></span></label>
+            <label className="flex items-start gap-3 text-sm text-slate-700"><input type="checkbox" name="pre_juridico_habilitado" className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" /><span><span className="block font-medium text-slate-950">Enviar automaticamente à Pré-distribuição</span><span className="mt-1 block text-xs leading-5 text-slate-500">Após o prazo de cobrança ativa, envia cobranças sem acordo. Desmarcado, nenhuma mudança automática acontece.</span></span></label>
           </div>
 
           <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">

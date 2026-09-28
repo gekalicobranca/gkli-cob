@@ -56,7 +56,8 @@ export function getWorkspaceIntelligence(
     !input.ultimaInteracaoAt && Number(input.totalInteracoes ?? 0) === 0;
   const temAcordo = Boolean(input.temAcordoVigente);
   const emNegociacao = input.statusOperacional === "em_negociacao";
-  const preJuridico = input.statusOperacional === "pre_juridico";
+  const preDistribuicao = input.statusOperacional === "pre_distribuicao";
+  const preJuridico = ["pre_distribuicao", "pre_juridico"].includes(input.statusOperacional);
   const judicializado = input.statusOperacional === "judicializado";
 
   let score = 10;
@@ -136,7 +137,9 @@ export function getWorkspaceIntelligence(
 
   if (preJuridico) {
     alertas.push(
-      "Pré-jurídico: cobrança fora da cadência extrajudicial e em preparação documental.",
+      preDistribuicao
+        ? "Pré-distribuição: aguardando procuração e solicitação da CRI."
+        : "Pré-jurídico: cobrança fora da cadência extrajudicial e em preparação documental.",
     );
     sugestoes.push(
       "Registrar checklist de documentos e próximo marco antes da judicialização.",
@@ -170,7 +173,7 @@ export function getWorkspaceIntelligence(
   const foco = temAcordo
     ? "Cumprimento"
     : preJuridico
-      ? "Pré-jurídico"
+      ? preDistribuicao ? "Pré-distribuição" : "Pré-jurídico"
     : risco === "critico"
       ? "Intervenção imediata"
       : risco === "alto"

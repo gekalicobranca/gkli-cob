@@ -29,6 +29,7 @@ export type RankingMensalStatus =
   | "Extrajudicial"
   | "Acordo"
   | "Pré-distribuição"
+  | "Pré-jurídico"
   | "Ação judicial em trâmite"
   | "A classificar"
 
@@ -220,7 +221,8 @@ export function buildRankingMensalFromCobrancas(
 function statusFromOperacional(statuses: string[]) {
   if (statuses.includes(COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO)) return "Ação judicial em trâmite"
   if (statuses.includes(COBRANCA_STATUS_OPERACIONAL.ACORDO_EFETIVADO) || statuses.includes(COBRANCA_STATUS_OPERACIONAL.ACORDO_FIRMADO)) return "Acordo"
-  if (statuses.includes(COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO)) return "Pré-distribuição"
+  if (statuses.includes(COBRANCA_STATUS_OPERACIONAL.PRE_JURIDICO)) return "Pré-jurídico"
+  if (statuses.includes(COBRANCA_STATUS_OPERACIONAL.PRE_DISTRIBUICAO)) return "Pré-distribuição"
   if (statuses.some((status) => [
     COBRANCA_STATUS_OPERACIONAL.NOVO,
     COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
@@ -237,7 +239,9 @@ function andamentoPadrao(status: RankingMensalStatus, inicioCobrancaDias?: numbe
     case "Acordo":
       return "Acordo vigente localizado no app."
     case "Pré-distribuição":
-      return "Unidade em preparação pré-jurídica no app."
+      return "Unidade aguardando procuração e solicitação da CRI no app."
+    case "Pré-jurídico":
+      return "Unidade com procuração e CRI solicitada, em acompanhamento pré-jurídico no app."
     case "Administrativo":
       return `Unidade aos cuidados da administradora, atuação do escritório com ${inicioCobrancaDias ?? 60} dias de atraso.`
     case "Extrajudicial":

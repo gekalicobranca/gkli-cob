@@ -421,7 +421,7 @@ export async function listCobrancasCatalogo(scope: CarteiraScope, filters: Cobra
           const atual = sinais.get(item.unidade_id) ?? { juridico: false, pre: false }
           const estado = table === 'cobrancas' ? getCobrancaStatusOperacional(item) : item.etapa
           atual.juridico ||= estado === 'judicializado' || item.distribuicao_status === 'distribuido'
-          atual.pre ||= estado === 'pre_juridico' || (table === 'pre_juridico_casos' && !['judicializado', 'encerrado', 'cancelado', 'arquivado'].includes(estado ?? ''))
+          atual.pre ||= ['pre_distribuicao', 'pre_juridico'].includes(estado ?? '') || (table === 'pre_juridico_casos' && !['judicializado', 'encerrado', 'cancelado', 'arquivado'].includes(estado ?? ''))
           sinais.set(item.unidade_id, atual)
         }
         if (!data || data.length < 500) break

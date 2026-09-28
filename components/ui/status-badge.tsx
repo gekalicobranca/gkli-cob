@@ -57,6 +57,7 @@ function toneFor(status: string): BadgeTone {
       'pendente',
       'pendente_aprovacao',
       'preview',
+      'pre_distribuicao',
       'pre_juridico',
       'em_aberto',
       'parcial',
