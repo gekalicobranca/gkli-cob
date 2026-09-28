@@ -8,6 +8,7 @@ import { configurarWhatsappWeb, conferirWhatsappWeb, controlarWhatsappWorker, re
 import { WorkerAutoRefresh } from '@/components/configuracoes/worker-auto-refresh'
 import { MetricCard } from '@/components/data/metric-card'
 import { loadWhatsappDailySummary } from '@/features/mensageria/whatsapp-daily-query'
+import { WhatsappPairing } from '@/components/configuracoes/whatsapp-pairing'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,7 @@ export default async function WhatsappWebPage() {
     db.from('carteiras').select('id,nome,whatsapp_habilitado,whatsapp_transporte,whatsapp_web_sessao,whatsapp_web_numero').order('nome'),
     db.from('whatsapp_web_sessoes').select('*'),
     db.from('whatsapp_web_envios').select('token,mensagem_id,sessao,numero,estado,iniciado_em,erro,mensagem:mensagens(lote_id)').in('estado',['reservado','incerto']).order('iniciado_em'),
-    db.from('whatsapp_worker_controles').select('*'),
+    db.from('whatsapp_worker_controles').select('sessao,habilitado,reiniciar_id,aplicado_id,atualizado_em,supervisor_em,supervisor_status'),
     db.from('agente_workers').select('script_key,ultimo_sinal_em,metadata_json').like('script_key', 'mensageria:web:%'),
     loadWhatsappDailySummary(consultedAt).catch(error => { console.error('Resumo diário WhatsApp indisponível:', error); return null }),
   ])
@@ -103,6 +104,7 @@ export default async function WhatsappWebPage() {
             <a href="#pendencias-whatsapp" className={pendentes ? 'font-medium text-amber-800 underline' : 'text-slate-500'}>{pendentes} mensagem(ns) sem confirmação</a>
           </div>
         </div> : null}
+        {web && c.whatsapp_web_sessao ? <WhatsappPairing session={c.whatsapp_web_sessao} /> : null}
         <details className="border-t border-slate-100 px-5 py-3">
           <summary className="cursor-pointer text-sm font-medium text-slate-600">Configurar canal, sessão e número</summary>
         <form action={configurarWhatsappWeb} className="mt-4 grid gap-4 md:grid-cols-3">

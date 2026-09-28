@@ -2,7 +2,6 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import whatsapp from 'whatsapp-web.js'
-import qr from 'qrcode-terminal'
 import QRCode from 'qrcode'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { deliver, normalizePhone } from './delivery.mjs'
@@ -12,17 +11,24 @@ import { spawn } from 'node:child_process'
 import { bounded, heartbeatGate } from './recovery.mjs'
 import { assertBrowserHealthy, browserFailure, connectionRecovery } from './browser-health.mjs'
 import { resilientClient } from './resilient-client.mjs'
+import { pairingPublisher } from './pairing-publisher.mjs'
 
 const { Client, LocalAuth, MessageMedia } = whatsapp
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const session = process.env.WHATSAPP_WEB_SESSION ?? 'gekali'
 const connectOnly = process.argv.includes('--connect-only')
-const pairByCode = process.argv.includes('--pair-by-code') || process.env.WHATSAPP_WEB_PAIR_BY_CODE === 'true'
 if (!/^[a-zA-Z0-9_-]{1,60}$/.test(session)) throw new Error('WHATSAPP_WEB_SESSION inválida.')
 const expectedPhone = normalizePhone(process.env.WHATSAPP_WEB_PHONE)
 if (!expectedPhone) throw new Error('Configure WHATSAPP_WEB_PHONE com o número brasileiro da sessão.')
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Configure as credenciais do Supabase no ambiente local.')
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(15000) }) } })
+const pairingControl = await db.from('whatsapp_worker_controles').select('reiniciar_id,vinculacao_pedido,vinculacao_modo').eq('sessao', session).maybeSingle()
+if (pairingControl.error) throw new Error('Não foi possível consultar o modo de vinculação.')
+const pairingRequest = pairingControl.data?.vinculacao_pedido === pairingControl.data?.reiniciar_id ? pairingControl.data?.vinculacao_pedido : null
+const pairByCode = pairingControl.data?.vinculacao_modo ? pairingControl.data.vinculacao_modo === 'codigo' : process.argv.includes('--pair-by-code') || process.env.WHATSAPP_WEB_PAIR_BY_CODE === 'true'
+const publishPairing = pairingPublisher(db, session, pairingRequest)
+const reportPairing = () => console.error('Falha ao publicar vinculação no app; tente gerar novamente.')
+await publishPairing()
 const ResilientClient = resilientClient(Client)
 const client = new ResilientClient({
   userAgent: false,
@@ -39,6 +45,7 @@ let connection = 'iniciando'
 let connectedPhone = null
 let pairingCode = null
 let pairingCodeExpiresAt = null
+let pairingRevision = 0
 async function timeout(promise, ms = 45000) {
   let timer
   try { return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Tempo excedido; confira a conversa antes de reenviar.')),ms);timer.unref()})]) }
@@ -68,23 +75,29 @@ async function publishHeartbeat() {
 }
 const heartbeat = heartbeatGate(publishHeartbeat, error => console.error(new Date().toISOString(), 'Falha no heartbeat; novos envios aguardam o banco:', error.message))
 client.on('loading_screen', (percent, message) => console.log(new Date().toISOString(), `Carregando WhatsApp: ${percent}% ${message}`))
-client.on('authenticated', () => console.log(new Date().toISOString(), 'Autenticação aceita; aguardando sincronização.'))
+client.on('authenticated', () => { pairingRevision++; pairingCode = null; pairingCodeExpiresAt = null; void publishPairing().catch(reportPairing); console.log(new Date().toISOString(), 'Autenticação aceita; aguardando sincronização.') })
 client.on('change_state', state => {
   console.log(new Date().toISOString(), `Estado WhatsApp: ${state}`)
   if (initialized && state !== 'CONNECTED') { ready = false; connection = ['UNPAIRED', 'UNPAIRED_IDLE'].includes(state) ? 'aguardando_qr' : 'iniciando' }
 })
 client.on('code', (code) => {
+  pairingRevision++
   ready = false; connection = 'aguardando_qr'
   pairingCode = code
   pairingCodeExpiresAt = new Date(Date.now() + 180000).toISOString()
+  void publishPairing(code, pairingCodeExpiresAt).catch(reportPairing)
   console.log(`Código de vinculação da sessão ${session} disponível no painel local.`)
   heartbeat().catch(error => console.error('Falha ao atualizar código:', error.message))
 })
 client.on('qr', async (value) => {
+  const revision = ++pairingRevision
   ready = false; connection = 'aguardando_qr'
-  console.log('WhatsApp > Dispositivos conectados > Conectar dispositivo. Leia este QR Code:')
-  qr.generate(value, { small: true })
+  // Queue publication before awaiting file writes; never log pairing secrets.
+  const expiresAt = new Date(Date.now() + 20000).toISOString()
   try {
+    const png = await QRCode.toDataURL(value, { width: 420, margin: 2 })
+    if (revision !== pairingRevision || ready || stopping || connection !== 'aguardando_qr') return
+    void publishPairing(png, expiresAt).catch(reportPairing)
     await mkdir(path.join(root,'.whatsapp-web'),{recursive:true})
     const qrPath=path.join(root,'.whatsapp-web',`qr-${session}.png`)
     await QRCode.toFile(qrPath,value,{width:420,margin:2})
@@ -92,7 +105,9 @@ client.on('qr', async (value) => {
   } catch { console.error('Não foi possível salvar a imagem do QR Code; use o QR do terminal.') }
 })
 client.on('ready', () => {
+  pairingRevision++
   initialized = true
+  void publishPairing().catch(reportPairing)
   pairingCode = null; pairingCodeExpiresAt = null
   rm(path.join(root,'.whatsapp-web',`qr-${session}.png`),{force:true}).catch(()=>{})
   connectedPhone = normalizePhone(client.info?.wid?.user)
@@ -218,6 +233,7 @@ try {
   ready = false
   if (connection === 'conectado') connection = 'parado'
   await closeClient()
+  await bounded(publishPairing(), 17000).catch(reportPairing)
   await bounded(heartbeat(), 17000).catch(() => {})
   process.exit(process.exitCode || 0)
 }

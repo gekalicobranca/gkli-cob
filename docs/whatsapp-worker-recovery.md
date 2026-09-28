@@ -20,6 +20,12 @@ Os logs do executor ficam em `.whatsapp-web/persistent*`; os dos workers em `.wh
 
 Falhas de heartbeat no banco suspendem novas reservas sem destruir o navegador autenticado. Uma atualização bem-sucedida libera o processamento novamente. Timer e loop compartilham a mesma atualização em andamento. Falhas em reservas ou na gravação do resultado continuam encerrando o worker para reconciliação segura; mensagens incertas nunca são repetidas automaticamente.
 
+## Vinculação no app
+
+A migração `20260928180000_whatsapp_pairing_app.sql` permite ao administrador solicitar QR Code ou código na própria tela de conexões. Os campos ficam na tabela privada de controles, sem acesso de anon/authenticated; toda leitura e solicitação passa por `requireAdmin`. O worker lê o modo ao iniciar e publica apenas para o identificador de solicitação que o iniciou. Solicitações novas invalidam as antigas. O conteúdo não é registrado em logs e é limpo ao autenticar, conectar ou encerrar. A tela oculta conteúdos expirados e de sessões sem sinal recente, e consulta a cada cinco segundos enquanto aberta. QR é exibido por até 20 segundos (prazo conservador); código por até 180 segundos.
+
+Aplicar o banco antes de atualizar os workers. Não é necessário reiniciar sessões saudáveis: a solicitação pelo app reinicia somente a sessão escolhida, reutilizando seu perfil. O notebook continua necessário e a vinculação exige o celular. Carteiras com worker pausado precisam ser retomadas antes; a solicitação não habilita envios silenciosamente. Sessões conectadas recusam nova vinculação.
+
 ## Mensagens incertas
 
 O heartbeat verifica também a conexão real do navegador, a página e o estado CONNECTED do WhatsApp. Estados transitórios, timeout e perda de frame suspendem novas reservas, mas preservam o navegador por até dois minutos para permitir recuperação. O estado volta a conectado somente após uma consulta válida ao WhatsApp e conferência do número. Uma recuperação bem-sucedida reinicia essa janela. UNPAIRED/UNPAIRED_IDLE pedem autenticação, sem reinícios contínuos por causa desse estado. A biblioteca ainda pode encerrar o navegador em eventos explícitos de desconexão; nesse caso o supervisor restaura o mesmo perfil. Erros de navegador encontrados durante a entrega provocam reconexão após persistir o resultado. Falhas anteriores à transmissão continuam distintas de resultados incertos após o início do envio; estes últimos não são repetidos automaticamente.
