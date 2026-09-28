@@ -31,7 +31,7 @@ export function WhatsappPairing({ session }: { session: string }) {
     setBusy(true); setError(''); setView(null)
     try { setView(await solicitarVinculacaoWhatsapp(session, mode)); setNow(Date.now()) }
     catch { setError('Não foi possível gerar a vinculação. Verifique se o worker está ativo e sem envio em andamento.') }
-    finally { setBusy(false) }
+    finally { requestVersion.current++; setBusy(false) }
   }
   const seconds = view?.expiresAt ? Math.max(0, Math.ceil((Date.parse(view.expiresAt) - now) / 1000)) : 0
   const available = view?.status === 'available' && seconds > 0 && !busy
