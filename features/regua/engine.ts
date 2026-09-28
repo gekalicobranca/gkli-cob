@@ -38,6 +38,11 @@ export function selecionarEtapa(params: {
     .sort((a, b) => Number(b.delay_dias) - Number(a.delay_dias) || Number(b.ordem) - Number(a.ordem))[0]
 }
 
+export function primeiraEtapaFlow(etapas: ReguaEtapa[]) {
+  return [...etapas].filter(e => e.ativo !== false).sort((a, b) =>
+    Number(a.delay_dias) - Number(b.delay_dias) || Number(a.ordem) - Number(b.ordem) || String(a.id).localeCompare(String(b.id)))[0]
+}
+
 export function montarMensagem(params: {
   tipo: 'cobranca' | 'acordo'
   etapa?: ReguaEtapa | null

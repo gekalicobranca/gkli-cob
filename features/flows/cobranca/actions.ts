@@ -144,6 +144,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
       cobrancaIds: rows.map((row) => row.id),
       reguaId,
       cooldownDias: 0,
+      sequenciaFlow: true,
       prepararFlowPausado: criarPausado,
     })
 

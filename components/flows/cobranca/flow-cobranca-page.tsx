@@ -4,6 +4,7 @@ import { FlowCobrancaNav } from './flow-cobranca-nav'
 import { FlowWorkerProvider } from './flow-worker-status'
 import { FlowCobrancaAbas } from '@/components/flows/cobranca/flow-cobranca-abas'
 import { MaestroMontagens } from '@/components/flows/cobranca/maestro-montagens'
+import { FlowProgressao } from '@/components/flows/cobranca/flow-progressao'
 import { ClearFiltersLink, ListCollapsibleFilters, ListFilterField, ListFiltersForm, ListKpiGrid, ListPage } from '@/components/layout/list-page'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -96,6 +97,7 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
   }
 
   return <ListPage>
+    {monitor ? <FlowProgressao scope={scope} canal={canal} carteiraId={filters.carteiraId} condominioId={filters.condominioId} /> : null}
     <PageHeader
       eyebrow="Flows"
       title={`Flows de cobrança · ${canalLabel}`}

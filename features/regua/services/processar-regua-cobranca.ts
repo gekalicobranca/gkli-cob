@@ -21,6 +21,7 @@ import {
   isCobrancaElegivelParaRegua,
   montarMensagem,
   selecionarEtapa,
+  primeiraEtapaFlow,
 } from "../engine";
 import { carregarEtapasDeReguaAdmin } from "../queries";
 import { avaliarComplianceRegua } from "./compliance";
@@ -121,6 +122,9 @@ type ProcessarReguaParams = {
   reguaId?: string;
   loteRetomadaId?: string;
   montagemMaestro?: boolean;
+  // Flows começam pela primeira etapa; continuação escolhe uma etapa explícita.
+  sequenciaFlow?: boolean;
+  progressao?: { etapaId: string; primeiroEnvioEm: string; sequenciaId: string };
   // Preparação manual sem ativação: permite rascunhar o canal desabilitado.
   // As mensagens continuam pendentes de aprovação, nunca agendadas para envio.
   prepararFlowPausado?: boolean;
@@ -875,8 +879,11 @@ export async function processarReguaCobranca(
         }
 
         const etapas = await carregarEtapas(params.reguaId || condominio?.regua_cobranca_id);
-        const etapa =
-          selecionarEtapa({
+        const etapa = params.progressao
+          ? etapas.find(e => e.id === params.progressao!.etapaId && e.ativo !== false)
+          : params.sequenciaFlow || params.montagemMaestro
+          ? primeiraEtapaFlow(etapas)
+          : selecionarEtapa({
             etapas,
             diasAtraso: avaliacao.diasAtraso,
             inicioCobrancaDias: avaliacao.inicio,
@@ -920,7 +927,7 @@ export async function processarReguaCobranca(
           entidadeId: row.id,
           etapaId: etapaReferencia,
           canal,
-          ciclo,
+          ciclo: params.progressao ? `sequencia:${params.progressao.sequenciaId}` : ciclo,
         });
 
         const contexto = {
@@ -969,7 +976,7 @@ export async function processarReguaCobranca(
         });
 
         const compliance = await avaliarComplianceRegua({
-          prepararParaAgenda: params.prepararFlowPausado === true || (params.montagemMaestro === true && canal === 'email'),
+          prepararParaAgenda: Boolean(params.progressao) || params.prepararFlowPausado === true || (params.montagemMaestro === true && canal === 'email'),
           carteiraId: row.carteira_id,
           condominioId: condominio?.id ?? null,
           unidadeId: unidade?.id ?? null,
@@ -1098,6 +1105,7 @@ export async function processarReguaCobranca(
             template_id: templateResolvido.templateId,
             payload: {
               origem: "regua_cobranca",
+              ...(params.progressao ? { primeiro_envio_em: params.progressao.primeiroEnvioEm, sequencia_id: params.progressao.sequenciaId } : {}),
               ciclo,
               etapa_id: etapa.id,
               contexto,
