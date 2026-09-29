@@ -1,5 +1,18 @@
 # Motor de Conversão — padrões ativos
 
+## BRCondomínio · Lista de Débitos
+
+Incluído `brcondominio-lista-debitos-cobrancas-v1`, com preservação dos títulos,
+descrições entre páginas e critério jurídico, conferência dos totais e aviso de
+diferenças de arredondamento. Veja o [mapeamento e a validação](conversor-brcondominio-debitos.md).
+
+## Thomaz Multi · Inadimplentes
+
+Incluído `thomaz-multi-inadimplentes-cobrancas-v1`, com leitura visual de bloco,
+unidade, código, competência, encargos e marcação jurídica. Confere os subtotais
+e totais do relatório antes de aplicar o recorte operacional anual. Veja o
+[mapeamento e a validação](conversor-thomaz-multi.md).
+
 ## Superlógica · Pendentes resumidos
 
 Incluído `superlogica-pendentes-resumida-cobrancas-v1`, com leitura das colunas por posição, conferência de subtotais e total geral, preservação de marcadores por recibo e recorte operacional anual. Veja [mapeamento e validação com o relatório Legus/Domo](conversor-superlogica-pendentes-resumida.md).

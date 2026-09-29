@@ -7,6 +7,8 @@ import { detectSuperlogicaSimplificada, extractSimplificadaRows, parseSimplifica
 import { detectHausyInadimplencia, parseHausyInadimplencia } from "./hausy-inadimplencia";
 import { extractPdfVisualText } from "./pdf-visual-text";
 import { detectSuperlogicaResumida, parseSuperlogicaResumida } from "./superlogica-resumida";
+import { detectThomazInadimplentes, parseThomazInadimplentes } from "./thomaz-inadimplentes";
+import { detectBrcondominioDebitos, parseBrcondominioDebitos } from "./brcondominio-debitos";
 import { avaliarRecorteAnoCorrente } from "@/features/importacoes/recorte-cobrancas";
 import type { RankingMensalCaptacao } from "@/features/captacao-automatizada/ranking-mensal";
 
@@ -29,6 +31,7 @@ export type SituacaoOrigemCobranca =
   | "protesto";
 
 export type CobrancaPreview = {
+  competencia?: string;
   unidade: string;
   bloco?: string;
   responsavel: string;
@@ -124,6 +127,7 @@ type PdfTextQualityReport = {
 };
 
 export type ReciboCondopro = {
+  competencia?: string;
   bloco: string;
   unidade: string;
   responsavel: string;
@@ -1283,7 +1287,7 @@ function buildRowsPadraoGkli(
       cobranca.responsavelDocumento ?? "",
       cobranca.telefone ?? "",
       cobranca.email ?? "",
-      competenciaFromVencimento(
+      cobranca.competencia ?? competenciaFromVencimento(
         cobranca.vencimento ?? cobranca.vencimentoMaisAntigo,
       ),
       vencimento,
@@ -1381,6 +1385,7 @@ export function buildPreviewFromRecibos({
         email: recibo.email,
         recibo: recibo.recibo,
         vencimento: recibo.vencimento,
+        competencia: recibo.competencia,
         valorPrincipal: recibo.valorPrincipal,
         desconto: recibo.desconto,
         multa: recibo.multa,
@@ -5334,6 +5339,39 @@ export async function parseRelatorioBuffer(
 
   if (isPdfInput(input)) {
     const text = await extractPdfText(input);
+    const thomaz = detectThomazInadimplentes(text);
+    const brcondominio = detectBrcondominioDebitos(text);
+    if (brcondominio) {
+      try {
+        const parsed = parseBrcondominioDebitos(await extractPdfVisualText(input.buffer, 2));
+        const result = buildPreviewFromRecibos({
+          origem: "BRCondomínio - Lista de Débitos", filename: input.filename,
+          recibos: parsed.recibos, condominioCnpj: input.condominioCnpj,
+          origemSistema: "BRCondomínio", padraoDetectado: brcondominio,
+        });
+        if (result.ok) result.preview.inconsistencias.push(...parsed.inconsistencias);
+        return result;
+      } catch (error) {
+        return { ok: false, error: `BRCondomínio: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    }
+    if (thomaz) {
+      try {
+        const recibos = parseThomazInadimplentes(await extractPdfVisualText(input.buffer));
+        const result = buildPreviewFromRecibos({
+          origem: "Thomaz Multi - Inadimplentes", filename: input.filename,
+          recibos, condominioCnpj: input.condominioCnpj,
+          origemSistema: "Thomaz Multi", padraoDetectado: thomaz,
+        });
+        if (result.ok) {
+          const total = roundMoney(recibos.reduce((sum, item) => sum + item.valorTotal, 0));
+          result.preview.inconsistencias.push(`Relatório completo conferido: ${recibos.length} recibos, total de R$ ${moneyToCsv(total)}. A exportação segue o recorte operacional por ano de vencimento.`);
+        }
+        return result;
+      } catch (error) {
+        return { ok: false, error: `Thomaz Multi: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    }
     const resumida = detectSuperlogicaResumida(text);
     if (resumida) {
       try {

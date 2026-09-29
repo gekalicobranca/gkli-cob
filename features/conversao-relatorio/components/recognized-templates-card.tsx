@@ -12,6 +12,22 @@ type RecognizedTemplate = {
 
 const templates: RecognizedTemplate[] = [
   {
+    nome: "BRCondomínio · Lista de Débitos",
+    categoria: "Cobranças",
+    status: "Ativo",
+    cobertura: "PDF · Lista de Débitos",
+    descricao:
+      "Converte títulos e descrições entre páginas, preserva encargos e indicação jurídica e confere quantidades e totais com aviso de arredondamento.",
+  },
+  {
+    nome: "Thomaz Multi · Cobranças",
+    categoria: "Cobranças",
+    status: "Ativo",
+    cobertura: "PDF · Inadimplentes",
+    descricao:
+      "Preserva bloco, unidade, competência, encargos e situação jurídica, conferindo subtotais e total geral antes da exportação.",
+  },
+  {
     nome: "Superlógica · Pendentes resumidos",
     categoria: "Cobranças",
     status: "Ativo",

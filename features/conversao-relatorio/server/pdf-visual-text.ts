@@ -1,5 +1,5 @@
 /** Rebuild reading order and spaces from PDF glyph positions, not stream order. */
-export async function extractPdfVisualText(buffer: Buffer): Promise<string> {
+export async function extractPdfVisualText(buffer: Buffer, lineTolerance = 1): Promise<string> {
   type Item = { str: string; transform: number[]; width: number };
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const pdfjs = require("pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js") as {
@@ -17,7 +17,7 @@ export async function extractPdfVisualText(buffer: Buffer): Promise<string> {
       const lines: Item[][] = [];
       for (const item of items.filter((item) => item.str.trim()).sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4])) {
         const last = lines.at(-1);
-        if (last && Math.abs(last[0].transform[5] - item.transform[5]) < 1) last.push(item);
+        if (last && Math.abs(last[0].transform[5] - item.transform[5]) < lineTolerance) last.push(item);
         else lines.push([item]);
       }
       for (const line of lines) {
