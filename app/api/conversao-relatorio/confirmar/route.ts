@@ -263,7 +263,7 @@ export async function POST(request: NextRequest) {
 
       const vencimentoMaisAntigo = vencimentoPorRecibo ?? vencimentos[0] ?? null
       const recorteAnoCorrente = avaliarRecorteAnoCorrente(vencimentoMaisAntigo, anoCorrente)
-      if (!recorteAnoCorrente.dentroDoAnoCorrente) {
+      if (preview.somenteAnoCorrente !== false && !recorteAnoCorrente.dentroDoAnoCorrente) {
         cobrancasIgnoradas += 1
         inconsistencias.push(
           `Unidade ${unidadeLabel}: cobrança mantida apenas no histórico da conversão. ${recorteAnoCorrente.motivo}`

@@ -101,6 +101,7 @@ export function ConversionUploadCard({
   const [filename, setFilename] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [somenteAnoCorrente, setSomenteAnoCorrente] = useState(true);
   const [condominioCnpj, setCondominioCnpj] = useState("");
   const [tipoConversao, setTipoConversao] =
     useState<TipoConversaoRelatorio>("cobrancas");
@@ -152,7 +153,7 @@ export function ConversionUploadCard({
     setLoading(true);
 
     try {
-      const formData = await createConversionFormData(file, tipoConversao);
+      const formData = await createConversionFormData(file, tipoConversao, "", somenteAnoCorrente);
 
       const response = await fetch("/api/conversao-relatorio/parse", {
         method: "POST",
@@ -175,7 +176,7 @@ export function ConversionUploadCard({
       if (autoCondominio) {
         setCondominioCnpj(autoCondominio.cnpj);
 
-        const enrichedFormData = await createConversionFormData(file, tipoConversao, autoCondominio.cnpj);
+        const enrichedFormData = await createConversionFormData(file, tipoConversao, autoCondominio.cnpj, somenteAnoCorrente);
 
         const enrichedResponse = await fetch("/api/conversao-relatorio/parse", {
           method: "POST",
@@ -204,15 +205,16 @@ export function ConversionUploadCard({
     }
   }
 
-  async function reprocessWithCondominio(cnpj: string) {
+  async function reprocessWithCondominio(cnpj: string, recorteAno = somenteAnoCorrente) {
     setCondominioCnpj(cnpj);
     if (!selectedFile) return;
 
     setLoading(true);
     setError(null);
+    setPreview(null);
 
     try {
-      const formData = await createConversionFormData(selectedFile, tipoConversao, cnpj);
+      const formData = await createConversionFormData(selectedFile, tipoConversao, cnpj, recorteAno);
 
       const response = await fetch("/api/conversao-relatorio/parse", {
         method: "POST",
@@ -319,6 +321,21 @@ export function ConversionUploadCard({
           automaticamente quando encontrar um match seguro.
         </p>
       </div>
+
+      {tipoConversao === "cobrancas" ? (
+        <label className="mt-5 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <input type="checkbox" checked={somenteAnoCorrente} disabled={loading}
+            onChange={(event) => {
+              const checked = event.target.checked;
+              setSomenteAnoCorrente(checked);
+              if (selectedFile) void reprocessWithCondominio(condominioCnpj, checked);
+            }} className="mt-1 h-4 w-4" />
+          <span>
+            <span className="block text-sm font-medium">Importar somente débitos do ano corrente</span>
+            <span className="mt-1 block text-xs text-slate-500">Desmarque para incluir outros anos na prévia e no XLSX. O limite de 5 anos do conversor continua valendo. Na importação do XLSX, desmarque também esta opção.</span>
+          </span>
+        </label>
+      ) : null}
 
       <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:bg-slate-100">
         <input

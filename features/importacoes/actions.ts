@@ -27,6 +27,7 @@ import {
 } from "./cobrancas-conciliacao";
 import { formatOrigemImportacao } from "./origem-importacao";
 import { observacoesComRecibo } from "./identidade-recibo";
+import { carregarItensImportacao } from "./carregar-itens";
 import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
 import {
   avaliarBloqueioGarantidora,
@@ -1396,6 +1397,7 @@ async function enrichCobrancaPreview(
   rows: Array<{ linha: number; payload: Record<string, any> }>,
   condominioPadrao?: CondominioImportacaoRow | null,
   somenteValidasNaRegua = true,
+  somenteAnoCorrente = true,
 ) {
   const cnpjs = rows
     .map((row) => cnpjKeyFromPayload(row.payload))
@@ -1467,19 +1469,20 @@ async function enrichCobrancaPreview(
     }
 
     const recorteAnoCorrente = avaliarRecorteAnoCorrente(payload.vencimento);
+    const permitidoPeloAno = !somenteAnoCorrente || recorteAnoCorrente.dentroDoAnoCorrente;
     const reguaImportacao = avaliarReguaImportacao({
       vencimento: payload.vencimento,
       inicioCobrancaDias: condominio?.inicio_cobranca_dias,
     });
     const importarPeloRecorte = somenteValidasNaRegua
-      ? recorteAnoCorrente.dentroDoAnoCorrente && !reguaImportacao.foraRegua
-      : recorteAnoCorrente.dentroDoAnoCorrente;
-    const motivoRecorte = !recorteAnoCorrente.dentroDoAnoCorrente
+      ? permitidoPeloAno && !reguaImportacao.foraRegua
+      : permitidoPeloAno;
+    const motivoRecorte = !permitidoPeloAno
       ? recorteAnoCorrente.motivo
       : somenteValidasNaRegua && reguaImportacao.foraRegua
         ? reguaImportacao.motivo
         : null;
-    if (!recorteAnoCorrente.dentroDoAnoCorrente && recorteAnoCorrente.motivo) {
+    if (!permitidoPeloAno && recorteAnoCorrente.motivo) {
       alertas.push(`${recorteAnoCorrente.motivo} Linha será mantida apenas no histórico da importação.`);
     }
     if (somenteValidasNaRegua && reguaImportacao.foraRegua && reguaImportacao.motivo) {
@@ -2104,6 +2107,7 @@ async function finalizarImportacao(params: {
   importacaoId: string;
   tipo: string;
   resultado: ImportacaoResultado;
+  resumoAnterior?: Record<string, any>;
 }) {
   const { supabase, importacaoId, tipo, resultado } = params;
 
@@ -2111,7 +2115,7 @@ async function finalizarImportacao(params: {
     .from("importacoes")
     .update({
       status: resultado.sucesso ? "confirmada" : "erro",
-      resumo: { resultado, finalizada_em: new Date().toISOString() },
+      resumo: { ...params.resumoAnterior, resultado, finalizada_em: new Date().toISOString() },
     })
     .eq("id", importacaoId);
 
@@ -2249,6 +2253,7 @@ export async function createImportacaoPreview(formData: FormData) {
 }
 
 async function createImportacaoPreviewInternal(formData: FormData) {
+  const somenteAnoCorrente = formData.get("recorte_ano") !== "todos";
   const tipo = String(formData.get("tipo") ?? "");
   const file = formData.get("arquivo");
   const recorteRegua = String(formData.get("recorte_regua") ?? "");
@@ -2294,6 +2299,7 @@ async function createImportacaoPreviewInternal(formData: FormData) {
       rows,
       condominioPadrao,
       somenteValidasNaRegua,
+      somenteAnoCorrente,
     );
   } else {
     const rows = parsedRows.map((row) => {
@@ -2390,6 +2396,7 @@ async function createImportacaoPreviewInternal(formData: FormData) {
       total_invalidas: totalInvalidas,
       resumo: {
         formato: "xlsx",
+        somente_ano_corrente: somenteAnoCorrente,
         aba_processada: parsedFile.sheetName,
         valor_total_valido: valorTotalValido,
         valor_total_selecionado: tipo === "cobrancas" ? valorTotalSelecionado : valorTotalValido,
@@ -2686,6 +2693,7 @@ async function importarCobrancas(
   supabase: SupabaseClient,
   payloads: Record<string, any>[],
   origemImportacao: string,
+  somenteAnoCorrente = true,
 ): Promise<ImportExecutionResult> {
   const resultado = emptyImportExecutionResult();
   const importadasParaAusencia: CobrancaImportadaConciliacao[] = [];
@@ -2695,7 +2703,7 @@ async function importarCobrancas(
 
     try {
       const recorteAnoCorrente = avaliarRecorteAnoCorrente(payload.vencimento);
-      if (!recorteAnoCorrente.dentroDoAnoCorrente) {
+      if (somenteAnoCorrente && !recorteAnoCorrente.dentroDoAnoCorrente) {
         resultado.ignorados += 1;
         resultado.erros.push(
           `Linha ${linha}: cobrança mantida apenas no histórico da importação. ${recorteAnoCorrente.motivo}`,
@@ -3255,14 +3263,10 @@ export async function confirmarImportacao(formData: FormData) {
     throw new Error("Importação histórica judicial permanece desativada.");
   if (importacao.tipo === "acordos_extra") await requireRole(["admin", "gestor"]);
 
-  const { data: itens, error: itensError } = await supabase
-    .from("importacao_itens")
-    .select("linha, payload, erros")
-    .eq("importacao_id", importacaoId)
-    .eq("valido", true);
-
-  if (itensError)
-    throw new Error(`Erro ao carregar itens válidos: ${itensError.message}`);
+  const itens = await carregarItensImportacao(supabase, importacaoId, {
+    somenteValidos: true,
+    totalEsperado: importacao.total_validas,
+  });
 
   const payloads = (itens ?? []).map((item: any, index: number) => ({
     ...item.payload,
@@ -3289,7 +3293,7 @@ export async function confirmarImportacao(formData: FormData) {
         payloads,
       );
     }
-    execucao = await importarCobrancas(supabase, payloads, origemImportacao);
+    execucao = await importarCobrancas(supabase, payloads, origemImportacao, (importacao.resumo as any)?.somente_ano_corrente !== false);
   }
 
   if (importacao.tipo === "condominios") {
@@ -3344,6 +3348,7 @@ export async function confirmarImportacao(formData: FormData) {
     importacaoId,
     tipo: importacao.tipo,
     resultado,
+    resumoAnterior: (importacao.resumo as Record<string, any>) ?? {},
   });
 }
 

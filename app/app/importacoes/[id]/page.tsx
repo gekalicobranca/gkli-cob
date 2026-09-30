@@ -296,6 +296,10 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
 
       {canConfirm && importacaoTipo === 'cobrancas' ? (
         <Card className="border-amber-200 bg-amber-50/80 p-5">
+          <p className="mb-4 text-sm text-slate-700">
+            Importar somente débitos do ano corrente: <strong>{resumo.somente_ano_corrente === false ? 'Não — outros anos permitidos' : 'Sim'}</strong>.
+            {' '}Para mudar esta escolha, gere uma nova importação.
+          </p>
           <label className="flex cursor-pointer items-start gap-3">
             <input
               type="checkbox"
