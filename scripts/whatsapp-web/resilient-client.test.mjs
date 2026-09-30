@@ -1,6 +1,28 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { resilientClient } from './resilient-client.mjs'
+import { EventEmitter } from 'node:events'
+
+test('falha de código chamada sem await não derruba processo nem recria navegador', async () => {
+  class Base extends EventEmitter {
+    async requestPairingCode() { throw Error('pairing rejected') }
+  }
+  const client = new (resilientClient(Base, () => {}))()
+  let failures = 0
+  client.on('pairing_error', () => failures++)
+  void client.requestPairingCode('phone')
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(failures, 1)
+  assert.equal(await client.requestPairingCode('phone'), null)
+  assert.equal(failures, 2)
+})
+
+test('código válido é retornado sem emitir falha', async () => {
+  class Base extends EventEmitter { async requestPairingCode() { return 'test-code' } }
+  const client = new (resilientClient(Base, () => {}))()
+  client.on('pairing_error', () => assert.fail('código válido'))
+  assert.equal(await client.requestPairingCode(), 'test-code')
+})
 
 function fixture(errors) {
   let attempts = 0

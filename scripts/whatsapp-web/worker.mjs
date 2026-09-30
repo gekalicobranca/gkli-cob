@@ -12,6 +12,7 @@ import { bounded, heartbeatGate } from './recovery.mjs'
 import { assertBrowserHealthy, browserFailure, connectionRecovery } from './browser-health.mjs'
 import { resilientClient } from './resilient-client.mjs'
 import { pairingPublisher } from './pairing-publisher.mjs'
+import { reservationRecovery } from './reservation-recovery.mjs'
 
 const { Client, LocalAuth, MessageMedia } = whatsapp
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -46,6 +47,7 @@ let connectedPhone = null
 let pairingCode = null
 let pairingCodeExpiresAt = null
 let pairingRevision = 0
+let shutdownReason = null
 async function timeout(promise, ms = 45000) {
   let timer
   try { return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Tempo excedido; confira a conversa antes de reenviar.')),ms);timer.unref()})]) }
@@ -59,7 +61,7 @@ async function publishHeartbeat() {
     if (connection !== health.status) console.log(new Date().toISOString(), 'Saúde da conexão:', health.status, health.reason || 'Conexão restabelecida.')
     ready = health.ready && normalizePhone(client.info?.wid?.user) === expectedPhone
     connection = health.ready && !ready ? 'numero_incorreto' : health.status
-    if (health.restart || (health.ready && !ready)) stop()
+    if (health.restart || (health.ready && !ready)) stop(health.reason || 'Número conectado diferente do esperado.')
   }
   const status={ id: session, numero: connectedPhone, status: connection, atualizado_em: new Date().toISOString() }
   await mkdir(path.join(root,'.whatsapp-web'),{recursive:true})
@@ -75,6 +77,13 @@ async function publishHeartbeat() {
 }
 const heartbeat = heartbeatGate(publishHeartbeat, error => console.error(new Date().toISOString(), 'Falha no heartbeat; novos envios aguardam o banco:', error.message))
 client.on('loading_screen', (percent, message) => console.log(new Date().toISOString(), `Carregando WhatsApp: ${percent}% ${message}`))
+client.on('pairing_error', () => {
+  if (ready || stopping) return
+  pairingRevision++; pairingCode = null; pairingCodeExpiresAt = null
+  connection = 'aguardando_qr'
+  void publishPairing().catch(reportPairing)
+  void heartbeat()
+})
 client.on('authenticated', () => { pairingRevision++; pairingCode = null; pairingCodeExpiresAt = null; void publishPairing().catch(reportPairing); console.log(new Date().toISOString(), 'Autenticação aceita; aguardando sincronização.') })
 client.on('change_state', state => {
   console.log(new Date().toISOString(), `Estado WhatsApp: ${state}`)
@@ -92,6 +101,9 @@ client.on('code', (code) => {
 client.on('qr', async (value) => {
   const revision = ++pairingRevision
   ready = false; connection = 'aguardando_qr'
+  // The app requires this state before showing the QR. Waiting for the
+  // 30-second timer can hide it throughout its 20-second display lifetime.
+  void heartbeat()
   // Queue publication before awaiting file writes; never log pairing secrets.
   const expiresAt = new Date(Date.now() + 20000).toISOString()
   try {
@@ -117,8 +129,8 @@ client.on('ready', () => {
   if (!ready) stopping = true
   console.log(ready ? `Sessão ${session} conectada. ${connectOnly ? 'Modo de conexão: envios desabilitados.' : 'Processamento dos Flows habilitado.'}` : 'Número conectado diferente de WHATSAPP_WEB_PHONE. Nenhum envio será feito.')
 })
-client.on('disconnected', reason => { ready = false; connection = 'desconectado'; console.error(new Date().toISOString(), 'Sessão desconectada:', reason); stopping = true })
-client.on('auth_failure', () => { ready = false; connection = 'falha_autenticacao'; stopping = true; if (process.connected) process.send({ type: 'state', status: connection }) })
+client.on('disconnected', reason => { ready = false; connection = 'desconectado'; shutdownReason = `WhatsApp disconnected: ${reason}`; console.error(new Date().toISOString(), 'Sessão desconectada:', reason); stopping = true })
+client.on('auth_failure', () => { ready = false; connection = 'falha_autenticacao'; shutdownReason = 'WhatsApp informou falha de autenticação.'; stopping = true; if (process.connected) process.send({ type: 'state', status: connection }) })
 let closing
 function closeClient() {
   if (closing) return closing
@@ -137,10 +149,10 @@ function closeClient() {
   })()
   return closing
 }
-function stop() { stopping = true; ready = false; void closeClient() }
-for (const signal of ['SIGINT','SIGTERM']) process.once(signal, stop)
-process.on('message', message => { if (message?.type === 'stop') stop() })
-process.on('disconnect', stop)
+function stop(reason = 'Encerramento solicitado.') { shutdownReason ??= reason; stopping = true; ready = false; void closeClient() }
+for (const signal of ['SIGINT','SIGTERM']) process.once(signal, () => stop(`Sinal ${signal}.`))
+process.on('message', message => { if (message?.type === 'stop') stop('Supervisor solicitou encerramento.') })
+process.on('disconnect', () => stop('Conexão com supervisor encerrada.'))
 
 async function confirm(message) {
   if (!ready || stopping || normalizePhone(client.info?.wid?.user) !== expectedPhone) throw new Error('Sessão indisponível ou número incorreto.')
@@ -185,6 +197,17 @@ async function finish(token, outcome) {
   }
 }
 
+const reserveMessage = reservationRecovery({
+  reserve: async () => check(await db.rpc('whatsapp_web_reservar', { p_sessao: session, p_numero: expectedPhone })),
+  reconcile: async () => {
+    const rows = check(await db.from('whatsapp_web_envios').select('token').eq('sessao', session).eq('estado', 'reservado'))
+    for (const row of rows) {
+      check(await db.rpc('whatsapp_web_concluir', { p_token: row.token, p_estado: 'incerto', p_recibos: [], p_erro: 'Resposta da reserva perdida durante falha de comunicação. Nenhuma retransmissão automática; conferir esta mensagem.' }))
+    }
+  },
+  report: error => console.error(new Date().toISOString(), 'Falha na reserva; sessão preservada, aguardando banco e reconciliação:', error.message),
+})
+
 const heartbeatTimer = setInterval(() => {
   if (!stopping) void heartbeat()
 }, 30000)
@@ -198,7 +221,7 @@ try {
       continue
     }
     if (ready && !connectOnly) {
-      const message = check(await db.rpc('whatsapp_web_reservar', { p_sessao: session, p_numero: expectedPhone }))
+      const message = await reserveMessage()
       if (message) {
         let pendingTransmission = false
         let brokenBrowser = false
@@ -217,18 +240,20 @@ try {
         console.log(`${new Date().toISOString()} mensagem=${message.id} resultado=${outcome.state}`)
         if (brokenBrowser || browserFailure(outcome.error)) {
           connection = 'erro'
-          stop()
+          stop('Navegador indisponível durante entrega.')
         }
         // Only restart to cancel an unresolved operation. Settled uncertain
         // attempts stay pending individually while other messages continue.
-        if (outcome.state === 'incerto' && pendingTransmission) { connection = 'conferencia_necessaria'; stopping = true }
+        if (outcome.state === 'incerto' && pendingTransmission) { connection = 'conferencia_necessaria'; shutdownReason = 'Transmissão pendente precisa ser interrompida para evitar envio tardio.'; stopping = true }
       }
     }
     if (!stopping) await new Promise(resolve => setTimeout(resolve, 10000))
   }
 } catch (error) {
+  shutdownReason = error.message
   connection = 'erro'; console.error(error.stack || error.message); process.exitCode = 1
 } finally {
+  console.error(new Date().toISOString(), 'Encerrando worker:', JSON.stringify({ session, pid: process.pid, connection, reason: shutdownReason || 'Fim do processamento.' }))
   clearInterval(heartbeatTimer)
   ready = false
   if (connection === 'conectado') connection = 'parado'

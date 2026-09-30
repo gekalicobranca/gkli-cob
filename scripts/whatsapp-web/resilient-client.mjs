@@ -5,7 +5,14 @@ export function resilientClient(BaseClient, report = console.error) {
   return class extends BaseClient {
     async requestPairingCode(...args) {
       report(new Date().toISOString(), 'Solicitando código de vinculação ao WhatsApp.')
-      return super.requestPairingCode(...args)
+      try { return await super.requestPairingCode(...args) }
+      catch {
+        // 1.34.7 invokes this without awaiting or catching its promise. A
+        // rejected code request must not become a process-wide rejection.
+        report(new Date().toISOString(), 'Falha ao solicitar código; gere novamente ou use QR Code. Navegador preservado.')
+        this.emit('pairing_error')
+        return null
+      }
     }
     async initWebVersionCache() {
       await super.initWebVersionCache()

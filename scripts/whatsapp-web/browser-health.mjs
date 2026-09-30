@@ -32,6 +32,12 @@ export function connectionRecovery({ probe, now = Date.now, graceMs = 120000 }) 
         unavailableSince = null
         return { ready: false, restart: false, status: 'aguardando_qr', reason: error.message }
       }
+      // WhatsApp is responding and reconnecting its own socket. Restarting
+      // Chrome cannot repair an offline network and interrupts synchronization.
+      if (['OPENING', 'PAIRING', 'TIMEOUT'].includes(error.whatsappState)) {
+        unavailableSince = null
+        return { ready: false, restart: false, status: 'iniciando', reason: error.message }
+      }
       unavailableSince ??= now()
       const restart = now() - unavailableSince >= graceMs
       return { ready: false, restart, status: restart ? 'erro' : 'iniciando', reason: error.message }

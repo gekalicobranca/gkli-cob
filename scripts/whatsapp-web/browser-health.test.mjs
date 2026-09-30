@@ -26,6 +26,27 @@ test('queda transitória bloqueia envios, mantém sessão e retoma sem reiniciar
   time += 300000
   assert.equal((await recovery()).restart, false, 'uma queda nova tem sua própria janela de recuperação')
   time += 120000
+  assert.equal((await recovery()).restart, false, 'WhatsApp respondendo em TIMEOUT preserva a sessão')
+  state = 'CONNECTED'
+  assert.equal((await recovery()).ready, true)
+})
+
+test('reconexão longa preserva navegador, mas travamento posterior ainda reinicia', async () => {
+  let time = 0, frozen = false
+  const probe = async () => {
+    const error = Error(frozen ? 'Prazo excedido' : 'reconectando')
+    if (!frozen) error.whatsappState = 'OPENING'
+    throw error
+  }
+  const recovery = connectionRecovery({ probe, now: () => time })
+  for (time of [0, 120000, 600000]) {
+    const result = await recovery()
+    assert.equal(result.restart, false)
+    assert.equal(result.ready, false)
+  }
+  frozen = true
+  assert.equal((await recovery()).restart, false)
+  time += 120000
   assert.equal((await recovery()).restart, true)
 })
 
