@@ -84,6 +84,7 @@ export type UnidadeConversaoPreview = {
 };
 
 export type ConversaoPreview = {
+  somenteAnoCorrente?: boolean;
   tipoConversao: TipoConversaoRelatorio;
   origem: string;
   arquivo: string;
@@ -101,6 +102,7 @@ export type ConversaoPreview = {
 };
 
 type ParseInput = {
+  somenteAnoCorrente?: boolean;
   buffer: Buffer;
   filename: string;
   mimeType?: string;
@@ -1349,6 +1351,7 @@ export function buildPreviewFromRecibos({
   filename,
   recibos,
   condominioCnpj,
+  somenteAnoCorrente = true,
   padraoDetectado,
   origemSistema,
 }: {
@@ -1356,6 +1359,7 @@ export function buildPreviewFromRecibos({
   filename: string;
   recibos: ReciboCondopro[];
   condominioCnpj?: string;
+  somenteAnoCorrente?: boolean;
   padraoDetectado?: PadraoConversaoDetectado;
   origemSistema?: string;
 }): ParseResult {
@@ -1370,7 +1374,7 @@ export function buildPreviewFromRecibos({
   const recibosMuitoAntigos = recibos.filter((recibo) => vencimentoComMaisDeCincoAnos(recibo.vencimento));
   const recibosElegiveis = recibos.filter((recibo) => {
     const recorte = avaliarRecorteAnoCorrente(recibo.vencimento);
-    return !vencimentoComMaisDeCincoAnos(recibo.vencimento) && recorte.dentroDoAnoCorrente;
+    return !vencimentoComMaisDeCincoAnos(recibo.vencimento) && (!somenteAnoCorrente || recorte.dentroDoAnoCorrente);
   });
   const totalDesprezado = recibos.length - recibosElegiveis.length;
   const totalForaAnoCorrente = recibos.length - recibosMuitoAntigos.length - recibosElegiveis.length;
@@ -1417,6 +1421,7 @@ export function buildPreviewFromRecibos({
     ok: true,
     preview: {
       tipoConversao: "cobrancas",
+      somenteAnoCorrente,
       origem,
       arquivo: filename,
       totalParcelas: recibosElegiveis.length,
@@ -1451,11 +1456,13 @@ function buildPreviewFromParcelas({
   filename,
   parcelas,
   condominioCnpj,
+  somenteAnoCorrente = true,
 }: {
   origem: string;
   filename: string;
   parcelas: ParcelaNormalizada[];
   condominioCnpj?: string;
+  somenteAnoCorrente?: boolean;
 }): ParseResult {
   if (!parcelas.length) {
     return {
@@ -1468,7 +1475,7 @@ function buildPreviewFromParcelas({
   const parcelasMuitoAntigas = parcelas.filter((parcela) => vencimentoComMaisDeCincoAnos(parcela.vencimento));
   const parcelasElegiveis = parcelas.filter((parcela) => {
     const recorte = avaliarRecorteAnoCorrente(parcela.vencimento);
-    return !vencimentoComMaisDeCincoAnos(parcela.vencimento) && recorte.dentroDoAnoCorrente;
+    return !vencimentoComMaisDeCincoAnos(parcela.vencimento) && (!somenteAnoCorrente || recorte.dentroDoAnoCorrente);
   });
   const totalDesprezado = parcelas.length - parcelasElegiveis.length;
   const totalForaAnoCorrente = parcelas.length - parcelasMuitoAntigas.length - parcelasElegiveis.length;
@@ -1535,6 +1542,7 @@ function buildPreviewFromParcelas({
     ok: true,
     preview: {
       tipoConversao: "cobrancas",
+      somenteAnoCorrente,
       origem,
       arquivo: filename,
       totalParcelas: parcelasElegiveis.length,
@@ -5345,6 +5353,7 @@ export async function parseRelatorioBuffer(
       try {
         const parsed = parseBrcondominioDebitos(await extractPdfVisualText(input.buffer, 2));
         const result = buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "BRCondomínio - Lista de Débitos", filename: input.filename,
           recibos: parsed.recibos, condominioCnpj: input.condominioCnpj,
           origemSistema: "BRCondomínio", padraoDetectado: brcondominio,
@@ -5359,6 +5368,7 @@ export async function parseRelatorioBuffer(
       try {
         const recibos = parseThomazInadimplentes(await extractPdfVisualText(input.buffer));
         const result = buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "Thomaz Multi - Inadimplentes", filename: input.filename,
           recibos, condominioCnpj: input.condominioCnpj,
           origemSistema: "Thomaz Multi", padraoDetectado: thomaz,
@@ -5377,6 +5387,7 @@ export async function parseRelatorioBuffer(
       try {
         const recibos = parseSuperlogicaResumida(await extractPdfVisualText(input.buffer));
         const result = buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "Superlógica - Relação Resumida de Pendentes", filename: input.filename,
           recibos, condominioCnpj: input.condominioCnpj,
           origemSistema: "Superlógica Condomínios", padraoDetectado: resumida,
@@ -5394,6 +5405,7 @@ export async function parseRelatorioBuffer(
     if (hausy) {
       try {
         return buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "Hausy / myHausy - Inadimplência", filename: input.filename,
           recibos: parseHausyInadimplencia(await extractPdfVisualText(input.buffer), text), condominioCnpj: input.condominioCnpj,
           origemSistema: "myHausy", padraoDetectado: hausy,
@@ -5407,6 +5419,7 @@ export async function parseRelatorioBuffer(
       const parsed = parseBrcondosCobrancas(text);
       if (parsed.ok === false) return parsed;
       const result = buildPreviewFromRecibos({
+        somenteAnoCorrente: input.somenteAnoCorrente,
         origem: "BRCondos - Relatório de Contas a Receber",
         filename: input.filename,
         recibos: parsed.recibos,
@@ -5437,6 +5450,7 @@ export async function parseRelatorioBuffer(
 
       if (recibos.length) {
         return buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "Habitacional - Inadimplência Atualizada",
           filename: input.filename,
           recibos,
@@ -5456,6 +5470,7 @@ export async function parseRelatorioBuffer(
 
       if (recibos.length) {
         return buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "Moema Flat - Inadimplentes",
           filename: input.filename,
           recibos,
@@ -5482,6 +5497,7 @@ export async function parseRelatorioBuffer(
 
       if (recibos.length) {
         return buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "Lello Condomínios - Cota / Débitos",
           filename: input.filename,
           recibos,
@@ -5507,6 +5523,7 @@ export async function parseRelatorioBuffer(
 
       if (recibos.length) {
         return buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "Safira - Relatórios de Recibos em Aberto",
           filename: input.filename,
           recibos,
@@ -5530,6 +5547,7 @@ export async function parseRelatorioBuffer(
 
       if (recibos.length) {
         return buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "Slaviero Condomínios - Inadimplentes",
           filename: input.filename,
           recibos,
@@ -5561,6 +5579,7 @@ export async function parseRelatorioBuffer(
 
       if (recibos.length) {
         return buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "Superlógica - Relação Analítica de Pendentes",
           filename: input.filename,
           recibos,
@@ -5592,6 +5611,7 @@ export async function parseRelatorioBuffer(
 
       if (recibos.length) {
         return buildPreviewFromRecibos({
+          somenteAnoCorrente: input.somenteAnoCorrente,
           origem: "Hflex / LiveFacilities - Devedores Detalhado",
           filename: input.filename,
           recibos,
@@ -5648,6 +5668,7 @@ export async function parseRelatorioBuffer(
     const recibos = parseHflexLiveFacilitiesCobrancasRows(allRows);
     if (recibos.length) {
       return buildPreviewFromRecibos({
+        somenteAnoCorrente: input.somenteAnoCorrente,
         origem: "Hflex / LiveFacilities - Devedores Detalhado",
         filename: input.filename,
         recibos,
@@ -5670,6 +5691,7 @@ export async function parseRelatorioBuffer(
 
     if (recibos.length) {
       return buildPreviewFromRecibos({
+        somenteAnoCorrente: input.somenteAnoCorrente,
         origem: "Lello Condomínios - Cotas Atrasadas",
         filename: input.filename,
         recibos,
@@ -5750,6 +5772,7 @@ export async function parseRelatorioBuffer(
         fullText.includes("inadimplência") && fullText.includes("posição em");
 
       return buildPreviewFromRecibos({
+        somenteAnoCorrente: input.somenteAnoCorrente,
         origem: looksManagerAtentum
           ? "Manager / Atentum - Cotas Pendentes"
           : looksWinkerInadimplencia
@@ -5787,6 +5810,7 @@ export async function parseRelatorioBuffer(
 
   if (bloco.length) {
     return buildPreviewFromParcelas({
+      somenteAnoCorrente: input.somenteAnoCorrente,
       origem: "Conectcon - Blocos por Unidade",
       filename: input.filename,
       parcelas: bloco,
@@ -5798,6 +5822,7 @@ export async function parseRelatorioBuffer(
 
   if (linhaDireta.length) {
     return buildPreviewFromParcelas({
+      somenteAnoCorrente: input.somenteAnoCorrente,
       origem: "Conectcon - Linha Direta",
       filename: input.filename,
       parcelas: linhaDireta,

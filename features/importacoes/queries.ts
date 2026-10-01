@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/normalize-relation'
+import { carregarItensImportacao } from './carregar-itens'
 
 export async function listImportacoes(scope: CarteiraScope) {
   const supabase = await createClient()
@@ -69,16 +70,5 @@ export async function getImportacaoDetalhe(id: string, scope: CarteiraScope) {
 export async function listImportacaoItens(importacaoId: string) {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('importacao_itens')
-    .select('id, linha, payload, valido, erros, created_at')
-    .eq('importacao_id', importacaoId)
-    .order('linha', { ascending: true })
-    .limit(1000)
-
-  if (error) {
-    throw new Error(`Erro ao carregar itens da importação: ${error.message}`)
-  }
-
-  return (data ?? []) as any[]
+  return carregarItensImportacao(supabase, importacaoId)
 }

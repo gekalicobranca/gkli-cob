@@ -17,6 +17,7 @@ function client(rows: typeof antiga[]) {
     const query = {
       select: () => query,
       eq: (key: string, value: unknown) => { selected = selected.filter(row => row[key] === value); return query },
+      is: (key: string, value: unknown) => { selected = selected.filter(row => (row[key] ?? null) === value); return query },
       order: () => query,
       range: async (start: number, end: number) => ({ data: selected.slice(start, end + 1), error: null }),
     }
@@ -56,7 +57,7 @@ test('múltiplos registros existentes não escolhem canônico automaticamente', 
 test('preserva zero, rejeita valor inválido e erro de leitura', async () => {
   assert.equal((await conciliarCobrancaImportada(client([antiga]), { ...entrada, valor_original: 0 })).status, 'divergente')
   await assert.rejects(conciliarCobrancaImportada(client([antiga]), { ...entrada, valor_original: 'inválido' }), /Valor inválido/)
-  const query: any = { select: () => query, eq: () => query, order: () => query, range: async () => ({ error: { message: 'indisponível' } }) }
+  const query: any = { select: () => query, eq: () => query, is: () => query, order: () => query, range: async () => ({ error: { message: 'indisponível' } }) }
   await assert.rejects(conciliarCobrancaImportada({ from: () => query }, entrada), /indisponível/)
 })
 test('recibo explícito é persistido e conflito entre campos exige revisão', () => {

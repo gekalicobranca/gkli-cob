@@ -173,6 +173,17 @@ export default async function NovaImportacaoPage({
 
             {selected.value === "cobrancas" ? (
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                <input name="recorte_ano" type="checkbox" value="corrente" defaultChecked className="mt-1 h-4 w-4" />
+                <input name="recorte_ano" type="hidden" value="todos" />
+                <span>
+                  <span className="block text-sm font-medium text-slate-950">Importar somente débitos do ano corrente</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">Desmarque para incluir débitos de outros anos. A escolha será mantida na prévia e na confirmação.</span>
+                </span>
+              </label>
+            ) : null}
+
+            {selected.value === "cobrancas" ? (
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
                 <input
                   name="recorte_regua"
                   type="checkbox"
