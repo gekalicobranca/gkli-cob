@@ -260,7 +260,7 @@ export async function updateCobrancasStatusEmLote(
     .in('id', ids)
 
   if (consultaError) {
-    throw new Error(`Erro ao validar cobranças selecionadas: ${consultaError.message}`)
+    return { error: `Erro ao validar cobranças selecionadas: ${consultaError.message}` }
   }
 
   if (!cobrancas?.length) {
@@ -268,7 +268,9 @@ export async function updateCobrancasStatusEmLote(
   }
 
   for (const cobranca of cobrancas as any[]) {
-    assertCarteiraPermitida(scope, cobranca.carteira_id)
+    if (!cobranca.carteira_id || (scope.carteiraIds !== null && !scope.carteiraIds.includes(cobranca.carteira_id))) {
+      return { error: 'Você não tem permissão para operar uma das carteiras selecionadas.' }
+    }
   }
 
   const idsPermitidos = (cobrancas as any[]).map((cobranca) => cobranca.id)
@@ -280,12 +282,15 @@ export async function updateCobrancasStatusEmLote(
     .select('id,status_operacional')
 
   if (error) {
-    throw new Error(`Erro ao atualizar cobranças em lote: ${error.message}`)
+    return { error: `Erro ao atualizar cobranças em lote: ${error.message}` }
   }
 
   const statusSalvos = new Map((atualizadas ?? []).map(row => [row.id, row.status_operacional]))
+  if (statusSalvos.size === 0) {
+    return { error: 'Nenhuma cobrança foi atualizada. Verifique suas permissões e tente novamente.' }
+  }
   await Promise.all(
-    (cobrancas as any[]).map((cobranca) =>
+    (cobrancas as any[]).filter(cobranca => statusSalvos.has(cobranca.id)).map((cobranca) =>
       registrarEventoOperacional(supabase as any, {
         carteiraId: cobranca.carteira_id ?? null,
         entidadeTipo: 'cobranca',
@@ -312,7 +317,12 @@ export async function updateCobrancasStatusEmLote(
   )
 
   revalidateCobrancaViews(null, { dashboard: true })
-  return { success: `${idsPermitidos.length} cobrança(s) atualizada(s).` }
+  return {
+    success: `${statusSalvos.size} cobrança(s) atualizada(s).`,
+    ...(statusSalvos.size < ids.length
+      ? { error: 'Algumas cobranças selecionadas não foram atualizadas. Recarregue a fila e confira os registros restantes.' }
+      : {}),
+  }
 }
 
 export async function updateCobrancaFinanceiro(formData: FormData) {

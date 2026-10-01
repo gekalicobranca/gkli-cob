@@ -22,6 +22,10 @@ function loadModule(path, dependencies = {}) {
 
 let writes = 0
 let connections = 0
+let queryError = null
+let updateError = null
+let updatedRows = null
+const events = []
 let rows = [{ id: 'cobranca-1', carteira_id: 'carteira-1', status: 'novo' }]
 const action = loadModule('../features/cobrancas/actions.ts', {
   'next/cache': { revalidatePath() {} },
@@ -37,14 +41,17 @@ const action = loadModule('../features/cobrancas/actions.ts', {
       return {
         from() {
           return {
-            select() { return { async in() { return { data: rows } } } },
-            update() { writes++; return { async in() { return {} } } },
+            select() { return { is() { return this }, async in() { return { data: rows, error: queryError } } } },
+            update() { writes++; return { in() { return { async select() {
+              return { data: updatedRows ?? rows.map(row => ({ id: row.id, status_operacional: 'possivel_acordo' })), error: updateError }
+            } } } } },
           }
         },
       }
     },
   },
-  '@/features/operacional/service': { async registrarEventoOperacional() {} },
+  '../../lib/core/cobranca-arquivamento': { somenteCobrancasCanonicas(query) { return query.is('duplicada_de_id', null) } },
+  '@/features/operacional/service': { async registrarEventoOperacional(_db, event) { events.push(event) } },
   '@/lib/core/status': {
     COBRANCA_STATUS: loadModule('../lib/constants/cobrancas.ts').COBRANCA_STATUS_OPERACIONAL,
   },
@@ -66,6 +73,27 @@ rows = []
 assert.equal((await action(null, data)).error, 'Nenhuma cobrança selecionada foi encontrada.')
 assert.equal(writes, 1)
 rows = [{ id: 'cobranca-1', carteira_id: 'outra-carteira', status: 'novo' }]
-await assert.rejects(action(null, data), /Você não tem permissão/)
+assert.match((await action(null, data)).error, /Você não tem permissão/)
 assert.equal(writes, 1)
-console.log('OK: seleção vazia, status inválido, possível acordo, registros ausentes e permissão de carteira.')
+rows = [{ id: 'cobranca-1', carteira_id: 'carteira-1', status: 'novo' }]
+queryError = { message: 'Falha na consulta' }
+assert.match((await action(null, data)).error, /Falha na consulta/)
+assert.equal(writes, 1)
+queryError = null
+updateError = { message: 'Pré-distribuição é destinado a cobranças sem acordo.' }
+assert.match((await action(null, data)).error, /Pré-distribuição/)
+assert.equal(events.length, 1)
+updateError = null
+updatedRows = []
+assert.match((await action(null, data)).error, /Nenhuma cobrança foi atualizada/)
+assert.equal(events.length, 1)
+rows.push({ id: 'cobranca-2', carteira_id: 'carteira-1', status: 'novo' })
+data.append('cobranca_ids', 'cobranca-2')
+updatedRows = [{ id: 'cobranca-1', status_operacional: 'pre_distribuicao' }]
+const partial = await action(null, data)
+assert.equal(partial.success, '1 cobrança(s) atualizada(s).')
+assert.match(partial.error, /Algumas cobranças/)
+assert.equal(events.length, 2)
+assert.equal(events[1].estadoNovo, 'pre_distribuicao')
+assert.equal(events[1].entidadeId, 'cobranca-1')
+console.log('OK: validação, permissão, erros de consulta e atualização, nenhuma atualização, resultado parcial e status retornado pelo banco.')
