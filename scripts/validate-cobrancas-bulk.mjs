@@ -25,6 +25,9 @@ let connections = 0
 let queryError = null
 let updateError = null
 let updatedRows = null
+let timeoutAbove = Infinity
+let failId = null
+const batchSizes = []
 const events = []
 let rows = [{ id: 'cobranca-1', carteira_id: 'carteira-1', status: 'novo' }]
 const action = loadModule('../features/cobrancas/actions.ts', {
@@ -42,8 +45,10 @@ const action = loadModule('../features/cobrancas/actions.ts', {
         from() {
           return {
             select() { return { is() { return this }, async in() { return { data: rows, error: queryError } } } },
-            update() { writes++; return { in() { return { async select() {
-              return { data: updatedRows ?? rows.map(row => ({ id: row.id, status_operacional: 'possivel_acordo' })), error: updateError }
+            update() { writes++; return { in(_column, ids) { batchSizes.push(ids.length); return { async select() {
+              if (ids.length > timeoutAbove) return { error: { code: '57014', message: 'statement timeout' } }
+              if (ids.includes(failId)) return { error: { message: 'Falha no segundo lote' } }
+              return { data: updatedRows ?? rows.filter(row => ids.includes(row.id)).map(row => ({ id: row.id, status_operacional: 'possivel_acordo' })), error: updateError }
             } } } } },
           }
         },
@@ -92,8 +97,33 @@ data.append('cobranca_ids', 'cobranca-2')
 updatedRows = [{ id: 'cobranca-1', status_operacional: 'pre_distribuicao' }]
 const partial = await action(null, data)
 assert.equal(partial.success, '1 cobrança(s) atualizada(s).')
-assert.match(partial.error, /Algumas cobranças/)
+assert.match(partial.error, /não atualizada/)
 assert.equal(events.length, 2)
 assert.equal(events[1].estadoNovo, 'pre_distribuicao')
 assert.equal(events[1].entidadeId, 'cobranca-1')
 console.log('OK: validação, permissão, erros de consulta e atualização, nenhuma atualização, resultado parcial e status retornado pelo banco.')
+
+updatedRows = null
+rows = Array.from({ length: 500 }, (_, index) => ({ id: `cobranca-${index}`, carteira_id: 'carteira-1', status: 'novo' }))
+const largeData = new FormData()
+largeData.set('status', 'suspenso')
+rows.forEach(row => largeData.append('cobranca_ids', row.id))
+batchSizes.length = 0
+const initialEvents = events.length
+assert.equal((await action(null, largeData)).success, '500 cobrança(s) atualizada(s).')
+assert.equal(batchSizes.length, 25)
+assert.ok(batchSizes.every(size => size <= 20))
+assert.equal(events.length - initialEvents, 500)
+timeoutAbove = 5
+batchSizes.length = 0
+assert.equal((await action(null, largeData)).success, '500 cobrança(s) atualizada(s).')
+assert.ok(batchSizes.includes(20) && batchSizes.includes(10) && batchSizes.includes(5))
+timeoutAbove = Infinity
+failId = 'cobranca-20'
+const beforePartialEvents = events.length
+const failedSecondBatch = await action(null, largeData)
+assert.equal(failedSecondBatch.success, '20 cobrança(s) atualizada(s).')
+assert.match(failedSecondBatch.error, /480 cobrança\(s\) não atualizada/)
+assert.match(failedSecondBatch.error, /Falha no segundo lote/)
+assert.equal(events.length - beforePartialEvents, 20)
+console.log('OK: 500 cobranças em lotes de 20, redução automática após timeout e falha parcial com histórico correto.')
