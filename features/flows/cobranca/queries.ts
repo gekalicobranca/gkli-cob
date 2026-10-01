@@ -216,8 +216,9 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
 
   async function todasCobrancas(query: any) {
     const rows: any[] = []
+    query = query.order('id')
     for (let offset = 0; ; offset += 500) {
-      const { data, error } = await query.order('id').range(offset, offset + 499)
+      const { data, error } = await query.range(offset, offset + 499)
       if (error) return { data: null, error }
       rows.push(...data)
       if (data.length < 500) return { data: rows, error: null }
@@ -241,10 +242,12 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   if (painelError) throw new Error(`Erro ao carregar cobranças novas para Flow: ${painelError.message}`)
   if (disponibilidadeError) throw new Error(`Erro ao carregar cobranças disponíveis para Flow: ${disponibilidadeError.message}`)
 
-  const canaisPromise = options.somenteSaneamento ? Promise.resolve(new Map<string, Set<string>>()) : carregarCanaisOcupados(supabase, (disponibilidade ?? []).map((row: any) => row.id))
-
   const novas = separarSaneamento(painel ?? [])
   const ativas = separarSaneamento(disponibilidade ?? [])
+  // Só cobranças aptas com uma régua neste canal podem gerar Flow.
+  // As demais permanecem no saneamento sem consultar seus vínculos.
+  const candidatas = ativas.aptas.filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
+  const canaisPromise = options.somenteSaneamento ? Promise.resolve(new Map<string, Set<string>>()) : carregarCanaisOcupados(supabase, candidatas.map((row: any) => row.id))
   const cobrancasAtuais = [...(painel ?? []), ...(disponibilidade ?? [])]
   const condominiosAtuais = [...new Set(cobrancasAtuais.map(row => row.condominio_id).filter(Boolean))]
   let montagensQuery = applyCarteiraScope(supabase.from('maestro_flow_montagens').select('id,condominio_id,regua_id,pendencias'), scope.carteiraIds)
@@ -278,7 +281,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     .map((row: any) => ({ ...row, motivo_saneamento: motivos.get(row.id) }))
   const normalize = (row: any) => ({ ...row, carteira: relation(row.carteira), condominio: relation(row.condominio), unidade: relation(row.unidade) })
   const painelElegivel = options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id)).map(normalize)
-  const disponibilidadeElegivel = options.somenteSaneamento ? [] : ativas.aptas
+  const disponibilidadeElegivel = options.somenteSaneamento ? [] : candidatas
     .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
     .filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
     .map(normalize)

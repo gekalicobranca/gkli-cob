@@ -24,6 +24,7 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
       const limit = Number(url.searchParams.get('limit') ?? 500)
       assert.equal(url.searchParams.get('carteira_id'), 'in.(permitida)')
       assert.equal(url.searchParams.get('duplicada_de_id'), 'is.null')
+      assert.equal(url.searchParams.get('order'), 'vencimento.asc,id.asc')
       const rows = Array.from({ length: Math.max(0, Math.min(limit, 1205 - offset)) }, (_, i) => ({
         id: `${novo ? 'nova' : 'ativa'}-${offset + i}`, carteira_id: 'permitida', condominio_id: 'condominio', unidade_id: `unidade-${offset + i}`, valor_original: 10,
         status_operacional: novo ? 'novo' : 'em_cobranca_ativa',
@@ -34,9 +35,14 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
     }
     if (table === 'lote_itens' || table === 'mensagens') {
       const ids = (url.searchParams.get('cobranca_id') ?? '').slice(4, -1).split(',')
+      assert.ok(ids.every(id => Number(id.split('-')[1]) % 2 === 0), 'não consulta vínculos de cobranças sem responsável')
+      if (table === 'lote_itens') {
+        assert.ok(url.searchParams.get('select')?.includes('canais:payload->canais'))
+        assert.ok(!url.searchParams.get('select')?.includes('(payload,'))
+      }
       return Response.json(ids.filter(id => table === 'lote_itens' ? Number(id.split('-')[1]) < 205 : id === 'ativa-206').map(id => ({
         id: `vinculo-${id}`, cobranca_id: id, canal: 'email',
-        flow: { payload: { canais: ['email'] } },
+        flow: { canais: ['email'] },
       })))
     }
     if (table === 'maestro_flow_montagens') return Response.json([])

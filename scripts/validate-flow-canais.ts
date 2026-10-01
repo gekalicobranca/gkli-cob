@@ -48,7 +48,7 @@ function mockDb(tables: Record<string, any[]>) {
 
 test('vínculos consolidados, tentativas vazias e mensagens órfãs mantêm o canal ocupado', async () => {
   const db = mockDb({ lote_itens: [
-    { id: 'i1', cobranca_id: '1', cobranca_flow_id: 'f1', flow: { payload: { canais: ['email'] }, regua: web }, mensagem: { canal: 'email' } },
+    { id: 'i1', cobranca_id: '1', cobranca_flow_id: 'f1', flow: { canais: ['email'], regua: web }, mensagem: { canal: 'email' } },
     { id: 'i2', cobranca_id: '2', cobranca_flow_id: 'f1', flow: { regua: email } },
     { id: 'i3', cobranca_id: '3', cobranca_flow_id: 'f2', flow: {} },
   ], mensagens: [{ id: 'm1', cobranca_id: '4', cobranca_flow_id: null, canal: 'whatsapp', status: 'pendente_aprovacao' }] })

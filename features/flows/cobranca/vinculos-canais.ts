@@ -15,14 +15,14 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
   async function carregarParte(parte: string[]) {
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await db.from('lote_itens')
-        .select('id,cobranca_id,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(payload,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal)')
+        .select('id,cobranca_id,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(canais:payload->canais,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal)')
         .in('cobranca_id', parte).not('cobranca_flow_id', 'is', null).order('id').range(offset, offset + 499)
       if (error) throw new Error(`Erro ao conferir canais dos Flows: ${error.message}`)
       for (const row of data ?? []) {
         const flow = relation(row.flow)
         const message = relation(row.mensagem)
         const canais = [...new Set<string>([
-          ...(Array.isArray(flow?.payload?.canais) ? flow.payload.canais : canaisDaRegua(relation(flow?.regua) ?? {})),
+          ...(Array.isArray(flow?.canais) ? flow.canais : canaisDaRegua(relation(flow?.regua) ?? {})),
           ...(message?.canal ? [message.canal] : []),
         ])]
         if (row.cobranca_id) add(row.cobranca_id, canais.length ? canais : ['*'])
