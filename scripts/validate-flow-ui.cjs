@@ -9,16 +9,21 @@ async function main() {
       import {FlowScopeFilters} from './components/flows/cobranca/flow-scope-filters';
       import {FlowCobrancaWorkbench} from './components/flows/cobranca/flow-cobranca-workbench';
       const flow={id:'flow-test',nome:'Flow WhatsApp · Carteira · Jardim · lote abcdef12',carteira_id:'a',carteira:{nome:'Carteira A'},condominio:{nome:'Jardim'},payload:{condominio_id:'jardim'},regua:{nome:'D+1, D+5'},status:'em_execucao',total_mensagens:7,total_agendadas:7,canais:['whatsapp'],lote_id:'abcdef12',created_at:'2026-09-24T12:00:00Z'};
-      createRoot(document.getElementById('root')).render(<><form><FlowScopeFilters carteiras={[{id:'a',nome:'Carteira A'},{id:'b',nome:'Carteira B'}]} condominios={[]}/><button>Filtrar</button></form><FlowCobrancaWorkbench canal="whatsapp" mode="flows" returnQuery="aba=flows" disponibilidade={[]} reguas={[]} flows={[flow]} initialStep="flows"/></>);
+      const root=createRoot(document.getElementById('root'));
+      root.render(<><form><FlowScopeFilters carteiras={[{id:'a',nome:'Carteira A'},{id:'b',nome:'Carteira B'}]} condominios={[]}/><button>Filtrar</button></form><FlowCobrancaWorkbench canal="whatsapp" mode="flows" returnQuery="aba=flows" disponibilidade={[]} reguas={[]} flows={[flow]} initialStep="flows"/></>);
+      window.showGerar=()=>{
+        const rows=Array.from({length:1000},(_,i)=>({id:'c'+i,unidade_id:'u'+i,carteira_id:'a',condominio_id:i%2?'b':'a',valor_original:10,vencimento:'2026-09-01',condominio:{nome:i%2?'Condomínio B':'Condomínio A'},unidade:{identificacao:String(i),responsavel_nome:'Teste'}}));
+        root.render(<FlowCobrancaWorkbench key="gerar" canal="email" mode="gerar" returnQuery="aba=gerar" disponibilidade={rows} reguas={[{id:'regua',carteira_id:'a',nome:'Régua A',etapas:[{canal:'email'}]}]} flows={[]}/>);
+      };
     `, resolveDir: process.cwd(), loader: 'tsx' },
     bundle: true, write: false, format: 'iife', jsx: 'automatic',
     plugins: [{name:'test-boundaries',setup(b){
       b.onResolve({filter:/^next\/(navigation|link)$/},args=>({path:args.path,namespace:'stub'}))
-      b.onResolve({filter:/features\/flows\/cobranca\/actions$/},args=>({path:args.path,namespace:'stub'}))
+      b.onResolve({filter:/features\/flows\/cobranca\/(actions|selecao-actions)$/},args=>({path:args.path,namespace:'stub'}))
       b.onLoad({filter:/.*/,namespace:'stub'},args=>({resolveDir:process.cwd(),loader:'jsx',contents:args.path==='next/navigation'
         ? 'export const useRouter=()=>({refresh(){},push(){}}); export const usePathname=()=>"/";'
         : args.path==='next/link' ? 'import React from "react"; export default function Link({children,...props}){return <a {...props}>{children}</a>}'
-        : 'export const cancelarFlowCobranca=async()=>{},criarFlowsCobranca=async()=>{},desfazerAtivacaoCobrancasFlowCobranca=async()=>{},enviarFlowCobranca=async()=>{},excluirFlowCobranca=async()=>{},pausarFlowCobranca=async()=>{},reenviarItemFlowCobranca=async()=>{};'}))
+        : 'export const carregarSelecaoFlows=async()=>[],cancelarFlowCobranca=async()=>{},criarFlowsCobranca=async()=>{},desfazerAtivacaoCobrancasFlowCobranca=async()=>{},enviarFlowCobranca=async()=>{},excluirFlowCobranca=async()=>{},pausarFlowCobranca=async()=>{},reenviarItemFlowCobranca=async()=>{};'}))
     }}],
   })
   const browser = await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL || 'msedge'})
@@ -53,8 +58,22 @@ async function main() {
     assert.equal(calls.filter(url=>url.pathname.includes('/itens')).length,1)
     await page.locator('details.group\\/flow > summary').click()
     await page.getByText('Fila de envio',{exact:true}).waitFor({state:'detached'})
+    await page.evaluate(()=>window.showGerar())
+    await page.getByRole('checkbox',{name:'Condomínio A',exact:true}).waitFor()
+    assert.equal(await page.locator('a[href^="/app/cobrancas/"]').count(),0)
+    await page.getByRole('checkbox',{name:'Condomínio A',exact:true}).check()
+    assert.equal(await page.locator('input[name="cobranca_id"]').count(),500)
+    assert.equal(await page.locator('select[name="regua_condominio:a"]').inputValue(),'regua')
+    await page.getByText('Ver cobranças incluídas pelo filtro (500)',{exact:true}).first().click()
+    await page.waitForFunction(()=>document.querySelectorAll('a[href^="/app/cobrancas/"]').length===500)
+    await page.getByText('Ver cobranças incluídas pelo filtro (500)',{exact:true}).first().click()
+    await page.waitForFunction(()=>document.querySelectorAll('a[href^="/app/cobrancas/"]').length===0)
+    await page.getByRole('checkbox',{name:'Condomínio B',exact:true}).check()
+    assert.equal(await page.locator('input[name="cobranca_id"]').count(),1000)
+    await page.getByRole('button',{name:'Limpar seleção',exact:true}).click()
+    assert.equal(await page.locator('input[name="cobranca_id"]').count(),0)
     assert.deepEqual(errors,[])
-    console.log('UI aprovada: busca e seleção, troca de carteira, validação, detalhes e consulta de itens apenas ao expandir.')
+    console.log('UI aprovada: filtros, monitor e seleção de 1.000 cobranças; detalhes montados somente ao expandir e seleção por condomínio preservada.')
   } finally {await browser.close()}
 }
 main().catch(error=>{console.error(error);process.exitCode=1})

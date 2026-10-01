@@ -1,4 +1,5 @@
 import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
+import { registrarPerformanceFlow } from '../performance'
 import { flowCobrancaOrdem, type OrdemFlowCobranca } from './rotas'
 import { carregarCanaisOcupados } from './vinculos-canais'
 import { reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from './canais'
@@ -151,6 +152,7 @@ export async function getFlowCobrancaItens(scope: CarteiraScope, flowId: string)
 export const COBRANCAS_FLOW_PAGE_SIZE = 100
 
 export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: FlowCobrancaFilters = {}, options: { somenteSaneamento?: boolean; page?: number } = {}) {
+  const inicio = Date.now()
   const supabase = createAdminClient()
   const normalized = normalizeFlowCobrancaFilters(filters)
   const reguas = await listReguasForSelect(scope, 'cobranca')
@@ -247,7 +249,9 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   // Só cobranças aptas com uma régua neste canal podem gerar Flow.
   // As demais permanecem no saneamento sem consultar seus vínculos.
   const candidatas = ativas.aptas.filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
-  const canaisPromise = options.somenteSaneamento ? Promise.resolve(new Map<string, Set<string>>()) : carregarCanaisOcupados(supabase, candidatas.map((row: any) => row.id))
+  const canaisPromise = options.somenteSaneamento ? Promise.resolve(new Map<string, Set<string>>()) : carregarCanaisOcupados(supabase, candidatas.map((row: any) => row.id), {
+    carteiraIds: candidatas.every((row: any) => row.carteira_id) ? candidatas.map((row: any) => row.carteira_id) : undefined,
+  })
   const cobrancasAtuais = [...(painel ?? []), ...(disponibilidade ?? [])]
   const condominiosAtuais = [...new Set(cobrancasAtuais.map(row => row.condominio_id).filter(Boolean))]
   let montagensQuery = applyCarteiraScope(supabase.from('maestro_flow_montagens').select('id,condominio_id,regua_id,pendencias'), scope.carteiraIds)
@@ -288,7 +292,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const offset = (Math.max(1, options.page ?? 1) - 1) * COBRANCAS_FLOW_PAGE_SIZE
   const paginar = (rows: any[]) => options.page === undefined ? rows : rows.slice(offset, offset + COBRANCAS_FLOW_PAGE_SIZE)
 
-  return {
+  const result = {
     saneamento: [...new Map([...novas.saneamento, ...ativas.saneamento, ...saneamentoMaestro].map(row => [row.id, row])).values()].map(normalize),
     painel: paginar(painelElegivel),
     disponibilidade: paginar(disponibilidadeElegivel),
@@ -301,6 +305,10 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     hasNext: options.somenteSaneamento ? painelResult.hasNext || disponibilidadeResult.hasNext
       : options.page !== undefined && Math.max(painelElegivel.length, disponibilidadeElegivel.length) > offset + COBRANCAS_FLOW_PAGE_SIZE,
   }
+  registrarPerformanceFlow({ area: options.somenteSaneamento ? 'saneamento' : 'gerar', inicio, canal: normalized.canal,
+    filtradoPorCarteira: Boolean(normalized.carteiraId), filtradoPorCondominio: Boolean(normalized.condominioId),
+    consultadas: cobrancasAtuais.length, retornadas: result.painel.length + result.disponibilidade.length + result.saneamento.length })
+  return result
 }
 
 export const FLOWS_PAGE_SIZE = 30
@@ -327,6 +335,7 @@ export async function listFlowCarteiras(scope: CarteiraScope) {
 }
 
 export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: FlowCobrancaFilters, options: { page: number; historico: boolean; status?: string; ordenar?: OrdemFlowCobranca }) {
+  const inicio = Date.now()
   const supabase = createAdminClient()
   const normalized = normalizeFlowCobrancaFilters(filters)
   let flowsQuery = supabase
@@ -389,7 +398,7 @@ export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: 
     for (const condominio of data ?? []) condominiosFlows.set(condominio.id, condominio)
   }
 
-  return {
+  const result = {
     painel: [] as any[], disponibilidade: [] as any[], saneamento: [] as any[], reguas: [] as any[], hasNext,
     flows: filtrarFlowsPorCanal(flowRows.map(({ canal_email, canal_whatsapp, canal_manual, ...flow }) => {
       delete flow.regua_canal
@@ -404,6 +413,10 @@ export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: 
       }
     }), normalized.canal),
   }
+  registrarPerformanceFlow({ area: options.historico ? 'historico' : 'monitor', inicio, canal: normalized.canal,
+    filtradoPorCarteira: Boolean(normalized.carteiraId), filtradoPorCondominio: Boolean(normalized.condominioId),
+    consultadas: data?.length ?? 0, retornadas: result.flows.length })
+  return result
 }
 
 export async function listFlowCobrancaCondominios(scope: CarteiraScope, carteiraId?: string) {

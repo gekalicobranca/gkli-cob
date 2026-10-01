@@ -132,6 +132,36 @@ concorrente. A medição inicial não valida concorrência nem p95.
 
 ## Como repetir o diagnóstico
 
+### Primeira etapa implementada
+
+- Seleção, agrupamento e avaliação de réguas reutilizam resultados e conjuntos
+  de IDs. A seleção inicial foi validada com 100 mil cobranças e custo linear.
+- As listas de cobranças dos grupos entram no DOM apenas ao expandir os detalhes.
+  O teste de interface usa mil cobranças e verifica seleção e abertura/fechamento.
+  O volume de dados enviado ao navegador ainda precisa de redução no servidor.
+- A busca de mensagens órfãs pode consultar uma vez por recorte de carteiras,
+  em vez de uma vez por lote de IDs. Ao atingir 500 registros, falhar ou exceder
+  quatro segundos, mantém a consulta original por IDs para preservar bloqueios.
+- O Maestro consulta somente os campos necessários dos flows; a atualização
+  automática pausa em abas ocultas e aguarda a atualização anterior terminar.
+- Métricas de consultas podem ser habilitadas com `LOG_FLOW_PERFORMANCE=true`.
+  Registram tempos e volumes, sem IDs, contatos ou conteúdo. A opção não foi
+  habilitada em produção nesta etapa.
+
+Validação: 27 testes passaram, além do teste de interface e do build de produção.
+A checagem de tipos passou. Foram preservados filtros por canal, bloqueios de
+duplicidade, seleção por condomínio e divisão por unidade.
+
+A nova medição real de Gerar atingiu o limite de 180 segundos na consulta
+existente de cobranças, antes de executar a otimização de mensagens órfãs.
+Assim, não há ganho de latência real confirmado para esta etapa. A consulta
+somente de leitura dos índices pelo painel SQL também terminou em timeout.
+Não foram criados índices nem alterado o schema.
+
+Permanecem pendentes: elegibilidade e totais agregados no banco, paginação após
+os filtros de saneamento, correção dos limites de vínculos de acordos, resumos
+do Maestro e processamento de exportações/seleções volumosas por jobs.
+
 O script `scripts/profile-flows.ts` executa apenas as consultas de leitura.
 Não chama criação, ativação, progresso de jobs ou dispatch de mensagens.
 O relatório contém apenas tempos e volumes, sem IDs de clientes, URLs de

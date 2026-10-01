@@ -34,6 +34,11 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
       return Response.json(rows)
     }
     if (table === 'lote_itens' || table === 'mensagens') {
+      if (table === 'mensagens' && url.searchParams.has('carteira_id')) {
+        assert.equal(url.searchParams.get('carteira_id'), 'in.(permitida)')
+        assert.equal(url.searchParams.get('limit'), '500')
+        return Response.json([{ id: 'orfa', cobranca_id: 'ativa-206', canal: 'email' }, { id: 'fora-recorte', cobranca_id: 'outra', canal: 'email' }])
+      }
       const ids = (url.searchParams.get('cobranca_id') ?? '').slice(4, -1).split(',')
       assert.ok(ids.every(id => Number(id.split('-')[1]) % 2 === 0), 'não consulta vínculos de cobranças sem responsável')
       if (table === 'lote_itens') {
@@ -62,6 +67,7 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
     assert.equal(first.totalPainel, 603)
     assert.equal(first.valorPainel, 6030)
     assert.equal(first.unidadesPainel, 603)
+    assert.equal(requests.filter(url => url.pathname.endsWith('/mensagens')).length, 1)
     assert.equal(transferredRows, 2410)
     assert.ok(requests.filter(url => url.pathname.endsWith('/cobrancas')).every(url => Number(url.searchParams.get('limit')) <= 500))
     const montageQuery = requests.find(url => url.pathname.endsWith('/maestro_flow_montagens'))!

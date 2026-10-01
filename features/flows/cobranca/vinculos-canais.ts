@@ -5,12 +5,30 @@ const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
 // Inclui itens sem mensagem (tentativas anteriores) e mensagens órfãs pendentes.
 // Os canais gravados no Flow preservam o vínculo mesmo se a régua for editada.
-export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminClient>, ids: string[]) {
+export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminClient>, ids: string[], options: { carteiraIds?: string[] } = {}) {
   const map = new Map<string, Set<string>>()
+  if (!ids.length) return map
   function add(id: string, canais: string[]) {
     const current = map.get(id) ?? new Set<string>()
     for (const canal of canais) current.add(canal)
     map.set(id, current)
+  }
+  // Em recortes grandes, uma consulta curta por carteira pode substituir
+  // dezenas de consultas vazias de mensagens órfãs. Se houver muitas órfãs,
+  // volta à consulta por IDs, sem truncar a checagem de duplicidade.
+  let orfasConferidas = false
+  const carteiras = [...new Set(options.carteiraIds ?? [])]
+  if (ids.length >= 320 && carteiras.length > 0 && carteiras.length <= 80) {
+    const { data, error } = await db.from('mensagens').select('id,cobranca_id,canal')
+      .in('carteira_id', carteiras).is('cobranca_flow_id', null)
+      .in('status', ['pendente_aprovacao', 'aprovada', 'agendada']).order('id').limit(500)
+      .abortSignal(AbortSignal.timeout(4000))
+    // Uma otimização lenta ou indisponível nunca dispensa a checagem por IDs.
+    if (!error && (data?.length ?? 0) < 500) {
+      const candidatas = new Set(ids)
+      for (const row of data ?? []) if (row.cobranca_id && candidatas.has(row.cobranca_id)) add(row.cobranca_id, [row.canal || '*'])
+      orfasConferidas = true
+    }
   }
   async function carregarParte(parte: string[]) {
     for (let offset = 0; ; offset += 500) {
@@ -29,7 +47,7 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
       }
       if ((data ?? []).length < 500) break
     }
-    for (let offset = 0; ; offset += 500) {
+    for (let offset = 0; !orfasConferidas; offset += 500) {
       const { data, error } = await db.from('mensagens').select('id,cobranca_id,canal')
         .in('cobranca_id', parte).is('cobranca_flow_id', null)
         .in('status', ['pendente_aprovacao', 'aprovada', 'agendada']).order('id').range(offset, offset + 499)

@@ -31,11 +31,11 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
   let flowsIndisponiveis = false
   for (let offset = 0; ; offset += 500) {
     const { data: flows, error: flowsError } = await applyCarteiraScope(db.from('cobranca_flows')
-      .select('id,status,payload').in('payload->>condominio_id', idsEncontrados), scope.carteiraIds)
+      .select('id,status,condominio_id:payload->>condominio_id').in('payload->>condominio_id', idsEncontrados), scope.carteiraIds)
       .order('id').range(offset, offset + 499)
     if (flowsError) { flowsIndisponiveis = true; break }
     for (const flow of flows ?? []) {
-      const id = String((flow.payload as any)?.condominio_id ?? '')
+      const id = String(flow.condominio_id ?? '')
       if (!flowsPorCondominio.has(id)) flowsPorCondominio.set(id, [])
       flowsPorCondominio.get(id)!.push(flow)
     }
@@ -50,7 +50,8 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
       const partes = job.plano?.length ?? 0
       const { pendencias, vinculadas, excluidas } = classificarPendenciasMaestro(job.pendencias ?? [])
       const flows = flowsPorCondominio.get(job.condominio_id) ?? []
-      const destaMontagem = flows.filter(flow => (job.flow_ids ?? []).includes(flow.id)).length
+      const idsMontagem = new Set(job.flow_ids ?? [])
+      const destaMontagem = flows.filter(flow => idsMontagem.has(flow.id)).length
       const prontos = flows.filter(flow => flow.status === 'pronto').length
       return <div key={job.id} className="space-y-2 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3"><div>
