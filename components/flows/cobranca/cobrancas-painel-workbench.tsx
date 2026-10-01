@@ -44,10 +44,11 @@ function isAtivavel(row: Row) {
 
 export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: Row[]; returnQuery?: string }) {
   const [selectedCondominio, setSelectedCondominio] = useState('')
+  const [ativacaoEmMassa, setAtivacaoEmMassa] = useState(false)
   const novas = useMemo(() => rows.filter(isNovo), [rows])
   const ativaveis = useMemo(() => novas.filter(hasResponsavel), [novas])
   const bloqueadasSemResponsavel = novas.length - ativaveis.length
-  const selectedIds = ativaveis.filter(row => row.condominio_id === selectedCondominio).map(row => row.id)
+  const selectedIds = ativaveis.filter(row => ativacaoEmMassa || row.condominio_id === selectedCondominio).map(row => row.id)
   const groups = useMemo(() => {
     type CondominioGroup = { id: string; nome: string; rows: Row[] }
     const map = new Map<string, { id: string; nome: string; total: number; quantidade: number; condominios: Map<string, CondominioGroup> }>()
@@ -75,6 +76,7 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
   }, [rows])
 
   const toggleGroup = (groupRows: Row[]) => {
+    setAtivacaoEmMassa(false)
     setSelectedCondominio(groupRows[0]?.condominio_id ?? '')
   }
 
@@ -84,11 +86,12 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><Gauge size={18} /></div>
-            <div><h2 className="text-sm font-semibold text-slate-950">Ativar cobranças do condomínio</h2><p className="mt-1 text-xs text-slate-500">Depois da ativação, as cobranças entram na esteira de cobrança ativa.</p>{bloqueadasSemResponsavel ? <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"><AlertTriangle size={13} />{bloqueadasSemResponsavel} cobrança(s) sem responsável não podem evoluir.</p> : null}</div>
+            <div><h2 className="text-sm font-semibold text-slate-950">{ativacaoEmMassa ? 'Ativar cobranças em massa' : 'Ativar cobranças do condomínio'}</h2><p className="mt-1 text-xs text-slate-500">Depois da ativação, as cobranças entram na esteira de cobrança ativa.</p>{bloqueadasSemResponsavel ? <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"><AlertTriangle size={13} />{bloqueadasSemResponsavel} cobrança(s) sem responsável não podem evoluir.</p> : null}</div>
           </div>
           <form action={ativarCobrancasFiltradasFlowCobranca} onSubmit={(event) => { if (!window.confirm(`Ativar ${selectedIds.length} cobrança(s)?`)) event.preventDefault() }}>
             {selectedIds.map((id) => <input key={id} type="hidden" name="cobranca_id" value={id} />)}
             <input type="hidden" name="return_query" value={returnQuery} />
+            <input type="hidden" name="ativacao_em_massa" value={ativacaoEmMassa ? '1' : '0'} />
             <PendingSubmitButton disabled={selectedIds.length === 0} pendingLabel="Ativando...">Ativar {selectedIds.length || ''} cobrança(s)</PendingSubmitButton>
           </form>
         </div>
@@ -107,7 +110,13 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
             <ListCollapsibleSectionHeader title="Cobranças novas" count={rows.length} />
           </summary>
           <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between">
-            <p className="text-sm font-medium text-slate-700">Selecione um condomínio para ativar as cobranças exibidas pelo filtro.</p>
+            <div className="space-y-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                <input type="checkbox" checked={ativacaoEmMassa} onChange={(event) => setAtivacaoEmMassa(event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-[var(--gkli-primary)]" />
+                Ativar em massa todas as cobranças novas aptas do filtro
+              </label>
+              <p className="text-xs text-slate-500">{ativacaoEmMassa ? 'Todos os condomínios exibidos estão incluídos na ativação.' : 'Selecione um condomínio ou marque a ativação em massa.'}</p>
+            </div>
             <div className="flex flex-wrap items-center gap-3 md:justify-end">
               <p className="text-sm text-slate-500">{selectedIds.length} de {ativaveis.length} apta(s){bloqueadasSemResponsavel ? ` · ${bloqueadasSemResponsavel} sem responsável` : ''}</p>
             </div>

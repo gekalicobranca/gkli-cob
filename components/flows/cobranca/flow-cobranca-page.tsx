@@ -54,7 +54,7 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
   const dataPromise = monitor
     ? getFlowCobrancaMonitorData(scope, filters, { page, historico: aba === 'historico', status, ordenar })
     : aba === 'saneamento' || aba === 'gerar'
-      ? getFlowCobrancaPageData(scope, filters, { somenteSaneamento: aba === 'saneamento', page })
+      ? getFlowCobrancaPageData(scope, filters, { somenteSaneamento: aba === 'saneamento', page: aba === 'saneamento' ? page : undefined })
       : Promise.resolve({ painel: [], disponibilidade: [], saneamento: [], reguas: [], flows: [], hasNext: false })
   const [data, carteiras, condominios] = await Promise.all([
     dataPromise,
@@ -131,7 +131,7 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
         </div>
       </Card>)}
     </ListKpiGrid> : null}
-    {aba === 'gerar' ? <p className="text-xs text-slate-500">Indicadores de todas as cobranças elegíveis nos filtros aplicados. Use Selecionar todos dos filtros para incluir as outras páginas.</p> : null}
+    {aba === 'gerar' ? <p className="text-xs text-slate-500">Indicadores de todas as cobranças elegíveis nos filtros aplicados, sem paginação.</p> : null}
     {monitor ? <p className="text-xs text-slate-500">Indicadores desta página.</p> : null}
 
     <ListCollapsibleFilters defaultOpen={hasFilters || aba === 'gerar'} actions={<ClearFiltersLink href={`${basePath}?aba=${aba}`} show={hasFilters} />}>
@@ -155,15 +155,15 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
       painel={painelRows}
       saneamento={data.saneamento}
       saneamentoTotal={data.saneamento.length}
-      returnQuery={new URLSearchParams({ ...Object.fromEntries(returnQuery), pagina: String(page) }).toString()}
+      returnQuery={new URLSearchParams({ ...Object.fromEntries(returnQuery), ...(aba === 'gerar' ? {} : { pagina: String(page) }) }).toString()}
       disponibilidade={disponibilidadeRows}
       reguas={data.reguas as any[]}
       flows={data.flows as any[]}
       initialStep={safeStep(params.step)}
       initialSelectedIds={selecionadas}
     /></FlowWorkerProvider>
-    {monitor || detalhesCobrancas ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <p className="text-sm text-slate-600">Página {page} · {monitor ? 'Até ' + FLOWS_PAGE_SIZE + ' flows por página' : 'Até ' + COBRANCAS_FLOW_PAGE_SIZE + ' cobranças novas e ' + COBRANCAS_FLOW_PAGE_SIZE + (aba === 'gerar' ? ' ativas elegíveis por página' : ' ativas consultadas por página')}</p>
+    {monitor || aba === 'saneamento' ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <p className="text-sm text-slate-600">Página {page} · {monitor ? 'Até ' + FLOWS_PAGE_SIZE + ' flows por página' : 'Até ' + COBRANCAS_FLOW_PAGE_SIZE + ' cobranças novas e ' + COBRANCAS_FLOW_PAGE_SIZE + ' ativas consultadas por página'}</p>
       <div className="flex gap-2">{page > 1 ? <ButtonLink href={pageHref(page - 1)} prefetch={false} variant="secondary">Anterior</ButtonLink> : null}{hasNext ? <ButtonLink href={pageHref(page + 1)} prefetch={false} variant="secondary">Próxima</ButtonLink> : null}</div>
     </div> : null}
   </ListPage>

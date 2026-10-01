@@ -209,32 +209,39 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
 }
 
 export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
+  const ativacaoEmMassa = formData.get('ativacao_em_massa') === '1'
   await requireRole(['admin', 'gestor', 'operador'])
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
   const cobrancaIds = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
   if (!cobrancaIds.length) throw new Error('Nenhuma cobrança filtrada para ativar.')
 
-  let query = somenteCobrancasCanonicas(supabase
-    .from('cobrancas')
-    .select('id,carteira_id,condominio_id,status,status_operacional,unidade:unidades(responsavel_nome)'))
-    .in('id', cobrancaIds)
-  query = applyCarteiraScope(query, scope.carteiraIds)
-  const { data, error } = await query
-  if (error) throw new Error(`Erro ao carregar cobranças filtradas: ${error.message}`)
+  const rows: any[] = []
+  for (let offset = 0; offset < cobrancaIds.length; offset += 200) {
+    let query = somenteCobrancasCanonicas(supabase
+      .from('cobrancas')
+      .select('id,carteira_id,condominio_id,status,status_operacional,unidade:unidades(responsavel_nome)'))
+      .in('id', cobrancaIds.slice(offset, offset + 200))
+    query = applyCarteiraScope(query, scope.carteiraIds)
+    const { data, error } = await query
+    if (error) throw new Error(`Erro ao carregar cobranças filtradas: ${error.message}`)
 
-  const rows = (data ?? []) as any[]
-  if (!unicoCondominio(rows)) throw new Error('Selecione apenas um condomínio para ativar as cobranças.')
+    rows.push(...(data ?? []))
+  }
+  if (!ativacaoEmMassa && !unicoCondominio(rows)) throw new Error('Selecione apenas um condomínio ou marque a ativação em massa.')
   const rowsIds = rows.map((row) => row.id).filter(Boolean)
   if (!rowsIds.length) throw new Error('Nenhuma cobrança permitida encontrada no filtro atual.')
 
-  const { data: vinculadas, error: vinculadasError } = await supabase
-    .from('lote_itens')
-    .select('cobranca_id')
-    .in('cobranca_id', rowsIds)
-    .not('cobranca_flow_id', 'is', null)
-  if (vinculadasError) throw new Error(`Erro ao verificar Flows existentes: ${vinculadasError.message}`)
-  const vinculadasIds = new Set((vinculadas ?? []).map((row: any) => String(row.cobranca_id)).filter(Boolean))
+  const vinculadasIds = new Set<string>()
+  for (let offset = 0; offset < rowsIds.length; offset += 200) {
+    const { data: vinculadas, error: vinculadasError } = await supabase
+      .from('lote_itens')
+      .select('cobranca_id')
+      .in('cobranca_id', rowsIds.slice(offset, offset + 200))
+      .not('cobranca_flow_id', 'is', null)
+    if (vinculadasError) throw new Error(`Erro ao verificar Flows existentes: ${vinculadasError.message}`)
+    for (const row of vinculadas ?? []) vinculadasIds.add(String(row.cobranca_id))
+  }
 
   const elegiveis = rows
     .filter((row) => !vinculadasIds.has(String(row.id)))
@@ -244,14 +251,16 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
 
   if (!elegiveis.length) throw new Error('Nenhuma cobrança filtrada continua elegível para virar Cobrança ativa. Verifique se há responsável vinculado nas unidades selecionadas.')
 
-  const { error: updateError } = await supabase
-    .from('cobrancas')
-    .update({
-      status: COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
-      status_operacional: COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
-    } as any)
-    .in('id', elegiveis)
-  if (updateError) throw new Error(`Erro ao ativar cobranças filtradas: ${updateError.message}`)
+  for (let offset = 0; offset < elegiveis.length; offset += 200) {
+    const { error: updateError } = await supabase
+      .from('cobrancas')
+      .update({
+        status: COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
+        status_operacional: COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
+      } as any)
+      .in('id', elegiveis.slice(offset, offset + 200))
+    if (updateError) throw new Error(`Erro ao ativar cobranças filtradas: ${updateError.message}`)
+  }
 
   const returnQuery = String(formData.get('return_query') ?? '').trim()
   const nextParams = new URLSearchParams(returnQuery)
@@ -259,7 +268,7 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
   nextParams.set('aba', 'gerar')
   nextParams.delete('pagina')
   nextParams.set('ativadas', String(elegiveis.length))
-  nextParams.set('condominio', rows[0].condominio_id)
+  if (!ativacaoEmMassa) nextParams.set('condominio', rows[0].condominio_id)
   nextParams.delete('selecionadas')
   revalidatePath('/app/flows/cobranca/email')
   revalidatePath('/app/flows/cobranca/whatsapp')
