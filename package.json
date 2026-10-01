@@ -14,6 +14,7 @@
     "test:exportacoes-excel": "tsx scripts/validate-exportacoes-excel.ts",
     "test:whatsapp": "tsx scripts/validate-whatsapp-cloud.ts",
     "test:importacao-telefones": "tsx scripts/validate-importacao-telefones.ts",
+    "test:email-monitor": "tsx scripts/validate-email-monitor.ts",
     "whatsapp:worker": "node scripts/whatsapp-cloud/worker.mjs",
     "supabase": "supabase",
     "supabase:login": "supabase login",

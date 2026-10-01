@@ -10,6 +10,7 @@ import {
   Home,
   KeyRound,
   MessageSquareText,
+  Mail,
   Plug,
   ShieldCheck,
   SlidersHorizontal,
@@ -59,6 +60,13 @@ const groups: Array<{
         description: 'Conecte, pause e recupere workers. Confira pendências e autorize reenvios.',
         href: '/app/configuracoes/whatsapp-web',
         icon: Plug,
+        tag: 'Admin',
+      },
+      {
+        title: 'Monitoramento de e-mails',
+        description: 'Confira contas SMTP e Thunderbird, fila, falhas e envios sem confirmação por carteira.',
+        href: '/app/configuracoes/emails',
+        icon: Mail,
         tag: 'Admin',
       },
       {

@@ -24,7 +24,10 @@ export async function POST(request: Request) {
   const body = parsed.data
   try {
     if (body.action === 'status') {
-      const { data: jobs } = await db.from('thunderbird_envios').select('id,tipo,estado,erro,atualizado_em').eq('dispositivo_id', d.id).order('criado_em', { ascending: false }).limit(5)
+      const { error: signalError } = await db.from('thunderbird_dispositivos').update({ visto_em: new Date().toISOString() }).eq('id', d.id).eq('ativo', true)
+      if (signalError) throw new Error('Falha ao registrar comunicação do Thunderbird.')
+      const { data: jobs, error: jobsError } = await db.from('thunderbird_envios').select('id,tipo,estado,erro,atualizado_em').eq('dispositivo_id', d.id).order('criado_em', { ascending: false }).limit(5)
+      if (jobsError) throw new Error('Falha ao consultar envios do Thunderbird.')
       return json({ email: d.email, automatic: d.automatico, tested: Boolean(d.testado_em), jobs })
     }
     if (body.action === 'mode') {
