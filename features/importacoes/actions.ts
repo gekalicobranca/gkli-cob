@@ -43,6 +43,11 @@ import { normalizeCondominioName } from "@/features/condominios/normalize-name";
 import { assertUnidadeMatchesMasks } from "@/features/unidades/mask";
 import { ACORDO_STATUS, PARCELA_ACORDO_STATUS } from "@/lib/constants/acordos";
 import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
+import { primeiroTelefoneValido } from "@/lib/core/telefone";
+import {
+  normalizarTelefonesImportacao, alertasTelefonesImportacao, telefonesParaAtualizacao,
+  TELEFONE_KEYS, SINDICO_CELULAR_KEYS, GERENTE_CELULAR_KEYS,
+} from "./telefones";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -222,9 +227,7 @@ const ENDERECO_CIDADE_KEYS = ["endereco_cidade", "cidade", "municipio", "municí
 const ENDERECO_UF_KEYS = ["endereco_uf", "uf", "estado"];
 const ENDERECO_CEP_KEYS = ["endereco_cep", "cep"];
 const SINDICO_EMAIL_KEYS = ["sindico_email", "email_sindico", "e_mail_sindico", "e-mail_sindico"];
-const SINDICO_CELULAR_KEYS = ["sindico_celular", "celular_sindico", "telefone_sindico", "sindico_telefone"];
 const GERENTE_EMAIL_KEYS = ["gerente_email", "email_gerente", "e_mail_gerente", "e-mail_gerente"];
-const GERENTE_CELULAR_KEYS = ["gerente_celular", "celular_gerente", "telefone_gerente", "gerente_telefone"];
 const CLASSIFICACAO_OPERACIONAL_KEYS = ["classificacao_operacional", "classificacao", "categoria", "badge"];
 const PARCELAS_ACORDO_KEYS = [
   "parcelas_acordo_sem_aprovacao_sindico",
@@ -676,6 +679,7 @@ function normalizeEmail(value: unknown) {
 function normalizeCondominioPayload(
   payload: Record<string, any>,
 ): Record<string, any> {
+  payload = normalizarTelefonesImportacao(payload, { sindico_celular: SINDICO_CELULAR_KEYS, gerente_celular: GERENTE_CELULAR_KEYS });
   const nome = String(getFirst(payload, CONDOMINIO_NOME_KEYS) || payload.nome || "");
   const nomeOperacional = String(
     getFirst(payload, NOME_OPERACIONAL_KEYS) ||
@@ -695,9 +699,9 @@ function normalizeCondominioPayload(
     endereco_uf: optionalString(getFirst(payload, ENDERECO_UF_KEYS) ?? payload.endereco_uf)?.toUpperCase() ?? null,
     endereco_cep: onlyDigits(String(getFirst(payload, ENDERECO_CEP_KEYS) ?? payload.endereco_cep ?? "")) || null,
     sindico_email: normalizeEmail(getFirst(payload, SINDICO_EMAIL_KEYS) ?? payload.sindico_email),
-    sindico_celular: onlyDigits(String(getFirst(payload, SINDICO_CELULAR_KEYS) ?? payload.sindico_celular ?? "")) || null,
+    sindico_celular: payload.sindico_celular,
     gerente_email: normalizeEmail(getFirst(payload, GERENTE_EMAIL_KEYS) ?? payload.gerente_email),
-    gerente_celular: onlyDigits(String(getFirst(payload, GERENTE_CELULAR_KEYS) ?? payload.gerente_celular ?? "")) || null,
+    gerente_celular: payload.gerente_celular,
     vencimento_cota_dia: toPositiveNumber(
       getFirst(payload, VENCIMENTO_COTA_KEYS),
       10,
@@ -883,6 +887,7 @@ function normalizeUnidadePayload(
   payload: Record<string, any>,
   condominioPadrao?: CondominioImportacaoRow | null,
 ) {
+  payload = normalizarTelefonesImportacao(payload, { telefone: TELEFONE_KEYS });
   const identificacao = getFirst(payload, [
     "identificacao",
     "unidade",
@@ -904,9 +909,7 @@ function normalizeUnidadePayload(
       "cpf_cnpj",
     ]),
   );
-  const telefone = onlyDigits(
-    getFirst(payload, ["telefone", "celular", "whatsapp", "cel"]),
-  );
+  const telefone = payload.telefone;
   const email = normalizeEmail(getFirst(payload, ["email", "e_mail"]));
   const condominioCnpj =
     getDocumento(payload, CONDOMINIO_CNPJ_KEYS, 14) ||
@@ -1075,10 +1078,11 @@ async function resolveResponsaveisApoioByCondominioIds(
 
 function buildImportacaoPayload(
   tipo: string,
-  raw: Record<string, string>,
+  raw: Record<string, any>,
   condominioPadrao?: CondominioImportacaoRow | null,
 ) {
   if (tipo === "cobrancas") {
+    raw = normalizarTelefonesImportacao(raw, { telefone: TELEFONE_KEYS });
     const condominioCnpj =
       getDocumento(raw, CONDOMINIO_CNPJ_KEYS, 14) ||
       normalizeCnpj(condominioPadrao?.cnpj ?? "");
@@ -1092,9 +1096,7 @@ function buildImportacaoPayload(
     const responsavelDocumento = onlyDigits(
       getFirst(raw, ["responsavel_documento", "documento", "cpf", "cpf_cnpj"]),
     );
-    const telefone = onlyDigits(
-      getFirst(raw, ["telefone", "celular", "whatsapp"]),
-    );
+    const telefone = raw.telefone;
     const email = normalizeEmail(getFirst(raw, ["email", "e_mail"]));
     const competencia = getFirst(raw, ["competencia", "referencia", "mes"]);
     const vencimento = normalizeDate(
@@ -1144,6 +1146,7 @@ function buildImportacaoPayload(
       responsavel_nome: responsavelNome,
       responsavel_documento: responsavelDocumento,
       telefone,
+      telefones_importacao: raw.telefones_importacao,
       email,
       competencia,
       vencimento,
@@ -1312,7 +1315,7 @@ async function enrichSimplePreview(
   const enriched = rows.map((row) => {
     const payload = { ...row.payload };
     const erros = [...row.erros];
-    const alertas = [...(row.alertas ?? [])];
+    const alertas = [...new Set([...(row.alertas ?? []), ...alertasTelefonesImportacao(payload)])];
     const carteiraNome = getFirst(payload, ["carteira", "carteira_nome"]);
     const carteiraId = carteiraNome
       ? carteirasByNome.get(lowerClean(carteiraNome))
@@ -1421,7 +1424,7 @@ async function enrichCobrancaPreview(
   return rows.map((row) => {
     const payload = row.payload;
     const erros: string[] = [];
-    const alertas: string[] = [];
+    const alertas: string[] = alertasTelefonesImportacao(payload);
     const condominioCnpj = normalizeCnpj(payload.condominio_cnpj ?? "");
 
     if (!condominioCnpj && !condominioPadrao) erros.push("CNPJ do condomínio vazio");
@@ -1522,7 +1525,7 @@ async function enrichCobrancaPreview(
           payload.responsavel_documento ||
           unidade?.responsavel_documento ||
           null,
-        telefone: responsavelApoio?.telefone || payload.telefone || unidade?.telefone || null,
+        telefone: primeiroTelefoneValido(responsavelApoio?.telefone, payload.telefone, unidade?.telefone),
         email: responsavelApoio?.email || payload.email || unidade?.email || null,
         prioridade_estimada: priority.prioridade,
         score_estimado: priority.score,
@@ -2222,6 +2225,7 @@ function normalizeSimplePayload(
 
   if (tipo === "condominios") return normalizeCondominioPayload(payload);
   if (tipo === "unidades") return normalizeUnidadePayload(payload);
+  if (legacy) return normalizarTelefonesImportacao(payload, { telefone: TELEFONE_KEYS });
 
   return payload;
 }
@@ -2313,7 +2317,7 @@ async function createImportacaoPreviewInternal(formData: FormData) {
         payload,
         valido: erros.length === 0,
         erros,
-        alertas: [] as string[],
+        alertas: alertasTelefonesImportacao(payload),
       };
     });
 
@@ -2585,7 +2589,7 @@ function dadosUnidadeComApoio(
       responsavelApoio?.responsavel_documento ||
       payload.responsavel_documento ||
       null,
-    telefone: responsavelApoio?.telefone || payload.telefone || null,
+    telefone: primeiroTelefoneValido(responsavelApoio?.telefone, payload.telefone),
     email: responsavelApoio?.email || payload.email || null,
   };
 }
@@ -2870,9 +2874,8 @@ async function importarCondominios(
             endereco_cep: payload.endereco_cep || null,
             administradora: payload.administradora || null,
             sindico_email: payload.sindico_email || null,
-            sindico_celular: payload.sindico_celular || null,
             gerente_email: payload.gerente_email || null,
-            gerente_celular: payload.gerente_celular || null,
+            ...telefonesParaAtualizacao(payload, ["sindico_celular", "gerente_celular"]),
             vencimento_cota_dia: Number(payload.vencimento_cota_dia),
             valor_cota_condominial: Number(payload.valor_cota_condominial || 0),
             inicio_cobranca_dias: Number(payload.inicio_cobranca_dias),
@@ -2955,6 +2958,7 @@ async function importarResponsaveisUnidades(
       });
 
       const ativo = normalizeUnidadeStatus(payload.status) !== "inativa";
+      const contato = normalizarTelefonesImportacao(payload, { telefone: TELEFONE_KEYS });
       const values = {
         carteira_id: payload.carteira_id,
         condominio_id: payload.condominio_id,
@@ -2965,7 +2969,7 @@ async function importarResponsaveisUnidades(
         responsavel_documento: onlyDigits(
           payload.responsavel_documento || payload.cpf || payload.documento || "",
         ),
-        telefone: onlyDigits(payload.telefone || payload.celular || payload.whatsapp || ""),
+        telefone: contato.telefone,
         email: normalizeEmail(payload.email),
         ativo,
         origem: "importacao_unidades",
@@ -2974,7 +2978,9 @@ async function importarResponsaveisUnidades(
       };
 
       if (existente?.id) {
-        const { error } = await supabase.from("responsaveis_unidades").update(values).eq("id", existente.id);
+        const dadosAtualizacao: Record<string, any> = { ...values };
+        if (!values.telefone) delete dadosAtualizacao.telefone;
+        const { error } = await supabase.from("responsaveis_unidades").update(dadosAtualizacao).eq("id", existente.id);
         if (error) throw error;
         await sincronizarResponsavelComUnidadeOperacional(supabase, {
           carteiraId: values.carteira_id,
@@ -2983,7 +2989,7 @@ async function importarResponsaveisUnidades(
           bloco: values.bloco,
           responsavelNome: values.responsavel_nome,
           responsavelDocumento: values.responsavel_documento,
-          telefone: values.telefone,
+          telefone: values.telefone || primeiroTelefoneValido(existente.telefone),
           email: values.email,
           ativo,
         });

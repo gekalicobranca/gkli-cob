@@ -6,6 +6,8 @@ import * as XLSX from 'xlsx'
 import { anoCorrenteImportacao, avaliarRecorteAnoCorrente } from '../features/importacoes/recorte-cobrancas'
 import { buildPreviewFromRecibos } from '../features/conversao-relatorio/server/parse-relatorio-buffer'
 import { createConversionFormData } from '../features/conversao-relatorio/prepare-upload'
+import { alertasTelefonesImportacao } from '../features/importacoes/telefones'
+import { primeiroTelefoneValido } from '../lib/core/telefone'
 
 async function main() {
   const ano = anoCorrenteImportacao()
@@ -45,6 +47,7 @@ async function main() {
     }
   } }
   const context = vm.createContext({
+    alertasTelefonesImportacao, primeiroTelefoneValido,
     avaliarRecorteAnoCorrente,
     cnpjKeyFromPayload: () => '', normalizeCnpj: (value: string) => value,
     resolveCondominiosByCnpj: async () => new Map(),
