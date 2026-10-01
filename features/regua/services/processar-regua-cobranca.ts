@@ -176,6 +176,7 @@ function getLastInteraction(row: CobrancaReguaRow) {
 }
 
 function hasRecentDate(value: string | null | undefined, cooldownDias: number) {
+  if (cooldownDias <= 0) return false;
   if (!value) return false;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return false;

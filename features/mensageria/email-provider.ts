@@ -309,6 +309,15 @@ function sanitizeAddress(value: string) {
   return value.replace(/[\r\n<>]/g, '').trim()
 }
 
+function smtpSender(value: string) {
+  if (/[\r\n]/.test(value)) throw new Error('Remetente de e-mail inválido')
+  const named = value.trim().match(/^([^<>]+)\s*<([^<>]+)>$/)
+  const address = sanitizeAddress(named ? named[2] : value)
+  if (!/^[^\s<>@]+@[^\s<>@]+$/.test(address)) throw new Error('Remetente de e-mail inválido')
+  const name = named?.[1].trim().replace(/^"(.*)"$/, '$1')
+  return { address, header: name ? `${encodeSubject(name)} <${address}>` : address }
+}
+
 function escapeData(text: string) {
   return text.replace(/\r?\n/g, '\r\n').replace(/^\./gm, '..')
 }
@@ -419,7 +428,7 @@ export async function getEmailRemetenteKey(carteiraId: string) {
   const { data: device } = await createAdminClient().from('thunderbird_dispositivos').select('email').eq('carteira_id', carteiraId).eq('ativo', true).eq('automatico', true).maybeSingle()
   if (device) return device.email.split('@').pop()!.toLowerCase()
   const config = await getConfig({ carteiraId })
-  return sanitizeAddress(config.from).split('@').pop()!.toLowerCase()
+  return smtpSender(config.from).address.split('@').pop()!.toLowerCase()
 }
 
 export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig | SmtpSendOptions) {
@@ -442,7 +451,8 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
     emailControle = normalizarEmailControle(data.email_controle)
   }
   const config = await getConfig(options)
-  const from = sanitizeAddress(payload.from || config.from)
+  const sender = smtpSender(payload.from || config.from)
+  const from = sender.address
   const to = sanitizeAddress(payload.to)
   const subject = payload.subject?.trim() || 'Mensagem GKLI Cobrança'
   const body = payload.text?.trim()
@@ -488,7 +498,7 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
     await command(socket, 'DATA', [354])
 
     const message = buildMimeMessage({
-      from,
+      from: sender.header,
       to,
       subject,
       body,
