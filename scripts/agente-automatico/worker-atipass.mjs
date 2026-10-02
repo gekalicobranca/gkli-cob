@@ -167,7 +167,7 @@ async function agendarCaptacoesMensais() {
   }
 }
 
-async function reivindicarExecucao() {
+async function reivindicarExecucao(captacaoAtiva) {
   const query = supabase.from('agente_execucoes').select(`
     id,
     tentativas,
@@ -176,7 +176,7 @@ async function reivindicarExecucao() {
     condominio:condominios(nome, nome_operacional)
   `).eq('status', 'pendente').eq('agente_receitas.script_key', SCRIPT_KEY)
 
-  const { data, error } = await somenteExecucoesLiberadas(query).order('created_at', { ascending: true }).limit(1)
+  const { data, error } = await somenteExecucoesLiberadas(query, new Date(), captacaoAtiva).order('created_at', { ascending: true }).limit(1)
   if (error) throw error
   const execucao = data?.[0]
   if (!execucao) return null
@@ -463,11 +463,10 @@ async function run() {
   const runOnce = String(process.env.AGENTE_RUN_ONCE || 'false').toLowerCase() === 'true'
   for (;;) {
     try {
-      if (await captacaoGlobalAtiva(supabase)) {
-        await agendarCaptacoesMensais()
-        const execucao = await reivindicarExecucao()
-        if (execucao) await coletarAtipass(execucao)
-      }
+      const captacaoAtiva = await captacaoGlobalAtiva(supabase)
+      if (captacaoAtiva) await agendarCaptacoesMensais()
+      const execucao = await reivindicarExecucao(captacaoAtiva)
+      if (execucao) await coletarAtipass(execucao)
     } catch (error) {
       console.error('Erro no worker:', error instanceof Error ? error.message : error)
     }

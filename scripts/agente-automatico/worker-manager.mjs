@@ -103,14 +103,14 @@ async function agendarCaptacoesMensais() {
   }
 }
 
-async function reivindicarExecucao() {
+async function reivindicarExecucao(captacaoAtiva) {
   const query = supabase.from('agente_execucoes').select(`
     id, tentativas,
     receita:agente_receitas!inner(script_key, config_json),
     administradora:agente_administradoras!inner(url_portal),
     condominio:condominios(nome, nome_operacional)
   `).eq('status', 'pendente').eq('agente_receitas.script_key', SCRIPT_KEY)
-  const { data, error } = await somenteExecucoesLiberadas(query).order('created_at').limit(1)
+  const { data, error } = await somenteExecucoesLiberadas(query, new Date(), captacaoAtiva).order('created_at').limit(1)
   if (error) throw error
   const execucao = data?.[0]
   if (!execucao) return null
@@ -213,11 +213,10 @@ console.log(`Worker ativo para ${SCRIPT_KEY}. Aguardando execuções...`)
 await startWorkerHeartbeat(supabase, SCRIPT_KEY)
 for (;;) {
   try {
-    if (await captacaoGlobalAtiva(supabase)) {
-      await agendarCaptacoesMensais()
-      const execucao = await reivindicarExecucao()
-      if (execucao) await coletar(execucao)
-    }
+    const captacaoAtiva = await captacaoGlobalAtiva(supabase)
+    if (captacaoAtiva) await agendarCaptacoesMensais()
+    const execucao = await reivindicarExecucao(captacaoAtiva)
+    if (execucao) await coletar(execucao)
   } catch (error) {
     console.error('Erro no worker Manager:', error instanceof Error ? error.message : error)
   }

@@ -55,7 +55,7 @@ async function garantirBucket() {
   if (error && !/already exists/i.test(error.message)) throw error
 }
 
-async function reivindicarExecucao() {
+async function reivindicarExecucao(captacaoAtiva) {
   let query = supabase.from('agente_execucoes').select(`
     id, tentativas, condominio_id,
     receita:agente_receitas!inner(script_key, config_json, ativo),
@@ -63,7 +63,7 @@ async function reivindicarExecucao() {
     condominio:condominios(nome, nome_operacional)
   `).eq('status', 'pendente').eq('agente_receitas.script_key', SCRIPT_KEY).eq('agente_receitas.ativo', true)
   if (process.env.AGENTE_EXECUCAO_ID) query = query.eq('id', process.env.AGENTE_EXECUCAO_ID)
-  const { data, error } = await somenteExecucoesLiberadas(query).order('created_at').limit(1)
+  const { data, error } = await somenteExecucoesLiberadas(query, new Date(), captacaoAtiva).order('created_at').limit(1)
   if (error) throw error
   const execucao = data?.[0]
   if (!execucao) return null
@@ -195,10 +195,9 @@ console.log(`Worker ativo para ${SCRIPT_KEY}. Aguardando execuções...`)
 await startWorkerHeartbeat(supabase, SCRIPT_KEY)
 for (;;) {
   try {
-    if (await captacaoGlobalAtiva(supabase)) {
-      const execucao = await reivindicarExecucao()
-      if (execucao) await coletar(execucao)
-    }
+    const captacaoAtiva = await captacaoGlobalAtiva(supabase)
+    const execucao = await reivindicarExecucao(captacaoAtiva)
+    if (execucao) await coletar(execucao)
   } catch (error) {
     console.error('Erro no worker Graiche:', error instanceof Error ? error.message : error)
   }

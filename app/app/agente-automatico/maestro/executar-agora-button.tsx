@@ -17,8 +17,8 @@ type Snapshot = {
 const date = (value?: string | null) => value ? new Date(value).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'Ainda não registrado'
 const labels: Record<string, string> = { pendente: 'Na fila', em_execucao: 'Coletando', sucesso: 'Coleta concluída', falha: 'Falha', cancelada: 'Cancelada', precisa_intervencao: 'Requer intervenção' }
 
-export function ExecutarAgoraButton({ receitaId, condominioNome, disabled = false, existingExecucaoId, label = 'Executar agora' }: {
-  receitaId: string; condominioNome: string; disabled?: boolean; existingExecucaoId?: string; label?: string
+export function ExecutarAgoraButton({ receitaId, condominioNome, disabled = false, existingExecucaoId, label = 'Executar agora', origem = 'maestro' }: {
+  receitaId: string; condominioNome: string; disabled?: boolean; existingExecucaoId?: string; label?: string; origem?: 'manual' | 'maestro'
 }) {
   const router = useRouter()
   const dialog = useRef<HTMLDialogElement>(null)
@@ -82,7 +82,7 @@ export function ExecutarAgoraButton({ receitaId, condominioNome, disabled = fals
     try {
       const formData = new FormData()
       formData.set('receita_id', receitaId)
-      formData.set('origem', 'maestro')
+      formData.set('origem', origem)
       const result = await executarAgenteReceitaComAcompanhamento(formData)
       if ('error' in result) throw new Error(result.error)
       setExecucaoId(result.execucaoId)

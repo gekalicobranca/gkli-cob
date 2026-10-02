@@ -79,7 +79,7 @@ async function ensureBucket() {
   if (error && !/already exists/i.test(error.message)) throw error
 }
 
-async function claimNextExecution() {
+async function claimNextExecution(captacaoAtiva) {
   const query = supabase
     .from('agente_execucoes')
     .select(`
@@ -92,7 +92,7 @@ async function claimNextExecution() {
     .eq('status', 'pendente')
     .eq('agente_receitas.script_key', SCRIPT_KEY)
 
-  const { data: candidates, error } = await somenteExecucoesLiberadas(query)
+  const { data: candidates, error } = await somenteExecucoesLiberadas(query, new Date(), captacaoAtiva)
     .order('created_at', { ascending: true })
     .limit(1)
 
@@ -431,11 +431,10 @@ async function run() {
   const runOnce = String(process.env.AGENTE_RUN_ONCE || 'false').toLowerCase() === 'true'
   for (;;) {
     try {
-      if (await captacaoGlobalAtiva(supabase)) {
-        await agendarCaptacoesMensais()
-        const execution = await claimNextExecution()
-        if (execution) await collectBbzCondominio(execution)
-      }
+      const captacaoAtiva = await captacaoGlobalAtiva(supabase)
+      if (captacaoAtiva) await agendarCaptacoesMensais()
+      const execution = await claimNextExecution(captacaoAtiva)
+      if (execution) await collectBbzCondominio(execution)
     } catch (error) {
       console.error('Erro no worker:', error instanceof Error ? error.message : error)
     }
