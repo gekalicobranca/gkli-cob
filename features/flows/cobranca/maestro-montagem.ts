@@ -36,7 +36,9 @@ async function planejar(db: ReturnType<typeof createAdminClient>, job: any) {
     const { data, error } = await somenteCobrancasCanonicas(db.from('cobrancas').select('id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,vencimento,unidade:unidades(identificacao,bloco,responsavel_nome,email)'))
       .eq('conversao_relatorio_id', job.conversao_id).eq('condominio_id', job.condominio_id).eq('carteira_id', job.carteira_id).order('id').range(offset, offset + 499)
     if (error) throw new Error(error.message)
-    rows.push(...(data ?? [])); if ((data ?? []).length < 500) break
+    rows.push(...(data ?? []))
+    if (rows.length > 2_000) throw new Error('Planejamento automático limitado a 2.000 cobranças por importação. Divida a importação ou monte os Flows manualmente.')
+    if ((data ?? []).length < 500) break
   }
   const { data: apoios, error: ae } = await db.from('responsaveis_unidades').select('unidade,bloco,responsavel_nome,email,tipo_responsavel').eq('condominio_id', job.condominio_id).eq('ativo', true)
   if (ae) throw new Error(ae.message)
