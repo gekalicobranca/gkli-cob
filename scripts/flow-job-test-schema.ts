@@ -20,5 +20,5 @@ export async function applyFlowJobProtection(db: PGlite) {
     create function cron.alter_job(jobid bigint,active boolean) returns void language sql as $$
       update cron.job j set active=$2 where j.jobid=$1 $$;
   `)
-  await db.exec(readFileSync('supabase/migrations/20261002021211_flows_jobs_protecao_carga.sql', 'utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261002022538_flows_jobs_protecao_carga.sql', 'utf8'))
 }
