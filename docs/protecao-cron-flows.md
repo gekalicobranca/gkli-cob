@@ -41,7 +41,7 @@ em produção.
 ## Publicação
 
 1. Aplicar somente a migração
-   `20261002021211_flows_jobs_protecao_carga.sql`, após conferir o estado e
+   `20261002022538_flows_jobs_protecao_carga.sql`, após conferir o estado e
    histórico do ambiente alvo. Não publicar outras migrações pendentes junto.
    A migração desativa os cron pelos nomes `gkli-maestro-flows` e
    `gkli-flow-progressao`; não depender dos números 2 e 3 entre ambientes.
