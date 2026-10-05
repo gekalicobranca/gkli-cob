@@ -14,6 +14,7 @@ import { createImportacaoPreview } from "@/features/importacoes/actions";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { getCondominioIntegral } from "@/features/condominios/queries";
 import { GerarPreviewButton } from "./gerar-preview-button";
+import { ArquivoImportacaoInput } from "./arquivo-importacao-input";
 
 type NovaImportacaoPageProps = {
   searchParams?: Promise<{ tipo?: string; condominio_id?: string; erro?: string }>;
@@ -148,7 +149,7 @@ export default async function NovaImportacaoPage({
 
             <FormField
               label="Arquivo XLSX"
-              hint="Use o template oficial. Apenas .xlsx. O sistema lê a aba DADOS do template oficial."
+              hint="Use o template oficial. Apenas .xlsx, até 4 MB. O sistema lê a aba DADOS do template oficial."
             >
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-5 py-6 text-center">
                 <UploadCloud
@@ -161,13 +162,7 @@ export default async function NovaImportacaoPage({
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   Nada será gravado agora. Esta etapa gera apenas o preview.
                 </p>
-                <input
-                  name="arquivo"
-                  type="file"
-                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  required
-                  className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:text-slate-700 focus:border-[var(--gkli-primary)] focus:ring-2 focus:ring-[var(--gkli-primary)]/20"
-                />
+                <ArquivoImportacaoInput />
               </div>
             </FormField>
 

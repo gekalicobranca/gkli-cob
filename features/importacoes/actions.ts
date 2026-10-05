@@ -43,6 +43,7 @@ import { normalizeCondominioName } from "@/features/condominios/normalize-name";
 import { assertUnidadeMatchesMasks } from "@/features/unidades/mask";
 import { ACORDO_STATUS, PARCELA_ACORDO_STATUS } from "@/lib/constants/acordos";
 import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
+import { IMPORTACAO_ARQUIVO_MAX_BYTES, IMPORTACAO_ARQUIVO_TAMANHO_ERRO } from "@/lib/constants/importacoes";
 import { primeiroTelefoneValido } from "@/lib/core/telefone";
 import {
   normalizarTelefonesImportacao, alertasTelefonesImportacao, telefonesParaAtualizacao,
@@ -2270,6 +2271,9 @@ async function createImportacaoPreviewInternal(formData: FormData) {
 
   if (!isValidImportType(tipo)) throw new Error("Tipo de importação inválido.");
   if (!(file instanceof File)) throw new Error("Arquivo obrigatório.");
+  if (file.size > IMPORTACAO_ARQUIVO_MAX_BYTES) {
+    throw new Error(IMPORTACAO_ARQUIVO_TAMANHO_ERRO);
+  }
 
   const buffer = await file.arrayBuffer();
   const condominioIdPadrao = String(
