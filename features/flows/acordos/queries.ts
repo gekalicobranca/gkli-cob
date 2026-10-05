@@ -1,4 +1,5 @@
 import { differenceInCalendarDays } from 'date-fns'
+import { registrarPerformanceFlow } from '../performance'
 import { listReguasForSelect } from '@/features/reguas/queries'
 import { ACORDO_STATUS_VIGENTES, PARCELA_ACORDO_STATUS } from '@/lib/core/status'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -186,6 +187,7 @@ export async function getFlowAcordosItens(scope: CarteiraScope, flowId: string) 
 }
 
 export async function getFlowAcordosPageData(scope: CarteiraScope, filters: FlowAcordosFilters = {}) {
+  const inicio = Date.now()
   const supabase = createAdminClient()
   const normalized = normalizeFlowAcordosFilters(filters)
   const reguasPromise = listReguasForSelect(scope, 'acordo')
@@ -283,7 +285,7 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
     parcelasJaVinculadas = new Set(itensRows.map((item) => parcelaIdFromPayload(item.payload) || parcelaIdFromPayload(item.mensagem?.payload)).filter(Boolean))
   }
 
-  return {
+  const result = {
     parcelas: parcelasNormalizadas.filter((row) => !parcelasJaVinculadas.has(String(row.id))),
     reguas,
     flows: flowRows.map((flow) => ({
@@ -294,4 +296,8 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
       itens: [],
     })),
   }
+  registrarPerformanceFlow({ area: 'acordos', inicio,
+    filtradoPorCarteira: Boolean(normalized.carteiraId), filtradoPorCondominio: Boolean(normalized.condominioId),
+    consultadas: (parcelasData?.length ?? 0) + flowRows.length, retornadas: result.parcelas.length + result.flows.length })
+  return result
 }

@@ -316,6 +316,10 @@ async function loginLello(page, execucao, config) {
     if (await aguardarMenuAutenticado(15_000)) return
     throw error
   })
+  // O redirecionamento pode acontecer antes de o menu e o seletor carregarem.
+  if (!await aguardarMenuAutenticado(60_000)) {
+    throw new Error('Login Lello não disponibilizou o menu autenticado. Verifique o acesso ao portal.')
+  }
 }
 
 async function selecionarCondominio(page, execucao, codigo, nomePortal = '') {

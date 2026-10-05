@@ -8,6 +8,7 @@ import { requireUser } from '@/utils/auth/require-user'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { registrarEventoOperacional } from '@/features/operacional/service'
 import { assertUnidadeMatchesMasks } from '@/features/unidades/mask'
+import { normalizarNumeroProcesso } from '@/features/unidades/numero-processo'
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
@@ -40,6 +41,7 @@ export async function createUnidade(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim()
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const acaoJudicial = formData.get('acao_judicial') === 'on'
+  const numeroProcesso = normalizarNumeroProcesso(formData.get('numero_processo'))
 
   if (!carteiraId) throw new Error('Carteira obrigatória.')
   if (!condominioId) throw new Error('Condomínio obrigatório.')
@@ -79,6 +81,7 @@ export async function createUnidade(formData: FormData) {
     status: 'ativa',
     observacoes: observacoes || null,
     acao_judicial: acaoJudicial,
+    numero_processo: numeroProcesso,
   })
 
   if (error) {
@@ -103,6 +106,7 @@ export async function updateUnidade(formData: FormData) {
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const creditoAdministradora = money(formData.get('credito_administradora'))
   const acaoJudicial = formData.get('acao_judicial') === 'on'
+  const numeroProcesso = normalizarNumeroProcesso(formData.get('numero_processo'))
 
   if (!id) throw new Error('Unidade obrigatória.')
   if (!identificacao) throw new Error('Identificação da unidade obrigatória.')
@@ -113,7 +117,7 @@ export async function updateUnidade(formData: FormData) {
 
   const { data: unidadeAtual, error: unidadeAtualError } = await supabase
     .from('unidades')
-    .select('id, carteira_id, condominio_id, credito_administradora, acao_judicial, condominios(mascara_unidade, mascara_bloco)')
+    .select('id, carteira_id, condominio_id, credito_administradora, acao_judicial, numero_processo, condominios(mascara_unidade, mascara_bloco)')
     .eq('id', id)
     .maybeSingle()
 
@@ -151,11 +155,28 @@ export async function updateUnidade(formData: FormData) {
       observacoes: observacoes || null,
       credito_administradora: creditoAdministradora,
       acao_judicial: acaoJudicial,
+      ...(formData.has('numero_processo') ? { numero_processo: numeroProcesso } : {}),
     })
     .eq('id', id)
 
   if (error) {
     throw new Error(`Erro ao atualizar unidade: ${error.message}`)
+  }
+
+  if (formData.has('numero_processo') && (unidadeAtual.numero_processo ?? null) !== numeroProcesso) {
+    const user = await requireUser()
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: unidadeAtual.carteira_id,
+      entidadeTipo: 'unidade',
+      entidadeId: id,
+      eventoCodigo: 'unidade.numero_processo_alterado',
+      titulo: 'Número do processo atualizado',
+      antes: { numero_processo: unidadeAtual.numero_processo ?? null },
+      depois: { numero_processo: numeroProcesso },
+      origem: 'manual',
+      auditavel: true,
+      userId: user?.id ?? null,
+    })
   }
 
   const creditoAnterior = Number((unidadeAtual as any).credito_administradora ?? 0)

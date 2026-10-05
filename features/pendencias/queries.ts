@@ -89,7 +89,6 @@ async function materializarPendenciasBoletosAdministradora(
     .select('acordo_id')
     .eq('tipo', 'emissao_boletos_acordo')
     .in('acordo_id', acordoIds)
-    .not('status', 'in', '(resolvida,cancelada)')
 
   if (pendenciasError) {
     throw new Error(`Erro ao verificar pendências de boletos: ${pendenciasError.message}`)

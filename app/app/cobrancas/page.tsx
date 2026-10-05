@@ -348,7 +348,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
       </LitePageHeader>
 
       <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label="Em aberto" value={formatCurrency(resumo.totalEmAberto)} hint="Soma das carteiras em todas as páginas, conforme os filtros" icon={<WalletCards size={18} />} />
+        <KpiCard label="Em aberto" value={formatCurrency(resumo.totalEmAberto)} hint="Total das cobranças filtradas, incluindo todas as páginas" icon={<WalletCards size={18} />} />
 
         {[
           [

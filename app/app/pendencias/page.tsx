@@ -49,6 +49,7 @@ import {
 import type { PendenciaOperacional, PendenciaPrioridade, PendenciaStatus } from '@/features/pendencias/types'
 import { cn } from '@/lib/utils'
 import { PendenciasBulkSelect } from './pendencias-bulk-select'
+import { PendenciaActionForm } from './pendencia-action-form'
 
 type SearchParams = Promise<{
   q?: string
@@ -272,9 +273,9 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
   if (pendencia.status === 'resolvida' || pendencia.status === 'cancelada') {
     return (
       <div className="flex justify-end">
-        <form action={async (formData) => {
+        <PendenciaActionForm action={async (formData) => {
           'use server'
-          await reabrirPendencia(null, formData)
+          return reabrirPendencia(null, formData)
         }}>
           <input type="hidden" name="id" value={pendencia.id} />
           <PendingSubmitButton
@@ -287,7 +288,7 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
           >
             Reabrir
           </PendingSubmitButton>
-        </form>
+        </PendenciaActionForm>
       </div>
     )
   }
@@ -295,9 +296,9 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
   return (
     <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
       {pendencia.status === 'aberta' ? (
-        <form action={async (formData) => {
+        <PendenciaActionForm action={async (formData) => {
           'use server'
-          await iniciarTratamentoPendencia(null, formData)
+          return iniciarTratamentoPendencia(null, formData)
         }}>
           <input type="hidden" name="id" value={pendencia.id} />
           <PendingSubmitButton
@@ -310,11 +311,11 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
           >
             Tratar
           </PendingSubmitButton>
-        </form>
+        </PendenciaActionForm>
       ) : null}
-      <form action={async (formData) => {
+      <PendenciaActionForm action={async (formData) => {
         'use server'
-        await resolverPendencia(null, formData)
+        return resolverPendencia(null, formData)
       }}>
         <input type="hidden" name="id" value={pendencia.id} />
         <PendingSubmitButton
@@ -327,7 +328,7 @@ function PendenciaActions({ pendencia }: { pendencia: PendenciaOperacional }) {
         >
           Resolver
         </PendingSubmitButton>
-      </form>
+      </PendenciaActionForm>
     </div>
   )
 }
@@ -523,12 +524,14 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
                 <span>Selecionar pendências visíveis</span>
                 <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200">{pendencias.length} na lista</span>
               </div>
-              <form id="pendencias-bulk-form" className="flex flex-wrap gap-2">
+              <PendenciaActionForm id="pendencias-bulk-form" className="flex flex-wrap gap-2" action={async (formData) => {
+                'use server'
+                return formData.get('operacao') === 'limpar'
+                  ? limparPendenciasEmLote(formData)
+                  : resolverPendenciasEmLote(formData)
+              }}>
                 <PendingSubmitButton
-                  formAction={async (formData) => {
-                    'use server'
-                    await resolverPendenciasEmLote(formData)
-                  }}
+                  name="operacao" value="resolver"
                   size="sm"
                   variant="primary"
                   icon={<CheckCircle2 size={14} />}
@@ -537,10 +540,7 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
                   Resolver selecionadas
                 </PendingSubmitButton>
                 <PendingSubmitButton
-                  formAction={async (formData) => {
-                    'use server'
-                    await limparPendenciasEmLote(formData)
-                  }}
+                  name="operacao" value="limpar"
                   size="sm"
                   variant="secondary"
                   icon={<Trash2 size={14} />}
@@ -548,7 +548,7 @@ export default async function CentralPendenciasPage({ searchParams }: { searchPa
                 >
                   Limpar selecionadas
                 </PendingSubmitButton>
-              </form>
+              </PendenciaActionForm>
             </div>
           ) : null}
         </ListPanelHeader>

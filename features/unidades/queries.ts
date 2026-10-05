@@ -23,6 +23,7 @@ const UNIDADE_SELECT = `
   observacoes,
   credito_administradora,
   acao_judicial,
+  numero_processo,
   created_at,
   condominios(nome, cnpj, administradora),
   carteiras(nome)

@@ -24,6 +24,7 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
       const limit = Number(url.searchParams.get('limit') ?? 500)
       assert.equal(url.searchParams.get('carteira_id'), 'in.(permitida)')
       assert.equal(url.searchParams.get('duplicada_de_id'), 'is.null')
+      assert.equal(url.searchParams.get('order'), 'vencimento.asc,id.asc')
       const rows = Array.from({ length: Math.max(0, Math.min(limit, 1205 - offset)) }, (_, i) => ({
         id: `${novo ? 'nova' : 'ativa'}-${offset + i}`, carteira_id: 'permitida', condominio_id: 'condominio', unidade_id: `unidade-${offset + i}`, valor_original: 10,
         status_operacional: novo ? 'novo' : 'em_cobranca_ativa',
@@ -33,10 +34,20 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
       return Response.json(rows)
     }
     if (table === 'lote_itens' || table === 'mensagens') {
+      if (table === 'mensagens' && url.searchParams.has('carteira_id')) {
+        assert.equal(url.searchParams.get('carteira_id'), 'in.(permitida)')
+        assert.equal(url.searchParams.get('limit'), '500')
+        return Response.json([{ id: 'orfa', cobranca_id: 'ativa-206', canal: 'email' }, { id: 'fora-recorte', cobranca_id: 'outra', canal: 'email' }])
+      }
       const ids = (url.searchParams.get('cobranca_id') ?? '').slice(4, -1).split(',')
+      assert.ok(ids.every(id => Number(id.split('-')[1]) % 2 === 0), 'não consulta vínculos de cobranças sem responsável')
+      if (table === 'lote_itens') {
+        assert.ok(url.searchParams.get('select')?.includes('canais:payload->canais'))
+        assert.ok(!url.searchParams.get('select')?.includes('(payload,'))
+      }
       return Response.json(ids.filter(id => table === 'lote_itens' ? Number(id.split('-')[1]) < 205 : id === 'ativa-206').map(id => ({
         id: `vinculo-${id}`, cobranca_id: id, canal: 'email',
-        flow: { payload: { canais: ['email'] } },
+        flow: { canais: ['email'] },
       })))
     }
     if (table === 'maestro_flow_montagens') return Response.json([])
@@ -56,6 +67,7 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
     assert.equal(first.totalPainel, 603)
     assert.equal(first.valorPainel, 6030)
     assert.equal(first.unidadesPainel, 603)
+    assert.equal(requests.filter(url => url.pathname.endsWith('/mensagens')).length, 1)
     assert.equal(transferredRows, 2410)
     assert.ok(requests.filter(url => url.pathname.endsWith('/cobrancas')).every(url => Number(url.searchParams.get('limit')) <= 500))
     const montageQuery = requests.find(url => url.pathname.endsWith('/maestro_flow_montagens'))!

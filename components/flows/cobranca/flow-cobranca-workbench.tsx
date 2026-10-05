@@ -1,7 +1,7 @@
 'use client'
 import { FlowWorkerStatus, FlowWorkerExplanation } from './flow-worker-status'
 
-import { reguasDisponiveis } from '@/features/flows/cobranca/canais'
+import { agruparCobrancasFlow, avaliarGruposFlow, selecionarCondominiosIniciais, selecionarReguaGrupo } from '@/features/flows/cobranca/selecao-workbench'
 import { useActionState, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, ChevronRight, CirclePause, FileSignature, LoaderCircle, Play, RefreshCw, RotateCcw, Trash2, XCircle } from 'lucide-react'
@@ -110,27 +110,13 @@ function cobrancaValue(row: any) {
   return Number(row?.valor_atualizado ?? row?.valor_original ?? 0)
 }
 
-function groupByCondominio(cobrancas: any[]) {
-  const groups = new Map<string, { condominioId: string; condominioNome: string; reguaId?: string; carteiraId: string; carteiraNome: string; rows: any[]; total: number }>()
-  for (const cobranca of cobrancas) {
-    const carteiraId = String(cobranca.carteira_id ?? '')
-    const condominioId = String(cobranca.condominio_id ?? '')
-    if (!carteiraId || !condominioId) continue
-    const condominio = relation(cobranca.condominio)
-    const current = groups.get(condominioId) ?? {
-      condominioId,
-      condominioNome: condominio?.nome_operacional || condominio?.nome || 'Condomínio',
-      reguaId: condominio?.regua_cobranca_id,
-      carteiraId,
-      carteiraNome: relation(cobranca.carteira)?.nome ?? 'Carteira',
-      rows: [],
-      total: 0,
-    }
-    current.rows.push(cobranca)
-    current.total += cobrancaValue(cobranca)
-    groups.set(condominioId, current)
-  }
-  return Array.from(groups.values()).sort((a, b) => a.condominioNome.localeCompare(b.condominioNome, 'pt-BR'))
+function CobrancasDoGrupo({ rows }: { rows: any[] }) {
+  const [open, setOpen] = useState(false)
+  return <details className="mt-2 text-xs text-slate-600" onToggle={event => {
+    if (event.currentTarget === event.target) setOpen(event.currentTarget.open)
+  }}><summary className="cursor-pointer">Ver cobranças incluídas pelo filtro ({rows.length})</summary>
+    {open ? <ul className="mt-2 space-y-2">{rows.map(row => <li key={row.id}><a href={`/app/cobrancas/${row.id}`} className="underline">Unidade {relation(row.unidade)?.identificacao || '-'} · {row.vencimento} · {formatCurrency(cobrancaValue(row))}</a></li>)}</ul> : null}
+  </details>
 }
 
 function cobrancaEntity(cobranca: any) {
@@ -167,23 +153,12 @@ export function FlowCobrancaWorkbench({
   const [carregandoSelecao, setCarregandoSelecao] = useState(false)
   const [erroSelecao, setErroSelecao] = useState('')
   const [processadas, setProcessadas] = useState<string[]>([])
-  const disponiveis = (todosDisponiveis ?? disponibilidade).filter(row => !processadas.includes(row.id))
-  const [selectedCondominios, setSelectedCondominios] = useState<string[]>(() => [...new Set(disponibilidade.filter(row => initialSelectedIds.includes(row.id) || new Set(disponibilidade.map(row => row.condominio_id)).size === 1).map(row => row.condominio_id))])
+  const disponiveis = useMemo(() => {
+    const idsProcessadas = new Set(processadas)
+    return (todosDisponiveis ?? disponibilidade).filter(row => !idsProcessadas.has(row.id))
+  }, [todosDisponiveis, disponibilidade, processadas])
+  const [selectedCondominios, setSelectedCondominios] = useState<string[]>(() => selecionarCondominiosIniciais(disponibilidade, initialSelectedIds))
   const [reguasSelecionadas, setReguasSelecionadas] = useState<Record<string, string>>({})
-  function opcoesDoGrupo(rows: any[]) {
-    const ids = new Set(rows.flatMap(row => reguasDisponiveis(row, reguas).map(regua => regua.id)))
-    return reguas.filter(regua => ids.has(regua.id))
-  }
-  function reguaDoGrupo(rows: any[]) {
-    const opcoes = opcoesDoGrupo(rows)
-    const row = rows[0]
-    const escolhida = reguasSelecionadas[row?.condominio_id]
-    return opcoes.find(regua => regua.id === escolhida)?.id
-      ?? opcoes.find(regua => regua.carteira_id === row?.carteira_id && regua.id === relation(row?.condominio)?.regua_cobranca_id)?.id
-      ?? opcoes.find(regua => regua.carteira_id === row?.carteira_id)?.id
-      ?? opcoes.find(regua => regua.id === relation(row?.condominio)?.regua_cobranca_id)?.id
-      ?? opcoes[0]?.id ?? ''
-  }
   const router = useRouter()
   const [progresso, setProgresso] = useState('')
   const [somenteProntos, setSomenteProntos] = useState(false)
@@ -227,16 +202,23 @@ export function FlowCobrancaWorkbench({
       return { error: `${criados ? `${criados} flow(s) já criado(s) foram preservados. ` : ''}${error instanceof Error ? error.message : 'A criação foi interrompida. Atualize a lista antes de continuar.'}` }
     }
   }, null)
-  const elegiveis = disponiveis.filter(hasResponsavelVinculado)
+  const elegiveis = useMemo(() => disponiveis.filter(hasResponsavelVinculado), [disponiveis])
   const semResponsavel = disponiveis.length - elegiveis.length
-  const selectedCobrancas = groupByCondominio(elegiveis).filter(grupo => selectedCondominios.includes(grupo.condominioId)).flatMap(grupo => grupo.rows.filter(row => reguasDisponiveis(row, reguas).some(regua => regua.id === reguaDoGrupo(grupo.rows))))
-  const selected = selectedCobrancas.map(row => row.id)
-  const plano = (() => {
-    try { return { quantidade: planejarFlowsSequenciais(selectedCobrancas, Object.fromEntries(groupByCondominio(selectedCobrancas).map(grupo => [grupo.condominioId, reguaDoGrupo(grupo.rows)]))).length, error: '' } }
+  const gruposAvaliados = useMemo(() => avaliarGruposFlow(elegiveis, reguas), [elegiveis, reguas])
+  const gruposDisponiveis = useMemo(() => gruposAvaliados.map(grupo => ({
+    ...grupo, reguaEscolhida: selecionarReguaGrupo(grupo, reguasSelecionadas[grupo.condominioId]),
+  })), [gruposAvaliados, reguasSelecionadas])
+  const condominiosSelecionados = useMemo(() => new Set(selectedCondominios), [selectedCondominios])
+  const selectedCobrancas = useMemo(() => gruposDisponiveis
+    .filter(grupo => condominiosSelecionados.has(grupo.condominioId))
+    .flatMap(grupo => grupo.rows.filter(row => grupo.reguasPorCobranca.get(row.id)?.has(grupo.reguaEscolhida))),
+  [gruposDisponiveis, condominiosSelecionados])
+  const selected = useMemo(() => new Set(selectedCobrancas.map(row => row.id)), [selectedCobrancas])
+  const grupos = useMemo(() => agruparCobrancasFlow(selectedCobrancas), [selectedCobrancas])
+  const plano = useMemo(() => {
+    try { return { quantidade: planejarFlowsSequenciais(selectedCobrancas, Object.fromEntries(gruposDisponiveis.map(grupo => [grupo.condominioId, grupo.reguaEscolhida]))).length, error: '' } }
     catch (error) { return { quantidade: 0, error: error instanceof Error ? error.message : 'Revise o período selecionado.' } }
-  })()
-  const grupos = groupByCondominio(selectedCobrancas)
-  const gruposDisponiveis = useMemo(() => groupByCondominio(elegiveis), [elegiveis])
+  }, [selectedCobrancas, gruposDisponiveis])
   const carteirasDisponiveis = useMemo(() => {
     const carteiras = new Map<string, { id: string; nome: string; grupos: typeof gruposDisponiveis; quantidade: number }>()
     for (const grupo of gruposDisponiveis) {
@@ -322,15 +304,15 @@ export function FlowCobrancaWorkbench({
                     pendencia.quantidade += 1
                     pendenciasPorCondominio.set(id, pendencia)
                   }
-                  const selecionadasNoGrupo = elegiveisNoGrupo.filter((row) => selected.includes(row.id))
-                  const grupoSelecionado = selectedCondominios.includes(grupo.condominioId)
-                  const opcoesRegua = opcoesDoGrupo(grupo.rows)
-                  const defaultRegua = reguaDoGrupo(grupo.rows)
+                  const selecionadasNoGrupo = elegiveisNoGrupo.filter((row) => selected.has(row.id))
+                  const grupoSelecionado = condominiosSelecionados.has(grupo.condominioId)
+                  const opcoesRegua = grupo.opcoesRegua
+                  const defaultRegua = grupo.reguaEscolhida
                   return <ListRow key={grupo.condominioId} className="bg-white lg:grid-cols-[minmax(260px,1fr)_140px_150px_minmax(260px,1fr)]">
                     <div>
                       <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-950"><input type="checkbox" name="condominio_selecionado" value={grupo.condominioId} checked={grupoSelecionado} disabled={criando || carregandoSelecao || elegiveisNoGrupo.length === 0} onChange={() => toggleGrupo(grupo.rows)} className="h-4 w-4 border-slate-300 text-[var(--gkli-primary)]" />{grupo.condominioNome}</label>
                       <p className="mt-1 text-xs text-slate-500">{selecionadasNoGrupo.length} de {elegiveisNoGrupo.length} cobrança(s) selecionada(s)</p>
-                      <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer">Ver cobranças incluídas pelo filtro ({grupo.rows.length})</summary><ul className="mt-2 space-y-2">{grupo.rows.map(row => <li key={row.id}><a href={`/app/cobrancas/${row.id}`} className="underline">Unidade {relation(row.unidade)?.identificacao || '-'} · {row.vencimento} · {formatCurrency(cobrancaValue(row))}</a></li>)}</ul></details>
+                      <CobrancasDoGrupo rows={grupo.rows} />
                       {grupo.rows.length > elegiveisNoGrupo.length ? <p className="mt-1 text-xs text-amber-800">{grupo.rows.length - elegiveisNoGrupo.length} sem responsável</p> : null}
                       {pendenciasPorCondominio.size > 0 ? <ul className="mt-1 space-y-1 text-xs text-amber-800" aria-label="Cobranças sem responsável por condomínio">
                         {Array.from(pendenciasPorCondominio.entries()).sort(([, a], [, b]) => a.nome.localeCompare(b.nome, 'pt-BR')).map(([id, pendencia]) => <li key={id}>{pendencia.nome}: {pendencia.quantidade} cobrança(s) sem responsável</li>)}

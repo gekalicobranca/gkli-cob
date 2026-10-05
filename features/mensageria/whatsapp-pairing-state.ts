@@ -1,4 +1,4 @@
-export type PairingView = { status: 'idle' | 'waiting' | 'available' | 'expired' | 'connected' | 'offline' | 'paused'; message: string; mode?: 'qr' | 'codigo'; payload?: string; expiresAt?: string }
+export type PairingView = { status: 'idle' | 'waiting' | 'available' | 'expired' | 'connected' | 'offline' | 'paused' | 'failed'; message: string; mode?: 'qr' | 'codigo'; payload?: string; expiresAt?: string }
 type Control = { habilitado: boolean; atualizado_em: string; reiniciar_id: string | null; aplicado_id: string | null; supervisor_em: string | null; vinculacao_pedido: string | null; vinculacao_modo: string | null; vinculacao_payload: string | null; vinculacao_expira_em: string | null }
 export function pairingView(control: Control | null, session: { status: string; atualizado_em: string } | null, now = Date.now()): PairingView {
   const fresh = (date: string | null | undefined) => { const age = now - Date.parse(date || ''); return age >= -30000 && age < 120000 }
@@ -7,6 +7,10 @@ export function pairingView(control: Control | null, session: { status: string; 
   if (!fresh(control.supervisor_em)) return { status: 'offline', message: 'Computador sem comunicação recente. Ligue o notebook e verifique a internet.' }
   if (!control.vinculacao_pedido || control.vinculacao_pedido !== control.reiniciar_id) return { status: 'idle', message: 'Escolha QR Code ou código de vinculação.' }
   const mode = control.vinculacao_modo === 'codigo' ? 'codigo' : 'qr'
+  if (control.aplicado_id === control.vinculacao_pedido && fresh(session?.atualizado_em) && Date.parse(session!.atualizado_em) >= Date.parse(control.atualizado_em)) {
+    if (session?.status === 'vinculacao_limite') return { status: 'failed', mode, message: 'O WhatsApp limitou a geração de códigos por excesso de tentativas. Use Gerar QR Code para vincular. As tentativas automáticas foram interrompidas.' }
+    if (session?.status === 'vinculacao_falhou') return { status: 'failed', mode, message: 'O WhatsApp não conseguiu gerar o código. Tente vincular usando Gerar QR Code.' }
+  }
   const preparing = control.aplicado_id !== control.vinculacao_pedido || !fresh(session?.atualizado_em) || session?.status !== 'aguardando_qr'
   if ((preparing || !control.vinculacao_payload) && now - Date.parse(control.atualizado_em) > 240000) return { status: 'expired', mode, message: 'A geração demorou mais que o esperado. Você pode tentar novamente.' }
   if (preparing) return { status: 'waiting', mode, message: 'Aguardando o notebook preparar a vinculação…' }
