@@ -19,6 +19,7 @@ const columns: ExcelColumn<UnidadeExportRow>[] = [
   { key: 'status', label: 'Status', width: 16 },
   { key: 'credito_administradora', label: 'Crédito da administradora', width: 22, type: 'currency' },
   { key: 'acao_judicial', label: 'Ação judicial', width: 16, type: 'boolean' },
+  { key: 'numero_processo', label: 'Número do processo', width: 30 },
   { key: 'observacoes', label: 'Observações', width: 42 },
 ]
 

@@ -76,6 +76,10 @@ export default async function NovaUnidadePage() {
             </FormField>
           </div>
 
+          <FormField label="Número do processo" hint="Opcional. Informe os 20 dígitos do processo judicial.">
+            <Input name="numero_processo" maxLength={30} placeholder="0000000-00.0000.0.00.0000" />
+          </FormField>
+
           <FormField label="Observações">
             <Textarea name="observacoes" placeholder="Observações internas..." />
           </FormField>

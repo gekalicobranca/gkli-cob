@@ -97,7 +97,6 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
   }
 
   return <ListPage>
-    {monitor ? <FlowProgressao scope={scope} canal={canal} carteiraId={filters.carteiraId} condominioId={filters.condominioId} /> : null}
     <PageHeader
       eyebrow="Flows"
       title={`Flows de cobrança · ${canalLabel}`}
@@ -133,6 +132,8 @@ export async function FlowCobrancaPage({ searchParams, canal }: { searchParams: 
     </ListKpiGrid> : null}
     {aba === 'gerar' ? <p className="text-xs text-slate-500">Indicadores de todas as cobranças elegíveis nos filtros aplicados, sem paginação.</p> : null}
     {monitor ? <p className="text-xs text-slate-500">Indicadores desta página.</p> : null}
+
+    {monitor ? <FlowProgressao scope={scope} canal={canal} carteiraId={filters.carteiraId} condominioId={filters.condominioId} /> : null}
 
     <ListCollapsibleFilters defaultOpen={hasFilters || aba === 'gerar'} actions={<ClearFiltersLink href={`${basePath}?aba=${aba}`} show={hasFilters} />}>
       <ListFiltersForm key={returnQuery.toString()} action={basePath} className="grid-cols-1 md:grid-cols-2 xl:grid-cols-6">

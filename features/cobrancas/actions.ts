@@ -260,7 +260,7 @@ export async function updateCobrancasStatusEmLote(
     .in('id', ids)
 
   if (consultaError) {
-    throw new Error(`Erro ao validar cobranças selecionadas: ${consultaError.message}`)
+    return { error: `Erro ao validar cobranças selecionadas: ${consultaError.message}` }
   }
 
   if (!cobrancas?.length) {
@@ -268,51 +268,83 @@ export async function updateCobrancasStatusEmLote(
   }
 
   for (const cobranca of cobrancas as any[]) {
-    assertCarteiraPermitida(scope, cobranca.carteira_id)
+    if (!cobranca.carteira_id || (scope.carteiraIds !== null && !scope.carteiraIds.includes(cobranca.carteira_id))) {
+      return { error: 'Você não tem permissão para operar uma das carteiras selecionadas.' }
+    }
   }
 
   const idsPermitidos = (cobrancas as any[]).map((cobranca) => cobranca.id)
 
-  const { data: atualizadas, error } = await supabase
-    .from('cobrancas')
-    .update({ status, status_operacional: status })
-    .in('id', idsPermitidos)
-    .select('id,status_operacional')
-
-  if (error) {
-    throw new Error(`Erro ao atualizar cobranças em lote: ${error.message}`)
-  }
-
-  const statusSalvos = new Map((atualizadas ?? []).map(row => [row.id, row.status_operacional]))
-  await Promise.all(
-    (cobrancas as any[]).map((cobranca) =>
-      registrarEventoOperacional(supabase as any, {
-        carteiraId: cobranca.carteira_id ?? null,
-        entidadeTipo: 'cobranca',
-        entidadeId: cobranca.id,
-        eventoCodigo: 'cobranca.status_alterado_lote',
-        estadoAnterior: getCobrancaStatusOperacional(cobranca),
-        estadoNovo: statusSalvos.get(cobranca.id),
-        titulo: 'Status alterado em lote',
-        descricao: observacao || `Status alterado em lote para ${statusSalvos.get(cobranca.id)}.`,
-        severidade:
-          status === COBRANCA_STATUS.PRE_JURIDICO ||
-          status === COBRANCA_STATUS.JUDICIALIZADO ||
-          status === COBRANCA_STATUS.SUSPENSO
-            ? 'alerta'
-            : 'info',
-        antes: { status_operacional: getCobrancaStatusOperacional(cobranca) },
-        depois: { status_operacional: statusSalvos.get(cobranca.id) },
-        origem: 'manual',
-        auditavel: true,
-        userId: user?.id ?? null,
-        payload: { total_selecionadas: idsPermitidos.length },
-      }),
-    ),
+  // Cada UPDATE dispara regras de cancelamento de flows por cobrança.
+  // Limitar a transação evita acumular esse trabalho em 500 registros.
+  const statusSalvos = new Map<string, string | null>()
+  let erroAtualizacao: string | undefined
+  const lotes = Array.from({ length: Math.ceil(cobrancas.length / 20) }, (_, index) =>
+    (cobrancas as any[]).slice(index * 20, (index + 1) * 20),
   )
 
+  for (let index = 0; index < lotes.length; index++) {
+    const cobrancasDoLote = lotes[index]
+    const { data: atualizadas, error } = await supabase
+      .from('cobrancas')
+      .update({ status, status_operacional: status })
+      .in('id', cobrancasDoLote.map(cobranca => cobranca.id))
+      .select('id,status_operacional')
+
+    if (error) {
+      // Um statement cancelado por timeout é revertido pelo PostgreSQL.
+      // Só repetimos esse caso, reduzindo o tamanho da transação.
+      if (error.code === '57014' && cobrancasDoLote.length > 1) {
+        const metade = Math.ceil(cobrancasDoLote.length / 2)
+        lotes.splice(index, 1, cobrancasDoLote.slice(0, metade), cobrancasDoLote.slice(metade))
+        index--
+        continue
+      }
+      erroAtualizacao = `Erro ao atualizar cobranças em lote: ${error.message}`
+      break
+    }
+
+    const statusDoLote = new Map((atualizadas ?? []).map(row => [row.id, row.status_operacional]))
+    for (const [id, statusSalvo] of statusDoLote) statusSalvos.set(id, statusSalvo)
+    await Promise.all(
+      cobrancasDoLote.filter(cobranca => statusDoLote.has(cobranca.id)).map((cobranca) =>
+        registrarEventoOperacional(supabase as any, {
+          carteiraId: cobranca.carteira_id ?? null,
+          entidadeTipo: 'cobranca',
+          entidadeId: cobranca.id,
+          eventoCodigo: 'cobranca.status_alterado_lote',
+          estadoAnterior: getCobrancaStatusOperacional(cobranca),
+          estadoNovo: statusDoLote.get(cobranca.id),
+          titulo: 'Status alterado em lote',
+          descricao: observacao || `Status alterado em lote para ${statusDoLote.get(cobranca.id)}.`,
+          severidade:
+            status === COBRANCA_STATUS.PRE_JURIDICO ||
+            status === COBRANCA_STATUS.JUDICIALIZADO ||
+            status === COBRANCA_STATUS.SUSPENSO
+              ? 'alerta'
+              : 'info',
+          antes: { status_operacional: getCobrancaStatusOperacional(cobranca) },
+          depois: { status_operacional: statusDoLote.get(cobranca.id) },
+          origem: 'manual',
+          auditavel: true,
+          userId: user?.id ?? null,
+          payload: { total_selecionadas: idsPermitidos.length },
+        }),
+      ),
+    )
+
+  }
+
+  if (statusSalvos.size === 0) {
+    return { error: erroAtualizacao ?? 'Nenhuma cobrança foi atualizada. Verifique suas permissões e tente novamente.' }
+  }
   revalidateCobrancaViews(null, { dashboard: true })
-  return { success: `${idsPermitidos.length} cobrança(s) atualizada(s).` }
+  return {
+    success: `${statusSalvos.size} cobrança(s) atualizada(s).`,
+    ...(statusSalvos.size < ids.length
+      ? { error: `${erroAtualizacao ? `${erroAtualizacao}. ` : ''}${ids.length - statusSalvos.size} cobrança(s) não atualizada(s). Recarregue a fila e selecione apenas os registros restantes.` }
+      : {}),
+  }
 }
 
 export async function updateCobrancaFinanceiro(formData: FormData) {

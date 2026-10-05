@@ -77,10 +77,10 @@ async function publishHeartbeat() {
 }
 const heartbeat = heartbeatGate(publishHeartbeat, error => console.error(new Date().toISOString(), 'Falha no heartbeat; novos envios aguardam o banco:', error.message))
 client.on('loading_screen', (percent, message) => console.log(new Date().toISOString(), `Carregando WhatsApp: ${percent}% ${message}`))
-client.on('pairing_error', () => {
+client.on('pairing_error', reason => {
   if (ready || stopping) return
   pairingRevision++; pairingCode = null; pairingCodeExpiresAt = null
-  connection = 'aguardando_qr'
+  connection = reason === 'rate_limit' ? 'vinculacao_limite' : 'vinculacao_falhou'
   void publishPairing().catch(reportPairing)
   void heartbeat()
 })

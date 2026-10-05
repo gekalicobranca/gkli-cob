@@ -8,10 +8,13 @@ A conclusão do Maestro independe de `CAPTACAO_AUTOMATIZADA_CONFIRMAR`. Os relat
 
 Execuções antigas sem identificação de origem do Maestro mantêm o comportamento anterior.
 
+Com a captação desligada no Maestro, os agentes continuam aceitando e processando pedidos manuais pela página de Agentes, por administradora ou por worker. Agendamentos manuais respeitam o horário escolhido. As origens `maestro`, `maestro_agendada` e `agenda_mensal` ficam pausadas até a captação ser ligada novamente. Atualize o aplicativo e reinicie os workers remotos para aplicar esse comportamento.
+
 Verificação local sem dados reais:
 
 ```sh
 node scripts/validate-maestro-automatico.mjs
+node scripts/validate-agente-maestro-pausado.mjs
 npx tsx scripts/validate-maestro-conclusao.ts
 npm run typecheck
 ```

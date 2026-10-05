@@ -189,6 +189,10 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
             </FormField>
           </div>
 
+          <FormField label="Número do processo" hint="Opcional. O número é preservado ao desmarcar a ação judicial.">
+            <Input name="numero_processo" maxLength={30} defaultValue={unidade.numero_processo ?? ''} placeholder="0000000-00.0000.0.00.0000" />
+          </FormField>
+
           <FormField label="Observações">
             <Textarea name="observacoes" defaultValue={unidade.observacoes ?? ''} placeholder="Observações internas..." />
           </FormField>

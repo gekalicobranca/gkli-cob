@@ -17,6 +17,15 @@ test('só entrega código atual, válido e de worker com sinal recente', () => {
 test('solicitação travada permite renovação após quatro minutos', () => {
   assert.equal(pairingView({ ...control, vinculacao_payload: null, atualizado_em: new Date(now - 241000).toISOString() }, session, now).status, 'expired')
 })
+
+test('falha de vinculação é imediata e não vaza para um novo pedido', () => {
+  const failedSession = { ...session, status: 'vinculacao_limite' }
+  assert.equal(pairingView(control, failedSession, now).status, 'failed')
+  assert.match(pairingView(control, failedSession, now).message, /QR Code/)
+  assert.equal(pairingView(control, failedSession, now).payload, undefined)
+  assert.equal(pairingView({ ...control, aplicado_id: 'old' }, failedSession, now).status, 'waiting')
+  assert.equal(pairingView({ ...control, atualizado_em: new Date(now + 1000).toISOString() }, failedSession, now).status, 'waiting')
+})
 test('migração preserva vinculação privada para service_role', async () => {
   const db = new PGlite()
   try {

@@ -1,4 +1,3 @@
-import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 import { cobrancaArquivada } from '@/lib/core/cobranca-arquivamento'
 
 type Row = {
@@ -10,7 +9,6 @@ type Row = {
 }
 
 export function resumirValoresCobrancas(rows: Row[]) {
-  const excluidos = new Set(['acordo_efetivado', 'pre_distribuicao', 'pre_juridico', 'judicializado', 'suspenso'])
   const carteiras = new Map<string, {
     carteiraId: string; carteira: string; centavos: number; quantidade: number
     condominios: Map<string, { condominioId: string; condominio: string; centavos: number; quantidade: number }>
@@ -18,8 +16,9 @@ export function resumirValoresCobrancas(rows: Row[]) {
   let centavos = 0
   for (const row of rows) {
     if (cobrancaArquivada(row)) continue
-    const valor = excluidos.has(getCobrancaStatusOperacional(row)) ? 0
-      : Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100)
+    // Os filtros da consulta já definem quais cobranças entram na lista.
+    // Zerar status aqui faria o resumo divergir dos valores exibidos.
+    const valor = Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100)
     const carteiraId = row.carteira_id ?? 'sem-carteira'
     const condominioId = row.condominio_id ?? 'sem-condominio'
     const carteira = carteiras.get(carteiraId) ?? {

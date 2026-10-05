@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events'
 
 test('falha de código chamada sem await não derruba processo nem recria navegador', async () => {
   class Base extends EventEmitter {
-    async requestPairingCode() { throw Error('pairing rejected') }
+    pupPage = { evaluate: async () => { throw Error('pairing rejected') } }
   }
   const client = new (resilientClient(Base, () => {}))()
   let failures = 0
@@ -18,7 +18,7 @@ test('falha de código chamada sem await não derruba processo nem recria navega
 })
 
 test('código válido é retornado sem emitir falha', async () => {
-  class Base extends EventEmitter { async requestPairingCode() { return 'test-code' } }
+  class Base extends EventEmitter { pupPage = { evaluate: async (_fn, ...args) => args.length === 1 ? true : 'test-code' } }
   const client = new (resilientClient(Base, () => {}))()
   client.on('pairing_error', () => assert.fail('código válido'))
   assert.equal(await client.requestPairingCode(), 'test-code')

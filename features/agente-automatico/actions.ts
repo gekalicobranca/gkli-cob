@@ -107,7 +107,7 @@ export async function criarAgenteReceita(formData: FormData) {
 
 async function criarExecucaoAgenteReceita(formData: FormData) {
   const supabase = await createClient()
-  await assertCaptacaoGlobalAtiva(supabase)
+  if (getString(formData, 'origem') === 'maestro') await assertCaptacaoGlobalAtiva(supabase)
 
   const receitaId = getString(formData, 'receita_id')
 
@@ -199,7 +199,7 @@ export async function executarAgenteReceitaComAcompanhamento(formData: FormData)
 
 export async function agendarExecucaoAgenteReceita(formData: FormData) {
   const supabase = await createClient()
-  await assertCaptacaoGlobalAtiva(supabase)
+  if (getString(formData, 'origem') === 'maestro') await assertCaptacaoGlobalAtiva(supabase)
 
   const origem = getString(formData, 'origem') === 'maestro' ? 'maestro_agendada' : 'manual_agendada'
   const receitaId = getString(formData, 'receita_id')
@@ -296,7 +296,6 @@ export async function agendarExecucaoAgenteReceita(formData: FormData) {
 
 export async function executarAgenteAdministradoraAgora(formData: FormData) {
   const supabase = await createClient()
-  await assertCaptacaoGlobalAtiva(supabase)
   const scope = await getPermittedCarteiras()
 
   const administradoraId = getString(formData, 'administradora_id')
@@ -389,7 +388,6 @@ export async function executarAgenteAdministradoraAgora(formData: FormData) {
 
 export async function executarAgenteScriptAgora(formData: FormData) {
   const supabase = await createClient()
-  await assertCaptacaoGlobalAtiva(supabase)
   const scope = await getPermittedCarteiras()
   const worker = getScriptKey(formData)
 
