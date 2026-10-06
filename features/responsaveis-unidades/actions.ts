@@ -8,6 +8,11 @@ import { requireUser } from '@/utils/auth/require-user'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { registrarEventoOperacional } from '@/features/operacional/service'
 import { sincronizarResponsavelComUnidadeOperacional } from '@/features/responsaveis-unidades/sync-unidade'
+import { classificarContatos } from '@/lib/core/telefone'
+
+function contatosFromForm(formData: FormData) {
+  return classificarContatos(formData.get('celular'), formData.get('telefone_fixo'), formData.get('telefone_outros'), formData.get('telefone'))
+}
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
@@ -60,7 +65,8 @@ export async function createResponsavelUnidade(formData: FormData) {
   const responsavelNome = String(formData.get('responsavel_nome') ?? '').trim()
   const tipoResponsavel = tipoResponsavelFromForm(formData.get('tipo_responsavel'))
   const responsavelDocumento = onlyDigits(String(formData.get('responsavel_documento') ?? ''))
-  const telefone = onlyDigits(String(formData.get('telefone') ?? ''))
+  const contatos = contatosFromForm(formData)
+  const telefone = contatos.telefone
   const email = String(formData.get('email') ?? '').trim()
   const observacoes = String(formData.get('observacoes') ?? '').trim()
 
@@ -84,7 +90,7 @@ export async function createResponsavelUnidade(formData: FormData) {
       responsavel_nome: responsavelNome || null,
       tipo_responsavel: tipoResponsavel,
       responsavel_documento: responsavelDocumento || null,
-      telefone: telefone || null,
+      ...contatos,
       email: email || null,
       origem: 'cadastro_manual',
       ativo: true,
@@ -135,7 +141,8 @@ export async function updateResponsavelUnidade(formData: FormData) {
   const responsavelNome = String(formData.get('responsavel_nome') ?? '').trim()
   const tipoResponsavel = tipoResponsavelFromForm(formData.get('tipo_responsavel'))
   const responsavelDocumento = onlyDigits(String(formData.get('responsavel_documento') ?? ''))
-  const telefone = onlyDigits(String(formData.get('telefone') ?? ''))
+  const contatos = contatosFromForm(formData)
+  const telefone = contatos.telefone
   const email = String(formData.get('email') ?? '').trim()
   const ativo = boolFromForm(formData.get('ativo'))
   const observacoes = String(formData.get('observacoes') ?? '').trim()
@@ -164,7 +171,7 @@ export async function updateResponsavelUnidade(formData: FormData) {
     responsavel_nome: responsavelNome || null,
     tipo_responsavel: tipoResponsavel,
     responsavel_documento: responsavelDocumento || null,
-    telefone: telefone || null,
+    ...contatos,
     email: email || null,
     ativo,
     observacoes: observacoes || null,

@@ -64,7 +64,7 @@ async function main() {
     assert.equal(units.filter((unit) => unit.tipoResponsavel === "inquilino").length, 3);
     assert.ok(units.every((unit) => unit.email && unit.responsavelNome && !unit.responsavelDocumento));
     assert.equal(units.find((unit) => unit.identificacao === "23")?.telefone, "");
-    assert.equal(units.find((unit) => unit.identificacao === "26")?.telefone.length, 10);
+    assert.equal(units.find((unit) => unit.identificacao === "26")?.telefone_fixo?.length, 12);
     assert.ok(units.find((unit) => unit.identificacao === "06")?.telefone);
     assert.ok(units.find((unit) => unit.identificacao === "13")?.email);
     assert.equal(actual.preview.inconsistencias.length, 30); // Missing personal documents only.

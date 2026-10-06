@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { classificarContatos } from "@/lib/core/telefone";
 import { detectLelloResponsaveis, parseLelloResponsaveis } from "./lello-responsaveis";
 import { inflateSync } from "zlib";
 import * as XLSX from "xlsx";
@@ -79,6 +80,9 @@ export type UnidadeConversaoPreview = {
   tipoResponsavel: string;
   responsavelDocumento: string;
   telefone: string;
+  celular?: string;
+  telefone_fixo?: string;
+  telefone_outros?: string;
   email: string;
   status: string;
   observacoes: string;
@@ -3548,6 +3552,9 @@ function buildRowsUnidadesPadraoGkli(
     "tipo_responsavel",
     "responsavel_documento",
     "telefone",
+    "celular",
+    "telefone_fixo",
+    "telefone_outros",
     "email",
     "status",
     "observacoes",
@@ -3562,6 +3569,9 @@ function buildRowsUnidadesPadraoGkli(
     unidade.tipoResponsavel || "nao_informado",
     unidade.responsavelDocumento,
     unidade.telefone,
+    unidade.celular ?? "",
+    unidade.telefone_fixo ?? "",
+    unidade.telefone_outros ?? "",
     unidade.email,
     unidade.status,
     unidade.observacoes,
@@ -3602,6 +3612,9 @@ function buildXlsxBase64UnidadesPadraoGkli(
     { wch: 18 },
     { wch: 20 },
     { wch: 18 },
+    { wch: 28 },
+    { wch: 28 },
+    { wch: 28 },
     { wch: 32 },
     { wch: 12 },
     { wch: 72 },
@@ -5122,6 +5135,16 @@ function buildPreviewFromUnidadesPdf({
   condominioCnpj?: string;
   padraoDetectado: PadraoConversaoDetectado;
 }): ParseResult {
+  unidades = unidades.map((unidade) => {
+    const contatos = classificarContatos(unidade.telefone, unidade.celular, unidade.telefone_fixo, unidade.telefone_outros);
+    return {
+      ...unidade,
+      telefone: contatos.telefone ?? "",
+      celular: contatos.celular ?? "",
+      telefone_fixo: contatos.telefone_fixo ?? "",
+      telefone_outros: contatos.telefone_outros ?? "",
+    };
+  });
   if (!unidades.length) {
     return {
       ok: false,
@@ -5141,7 +5164,10 @@ function buildPreviewFromUnidadesPdf({
       padraoDetectado,
       cobrancas: [],
       unidades,
-      inconsistencias: buildUnidadesInconsistencias(unidades),
+      inconsistencias: [
+        ...buildUnidadesInconsistencias(unidades),
+        ...unidades.flatMap((unidade, index) => unidade.telefone_outros ? [`Linha ${index + 2}: contatos não identificados; revise a coluna telefone_outros.`] : []),
+      ],
       csv: buildCsvUnidadesPadraoGkli(unidades, condominioCnpj),
       xlsxBase64: buildXlsxBase64UnidadesPadraoGkli(unidades, condominioCnpj),
     },

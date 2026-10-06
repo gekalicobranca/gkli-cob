@@ -13,6 +13,9 @@ const RESPONSAVEL_SELECT = `
   tipo_responsavel,
   responsavel_documento,
   telefone,
+  celular,
+  telefone_fixo,
+  telefone_outros,
   email,
   origem,
   ativo,
@@ -96,15 +99,19 @@ function applyResponsavelUnidadeFilters(query: any, filters: ReturnType<typeof n
   }
 
   if (filters.contato === 'sem_telefone') {
-    scopedQuery = scopedQuery.is('telefone', null)
+    scopedQuery = scopedQuery.is('celular', null).is('telefone_fixo', null)
   }
+
+  if (filters.contato === 'sem_celular') scopedQuery = scopedQuery.is('celular', null)
+  if (filters.contato === 'sem_fixo') scopedQuery = scopedQuery.is('telefone_fixo', null)
+  if (filters.contato === 'revisar_telefone') scopedQuery = scopedQuery.not('telefone_outros', 'is', null)
 
   if (filters.contato === 'sem_email') {
     scopedQuery = scopedQuery.is('email', null)
   }
 
   if (filters.contato === 'incompleto') {
-    scopedQuery = scopedQuery.or('telefone.is.null,email.is.null,responsavel_nome.is.null')
+    scopedQuery = scopedQuery.or('and(celular.is.null,telefone_fixo.is.null),email.is.null,responsavel_nome.is.null')
   }
 
   if (filters.search) {
@@ -118,7 +125,7 @@ function applyResponsavelUnidadeFilters(query: any, filters: ReturnType<typeof n
     ]
 
     if (digits) {
-      clauses.push(`responsavel_documento.ilike.%${digits}%`, `telefone.ilike.%${digits}%`)
+      clauses.push(`responsavel_documento.ilike.%${digits}%`, `telefone.ilike.%${digits}%`, `celular.ilike.%${digits}%`, `telefone_fixo.ilike.%${digits}%`)
     } else {
       clauses.push(`responsavel_documento.ilike.%${term}%`, `telefone.ilike.%${term}%`)
     }
@@ -211,7 +218,7 @@ export async function summarizeResponsaveisUnidades(
   for (let from = 0; ; from += pageSize) {
     let query = supabase
       .from('responsaveis_unidades')
-      .select('ativo,tipo_responsavel,responsavel_nome,responsavel_documento,telefone,email')
+      .select('ativo,tipo_responsavel,responsavel_nome,responsavel_documento,telefone,celular,telefone_fixo,email')
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = applyResponsavelUnidadeFilters(query, normalized)
@@ -232,7 +239,7 @@ export async function summarizeResponsaveisUnidades(
     ativos: rows.filter((row) => row.ativo !== false).length,
     proprietarios: rows.filter((row) => row.tipo_responsavel === 'proprietario').length,
     inquilinos: rows.filter((row) => row.tipo_responsavel === 'inquilino').length,
-    incompletos: rows.filter((row) => !row.responsavel_nome || !row.responsavel_documento || !row.telefone || !row.email).length,
+    incompletos: rows.filter((row) => !row.responsavel_nome || !row.responsavel_documento || (!row.celular && !row.telefone_fixo) || !row.email).length,
   }
 }
 

@@ -3,9 +3,9 @@ import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { normalizarTelefone, primeiroTelefoneValido } from '../lib/core/telefone'
+import { classificarContatos, normalizarTelefone, primeiroTelefoneValido } from '../lib/core/telefone'
 import {
-  normalizarTelefonesImportacao, alertasTelefonesImportacao, telefonesParaAtualizacao,
+  normalizarContatosResponsavel, normalizarTelefonesImportacao, alertasTelefonesImportacao, telefonesParaAtualizacao,
   TELEFONE_KEYS, SINDICO_CELULAR_KEYS, GERENTE_CELULAR_KEYS,
 } from '../features/importacoes/telefones'
 import * as previewRules from '../features/importacoes/preview-rules'
@@ -76,7 +76,7 @@ function actionContext() {
   const condominio = { id: 'condominio', carteira_id: 'carteira', cnpj: '12345678000199' }
   const context = vm.createContext({
     ...previewRules,
-    normalizarTelefonesImportacao, alertasTelefonesImportacao, telefonesParaAtualizacao, primeiroTelefoneValido,
+    classificarContatos, normalizarContatosResponsavel, normalizarTelefonesImportacao, alertasTelefonesImportacao, telefonesParaAtualizacao, primeiroTelefoneValido,
     TELEFONE_KEYS, SINDICO_CELULAR_KEYS, GERENTE_CELULAR_KEYS, CONDOMINIO_CNPJ_KEYS: ['cnpj'],
     getDocumento: (payload: any) => payload.cnpj || '',
     normalizeTipoResponsavel: () => 'proprietario', normalizeUnidadeStatus: () => 'ativa', normalizeEmail: (value: string) => value || null,
@@ -102,8 +102,9 @@ test('prévia de unidades e cobranças mantém linha importável, exibe alerta e
   const unit = context.normalizeUnidadePayload(raw, condominio)
   const simple = await context.enrichSimplePreview({}, 'unidades', [{ linha: 2, payload: unit, valido: true, erros: [] }], condominio)
   assert.equal(simple[0].valido, true)
-  assert.equal(simple[0].payload.telefone, null)
-  assert.equal(simple[0].alertas.some((s: string) => s.includes('múltiplos contatos')), true)
+  assert.equal(simple[0].payload.telefone, '5511987654321')
+  assert.equal(simple[0].payload.celular, '5511987654321 | 5511912345678')
+  assert.equal(simple[0].alertas.some((s: string) => s.includes('múltiplos contatos')), false)
   const charge = context.buildImportacaoPayload('cobrancas', raw, condominio)
   assert.equal(charge.telefones_importacao.telefone.original, raw.telefone)
   const preview = await context.enrichCobrancaPreview({}, [{ linha: 2, payload: charge }], condominio)
@@ -126,7 +127,7 @@ test('gravação revalida inclusive prévias antigas e preserva telefone existen
   } } }
   for (const telefone of ['011987654321', '11987654321 | 11912345678', '']) {
     const payload = { carteira_id: 'carteira', condominio_id: 'condominio', unidade: '01', telefone }
-    const expected = normalizarTelefone(telefone).numero
+    const expected = classificarContatos(telefone).telefone
     context.buscarResponsavelApoio = async () => null
     assert.equal((await context.importarResponsaveisUnidades(db, [payload])).importados, 1)
     assert.equal(write.telefone, expected)
@@ -135,4 +136,23 @@ test('gravação revalida inclusive prévias antigas e preserva telefone existen
     assert.equal(Object.hasOwn(write, 'telefone'), Boolean(expected))
   }
   assert.equal(context.dadosUnidadeComApoio({ telefone: '11987654321' }, { telefone: '987654321' }).telefone, '5511987654321')
+  context.buscarResponsavelApoio = async () => ({ id: 'existente', telefone: '5511999998888', celular: '5511999998888' })
+  await context.importarResponsaveisUnidades(db, [{ carteira_id: 'carteira', condominio_id: 'condominio', unidade: '01', telefone_fixo: '11 3333-4444' }])
+  assert.equal(write.telefone, '5511999998888', 'Importar só fixo preserva celular como principal')
+  assert.equal(write.telefone_fixo, '551133334444')
+  assert.equal(Object.hasOwn(write, 'celular'), false, 'Coluna vazia não apaga celular existente')
+})
+
+test('classifica listas mistas, preserva inválidos e não confunde DDD 55', () => {
+  const payload = normalizarContatosResponsavel({
+    telefone: '(11) 3333-4444 | (11) 99999-8888 | 999998888',
+    celular: '+55 (11) 99999-8888 | 55 98888-7777',
+    telefone_fixo: '11 4444-5555',
+  })
+  assert.equal(payload.celular, '5511999998888 | 5555988887777')
+  assert.equal(payload.telefone_fixo, '551133334444 | 551144445555')
+  assert.equal(payload.telefone_outros, '999998888')
+  assert.equal(payload.telefone, '5511999998888')
+  assert.deepEqual(normalizarContatosResponsavel(payload), payload)
+  assert.ok(alertasTelefonesImportacao(payload).length)
 })

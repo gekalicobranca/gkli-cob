@@ -81,7 +81,7 @@ function previewMetaPrimaria(payload: Record<string, any>, tipo: string) {
 }
 
 function previewMetaSecundaria(payload: Record<string, any>, tipo: string) {
-  if (tipo === 'unidades') return payload.telefone || payload.email || '-'
+  if (tipo === 'unidades') return [payload.celular ? `Celular: ${payload.celular}` : '', payload.telefone_fixo ? `Fixo: ${payload.telefone_fixo}` : '', payload.telefone_outros ? `Revisar: ${payload.telefone_outros}` : '', payload.email].filter(Boolean).join(' · ') || payload.telefone || '-'
   if (tipo === 'condominios') return dataPreview(payload, tipo) || '-'
   return formatDateBR(dataPreview(payload, tipo))
 }
