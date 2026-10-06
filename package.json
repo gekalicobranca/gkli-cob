@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit --pretty false --incremental false",
     "test:fiscal": "tsx --test scripts/validate-fiscal-core.ts",
     "test:conversao-lello": "tsx scripts/validate-conversao-lello.ts",
+    "test:conversao-lello-responsaveis": "tsx scripts/validate-conversao-lello-responsaveis.ts",
     "test:conversao-habitacional": "tsx scripts/validate-conversao-habitacional.ts",
     "test:exportacoes-excel": "tsx scripts/validate-exportacoes-excel.ts",
     "test:whatsapp": "tsx scripts/validate-whatsapp-cloud.ts",
