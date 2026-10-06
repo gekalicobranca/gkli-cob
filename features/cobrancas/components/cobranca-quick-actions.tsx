@@ -8,10 +8,7 @@ import {
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
-
-function onlyDigits(value?: string | null) {
-  return String(value ?? "").replace(/\D/g, "");
-}
+import { primeiroCelularValido } from "@/lib/core/telefone";
 
 function buildWhatsappHref(params: {
   telefone?: string | null;
@@ -20,10 +17,8 @@ function buildWhatsappHref(params: {
   unidade?: string | null;
   valor?: number | string | null;
 }) {
-  const digits = onlyDigits(params.telefone);
-  if (!digits) return null;
-
-  const phone = digits.startsWith("55") ? digits : `55${digits}`;
+  const phone = primeiroCelularValido(params.telefone);
+  if (!phone) return null;
   const message = [
     `Olá${params.responsavel ? `, ${params.responsavel}` : ""}.`,
     `Aqui é da GKLI Cobrança.`,
@@ -92,7 +87,7 @@ export function CobrancaQuickActions({
           </ButtonLink>
         ) : (
           <span className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-[13px] font-medium text-slate-400">
-            Sem telefone
+            Sem celular válido
           </span>
         )}
 

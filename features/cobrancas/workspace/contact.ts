@@ -1,3 +1,5 @@
+import { primeiroCelularValido } from '@/lib/core/telefone'
+
 export function onlyDigits(value?: string | null) {
   return String(value ?? "").replace(/\D/g, "");
 }
@@ -12,10 +14,8 @@ export function buildWhatsappHref(params: {
   condominio?: string | null;
   unidade?: string | null;
 }) {
-  const digits = onlyDigits(params.telefone);
-  if (!digits) return null;
-
-  const phone = digits.startsWith("55") ? digits : `55${digits}`;
+  const phone = primeiroCelularValido(params.telefone);
+  if (!phone) return null;
   const message = [
     `Olá${params.responsavel ? `, ${params.responsavel}` : ""}.`,
     "Aqui é da GKLI Cobrança.",

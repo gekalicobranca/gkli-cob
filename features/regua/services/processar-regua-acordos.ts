@@ -180,7 +180,7 @@ async function loadResponsaveisApoioMap(
 
   const { data, error } = await supabase
     .from('responsaveis_unidades')
-    .select('id, condominio_id, unidade, bloco, responsavel_nome, telefone, email, tipo_responsavel, ativo')
+    .select('id, condominio_id, unidade, bloco, responsavel_nome, telefone, celular, email, tipo_responsavel, ativo')
     .eq('ativo', true)
     .in('condominio_id', condominioIds)
 

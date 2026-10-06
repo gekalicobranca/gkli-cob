@@ -1,4 +1,5 @@
 "use server";
+import { normalizarCelular } from '@/lib/core/telefone'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
 import { EmailAdiadoError } from "./email-agenda";
@@ -782,12 +783,13 @@ export async function atualizarMensagemDoLote(mensagemId: string, formData: Form
   const supabase = await createClient();
   const userId = await getUserId(supabase);
   const canal = getFormString(formData, "canal") || "whatsapp";
-  const destinatario = getFormString(formData, "destinatario");
+  const destinatarioOriginal = getFormString(formData, "destinatario");
+  const destinatario = canal === 'whatsapp' ? normalizarCelular(destinatarioOriginal) : destinatarioOriginal;
   const conteudo = getFormString(formData, "conteudo");
   const templateId = getFormString(formData, "template_id") || null;
 
   if (!conteudo) throw new Error("Informe o conteúdo da mensagem.");
-  if (!destinatario) throw new Error("Informe o destinatário da mensagem.");
+  if (!destinatario) throw new Error(canal === 'whatsapp' ? 'Informe um celular válido com DDD para o WhatsApp.' : 'Informe o destinatário da mensagem.');
 
   const { data: atual, error: atualError } = await supabase
     .from("mensagens")

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { deliver, normalizePhone } from './delivery.mjs'
+import { deliver, normalizePhone, normalizeMobilePhone } from './delivery.mjs'
 
 test('números brasileiros, inclusive DDD 55, e rejeição de entradas inválidas', () => {
   assert.equal(normalizePhone('(55) 99999-1234'),'5555999991234')
@@ -13,6 +13,16 @@ const setup = (overrides = {}) => ({
   confirm: async () => {},
   send: async (_, content) => ({id:{_serialized:content}}),
   finish: async () => {}, ...overrides,
+})
+test('destinatários fixos ou inválidos são bloqueados antes de preparar e transmitir', async () => {
+  for (const value of ['1133331234', '551133331234', '123', '11999991234 | 11999994321', '10999991234']) {
+    let prepared = false
+    const result = await deliver(setup({ message: { destinatario: value, reserva_token: 'r' }, prepare: async () => { prepared = true } }))
+    assert.equal(result.state, 'falha'); assert.equal(prepared, false)
+    assert.equal(normalizeMobilePhone(value), '')
+  }
+  assert.equal(normalizeMobilePhone('(55) 99999-1234'), '5555999991234')
+  assert.equal(normalizeMobilePhone('+55 11 99999-1234'), '5511999991234')
 })
 test('só conclui depois de enviar texto e todos os anexos', async () => {
   const result = await deliver(setup())
