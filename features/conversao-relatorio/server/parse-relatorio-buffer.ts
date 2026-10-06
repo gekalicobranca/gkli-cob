@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { detectLelloResponsaveis, parseLelloResponsaveis } from "./lello-responsaveis";
 import { inflateSync } from "zlib";
 import * as XLSX from "xlsx";
 import { detectBrcondosResponsaveis, parseBrcondosResponsaveis } from "./brcondos-responsaveis";
@@ -5198,6 +5199,19 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
     }
 
     const text = await extractPdfText(input);
+    const lelloResponsaveis = detectLelloResponsaveis(text);
+    if (lelloResponsaveis) {
+      try {
+        return buildPreviewFromUnidadesPdf({
+          filename: input.filename,
+          unidades: parseLelloResponsaveis(await extractPdfVisualText(input.buffer)),
+          condominioCnpj: input.condominioCnpj,
+          padraoDetectado: lelloResponsaveis,
+        });
+      } catch (error) {
+        return { ok: false, error: `Cadastro Lello: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    }
     const simplificada = detectSuperlogicaSimplificada(text);
     if (simplificada) {
       try {
@@ -5292,7 +5306,7 @@ async function parseUnidades(input: ParseInput): Promise<ParseResult> {
     return {
       ok: false,
       error:
-        "PDF lido, mas nenhum padrão ativo de Responsáveis/Unidades foi reconhecido com segurança. Os parsers PDF ativos são BRCondos - Lista de Moradores, Habita e Superlógica - Relatório de Unidades - Completo e Hflex / LiveFacilities - Relatório de Unidades. Se o PDF foi tratado por OCR externo, confirme se ele ficou com texto selecionável e estrutura de tabela preservada.",
+        "PDF lido, mas nenhum padrão ativo de Responsáveis/Unidades foi reconhecido com segurança. Os parsers PDF ativos são Lello - Cadastro de unidades / relação de endereçamento, BRCondos - Lista de Moradores, Habita e Superlógica - Relatório de Unidades - Completo e Hflex / LiveFacilities - Relatório de Unidades. Se o PDF foi tratado por OCR externo, confirme se ele ficou com texto selecionável e estrutura de tabela preservada.",
     };
   }
 

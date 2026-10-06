@@ -12,6 +12,14 @@ type RecognizedTemplate = {
 
 const templates: RecognizedTemplate[] = [
   {
+    nome: "Lello · Responsáveis",
+    categoria: "Unidades",
+    status: "Ativo",
+    cobertura: "PDF · Cadastro de unidades / relação de endereçamento",
+    descricao: "Preserva bloco, unidade, coproprietários, CPF/CNPJ, telefones e e-mails, com endereço e participação nas observações, e gera a planilha de Importações/Responsáveis.",
+    exemplos: "Villa Natura",
+  },
+  {
     nome: "BRCondomínio · Lista de Débitos",
     categoria: "Cobranças",
     status: "Ativo",
