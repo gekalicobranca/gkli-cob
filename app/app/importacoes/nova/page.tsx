@@ -42,7 +42,7 @@ const importTypes = [
     label: "Responsáveis",
     templateHref: "/templates/importacao-unidades.xlsx",
     header:
-      "condominio_cnpj;identificacao;bloco;tipo;responsavel_nome;tipo_responsavel;responsavel_documento;telefone;email;observacoes",
+      "condominio_cnpj;identificacao;bloco;tipo;responsavel_nome;tipo_responsavel;responsavel_documento;telefone;celular;telefone_fixo;telefone_outros;email;observacoes",
     rule: "Responsáveis são vinculados ao condomínio pelo CNPJ e à combinação bloco/unidade. A importação atualiza a base de apoio de contatos e não cria unidade operacional.",
   },
   {

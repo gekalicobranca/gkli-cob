@@ -593,14 +593,16 @@ export function ConversionUploadCard({
                     <th className="px-4 py-3">Tipo</th>
                     <th className="px-4 py-3">Responsável</th>
                     <th className="px-4 py-3">Documento</th>
-                    <th className="px-4 py-3">Telefone</th>
+                    <th className="px-4 py-3">Celular</th>
+                    <th className="px-4 py-3">Fixo</th>
+                    <th className="px-4 py-3">Revisar</th>
                     <th className="px-4 py-3">E-mail</th>
                     <th className="px-4 py-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {topUnidades.map((unidade) => (
-                    <tr key={unidade.identificacao}>
+                  {topUnidades.map((unidade, index) => (
+                    <tr key={`${unidade.bloco}/${unidade.identificacao}/${index}`}>
                       <td className="px-4 py-3 font-semibold text-slate-950">
                         {unidade.identificacao}
                       </td>
@@ -614,7 +616,13 @@ export function ConversionUploadCard({
                         {unidade.responsavelDocumento || "—"}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
-                        {unidade.telefone || "—"}
+                        {unidade.celular || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {unidade.telefone_fixo || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-amber-700">
+                        {unidade.telefone_outros || "—"}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         {unidade.email || "—"}

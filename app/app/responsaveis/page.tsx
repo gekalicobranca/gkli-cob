@@ -136,7 +136,7 @@ function completenessLabel(row: any) {
   const missing = [
     !row.responsavel_nome ? 'nome' : null,
     !row.responsavel_documento ? 'documento' : null,
-    !row.telefone ? 'telefone' : null,
+    !row.celular && !row.telefone_fixo ? 'telefone' : null,
     !row.email ? 'e-mail' : null,
   ].filter(Boolean)
 
@@ -255,6 +255,9 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
               <Select name="contato" defaultValue={filters.contato ?? ''}>
                 <option value="">Todos</option>
                 <option value="sem_telefone">Sem telefone</option>
+                <option value="sem_celular">Sem celular</option>
+                <option value="sem_fixo">Sem fixo</option>
+                <option value="revisar_telefone">Contatos a revisar</option>
                 <option value="sem_email">Sem e-mail</option>
                 <option value="incompleto">Cadastro incompleto</option>
               </Select>
@@ -337,6 +340,9 @@ export default async function ResponsaveisPage({ searchParams }: ResponsaveisPag
                               <Link href={href} className="min-w-0">
                                 <ListItemTitle>{tipoLabel(row.tipo_responsavel)}</ListItemTitle>
                                 <ListItemMeta>{row.email ?? row.telefone ?? 'Contato não informado'}</ListItemMeta>
+                                {row.celular ? <ListItemMeta>Celular: {row.celular}</ListItemMeta> : null}
+                                {row.telefone_fixo ? <ListItemMeta>Fixo: {row.telefone_fixo}</ListItemMeta> : null}
+                                {row.telefone_outros ? <ListItemMeta>Contatos a revisar</ListItemMeta> : null}
                               </Link>
                               <div className="flex flex-wrap gap-2">
                                 <Badge tone={row.ativo !== false ? 'green' : 'slate'}>{row.ativo !== false ? 'Ativo' : 'Inativo'}</Badge>

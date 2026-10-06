@@ -44,9 +44,9 @@ import { assertUnidadeMatchesMasks } from "@/features/unidades/mask";
 import { ACORDO_STATUS, PARCELA_ACORDO_STATUS } from "@/lib/constants/acordos";
 import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
 import { IMPORTACAO_ARQUIVO_MAX_BYTES, IMPORTACAO_ARQUIVO_TAMANHO_ERRO } from "@/lib/constants/importacoes";
-import { primeiroTelefoneValido } from "@/lib/core/telefone";
+import { classificarContatos, primeiroTelefoneValido } from "@/lib/core/telefone";
 import {
-  normalizarTelefonesImportacao, alertasTelefonesImportacao, telefonesParaAtualizacao,
+  normalizarTelefonesImportacao, normalizarContatosResponsavel, alertasTelefonesImportacao, telefonesParaAtualizacao,
   TELEFONE_KEYS, SINDICO_CELULAR_KEYS, GERENTE_CELULAR_KEYS,
 } from "./telefones";
 
@@ -86,6 +86,9 @@ type ResponsavelUnidadeApoioRow = {
   tipo_responsavel?: string | null;
   responsavel_documento?: string | null;
   telefone?: string | null;
+  celular?: string | null;
+  telefone_fixo?: string | null;
+  telefone_outros?: string | null;
   email?: string | null;
 };
 
@@ -888,7 +891,7 @@ function normalizeUnidadePayload(
   payload: Record<string, any>,
   condominioPadrao?: CondominioImportacaoRow | null,
 ) {
-  payload = normalizarTelefonesImportacao(payload, { telefone: TELEFONE_KEYS });
+  payload = normalizarContatosResponsavel(payload);
   const identificacao = getFirst(payload, [
     "identificacao",
     "unidade",
@@ -1050,7 +1053,7 @@ async function resolveResponsaveisApoioByCondominioIds(
     const { data, error } = await supabase
       .from("responsaveis_unidades")
       .select(
-        "id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, email",
+        "id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, celular, telefone_fixo, telefone_outros, email",
       )
       .eq("ativo", true)
       .in("condominio_id", ids.length > 0 ? ids : [EMPTY_UUID])
@@ -2553,7 +2556,7 @@ async function buscarResponsavelApoio(
 
   let query = supabase
     .from("responsaveis_unidades")
-    .select("id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, email")
+    .select("id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, celular, telefone_fixo, telefone_outros, email")
     .eq("condominio_id", params.condominioId)
     .eq("unidade", params.identificacao)
     .eq("ativo", true);
@@ -2962,7 +2965,7 @@ async function importarResponsaveisUnidades(
       });
 
       const ativo = normalizeUnidadeStatus(payload.status) !== "inativa";
-      const contato = normalizarTelefonesImportacao(payload, { telefone: TELEFONE_KEYS });
+      const contato = normalizarContatosResponsavel(payload);
       const values = {
         carteira_id: payload.carteira_id,
         condominio_id: payload.condominio_id,
@@ -2974,6 +2977,9 @@ async function importarResponsaveisUnidades(
           payload.responsavel_documento || payload.cpf || payload.documento || "",
         ),
         telefone: contato.telefone,
+        celular: contato.celular,
+        telefone_fixo: contato.telefone_fixo,
+        telefone_outros: contato.telefone_outros,
         email: normalizeEmail(payload.email),
         ativo,
         origem: "importacao_unidades",
@@ -2984,6 +2990,14 @@ async function importarResponsaveisUnidades(
       if (existente?.id) {
         const dadosAtualizacao: Record<string, any> = { ...values };
         if (!values.telefone) delete dadosAtualizacao.telefone;
+        for (const campo of ["celular", "telefone_fixo", "telefone_outros"] as const) {
+          if (!values[campo]) delete dadosAtualizacao[campo];
+        }
+        const telefonePrincipal = classificarContatos(
+          values.celular || existente.celular,
+          values.telefone_fixo || existente.telefone_fixo,
+        ).telefone;
+        if (telefonePrincipal) dadosAtualizacao.telefone = telefonePrincipal;
         const { error } = await supabase.from("responsaveis_unidades").update(dadosAtualizacao).eq("id", existente.id);
         if (error) throw error;
         await sincronizarResponsavelComUnidadeOperacional(supabase, {
@@ -2993,7 +3007,7 @@ async function importarResponsaveisUnidades(
           bloco: values.bloco,
           responsavelNome: values.responsavel_nome,
           responsavelDocumento: values.responsavel_documento,
-          telefone: values.telefone || primeiroTelefoneValido(existente.telefone),
+          telefone: dadosAtualizacao.telefone || primeiroTelefoneValido(existente.telefone),
           email: values.email,
           ativo,
         });

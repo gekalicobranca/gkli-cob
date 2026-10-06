@@ -95,8 +95,13 @@ export default async function NovoResponsavelPage() {
           </label>
 
           <label className="space-y-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Telefone</span>
-            <Input name="telefone" />
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Celular</span>
+            <Input name="celular" placeholder="(11) 99999-9999" />
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Telefone fixo</span>
+            <Input name="telefone_fixo" placeholder="(11) 3333-3333" />
           </label>
 
           <label className="space-y-1.5 md:col-span-2">

@@ -1,10 +1,24 @@
-import { normalizarTelefone, type TelefoneNormalizado } from '@/lib/core/telefone'
+import { classificarContatos, normalizarTelefone, type TelefoneNormalizado } from '@/lib/core/telefone'
 
 export const TELEFONE_KEYS = ['telefone', 'celular', 'whatsapp', 'cel']
 export const SINDICO_CELULAR_KEYS = ['sindico_celular', 'celular_sindico', 'telefone_sindico', 'sindico_telefone']
 export const GERENTE_CELULAR_KEYS = ['gerente_celular', 'celular_gerente', 'telefone_gerente', 'gerente_telefone']
 
 type CamposTelefone = Record<string, string[]>
+
+export function normalizarContatosResponsavel(payload: Record<string, any>) {
+  const keys = [...TELEFONE_KEYS, 'telefone_fixo', 'fixo', 'telefone_residencial', 'telefone_comercial', 'telefone_outros']
+  const original = payload.telefones_importacao?.telefone?.original
+  const contatos = classificarContatos(...keys.map(key => payload[key]), original)
+  return {
+    ...payload,
+    ...contatos,
+    telefones_importacao: {
+      ...payload.telefones_importacao,
+      telefone: normalizarTelefone(contatos.telefone_outros ?? contatos.telefone),
+    },
+  }
+}
 
 export function normalizarTelefonesImportacao(
   payload: Record<string, any>,

@@ -101,7 +101,7 @@ Rateio/frações`;
     }
     const continuation = simple.find((item) => item.bloco === "B" && item.identificacao === "000034");
     assert.equal(continuation?.email.split(" | ").length, 3);
-    assert.equal(continuation?.telefone.split(" | ").length, 7);
+    assert.equal([continuation?.celular, continuation?.telefone_fixo, continuation?.telefone_outros].filter(Boolean).join(" | ").split(" | ").length, 7);
     assert.equal(results[2].inconsistencias.length, 0);
     console.log("PDFs reais: 1 recibo de R$ 5.005,53; 63 cadastros em cada relatório, nomes/unidades/e-mails conferidos.");
   }

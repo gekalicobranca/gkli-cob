@@ -59,3 +59,31 @@ export function primeiroTelefoneValido(...values: unknown[]) {
   }
   return null
 }
+
+export type ContatosClassificados = {
+  celular: string | null
+  telefone_fixo: string | null
+  telefone_outros: string | null
+  telefone: string | null
+}
+
+// Classifica cada contato separadamente, sem unir dígitos de números diferentes.
+export function classificarContatos(...values: unknown[]): ContatosClassificados {
+  const celulares = new Set<string>()
+  const fixos = new Set<string>()
+  const outros = new Set<string>()
+  for (const value of values) {
+    for (const raw of String(value ?? '').split(/[|;/,\r\n]+/).map(part => part.trim()).filter(Boolean)) {
+      const numero = normalizarTelefone(raw).numero
+      if (!numero) outros.add(raw)
+      else if (numero.length === 13) celulares.add(numero)
+      else fixos.add(numero)
+    }
+  }
+  return {
+    celular: [...celulares].join(' | ') || null,
+    telefone_fixo: [...fixos].join(' | ') || null,
+    telefone_outros: [...outros].join(' | ') || null,
+    telefone: [...celulares][0] ?? [...fixos][0] ?? null,
+  }
+}
