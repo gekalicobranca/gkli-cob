@@ -9,6 +9,7 @@ import { WorkerAutoRefresh } from '@/components/configuracoes/worker-auto-refres
 import { MetricCard } from '@/components/data/metric-card'
 import { loadWhatsappDailySummary } from '@/features/mensageria/whatsapp-daily-query'
 import { WhatsappPairing } from '@/components/configuracoes/whatsapp-pairing'
+import { WhatsappCloudMonitor } from '@/components/configuracoes/whatsapp-cloud-monitor'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,7 @@ export default async function WhatsappWebPage() {
   const db = createAdminClient()
   const consultedAt = new Date()
   const [carteiras, sessoes, pendencias, controles, monitores, daily] = await Promise.all([
-    db.from('carteiras').select('id,nome,whatsapp_habilitado,whatsapp_transporte,whatsapp_web_sessao,whatsapp_web_numero').order('nome'),
+    db.from('carteiras').select('id,nome,whatsapp_habilitado,whatsapp_transporte,whatsapp_web_sessao,whatsapp_web_numero,whatsapp_remetente_modo,whatsapp_phone_number_id').order('nome'),
     db.from('whatsapp_web_sessoes').select('*'),
     db.from('whatsapp_web_envios').select('token,mensagem_id,sessao,numero,estado,iniciado_em,erro,mensagem:mensagens(lote_id)').in('estado',['reservado','incerto']).order('iniciado_em'),
     db.from('whatsapp_worker_controles').select('sessao,habilitado,reiniciar_id,aplicado_id,atualizado_em,supervisor_em,supervisor_status'),
@@ -64,7 +65,7 @@ export default async function WhatsappWebPage() {
       const pendentes = pendencias.data?.filter(row => row.sessao === c.whatsapp_web_sessao && row.estado === 'incerto').length ?? 0
       const web = c.whatsapp_transporte === 'web'
       const state = whatsappOperationStatus({ session, control, channelEnabled: c.whatsapp_habilitado !== false, expectedPhone: c.whatsapp_web_numero, monitor: monitores.data?.find(row => row.script_key === `mensageria:web:${c.whatsapp_web_sessao}`) })
-      const statusText = web ? state.title : 'API oficial · conexão não monitorada aqui'
+      const statusText = web ? state.title : 'API oficial · Meta'
       const tones = { green: 'border-emerald-200 bg-emerald-50 text-emerald-800', amber: 'border-amber-200 bg-amber-50 text-amber-900', red: 'border-rose-200 bg-rose-50 text-rose-800', gray: 'border-slate-200 bg-slate-50 text-slate-600' }
       const tone = tones[web ? state.tone : 'gray']
       return <Card key={c.id} className="overflow-hidden p-0">
@@ -87,6 +88,7 @@ export default async function WhatsappWebPage() {
 
         </div> : null}
         </div>
+        {!web ? <WhatsappCloudMonitor walletId={c.id} enabled={c.whatsapp_habilitado !== false} ownPhone={c.whatsapp_remetente_modo !== 'proprio' || Boolean(c.whatsapp_phone_number_id?.trim())} now={consultedAt} /> : null}
         {web && daily?.byWallet[c.id] ? <div className="grid gap-3 border-t border-slate-100 px-5 py-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Enviadas hoje" value={daily.byWallet[c.id].sent} />
           <MetricCard label="Aguardando envio" value={daily.byWallet[c.id].queued} />
