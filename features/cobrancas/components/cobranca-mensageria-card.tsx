@@ -2,12 +2,13 @@ import { Card } from '@/components/ui/card'
 import { ButtonLink } from '@/components/ui/button'
 import { StatusBadge } from '@/components/data/status-badge'
 import { formatDateBR } from '@/utils/formatters/date'
+import { primeiroCelularValido } from '@/lib/core/telefone'
 
 export function CobrancaMensageriaCard({ mensagens, telefone, responsavel }: { mensagens: any[]; telefone?: string | null; responsavel?: string | null }) {
   const last = mensagens[0]
-  const whatsappDigits = String(telefone ?? '').replace(/\D/g, '')
+  const whatsappDigits = primeiroCelularValido(telefone)
   const whatsappHref = whatsappDigits
-    ? `https://wa.me/${whatsappDigits.startsWith('55') ? whatsappDigits : `55${whatsappDigits}`}`
+    ? `https://wa.me/${whatsappDigits}`
     : null
 
   return (

@@ -1,4 +1,5 @@
 import { LOTE_STATUS } from '@/lib/core/status'
+import { primeiroCelularValido } from '@/lib/core/telefone'
 
 export type ReguaContadores = {
   avaliadas: number
@@ -19,6 +20,7 @@ export type DestinatarioPreferencialRegua = 'proprietario' | 'inquilino' | 'qual
 type UnidadeContato = {
   responsavel_nome?: string | null
   telefone?: string | null
+  celular?: string | null
   email?: string | null
 }
 
@@ -55,14 +57,14 @@ export function escolherContatoRegua(params: {
   const candidatos = [
     ...apoios.map((apoio) => ({
       nome: apoio.responsavel_nome ?? unidade.responsavel_nome ?? null,
-      telefone: apoio.telefone ?? null,
+      telefone: canal === 'whatsapp' ? primeiroCelularValido(apoio.celular, apoio.telefone) : apoio.telefone ?? null,
       email: apoio.email ?? null,
       tipo: normalizarTipoResponsavel(apoio.tipo_responsavel),
       origem: 'responsaveis_unidades',
     })),
     {
       nome: unidade.responsavel_nome ?? null,
-      telefone: unidade.telefone ?? null,
+      telefone: canal === 'whatsapp' ? primeiroCelularValido(unidade.celular, unidade.telefone) : unidade.telefone ?? null,
       email: unidade.email ?? null,
       tipo: 'nao_informado',
       origem: 'unidades',

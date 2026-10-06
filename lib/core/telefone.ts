@@ -60,6 +60,16 @@ export function primeiroTelefoneValido(...values: unknown[]) {
   return null
 }
 
+export function normalizarCelular(value: unknown) {
+  const numero = normalizarTelefone(value).numero
+  return numero?.length === 13 ? numero : null
+}
+
+export function primeiroCelularValido(...values: unknown[]) {
+  const celulares = classificarContatos(...values).celular
+  return celulares?.split(' | ')[0] ?? null
+}
+
 export type ContatosClassificados = {
   celular: string | null
   telefone_fixo: string | null
