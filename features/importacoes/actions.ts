@@ -3261,8 +3261,8 @@ export async function confirmarImportacao(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
 
   const importacaoId = String(formData.get("importacao_id") ?? "");
-  const limparCobrancasAnteriores =
-    formData.get("limpar_cobrancas_anteriores") === "on";
+  const opcaoLimpeza = formData.get("limpar_cobrancas_anteriores");
+  const limparCobrancasAnteriores = opcaoLimpeza === "sim" || opcaoLimpeza === "on";
   if (!importacaoId) throw new Error("Importação obrigatória.");
 
   const supabase = await createClient();
@@ -3311,6 +3311,9 @@ export async function confirmarImportacao(formData: FormData) {
   let cobrancasAnterioresRemovidas = 0;
 
   if (importacao.tipo === "cobrancas") {
+    if (!["sim", "nao", "on"].includes(String(opcaoLimpeza))) {
+      throw new Error("A opção de substituir cobranças não foi recebida. Recarregue a página e confirme novamente.");
+    }
     if (limparCobrancasAnteriores) {
       cobrancasAnterioresRemovidas = await limparCobrancasNovasAnteriores(
         supabase,
@@ -3372,7 +3375,10 @@ export async function confirmarImportacao(formData: FormData) {
     importacaoId,
     tipo: importacao.tipo,
     resultado,
-    resumoAnterior: (importacao.resumo as Record<string, any>) ?? {},
+    resumoAnterior: {
+      ...((importacao.resumo as Record<string, any>) ?? {}),
+      ...(importacao.tipo === "cobrancas" ? { limpar_cobrancas_anteriores: limparCobrancasAnteriores } : {}),
+    },
   });
 }
 

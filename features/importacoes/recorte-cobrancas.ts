@@ -120,6 +120,16 @@ export async function limparCobrancasDaNovaImportacao(
     if (deleteError) {
       throw new Error(`Erro ao limpar cobranças anteriores: ${deleteError.message}`);
     }
+
+    const { data: restantes, error: verificacaoError } = await supabase
+      .from("cobrancas")
+      .select("id")
+      .in("id", loteIds);
+    if (verificacaoError || restantes?.length) {
+      throw new Error(
+        `A substituição das cobranças anteriores não foi concluída: ${verificacaoError?.message ?? `${restantes.length} registro(s) permaneceram na base`}. A importação foi interrompida.`,
+      );
+    }
   }
 
   return cobrancaIds.length;

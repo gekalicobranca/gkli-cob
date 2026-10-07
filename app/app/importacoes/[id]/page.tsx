@@ -204,12 +204,6 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
           <>
             <ButtonLink href="/app/importacoes" variant="secondary">Voltar</ButtonLink>
             <PreviewLogDownloadButton importacao={importacao as Record<string, any>} itens={itens} />
-            {canConfirm ? (
-              <form id="confirmar-importacao-form" action={confirmarImportacao}>
-                <input type="hidden" name="importacao_id" value={importacao.id} />
-                <ConfirmarImportacaoButton />
-              </form>
-            ) : null}
           </>
         }
       />
@@ -294,8 +288,11 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
         </Card>
       ) : null}
 
-      {canConfirm && importacaoTipo === 'cobrancas' ? (
+      {canConfirm ? (
+        <form id="confirmar-importacao-form" action={confirmarImportacao}>
+          <input type="hidden" name="importacao_id" value={importacao.id} />
         <Card className="border-amber-200 bg-amber-50/80 p-5">
+          {importacaoTipo === 'cobrancas' ? <>
           <p className="mb-4 text-sm text-slate-700">
             Importar somente débitos do ano corrente: <strong>{resumo.somente_ano_corrente === false ? 'Não — outros anos permitidos' : 'Sim'}</strong>.
             {' '}Para mudar esta escolha, gere uma nova importação.
@@ -304,7 +301,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
             <input
               type="checkbox"
               name="limpar_cobrancas_anteriores"
-              form="confirmar-importacao-form"
+              value="sim"
               defaultChecked
               className="mt-1 size-4 rounded border-amber-300 accent-amber-700"
             />
@@ -314,11 +311,15 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                 Limpar cobranças anteriores
               </span>
               <span className="mt-1 block text-sm leading-6 text-amber-900/80">
-                Remove apenas cobranças com status Novo e vencimento no ano corrente destes condomínios antes da importação.
+                Substitui cobranças com status Novo e vencimento no ano corrente destes condomínios. Cobranças vinculadas a acordos são preservadas.
               </span>
             </span>
           </label>
+          <input type="hidden" name="limpar_cobrancas_anteriores" value="nao" />
+          </> : null}
+          <div className="mt-4"><ConfirmarImportacaoButton /></div>
         </Card>
+        </form>
       ) : null}
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">

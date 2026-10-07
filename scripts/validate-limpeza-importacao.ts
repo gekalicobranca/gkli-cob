@@ -6,6 +6,7 @@ async function main() {
   const mutations: { table: string; method: string; ids: string | null }[] = []
   let falharConsulta = false
   let somenteAcordos = false
+  let falharExclusaoSilenciosamente = false
   const db = createClient('https://teste.invalid', 'teste', {
     global: { fetch: async (input, init) => {
       const url = new URL(String(input))
@@ -14,6 +15,10 @@ async function main() {
       const table = url.pathname.split('/').pop()!
       if (method === 'GET') {
         assert.equal(table, 'cobrancas')
+        if (url.searchParams.has('id')) {
+          assert.equal(url.searchParams.get('id'), 'in.(sem-acordo)')
+          return Response.json(falharExclusaoSilenciosamente ? [{ id: 'sem-acordo' }] : [])
+        }
         assert.equal(url.searchParams.get('acordo_cobrancas'), 'is.null')
         assert.equal(url.searchParams.get('acordos'), 'is.null')
         assert.match(url.searchParams.get('select')!, /acordo_cobrancas!left\(id\)/)
@@ -35,6 +40,10 @@ async function main() {
     { table: 'saneamento_cobrancas', method: 'PATCH', ids: 'in.(sem-acordo)' },
     { table: 'cobrancas', method: 'DELETE', ids: 'in.(sem-acordo)' },
   ])
+  mutations.length = 0
+  falharExclusaoSilenciosamente = true
+  await assert.rejects(limparCobrancasDaNovaImportacao(db, params), /permaneceram na base/)
+  falharExclusaoSilenciosamente = false
   mutations.length = 0
   somenteAcordos = true
   assert.equal(await limparCobrancasDaNovaImportacao(db, params), 0)
