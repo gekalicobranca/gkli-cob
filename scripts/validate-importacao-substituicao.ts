@@ -11,7 +11,7 @@ async function main() {
   let final: any
   const db = { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 'importacao', tipo: 'cobrancas', status: 'preview', total_validas: 1, resumo: {} } }) }) }) }) }
   const context = vm.createContext({
-    requireRole: async () => {}, createClient: async () => db,
+    requireRole: async () => {}, createClient: async () => db, createAdminClient: () => db,
     isValidImportType: () => true, isLegacyImportType: () => false,
     carregarItensImportacao: async () => [{ linha: 52, payload: { condominio_id: 'condominio' } }],
     getPermittedCarteiras: async () => ({}), assertPayloadsPermitidos: () => {},
@@ -19,6 +19,7 @@ async function main() {
     formatOrigemImportacao: () => 'teste',
     limparCobrancasNovasAnteriores: async () => { calls.push('limpar'); return 1 },
     importarCobrancas: async () => { calls.push('importar'); return { importados: 1, criados: 0, erros: [] } },
+    removerCobrancasAusentesDaImportacao: async () => { calls.push('remover-ausentes'); return { removidas: 1, ids: ['ausente'] } },
     mensagemPorTipo: () => 'Concluída', destinoPorTipo: () => '/app/cobrancas',
     finalizarImportacao: async (value: any) => { final = value },
   })
@@ -30,9 +31,10 @@ async function main() {
     if (checked) form.append('limpar_cobrancas_anteriores', 'sim')
     form.append('limpar_cobrancas_anteriores', 'nao')
     await context.confirmarImportacao(form)
-    assert.deepEqual(calls, checked ? ['limpar', 'importar'] : ['importar'])
+    assert.deepEqual(calls, checked ? ['limpar', 'importar', 'remover-ausentes'] : ['importar'])
     assert.equal(final.resumoAnterior.limpar_cobrancas_anteriores, checked)
     assert.equal(final.resultado.cobrancas_anteriores_removidas, checked ? 1 : 0)
+    assert.equal(final.resultado.cobrancas_ausentes_removidas, checked ? 1 : 0)
   }
   calls.length = 0
   const missing = new FormData()
@@ -42,3 +44,4 @@ async function main() {
   console.log('OK: substituir antes de importar, preservar quando desmarcado, auditar escolha e impedir confirmação sem opção.')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })
+

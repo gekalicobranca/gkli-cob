@@ -28,6 +28,7 @@ import {
 import { formatOrigemImportacao } from "./origem-importacao";
 import { observacoesComRecibo } from "./identidade-recibo";
 import { carregarItensImportacao } from "./carregar-itens";
+import { removerCobrancasAusentesDaImportacao } from "./remover-ausentes";
 import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
 import {
   avaliarBloqueioGarantidora,
@@ -3309,6 +3310,7 @@ export async function confirmarImportacao(formData: FormData) {
   let execucao = emptyImportExecutionResult();
   const origemImportacao = formatOrigemImportacao("importacao_cobrancas");
   let cobrancasAnterioresRemovidas = 0;
+  let cobrancasAusentesRemovidas = 0;
 
   if (importacao.tipo === "cobrancas") {
     if (!["sim", "nao", "on"].includes(String(opcaoLimpeza))) {
@@ -3321,6 +3323,13 @@ export async function confirmarImportacao(formData: FormData) {
       );
     }
     execucao = await importarCobrancas(supabase, payloads, origemImportacao, (importacao.resumo as any)?.somente_ano_corrente !== false);
+    if (limparCobrancasAnteriores) {
+      const limpeza = await removerCobrancasAusentesDaImportacao(createAdminClient(), importacaoId);
+      cobrancasAusentesRemovidas = limpeza.removidas;
+      execucao.ausentes = Math.max(0, execucao.ausentes - limpeza.removidas);
+      execucao.erros = execucao.erros.filter((mensagem) => !limpeza.ids.some((id) => mensagem.includes(`id ${id}`)));
+      if (limpeza.motivo) execucao.erros.push(`ALERTA: ${limpeza.motivo}`);
+    }
   }
 
   if (importacao.tipo === "condominios") {
@@ -3367,6 +3376,8 @@ export async function confirmarImportacao(formData: FormData) {
   (resultado as any).atualizados = execucao.atualizados;
   (resultado as any).divergentes = execucao.divergentes;
   (resultado as any).ausentes = execucao.ausentes;
+  (resultado as any).cobrancas_ausentes_removidas = cobrancasAusentesRemovidas;
+  if (cobrancasAusentesRemovidas) resultado.mensagem += ` ${cobrancasAusentesRemovidas} cobrança(s) ausente(s) com status Novo ou Cobrança ativa foram removidas, inclusive dos flows.`;
   (resultado as any).cobrancas_anteriores_removidas =
     cobrancasAnterioresRemovidas;
 
@@ -3385,3 +3396,4 @@ export async function confirmarImportacao(formData: FormData) {
 export async function confirmarImportacaoLegado(formData: FormData) {
   return confirmarImportacao(formData);
 }
+

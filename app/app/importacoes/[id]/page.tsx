@@ -311,7 +311,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                 Limpar cobranças anteriores
               </span>
               <span className="mt-1 block text-sm leading-6 text-amber-900/80">
-                Substitui cobranças com status Novo e vencimento no ano corrente destes condomínios. Cobranças vinculadas a acordos são preservadas.
+                Substitui cobranças com status Novo e vencimento no ano corrente destes condomínios. Em relatórios completos, remove também cobranças ausentes com status Novo ou Cobrança ativa, inclusive dos flows. Cobranças vinculadas a acordos são preservadas.
               </span>
             </span>
           </label>
@@ -447,3 +447,4 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
     </div>
   )
 }
+
