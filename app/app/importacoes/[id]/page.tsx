@@ -274,8 +274,8 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
 
           {resultadoMensagens.length > 0 ? (
             <div className="mt-4 space-y-3">
-              <MessageSummary title="Já existiam na base" messages={mensagensJaExistentes} />
-              <MessageSummary title="Divergências para revisar" messages={mensagensDivergentes} tone="warning" />
+              <MessageSummary title="Cobranças existentes preservadas" messages={mensagensJaExistentes} />
+              <MessageSummary title="Cobranças preservadas com divergências — revisar" messages={mensagensDivergentes} tone="warning" />
               <MessageSummary title="Abertas ausentes no relatório" messages={mensagensAusentes} tone="warning" />
               <MessageSummary title="Outras ocorrências" messages={mensagensOutras} tone="danger" />
             </div>

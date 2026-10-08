@@ -28,6 +28,7 @@ import {
 import { formatOrigemImportacao } from "./origem-importacao";
 import { observacoesComRecibo } from "./identidade-recibo";
 import { carregarItensImportacao } from "./carregar-itens";
+import { explicarCobrancasPreservadas } from "./mensagens-preservacao";
 import { substituirCobrancasAnterioresDaImportacao } from "./substituir-anteriores";
 import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
 import {
@@ -3287,6 +3288,7 @@ export async function confirmarImportacao(formData: FormData) {
       cobrancasAnterioresRemovidas = limpeza.removidas;
     }
     execucao = await importarCobrancas(supabase, payloads, origemImportacao, (importacao.resumo as any)?.somente_ano_corrente !== false);
+    execucao.erros = await explicarCobrancasPreservadas(supabase, execucao.erros, limparCobrancasAnteriores);
   }
 
   if (importacao.tipo === "condominios") {

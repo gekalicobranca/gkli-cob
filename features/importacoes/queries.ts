@@ -1,3 +1,4 @@
+import { explicarCobrancasPreservadas } from './mensagens-preservacao'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
@@ -64,6 +65,10 @@ export async function getImportacaoDetalhe(id: string, scope: CarteiraScope) {
     throw new Error(`Erro ao carregar importação: ${error.message}`)
   }
 
+  if (data?.tipo === 'cobrancas' && Array.isArray((data.resumo as any)?.resultado?.erros)) {
+    const resumo = data.resumo as any
+    resumo.resultado.erros = await explicarCobrancasPreservadas(supabase, resumo.resultado.erros, resumo.limpar_cobrancas_anteriores === true)
+  }
   return data ? (normalizeRelations(data as any, ['carteiras']) as any) : null
 }
 
