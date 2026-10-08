@@ -21,6 +21,7 @@ export async function explicarCobrancasPreservadas(db: SupabaseClient, mensagens
     if (!id) return m
     const motivos: string[] = []
     if (!limpeza) motivos.push('a limpeza das cobranças anteriores não foi selecionada')
+    if (status.get(id) === 'regular') motivos.push('cobrança Regular, ainda aos cuidados da administradora; disponível para acordos e fora dos flows')
     if (status.get(id) === 'judicializado') motivos.push('cobrança judicializada; a limpeza abrange apenas Novo e Cobrança ativa')
     if (acordos.has(id)) motivos.push('cobrança vinculada a acordo')
     if (duplicadas.has(id)) motivos.push('possui cobranças duplicadas vinculadas, protegidas pela limpeza')
