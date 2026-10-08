@@ -30,7 +30,8 @@ async function main() {
         ('${id(13)}','${id(3)}','${id(2)}','${id(4)}','2026-08-05',null,'em_cobranca_ativa','em_aberto'),
         ('${id(14)}','${id(3)}','${id(2)}','${id(4)}','2026-07-05',null,'em_cobranca_ativa','quitado'),
         ('${id(15)}','${id(30)}','${id(2)}','${id(4)}','2026-06-05',null,'em_cobranca_ativa','em_aberto'),
-        ('${id(16)}','${id(3)}','${id(2)}','${id(4)}','2026-05-05',null,'novo','em_aberto');
+        ('${id(16)}','${id(3)}','${id(2)}','${id(4)}','2026-05-05',null,'novo','em_aberto'),
+        ('${id(17)}','${id(3)}','${id(2)}','${id(4)}','2025-05-05',null,'regular','em_aberto');
       insert into acordos values('${id(20)}','${id(13)}');
       insert into acordo_cobrancas values('${id(21)}','${id(16)}');
       insert into cobranca_flows(id,payload,status) values('${id(40)}','{"cobranca_ids":["${id(11)}"]}','ativo');
@@ -42,19 +43,20 @@ async function main() {
     `)
     await db.exec(readFileSync('supabase/migrations/20261008161105_importacao_substituir_novo_e_ativa.sql', 'utf8'))
     await db.exec(readFileSync('supabase/migrations/20261008181542_importacao_preservar_historico_whatsapp.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261008203444_importacao_substituir_regular.sql', 'utf8'))
     const run = async () => (await db.query<{ result: any }>('select importacao_substituir_cobrancas_anteriores($1) result', [id(1)])).rows[0].result
     await db.exec("begin; savepoint year_scope; update importacoes set resumo=jsonb_set(resumo,'{somente_ano_corrente}','true')")
     assert.deepEqual((await run()).ids.sort(), [id(10), id(12), id(14)])
     await db.exec('rollback to savepoint year_scope; release savepoint year_scope; commit')
     await db.exec('alter table auditoria_eventos add constraint audit_failure check(false)')
     await assert.rejects(run(), /audit_failure/)
-    assert.equal((await db.query('select * from cobrancas')).rows.length, 7)
+    assert.equal((await db.query('select * from cobrancas')).rows.length, 8)
     assert.equal((await db.query<any>('select status from mensagens')).rows[0].status, 'agendada')
     await db.exec('alter table auditoria_eventos drop constraint audit_failure')
     await db.exec("update importacoes set total_invalidas=1,total_linhas=2,resumo=jsonb_set(resumo,'{recorte_regua}','\"parcial\"')")
     const result = await run()
-    assert.equal(result.removidas, 4)
-    assert.deepEqual(result.ids.sort(), [id(10), id(11), id(12), id(14)])
+    assert.equal(result.removidas, 5)
+    assert.deepEqual(result.ids.sort(), [id(10), id(11), id(12), id(14), id(17)])
     assert.equal(result.mensagens_canceladas, 1)
     assert.equal(result.itens_removidos, 1)
     const message = (await db.query<any>('select * from mensagens')).rows[0]

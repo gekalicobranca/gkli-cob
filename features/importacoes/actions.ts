@@ -3330,7 +3330,7 @@ export async function confirmarImportacao(formData: FormData) {
   };
 
   if (cobrancasAnterioresRemovidas > 0) {
-    resultado.mensagem += ` ${cobrancasAnterioresRemovidas} cobrança(s) anterior(es) com status Novo ou Cobrança ativa foram removidas, incluindo seus vínculos nos flows.`;
+    resultado.mensagem += ` ${cobrancasAnterioresRemovidas} cobrança(s) anterior(es) com status Regular, Novo ou Cobrança ativa foram removidas, incluindo seus vínculos nos flows.`;
   }
 
   (resultado as any).atualizados = execucao.atualizados;

@@ -315,7 +315,7 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                 Limpar cobranças anteriores
               </span>
               <span className="mt-1 block text-sm leading-6 text-amber-900/80">
-                Antes de importar, remove as cobranças anteriores com status Novo ou Cobrança ativa dos condomínios e da carteira desta importação, incluindo seus vínculos nos flows. A limpeza ocorre mesmo em relatórios parciais ou com linhas inválidas, inclusive para cobranças que aparecem na planilha. Os condomínios são identificados pelas linhas válidas.
+                Antes de importar, remove as cobranças anteriores com status Regular, Novo ou Cobrança ativa dos condomínios e da carteira desta importação, incluindo seus vínculos nos flows. A limpeza ocorre mesmo em relatórios parciais ou com linhas inválidas, inclusive para cobranças que aparecem na planilha. Os condomínios são identificados pelas linhas válidas.
                 {' '}{resumo.somente_ano_corrente === false
                   ? 'A limpeza considera vencimentos de todos os anos.'
                   : 'A limpeza considera apenas vencimentos no ano corrente.'}

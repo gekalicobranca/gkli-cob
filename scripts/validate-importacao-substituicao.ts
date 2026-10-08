@@ -18,6 +18,7 @@ async function main() {
     emptyImportExecutionResult: () => ({ importados: 0, atualizados: 0, erros: [] }),
     formatOrigemImportacao: () => 'teste',
     substituirCobrancasAnterioresDaImportacao: async () => { calls.push('limpar-novo-ativa-flows'); return { removidas: 1, ids: ['anterior'] } },
+    explicarCobrancasPreservadas: async (_db: any, mensagens: string[]) => mensagens,
     importarCobrancas: async () => { calls.push('importar'); return { importados: 1, criados: 0, erros: [] } },
     mensagemPorTipo: () => 'Concluída', destinoPorTipo: () => '/app/cobrancas',
     finalizarImportacao: async (value: any) => { final = value },
