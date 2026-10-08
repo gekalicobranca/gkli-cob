@@ -14,7 +14,8 @@ async function main() {
       create table acordos(id uuid,cobranca_id uuid references cobrancas);
       create table acordo_cobrancas(id uuid,cobranca_id uuid references cobrancas);
       create table cobranca_flows(id uuid primary key,payload jsonb,status text,cancelado_em timestamptz,total_mensagens int,total_pendentes int,total_agendadas int,total_enviadas int,total_falhas int,proximo_disparo_em timestamptz);
-      create table mensagens(id uuid primary key,cobranca_id uuid references cobrancas on delete set null,cobranca_flow_id uuid,payload jsonb,status text,status_operacional text,cancelado_em timestamptz,cancelada_em timestamptz,agendada_para timestamptz,scheduled_at timestamptz,motivo_cancelamento text);
+      create table mensagens(id uuid primary key,cobranca_id uuid references cobrancas on delete cascade,cobranca_flow_id uuid,payload jsonb,status text,status_operacional text,cancelado_em timestamptz,cancelada_em timestamptz,agendada_para timestamptz,scheduled_at timestamptz,motivo_cancelamento text);
+      create table whatsapp_web_envios(mensagem_id uuid not null references mensagens(id),estado text);
       create table lote_itens(id uuid,cobranca_id uuid references cobrancas on delete cascade,cobranca_flow_id uuid);
       create table flow_progressao(cobranca_ids uuid[],status text,token text,lease_ate timestamptz,erro text,updated_at timestamptz);
       create table maestro_flow_montagens(plano jsonb,status text,token text,lease_ate timestamptz,updated_at timestamptz);
@@ -34,11 +35,13 @@ async function main() {
       insert into acordo_cobrancas values('${id(21)}','${id(16)}');
       insert into cobranca_flows(id,payload,status) values('${id(40)}','{"cobranca_ids":["${id(11)}"]}','ativo');
       insert into mensagens(id,cobranca_id,cobranca_flow_id,payload,status,status_operacional,agendada_para) values('${id(41)}','${id(11)}','${id(40)}','{"cobranca_ids":["${id(11)}"]}','agendada','agendada',now());
+      insert into whatsapp_web_envios values('${id(41)}','reservado');
       insert into lote_itens values('${id(42)}','${id(11)}','${id(40)}');
       insert into flow_progressao(cobranca_ids,status) values(array['${id(11)}'::uuid],'pendente');
       insert into maestro_flow_montagens(plano,status) values('[["${id(11)}"]]','processando');
     `)
     await db.exec(readFileSync('supabase/migrations/20261008161105_importacao_substituir_novo_e_ativa.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261008181542_importacao_preservar_historico_whatsapp.sql', 'utf8'))
     const run = async () => (await db.query<{ result: any }>('select importacao_substituir_cobrancas_anteriores($1) result', [id(1)])).rows[0].result
     await db.exec("begin; savepoint year_scope; update importacoes set resumo=jsonb_set(resumo,'{somente_ano_corrente}','true')")
     assert.deepEqual((await run()).ids.sort(), [id(10), id(12), id(14)])
@@ -57,6 +60,7 @@ async function main() {
     const message = (await db.query<any>('select * from mensagens')).rows[0]
     assert.equal(message.status, 'cancelada')
     assert.equal(message.cobranca_id, null)
+    assert.equal((await db.query<any>('select mensagem_id from whatsapp_web_envios')).rows[0].mensagem_id, id(41))
     assert.deepEqual(message.payload.cobranca_ids, [])
     assert.equal((await db.query<any>('select status from cobranca_flows')).rows[0].status, 'cancelado')
     assert.equal((await db.query<any>('select status from flow_progressao')).rows[0].status, 'cancelado')
