@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { resilientClient } from './resilient-client.mjs'
+import { resilientClient, synchronizationTimeoutMs } from './resilient-client.mjs'
 import { EventEmitter } from 'node:events'
 
 test('falha de código chamada sem await não derruba processo nem recria navegador', async () => {
@@ -33,6 +33,31 @@ function fixture(errors) {
   }
   return { client: new (resilientClient(Base, () => {}))(), attempts: () => attempts }
 }
+
+test('sincronização ultrapassa dois minutos e encerra após dez minutos', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let complete
+  class Base {
+    options = { authTimeoutMs: 120000 }
+    pupPage = { waitForFunction: async () => {}, isClosed: () => false }
+    inject() { return new Promise(resolve => { complete = resolve }) }
+  }
+  const Client = resilientClient(Base, () => {})
+  let settled = false
+  const pending = new Client().inject().then(result => { settled = true; return result })
+  await Promise.resolve()
+  t.mock.timers.tick(120001)
+  await Promise.resolve()
+  assert.equal(settled, false)
+  complete('ready')
+  assert.equal(await pending, 'ready')
+
+  const timedOut = new Client().inject()
+  const rejection = assert.rejects(timedOut, /Prazo excedido/)
+  await Promise.resolve()
+  t.mock.timers.tick(synchronizationTimeoutMs)
+  await rejection
+})
 test('retoma inicialização após navegação sem reiniciar o navegador', async () => {
   const f = fixture(['Execution context was destroyed'])
   assert.equal(await f.client.inject(), 'ready')

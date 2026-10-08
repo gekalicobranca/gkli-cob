@@ -1,6 +1,7 @@
 'use server'
 
 import { normalizeGrupo } from '@/features/condominios/organizacao'
+import { condicoesAcordoPayload } from './condicoes-acordo'
 import { revalidatePath } from 'next/cache'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { captacaoPayload } from '@/features/condominios/captacao-payload'
@@ -170,6 +171,7 @@ export async function createCondominio(formData: FormData) {
   const scope = await getPermittedCarteiras()
   assertCarteiraPermitida(scope, carteiraId)
   const payload = {
+    ...condicoesAcordoPayload(formData),
     carteira_id: carteiraId,
     ...(formData.has('grupo') ? { grupo: normalizeGrupo(formData.get('grupo')) } : {}),
     ...(formData.has('operador_id') ? { operador_id: optionalText(formData, 'operador_id') } : {}),
@@ -288,7 +290,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, grupo, operador_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, sindico_email, sindico_celular, gerente_email, gerente_celular, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, dias_expiracao_regua_pre_juridico, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, mascara_unidade, mascara_bloco, status, observacoes')
+    .select('id, carteira_id, grupo, operador_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, sindico_email, sindico_celular, gerente_email, gerente_celular, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, dias_expiracao_regua_pre_juridico, despesas_acordo_avista_percentual, despesas_acordo_parcelado_percentual, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, mascara_unidade, mascara_bloco, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -298,6 +300,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   assertCarteiraPermitida(scope, carteiraId)
 
   const payload = {
+    ...condicoesAcordoPayload(formData),
     carteira_id: carteiraId,
     ...(formData.has('grupo') ? { grupo: normalizeGrupo(formData.get('grupo')) } : {}),
     ...(formData.has('operador_id') ? { operador_id: optionalText(formData, 'operador_id') } : {}),
@@ -361,6 +364,7 @@ export async function updateCondominioIntegral(formData: FormData) {
 
   revalidatePath('/app/condominios')
   revalidatePath(`/app/condominios/${id}`)
+  revalidatePath('/app/gestao/keila')
   redirect(aba && aba !== 'cadastro' ? `/app/condominios/${id}?aba=${encodeURIComponent(aba)}` : `/app/condominios/${id}`)
 }
 

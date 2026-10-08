@@ -28,6 +28,7 @@ import {
 import { formatOrigemImportacao } from "./origem-importacao";
 import { observacoesComRecibo } from "./identidade-recibo";
 import { carregarItensImportacao } from "./carregar-itens";
+import { substituirCobrancasAnterioresDaImportacao } from "./substituir-anteriores";
 import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
 import {
   avaliarBloqueioGarantidora,
@@ -36,7 +37,6 @@ import {
 } from "./bloqueio-garantidora";
 import {
   avaliarRecorteAnoCorrente,
-  limparCobrancasDaNovaImportacao,
 } from "./recorte-cobrancas";
 import { sincronizarResponsavelComUnidadeOperacional } from "@/features/responsaveis-unidades/sync-unidade";
 import { normalizeCondominioName } from "@/features/condominios/normalize-name";
@@ -120,38 +120,6 @@ type ImportExecutionResult = {
   ignorados: number;
   erros: string[];
 };
-
-async function limparCobrancasNovasAnteriores(
-  supabase: SupabaseClient,
-  payloads: Record<string, any>[],
-) {
-  const condominioIds = Array.from(
-    new Set(
-      payloads
-        .map((payload) => String(payload.condominio_id ?? "").trim())
-        .filter(Boolean),
-    ),
-  );
-
-  if (condominioIds.length === 0) {
-    throw new Error(
-      "Não foi possível identificar os condomínios para limpar as cobranças anteriores.",
-    );
-  }
-
-  const carteiraIds = Array.from(
-    new Set(
-      payloads
-        .map((payload) => String(payload.carteira_id ?? "").trim())
-        .filter(Boolean),
-    ),
-  );
-
-  return limparCobrancasDaNovaImportacao(supabase as any, {
-    condominioIds,
-    carteiraId: carteiraIds.length === 1 ? carteiraIds[0] : null,
-  });
-}
 
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
   if (!carteiraId) throw new Error("Carteira obrigatória.");
@@ -3261,8 +3229,8 @@ export async function confirmarImportacao(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
 
   const importacaoId = String(formData.get("importacao_id") ?? "");
-  const limparCobrancasAnteriores =
-    formData.get("limpar_cobrancas_anteriores") === "on";
+  const opcaoLimpeza = formData.get("limpar_cobrancas_anteriores");
+  const limparCobrancasAnteriores = opcaoLimpeza === "sim" || opcaoLimpeza === "on";
   if (!importacaoId) throw new Error("Importação obrigatória.");
 
   const supabase = await createClient();
@@ -3311,11 +3279,12 @@ export async function confirmarImportacao(formData: FormData) {
   let cobrancasAnterioresRemovidas = 0;
 
   if (importacao.tipo === "cobrancas") {
+    if (!["sim", "nao", "on"].includes(String(opcaoLimpeza))) {
+      throw new Error("A opção de substituir cobranças não foi recebida. Recarregue a página e confirme novamente.");
+    }
     if (limparCobrancasAnteriores) {
-      cobrancasAnterioresRemovidas = await limparCobrancasNovasAnteriores(
-        supabase,
-        payloads,
-      );
+      const limpeza = await substituirCobrancasAnterioresDaImportacao(createAdminClient(), importacaoId);
+      cobrancasAnterioresRemovidas = limpeza.removidas;
     }
     execucao = await importarCobrancas(supabase, payloads, origemImportacao, (importacao.resumo as any)?.somente_ano_corrente !== false);
   }
@@ -3358,7 +3327,7 @@ export async function confirmarImportacao(formData: FormData) {
   };
 
   if (cobrancasAnterioresRemovidas > 0) {
-    resultado.mensagem += ` ${cobrancasAnterioresRemovidas} cobrança(s) anterior(es) com status Novo foram removidas.`;
+    resultado.mensagem += ` ${cobrancasAnterioresRemovidas} cobrança(s) anterior(es) com status Novo ou Cobrança ativa foram removidas, incluindo seus vínculos nos flows.`;
   }
 
   (resultado as any).atualizados = execucao.atualizados;
@@ -3372,7 +3341,10 @@ export async function confirmarImportacao(formData: FormData) {
     importacaoId,
     tipo: importacao.tipo,
     resultado,
-    resumoAnterior: (importacao.resumo as Record<string, any>) ?? {},
+    resumoAnterior: {
+      ...((importacao.resumo as Record<string, any>) ?? {}),
+      ...(importacao.tipo === "cobrancas" ? { limpar_cobrancas_anteriores: limparCobrancasAnteriores } : {}),
+    },
   });
 }
 

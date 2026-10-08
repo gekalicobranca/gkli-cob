@@ -10,7 +10,7 @@ export async function solicitarPdfs(ids: string[]): Promise<{ mensagem: string; 
   if (!user) return { mensagem: 'Entre novamente para solicitar o resgate.', erro: true }
   const { data: perfil } = await db.from('profiles').select('role').eq('id', user.id).single()
   if (!perfil || !['admin', 'operador'].includes(perfil.role)) return { mensagem: 'Seu perfil não pode solicitar resgates.', erro: true }
-  const { data: configs, error } = await db.from('agente_acordos_configuracoes').select('condominio_id, carteira_id, codigo_cliente').in('condominio_id', [...new Set(ids)]).eq('habilitado', true)
+  const { data: configs, error } = await db.from('agente_acordos_configuracoes').select('condominio_id, carteira_id, codigo_cliente, administradora').in('condominio_id', [...new Set(ids)]).eq('habilitado', true)
   if (error) return { mensagem: 'Não foi possível consultar os agentes.', erro: true }
   let criados = 0
   let existentes = 0

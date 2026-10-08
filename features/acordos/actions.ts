@@ -1,6 +1,5 @@
 "use server";
 
-import { propostaFinanceiraParaAprovacao, guardarFormularioProposta } from "./aprovacao-fora-regua";
 import { calcularDespesasAcordo, validarCotasSemDespesas } from "./calculo-despesas";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
@@ -944,23 +943,6 @@ export async function createAcordo(formData: FormData) {
       p_parcelas: parcelas,
       p_cobranca_status: COBRANCA_STATUS.EM_NEGOCIACAO,
     };
-  const { data: aprovacao, error: aprovacaoError } = await supabase.rpc(
-    "solicitar_aprovacao_acordo_fora_regua", {
-      p_carteira_id: cobrancaPrincipal.carteira_id,
-      p_condominio_id: cobrancaPrincipal.condominio_id,
-      p_unidade_id: cobrancaPrincipal.unidade_id,
-      p_cobranca_id: cobrancaPrincipal.id,
-      p_proposta: propostaFinanceiraParaAprovacao(parametrosFinanceiros),
-      p_formulario: guardarFormularioProposta(formData),
-    },
-  );
-  if (aprovacaoError) throw new Error(`Erro ao verificar aprovação do gestor: ${aprovacaoError.message}`);
-  if (aprovacao?.acordo_id) throw new Error("Esta proposta já foi utilizada em um acordo.");
-  if (aprovacao && aprovacao.status !== "aprovada") {
-    revalidatePath("/app/pendencias");
-    revalidatePath("/app/inbox");
-    redirect(`/app/acordos/novo?aprovacao_fora_regua=${encodeURIComponent(aprovacao.id)}`);
-  }
   const { data: acordoIdData, error: acordoError } = await supabase.rpc(
     "criar_acordo_financeiro", parametrosFinanceiros as any,
   );
@@ -1521,7 +1503,10 @@ export async function marcarParcelaComoPaga(formData: FormData) {
     .from("parcelas_acordo")
     .select("id, numero, valor, vencimento, status, data_pagamento")
     .eq("id", parcelaId)
+    .eq("acordo_id", acordoId)
     .maybeSingle();
+
+  if (!parcelaEvento) throw new Error("Parcela não pertence ao acordo informado.");
 
   const { error: parcelaError } = await supabase
     .from("parcelas_acordo")
@@ -1666,6 +1651,10 @@ export async function marcarParcelaComoPaga(formData: FormData) {
     userId: user?.id ?? null,
   });
 
+  const { error: keilaError } = await supabase.rpc('agente_virtual_efetivar_acordo', { p_acordo: acordoId });
+  if (keilaError) throw new Error(`Pagamento registrado; falha ao sincronizar agente virtual: ${keilaError.message}`);
+  revalidatePath('/app/gestao/keila');
+  revalidatePath('/app/gestao/lidia');
   revalidatePath(`/app/acordos/${acordoId}`);
   revalidatePath("/app/acordos");
   revalidatePath("/app/acordos/fila");

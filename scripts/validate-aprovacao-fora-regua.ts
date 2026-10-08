@@ -119,7 +119,15 @@ async function main() {
   form.set('entrada', '25,00'); form.append('cotas_sem_despesas', id(5)); form.set('token', 'must-not-be-saved');
   const stored = guardarFormularioProposta(form);
   assert.equal(stored.entrada, '25,00'); assert.equal(stored.cotas_sem_despesas, id(5)); assert.equal(stored.token, undefined);
+  await db.exec(await readFile(new URL('../supabase/migrations/20261006185625_remover_aprovacao_acordo_fora_regua.sql', import.meta.url), 'utf8'));
+  await asUser(10);
+  assert.ok((await create(changed)).rows.length, 'Rejected legacy proposal no longer blocks creation');
+  assert.ok((await create({ ...params(), p_valor_acordado: 240 })).rows.length, 'Outside rule creates without approval');
+  await assert.rejects(create({ ...params(), p_carteira_id: id(2) }), /Sem permissão/);
+  await asUser(12);
+  await assert.rejects(create(), /Sem permissão/);
+  await db.exec('reset role');
   await db.close();
-  console.log('OK: approval required without exemption; deduplication; scope; roles; audit; generic resolution bypass; changed terms; atomic rollback; single use; rejection; D+ boundary; saved form.');
+  console.log('OK: migration removes approval requirement; rejected legacy proposals allowed; scope and roles preserved; historical flow: deduplication; scope; roles; audit; generic resolution bypass; changed terms; atomic rollback; single use; rejection; D+ boundary; saved form.');
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getAgenteWorkerByScriptKey } from './workers'
+import { enfileirarColetaReceita } from './execucoes-service'
 import { startLocalWorker, stopLocalWorker } from './local-workers'
 import { processarRelatorioCaptado } from '@/features/captacao-automatizada/processar-relatorio'
 
@@ -113,69 +114,14 @@ async function criarExecucaoAgenteReceita(formData: FormData) {
 
   if (!receitaId) throw new Error('Receita não informada.')
 
-  const { data: receita, error: receitaError } = await supabase
-    .from('agente_receitas')
-    .select('id, administradora_id, carteira_id, config_json')
-    .eq('id', receitaId)
-    .single()
-
-  if (receitaError) throw new Error(receitaError.message)
-  if (!receita) throw new Error('Receita não encontrada.')
-
-  const condominioId = getCondominioId(receita.config_json)
-  let carteiraId = receita.carteira_id
-  if (condominioId) {
-    const { data: condominio, error: condominioError } = await supabase
-      .from('condominios')
-      .select('carteira_id')
-      .eq('id', condominioId)
-      .single()
-    if (condominioError) throw new Error(condominioError.message)
-    carteiraId = condominio?.carteira_id ?? carteiraId
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const { data: pendente, error: pendenteError } = await supabase.from('agente_execucoes')
-    .select('id').eq('receita_id', receita.id).in('status', ['pendente', 'em_execucao'])
-    .order('created_at', { ascending: false }).limit(1).maybeSingle()
-  if (pendenteError) throw new Error(pendenteError.message)
-  if (pendente) return { execucaoId: pendente.id, condominioId }
-
-  const { data: execucao, error } = await supabase
-    .from('agente_execucoes')
-    .insert({
-      receita_id: receita.id,
-      administradora_id: receita.administradora_id,
-      carteira_id: carteiraId,
-      condominio_id: condominioId,
-      status: 'pendente',
-      solicitado_por: user?.id ?? null,
-      tentativas: 0,
-      ...(getString(formData, 'origem') === 'maestro' ? { origem: 'maestro' } : {}),
-    })
-    .select('id')
-    .single()
-
-  if (error) throw new Error(error.message)
-
-  await supabase.from('agente_logs').insert({
-    execucao_id: execucao.id,
-    nivel: 'info',
-    step: 'fila',
-    mensagem:
-      'Execução criada. Aguardando worker externo Playwright processar a coleta.',
+  const scope = await getPermittedCarteiras()
+  const resultado = await enfileirarColetaReceita(createAdminClient(), {
+    receitaId, solicitadoPor: scope.userId, carteiraIds: scope.carteiraIds,
+    origem: getString(formData, 'origem') === 'maestro' ? 'maestro' : 'manual',
   })
-
   revalidatePath('/app/agente-automatico')
   revalidatePath('/app/agente-automatico/maestro')
-
-  return {
-    execucaoId: execucao.id,
-    condominioId,
-  }
+  return resultado
 }
 
 export async function executarAgenteReceita(formData: FormData) {

@@ -55,7 +55,6 @@ type AcordoSimulatorFormProps = {
   cotasSemDespesas?: string[];
   formularioInicial?: FormularioPropostaForaRegua;
   contemCobrancasForaRegua?: boolean;
-  aprovacaoForaReguaStatus?: string;
   acordoJaCriado?: boolean;
   bloqueadoPorPendenciaPlanilha?: boolean;
   bloqueadoPorPendenciaAprovacaoSindico?: boolean;
@@ -125,7 +124,6 @@ export function AcordoSimulatorForm({
   cotasSemDespesas = [],
   formularioInicial = {},
   contemCobrancasForaRegua = false,
-  aprovacaoForaReguaStatus,
   acordoJaCriado = false,
   bloqueadoPorPendenciaPlanilha = false,
   bloqueadoPorPendenciaAprovacaoSindico = false,
@@ -757,8 +755,7 @@ export function AcordoSimulatorForm({
         ) : null}
 
         {contemCobrancasForaRegua && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          Esta seleção contém parcelas fora da régua. Ao continuar, o sistema verificará a aprovação do gestor/admin e abrirá uma pendência se necessário.
-          O acordo e seus envios só serão gerados após aprovação das mesmas condições, independentemente da opção de isenção de despesas.
+          Esta seleção contém cotas fora da régua. Mantenha as confirmações de autorização para a inclusão e a eventual isenção de despesas.
         </div>}
         <div className="flex flex-col justify-end gap-2 md:flex-row">
           {!exigeAprovacaoSindico ? (
@@ -778,9 +775,7 @@ export function AcordoSimulatorForm({
             loading={isCreatingAcordo}
             loadingLabel="Criando acordo..."
           >
-            {contemCobrancasForaRegua && aprovacaoForaReguaStatus !== "aprovada"
-              ? "Solicitar aprovação do gestor"
-              : "Criar acordo e iniciar fluxo"}
+            Criar acordo e iniciar fluxo
           </Button>
         </div>
         <p className="text-right text-xs leading-5 text-slate-500">

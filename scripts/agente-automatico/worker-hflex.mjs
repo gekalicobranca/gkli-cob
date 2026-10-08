@@ -11,6 +11,7 @@ import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './brows
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 import { captacaoGlobalAtiva } from './controle-global.mjs'
+import { aguardarSaidaRelatorioHflex } from './hflex-saida-relatorio.mjs'
 
 const SCRIPT_KEY = 'captacao_hflex'
 const BUCKET = 'agente-relatorios'
@@ -145,10 +146,18 @@ async function confirmarEmpreendimentoPeloHome(page, execucao) {
 }
 
 async function baixarRelatorioDetalhado(page, execucao) {
-  const popupPromise = page.context().waitForEvent('page', { timeout: 60_000 }).catch(() => null)
-  await page.getByRole('button', { name: /^Relatório Detalhado$/i }).click()
-  const popup = await popupPromise
-  if (!popup) throw new Error('O HFlex não abriu a janela Devedores Detalhado.')
+  // Não depender das preferências de exportação salvas pelo usuário no portal.
+  await page.locator('#body_ucFiltroRelatorioDevedores_ckPDF').setChecked(false)
+  await page.locator('#body_ucFiltroRelatorioDevedores_cbValorCorrigido').setChecked(true)
+  await page.locator('#body_ucFiltroRelatorioDevedores_ckExcelCabecalho').setChecked(true)
+  await page.locator('#body_ucFiltroRelatorioDevedores_ckExcel').setChecked(true)
+  await registrarLog(execucao.id, 'filtros_relatorio', 'Excel detalhado solicitado com valores corrigidos e cabeçalho; aceitando download direto ou visualizador.')
+  const saida = await aguardarSaidaRelatorioHflex(page, () => page.getByRole('button', { name: /^Relatório Detalhado$/i }).click())
+  if (saida.download) {
+    await registrarLog(execucao.id, 'relatorio_detalhado', 'Excel recebido diretamente, sem janela adicional.')
+    return saida
+  }
+  const popup = saida.popup
   await popup.waitForLoadState('domcontentloaded', { timeout: 120_000 }).catch(() => {})
   await popup.getByText(/DEVEDORES DETALHADO/i).first().waitFor({ state: 'visible', timeout: 120_000 })
   await popup.waitForFunction(() => {
@@ -161,7 +170,7 @@ async function baixarRelatorioDetalhado(page, execucao) {
   const links = popup.locator('a, button, input[type="button"], input[type="submit"]')
   const exportador = links.filter({ has: popup.locator('i.fa-file-excel-o, i.fa-download, .glyphicon-download-alt') }).first()
     .or(popup.locator('[id*="Excel" i]:visible, [onclick*="Excel" i]:visible, [class*="excel" i]:visible, [title*="Excel" i]:visible, a[title*="download" i]:visible, a[href*="Download" i]:visible').first())
-  const downloadPromise = popup.waitForEvent('download', { timeout: 120_000 }).catch(() => null)
+  const downloadPromise = saida.downloadPromise
   if (await exportador.isVisible().catch(() => false)) await exportador.click()
   else {
     const clicou = await popup.locator('*').evaluateAll((els) => {
@@ -219,7 +228,7 @@ async function coletar(execucao) {
     const filename = `${nomeArquivo(condominioNome)}_${new Date().toISOString().slice(0, 10)}${extensao}`
     const localPath = await caminhoDownloadMaestro(supabase, execucao.id, localDir, filename)
     await download.saveAs(localPath)
-    await popup.close().catch(() => {})
+    await popup?.close().catch(() => {})
 
     const bytes = await readFile(localPath)
     if (!bytes.length) throw new Error('O HFlex gerou um relatório vazio.')

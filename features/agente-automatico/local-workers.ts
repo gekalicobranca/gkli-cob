@@ -102,16 +102,14 @@ export async function startLocalWorker(worker: AgenteWorkerConfig) {
 
   const runnerPath = path.join(process.cwd(), 'scripts', 'agente-automatico', 'run-worker.ps1')
   const projectDir = process.cwd()
+  const condition = buildWorkerMatchCondition(worker)
   const script = `
 $runnerPath = ${psQuote(runnerPath)}
 $projectDir = ${psQuote(projectDir)}
 $npmScript = ${psQuote(worker.npmScript)}
 $logName = ${psQuote(worker.logName)}
 $alreadyRunning = Get-CimInstance Win32_Process | Where-Object {
-  $_.CommandLine -and (
-    ($_.CommandLine -match 'run-worker\\.ps1' -and $_.CommandLine -like "*$npmScript*") -or
-    ($_.CommandLine -match 'npm(\\.cmd|-cli\\.js)' -and $_.CommandLine -like "*$npmScript*")
-  )
+  $_.CommandLine -and $_.CommandLine -notmatch 'Get-CimInstance' -and (${condition})
 }
 if (-not $alreadyRunning) {
   $arguments = @('-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', $runnerPath, '-NpmScript', $npmScript, '-LogName', $logName)

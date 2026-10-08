@@ -29,6 +29,8 @@ const CONDOMINIO_SELECT = `
   dias_cobranca_ativa,
   pre_juridico_habilitado,
   dias_expiracao_regua_pre_juridico,
+  despesas_acordo_avista_percentual,
+  despesas_acordo_parcelado_percentual,
   parcelas_acordo_sem_aprovacao_sindico,
   dias_reemissao_parcela_acordo_atrasada,
   classificacao_operacional,

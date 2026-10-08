@@ -1,6 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
 import { requireUser } from "@/utils/auth/require-user";
-import { AprovacaoForaReguaCard } from "@/components/acordos/aprovacao-fora-regua-card";
 import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
@@ -45,7 +44,7 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
   const query = await searchParams;
   const legacyCobrancaId = query.cobrancaId ?? query.cobranca_id ?? query.cobranca_id_origem;
   const supabase = await createClient();
-  const user = await requireUser();
+  await requireUser();
   let aprovacao: any = null;
   if (query.aprovacao_fora_regua) {
     const { data, error } = await supabase.from("acordos_aprovacoes_fora_regua")
@@ -136,11 +135,9 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
         }
       />
 
-      {aprovacao && <AprovacaoForaReguaCard aprovacao={aprovacao} podeDecidir={["admin", "gestor"].includes(user.perfil)} />}
       <AcordoSimulatorForm
         key={aprovacao ? `${aprovacao.id}:${aprovacao.status}` : selectedIds.join(",")}
         formularioInicial={aprovacao?.formulario}
-        aprovacaoForaReguaStatus={aprovacao?.status}
         acordoJaCriado={Boolean(aprovacao?.acordo_id)}
         contemCobrancasForaRegua={(cobrancas as any[]).some((cobranca) => avaliarReguaImportacao({
           vencimento: cobranca.vencimento,

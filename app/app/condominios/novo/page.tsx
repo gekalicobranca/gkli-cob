@@ -71,6 +71,8 @@ export default async function NovoCondominioPage() {
               <Input name="dias_cobranca_ativa" type="number" min="0" max="3650" defaultValue="60" />
             </FormField>
 
+            <FormField label="Despesas de cobrança à vista (%)"><Input name="despesas_acordo_avista_percentual" type="number" min="0" max="100" step="0.01" required defaultValue="10" /></FormField>
+            <FormField label="Despesas de cobrança parcelada (%)"><Input name="despesas_acordo_parcelado_percentual" type="number" min="0" max="100" step="0.01" required defaultValue="20" /></FormField>
             <FormField label="Parcelas permitidas sem aprovação do síndico" hint="0 deixa sempre livre; acima deste número o acordo fica bloqueado até aprovação pública do síndico.">
               <Input name="parcelas_acordo_sem_aprovacao_sindico" type="number" min="0" defaultValue="0" />
             </FormField>
@@ -131,9 +133,9 @@ export default async function NovoCondominioPage() {
                 className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]"
               />
               <span>
-                <span className="block font-medium text-slate-950">Permitir operação virtual</span>
+                <span className="block font-medium text-slate-950">Habilitar agente autônomo</span>
                 <span className="mt-1 block text-xs leading-5 text-slate-500">
-                  Quando habilitado, a Keila pode considerar este condomínio para filas, tarefas e lotes supervisionados.
+                  Autoriza o agente virtual da carteira a responder aos e-mails e dar andamento aos casos deste condomínio, conforme as regras de atendimento.
                 </span>
               </span>
             </label>

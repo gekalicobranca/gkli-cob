@@ -168,7 +168,7 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
             <span className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100">Configurações</span>
             <h1 className="mt-3 text-2xl font-semibold tracking-tight">Integrações</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-cyan-50">
-              Configure o SMTP usado pela mensageria, lotes e operação supervisionada da Keila.
+              Configure o SMTP usado pela mensageria e pelos flows de cobrança.
             </p>
           </div>
           <span className="inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-sm">

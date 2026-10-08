@@ -29,7 +29,9 @@ const pairingRequest = pairingControl.data?.vinculacao_pedido === pairingControl
 const pairByCode = pairingControl.data?.vinculacao_modo ? pairingControl.data.vinculacao_modo === 'codigo' : process.argv.includes('--pair-by-code') || process.env.WHATSAPP_WEB_PAIR_BY_CODE === 'true'
 const publishPairing = pairingPublisher(db, session, pairingRequest)
 const reportPairing = () => console.error('Falha ao publicar vinculação no app; tente gerar novamente.')
-await publishPairing()
+// A transient failure clearing the previous request must not prevent the
+// browser from opening. Each new QR retries publication through the queue.
+await publishPairing().catch(reportPairing)
 const ResilientClient = resilientClient(Client)
 const client = new ResilientClient({
   userAgent: false,

@@ -211,6 +211,8 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
             <FormField label="Valor médio da cota"><Input name="valor_cota_condominial" defaultValue={String(condominio.valor_cota_condominial ?? 0).replace('.', ',')} /></FormField>
             <FormField label="Início da cobrança após X dias"><Input name="inicio_cobranca_dias" type="number" min="0" max="365" defaultValue={condominio.inicio_cobranca_dias ?? 30} /></FormField>
             <FormField label="Dias de cobrança ativa" hint="Período em que a cobrança permanece disponível para acordos."><Input name="dias_cobranca_ativa" type="number" min="0" max="3650" defaultValue={condominio.dias_cobranca_ativa ?? 60} /></FormField>
+            <FormField label="Despesas de cobrança à vista (%)"><Input name="despesas_acordo_avista_percentual" type="number" min="0" max="100" step="0.01" required defaultValue={condominio.despesas_acordo_avista_percentual ?? ''} /></FormField>
+            <FormField label="Despesas de cobrança parcelada (%)" hint="Use 10% aqui também se essa for a condição do condomínio."><Input name="despesas_acordo_parcelado_percentual" type="number" min="0" max="100" step="0.01" required defaultValue={condominio.despesas_acordo_parcelado_percentual ?? ''} /></FormField>
             <FormField label="Parcelas permitidas sem aprovação do síndico"><Input name="parcelas_acordo_sem_aprovacao_sindico" type="number" min="0" max="120" defaultValue={condominio.parcelas_acordo_sem_aprovacao_sindico ?? 0} /></FormField>
             <FormField label="Dias para reemissão de parcela de acordo em atraso"><Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" max="365" defaultValue={condominio.dias_reemissao_parcela_acordo_atrasada ?? 0} /></FormField>
           </div>
@@ -228,9 +230,9 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
                 className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]"
               />
               <span>
-                <span className="block font-medium text-slate-950">Permitir operação virtual</span>
+                <span className="block font-medium text-slate-950">Habilitar agente autônomo</span>
                 <span className="mt-1 block text-xs leading-5 text-slate-500">
-                  Quando habilitado, a Keila pode considerar este condomínio para filas, tarefas e lotes supervisionados.
+                  Autoriza o agente virtual da carteira a responder aos e-mails e dar andamento aos casos deste condomínio, conforme as regras de atendimento.
                 </span>
               </span>
             </label>

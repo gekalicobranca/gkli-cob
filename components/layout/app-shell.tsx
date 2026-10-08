@@ -77,7 +77,6 @@ const sections: SidebarSection[] = [
       { label: 'Cobranças', href: '/app/cobrancas', icon: 'money' },
       { label: 'Acordos', href: '/app/acordos', icon: 'handshake' },
       { label: 'Controle de parcelas', href: '/app/acordos/fila', icon: 'clipboard' },
-      { label: 'Pendências', href: '/app/pendencias', icon: 'alert' },
     ],
   },
   {
@@ -120,12 +119,14 @@ const sections: SidebarSection[] = [
       { label: 'Motor de conversão', href: '/app/conversao-relatorio', icon: 'document' },
       { label: 'Validações do Maestro', href: '/app/configuracoes/lab/captacao-automatizada', icon: 'shield' },
       { label: 'Keila', href: '/app/gestao/keila', icon: 'bot' },
+      { label: 'Lidia', href: '/app/gestao/lidia', icon: 'bot' },
     ],
   },
   {
     id: 'gestao',
     title: 'Gestão',
     items: [
+      { label: 'Pendências', href: '/app/pendencias', icon: 'alert' },
       { label: 'Visão do síndico', href: '/app/gestao/visao-sindico', icon: 'home' },
       { label: 'Acionamentos acordos', href: '/app/gestao/acionamentos-acordos', icon: 'message' },
       { label: 'Fechamento mensal', href: '/app/gestao/fechamento', icon: 'calendar', gestorOnly: true },

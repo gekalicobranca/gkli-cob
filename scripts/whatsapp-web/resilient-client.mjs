@@ -2,6 +2,7 @@
 // new context, never a message transmission. Keep failures bounded and visible.
 import { bounded } from './recovery.mjs'
 import { requestCodeInPage } from './pairing-code.mjs'
+export const synchronizationTimeoutMs = 600000
 export function resilientClient(BaseClient, report = console.error) {
   return class extends BaseClient {
     async requestPairingCode(phoneNumber, showNotification = true, intervalMs = 180000) {
@@ -46,7 +47,9 @@ export function resilientClient(BaseClient, report = console.error) {
         try {
           await this.pupPage.waitForFunction('window.Debug?.VERSION != undefined', { timeout: this.options.authTimeoutMs || 120000 })
           report(new Date().toISOString(), 'Contexto WhatsApp disponível; aguardando autenticação ou código.')
-          return await bounded(super.inject(), 120000)
+          // Restoring an authenticated session can take several minutes.
+          // Keep navigation/context deadlines separate from synchronization.
+          return await bounded(super.inject(), synchronizationTimeoutMs)
         } catch (error) {
           report(new Date().toISOString(), 'Falha ao inicializar WhatsApp:', String(error?.message || error))
           if (attempt >= 2 || !/execution context was destroyed|detached\s+frame/i.test(String(error?.message || error)) || this.pupPage.isClosed()) throw error
