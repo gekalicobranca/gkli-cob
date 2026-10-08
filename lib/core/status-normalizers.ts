@@ -15,6 +15,7 @@ export function normalizeCobrancaStatusOperacional(value: unknown) {
   const aliases: Record<string, string> = {
     aberto: COBRANCA_STATUS_OPERACIONAL.NOVO,
     aberta: COBRANCA_STATUS_OPERACIONAL.NOVO,
+    regular: COBRANCA_STATUS_OPERACIONAL.REGULAR,
     novo: COBRANCA_STATUS_OPERACIONAL.NOVO,
     nova: COBRANCA_STATUS_OPERACIONAL.NOVO,
     cobranca: COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,

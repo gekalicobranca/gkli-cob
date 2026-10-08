@@ -1114,7 +1114,7 @@ function isCobrancaAtivaParaVincenda(cobranca: any) {
   const financeiro = String(cobranca.status_financeiro ?? '').toLowerCase()
   if (['pago', 'paga', 'quitado', 'quitada', 'baixado', 'baixada', 'cancelado', 'cancelada'].includes(status)) return false
   if (['pago', 'paga', 'quitado', 'quitada', 'baixado', 'baixada', 'cancelado', 'cancelada'].includes(financeiro)) return false
-  return (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[]).includes(getCobrancaStatusOperacional(cobranca))
+  return getCobrancaStatusOperacional(cobranca) === 'regular' || (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[]).includes(getCobrancaStatusOperacional(cobranca))
 }
 
 async function getPreJuridicoStepsDosAcordos(

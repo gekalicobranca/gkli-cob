@@ -1,4 +1,5 @@
 export const COBRANCA_STATUS_OPERACIONAL = {
+  REGULAR: 'regular',
   NOVO: 'novo',
   EM_COBRANCA_ATIVA: 'em_cobranca_ativa',
   EM_NEGOCIACAO: 'em_negociacao',
@@ -60,6 +61,7 @@ export const COBRANCA_STATUS_SEM_ACAO: CobrancaStatusOperacional[] = [
 ]
 
 export const COBRANCA_STATUS_LABEL: Record<CobrancaStatusOperacional | CobrancaStatusFinanceiro, string> = {
+  regular: 'Regular',
   novo: 'Novo',
   em_cobranca_ativa: 'Em cobrança ativa',
   em_negociacao: 'Em negociação',

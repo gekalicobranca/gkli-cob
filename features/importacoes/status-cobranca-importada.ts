@@ -2,6 +2,8 @@ import { ACORDO_STATUS_VIGENTES } from "@/lib/constants/acordos";
 import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
 import { normalizeStatus } from "@/lib/core/status";
 
+import { avaliarReguaImportacao } from './regua-importacao';
+
 type SupabaseLike = {
   from: (table: string) => any;
 };
@@ -70,6 +72,13 @@ export async function statusOperacionalParaCobrancaImportada(
     if (unidade?.acao_judicial) return COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO;
   }
 
+  const { data: condominio, error: condominioError } = await supabase.from('condominios')
+    .select('inicio_cobranca_dias,dias_apos_vencimento_regua').eq('id', payload.condominio_id).maybeSingle();
+  if (condominioError) throw new Error('Erro ao verificar régua do condomínio: ' + condominioError.message);
+  if (avaliarReguaImportacao({ vencimento: payload.vencimento,
+    inicioCobrancaDias: condominio?.dias_apos_vencimento_regua ?? condominio?.inicio_cobranca_dias ?? 30 }).foraRegua) {
+    return COBRANCA_STATUS_OPERACIONAL.REGULAR;
+  }
   if (!isImportacaoPossivelAcordo(payload)) return COBRANCA_STATUS_OPERACIONAL.NOVO;
 
   const temAcordo = await unidadeTemAcordoVigente(supabase, String(payload.unidade_id ?? ""));

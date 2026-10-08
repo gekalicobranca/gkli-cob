@@ -1,3 +1,4 @@
+import { liberarCobrancasRegulares } from '@/features/cobrancas/regular';
 import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
 import { createAdminClient } from "@/utils/supabase/admin";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
@@ -606,6 +607,7 @@ export async function processarReguaCobranca(
   params: ProcessarReguaParams = {},
 ): Promise<ResultadoLoteRegua> {
   const supabase = createAdminClient();
+  await liberarCobrancasRegulares(supabase, params.scope?.carteiraIds ?? (params.carteiraId ? [params.carteiraId] : null), params.condominioId);
   const total = novoContador();
   const itens: ResultadoLoteRegua["itens"] = [];
   const lotesPorCarteiraRegua = new Map<string, LoteContext>();

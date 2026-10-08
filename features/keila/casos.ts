@@ -59,7 +59,7 @@ type CobrancaProposta = {
   observacoes?: string | null; historico?: string | null; descricao?: string | null
 }
 
-/** Usa o cálculo financeiro existente; nunca inclui cotas ainda fora da régua. */
+/** Regular pode ser negociada; a régua continua limitando a cobrança automática. */
 export function simularPropostaKeila(cobrancas: CobrancaProposta[], inicioReguaDias: number, hoje = new Date()) {
   if (!Number.isFinite(inicioReguaDias) || inicioReguaDias < 0) throw new Error('Início da régua inválido.')
   const excluidas: string[] = []
@@ -70,10 +70,10 @@ export function simularPropostaKeila(cobrancas: CobrancaProposta[], inicioReguaD
     const valor = Number(c.valor_atualizado)
     const dataValida = /^\d{4}-\d{2}-\d{2}$/.test(c.vencimento ?? '') &&
       Number.isFinite(Date.parse(`${c.vencimento}T00:00:00Z`)) && new Date(`${c.vencimento}T00:00:00Z`).toISOString().slice(0, 10) === c.vencimento
-    const atraso = dataValida && c.vencimento! <= hojeCivil ? diasDesdeVencimento(c.vencimento, referenciaLocal) : NaN
-    const elegivel = !multaPorInfracao(c) && !vistas.has(c.id) && !c.duplicada_de_id && Number.isFinite(atraso) && atraso >= inicioReguaDias &&
+    const atraso = dataValida && (getCobrancaStatusOperacional(c) === 'regular' || c.vencimento! <= hojeCivil) ? diasDesdeVencimento(c.vencimento, referenciaLocal) : NaN
+    const elegivel = !multaPorInfracao(c) && !vistas.has(c.id) && !c.duplicada_de_id && Number.isFinite(atraso) && (getCobrancaStatusOperacional(c) === 'regular' || atraso >= inicioReguaDias) &&
       getCobrancaStatusFinanceiro(c) === 'em_aberto' &&
-      ['novo', 'em_cobranca_ativa', 'em_negociacao', 'possivel_acordo'].includes(getCobrancaStatusOperacional(c)) &&
+      ['regular', 'novo', 'em_cobranca_ativa', 'em_negociacao', 'possivel_acordo'].includes(getCobrancaStatusOperacional(c)) &&
       Number.isFinite(valor) && valor > 0
     vistas.add(c.id)
     if (!elegivel) excluidas.push(c.id)

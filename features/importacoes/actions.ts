@@ -59,6 +59,7 @@ type CondominioImportacaoRow = {
   nome: string;
   cnpj: string | null;
   inicio_cobranca_dias?: number | null;
+  dias_apos_vencimento_regua?: number | null;
   dias_expiracao_regua_pre_juridico?: number | null;
   bloqueio_garantidora_habilitado?: boolean | null;
   bloqueio_garantidora_inicio?: string | null;
@@ -944,7 +945,7 @@ async function resolveCondominiosByCnpj(
 
   const { data, error } = await supabase
     .from("condominios")
-    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
+    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_apos_vencimento_regua, dias_expiracao_regua_pre_juridico, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
     .in("cnpj", cnpjsLimpos);
 
   if (error)
@@ -963,7 +964,7 @@ async function resolveCondominioById(supabase: SupabaseClient, id: string) {
 
   const { data, error } = await supabase
     .from("condominios")
-    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
+    .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_apos_vencimento_regua, dias_expiracao_regua_pre_juridico, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
     .eq("id", id)
     .maybeSingle();
 
@@ -1448,7 +1449,7 @@ async function enrichCobrancaPreview(
     const permitidoPeloAno = !somenteAnoCorrente || recorteAnoCorrente.dentroDoAnoCorrente;
     const reguaImportacao = avaliarReguaImportacao({
       vencimento: payload.vencimento,
-      inicioCobrancaDias: condominio?.inicio_cobranca_dias,
+      inicioCobrancaDias: condominio?.dias_apos_vencimento_regua ?? condominio?.inicio_cobranca_dias ?? 30,
     });
     const importarPeloRecorte = somenteValidasNaRegua
       ? permitidoPeloAno && !reguaImportacao.foraRegua
@@ -1586,7 +1587,7 @@ async function enrichLegacyPreview(
     if (condominioReferenciaIds.length > 0) {
       const { data: condominiosReferencia, error: condominiosReferenciaError } = await supabase
         .from("condominios")
-        .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_expiracao_regua_pre_juridico, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
+        .select("id, carteira_id, nome, cnpj, inicio_cobranca_dias, dias_apos_vencimento_regua, dias_expiracao_regua_pre_juridico, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
         .in("id", condominioReferenciaIds);
 
       if (condominiosReferenciaError) {

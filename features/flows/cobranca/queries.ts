@@ -1,3 +1,4 @@
+import { liberarCobrancasRegulares } from '@/features/cobrancas/regular'
 import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
 import { registrarPerformanceFlow } from '../performance'
 import { flowCobrancaOrdem, type OrdemFlowCobranca } from './rotas'
@@ -59,6 +60,7 @@ export function normalizeFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) 
 
 export function hasFlowCobrancaFilters(filters: FlowCobrancaFilters = {}) {
   const normalized = normalizeFlowCobrancaFilters(filters)
+
   return Boolean(normalized.canal || normalized.carteiraId || normalized.condominioId || normalized.vencimentoDe || normalized.vencimentoAte || normalized.inclusaoDe || normalized.inclusaoAte)
 }
 
@@ -155,6 +157,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const inicio = Date.now()
   const supabase = createAdminClient()
   const normalized = normalizeFlowCobrancaFilters(filters)
+  await liberarCobrancasRegulares(supabase, scope.carteiraIds, normalized.condominioId)
   const reguas = await listReguasForSelect(scope, 'cobranca')
   for (let offset = 0; offset < reguas.length; offset += 80) {
     const parte = reguas.slice(offset, offset + 80)
