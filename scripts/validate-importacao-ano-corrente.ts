@@ -43,7 +43,11 @@ async function main() {
   const db = { from(table: string) {
     return {
       async insert(value: any) { assert.equal(table, 'cobrancas'); writes.push(value); return { error: null } },
-      update(value: any) { saved = value; return { async eq() { return { error: null } } } },
+      update(value: any) {
+        saved = value
+        const query = { eq() { return query }, select() { return query }, async maybeSingle() { return { data: { id: 'teste' }, error: null } } }
+        return query
+      },
     }
   } }
   const context = vm.createContext({

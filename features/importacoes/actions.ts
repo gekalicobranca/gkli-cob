@@ -31,6 +31,7 @@ import { carregarItensImportacao } from "./carregar-itens";
 import { explicarCobrancasPreservadas } from "./mensagens-preservacao";
 import { substituirCobrancasAnterioresDaImportacao } from "./substituir-anteriores";
 import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
+import { reservarLoteImportacao, salvarLoteImportacao, TAMANHO_LOTE_IMPORTACAO, type ExecucaoImportacao } from "./execucao-lotes";
 import {
   avaliarBloqueioGarantidora,
   observacaoComBloqueioGarantidora,
@@ -2085,10 +2086,12 @@ async function finalizarImportacao(params: {
   tipo: string;
   resultado: ImportacaoResultado;
   resumoAnterior?: Record<string, any>;
+  redirecionar?: boolean;
+  reservaToken?: string;
 }) {
   const { supabase, importacaoId, tipo, resultado } = params;
 
-  const { error } = await supabase
+  let finalizarQuery = supabase
     .from("importacoes")
     .update({
       status: resultado.sucesso ? "confirmada" : "erro",
@@ -2096,7 +2099,11 @@ async function finalizarImportacao(params: {
     })
     .eq("id", importacaoId);
 
+  if (params.reservaToken) finalizarQuery = finalizarQuery.eq("resumo->execucao_lotes->>token", params.reservaToken);
+  const { data: finalizada, error } = await finalizarQuery.select("id").maybeSingle();
+
   if (error) throw new Error(`Erro ao concluir importação: ${error.message}`);
+  if (!finalizada) throw new Error("A importação mudou durante a conclusão. Atualize a página.");
 
   await registrarAuditoriaImportacao({
     supabase,
@@ -2118,7 +2125,7 @@ async function finalizarImportacao(params: {
   revalidatePath("/app/pendencias");
   revalidatePath("/app");
 
-  redirect(`/app/importacoes/${importacaoId}?resultado=${resultado.sucesso ? "sucesso" : "erro"}&tipo=${tipo}`);
+  if (params.redirecionar !== false) redirect(`/app/importacoes/${importacaoId}?resultado=${resultado.sucesso ? "sucesso" : "erro"}&tipo=${tipo}`);
 }
 
 function normalizeSimplePayload(
@@ -2675,9 +2682,11 @@ async function importarCobrancas(
   payloads: Record<string, any>[],
   origemImportacao: string,
   somenteAnoCorrente = true,
+  opcoes: { validarAusencias?: boolean; somenteAusencias?: boolean } = {},
 ): Promise<ImportExecutionResult> {
   const resultado = emptyImportExecutionResult();
   const importadasParaAusencia: CobrancaImportadaConciliacao[] = [];
+  const unidadesResolvidas = new Map<string, Awaited<ReturnType<typeof garantirUnidadeDaImportacao>>>();
 
   for (const [index, payload] of payloads.entries()) {
     const linha = Number(payload.__linha ?? index + 1);
@@ -2692,9 +2701,13 @@ async function importarCobrancas(
         continue;
       }
 
-      const unidade = await garantirUnidadeDaImportacao(supabase, payload);
+      const chaveUnidade = unidadeKey({ condominio_id: payload.condominio_id,
+        identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco });
+      const unidadeCache = unidadesResolvidas.get(chaveUnidade);
+      const unidade = unidadeCache ?? await garantirUnidadeDaImportacao(supabase, payload);
+      unidadesResolvidas.set(chaveUnidade, unidade);
       payload.unidade_id = unidade.id;
-      if (unidade.criada) resultado.criados += 1;
+      if (unidade.criada && !unidadeCache) resultado.criados += 1;
 
       payload.observacoes = observacoesComRecibo(payload);
       const importadaConciliacao: CobrancaImportadaConciliacao = {
@@ -2710,6 +2723,7 @@ async function importarCobrancas(
         observacoes: payload.observacoes || null,
       };
       importadasParaAusencia.push(importadaConciliacao);
+      if (opcoes.somenteAusencias) continue;
 
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao);
       const cobrancaExistenteId = conciliacao.cobrancaId;
@@ -2774,6 +2788,8 @@ async function importarCobrancas(
       resultado.ignorados += 1;
     }
   }
+
+  if (opcoes.validarAusencias === false) return resultado;
 
   try {
     const condominioIds = Array.from(
@@ -3257,6 +3273,13 @@ export async function confirmarImportacao(formData: FormData) {
     throw new Error("Importação histórica judicial permanece desativada.");
   if (importacao.tipo === "acordos_extra") await requireRole(["admin", "gestor"]);
 
+  if (importacao.tipo === "cobrancas") {
+    const lote = await confirmarImportacaoEmLotes(formData);
+    if ("erro" in lote) throw new Error(lote.erro);
+    revalidatePath(`/app/importacoes/${importacaoId}`);
+    return;
+  }
+
   const itens = await carregarItensImportacao(supabase, importacaoId, {
     somenteValidos: true,
     totalEsperado: importacao.total_validas,
@@ -3349,6 +3372,99 @@ export async function confirmarImportacao(formData: FormData) {
       ...(importacao.tipo === "cobrancas" ? { limpar_cobrancas_anteriores: limparCobrancasAnteriores } : {}),
     },
   });
+}
+
+/** Cada chamada grava um lote curto e persiste o ponto de retomada. */
+async function executarLoteImportacao(formData: FormData) {
+  await requireRole(["admin", "gestor", "operador"]);
+  const id = String(formData.get("importacao_id") ?? "");
+  if (!id) throw new Error("Importação obrigatória.");
+  const supabase = await createClient();
+  const { data: importacao, error } = await supabase.from("importacoes")
+    .select("id,carteira_id,tipo,status,total_validas,resumo").eq("id", id).maybeSingle();
+  if (error) throw new Error(`Erro ao carregar importação: ${error.message}`);
+  if (!importacao || importacao.tipo !== "cobrancas") throw new Error("Importação de cobranças não encontrada.");
+  const scope = await getPermittedCarteiras();
+  if (importacao.carteira_id) assertCarteiraPermitida(scope, importacao.carteira_id);
+  const itens = await carregarItensImportacao(supabase, id, { somenteValidos: true, totalEsperado: importacao.total_validas });
+  const payloads = itens.map(item => ({ ...item.payload, importacao_id: id, __linha: item.linha })) as Record<string, any>[];
+  assertPayloadsPermitidos(scope, payloads);
+  if (importacao.status === "confirmada") return { concluida: true, processadas: payloads.length, total: payloads.length, gravadas: Number(importacao.resumo?.resultado?.importados ?? 0) };
+  if (!["preview", "erro"].includes(importacao.status) || !payloads.length) throw new Error("Importação não disponível para confirmar.");
+  const resumo = (importacao.resumo ?? {}) as Record<string, any>;
+  const opcao = String(formData.get("limpar_cobrancas_anteriores") ?? "");
+  if (!resumo.execucao_lotes && !["sim", "nao", "on"].includes(opcao)) throw new Error("A opção de substituir cobranças não foi recebida. Recarregue a página.");
+
+  // Execuções antigas podem ter gravado antes de uma queda da requisição.
+  const { data: ultima, count, error: countError } = await supabase.from("cobrancas")
+    .select("created_at", { count: "exact" }).eq("importacao_id", id)
+    .order("created_at", { ascending: false }).limit(1);
+  if (countError || count === null) throw new Error(`Erro ao conferir gravações: ${countError?.message ?? "contagem indisponível"}`);
+  if (!resumo.execucao_lotes && ultima?.[0] && Date.now() - Date.parse(ultima[0].created_at) < 5 * 60_000) {
+    throw new Error("A execução anterior gravou recentemente. Aguarde cinco minutos sem novas gravações antes de retomar.");
+  }
+  const estado: ExecucaoImportacao = resumo.execucao_lotes ?? {
+    cursor: 0, total: payloads.length, token: null, lease_ate: null,
+    limpeza: count > 0 || !["sim", "on"].includes(opcao) ? "dispensada" : "pendente",
+    removidas: 0, resultado: emptyImportExecutionResult(),
+  };
+  if (estado.total !== payloads.length) throw new Error("O número de itens mudou durante a execução. Gere uma nova prévia.");
+  let execucao = await reservarLoteImportacao(supabase, id, resumo, estado);
+  const token = execucao.token;
+  if (execucao.limpeza === "pendente") {
+    // Persistir antes da operação impede repetir a limpeza após perda da resposta.
+    execucao = { ...execucao, limpeza: "iniciada" };
+    await salvarLoteImportacao(supabase, id, resumo, execucao);
+    const limpeza = await substituirCobrancasAnterioresDaImportacao(createAdminClient(), id);
+    execucao = { ...execucao, limpeza: "concluida", removidas: limpeza.removidas };
+    await salvarLoteImportacao(supabase, id, resumo, execucao);
+  }
+  const origem = formatOrigemImportacao("importacao_cobrancas");
+  if (execucao.cursor < payloads.length) {
+    const lote = payloads.slice(execucao.cursor, execucao.cursor + TAMANHO_LOTE_IMPORTACAO);
+    // Revalidar IDs evita usar a fotografia antiga da prévia após recriação de unidades.
+    // Uma consulta por lote também elimina buscas repetidas para unidades cadastradas.
+    const unidadesAtuais = await resolveUnidadesByCondominioIds(supabase, lote.map(p => p.condominio_id));
+    for (const payload of lote) {
+      payload.unidade_id = unidadesAtuais.get(unidadeKey({ condominio_id: payload.condominio_id,
+        identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco }))?.id ?? null;
+    }
+    const resultado = await importarCobrancas(supabase, lote, origem, resumo.somente_ano_corrente !== false, { validarAusencias: false });
+    const acumulado = { ...execucao.resultado, erros: [...execucao.resultado.erros, ...resultado.erros] };
+    for (const chave of ["importados", "criados", "atualizados", "divergentes", "ausentes", "ignorados"] as const) acumulado[chave] += resultado[chave];
+    execucao = { ...execucao, cursor: execucao.cursor + lote.length, resultado: acumulado };
+    await salvarLoteImportacao(supabase, id, resumo, { ...execucao, token: null, lease_ate: null }, token);
+    return { concluida: false, processadas: execucao.cursor, total: payloads.length, gravadas: count + resultado.importados };
+  }
+
+  // Ausências só podem ser conciliadas depois de conferir o arquivo completo.
+  const unidades = await resolveUnidadesByCondominioIds(supabase, payloads.map(p => p.condominio_id));
+  for (const payload of payloads) {
+    const unidade = unidades.get(unidadeKey({ condominio_id: payload.condominio_id, identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco }));
+    payload.unidade_id = unidade?.id ?? null;
+  }
+  const ausencias = await importarCobrancas(supabase, payloads, origem, resumo.somente_ano_corrente !== false, { somenteAusencias: true });
+  const erros = await explicarCobrancasPreservadas(supabase, [...execucao.resultado.erros, ...ausencias.erros], execucao.limpeza === "concluida");
+  const resultado = {
+    ...execucao.resultado, importados: count, ausentes: ausencias.ausentes, erros,
+    sucesso: count > 0 || erros.length === 0, tipo: "cobrancas",
+    mensagem: mensagemPorTipo("cobrancas", count, execucao.resultado.criados), destino: destinoPorTipo("cobrancas"),
+    cobrancas_anteriores_removidas: execucao.removidas,
+  };
+  // A reserva continua ativa até salvar o resultado final.
+  await finalizarImportacao({ supabase, importacaoId: id, tipo: "cobrancas", resultado,
+    redirecionar: false, reservaToken: token ?? undefined,
+    resumoAnterior: { ...resumo, execucao_lotes: { ...execucao, token: null, lease_ate: null }, limpar_cobrancas_anteriores: execucao.limpeza === "concluida" },
+  });
+  return { concluida: true, processadas: payloads.length, total: payloads.length, gravadas: count };
+}
+
+export async function confirmarImportacaoEmLotes(formData: FormData) {
+  try {
+    return await executarLoteImportacao(formData);
+  } catch (error) {
+    return { erro: error instanceof Error ? error.message : "Falha ao processar lote. Atualize a página antes de retomar." };
+  }
 }
 
 export async function confirmarImportacaoLegado(formData: FormData) {

@@ -69,6 +69,13 @@ export async function getImportacaoDetalhe(id: string, scope: CarteiraScope) {
     const resumo = data.resumo as any
     resumo.resultado.erros = await explicarCobrancasPreservadas(supabase, resumo.resultado.erros, resumo.limpar_cobrancas_anteriores === true)
   }
+  if (data?.tipo === 'cobrancas' && ['preview', 'erro'].includes(data.status)) {
+    const { data: ultimas, count, error: progressoError } = await supabase.from('cobrancas')
+      .select('created_at', { count: 'exact' }).eq('importacao_id', id)
+      .order('created_at', { ascending: false }).limit(1)
+    if (progressoError) throw new Error(`Erro ao consultar progresso: ${progressoError.message}`)
+    Object.assign(data, { gravadas: count ?? 0, ultima_gravacao: ultimas?.[0]?.created_at ?? null })
+  }
   return data ? (normalizeRelations(data as any, ['carteiras']) as any) : null
 }
 

@@ -13,6 +13,7 @@ import { confirmarImportacao } from '@/features/importacoes/actions'
 import { priorityTone } from '@/features/importacoes/preview-rules'
 import { ConfirmarImportacaoButton } from './confirmar-importacao-button'
 import { PreviewLogDownloadButton } from './preview-log-download-button'
+import { ConfirmarCobrancasEmLotes } from './confirmar-cobrancas-em-lotes'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -204,7 +205,11 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
           <>
             <ButtonLink href="/app/importacoes" variant="secondary">Voltar</ButtonLink>
             <PreviewLogDownloadButton importacao={importacao as Record<string, any>} itens={itens} />
-            {canConfirm ? (
+            {canConfirm && importacaoTipo === 'cobrancas' ? (
+              <ConfirmarCobrancasEmLotes id={id} total={Number(importacao.total_validas)}
+                processadas={Number(resumo.execucao_lotes?.cursor ?? 0)} gravadas={Number(importacao.gravadas ?? 0)}
+                retomada={Boolean(resumo.execucao_lotes || importacao.gravadas)} />
+            ) : canConfirm ? (
               <form id="confirmar-importacao-form" action={confirmarImportacao}>
                 <input type="hidden" name="importacao_id" value={importacao.id} />
                 <ConfirmarImportacaoButton />
@@ -304,9 +309,10 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
             <input
               type="checkbox"
               name="limpar_cobrancas_anteriores"
+              disabled={Boolean(resumo.execucao_lotes || importacao.gravadas)}
               form="confirmar-importacao-form"
               value="sim"
-              defaultChecked
+              defaultChecked={!resumo.execucao_lotes && !importacao.gravadas}
               className="mt-1 size-4 rounded border-amber-300 accent-amber-700"
             />
             <span className="flex-1">
@@ -321,6 +327,9 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                   : 'A limpeza considera apenas vencimentos no ano corrente.'}
                 {' '}Cobranças vinculadas a acordos são preservadas.
               </span>
+              {Boolean(resumo.execucao_lotes || importacao.gravadas) && (
+                <p className="mt-2 text-sm font-medium text-amber-950">A retomada preserva as cobranças já gravadas. A limpeza não será executada novamente.</p>
+              )}
             </span>
           </label>
           <input type="hidden" name="limpar_cobrancas_anteriores" value="nao" form="confirmar-importacao-form" />
