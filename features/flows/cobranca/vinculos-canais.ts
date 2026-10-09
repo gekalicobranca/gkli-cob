@@ -3,6 +3,23 @@ import { canaisDaRegua, conflitoDeCanais } from './canais'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
+const FLOWS_TERMINAIS = new Set(['concluido', 'concluido_com_falhas', 'cancelado'])
+
+// Ativar a cobrança não cria mensagens. Um Flow encerrado conserva seu
+// histórico, mas não pode impedir o retorno manual à cobrança ativa.
+export function temFlowEmAndamento(item: { flow?: any }) {
+  return !FLOWS_TERMINAIS.has(relation(item.flow)?.status)
+}
+
+export function vinculoOcupaCanal(item: { status?: string; flow?: any; mensagem?: any }) {
+  const mensagem = relation(item.mensagem)
+  if (mensagem?.status === 'cancelada'
+    && String(mensagem.erro ?? '').startsWith('Envio cancelado: cobrança fora da cobrança ativa.')) return false
+  if (!mensagem && ['pulada', 'cancelado'].includes(item.status ?? '') && !temFlowEmAndamento(item)) return false
+  // Mensagens enviadas e tentativas não encerradas continuam protegidas.
+  return true
+}
+
 // Inclui itens sem mensagem (tentativas anteriores) e mensagens órfãs pendentes.
 // Os canais gravados no Flow preservam o vínculo mesmo se a régua for editada.
 export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminClient>, ids: string[], options: { carteiraIds?: string[] } = {}) {
@@ -33,10 +50,11 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
   async function carregarParte(parte: string[]) {
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await db.from('lote_itens')
-        .select('id,cobranca_id,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(canais:payload->canais,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal)')
+        .select('id,cobranca_id,status,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(status,canais:payload->canais,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal,status,erro)')
         .in('cobranca_id', parte).not('cobranca_flow_id', 'is', null).order('id').range(offset, offset + 499)
       if (error) throw new Error(`Erro ao conferir canais dos Flows: ${error.message}`)
       for (const row of data ?? []) {
+        if (!vinculoOcupaCanal(row)) continue
         const flow = relation(row.flow)
         const message = relation(row.mensagem)
         const canais = [...new Set<string>([

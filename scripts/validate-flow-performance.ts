@@ -16,6 +16,7 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
     requests.push(url)
     const table = url.pathname.split('/').pop()
+    if (table === 'liberar_cobrancas_regulares') return Response.json(0)
     if (table === 'reguas') return Response.json(['email', 'whatsapp'].map(canal => ({ id: canal, nome: canal, carteira_id: null, ativo: true })))
     if (table === 'regua_etapas') return Response.json(['email', 'whatsapp'].map(canal => ({ regua_id: canal, canal, ativo: true })))
     if (table === 'cobrancas') {

@@ -1,7 +1,7 @@
 'use server'
 import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
 
-import { validarCriacaoPorCanal } from './vinculos-canais'
+import { temFlowEmAndamento, validarCriacaoPorCanal } from './vinculos-canais'
 import { canalFlowCobranca, flowCobrancaPath } from './rotas'
 import { consolidarEmailsLote } from './consolidar-emails'
 import { getEmailRemetenteKey } from '@/features/mensageria/email-provider'
@@ -236,11 +236,11 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
   for (let offset = 0; offset < rowsIds.length; offset += 200) {
     const { data: vinculadas, error: vinculadasError } = await supabase
       .from('lote_itens')
-      .select('cobranca_id')
+      .select('cobranca_id,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(status)')
       .in('cobranca_id', rowsIds.slice(offset, offset + 200))
       .not('cobranca_flow_id', 'is', null)
     if (vinculadasError) throw new Error(`Erro ao verificar Flows existentes: ${vinculadasError.message}`)
-    for (const row of vinculadas ?? []) vinculadasIds.add(String(row.cobranca_id))
+    for (const row of vinculadas ?? []) if (temFlowEmAndamento(row)) vinculadasIds.add(String(row.cobranca_id))
   }
 
   const elegiveis = rows

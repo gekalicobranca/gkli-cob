@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { canaisDaRegua, conflitoDeCanais, reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from '../features/flows/cobranca/canais'
-import { carregarCanaisOcupados, validarCriacaoPorCanal } from '../features/flows/cobranca/vinculos-canais'
+import { carregarCanaisOcupados, temFlowEmAndamento, validarCriacaoPorCanal } from '../features/flows/cobranca/vinculos-canais'
 
 const email = { id: 'email', carteira_id: 'a', etapas: [{ canal: 'email' }] }
 const web = { id: 'web', carteira_id: 'a', etapas: [{ canal: 'whatsapp' }] }
@@ -57,6 +57,22 @@ test('vínculos consolidados, tentativas vazias e mensagens órfãs mantêm o ca
   assert.deepEqual([...result.get('2')!], ['email'])
   assert.deepEqual([...result.get('3')!], ['*'])
   assert.deepEqual([...result.get('4')!], ['whatsapp'])
+})
+
+test('retorno a Novo permite reativar histórico concluído sem liberar reenvio de mensagens enviadas', async () => {
+  for (const status of ['concluido', 'concluido_com_falhas', 'cancelado']) assert.equal(temFlowEmAndamento({ flow: { status } }), false)
+  for (const status of ['pronto', 'em_execucao', 'pausado', undefined]) assert.equal(temFlowEmAndamento({ flow: { status } }), true)
+  const db = mockDb({ lote_itens: [
+    { cobranca_id: 'cancelada', cobranca_flow_id: 'f', flow: { status: 'concluido', canais: ['email'] }, mensagem: { canal: 'email', status: 'cancelada', erro: 'Envio cancelado: cobrança fora da cobrança ativa. Reavalie a unidade antes de montar novo flow.' } },
+    { cobranca_id: 'pulada', cobranca_flow_id: 'f', status: 'pulada', flow: { status: 'concluido', canais: ['email'] } },
+    { cobranca_id: 'enviada', cobranca_flow_id: 'f', flow: { status: 'concluido', canais: ['email'] }, mensagem: { canal: 'email', status: 'enviada' } },
+    { cobranca_id: 'pendente', cobranca_flow_id: 'f', status: 'pulada', flow: { status: 'em_execucao', canais: ['email'] } },
+    { cobranca_id: 'outro_cancelamento', cobranca_flow_id: 'f', flow: { status: 'concluido', canais: ['email'] }, mensagem: { canal: 'email', status: 'cancelada', erro: 'Outro motivo exige revisão' } },
+  ] })
+  const result = await carregarCanaisOcupados(db, ['cancelada', 'pulada', 'enviada', 'pendente', 'outro_cancelamento'])
+  assert.equal(result.has('cancelada'), false)
+  assert.equal(result.has('pulada'), false)
+  for (const id of ['enviada', 'pendente', 'outro_cancelamento']) assert.deepEqual([...result.get(id)!], ['email'])
 })
 
 test('servidor permite WhatsApp junto ao e-mail e bloqueia repetição, régua alheia e montagem concorrente do mesmo canal', async () => {
