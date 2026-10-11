@@ -342,6 +342,8 @@ export async function POST(request: NextRequest) {
       const observacoes = observacaoComBloqueioGarantidora(observacoesBase, bloqueioGarantidora.bloqueada)
       const statusCalculado = await statusOperacionalParaCobrancaImportada(supabase as any, {
         ...item,
+        condominio_id: condominioId,
+        vencimento: vencimentoMaisAntigo,
         unidade_id: unidadeId,
         observacoes,
       })
