@@ -545,7 +545,7 @@ export async function validarArquivoAgente(formData: FormData) {
       if (downloadError || !download) throw new Error(downloadError?.message || 'Não foi possível baixar o relatório.')
       const resumo = await processarRelatorioCaptado({
         buffer: Buffer.from(await download.arrayBuffer()), nomeArquivo: arquivo.nome_arquivo,
-      }, { condominioId: execucao.condominio_id, conversaoId: arquivo.id })
+      }, { condominioId: execucao.condominio_id, conversaoId: arquivo.id, execucaoManual: true })
       conversaoId = resumo.conversaoId
     }
     const { error: arquivoUpdateError } = await admin.from('agente_arquivos')

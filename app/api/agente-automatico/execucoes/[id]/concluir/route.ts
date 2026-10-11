@@ -19,7 +19,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (!['maestro', 'maestro_agendada', 'agenda_mensal'].includes(execucao.origem ?? '')) {
       return NextResponse.json({ ok: false, error: 'Execução não foi disparada pelo Maestro.' }, { status: 403 })
     }
-    if (!execucao.condominio_id || !['em_execucao', 'sucesso'].includes(execucao.status)) {
+    const retomadaManual = execucao.origem === 'maestro' && execucao.status === 'falha'
+    if (!execucao.condominio_id || (!['em_execucao', 'sucesso'].includes(execucao.status) && !retomadaManual)) {
       throw new Error('Execução sem condomínio ou fora da etapa de conclusão.')
     }
     const { data: arquivo, error: arquivoError } = await db.from('agente_arquivos')
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       const { data: download, error: downloadError } = await db.storage.from('agente-relatorios').download(arquivo.storage_path)
       if (downloadError || !download) throw new Error(downloadError?.message || 'Falha ao baixar relatório.')
       const resumo = await processarRelatorioCaptado({ buffer: Buffer.from(await download.arrayBuffer()), nomeArquivo: arquivo.nome_arquivo }, {
-        condominioId: execucao.condominio_id, conversaoId: arquivo.id,
+        condominioId: execucao.condominio_id, conversaoId: arquivo.id, execucaoManual: execucao.origem === 'maestro',
       })
       if (resumo.carteiraId !== execucao.carteira_id) throw new Error('Carteira do condomínio diverge da execução.')
     }
@@ -58,6 +59,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       metadata_json: { conversao_id: arquivo.id },
     })
     if (logError) throw new Error(logError.message)
+    if (retomadaManual) {
+      const { error: retomadaError } = await db.from('agente_execucoes').update({ status: 'sucesso', erro_mensagem: null, finalizado_em: new Date().toISOString() }).eq('id', id).eq('status', 'falha')
+      if (retomadaError) throw new Error(retomadaError.message)
+    }
     return NextResponse.json({ ok: true, conversaoId: arquivo.id, montagemFlows: 'enfileirada' })
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Falha ao concluir execução.' }, { status: 500 })

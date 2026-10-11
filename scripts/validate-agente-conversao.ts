@@ -12,12 +12,13 @@ async function main() {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'teste'
   const registros = new Map<string, Record<string, any>>()
   let falhar = false
+  let agendaHabilitada = true
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input))
     assert.equal(url.hostname, 'teste.invalid', 'Nenhuma chamada externa é permitida no teste')
     const tabela = url.pathname.split('/').pop()
     const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } })
-    if (tabela === 'condominios') return json([{ id: 'condominio', carteira_id: 'carteira', nome: 'Square Guarulhos', captacao_automatica_habilitada: true }])
+    if (tabela === 'condominios') return json(!agendaHabilitada && url.searchParams.has('captacao_automatica_habilitada') ? [] : [{ id: 'condominio', carteira_id: 'carteira', nome: 'Square Guarulhos', captacao_automatica_habilitada: agendaHabilitada }])
     if (tabela === 'conversoes_relatorio') {
       const row = JSON.parse(String(init?.body))
       if (falhar) return json({ code: 'XX000', message: 'Falha simulada' }, 500)
@@ -39,6 +40,13 @@ async function main() {
   assert.equal(registros.get('arquivo-unico')?.status, 'aguardando_validacao')
   falhar = true
   await assert.rejects(processarRelatorioCaptado(entrada, { ...options, conversaoId: 'outro' }), /Falha simulada/)
+  falhar = false
+  agendaHabilitada = false
+  await assert.rejects(processarRelatorioCaptado(entrada, options), /não está habilitado/)
+  await assert.rejects(processarRelatorioCaptado(entrada, { execucaoManual: true }), /não está habilitado/)
+  const manual = await processarRelatorioCaptado(entrada, { ...options, conversaoId: 'manual-agenda-pausada', execucaoManual: true })
+  assert.ok(manual.cobrancas > 0)
+  assert.equal(agendaHabilitada, false)
   console.log(`OK: XLS convertido (${resultados[0].cobrancas} cobranças), cliques simultâneos sem duplicação e erro de gravação propagado. Nenhum dado real alterado.`)
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

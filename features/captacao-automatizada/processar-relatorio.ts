@@ -223,7 +223,7 @@ async function registrarMarcadorRelatorioUnificado(
  */
 export async function processarRelatorioCaptado(
   arquivo: string | { buffer: Buffer; nomeArquivo: string },
-  options: { condominioId?: string; conversaoId?: string } = {},
+  options: { condominioId?: string; conversaoId?: string; execucaoManual?: boolean } = {},
 ): Promise<ResumoCaptacao> {
   const supabase = createAdminClient()
   const buffer = typeof arquivo === 'string' ? await readFile(arquivo) : arquivo.buffer
@@ -237,9 +237,14 @@ export async function processarRelatorioCaptado(
     .replace(/_\d{3,}$/i, "")
     .replace(/_/g, " ")
   const blocoPadraoCaptacao = detectarBlocoPadraoCaptacao(nomeDetectado, nomePeloArquivo)
-  const { data: candidatos, error: condominioError } = await supabase.from("condominios")
+  // A pausa pertence à agenda recorrente; disparos manuais usam o condomínio
+  // já autorizado pela execução, sem reativar o agendamento mensal.
+  const manual = options.execucaoManual === true && Boolean(options.condominioId)
+  let candidatosQuery = supabase.from("condominios")
     .select("id, carteira_id, nome, nome_operacional, cnpj, captacao_automatica_habilitada")
-    .eq("captacao_automatica_habilitada", true).eq("status", "ativo")
+    .eq("status", "ativo")
+  candidatosQuery = manual ? candidatosQuery.eq('id', options.condominioId!) : candidatosQuery.eq('captacao_automatica_habilitada', true)
+  const { data: candidatos, error: condominioError } = await candidatosQuery
   const detectado = normalizar(nomeDetectado)
   const detectadoPeloArquivo = normalizar(nomePeloArquivo)
   const baseDetectada = nomeBaseCondominioCaptacao(nomeDetectado)
@@ -264,7 +269,7 @@ export async function processarRelatorioCaptado(
       .join(" | ")
     throw new Error(condominioError?.message || `Condomínio do relatório (${nomeDetectado || "não identificado"}) não está habilitado para captação. Arquivo: ${detectadoPeloArquivo} [${baseDetectadaPeloArquivo}]. Candidatos: ${candidatosProximos || "nenhum"}.`)
   }
-  if (!condominio.captacao_automatica_habilitada) {
+  if (!manual && !condominio.captacao_automatica_habilitada) {
     throw new Error(`Captação automática desabilitada no cadastro de ${condominio.nome}.`)
   }
 
