@@ -273,12 +273,12 @@ export async function classificarRankingMensalComApp(
     somenteCobrancasCanonicas(supabase
       .from("cobrancas")
       .select("id, unidade_id, status_operacional, vencimento, created_at"))
-      .in("unidade_id", unidadeIds)
+      .eq("condominio_id", params.condominioId)
       .order("created_at", { ascending: false }),
     supabase
       .from("acordos")
       .select("id, unidade_id, status, created_at")
-      .in("unidade_id", unidadeIds)
+      .eq("condominio_id", params.condominioId)
       .in("status", ACORDO_STATUS_VIGENTES as string[])
       .order("created_at", { ascending: false }),
   ]) : [{ data: [] }, { data: [] }] as any
