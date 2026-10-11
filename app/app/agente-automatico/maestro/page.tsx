@@ -23,7 +23,7 @@ import { MaestroAgendaSelecao, MaestroAgendaCheckbox } from '@/components/flows/
 export const dynamic = 'force-dynamic'
 
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> }
-type EtapaEstado = 'concluida' | 'executando' | 'aguardando' | 'atencao' | 'nao_configurada'
+type EtapaEstado = 'concluida' | 'executando' | 'aguardando' | 'atencao' | 'nao_configurada' | 'pausada'
 type Etapa = { nome: string; estado: EtapaEstado; detalhe: string; data?: string | null }
 
 const getParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] ?? '' : value ?? ''
@@ -118,13 +118,14 @@ function estadoConversao(status?: string | null): EtapaEstado {
 }
 
 function rotuloEstado(estado: EtapaEstado) {
-  return ({ concluida: 'Concluída', executando: 'Em andamento', aguardando: 'Aguardando', atencao: 'Requer atenção', nao_configurada: 'Não configurada' })[estado]
+  return ({ concluida: 'Concluída', executando: 'Em andamento', aguardando: 'Aguardando', atencao: 'Requer atenção', nao_configurada: 'Não configurada', pausada: 'Agenda pausada' })[estado]
 }
 
 function resumoPipeline(etapas: Etapa[]) {
   if (etapas.some((etapa) => etapa.estado === 'atencao')) return { label: 'Requer atenção', tone: 'red' as const }
   if (etapas.some((etapa) => etapa.estado === 'nao_configurada')) return { label: 'Configuração pendente', tone: 'yellow' as const }
   if (etapas.some((etapa) => etapa.estado === 'executando')) return { label: 'Em andamento', tone: 'blue' as const }
+  if (etapas.some((etapa) => etapa.estado === 'pausada')) return { label: 'Agenda pausada', tone: 'slate' as const }
   if (etapas.every((etapa) => etapa.estado === 'concluida')) return { label: 'Ciclo concluído', tone: 'green' as const }
   return { label: 'Aguardando próxima etapa', tone: 'slate' as const }
 }
@@ -221,7 +222,7 @@ export default async function MaestroPage({ searchParams }: Props) {
     const importacaoConcluida = Boolean(conversao && ['concluido', 'concluido_com_alertas'].includes(conversao.status))
 
     const etapas: Etapa[] = [
-      { nome: 'Agenda', estado: agendaConfigurada ? 'concluida' : 'nao_configurada', detalhe: agendaConfigurada ? `Todo dia ${condominio.captacao_dia_mes}, às ${String(condominio.captacao_horario ?? '08:00').slice(0, 5)}` : !condominio.captacao_automatica_habilitada ? 'Captação automática desabilitada' : !receita?.script_key ? 'Agente ainda não vinculado' : 'Dia de execução não definido' },
+      { nome: 'Agenda', estado: !condominio.captacao_automatica_habilitada ? 'pausada' : agendaConfigurada ? 'concluida' : 'nao_configurada', detalhe: agendaConfigurada ? `Todo dia ${condominio.captacao_dia_mes}, às ${String(condominio.captacao_horario ?? '08:00').slice(0, 5)}` : !condominio.captacao_automatica_habilitada ? 'Captação automática desabilitada' : !receita?.script_key ? 'Agente ainda não vinculado' : 'Dia de execução não definido' },
       { nome: 'Agente', estado: execucao ? estadoExecucao(execucao.status) : 'aguardando', detalhe: execucao?.erro_mensagem || (execucao ? `Execução ${execucao.status.replaceAll('_', ' ')}` : 'Aguardando o primeiro ciclo'), data: execucao?.finalizado_em || execucao?.iniciado_em || execucao?.created_at },
       { nome: 'Arquivo', estado: arquivo ? (arquivo.status_validacao === 'rejeitado' ? 'atencao' : 'concluida') : execucao?.status === 'em_execucao' ? 'executando' : execucao?.status === 'sucesso' ? 'atencao' : 'aguardando', detalhe: arquivo?.nome_arquivo || (execucao?.status === 'sucesso' ? 'Execução terminou sem arquivo vinculado' : 'Aguardando download do relatório'), data: arquivo?.created_at },
       { nome: 'Conversão', estado: conversaoEstado, detalhe: conversao ? `${conversao.total_cobrancas ?? 0} cobranças · ${conversao.total_parcelas ?? 0} parcelas` : 'Aguardando arquivo para converter', data: conversao?.atualizado_em || conversao?.criado_em },
