@@ -8,6 +8,7 @@ import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { retomarMontagemMaestro } from '@/features/flows/cobranca/maestro-actions'
 import { classificarPendenciasMaestro } from '@/features/flows/cobranca/maestro-elegibilidade'
 import { MaestroRefresh } from './maestro-refresh'
+import { MaestroAgendaSelecao, MaestroAgendaCheckbox } from './maestro-agenda-selecao'
 
 type FiltrosMontagem = { condominioIds?: string[]; carteiraId?: string; status?: string; mostrarVazio?: boolean }
 export async function MaestroMontagens(props: FiltrosMontagem = {}) {
@@ -45,6 +46,7 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
   return <Card className="space-y-3">
     <MaestroRefresh ativo={data.some((job: any) => ['pendente', 'processando'].includes(job.status))} />
     <div><h2 className="font-semibold">Montagem de flows pelo Maestro</h2><p className="text-sm text-slate-500">A montagem continua com a página fechada. Os flows aguardam sua revisão e ativação manual em lote.</p></div>
+    <MaestroAgendaSelecao montagens ids={status === 'arquivado' ? [] : data.filter((job: any) => ['pendente', 'atencao'].includes(job.status)).map((job: any) => job.id)}>
     <div className="divide-y divide-slate-100">{data.map((job: any) => {
       const condominio = Array.isArray(job.condominio) ? job.condominio[0] : job.condominio
       const partes = job.plano?.length ?? 0
@@ -55,7 +57,7 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
       const prontos = flows.filter(flow => flow.status === 'pronto').length
       return <div key={job.id} className="space-y-2 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3"><div>
-          <p className="text-sm font-medium">{condominio?.nome_operacional || condominio?.nome}</p>
+          <div className="flex items-center gap-2">{status !== 'arquivado' && ['pendente', 'atencao'].includes(job.status) ? <MaestroAgendaCheckbox montagens id={job.id} nome={condominio?.nome_operacional || condominio?.nome || 'Condomínio'} /> : null}<p className="text-sm font-medium">{condominio?.nome_operacional || condominio?.nome}</p></div>
           <p className="text-xs text-slate-500">{labels[job.status]}{partes > 0 ? ` · ${job.parte}/${partes} partes` : job.status === 'concluido' ? ' · Nenhuma nova cobrança elegível nesta avaliação' : ''}</p>
         </div>
         {job.status === 'atencao' || (job.status === 'concluido' && pendencias.length > 0) ? <form action={retomarMontagemMaestro.bind(null, job.id)}><PendingSubmitButton variant="secondary" size="sm" pendingLabel="Enfileirando...">{job.status === 'atencao' ? 'Retomar montagem' : 'Reavaliar pendências'}</PendingSubmitButton></form> : null}</div>
@@ -66,6 +68,7 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
         {excluidas.length ? <details className="text-xs text-slate-500"><summary className="cursor-pointer">{excluidas.length} cobrança(s) não incluída(s) por outros motivos</summary><ul className="mt-2 space-y-1">{excluidas.map((p, index) => <li key={index}><Link href={`/app/cobrancas/${p.cobranca_id}`} className="underline">Abrir cobrança</Link> · {p.motivo}</li>)}</ul></details> : null}
       </div>
     })}</div>
+    </MaestroAgendaSelecao>
     {(count ?? 0) > data.length ? <p className="text-xs text-slate-500">Mostrando as 100 montagens atualizadas mais recentemente.</p> : null}
     <Link href="/app/flows/cobranca/email?step=flows" className="text-sm font-medium underline">Revisar e ativar flows em lote</Link>
   </Card>

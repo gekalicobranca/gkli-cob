@@ -18,6 +18,7 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import { MaestroMontagens } from '@/components/flows/cobranca/maestro-montagens'
 import { agendarExecucaoAgenteReceita, alternarCaptacaoGlobal } from '@/features/agente-automatico/actions'
 import { ExecutarAgoraButton } from './executar-agora-button'
+import { MaestroAgendaSelecao, MaestroAgendaCheckbox } from '@/components/flows/cobranca/maestro-agenda-selecao'
 
 export const dynamic = 'force-dynamic'
 
@@ -354,6 +355,7 @@ export default async function MaestroPage({ searchParams }: Props) {
         <Button type="submit"><Filter size={16} />Filtrar</Button>
       </form></Card>
       {!agendaOrdenada.length ? <Card className="py-12 text-center"><CalendarClock className="mx-auto text-slate-300" /><p className="mt-3 font-medium text-slate-900">Nenhuma agenda encontrada</p><p className="mt-1 text-sm text-slate-500">Ajuste os filtros ou configure a captação no condomínio.</p></Card> : null}
+      <MaestroAgendaSelecao key={agendaOrdenada.map((linha: any) => linha.condominio.id).join(',')} ids={agendaOrdenada.map((linha: any) => linha.condominio.id)}>
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400 lg:grid-cols-[minmax(280px,1.5fr)_140px_180px_160px_170px_150px_auto]">
           <span>Condomínio</span><span>Vencimento</span><span>Próxima execução</span><span>Agenda atual</span><span>Última execução</span><span>Validação</span><span className="text-right">Ações</span>
@@ -365,10 +367,10 @@ export default async function MaestroPage({ searchParams }: Props) {
           const agendaCompleta = Boolean(linha.condominio.captacao_automatica_habilitada && linha.condominio.captacao_dia_mes && linha.receita?.script_key)
           const foraDaRegra = Boolean(diaPlanejado && linha.condominio.captacao_dia_mes && diaPlanejado !== Number(linha.condominio.captacao_dia_mes))
           return <div key={linha.condominio.id} className="grid gap-3 px-5 py-4 text-sm hover:bg-slate-50/70 lg:grid-cols-[minmax(280px,1.5fr)_140px_180px_160px_170px_150px_auto] lg:items-center">
-            <div className="min-w-0"><p className="truncate font-semibold text-slate-950">{linha.condominio.nome_operacional || linha.condominio.nome}</p><p className="mt-1 truncate text-xs text-slate-500">{linha.administradora} · {linha.carteira?.nome || 'Sem carteira'} · CNPJ {linha.condominio.cnpj || '—'}</p></div>
+            <div className="flex min-w-0 items-start gap-3"><MaestroAgendaCheckbox id={linha.condominio.id} nome={linha.condominio.nome_operacional || linha.condominio.nome} /><div className="min-w-0"><p className="truncate font-semibold text-slate-950">{linha.condominio.nome_operacional || linha.condominio.nome}</p><p className="mt-1 truncate text-xs text-slate-500">{linha.administradora} · {linha.carteira?.nome || 'Sem carteira'} · CNPJ {linha.condominio.cnpj || '—'}</p></div></div>
             <p className="text-slate-700">{linha.condominio.vencimento_cota_dia ? `Dia ${linha.condominio.vencimento_cota_dia}` : 'Não definido'}</p>
             <p className="text-slate-700">{proxima ? formatarData(proxima.toISOString()) : 'Defina dia e horário'}</p>
-            <div><Badge tone={agendaCompleta && !foraDaRegra ? 'green' : 'yellow'}>{linha.condominio.captacao_dia_mes ? `Dia ${linha.condominio.captacao_dia_mes} · ${String(linha.condominio.captacao_horario ?? '08:00').slice(0, 5)}` : 'Incompleta'}</Badge>{foraDaRegra ? <p className="mt-1 text-xs text-amber-700">Regra: dia {diaPlanejado}</p> : !linha.receita?.script_key ? <p className="mt-1 text-xs text-amber-700">Agente não vinculado</p> : null}</div>
+            <div><Badge tone={!linha.condominio.captacao_automatica_habilitada ? 'slate' : agendaCompleta && !foraDaRegra ? 'green' : 'yellow'}>{!linha.condominio.captacao_automatica_habilitada ? 'Pausada' : linha.condominio.captacao_dia_mes ? `Dia ${linha.condominio.captacao_dia_mes} · ${String(linha.condominio.captacao_horario ?? '08:00').slice(0, 5)}` : 'Incompleta'}</Badge>{foraDaRegra ? <p className="mt-1 text-xs text-amber-700">Regra: dia {diaPlanejado}</p> : !linha.receita?.script_key ? <p className="mt-1 text-xs text-amber-700">Agente não vinculado</p> : null}</div>
             <div>{realizadaNoMes ? <Badge tone="green">Realizada no mês</Badge> : <p className="text-slate-700">{rotuloExecucao(linha.execucao?.status)}</p>}<p className="mt-1 text-xs text-slate-400">{formatarData(linha.execucao?.created_at)}</p></div>
             <div>{linha.conversao?.status === 'aguardando_validacao' ? <Badge tone="yellow">Pendente</Badge> : linha.conversao ? <Badge tone="green">Ok</Badge> : <span className="text-slate-400">Sem conversão</span>}</div>
             <div className="flex flex-col items-start gap-2 lg:items-end">
@@ -379,6 +381,7 @@ export default async function MaestroPage({ searchParams }: Props) {
           </div>
         })}</div>
       </div>
+      </MaestroAgendaSelecao>
       <Card className="flex items-start gap-3 border-blue-100 bg-blue-50 text-sm text-blue-900"><History size={18} className="mt-0.5 shrink-0" /><div><p className="font-medium">A agenda planejada do Maestro segue vencimento + 10 dias.</p><p className="mt-1 text-blue-800">A agenda atual continua vindo do cadastro do condomínio; quando ela diverge da regra, a linha marca o dia sugerido para ajuste.</p></div></Card>
     </>}
   </main>
