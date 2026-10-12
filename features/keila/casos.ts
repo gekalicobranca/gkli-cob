@@ -15,7 +15,7 @@ export const KEILA_ESTADOS = {
   concluido: 'Concluído',
 } as const
 export type KeilaEstado = keyof typeof KEILA_ESTADOS
-export type KeilaEmail = { chave: string; nome: string; remetente: string; recebido_em: string; assunto: string; resumo: string }
+export type KeilaEmail = { chave: string; nome: string; remetente: string; recebido_em: string; assunto: string; resumo: string; webmail_url?: string }
 export type KeilaAtividade = { em: string; descricao: string; usuario_id?: string | null }
 export type KeilaCasoPayload = {
   versao: 1

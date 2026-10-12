@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Bot } from 'lucide-react'
 import { NegociacaoKeila } from '@/components/keila/negociacao'
 import { AcompanhamentoKeila } from '@/components/keila/acompanhamento'
+import { WebmailKeila, LinksWebmail } from '@/components/keila/webmail'
 import { acompanhamento } from '@/features/keila/acompanhamento'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -52,14 +53,14 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
   return <LitePageShell>
     <LitePageHeader><PageHeader eyebrow="Atendimento por e-mail" title={agente.nome}
       description={`${agente.email} · Acompanhe respostas, consultas de débitos e próximos passos dos casos. Os disparos iniciais são feitos pelos flows.`}
-      actions={<><ButtonLink href={`${agente.caminho}?tab=novo`} variant="header">Registrar e-mail</ButtonLink><ButtonLink href={`${agente.caminho}?tab=regras`} variant="header">Regras</ButtonLink></>}
+      actions={<>{agenteId === 'keila' ? <ButtonLink href={`${agente.caminho}?tab=webmail`} variant="header">Webmail · Safira</ButtonLink> : null}<ButtonLink href={`${agente.caminho}?tab=novo`} variant="header">Registrar e-mail</ButtonLink><ButtonLink href={`${agente.caminho}?tab=regras`} variant="header">Regras</ButtonLink></>}
     ><div className="flex flex-wrap gap-3 text-sm"><Link href={agente.caminho} className="underline underline-offset-4">Atendimentos</Link><Link href={`/app/pendencias?tipo=${agente.tipoCaso}`} className="underline underline-offset-4">Pendências</Link><Link href="/app/agente-automatico" className="underline underline-offset-4">Agentes remotos</Link></div></PageHeader></LitePageHeader>
     <LiteKpiStrip><div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{indicadores.map(([label, value]) => <Card key={label} className="p-4"><p className="text-xs text-slate-500">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></Card>)}</div></LiteKpiStrip>
     <LiteWorkArea><LiteScrollArea className="h-full space-y-4 pb-4">
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Operação supervisionada: retornos dos flows habilitados são encaminhados ao atendimento quando registrados no app. E-mails também podem ser registrados manualmente. Respostas são apenas simuladas; nenhum envio é realizado nesta área.</div>
       {first(params.erro) ? <p role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-700">{first(params.erro)}</p> : null}
       {first(params.resultado) ? <p role="status" className="rounded-lg bg-emerald-50 p-4 text-emerald-700">{first(params.resultado)}</p> : null}
-      {tab === 'regras' ? <Card className="space-y-4 p-5"><h2 className="text-lg font-semibold">Regras de atendimento</h2><ul className="list-disc space-y-3 pl-5 text-sm text-slate-600">
+      {tab === 'webmail' && agenteId === 'keila' ? <WebmailKeila carteiraIds={scope.carteiraIds} podeEditar={podeEditar} /> : tab === 'regras' ? <Card className="space-y-4 p-5"><h2 className="text-lg font-semibold">Regras de atendimento</h2><ul className="list-disc space-y-3 pl-5 text-sm text-slate-600">
         <li>A habilitação do agente autônomo no condomínio autoriza o atendimento por {agente.nome}. Nesta fase, as ações são coordenadas sob supervisão.</li>
         <li>Associe e-mails referentes às mesmas cobranças ao mesmo caso.</li>
         <li>Débitos atualizados: use o agente remoto cadastrado; sem agente, solicite à administradora e mantenha uma pendência até o retorno. Só informe que solicitou após realizar a solicitação.</li>
@@ -92,6 +93,7 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
             {podeEditar && !['atendimento_humano', 'concluido'].includes(caso.payload.estado) && (!execucao || ['falha', 'cancelada', 'precisa_intervencao'].includes(execucao.status)) ? <form action={coletar}><input type="hidden" name="id" value={caso.id} /><Button type="submit" variant="secondary">Buscar débitos pelo agente remoto</Button></form> : null}
           </Card><Card className="space-y-4 p-5"><h3 className="font-semibold">Mensagens associadas</h3>{caso.payload.emails.map(e => <article key={e.chave} className="rounded-lg border border-slate-200 p-3"><p className="text-sm font-medium">{e.nome || e.remetente} · {date(e.recebido_em)}</p><p className="text-xs text-slate-500">{e.remetente}</p><p className="mt-2 text-sm font-medium">{e.assunto}</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{e.resumo}</p></article>)}{caso.payload.retornos?.filter(r => r.canal === 'whatsapp').map(r => <article key={r.chave} className="rounded-lg border border-slate-200 p-3"><p className="text-sm font-medium">WhatsApp · {date(r.recebido_em)}</p><p className="text-xs text-slate-500">{r.remetente}</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{r.resumo}</p></article>)}</Card>
           <NegociacaoKeila agenteId={agenteId} caso={caso} unidades={unidades.filter((u: { id: string }) => caso.payload.unidade_ids.includes(u.id))} podeEditar={podeEditar} />
+          <LinksWebmail emails={caso.payload.emails} />
           <AcompanhamentoKeila agenteId={agenteId} caso={caso} podeEditar={podeEditar} />
           <Card className="space-y-3 p-5"><h3 className="font-semibold">Histórico de atividades</h3>{caso.payload.atividades.map((a, i) => <div key={`${a.em}:${i}`} className="border-l-2 border-sky-200 pl-3"><p className="text-xs text-slate-500">{date(a.em)}</p><p className="mt-1 whitespace-pre-wrap text-sm">{a.descricao}</p></div>)}</Card>
           {podeEditar ? <Card className="p-5"><h3 className="mb-4 font-semibold">Registrar andamento</h3><form action={atualizar} className="space-y-4"><input type="hidden" name="id" value={caso.id} />
