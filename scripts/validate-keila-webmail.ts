@@ -14,7 +14,7 @@ function fixture() {
   const tables: Record<string, Record<string, unknown>[]> = {
     condominios: [{ id: SAFIRA_PILOTO_ID, carteira_id: 'autorizada', operacao_virtual_habilitada: true, keila_retornos_desde: '2020-01-01' }],
     lote_itens: Array.from({ length: 501 }, (_, i) => ({ id: String(i), condominio_id: SAFIRA_PILOTO_ID })),
-    mensagens: [{ id: 'safira', carteira_id: 'autorizada', canal: 'email', status: 'enviada', lote_item_id: '500', destinatario: 'a@example.com', flow: { nome: 'Régua Safira', status: 'concluido', iniciado_em: '2020-01-01' } },
+    mensagens: [{ id: 'safira', carteira_id: 'autorizada', canal: 'email', status: 'enviada', lote_item_id: '500', destinatario: 'a@example.com', email_assunto: null, template: { assunto: 'Pendências — {{condominio}}' }, payload: { contexto: { condominio: 'CONDOMÍNIO SAFIRA' } }, flow: { nome: 'Régua Safira', status: 'concluido', iniciado_em: '2020-01-01' } },
       { id: 'outro-condominio', carteira_id: 'autorizada', canal: 'email', status: 'enviada', lote_item_id: 'estranho', flow: { nome: 'Outro', status: 'em_execucao', iniciado_em: '2020-01-01' } }],
   }
   const db = { from(table: string) {
@@ -46,6 +46,7 @@ test('busca itens além da primeira página e exclui outro condomínio da mesma 
   const { db } = fixture()
   const result = await carregarFlowsWebmail(db,['autorizada'])
   assert.deepEqual(result.mensagens.map(m => m.id),['safira'])
+  assert.equal(result.mensagens[0].email_assunto, 'Pendências — CONDOMÍNIO SAFIRA')
 })
 
 test('recusa associar resposta a mensagem de outro condomínio', async () => {

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { renderTemplate } from '../mensageria/render-template'
 
 export const SAFIRA_PILOTO_ID = '2b1aa7ca-91d6-44fc-b667-8fb9bfeffb53'
 export const KEILA_WEBMAIL_URL = 'https://outlook.office.com/mail/?login_hint=keila%40gekali.com.br'
@@ -31,7 +32,7 @@ export async function carregarFlowsWebmail(db: SupabaseClient, carteiraIds: stri
   const mensagens: { id: string; destinatario: string; email_assunto: string | null; flow_nome: string }[] = []
   for (let offset = 0; ; offset += 500) {
     const { data, error: messageError } = await db.from('mensagens')
-      .select('id,lote_item_id,destinatario,email_assunto,flow:cobranca_flows!inner(nome,status,iniciado_em)')
+      .select('id,lote_item_id,destinatario,email_assunto,payload,template:mensagens_templates(assunto),flow:cobranca_flows!inner(nome,status,iniciado_em)')
       .eq('carteira_id', condo.carteira_id).eq('canal', 'email').eq('status', 'enviada')
       .neq('flow.status', 'cancelado').not('flow.iniciado_em', 'is', null)
       .order('created_at', { ascending: false }).order('id').range(offset, offset + 499)
@@ -39,7 +40,9 @@ export async function carregarFlowsWebmail(db: SupabaseClient, carteiraIds: stri
     for (const m of data ?? []) {
       if (!permitidos.has(m.lote_item_id)) continue
       const flow = Array.isArray(m.flow) ? m.flow[0] : m.flow
-      mensagens.push({ id: m.id, destinatario: m.destinatario, email_assunto: m.email_assunto, flow_nome: flow.nome })
+      const template = Array.isArray(m.template) ? m.template[0] : m.template
+      const assunto = renderTemplate(m.email_assunto || template?.assunto || 'Mensagem GKLI Cobrança', m.payload?.contexto ?? {})
+      mensagens.push({ id: m.id, destinatario: m.destinatario, email_assunto: assunto, flow_nome: flow.nome })
     }
     if ((data?.length ?? 0) < 500) break
   }
