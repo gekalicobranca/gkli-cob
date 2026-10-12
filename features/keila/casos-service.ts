@@ -97,7 +97,7 @@ export async function atualizarCasoKeila(supabase: SupabaseClient, input: {
   }
   await salvarCaso(supabase, caso, {
     ...caso.payload, estado: input.estado, proxima_acao: input.proximaAcao,
-    ...(input.respostaSimulada !== undefined ? { resposta_simulada: input.respostaSimulada } : {}),
+    ...(input.respostaSimulada !== undefined ? { resposta_simulada: input.respostaSimulada, resposta_email_chave: caso.payload.emails.at(-1)?.chave } : {}),
     atividades: [...caso.payload.atividades, { em: new Date().toISOString(), descricao: input.descricao, usuario_id: input.usuarioId }],
   }, input.usuarioId)
 }

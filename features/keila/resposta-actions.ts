@@ -21,6 +21,7 @@ export async function aprovarEnviarRespostaKeila(form: FormData) {
     const email = caso.payload.emails.at(-1)
     const texto = caso.payload.resposta_simulada?.trim()
     if (!email || !texto || texto.length > 10000) throw new Error('Salve a resposta antes de aprovar.')
+    if (caso.payload.resposta_email_chave && caso.payload.resposta_email_chave !== email.chave) throw new Error('O rascunho pertence a uma mensagem anterior. Revise e salve a resposta ao novo retorno.')
     if (String(form.get('updated_at')) !== caso.updated_at) throw new Error('O atendimento mudou. Recarregue e revise novamente.')
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.remetente) || /[\r\n]/.test(email.assunto)) throw new Error('Destinatário ou assunto inválido.')
     const { data: carteira, error: carteiraError } = await db.from('carteiras').select('email_transporte').eq('id', caso.carteira_id).single()
@@ -35,7 +36,7 @@ export async function aprovarEnviarRespostaKeila(form: FormData) {
     const remetente = await getEmailRemetenteKey(caso.carteira_id)
     if (!caso.payload.resposta_aprovada) {
       const em = new Date().toISOString()
-      const aprovada = { mensagem_id: casoId(caso.condominio_id, caso.payload.unidade_ids, `${id}:resposta:${caso.updated_at}`), em, usuario_id: scope.userId, destinatario: email.remetente, assunto: /^re:/i.test(email.assunto) ? email.assunto : `Re: ${email.assunto}`, texto }
+      const aprovada = { mensagem_id: casoId(caso.condominio_id, caso.payload.unidade_ids, `${id}:resposta:${caso.updated_at}`), em, usuario_id: scope.userId, destinatario: email.remetente, assunto: /^re:/i.test(email.assunto) ? email.assunto : `Re: ${email.assunto}`, texto, email_chave: email.chave }
       await salvarCaso(db, caso, { ...caso.payload, resposta_aprovada: aprovada,
         atividades: [...caso.payload.atividades, { em, usuario_id: scope.userId, descricao: `Resposta aprovada para ${aprovada.destinatario}. Registro ${aprovada.mensagem_id}.` }] }, scope.userId)
       caso = await carregarCaso(db, id, scope.carteiraIds)

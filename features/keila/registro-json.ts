@@ -2,6 +2,8 @@ import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { carregarCaso, registrarCasoKeila, salvarCaso } from './casos-service'
 import { validarLinkWebmail } from './webmail'
+import { unirEmails } from './casos'
+import { prepararNovoRascunho } from './novo-rascunho'
 
 const referenciaOutlook = z.object({
   conta: z.email(), conversation_id: z.string().min(1).max(1000),
@@ -74,12 +76,23 @@ export async function registrarKeilaJSON(db: SupabaseClient, value: unknown, con
   }
   const vinculo = { ...registro.email.outlook, interlocutor: registro.email.nome }
   const acompanhamento = caso.payload.acompanhamento ?? { conversas: [], pendencias: [] }
-  await salvarCaso(db, caso, { ...caso.payload,
-    emails: caso.payload.emails.some(e => e.chave === email.chave) ? caso.payload.emails : [...caso.payload.emails, email],
+  let payload = caso.payload
+  if (registro.resposta_rascunho !== undefined) {
+    let statusAnterior: string | undefined
+    if (payload.resposta_aprovada) {
+      const { data, error } = await db.from('mensagens').select('status').eq('id', payload.resposta_aprovada.mensagem_id).eq('carteira_id', caso.carteira_id).maybeSingle()
+      if (error) throw new Error('Não foi possível conferir o envio anterior.')
+      statusAnterior = data?.status
+    }
+    payload = prepararNovoRascunho(payload, email.chave, registro.resposta_rascunho, statusAnterior)
+  } else if (!payload.resposta_aprovada && !payload.emails.some(e => e.chave === email.chave)) {
+    payload = { ...payload, resposta_simulada: null, resposta_email_chave: undefined }
+  }
+  await salvarCaso(db, caso, { ...payload,
+    emails: unirEmails(caso.payload.emails, [email]),
     estado: registro.eventos.some(e => e.tipo === 'proposta_preparada') ? 'proposta_preparada' : caso.payload.estado,
     proxima_acao: registro.proxima_acao,
     ...(registro.execucao_id ? { execucao_id: registro.execucao_id } : {}),
-    ...(registro.resposta_rascunho !== undefined ? { resposta_simulada: registro.resposta_rascunho } : {}),
     registro_json: { versao: 1, eventos: [...anteriores, ...novos] },
     acompanhamento: { ...acompanhamento, conversas: acompanhamento.conversas.some(c => c.conta === vinculo.conta && c.message_id === vinculo.message_id)
       ? acompanhamento.conversas : [...acompanhamento.conversas, vinculo] },
