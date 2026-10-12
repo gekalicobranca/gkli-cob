@@ -28,6 +28,7 @@ export type KeilaCasoPayload = {
   proxima_acao: string
   execucao_id?: string | null
   resposta_simulada?: string | null
+  resposta_aprovada?: { mensagem_id: string; em: string; usuario_id: string; destinatario: string; assunto: string; texto: string }
   acordos?: import('./acordos').KeilaAcordo[]
   acompanhamento?: import('./acompanhamento').KeilaAcompanhamento
   registro_json?: { versao: 1; eventos: import('./registro-json').RegistroKeilaJSON['eventos'] }

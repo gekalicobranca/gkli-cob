@@ -29,7 +29,7 @@ export function RoteiroAtendimentoKeila({ caso, execucao }: { caso: KeilaCaso; e
       detalhe: conferenciaJSON?.resumo || confirmacao?.evidencia || 'Registre a fonte, a data da atualização e os débitos conferidos. Não inclua cobranças suspensas ou judiciais.', href: '#acompanhamento-caso', acao: 'Abrir conferência' },
     { titulo: 'Aplicar regras e preparar proposta', situacao: aprovacao ? 'Depende de aprovação' : proposta ? 'Proposta registrada' : 'Proposta ainda não preparada',
       detalhe: propostaJSON?.resumo || 'Confira os percentuais, o limite de parcelas e a régua do condomínio. Revise os valores por unidade antes de apresentar as condições.', href: '#propostas-caso', acao: 'Abrir regras e proposta' },
-    { titulo: 'Revisar a resposta', situacao: resposta ? 'Rascunho salvo para revisão' : 'Resposta ainda não preparada',
+    { titulo: 'Revisar a resposta', situacao: caso.payload.resposta_aprovada ? 'Resposta aprovada · acompanhar envio' : resposta ? 'Rascunho salvo para revisão' : 'Resposta ainda não preparada',
       detalhe: 'A resposta deve apresentar o resultado da consulta e, quando solicitado, a proposta concreta. Salvar o rascunho não envia e-mail.', href: '#resposta-caso', acao: 'Abrir resposta' },
   ]
   return <Card className="space-y-4 p-5">
@@ -39,6 +39,6 @@ export function RoteiroAtendimentoKeila({ caso, execucao }: { caso: KeilaCaso; e
     {!humano && !concluido ? <ol className="grid gap-3 sm:grid-cols-2">{etapas.map((etapa, i) => <li key={etapa.titulo} className="min-w-0 rounded-lg border border-slate-200 p-3">
       <h4 className="text-sm font-semibold">{i + 1}. {etapa.titulo}</h4><p className="mt-2 text-sm font-medium text-sky-800">{etapa.situacao}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{etapa.detalhe}</p><Link href={etapa.href} className="mt-3 inline-block text-sm text-sky-700 underline">{etapa.acao}</Link>
     </li>)}</ol> : null}
-    {resposta ? <details open><summary className="cursor-pointer text-sm font-semibold">Resposta preparada · revisão pendente</summary><p className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 text-sm">{caso.payload.resposta_simulada}</p></details> : null}
+    {resposta ? <details open><summary className="cursor-pointer text-sm font-semibold">{caso.payload.resposta_aprovada ? 'Resposta aprovada · confira o envio abaixo' : 'Resposta preparada · revisão pendente'}</summary><p className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 text-sm">{caso.payload.resposta_aprovada?.texto ?? caso.payload.resposta_simulada}</p></details> : null}
   </Card>
 }

@@ -5,7 +5,7 @@ import { lerCasoPayload, type KeilaCasoPayload } from './casos'
 import { AGENTES_VIRTUAIS, escopoLidia, type AgenteVirtualId } from '../agentes-virtuais/perfis'
 
 export type KeilaCaso = {
-  id: string; titulo: string; status: string; updated_at: string; condominio_id: string; payload: KeilaCasoPayload
+  id: string; carteira_id: string; titulo: string; status: string; updated_at: string; condominio_id: string; payload: KeilaCasoPayload
   condominio: { nome: string; operacao_virtual_habilitada: boolean; despesas_acordo_avista_percentual: number | null; despesas_acordo_parcelado_percentual: number | null; parcelas_acordo_sem_aprovacao_sindico: number | null } | null
 }
 
@@ -17,7 +17,7 @@ export async function getKeilaCasos(scope: CarteiraScope, casoId?: string, condo
     if (condominioId && condominioId !== AGENTES_VIRTUAIS.lidia.pilotoCondominioId) throw new Error('Condomínio fora do piloto da Lidia.')
   }
   const supabase = createAdminClient()
-  const selection = 'id,titulo,status,updated_at,condominio_id,payload'
+  const selection = 'id,carteira_id,titulo,status,updated_at,condominio_id,payload'
   const { data, error } = await applyCarteiraScope(supabase.from('central_pendencias').select(selection)
     .eq('tipo', tipoCaso).order('updated_at', { ascending: false }).limit(200), scope.carteiraIds)
   if (error) throw new Error(`Erro ao carregar atendimentos de ${AGENTES_VIRTUAIS[agenteId].nome}: ${error.message}`)
