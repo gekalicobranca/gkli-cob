@@ -30,6 +30,7 @@ export type KeilaCasoPayload = {
   resposta_simulada?: string | null
   acordos?: import('./acordos').KeilaAcordo[]
   acompanhamento?: import('./acompanhamento').KeilaAcompanhamento
+  registro_json?: { versao: 1; eventos: import('./registro-json').RegistroKeilaJSON['eventos'] }
   envio_permitido: false
   modo: 'supervisionado'
 }

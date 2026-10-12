@@ -8,7 +8,7 @@ export const KEILA_WEBMAIL_URL = 'https://outlook.office.com/mail/?login_hint=ke
 export function validarLinkWebmail(value: string) {
   if (!value.trim()) return undefined
   const url = new URL(value.trim())
-  if (url.protocol !== 'https:' || !['outlook.office.com', 'outlook.office365.com', 'outlook.live.com'].includes(url.hostname) || url.username || url.password || url.port) {
+  if (url.protocol !== 'https:' || !['outlook.office.com', 'outlook.office365.com', 'outlook.live.com', 'outlook.cloud.microsoft'].includes(url.hostname) || url.username || url.password || url.port) {
     throw new Error('Use o endereço HTTPS da mensagem no Outlook.')
   }
   return url.href

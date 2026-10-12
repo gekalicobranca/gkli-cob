@@ -57,9 +57,10 @@ export async function registrarCasoKeila(supabase: SupabaseClient, input: {
   }
   if (!unidadeIds.length && !input.referencia) throw new Error('Informe as unidades ou uma referência para identificar o caso.')
   const id = casoId(condominio.id, unidadeIds, input.referencia, agenteId)
-  const { data: existente, error: existenteError } = await supabase.from('central_pendencias').select('id').eq('id', id).maybeSingle()
+  const { data: existente, error: existenteError } = await supabase.from('central_pendencias').select('id,tipo').eq('id', id).maybeSingle()
   if (existenteError) throw new Error(existenteError.message)
   if (existente) {
+    if (existente.tipo !== agente.tipoCaso) throw new Error('Já existe um registro arquivado com esta referência. Use a referência da nova conversa, preservando o histórico anterior.')
     const caso = await carregarCaso(supabase, id, input.carteiraIds, agenteId)
     const emails = unirEmails(caso.payload.emails, input.emails)
     if (emails.length > caso.payload.emails.length) await salvarCaso(supabase, caso, {
