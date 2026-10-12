@@ -1,12 +1,14 @@
+import { modoManual, reivindicarManual, esperarTrava } from '../acordos-portais/manual.mjs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomUUID } from 'node:crypto'
-import { mkdir, open, readdir, readFile, unlink } from 'node:fs/promises'
+import { mkdir, readdir, readFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { bancoDocumentos, salvarPdf, verificarCadastro } from './documentos.mjs'
 
+const selecionadas = modoManual(process.argv.slice(2))
 const executar = promisify(execFile)
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const db = bancoDocumentos()
@@ -15,8 +17,7 @@ const saida = path.join(os.homedir(), 'Downloads', 'manager-acordos-fila')
 await mkdir(saida, { recursive: true })
 const lockPath = path.join(saida, '.fila.lock')
 // Uma instância por máquina, independente de todos os processos de inadimplência.
-const lock = await open(lockPath, 'wx')
-await lock.writeFile(JSON.stringify({ pid: process.pid, worker_id: workerId }))
+const lock = await esperarTrava(lockPath, { pid: process.pid, worker_id: workerId }, selecionadas !== null)
 let encerrando = false
 process.on('SIGINT', () => { encerrando = true })
 process.on('SIGTERM', () => { encerrando = true })
@@ -32,11 +33,15 @@ async function atualizar(id, campos) {
 try {
   await sinal()
   console.log('Agente de PDFs de acordos online.')
-  while (!encerrando) {
-    const { data: jobs, error } = await db.rpc('reivindicar_agente_acordos', { p_worker_id: workerId })
-    if (error) throw error
-    const job = jobs?.[0]
-    if (!job) { await new Promise(resolve => setTimeout(resolve, 10000)); continue }
+  while (!encerrando && (selecionadas === null || selecionadas.length > 0)) {
+    let job
+    if (selecionadas !== null) job = await reivindicarManual(db, selecionadas, 'Manager', workerId)
+    else {
+      const { data: jobs, error } = await db.rpc('reivindicar_agente_acordos', { p_worker_id: workerId })
+      if (error) throw error
+      job = jobs?.[0]
+    }
+    if (!job) { if (selecionadas === null) await new Promise(resolve => setTimeout(resolve, 10000)); continue }
     try {
       const { data: config, error: configError } = await db.from('agente_acordos_configuracoes').select('*').eq('condominio_id', job.condominio_id).single()
       const { data: condo, error: condoError } = await db.from('condominios').select('status,administradora,carteira_id').eq('id', job.condominio_id).single()

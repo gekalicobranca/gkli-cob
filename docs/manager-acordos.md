@@ -79,3 +79,18 @@ node --env-file=.env.local scripts/manager-acordos/publicar-pdfs.mjs C:/caminho/
 ```
 
 O script cadastra as configurações próprias, envia os PDFs e registra resultados de consulta. Reexecutá-lo com os mesmos PDFs não duplica o histórico inicial. Atualizações de carteira ou código exigem revisar a configuração própria e o manifesto antes do próximo resgate.
+
+
+## Execução sob demanda pelo aplicativo
+
+O botão **Executar agora** registra os pedidos autorizados e abre o protocolo local `gkli-acordos://executar?ids=...`. O executor inicia somente as administradoras desses pedidos, recebe `--execucoes` com IDs específicos e encerra quando termina. Não varre outros pedidos nem inicia serviço, tarefa agendada ou consumidor permanente. Pedidos pendentes podem ser reabertos pelo mesmo botão sem duplicação; pedidos já em execução não são reivindicados novamente.
+
+Instalação por usuário Windows, na máquina com este repositório, Node, Playwright e as credenciais locais já configuradas:
+
+```powershell
+./scripts/acordos-portais/instalar-executor-manual.ps1
+```
+
+A instalação registra apenas o protocolo em `HKCU\Software\Classes\gkli-acordos`. O navegador pode pedir permissão para abrir o executor. Se a abertura automática for bloqueada, use **Abrir executor manual neste computador** no resultado do botão. Cada computador que usar esse modo precisa da instalação local. Nenhuma credencial é enviada no link; ele contém somente IDs de pedidos.
+
+Logs locais: `%LOCALAPPDATA%/GKLI/acordos-manuais`. Enquanto há coleta, a presença temporária aparece na tela; ao terminar, volta a **Sob demanda**. O modo antigo contínuo continua disponível somente por comando explícito, sem inicialização automática. Para remover a integração, remova exclusivamente a chave de protocolo acima; isso não apaga PDFs ou histórico.

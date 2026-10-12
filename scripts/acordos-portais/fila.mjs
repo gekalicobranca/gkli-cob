@@ -1,7 +1,8 @@
+import { modoManual, reivindicarManual, esperarTrava } from './manual.mjs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomUUID } from 'node:crypto'
-import { mkdir, open, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -9,6 +10,7 @@ import { PDFDocument } from 'pdf-lib'
 import { bancoDocumentos, salvarPdf } from '../manager-acordos/documentos.mjs'
 import { verificarConfiguracao, argumentosColetor } from './integracao.mjs'
 
+const selecionadas = modoManual(process.argv.slice(3))
 const portal = process.argv[2]
 if (!['lello', 'bbz', 'atipass', 'hflex'].includes(portal)) throw new Error('Informe lello, bbz, atipass ou hflex.')
 const administradora = { lello: 'Lello', atipass: 'ATIPASS', bbz: 'BBZ', hflex: 'HFlex' }[portal]
@@ -17,8 +19,8 @@ const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const nomeWorker = `${portal}-acordos`
 const saida = path.join(os.homedir(), 'Downloads', `${nomeWorker}-fila`)
 await mkdir(saida, { recursive: true })
-const lockPath = path.join(saida, '.fila.lock'), lock = await open(lockPath, 'wx')
-await lock.writeFile(JSON.stringify({ pid: process.pid, worker_id: workerId }))
+const lockPath = path.join(saida, '.fila.lock')
+const lock = await esperarTrava(lockPath, { pid: process.pid, worker_id: workerId }, selecionadas !== null)
 let encerrando = false
 process.on('SIGINT', () => { encerrando = true }); process.on('SIGTERM', () => { encerrando = true })
 async function sinal() {
@@ -41,11 +43,15 @@ async function cadastro(job) {
 const heartbeat = setInterval(() => sinal().catch(() => console.error('Falha ao informar presença do agente de PDFs.')), 20000)
 try {
   await sinal(); console.log(`${nomeWorker} online; fila própria de PDFs.`)
-  while (!encerrando) {
-    const { data, error } = await db.rpc('reivindicar_agente_acordos_portal', { p_worker_id: workerId, p_administradora: administradora })
-    if (error) throw error
-    const job = data?.[0]
-    if (!job) { await new Promise(r => setTimeout(r, 5000)); continue }
+  while (!encerrando && (selecionadas === null || selecionadas.length > 0)) {
+    let job
+    if (selecionadas !== null) job = await reivindicarManual(db, selecionadas, administradora, workerId)
+    else {
+      const { data, error } = await db.rpc('reivindicar_agente_acordos_portal', { p_worker_id: workerId, p_administradora: administradora })
+      if (error) throw error
+      job = data?.[0]
+    }
+    if (!job) { if (selecionadas === null) await new Promise(r => setTimeout(r, 5000)); continue }
     try {
       const config = await cadastro(job)
       const pasta = path.join(saida, job.id); await mkdir(pasta, { recursive: true })
