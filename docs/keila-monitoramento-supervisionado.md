@@ -53,3 +53,25 @@ node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/keila-registrar
 O classificador distingue inexistência confirmada (5.1.1, 5.1.10 ou diagnóstico explícito de usuário inexistente), falha temporária (caixa cheia/4.2.2/5.2.2, quota, conexão) e revisão (políticas, segurança, falhas desconhecidas). Só inexistência bloqueia o endereço específico na carteira, preservando o cadastro, evidências e outros contatos. Caixa cheia não invalida e não autoriza reenvio automático. Retorno temporário posterior nunca remove um bloqueio anterior.
 
 O registro deduplica por carteira, mensagem e destinatário. O banco cancela apenas mensagens ainda não enviadas e sem evidência de envio em curso ou incerto. Novas aprovações/agendamentos desse endereço são bloqueados; transportes SMTP e Thunderbird conferem novamente. Não alterar valores, acordos ou status de cobranças. Não usar NDR como aceite, resposta humana ou motivo para iniciar negociação. Conferir a evidência e a marcação na ficha da unidade. O original permanece no Outlook.
+
+## Correção de proposta por conferência incompleta
+
+No relatório Lello, o cabeçalho da unidade se repete por cota. Conferir **todas as ocorrências** do código da unidade na planilha inteira e reconciliar cada vencimento com o cadastro; nunca limitar a leitura ao primeiro bloco até o próximo cabeçalho. Registrar linhas, valores e exclusões na evidência.
+
+Uma falha interna de conferência é pendência de correção da Keila, não impedimento para negociar nem negociação humana. Se já houver aprovação, bloquear preventivamente o encaminhamento e preservar o texto. Para corrigir a mesma mensagem, exigir autorização explícita do usuário, conferir que não existe mensagem em fila, enviada ou incerta e arquivar a aprovação anterior em respostas_anteriores antes de salvar o rascunho corrigido sem resposta_aprovada ativa. Se existir envio pendente/incerto, preservar e solicitar conciliação, sem substituir. A versão corrigida sempre exige nova aprovação na tela. Não usar essa exceção para reabrir atendimento humano real, judicialização ou casos suspensos.
+
+Catiana, caso 5276517e-dc41-531c-a300-ea61932fe3a2: correção autorizada pelo usuário em 13/10/2026. Conferir junho, julho, agosto e setembro de 2026; outubro fora da régua nesta data. Preservar a aprovação anterior no histórico; não usar para liberar a versão corrigida.
+
+## Trava automática das propostas Lello
+
+Propostas de parcelamento agora exigem conferência automática antes da aprovação: o servidor baixa a fonte vinculada à coleta bem-sucedida do mesmo dia, lê todas as ocorrências da unidade, cruza responsável e remetente, concilia cotas com cobranças canônicas, explica exclusões e calcula as condições com as regras atuais. Cota ausente, duplicada, judicial, baixada ou com multa por infração impede a proposta. Outros formatos não reconhecidos exigem revisão, sem liberação automática.
+
+Para um caso já registrado, use o botão **Conferir relatório e gerar rascunho** na tela ou o CLI confiável:
+
+```powershell
+node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/keila-conferir-proposta.ts CASO_ID CARTEIRA_ID ARQUIVO_ID 3 AAAA-MM-DD
+```
+
+O CLI salva o rascunho e a evidência, nunca cria mensagens ou aprova envio. Preserva casos humanos, concluídos e respostas aprovadas. O JSON de registro também pode informar `conferencia: { arquivo_id, quantidade, vencimento }`, mas a evidência é recalculada no servidor e o texto precisa ser o gerado pela conferência. Não escrever valores financeiros à mão para contornar a validação. Mudança de texto, anexo, fonte ou regras exige nova conferência; aprovação vincula a versão exata. Se a resposta já estiver aprovada ou em fila, preserve e concilie antes de qualquer correção.
+
+Teste de regressão: `node_modules/.bin/tsx.cmd scripts/validate-keila-conferencia.ts`. A tela mostra cotas incluídas/excluídas e seus motivos, data, arquivo, SHA-256 e versão. Nenhuma validação dispensa a aprovação humana.

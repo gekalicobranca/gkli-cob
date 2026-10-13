@@ -17,7 +17,7 @@ export const KEILA_ESTADOS = {
 export type KeilaEstado = keyof typeof KEILA_ESTADOS
 export type KeilaEmail = { chave: string; nome: string; remetente: string; recebido_em: string; assunto: string; resumo: string; webmail_url?: string }
 export type KeilaAtividade = { em: string; descricao: string; usuario_id?: string | null }
-export type KeilaRespostaAprovada = { mensagem_id: string; em: string; usuario_id: string; destinatario: string; assunto: string; texto: string; email_chave?: string; anexos?: import('./anexos').AnexoKeila[] }
+export type KeilaRespostaAprovada = { versao_hash?: string; mensagem_id: string; em: string; usuario_id: string; destinatario: string; assunto: string; texto: string; email_chave?: string; anexos?: import('./anexos').AnexoKeila[] }
 export type KeilaCasoPayload = {
   versao: 1
   estado: KeilaEstado
@@ -28,6 +28,7 @@ export type KeilaCasoPayload = {
   atividades: KeilaAtividade[]
   proxima_acao: string
   execucao_id?: string | null
+  conferencia_proposta?: import('./conferencia-proposta').ConferenciaProposta
   resposta_simulada?: string | null
   resposta_email_chave?: string
   resposta_anexos?: import('./anexos').AnexoKeila[]

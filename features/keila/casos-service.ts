@@ -22,6 +22,7 @@ export async function carregarCaso(supabase: SupabaseClient, id: string, carteir
 }
 
 export async function salvarCaso(supabase: SupabaseClient, caso: Awaited<ReturnType<typeof carregarCaso>>, payload: KeilaCasoPayload, usuarioId: string | null) {
+  if (caso.payload.resposta_aprovada && payload.resposta_aprovada && (caso.payload.resposta_simulada !== payload.resposta_simulada || JSON.stringify(caso.payload.conferencia_proposta) !== JSON.stringify(payload.conferencia_proposta))) throw new Error('Resposta aprovada é imutável. Arquive a versão anterior após conciliar o envio antes de corrigir.')
   const status = payload.estado === 'concluido' ? 'resolvida' : 'em_tratamento'
   const { data, error } = await supabase.from('central_pendencias').update({
     payload, status, descricao: payload.proxima_acao, updated_at: new Date().toISOString(),

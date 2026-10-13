@@ -7,6 +7,8 @@ import { requireRole } from '@/utils/auth/require-role'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { carregarCaso, salvarCaso, casoId } from './casos-service'
 import { getEmailRemetenteKey, getSmtpConfigStatus } from '../mensageria/email-provider'
+import { validarConferenciaAtual } from './conferencia-proposta-service'
+import { hashConferencia } from './conferencia-proposta'
 import { anexosKeilaSchema, baixarAnexosKeila } from './anexos'
 
 export async function aprovarEnviarRespostaKeila(form: FormData) {
@@ -34,12 +36,18 @@ export async function aprovarEnviarRespostaKeila(form: FormData) {
       const smtp = await getSmtpConfigStatus(caso.carteira_id)
       if (!smtp.active || !smtp.configured || smtp.from?.toLowerCase() !== 'keila@gekali.com.br') throw new Error('Configure o remetente keila@gekali.com.br nesta carteira antes de enviar.')
     }
+    const versaoHash = hashConferencia({texto, email_chave:email.chave, destinatario:email.remetente, assunto:email.assunto, anexos:caso.payload.resposta_anexos??[], conferencia:caso.payload.conferencia_proposta?.hash??null})
+    if(caso.payload.resposta_aprovada) {
+      const a=caso.payload.resposta_aprovada
+      if(a.texto!==texto || a.destinatario!==email.remetente || (a.email_chave && a.email_chave!==email.chave) || (a.versao_hash && a.versao_hash!==versaoHash)) throw new Error('A versão mudou após a aprovação. Preserve o envio anterior e revise uma nova versão.')
+      if(a.versao_hash && caso.payload.conferencia_proposta) await validarConferenciaAtual(db,caso)
+    } else if(caso.payload.intencao==='parcelamento' || caso.payload.conferencia_proposta) await validarConferenciaAtual(db,caso)
     const remetente = await getEmailRemetenteKey(caso.carteira_id)
     if (!caso.payload.resposta_aprovada) {
       const anexos = anexosKeilaSchema.parse(caso.payload.resposta_anexos ?? [])
       await baixarAnexosKeila(db, id, anexos)
       const em = new Date().toISOString()
-      const aprovada = { mensagem_id: casoId(caso.condominio_id, caso.payload.unidade_ids, `${id}:resposta:${caso.updated_at}`), em, usuario_id: scope.userId, destinatario: email.remetente, assunto: /^re:/i.test(email.assunto) ? email.assunto : `Re: ${email.assunto}`, texto, email_chave: email.chave }
+      const aprovada = { versao_hash:versaoHash, mensagem_id: casoId(caso.condominio_id, caso.payload.unidade_ids, `${id}:resposta:${caso.updated_at}`), em, usuario_id: scope.userId, destinatario: email.remetente, assunto: /^re:/i.test(email.assunto) ? email.assunto : `Re: ${email.assunto}`, texto, email_chave: email.chave }
       await salvarCaso(db, caso, { ...caso.payload, resposta_aprovada: { ...aprovada, anexos },
         atividades: [...caso.payload.atividades, { em, usuario_id: scope.userId, descricao: `Resposta aprovada para ${aprovada.destinatario}. Registro ${aprovada.mensagem_id}.` }] }, scope.userId)
       caso = await carregarCaso(db, id, scope.carteiraIds)

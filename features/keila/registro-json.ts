@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { carregarCaso, registrarCasoKeila, salvarCaso } from './casos-service'
 import { validarLinkWebmail } from './webmail'
 import { unirEmails } from './casos'
+import { gerarConferenciaProposta } from './conferencia-proposta-service'
 import { prepararNovoRascunho } from './novo-rascunho'
 
 const referenciaOutlook = z.object({
@@ -20,6 +21,7 @@ export const registroKeilaSchema = z.object({
     resumo: z.string().min(1).max(4000), dados: z.record(z.string(), z.json()).default({}),
   })).min(1),
   proxima_acao: z.string().min(1).max(1000), resposta_rascunho: z.string().max(10000).optional(),
+  conferencia: z.object({arquivo_id:z.uuid(),quantidade:z.number().int().min(2).max(120),vencimento:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)}).optional(),
   execucao_id: z.uuid().optional(),
 })
 export type RegistroKeilaJSON = z.infer<typeof registroKeilaSchema>
@@ -87,6 +89,12 @@ export async function registrarKeilaJSON(db: SupabaseClient, value: unknown, con
     payload = prepararNovoRascunho(payload, email.chave, registro.resposta_rascunho, statusAnterior)
   } else if (!payload.resposta_aprovada && !payload.emails.some(e => e.chave === email.chave)) {
     payload = { ...payload, resposta_simulada: null, resposta_email_chave: undefined, resposta_anexos: [] }
+  }
+  if (registro.resposta_rascunho !== undefined && registro.intencao === 'parcelamento') {
+    if(!registro.conferencia) throw new Error('Proposta de parcelamento exige conferência completa do relatório.')
+    const conferida=await gerarConferenciaProposta(db,{...caso,payload:{...payload,emails:unirEmails(caso.payload.emails,[email]),execucao_id:registro.execucao_id??payload.execucao_id}},registro.conferencia)
+    if(registro.resposta_rascunho.trim()!==conferida.texto.trim())throw new Error('Use o texto gerado pela conferência, com os valores e condições reconciliados.')
+    payload={...payload,conferencia_proposta:conferida}
   }
   await salvarCaso(db, caso, { ...payload,
     emails: unirEmails(caso.payload.emails, [email]),

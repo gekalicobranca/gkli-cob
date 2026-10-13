@@ -8,7 +8,7 @@ export function prepararNovoRascunho(payload: KeilaCasoPayload, emailChave: stri
     if (origem === emailChave) throw new Error('Esta mensagem já tem resposta aprovada. Preserve o texto liberado.')
     if (!['enviada', 'cancelada'].includes(statusAnterior ?? '')) throw new Error('Existe resposta aprovada com envio pendente ou incerto. Confira antes de preparar outra resposta.')
   }
-  return { ...payload, resposta_simulada: texto, resposta_email_chave: emailChave,
+  return { ...payload, conferencia_proposta: undefined, resposta_simulada: texto, resposta_email_chave: emailChave,
     ...(payload.resposta_email_chave !== emailChave ? { resposta_anexos: [] } : {}),
     ...(aprovada ? { resposta_aprovada: undefined, respostas_anteriores: [...(payload.respostas_anteriores ?? []), aprovada] } : {}),
   }
