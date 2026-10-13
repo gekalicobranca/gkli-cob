@@ -50,7 +50,7 @@ export async function aprovarEnviarRespostaKeila(form: FormData) {
     if (existente && existente.status !== 'pendente_aprovacao') throw new Error('Resposta já encaminhada. Confira o status abaixo; nenhum novo envio foi criado.')
     if (!existente) {
       const { error } = await db.from('mensagens').insert({ id: aprovada.mensagem_id, carteira_id: caso.carteira_id,
-        canal: 'email', status: 'pendente_aprovacao', status_operacional: 'pendente_aprovacao', destinatario: aprovada.destinatario,
+        contexto: 'mensageria', canal: 'email', status: 'pendente_aprovacao', status_operacional: 'pendente_aprovacao', destinatario: aprovada.destinatario,
         email_assunto: aprovada.assunto, conteudo: aprovada.texto, conteudo_renderizado: aprovada.texto,
         aprovado_por: aprovada.usuario_id, aprovado_em: aprovada.em, payload: { keila_caso_id: id, resposta_supervisionada: true, keila_anexos: aprovada.anexos ?? [] } })
       if (error) throw new Error(error.message)
