@@ -96,3 +96,46 @@ test('navegação inicial tem prazo e restaura goto para navegações posteriore
   assert.deepEqual(calls[0][1], { timeout: 120000, waitUntil: 'domcontentloaded', referer: 'https://whatsapp.com/' })
   assert.equal(client.pupPage.goto, goto)
 })
+
+test('inicializações simultâneas compartilham a mesma integração', async () => {
+  let release
+  let calls = 0
+  class Base {
+    options = {}
+    pupPage = { waitForFunction: async () => {}, isClosed: () => false }
+    inject() { calls++; return new Promise(resolve => { release = resolve }) }
+  }
+  const client = new (resilientClient(Base, () => {}))()
+  const first = client.inject()
+  const second = client.inject()
+  await Promise.resolve()
+  assert.equal(calls, 1)
+  release('ready')
+  assert.deepEqual(await Promise.all([first, second]), ['ready', 'ready'])
+  const next = client.inject()
+  await Promise.resolve()
+  assert.equal(calls, 2)
+  release('ready')
+  await next
+})
+
+test('ignora subframes e captura falha assíncrona na navegação principal', async () => {
+  const page = new EventEmitter()
+  const main = {}
+  Object.assign(page, { mainFrame: () => main, goto: async () => {}, setUserAgent: async () => {} })
+  const reports = []
+  class Base {
+    pupPage = page
+    pupBrowser = { userAgent: async () => 'Chrome' }
+    async initWebVersionCache() {}
+  }
+  const client = new (resilientClient(Base, (...args) => reports.push(args)))()
+  await client.initWebVersionCache()
+  let navigations = 0
+  page.on('framenavigated', async () => { navigations++; throw Error('navigation failed') })
+  page.emit('framenavigated', {})
+  page.emit('framenavigated', main)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(navigations, 1)
+  assert.equal(reports.length, 1)
+})

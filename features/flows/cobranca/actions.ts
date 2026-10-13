@@ -4,6 +4,7 @@ import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamen
 import { temFlowEmAndamento, validarCriacaoPorCanal } from './vinculos-canais'
 import { canalFlowCobranca, flowCobrancaPath } from './rotas'
 import { consolidarEmailsLote } from './consolidar-emails'
+import { consolidarWhatsAppLote } from './consolidar-whatsapp'
 import { getEmailRemetenteKey } from '@/features/mensageria/email-provider'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -150,6 +151,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
 
     for (const loteId of resultado.loteIds) {
       await consolidarEmailsLote(loteId)
+      await consolidarWhatsAppLote(loteId)
       const { data: lote } = await supabase
         .from('lotes')
         .select('id,total_avaliadas,total_criadas,total_pendentes,total_erros')
@@ -161,7 +163,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
         .eq('lote_id', loteId)
       if (mensagensError) throw new Error(`Erro ao contar mensagens do Flow: ${mensagensError.message}`)
 
-      const totalMensagens = (mensagens ?? []).length
+      const totalMensagens = (mensagens ?? []).filter(m => m.status !== 'cancelada').length
       if (totalMensagens > LIMITE_EMAILS_FLOW) throw new Error('Esta unidade gerou mais de 20 mensagens distintas. O lote foi preservado para revisão, sem ativar envios.')
       const totalFalhas = n(lote?.total_erros)
       const statusInicial = totalMensagens > 0 ? (criarPausado ? 'pausado' : 'pronto') : totalFalhas > 0 ? 'concluido_com_falhas' : 'concluido'

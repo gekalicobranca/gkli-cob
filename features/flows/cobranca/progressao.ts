@@ -2,6 +2,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { getEmailRemetenteKey } from '@/features/mensageria/email-provider'
 import { processarReguaCobranca } from '@/features/regua/services/processar-regua-cobranca'
 import { consolidarEmailsLote } from './consolidar-emails'
+import { consolidarWhatsAppLote } from './consolidar-whatsapp'
 
 export async function processarProgressaoFlows() {
   const db = createAdminClient()
@@ -22,6 +23,7 @@ export async function processarProgressaoFlows() {
       cobrancaIds: job.cobranca_ids, reguaId: job.regua_id, cooldownDias: 0, loteRetomadaId: job.lote_id,
       progressao: { etapaId: job.etapa_id, primeiroEnvioEm: job.primeiro_envio_em, sequenciaId: job.id } })
     await consolidarEmailsLote(job.lote_id)
+    await consolidarWhatsAppLote(job.lote_id)
     const { data: flowId, error: fe } = await db.rpc('flow_progressao_finalizar', {
       p_job: job.id, p_token: job.token, p_remetente: remetente,
     })

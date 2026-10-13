@@ -7,6 +7,7 @@ import { processarReguaCobranca } from '@/features/regua/services/processar-regu
 import { escolherContatoRegua } from '@/features/regua/services/regua-shared'
 import { dividirCriacaoFlows } from './dividir-criacao'
 import { consolidarEmailsLote } from './consolidar-emails'
+import { consolidarWhatsAppLote } from './consolidar-whatsapp'
 import { motivoExclusaoMaestro, motivoSaneamentoMaestro } from './maestro-elegibilidade'
 
 const relation = (v: any) => Array.isArray(v) ? v[0] : v
@@ -93,6 +94,7 @@ export async function processarMontagemMaestro(execucaoManualId?: string) {
     await processarReguaCobranca({ origem: 'maestro_captacao', carteiraId: job.carteira_id, condominioId: job.condominio_id,
       cobrancaIds: job.plano[job.parte], reguaId: job.regua_id, cooldownDias: 0, loteRetomadaId: loteId, montagemMaestro: true })
     await consolidarEmailsLote(loteId)
+    await consolidarWhatsAppLote(loteId)
     const carteira = relation(condominio.carteira)
     const nome = `Flow cobrança · ${carteira?.nome ?? 'Carteira'} · ${condominio.nome_operacional || condominio.nome} · Maestro · parte ${job.parte + 1}`
     const { data: flowId, error: fe } = await db.rpc('maestro_flow_finalizar', { p_job: job.id, p_token: job.token, p_nome: nome })

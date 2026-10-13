@@ -13,6 +13,7 @@ import { assertBrowserHealthy, browserFailure, connectionRecovery } from './brow
 import { resilientClient } from './resilient-client.mjs'
 import { pairingPublisher } from './pairing-publisher.mjs'
 import { reservationRecovery } from './reservation-recovery.mjs'
+import { shutdownBrowser } from './browser-shutdown.mjs'
 
 const { Client, LocalAuth, MessageMedia } = whatsapp
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -136,19 +137,13 @@ client.on('auth_failure', () => { ready = false; connection = 'falha_autenticaca
 let closing
 function closeClient() {
   if (closing) return closing
-  closing = (async () => {
-    const browserProcess = client.pupBrowser?.process()
-    try { await bounded(client.destroy(), 10000) }
-    catch {
-      if (browserProcess?.pid && browserProcess.exitCode === null) {
+  closing = shutdownBrowser(client, async browserProcess => {
         if (process.platform === 'win32') await bounded(new Promise(resolve => {
           const killer = spawn('taskkill', ['/PID', String(browserProcess.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
           killer.once('exit', resolve); killer.once('error', resolve)
         }), 5000).catch(() => {})
         else browserProcess.kill('SIGKILL')
-      }
-    }
-  })()
+  })
   return closing
 }
 function stop(reason = 'Encerramento solicitado.') { shutdownReason ??= reason; stopping = true; ready = false; void closeClient() }

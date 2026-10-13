@@ -34,6 +34,19 @@ export function resilientClient(BaseClient, report = console.error) {
       // whatsapp-web.js 1.34.7 navigates with waitUntil=load and timeout=0.
       // Bound that initial navigation; inject() separately waits for WA itself.
       const page = this.pupPage
+      // 1.34.7 reinjects for every frame, including embedded frames. Only a
+      // main-document navigation replaces the WhatsApp integration context.
+      // EventEmitter does not catch rejected async navigation listeners.
+      const originalOn = page.on
+      page.on = function (event, listener) {
+        if (event !== 'framenavigated') return originalOn.call(this, event, listener)
+        return originalOn.call(this, event, frame => {
+          if (frame !== page.mainFrame()) return
+          Promise.resolve().then(() => listener(frame)).catch(error => {
+            report(new Date().toISOString(), 'Falha na navegação principal do WhatsApp:', String(error?.message || error))
+          })
+        })
+      }
       const originalGoto = page.goto
       page.goto = async function (url, options) {
         page.goto = originalGoto
@@ -41,7 +54,12 @@ export function resilientClient(BaseClient, report = console.error) {
         return originalGoto.call(page, url, { ...options, waitUntil: 'domcontentloaded', timeout: 120000 })
       }
     }
-    async inject() {
+    inject() {
+      if (this.pendingInjection) return this.pendingInjection
+      this.pendingInjection = this.injectOnce().finally(() => { this.pendingInjection = null })
+      return this.pendingInjection
+    }
+    async injectOnce() {
       report(new Date().toISOString(), 'Conteúdo carregado; inicializando integração WhatsApp.')
       for (let attempt = 0; ; attempt++) {
         try {
