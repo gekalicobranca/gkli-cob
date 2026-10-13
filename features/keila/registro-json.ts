@@ -86,7 +86,7 @@ export async function registrarKeilaJSON(db: SupabaseClient, value: unknown, con
     }
     payload = prepararNovoRascunho(payload, email.chave, registro.resposta_rascunho, statusAnterior)
   } else if (!payload.resposta_aprovada && !payload.emails.some(e => e.chave === email.chave)) {
-    payload = { ...payload, resposta_simulada: null, resposta_email_chave: undefined }
+    payload = { ...payload, resposta_simulada: null, resposta_email_chave: undefined, resposta_anexos: [] }
   }
   await salvarCaso(db, caso, { ...payload,
     emails: unirEmails(caso.payload.emails, [email]),

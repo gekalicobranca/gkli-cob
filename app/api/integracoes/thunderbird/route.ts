@@ -73,6 +73,16 @@ export async function POST(request: Request) {
         }
         const { data: rows, error: attachmentError } = await db.from('mensagem_anexos').select('ordem,documento:documentos_gerados(nome_arquivo,content_type,storage_bucket,storage_path)').eq('mensagem_id', m.id).order('ordem')
         if (attachmentError) throw new Error('Anexos indisponíveis.')
+        if (m.payload?.keila_anexos?.length) {
+          const { baixarAnexosKeila, anexosKeilaSchema } = await import('@/features/keila/anexos')
+          const refs = anexosKeilaSchema.parse(m.payload.keila_anexos)
+          await baixarAnexosKeila(db, m.payload.keila_caso_id, refs)
+          for (const ref of refs) {
+            const { data: signed, error } = await db.storage.from('acordos-pdfs').createSignedUrl(ref.storage_path, 600)
+            if (error || !signed?.signedUrl) throw new Error('Anexo da Keila indisponível.')
+            attachments.push({ name: ref.nome, type: 'application/pdf', url: signed.signedUrl })
+          }
+        }
         for (const row of rows || []) {
           const doc: any = Array.isArray(row.documento) ? row.documento[0] : row.documento
           if (!doc?.storage_bucket || !doc.storage_path) throw new Error('Anexo inválido.')

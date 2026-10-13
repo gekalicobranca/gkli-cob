@@ -7,6 +7,7 @@ import { requireRole } from '@/utils/auth/require-role'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { carregarCaso, salvarCaso, casoId } from './casos-service'
 import { getEmailRemetenteKey, getSmtpConfigStatus } from '../mensageria/email-provider'
+import { anexosKeilaSchema, baixarAnexosKeila } from './anexos'
 
 export async function aprovarEnviarRespostaKeila(form: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
@@ -35,9 +36,11 @@ export async function aprovarEnviarRespostaKeila(form: FormData) {
     }
     const remetente = await getEmailRemetenteKey(caso.carteira_id)
     if (!caso.payload.resposta_aprovada) {
+      const anexos = anexosKeilaSchema.parse(caso.payload.resposta_anexos ?? [])
+      await baixarAnexosKeila(db, id, anexos)
       const em = new Date().toISOString()
       const aprovada = { mensagem_id: casoId(caso.condominio_id, caso.payload.unidade_ids, `${id}:resposta:${caso.updated_at}`), em, usuario_id: scope.userId, destinatario: email.remetente, assunto: /^re:/i.test(email.assunto) ? email.assunto : `Re: ${email.assunto}`, texto, email_chave: email.chave }
-      await salvarCaso(db, caso, { ...caso.payload, resposta_aprovada: aprovada,
+      await salvarCaso(db, caso, { ...caso.payload, resposta_aprovada: { ...aprovada, anexos },
         atividades: [...caso.payload.atividades, { em, usuario_id: scope.userId, descricao: `Resposta aprovada para ${aprovada.destinatario}. Registro ${aprovada.mensagem_id}.` }] }, scope.userId)
       caso = await carregarCaso(db, id, scope.carteiraIds)
     }
@@ -49,7 +52,7 @@ export async function aprovarEnviarRespostaKeila(form: FormData) {
       const { error } = await db.from('mensagens').insert({ id: aprovada.mensagem_id, carteira_id: caso.carteira_id,
         canal: 'email', status: 'pendente_aprovacao', status_operacional: 'pendente_aprovacao', destinatario: aprovada.destinatario,
         email_assunto: aprovada.assunto, conteudo: aprovada.texto, conteudo_renderizado: aprovada.texto,
-        aprovado_por: aprovada.usuario_id, aprovado_em: aprovada.em, payload: { keila_caso_id: id, resposta_supervisionada: true } })
+        aprovado_por: aprovada.usuario_id, aprovado_em: aprovada.em, payload: { keila_caso_id: id, resposta_supervisionada: true, keila_anexos: aprovada.anexos ?? [] } })
       if (error) throw new Error(error.message)
     }
     const { error } = await db.rpc('email_reservar_horario', { p_mensagem: aprovada.mensagem_id, p_remetente: remetente })

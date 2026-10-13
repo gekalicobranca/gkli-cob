@@ -1,6 +1,6 @@
 # Monitoramento supervisionado da Keila
 
-A rotina deste chat verifica o Outlook a cada 15 minutos enquanto o Codex e o computador estiverem disponíveis. Não depende de deixar a tela do GKLI aberta. O acesso usa a sessão autenticada do navegador do Codex; uma sessão expirada exige novo login. O original do e-mail permanece no Outlook. Não há sincronização Microsoft Graph nem serviço de leitura 24 horas na nuvem.
+A rotina deste chat verifica o Outlook diariamente às 09:00 (America/Sao_Paulo) enquanto o Codex e o computador estiverem disponíveis. Não depende de deixar a tela do GKLI aberta. O acesso usa a sessão autenticada do navegador do Codex; uma sessão expirada exige novo login. O original do e-mail permanece no Outlook. Não há sincronização Microsoft Graph nem serviço de leitura 24 horas na nuvem.
 
 ## Escopo e início
 
@@ -35,3 +35,7 @@ O schema fica em `features/keila/registro-json.ts`. Os arquivos temporários sã
 A rotina de monitoramento nunca cria ou agenda registros em `mensagens`, nunca chama `email_reservar_horario` ou provedores SMTP, nunca usa o botão Aprovar e enviar e nunca envia pelo Outlook, mesmo que encontre uma aprovação antiga. Somente a ação autenticada e explícita do usuário na tela libera a resposta à fila existente. Cada novo retorno exige sua própria aprovação. A fila e o transporte registram o status real do envio.
 
 Avisar somente quando houver novo rascunho pronto, bloqueio que exija ação, falha nova ou mudança relevante. Permanecer em silêncio quando não houver novidade e não repetir avisos de estado inalterado.
+
+## Acordos à vista na Lello
+
+Antes de tratar um pedido de boleto como reemissão, leia `docs/keila-lello-acordo-avista.md`. Buscar acordo existente antes de lançar; a rotina diária não formaliza acordos. Termo e boleto devem ser conferidos e anexados à resposta antes de aprovação.

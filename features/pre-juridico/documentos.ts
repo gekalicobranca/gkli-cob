@@ -524,6 +524,10 @@ export async function gerarEAnexarDocumentosPreJuridico(input: DocumentoGeradoIn
 }
 
 export async function listarAnexosMensagem(supabase: SupabaseAdmin, mensagemId: string) {
+  const { data: mensagem, error: mensagemError } = await supabase.from('mensagens').select('payload').eq('id', mensagemId).single();
+  if (mensagemError) throw new Error('Não foi possível conferir os anexos da mensagem.');
+  const extras = mensagem.payload?.keila_anexos?.length
+    ? await (await import('../keila/anexos')).baixarAnexosKeila(supabase, mensagem.payload.keila_caso_id, mensagem.payload.keila_anexos) : [];
   const { data, error } = await supabase
     .from("mensagem_anexos")
     .select(`
@@ -554,5 +558,5 @@ export async function listarAnexosMensagem(supabase: SupabaseAdmin, mensagemId: 
       content: Buffer.from(await file.arrayBuffer()),
     });
   }
-  return anexos;
+  return [...anexos, ...extras];
 }
