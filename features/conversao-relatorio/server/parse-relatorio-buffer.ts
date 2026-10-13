@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { classificarContatos } from "@/lib/core/telefone";
 import { aplicarDddPadraoConversao } from "./telefone-padrao";
+import { lerAnaliseOriginal } from "@/features/condominios/relatorio-inadimplencia/leitura";
 import { detectLelloResponsaveis, parseLelloResponsaveis } from "./lello-responsaveis";
 import { inflateSync } from "zlib";
 import * as XLSX from "xlsx";
@@ -5704,6 +5705,28 @@ export async function parseRelatorioBuffer(
 
   const fullText = allRows.map(rowToText).join("\n").toLowerCase();
   const condominioDetectado = extractCondominioHeaderFromRows(allRows);
+  // Exportação detalhada (HTML/XLS): totais fecham por recibo, sem linha
+  // "Total do recibo". O leitor genérico agrupa unidades e perde o bloco.
+  if (fullText.includes("total recibo") && fullText.includes("total unidade")) {
+    const analise = lerAnaliseOriginal(input.buffer, input.filename);
+    if (!analise) return { ok: false, error: "Exportação detalhada sem leitura validada." };
+    return buildPreviewFromRecibos({
+      origem: "Condopro - Cotas Pendentes Detalhadas", filename: input.filename,
+      condominioCnpj: input.condominioCnpj, somenteAnoCorrente: input.somenteAnoCorrente,
+      origemSistema: "Condopro", padraoDetectado: buildPadraoDetectado(PADRAO_CONDOPRO_BBZ_COBRANCAS, { condominioDetectado, confianca: 99 }),
+      recibos: analise.recibos.map((row) => {
+        const recibo = row.id.slice(row.id.lastIndexOf("::") + 2);
+        const marcador = recibo.match(/^([A-Z]+)\s+/)?.[1];
+        const [ano, mes, dia] = row.vencimento!.split("-");
+        return { bloco: row.bloco, unidade: row.unidade, responsavel: row.responsavel,
+          recibo, vencimento: `${dia}/${mes}/${ano}`, valorPrincipal: (row.principal ?? row.total) / 100,
+          multa: (row.multa ?? 0) / 100, correcao: 0, juros: (row.correcaoJuros ?? 0) / 100,
+          valorTotal: row.total / 100, marcadorOrigem: marcador, situacaoOrigem: situacaoOrigemFromMarcador(marcador),
+          detalhesOrigem: "Valores lidos por recibo; componentes não discriminados na origem. A análise original preserva essa ausência.",
+        };
+      }),
+    });
+  }
   const managerSemPendencias =
     Boolean(condominioDetectado) &&
     fullText.includes("bloco:") &&

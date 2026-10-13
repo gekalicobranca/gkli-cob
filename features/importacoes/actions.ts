@@ -32,6 +32,7 @@ import { explicarCobrancasPreservadas } from "./mensagens-preservacao";
 import { substituirCobrancasAnterioresDaImportacao } from "./substituir-anteriores";
 import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
 import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "./regra-judicial-importacao";
+import { associarCobrancaConciliada } from "./reaproveitar-conversao";
 import { reservarLoteImportacao, salvarLoteImportacao, TAMANHO_LOTE_IMPORTACAO, type ExecucaoImportacao } from "./execucao-lotes";
 import {
   avaliarBloqueioGarantidora,
@@ -2732,6 +2733,7 @@ async function importarCobrancas(
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao);
       const cobrancaExistenteId = conciliacao.cobrancaId;
       if (conciliacao.status === "ja_existente") {
+        await associarCobrancaConciliada(supabase, conciliacao.cobrancaId, payload as any);
         const reclassificada = await reclassificarCobrancaJudicialImportada(supabase, cobrancaExistenteId, statusOperacional, payload, contextoJudicial);
         if (reclassificada) resultado.atualizados += 1;
         else {

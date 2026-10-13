@@ -12,6 +12,7 @@ import { formatOrigemImportacao } from "@/features/importacoes/origem-importacao
 import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
 import { statusOperacionalParaCobrancaImportada } from "@/features/importacoes/status-cobranca-importada"
 import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "@/features/importacoes/regra-judicial-importacao"
+import { associarCobrancaConciliada } from "@/features/importacoes/reaproveitar-conversao"
 import {
   avaliarBloqueioGarantidora,
   observacaoComBloqueioGarantidora,
@@ -372,6 +373,9 @@ export async function POST(request: NextRequest) {
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao)
 
       if (conciliacao.status === "ja_existente") {
+        await associarCobrancaConciliada(supabase, conciliacao.cobrancaId, {
+          condominio_id: condominioId, carteira_id: carteiraId, unidade_id: unidadeId, conversao_relatorio_id: conversaoId,
+        })
         await reclassificarCobrancaJudicialImportada(supabase, conciliacao.cobrancaId, statusOperacional, {
           unidade_id: unidadeId, condominio_id: condominioId, conversao_relatorio_id: conversaoId,
         }, contextoJudicial)
