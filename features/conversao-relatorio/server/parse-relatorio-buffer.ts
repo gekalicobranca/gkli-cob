@@ -3344,6 +3344,8 @@ function extractSuperlogicaTipoPessoa(value: string) {
 export function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
   const blocks = splitSuperlogicaUnitBlocks(text);
   const unidades: UnidadeConversaoPreview[] = [];
+  // DDD padrão autorizado para o relatório do Square Guarulhos.
+  const dddPadrao = /14\.?234\.?598\/?0001-?98/.test(text) ? "11" : "";
 
   for (const block of blocks) {
     const dadosPessoais = extractSuperlogicaSection(
@@ -3406,7 +3408,10 @@ export function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPrevi
     // Feed every extracted number into the shared classifier. Additional
     // contacts must not live only in observations when the first lacks a DDD.
     const telefone = [contatos.telefone, ...contatos.telefonesAdicionais]
-      .filter(Boolean).join(" | ");
+      .filter(Boolean)
+      .map((phone) => dddPadrao && /^(?:[2-5]\d{7}|9\d{8})$/.test(onlyDigits(phone))
+        ? `${dddPadrao}${onlyDigits(phone)}` : phone)
+      .join(" | ");
     const email = contatos.email;
     const documento = documentoMatch ? cleanDocument(documentoMatch[2]) : "";
     const tipo =
