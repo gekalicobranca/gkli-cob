@@ -64,6 +64,15 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
 
 
 
+      {unidade.email_retornos?.length ? <Card className="p-5">
+        <h2 className="font-semibold">Entregabilidade dos e-mails</h2>
+        {unidade.email_retornos.map((r: any) => <div key={r.id} className="mt-3 text-sm">
+          <p className={r.classificacao === 'inexistente' ? 'font-semibold text-red-700' : 'text-amber-800'}>{r.destinatario} · {r.classificacao === 'inexistente' ? 'Inválido — novos disparos bloqueados' : r.classificacao === 'temporaria' ? 'Falha temporária — endereço preservado' : 'Falha para revisão'}</p>
+          <p>{r.motivo} · {formatDateBR(r.recebido_em)} {r.codigo}</p>
+          <a href={r.outlook_url} target="_blank" rel="noreferrer" className="underline">Ver retorno no Outlook</a>
+        </div>)}
+        <p className="mt-3 text-sm text-slate-500">Corrigir o contato não apaga a evidência. O bloqueio acompanha o endereço inválido, preservando os outros contatos.</p>
+      </Card> : null}
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Card className="p-4">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Cobranças</p>

@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict'
+import {readFile} from 'node:fs/promises'
+import {PGlite} from '@electric-sql/pglite'
+import {classificarRetornoEmail} from '../features/mensageria/retorno-email'
+async function main(){
+assert.equal(classificarRetornoEmail("550 5.1.1 betesilva932 wasn't found at gmail.com"),'inexistente')
+assert.equal(classificarRetornoEmail('550 5.4.300 Message expired -> 452 4.2.2 inbox out of storage space'),'temporaria')
+assert.equal(classificarRetornoEmail('550 5.7.1 policy rejection'),'revisao')
+const db=new PGlite(); await db.exec(`create role anon;create role authenticated;create role service_role;create table carteiras(id uuid primary key);create table unidades(id uuid primary key,carteira_id uuid,email text);create function current_user_can_access_carteira(uuid) returns boolean language sql as 'select true';create table mensagens(id uuid primary key,carteira_id uuid,canal text,destinatario text,email_destinatario text,status text,status_operacional text,erro text,erro_envio text,provider_message_id text);create table thunderbird_dispositivos(id uuid primary key,carteira_id uuid);create table thunderbird_envios(id uuid primary key,dispositivo_id uuid,mensagem_id uuid,destinatario text,estado text);`)
+await db.exec(await readFile('supabase/migrations/20261013172522_email_retornos_invalidos.sql','utf8'))
+const c='00000000-0000-0000-0000-000000000001',u='00000000-0000-0000-0000-000000000002';await db.query('insert into carteiras values($1);',[c]);await db.query('insert into unidades values($1,$2,$3)',[u,c,'bad@example.com']);const r={carteira_id:c,unidade_id:u,destinatario:'bad@example.com',mensagem_chave:'ndr1',recebido_em:'2026-10-13T17:20:00Z',classificacao:'inexistente',motivo:'5.1.1',outlook_url:'https://outlook.cloud.microsoft/mail/'}
+await db.query(`insert into mensagens(id,carteira_id,canal,destinatario,status) values(gen_random_uuid(),$1,'email','bad@example.com','agendada')`,[c]);await db.query('select email_registrar_retorno($1)',[JSON.stringify(r)]);await db.query('select email_registrar_retorno($1)',[JSON.stringify(r)]);assert.equal((await db.query<{n:number}>('select count(*)::int n from email_retornos')).rows[0].n,1);assert.equal((await db.query<{status:string}>('select status from mensagens')).rows[0].status,'cancelada');await db.query(`insert into mensagens(id,carteira_id,canal,destinatario,status) values(gen_random_uuid(),$1,'email','BAD@example.com','agendada'),(gen_random_uuid(),$1,'email','other@example.com','agendada')`,[c]);assert.deepEqual((await db.query<{status:string}>('select status from mensagens order by destinatario')).rows.map(x=>x.status),['cancelada','cancelada','agendada']);await db.exec(`insert into thunderbird_dispositivos values('${u}','${c}')`);await assert.rejects(db.query(`insert into thunderbird_envios values(gen_random_uuid(),$1,null,'bad@example.com','enviando')`,[u]),/bloqueado/);console.log('Classificação, deduplicação, fila, destinatário alternativo e transporte validados');await db.close()
+
+}
+main().catch(e=>{console.error(e);process.exitCode=1})

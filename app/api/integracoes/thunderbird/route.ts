@@ -1,3 +1,4 @@
+import { validarDestinoEmail } from '@/features/mensageria/validar-destino-email'
 import { createHash } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
           attachments.push({ name: doc.nome_arquivo, type: doc.content_type, url: signed.signedUrl })
         }
       }
+      await validarDestinoEmail(db, d.carteira_id, to)
       if (!z.email().safeParse(to).success || (bcc && !z.email().safeParse(bcc).success) || !text || !subject || /[\r\n]/.test(subject)) throw new Error('Mensagem com endereço ou conteúdo inválido.')
       return json({ job: { id: e.id, kind: e.tipo, from: d.email, to, bcc: bcc === to ? null : bcc, subject, text, attachments } })
     } catch (error) {

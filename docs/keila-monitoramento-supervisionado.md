@@ -39,3 +39,17 @@ Avisar somente quando houver novo rascunho pronto, bloqueio que exija ação, fa
 ## Acordos à vista na Lello
 
 Antes de tratar um pedido de boleto como reemissão, leia `docs/keila-lello-acordo-avista.md`. Buscar acordo existente antes de lançar; a rotina diária não formaliza acordos. Termo e boleto devem ser conferidos e anexados à resposta antes de aprovação.
+
+## Retornos de entrega e contatos inválidos
+
+A cada ciclo, ler também NDRs da Microsoft nas pastas relevantes. Conferir o diagnóstico remoto do destinatário atual (não exemplos da ajuda, cabeçalhos antigos ou mensagem original citada), conta, data, endereço exato, condomínio e unidade. Não inferir falha pelo remetente Microsoft sozinho. Cruzar endereço cadastrado com o responsável; ambiguidades vão para revisão, sem bloqueio automático.
+
+Registrar cada falha por JSON com `scripts/keila-registrar-retorno-email.ts`, usando a chave `outlook:keila@gekali.com.br:<ID real da interface>`, recebido_em, carteira_id, unidade_id, destinatario, diagnostico conciso, codigo e outlook_url. Exemplo de execução:
+
+```powershell
+node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/keila-registrar-retorno-email.ts tmp/keila/retorno.json
+```
+
+O classificador distingue inexistência confirmada (5.1.1, 5.1.10 ou diagnóstico explícito de usuário inexistente), falha temporária (caixa cheia/4.2.2/5.2.2, quota, conexão) e revisão (políticas, segurança, falhas desconhecidas). Só inexistência bloqueia o endereço específico na carteira, preservando o cadastro, evidências e outros contatos. Caixa cheia não invalida e não autoriza reenvio automático. Retorno temporário posterior nunca remove um bloqueio anterior.
+
+O registro deduplica por carteira, mensagem e destinatário. O banco cancela apenas mensagens ainda não enviadas e sem evidência de envio em curso ou incerto. Novas aprovações/agendamentos desse endereço são bloqueados; transportes SMTP e Thunderbird conferem novamente. Não alterar valores, acordos ou status de cobranças. Não usar NDR como aceite, resposta humana ou motivo para iniciar negociação. Conferir a evidência e a marcação na ficha da unidade. O original permanece no Outlook.

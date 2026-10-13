@@ -1,3 +1,4 @@
+import { validarDestinoEmail } from './validar-destino-email'
 import { reservarDisparoEmail, finalizarDisparoEmail, EmailAdiadoError } from './email-agenda'
 import net from 'node:net'
 import tls from 'node:tls'
@@ -454,6 +455,7 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
   const sender = smtpSender(payload.from || config.from)
   const from = sender.address
   const to = sanitizeAddress(payload.to)
+  await validarDestinoEmail(createAdminClient(), carteiraId, to)
   const subject = payload.subject?.trim() || 'Mensagem GKLI Cobrança'
   const body = payload.text?.trim()
 

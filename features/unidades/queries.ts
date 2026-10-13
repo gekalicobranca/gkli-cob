@@ -290,7 +290,10 @@ export async function getUnidadeIntegral(id: string, scope: CarteiraScope) {
     throw new Error(`Erro ao carregar unidade: ${error.message}`)
   }
 
-  return data ? (normalizeRelations(data as any, ['condominios', 'carteiras']) as any) : null
+  if (!data) return null
+  const {data: retornos,error: retornoError}=await supabase.from('email_retornos').select('id,destinatario,classificacao,codigo,motivo,recebido_em,outlook_url').eq('unidade_id',id).order('recebido_em',{ascending:false})
+  if(retornoError)throw new Error('Erro ao conferir entregabilidade dos contatos.')
+  return {...normalizeRelations(data as any, ['condominios', 'carteiras']), email_retornos: retornos ?? []} as any
 }
 
 
