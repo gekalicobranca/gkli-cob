@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { resolverCorrespondenciasUnidade } from "@/lib/core/identidade-unidade";
+import { carregarApoiosParaCorrespondencia, carregarUnidadesParaCorrespondencia } from "@/features/responsaveis-unidades/correspondencia";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
@@ -772,6 +774,13 @@ function findLegacyUnitMatch(params: {
   responsavelNome?: unknown;
 }) {
   const { unidades, identificacao, bloco, responsavelNome } = params;
+  const normalizadas = resolverCorrespondenciasUnidade({ identificacao, bloco }, unidades);
+  if (normalizadas.ambiguo || normalizadas.correspondencias.length > 1) return {
+    unidade: undefined, motivo: "Correspondência ambígua após normalização de bloco/unidade", ambiguo: true,
+  };
+  if (normalizadas.correspondencias.length === 1) return {
+    unidade: normalizadas.correspondencias[0], motivo: "Unidade localizada por normalização de bloco/unidade", ambiguo: false,
+  };
   const informedBlock = legacyBlockToken(bloco);
   const informedVariants = legacyUnitVariants(identificacao, bloco);
 
@@ -806,7 +815,7 @@ function findLegacyUnitMatch(params: {
 
       return { unidade, score, unitMatches, exactBlock, responsibleMatches };
     })
-    .filter((item) => item.score >= 35)
+    .filter((item) => item.unitMatches && item.score >= 35)
     .sort((a, b) => b.score - a.score);
 
   if (scored.length === 0) return { unidade: undefined, motivo: null as string | null, ambiguo: false };
@@ -1438,6 +1447,16 @@ async function enrichCobrancaPreview(
       });
       unidade = unidadesByKey.get(chaveUnidade);
       responsavelApoio = responsaveisApoioByKey.get(chaveUnidade);
+      const alvo = { condominio_id: condominio.id, identificacao: payload.unidade, bloco: payload.bloco };
+      if (!unidade) {
+        const candidatas = resolverCorrespondenciasUnidade(alvo, [...unidadesByKey.values()]).correspondencias;
+        if (candidatas.length === 1) unidade = candidatas[0];
+        else if (candidatas.length > 1) erros.push("Unidade ambígua após normalização de bloco/unidade");
+      }
+      if (!responsavelApoio) {
+        const candidatas = resolverCorrespondenciasUnidade(alvo, [...responsaveisApoioByKey.values()]).correspondencias;
+        responsavelApoio = candidatas.find(a => a.tipo_responsavel === "proprietario") ?? candidatas[0];
+      }
       if (!unidade) {
         unidadeNova = true;
         alertas.push("Unidade não encontrada: será criada pela inadimplência");
@@ -2524,34 +2543,25 @@ async function buscarUnidadeExistente(
   const { data, error } = await query.maybeSingle();
 
   if (error) throw new Error(`Erro ao buscar unidade existente: ${error.message}`);
-  return data as UnidadeImportacaoRow | null;
+  if (data) return data as UnidadeImportacaoRow;
+  const candidatas = resolverCorrespondenciasUnidade({ identificacao: params.identificacao, bloco: params.bloco },
+    await carregarUnidadesParaCorrespondencia(supabase, params.condominioId)).correspondencias;
+  if (candidatas.length > 1) throw new Error("Unidade ambígua após normalização de bloco/unidade. Revise o cadastro.");
+  return (candidatas[0] ?? null) as UnidadeImportacaoRow | null;
 }
 
 async function buscarResponsavelApoio(
   supabase: SupabaseClient,
   params: { condominioId: string; identificacao: string; bloco?: string | null; tipoResponsavel?: string | null },
+  precarregados?: ResponsavelUnidadeApoioRow[],
 ) {
   if (!params.condominioId || !params.identificacao) return null;
 
-  let query = supabase
-    .from("responsaveis_unidades")
-    .select("id, condominio_id, carteira_id, unidade, bloco, responsavel_nome, tipo_responsavel, responsavel_documento, telefone, celular, telefone_fixo, telefone_outros, email")
-    .eq("condominio_id", params.condominioId)
-    .eq("unidade", params.identificacao)
-    .eq("ativo", true);
+  const data = precarregados ?? await carregarApoiosParaCorrespondencia(supabase, [params.condominioId]);
 
-  if (params.tipoResponsavel) {
-    query = query.eq("tipo_responsavel", normalizeTipoResponsavel(params.tipoResponsavel));
-  }
-
-  const bloco = String(params.bloco ?? "").trim();
-  query = bloco ? query.eq("bloco", bloco) : query.is("bloco", null);
-
-  const { data, error } = await query.limit(5);
-  if (error)
-    throw new Error(`Erro ao buscar responsavel de apoio: ${error.message}`);
-
-  const rows = (data ?? []) as ResponsavelUnidadeApoioRow[];
+  const rows = resolverCorrespondenciasUnidade({ identificacao: params.identificacao, bloco: params.bloco, condominio_id: params.condominioId },
+    (data ?? []) as ResponsavelUnidadeApoioRow[]).correspondencias
+    .filter(row => !params.tipoResponsavel || row.tipo_responsavel === normalizeTipoResponsavel(params.tipoResponsavel));
   if (rows.length === 0) return null;
 
   return (
@@ -2583,6 +2593,7 @@ function dadosUnidadeComApoio(
 async function garantirUnidadeDaImportacao(
   supabase: SupabaseClient,
   payload: Record<string, any>,
+  apoios?: ResponsavelUnidadeApoioRow[],
 ) {
   if (payload.unidade_id) {
     return { id: String(payload.unidade_id), criada: false, reutilizada: true };
@@ -2618,7 +2629,7 @@ async function garantirUnidadeDaImportacao(
     condominioId: payload.condominio_id,
     identificacao,
     bloco: payload.bloco,
-  });
+  }, apoios);
   const dadosContato = dadosUnidadeComApoio(payload, responsavelApoio);
 
   if (existente) {
@@ -2690,6 +2701,7 @@ async function importarCobrancas(
   const importadasParaAusencia: CobrancaImportadaConciliacao[] = [];
   const unidadesResolvidas = new Map<string, Awaited<ReturnType<typeof garantirUnidadeDaImportacao>>>();
   const contextoJudicial = criarContextoClassificacaoJudicial(opcoes.cobrancasClassificacao ?? payloads);
+  const apoios = await carregarApoiosParaCorrespondencia(supabase, payloads.map(p => p.condominio_id));
 
   for (const [index, payload] of payloads.entries()) {
     const linha = Number(payload.__linha ?? index + 1);
@@ -2707,7 +2719,7 @@ async function importarCobrancas(
       const chaveUnidade = unidadeKey({ condominio_id: payload.condominio_id,
         identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco });
       const unidadeCache = unidadesResolvidas.get(chaveUnidade);
-      const unidade = unidadeCache ?? await garantirUnidadeDaImportacao(supabase, payload);
+      const unidade = unidadeCache ?? await garantirUnidadeDaImportacao(supabase, payload, apoios);
       unidadesResolvidas.set(chaveUnidade, unidade);
       payload.unidade_id = unidade.id;
       if (unidade.criada && !unidadeCache) resultado.criados += 1;

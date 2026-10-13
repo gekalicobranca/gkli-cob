@@ -1,3 +1,5 @@
+import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade'
+import { carregarApoiosParaCorrespondencia } from '@/features/responsaveis-unidades/correspondencia'
 import { differenceInCalendarDays } from 'date-fns'
 
 import { createAdminClient } from '@/utils/supabase/admin'
@@ -144,30 +146,6 @@ function matchesContato(row: any, contato?: string) {
   return true
 }
 
-function unidadeKey(row: any) {
-  return [
-    row.condominio_id ?? row.condominios?.id ?? '',
-    String(row.unidades?.bloco ?? '').trim().toLowerCase(),
-    String(row.unidades?.identificacao ?? '').trim().toLowerCase(),
-  ].join('|')
-}
-
-function unidadeKeySemBloco(row: any) {
-  return [
-    row.condominio_id ?? row.condominios?.id ?? '',
-    '',
-    String(row.unidades?.identificacao ?? '').trim().toLowerCase(),
-  ].join('|')
-}
-
-function responsavelApoioKey(row: any) {
-  return [
-    row.condominio_id ?? '',
-    String(row.bloco ?? '').trim().toLowerCase(),
-    String(row.unidade ?? '').trim().toLowerCase(),
-  ].join('|')
-}
-
 async function loadResponsaveisApoioMap(
   supabase: ReturnType<typeof createAdminClient>,
   rows: any[],
@@ -178,17 +156,11 @@ async function loadResponsaveisApoioMap(
 
   if (!condominioIds.length) return new Map<string, any>()
 
-  const { data, error } = await supabase
-    .from('responsaveis_unidades')
-    .select('id, condominio_id, unidade, bloco, responsavel_nome, telefone, celular, email, tipo_responsavel, ativo')
-    .eq('ativo', true)
-    .in('condominio_id', condominioIds)
-
-  if (error) throw new Error(`Erro ao carregar responsáveis de apoio: ${error.message}`)
+  const data = await carregarApoiosParaCorrespondencia(supabase, condominioIds)
 
   const map = new Map<string, any[]>()
   for (const row of (data ?? []) as any[]) {
-    const key = responsavelApoioKey(row)
+    const key = row.condominio_id ?? ''
     const current = map.get(key) ?? []
     current.push(row)
     map.set(key, current)
@@ -197,10 +169,8 @@ async function loadResponsaveisApoioMap(
 }
 
 function withResponsavelApoio(row: any, apoioMap: Map<string, any[]>) {
-  const apoios = [
-    ...(apoioMap.get(unidadeKey(row)) ?? []),
-    ...(apoioMap.get(unidadeKeySemBloco(row)) ?? []),
-  ].filter((apoio, index, list) => !apoio.id || list.findIndex((item) => item.id === apoio.id) === index)
+  const condominio_id = row.condominio_id ?? row.condominios?.id ?? ''
+  const apoios = resolverCorrespondenciasUnidade({ ...row.unidades, condominio_id }, apoioMap.get(condominio_id) ?? []).correspondencias
   if (!apoios.length) return row
 
   return {

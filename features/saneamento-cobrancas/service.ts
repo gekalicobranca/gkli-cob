@@ -1,4 +1,6 @@
 import type { createClient } from '@/utils/supabase/server'
+import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade'
+import { carregarUnidadesParaCorrespondencia } from '@/features/responsaveis-unidades/correspondencia'
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
@@ -174,24 +176,11 @@ export async function buscarPossivelUnidadePorNormalizacao(
   const alvo = normalizeUnidadeComparable(params.identificacao)
   if (!params.condominioId || !alvo) return null
 
-  const { data, error } = await supabase
-    .from('unidades')
-    .select('id, carteira_id, condominio_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email')
-    .eq('condominio_id', params.condominioId)
+  const data = await carregarUnidadesParaCorrespondencia(supabase, params.condominioId)
 
-  if (error) throw new Error(`Erro ao buscar possíveis unidades: ${error.message}`)
-
-  const blocoRelatorio = normalizeSaneamentoText(params.bloco)
-  const candidatas = ((data ?? []) as UnidadeSaneamentoRow[]).filter((unidade) => {
-    const unidadeCompativel = normalizeUnidadeComparable(unidade.identificacao) === alvo
-    if (!unidadeCompativel) return false
-
-    const blocoCadastro = normalizeSaneamentoText(unidade.bloco)
-    if (!blocoRelatorio || !blocoCadastro) return true
-    return blocoCadastro === blocoRelatorio
-  })
-
-  return candidatas[0] ?? null
+  const candidatas = resolverCorrespondenciasUnidade({ identificacao: params.identificacao, bloco: params.bloco },
+    (data ?? []) as UnidadeSaneamentoRow[]).correspondencias
+  return candidatas.length === 1 ? candidatas[0] : null
 }
 
 export async function registrarSaneamentosDaCobrancaImportada(

@@ -9,6 +9,8 @@ import { dividirCriacaoFlows } from './dividir-criacao'
 import { consolidarEmailsLote } from './consolidar-emails'
 import { consolidarWhatsAppLote } from './consolidar-whatsapp'
 import { motivoExclusaoMaestro, motivoSaneamentoMaestro } from './maestro-elegibilidade'
+import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade'
+import { carregarApoiosParaCorrespondencia } from '@/features/responsaveis-unidades/correspondencia'
 
 const relation = (v: any) => Array.isArray(v) ? v[0] : v
 const origens = ['maestro', 'maestro_agendada', 'agenda_mensal']
@@ -41,8 +43,7 @@ async function planejar(db: ReturnType<typeof createAdminClient>, job: any) {
     if (rows.length > 2_000) throw new Error('Planejamento automático limitado a 2.000 cobranças por importação. Divida a importação ou monte os Flows manualmente.')
     if ((data ?? []).length < 500) break
   }
-  const { data: apoios, error: ae } = await db.from('responsaveis_unidades').select('unidade,bloco,responsavel_nome,email,tipo_responsavel').eq('condominio_id', job.condominio_id).eq('ativo', true)
-  if (ae) throw new Error(ae.message)
+  const apoios = await carregarApoiosParaCorrespondencia(db, [job.condominio_id])
   const acordos = new Set<string>(), vinculadas = new Set<string>()
   for (let offset = 0; offset < rows.length; offset += 100) {
     const ids = rows.slice(offset, offset + 100).map(r => r.id)
@@ -59,7 +60,7 @@ async function planejar(db: ReturnType<typeof createAdminClient>, job: any) {
     let motivo = vinculadas.has(row.id) ? 'Já vinculada a outro Flow de e-mail' : motivoExclusaoMaestro(row, Number(condominio.dias_apos_vencimento_regua ?? condominio.inicio_cobranca_dias ?? 30), acordos.has(row.id))
     let saneamento = false
     if (!motivo) {
-      const contatos = (apoios ?? []).filter(a => String(a.unidade).trim().toLowerCase() === String(unidade?.identificacao).trim().toLowerCase() && (!a.bloco || String(a.bloco).trim().toLowerCase() === String(unidade?.bloco ?? '').trim().toLowerCase()))
+      const contatos = resolverCorrespondenciasUnidade(unidade ?? {}, apoios ?? []).correspondencias
       const contato = escolherContatoRegua({ unidade, apoios: contatos, canal: 'email', preferencia: regua.destinatario_preferencial })
       motivo = motivoSaneamentoMaestro(unidade?.responsavel_nome, contato.destinatario)
       saneamento = Boolean(motivo)
