@@ -8,6 +8,7 @@ export function planejarAcordoAvista({ referencia, unidade, recibos, vencimento,
   return { referencia, unidade, recibos: [...new Set(recibos)], vencimento, parcelas: 1, despesasCentavos, totalCentavos,
     acao: acordoExistente ? 'consultar_acordo_existente' : 'preparar_para_revisao', acordoExistente: acordoExistente ?? null,
     divergenciaCentavos: totalPortalCentavos === undefined ? null : totalPortalCentavos - totalCentavos,
-    exigeRevisao: totalPortalCentavos !== undefined && totalPortalCentavos !== totalCentavos,
+    toleranciaCentavos: 50,
+    exigeRevisao: totalPortalCentavos !== undefined && Math.abs(totalPortalCentavos - totalCentavos) > 50,
     finalizarAutomaticamente: false, enviarAutomaticamente: false, procedimento: 'docs/keila-lello-acordo-avista.md' }
 }

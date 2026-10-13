@@ -17,3 +17,5 @@ Procedimento observado visualmente na gravação fornecida em 13/10/2026, duraç
 Safira 63004, unidade 600002, recibo de setembro 53235964, acordo 1398404, parcela 3347165, documento 3293525, vencimento 20/10/2026, total R$ 427,99. Não recriar. O vídeo mostra despesas zero e desconto -R$ 38,90 sobre R$ 389,09. Dez por cento arredondados produziriam R$ 428,00: preservar o documento real e sinalizar R$ 0,01 de divergência, sem alterar o acordo externo.
 
 `scripts/lello/acordo-avista.mjs` prepara o plano e detecta divergências; não executa formalização. Seletores e retomada ainda precisam de validação no portal antes de habilitar criação automática. A captação existente permanece consultiva.
+
+O operador autorizou em 13/10/2026 tolerância inclusiva de até R$ 0,50 para arredondamento, para mais ou para menos. Registrar a diferença e preservar o documento real; acima de R$ 0,50 exige revisão. Isso não autoriza diferença de recibos, vencimento, percentuais, descontos ou beneficiário.
