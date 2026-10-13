@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { Card } from '@/components/ui/card'
 import { acompanhamento } from '@/features/keila/acompanhamento'
 import type { KeilaCaso } from '@/features/keila/queries'
 
@@ -32,13 +31,13 @@ export function RoteiroAtendimentoKeila({ caso, execucao }: { caso: KeilaCaso; e
     { titulo: 'Revisar a resposta', situacao: caso.payload.resposta_aprovada ? 'Resposta aprovada · acompanhar envio' : resposta ? 'Rascunho salvo para revisão' : 'Resposta ainda não preparada',
       detalhe: 'A resposta deve apresentar o resultado da consulta e, quando solicitado, a proposta concreta. Salvar o rascunho não envia e-mail.', href: '#resposta-caso', acao: 'Abrir resposta' },
   ]
-  return <Card className="space-y-4 p-5">
+  return <div className="space-y-4">
     <div><h3 className="font-semibold">Do retorno à resposta</h3><p className="mt-1 text-sm text-slate-600">{humano ? 'Prioridade humana: manter a tratativa existente. Não iniciar outra negociação.' : concluido ? 'Atendimento concluído.' : caso.payload.intencao === 'parcelamento' ? 'Pedido de parcelamento: concluir a consulta e preparar as condições para revisão.' : 'Acompanhe a consulta, as evidências e o texto que será revisado.'}</p></div>
     <div className="rounded-lg bg-sky-50 p-3 text-sm"><strong>Próxima ação:</strong> {caso.payload.proxima_acao || 'Definir próxima ação.'}</div>
     {pendencias.length ? <ul className="space-y-2 text-sm">{pendencias.map(p => <li key={p.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3"><strong>{humano || concluido ? 'Acompanhamento suspenso' : p.prazo <= hoje ? 'Acompanhar agora' : 'Aguardando retorno'}</strong> · {p.aguardando} · {p.prazo.split('-').reverse().join('/')}<p className="mt-1">{p.proxima_acao}</p><Link className="mt-1 inline-block text-sky-700 underline" href="#acompanhamento-caso">Abrir pendência</Link></li>)}</ul> : null}
-    {!humano && !concluido ? <ol className="grid gap-3 sm:grid-cols-2">{etapas.map((etapa, i) => <li key={etapa.titulo} className="min-w-0 rounded-lg border border-slate-200 p-3">
+    {!humano && !concluido ? <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{etapas.map((etapa, i) => <li key={etapa.titulo} className="min-w-0 rounded-lg border border-slate-200 p-3">
       <h4 className="text-sm font-semibold">{i + 1}. {etapa.titulo}</h4><p className="mt-2 text-sm font-medium text-sky-800">{etapa.situacao}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{etapa.detalhe}</p><Link href={etapa.href} className="mt-3 inline-block text-sm text-sky-700 underline">{etapa.acao}</Link>
     </li>)}</ol> : null}
     {resposta ? <details open><summary className="cursor-pointer text-sm font-semibold">{caso.payload.resposta_aprovada ? 'Resposta aprovada · confira o envio abaixo' : 'Resposta preparada · revisão pendente'}</summary><p className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 text-sm">{caso.payload.resposta_aprovada?.texto ?? caso.payload.resposta_simulada}</p></details> : null}
-  </Card>
+  </div>
 }
