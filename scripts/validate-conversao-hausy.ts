@@ -47,6 +47,12 @@ Rateio/frações`;
   assert.equal(phones.celular, "5511982197272");
   assert.equal(phones.telefone_fixo, "551143724371");
   assert.equal(phones.telefone_outros, "938012131 | 35622577");
+  const trunkPhones = classificarContatos(parseSuperlogicaUnidadesPdf(fullText.replace(
+    "Telefone/e-mail do cliente", "Telefone/e-mail do cliente\nCelular - 011999001517 Celular - 011999001517\nTelefone comercial - 01143724371",
+  ))[0].telefone);
+  assert.equal(trunkPhones.celular, "5511999001517");
+  assert.equal(trunkPhones.telefone_fixo, "551143724371");
+  assert.equal(trunkPhones.telefone_outros, null);
   const squareText = fullText.replace("12.345.678/0001-90", "14.234.598/0001-98")
     .replace("Telefone/e-mail do cliente", "Telefone/e-mail do cliente\nCelular - 99603-3499 Telefone comercial - 2409-2750 Celular - (21) 98219-7272 Celular - 7753-6064");
   const squarePhones = classificarContatos(aplicarDddPadraoConversao(parseSuperlogicaUnidadesPdf(squareText)[0].telefone));

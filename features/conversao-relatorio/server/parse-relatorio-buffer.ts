@@ -2056,7 +2056,7 @@ function extractPhoneCandidates(value: string) {
   const normalized = normalize(value);
   const candidates: PhoneCandidate[] = [];
   const labeledRegex =
-    /(Celular|Telefone\s+comercial|Telefone\s+residencial|Outros?)\s*-?\s*:?\s*((?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9[.\s-]*)?\d{4,5}[.\s-]?\d{4})/gi;
+    /(Celular|Telefone\s+comercial|Telefone\s+residencial|Outros?)\s*-?\s*:?\s*(0\d{10,11}(?!\d)|(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9[.\s-]*)?\d{4,5}[.\s-]?\d{4})(?!\d)/gi;
 
   for (const match of normalized.matchAll(labeledRegex)) {
     const rawLabel = normalize(match[1]).toLowerCase();
@@ -2076,7 +2076,7 @@ function extractPhoneCandidates(value: string) {
 
   if (!candidates.length) {
     const looseRegex =
-      /(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9[.\s-]*)?\d{4,5}[.\s-]?\d{4}/g;
+      /(?<!\d)(?:0\d{10,11}(?!\d)|(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?(?:9[.\s-]*)?\d{4,5}[.\s-]?\d{4})(?!\d)/g;
     for (const match of normalized.matchAll(looseRegex)) {
       const phone = cleanPhone(match[0]);
       const digits = onlyDigits(phone);
