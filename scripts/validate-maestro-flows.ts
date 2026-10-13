@@ -32,7 +32,7 @@ test('bloqueios, acordo vigente, prazo e contatos são verificados antes da mont
   assert.equal(motivoSaneamentoMaestro('Pessoa', 'a@example.com'), null)
 })
 
-test('fila persiste lote, impede concorrência, retoma lease e finaliza sem ativar envios', async () => {
+test('fila retoma montagem e encaminha Maestro manual à ativação automática, preservando pausas do operador', async () => {
   const db = new PGlite()
   const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12,'0')}`
   await db.exec(`
@@ -41,7 +41,7 @@ test('fila persiste lote, impede concorrência, retoma lease e finaliza sem ativ
     create table carteiras(id uuid primary key); create table condominios(id uuid primary key,carteira_id uuid,status text);
     create table reguas(id uuid primary key);
     create table lotes(id uuid primary key default gen_random_uuid(),carteira_id uuid,regua_id uuid,tipo text,status text,iniciado_em timestamptz,observacoes text);
-    create table cobranca_flows(id uuid primary key default gen_random_uuid(),carteira_id uuid,lote_id uuid unique,regua_id uuid,nome text,status text,total_mensagens int,total_pendentes int,total_falhas int,payload jsonb);
+    create table cobranca_flows(id uuid primary key default gen_random_uuid(),carteira_id uuid,lote_id uuid unique,regua_id uuid,nome text,status text,total_mensagens int,total_pendentes int,total_falhas int,payload jsonb,pausado_em timestamptz,iniciado_em timestamptz,updated_at timestamptz);
     create table cobrancas(id uuid primary key,carteira_id uuid,condominio_id uuid,status text,status_operacional text,status_financeiro text,automacao_bloqueada bool default false);
     create table acordos(cobranca_id uuid,status text);
     create table mensagens(id uuid primary key,lote_id uuid,cobranca_id uuid,status text,cobranca_flow_id uuid,agendada_para timestamptz,scheduled_at timestamptz);
@@ -50,6 +50,7 @@ test('fila persiste lote, impede concorrência, retoma lease e finaliza sem ativ
   const sql = readFileSync('supabase/migrations/20260917140000_maestro_flow_montagens.sql','utf8').split('create function public.maestro_flow_tick()')[0]
   await db.exec(sql + 'commit;')
   await db.exec(readFileSync('supabase/migrations/20261013170440_maestro_manual_flow_pausado.sql','utf8'))
+  await db.exec(readFileSync('supabase/migrations/20260917190000_maestro_ativacao_automatica.sql','utf8').split('create function public.maestro_flow_ativar(')[0] + 'commit;')
   await db.exec(`insert into agente_execucoes values('${id(1)}'); insert into conversoes_relatorio values('${id(2)}'),('${id(20)}'); insert into carteiras values('${id(3)}'); insert into condominios values('${id(4)}','${id(3)}','ativo'); insert into reguas values('${id(5)}');`)
   await db.query(`insert into maestro_flow_montagens(execucao_id,conversao_id,carteira_id,condominio_id,regua_id,plano) values($1,$2,$3,$4,$5,$6::jsonb)`, [id(1),id(2),id(3),id(4),id(5),JSON.stringify([[id(6)],[id(7)]])])
   const first = (await db.query<any>('select * from maestro_flow_claim()')).rows[0]
@@ -76,13 +77,20 @@ test('fila persiste lote, impede concorrência, retoma lease e finaliza sem ativ
   assert.equal(job.parte,1); assert.equal(job.status,'pendente'); assert.equal(job.lote_id,null)
   await assert.rejects(db.query('select maestro_flow_finalizar($1,$2,$3)',[first.id,resumed.token,'Duplicado']), /expirada/)
   assert.equal((await db.query('select * from cobranca_flows')).rows.length,1)
-  await db.exec(`update agente_execucoes set origem='maestro_agendada';`)
+  await db.query(`insert into maestro_flow_controle(carteira_id,ativo) values($1,true)`,[id(3)])
+  await db.query(`insert into cobranca_flows(id,carteira_id,status,total_mensagens,payload,pausado_em,iniciado_em) values($1,$2,'pausado',1,'{"origem":"maestro"}',now(),now())`,[id(99),id(3)])
+  await db.exec(readFileSync('supabase/migrations/20261013193808_maestro_manual_ativacao_automatica.sql','utf8'))
+  assert.equal((await db.query<any>('select status from cobranca_flows where id=$1',[flow])).rows[0].status,'pronto')
+  assert.equal((await db.query<any>('select status from maestro_flow_ativacoes where flow_id=$1',[flow])).rows[0].status,'pendente')
+  assert.equal((await db.query<any>('select status from cobranca_flows where id=$1',[id(99)])).rows[0].status,'pausado')
+  await db.exec(`update agente_execucoes set origem='maestro';`)
   const scheduled = (await db.query<any>('select * from maestro_flow_claim()')).rows[0]
   const lote2 = (await db.query<any>('select maestro_flow_lote($1,$2) id',[scheduled.id,scheduled.token])).rows[0].id
   await db.query(`insert into cobrancas(id,carteira_id,condominio_id,status,status_operacional,status_financeiro) values($1,$2,$3,'novo','novo','em_aberto')`,[id(7),id(3),id(4)])
   await db.query(`insert into mensagens(id,lote_id,cobranca_id,status) values($1,$2,$3,'pendente_aprovacao')`,[id(9),lote2,id(7)])
   await db.query(`insert into lote_itens(lote_id,cobranca_id,status) values($1,$2,'criado')`,[lote2,id(7)])
-  const flow2 = (await db.query<any>('select maestro_flow_finalizar($1,$2,$3) id',[scheduled.id,scheduled.token,'Agendada'])).rows[0].id
+  const flow2 = (await db.query<any>('select maestro_flow_finalizar($1,$2,$3) id',[scheduled.id,scheduled.token,'Manual automática'])).rows[0].id
   assert.equal((await db.query<any>('select status from cobranca_flows where id=$1',[flow2])).rows[0].status,'pronto')
+  assert.equal((await db.query<any>('select status from maestro_flow_ativacoes where flow_id=$1',[flow2])).rows[0].status,'pendente')
   await db.close()
 })

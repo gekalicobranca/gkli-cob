@@ -54,7 +54,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       montagem = result.data
       if (!['falha', 'cancelada', 'precisa_intervencao'].includes(execucao.status)) resumo = { ...resumo, terminal: ['concluido', 'atencao'].includes(montagem?.status ?? ''),
         state: montagem?.status === 'concluido' ? 'completed' : montagem?.status === 'atencao' ? 'attention' : 'running',
-        detail: montagem?.status === 'concluido' ? `Montagem concluída: ${montagem.flow_ids?.length ?? 0} flow(s), aguardando liberação para envio.` : montagem?.status === 'atencao' ? montagem.erro || 'Montagem requer revisão.' : 'Importação concluída; montagem dos flows em andamento.',
+        detail: montagem?.status === 'concluido' ? (montagem.flow_ids?.length ? `Montagem concluída: ${montagem.flow_ids.length} flow(s). Acompanhe a agenda de envios em Flows.` : 'Montagem concluída: nenhuma cobrança elegível para novo Flow. Consulte os motivos na validação.') : montagem?.status === 'atencao' ? montagem.erro || 'Montagem requer revisão.' : 'Importação concluída; montagem dos flows em andamento.',
       }
     } else if (execucao.status === 'pendente' && ['maestro', 'manual'].includes(execucao.origem ?? '')) {
       resumo = { ...resumo, detail: 'Aguardando abertura do executor manual neste computador. Use Abrir executor manual e permita a abertura no navegador.' }
