@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as XLSX from "xlsx";
 import { classificarContatos } from "../lib/core/telefone";
-import { parseRelatorioBuffer, parseSuperlogicaUnidadesPdf } from "../features/conversao-relatorio/server/parse-relatorio-buffer";
+import { aplicarDddPadraoConversao } from "../features/conversao-relatorio/server/telefone-padrao";
+import { buildPreviewFromRecibos, parseRelatorioBuffer, parseSuperlogicaUnidadesPdf } from "../features/conversao-relatorio/server/parse-relatorio-buffer";
 import { anoCorrenteImportacao } from "../features/importacoes/recorte-cobrancas";
 import { detectHausyInadimplencia, parseHausyInadimplencia } from "../features/conversao-relatorio/server/hausy-inadimplencia";
 import { detectSuperlogicaSimplificada, parseSimplificadaRows } from "../features/conversao-relatorio/server/superlogica-simplificada";
@@ -48,15 +49,26 @@ Rateio/frações`;
   assert.equal(phones.telefone_outros, "938012131 | 35622577");
   const squareText = fullText.replace("12.345.678/0001-90", "14.234.598/0001-98")
     .replace("Telefone/e-mail do cliente", "Telefone/e-mail do cliente\nCelular - 99603-3499 Telefone comercial - 2409-2750 Celular - (21) 98219-7272 Celular - 7753-6064");
-  const squarePhones = classificarContatos(parseSuperlogicaUnidadesPdf(squareText)[0].telefone);
+  const squarePhones = classificarContatos(aplicarDddPadraoConversao(parseSuperlogicaUnidadesPdf(squareText)[0].telefone));
   assert.equal(squarePhones.celular, "5511996033499 | 5521982197272");
   assert.equal(squarePhones.telefone_fixo, "551124092750");
   assert.equal(squarePhones.telefone_outros, "77536064");
+  assert.equal(aplicarDddPadraoConversao("99603-3499 | 2409-2750 | (21) 98219-7272 | 77536064 | +12345678 | 1e8"),
+    "11996033499 | 1124092750 | (21) 98219-7272 | 77536064 | +12345678 | 1e8");
   assert.equal(parseSuperlogicaUnidadesPdf(fullText.replaceAll("CPF: 123.456.789-00", "CPF:"))[0].responsavelDocumento, "");
   assert.ok(detectHausyInadimplencia(debt));
   assert.equal(detectHausyInadimplencia(debt.replace("Valor Original", "Outra coluna")), null);
   const recibos = parseHausyInadimplencia(debt);
   assert.equal(recibos.length, 1);
+  const phonePreview = buildPreviewFromRecibos({ origem: "Teste", filename: "teste.pdf", somenteAnoCorrente: false,
+    recibos: recibos.map((recibo) => ({ ...recibo, telefone: "99999-8888 | (21) 98888-7777" })) });
+  assert.ok(phonePreview.ok);
+  if (phonePreview.ok) {
+    assert.equal(phonePreview.preview.cobrancas[0].telefone, "11999998888 | (21) 98888-7777");
+    assert.match(phonePreview.preview.csv, /11999998888/);
+    const phoneWorkbook = XLSX.read(Buffer.from(phonePreview.preview.xlsxBase64, "base64"));
+    assert.match(JSON.stringify(XLSX.utils.sheet_to_json(phoneWorkbook.Sheets[phoneWorkbook.SheetNames[0]])), /11999998888/);
+  }
   assert.equal(recibos[0].valorPrincipal, 300);
   assert.equal(recibos[0].valorTotal, 309);
   assert.equal(recibos[0].recibo, "12345678");

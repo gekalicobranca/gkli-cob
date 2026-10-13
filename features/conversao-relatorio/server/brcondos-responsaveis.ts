@@ -36,7 +36,7 @@ export function parseBrcondosResponsaveis(text: string): UnidadeConversaoPreview
     const block = text.slice(start.index, starts[index + 1]?.index ?? text.length);
     const person = block.match(/^\s*(Propriet[áa]rio|Morador\s*\/\s*Locat[áa]rio)\s*:[ \t]*([^\r\n]*)/im);
     const phones = [...block.matchAll(/(?:Telefone|Celular)\s*:[ \t]*([^\r\n]*?)(?=Celular\s*:|E-Mail\s*:|\r?$)/gim)]
-      .flatMap((field) => field[1].match(/(?:\+?55\s*)?\(?\d{2}\)?\s*\d{4,5}[\s-]?\d{4}/g) ?? [])
+      .flatMap((field) => field[1].match(/(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?\d{4,5}[\s-]?\d{4}/g) ?? [])
       .map((phone) => phone.replace(/\D/g, ""))
       .filter((phone) => !/^0+$/.test(phone));
     const emails = [...block.matchAll(/E-Mail\s*:[ \t]*([^\r\n]*)/gi)]

@@ -39,7 +39,7 @@ export function parseLelloResponsaveis(text: string): UnidadeConversaoPreview[] 
       const document = person.match(/^CPF\s*([\d.\/-]+)\s*RG/m)?.[1] ??
         person.match(/^CNPJ\s*([\d.\/-]+)\s*%/m)?.[1] ?? "";
       const phones = [...person.matchAll(/(?:Telefone(?: A\/C)?|Celular A\/C)[ \t]*([^\n]*?)(?=Celular A\/C|$)/gm)]
-        .flatMap((field) => field[1].match(/(?:\+?55\s*)?\(?\d{2}\)?\s*\d{4,5}[\s-]?\d{4}/g) ?? [])
+        .flatMap((field) => field[1].match(/(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?\d{4,5}[\s-]?\d{4}/g) ?? [])
         .map((phone) => phone.replace(/\D/g, ""));
       const emails = [...person.matchAll(/E-mail(?: boleto)?[ \t]+([^\n]*)/g)]
         .flatMap((field) => field[1].match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [])

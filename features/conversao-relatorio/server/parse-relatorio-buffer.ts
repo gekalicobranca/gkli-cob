@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { classificarContatos } from "@/lib/core/telefone";
+import { aplicarDddPadraoConversao } from "./telefone-padrao";
 import { detectLelloResponsaveis, parseLelloResponsaveis } from "./lello-responsaveis";
 import { inflateSync } from "zlib";
 import * as XLSX from "xlsx";
@@ -1375,6 +1376,8 @@ export function buildPreviewFromRecibos({
         "Arquivo reconhecido, mas nenhum recibo válido foi encontrado. Verifique se o relatório foi exportado completo.",
     };
   }
+
+  recibos = recibos.map((recibo) => ({ ...recibo, telefone: aplicarDddPadraoConversao(recibo.telefone) || undefined }));
 
   const recibosMuitoAntigos = recibos.filter((recibo) => vencimentoComMaisDeCincoAnos(recibo.vencimento));
   const recibosElegiveis = recibos.filter((recibo) => {
@@ -3344,8 +3347,6 @@ function extractSuperlogicaTipoPessoa(value: string) {
 export function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPreview[] {
   const blocks = splitSuperlogicaUnitBlocks(text);
   const unidades: UnidadeConversaoPreview[] = [];
-  // DDD padrão autorizado para o relatório do Square Guarulhos.
-  const dddPadrao = /14\.?234\.?598\/?0001-?98/.test(text) ? "11" : "";
 
   for (const block of blocks) {
     const dadosPessoais = extractSuperlogicaSection(
@@ -3409,8 +3410,6 @@ export function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPrevi
     // contacts must not live only in observations when the first lacks a DDD.
     const telefone = [contatos.telefone, ...contatos.telefonesAdicionais]
       .filter(Boolean)
-      .map((phone) => dddPadrao && /^(?:[2-5]\d{7}|9\d{8})$/.test(onlyDigits(phone))
-        ? `${dddPadrao}${onlyDigits(phone)}` : phone)
       .join(" | ");
     const email = contatos.email;
     const documento = documentoMatch ? cleanDocument(documentoMatch[2]) : "";
@@ -5144,7 +5143,8 @@ function buildPreviewFromUnidadesPdf({
   padraoDetectado: PadraoConversaoDetectado;
 }): ParseResult {
   unidades = unidades.map((unidade) => {
-    const contatos = classificarContatos(unidade.telefone, unidade.celular, unidade.telefone_fixo, unidade.telefone_outros);
+    const contatos = classificarContatos(...[unidade.telefone, unidade.celular, unidade.telefone_fixo, unidade.telefone_outros]
+      .map(aplicarDddPadraoConversao));
     return {
       ...unidade,
       telefone: contatos.telefone ?? "",

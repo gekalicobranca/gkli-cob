@@ -32,6 +32,8 @@ async function main() {
   assert.equal(records.length, 3);
   assert.equal(records[0].identificacao, "01");
   assert.equal(records[0].telefone, "1933334444 | 19999998888");
+  assert.equal(parseBrcondosResponsaveis(text.replace("(19) 3333-4444", "3333-4444").replace("(19) 99999-8888", "99999-8888"))[0].telefone,
+    "33334444 | 999998888");
   assert.equal(records[0].email, "ana@example.com | outro@example.com");
   assert.equal(records[1].telefone, "");
   assert.equal(records[2].telefone, "");

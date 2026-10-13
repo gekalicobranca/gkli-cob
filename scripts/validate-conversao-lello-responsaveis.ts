@@ -17,6 +17,8 @@ async function main() {
   assert.equal(parsed[0].identificacao, "A00011");
   assert.equal(parsed[0].bloco, "TORRE A");
   assert.equal(parsed[0].telefone, "1133334444 | 1144445555 | 11999998888");
+  assert.equal(parseLelloResponsaveis(text.replaceAll("1133334444", "3333-4444").replaceAll("(11) 99999-8888", "99999-8888"))[0].telefone,
+    "33334444 | 1144445555 | 999998888");
   assert.equal(parsed[0].email, "teste@example.com | outro@example.com");
   assert.equal(parsed[1].responsavelDocumento, "12345678000199");
   assert.match(parsed[0].observacoes, /RUA TESTE, 1/);
