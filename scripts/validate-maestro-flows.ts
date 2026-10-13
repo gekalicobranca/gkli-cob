@@ -79,7 +79,7 @@ test('fila retoma montagem e encaminha Maestro manual à ativação automática,
   assert.equal((await db.query('select * from cobranca_flows')).rows.length,1)
   await db.query(`insert into maestro_flow_controle(carteira_id,ativo) values($1,true)`,[id(3)])
   await db.query(`insert into cobranca_flows(id,carteira_id,status,total_mensagens,payload,pausado_em,iniciado_em) values($1,$2,'pausado',1,'{"origem":"maestro"}',now(),now())`,[id(99),id(3)])
-  await db.exec(readFileSync('supabase/migrations/20261013193808_maestro_manual_ativacao_automatica.sql','utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261013194012_maestro_manual_ativacao_automatica.sql','utf8'))
   assert.equal((await db.query<any>('select status from cobranca_flows where id=$1',[flow])).rows[0].status,'pronto')
   assert.equal((await db.query<any>('select status from maestro_flow_ativacoes where flow_id=$1',[flow])).rows[0].status,'pendente')
   assert.equal((await db.query<any>('select status from cobranca_flows where id=$1',[id(99)])).rows[0].status,'pausado')
