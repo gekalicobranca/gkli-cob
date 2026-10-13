@@ -213,8 +213,8 @@ export async function updateUnidade(formData: FormData) {
       eventoCodigo: acaoJudicial ? 'unidade.acao_judicial_ativada' : 'unidade.acao_judicial_desativada',
       titulo: acaoJudicial ? 'Ação judicial ativada' : 'Ação judicial desativada',
       descricao: acaoJudicial
-        ? 'Cobranças da unidade foram bloqueadas e novos acordos não poderão ser criados.'
-        : 'Bloqueio cadastral removido. Cobranças judicializadas não foram reativadas automaticamente.',
+        ? 'Informação de ação judicial registrada na unidade. Os bloqueios permanecem definidos individualmente nas cobranças.'
+        : 'Informação de ação judicial removida da unidade. Os status das cobranças foram preservados.',
       antes: { acao_judicial: Boolean((unidadeAtual as any).acao_judicial) },
       depois: { acao_judicial: acaoJudicial },
       origem: 'manual',
