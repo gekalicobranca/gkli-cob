@@ -9,7 +9,7 @@ export async function startWorkerHeartbeat(supabase, scriptKey) {
       script_key: scriptKey,
       ultimo_sinal_em: agora,
       versao: '1',
-      metadata_json: { plataforma: process.platform },
+      metadata_json: { plataforma: process.platform, ...(process.env.AGENTE_EXECUCAO_ID ? { execucao_id: process.env.AGENTE_EXECUCAO_ID, modo: 'sob_demanda' } : {}) },
       updated_at: agora,
     }, { onConflict: 'script_key' })
     if (error) console.error('Falha ao registrar sinal de vida:', error.message)

@@ -214,7 +214,7 @@ await startWorkerHeartbeat(supabase, SCRIPT_KEY)
 for (;;) {
   try {
     const captacaoAtiva = await captacaoGlobalAtiva(supabase)
-    if (captacaoAtiva) await agendarCaptacoesMensais()
+    if (captacaoAtiva && !process.env.AGENTE_EXECUCAO_ID) await agendarCaptacoesMensais()
     const execucao = await reivindicarExecucao(captacaoAtiva)
     if (execucao) await coletar(execucao)
   } catch (error) {

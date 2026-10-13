@@ -3,7 +3,7 @@ type Conversao = { status: string; criado_em: string; atualizado_em?: string | n
 
 export function resumirMonitor(execucao: Execucao, arquivo: unknown, conversao: Conversao | null, ultimoSinal: string | null, now = Date.now()) {
   const online = Boolean(ultimoSinal && now - Date.parse(ultimoSinal) < 90_000)
-  const terminal = ['falha', 'cancelada'].includes(execucao.status)
+  const terminal = ['falha', 'cancelada', 'precisa_intervencao'].includes(execucao.status)
   if (terminal || execucao.status === 'precisa_intervencao') return { state: 'error', terminal, detail: execucao.erro_mensagem || 'A execução requer intervenção.', online }
   if (['concluido', 'concluido_com_alertas'].includes(conversao?.status ?? '')) return { state: 'completed', terminal: true, detail: conversao?.status === 'concluido_com_alertas' ? 'Importação concluída com alertas. Consulte a validação.' : 'Importação concluída.', online }
   if (conversao?.status === 'aguardando_validacao') {

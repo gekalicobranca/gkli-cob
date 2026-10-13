@@ -39,7 +39,7 @@ export async function enfileirarColetaReceita(supabase: SupabaseClient, input: {
   if (error || !execucao) throw new Error(error?.message ?? 'Não foi possível criar a execução.')
   const { error: logError } = await supabase.from('agente_logs').insert({
     execucao_id: execucao.id, nivel: 'info', step: 'fila',
-    mensagem: 'Execução criada. Aguardando worker externo Playwright processar a coleta.',
+    mensagem: input.origem === 'maestro' ? 'Execução criada. Abra o executor manual neste computador para iniciar a coleta e a montagem dos flows.' : 'Execução criada. Aguardando worker externo Playwright processar a coleta.',
   })
   if (logError) throw new Error(`Execução ${execucao.id} criada, mas o registro do log falhou: ${logError.message}`)
   return { execucaoId: execucao.id as string, condominioId, reutilizada: false }

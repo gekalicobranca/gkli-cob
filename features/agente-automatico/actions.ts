@@ -9,6 +9,7 @@ import { getAgenteWorkerByScriptKey } from './workers'
 import { enfileirarColetaReceita } from './execucoes-service'
 import { startLocalWorker, stopLocalWorker } from './local-workers'
 import { processarRelatorioCaptado } from '@/features/captacao-automatizada/processar-relatorio'
+import { coletorManual, urlExecutorMaestro } from './executor-manual.mjs'
 
 async function assertCaptacaoGlobalAtiva(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data, error } = await supabase.from('automacao_controle')
@@ -106,9 +107,9 @@ export async function criarAgenteReceita(formData: FormData) {
   revalidatePath('/app/agente-automatico')
 }
 
-async function criarExecucaoAgenteReceita(formData: FormData) {
+async function criarExecucaoAgenteReceita(formData: FormData, sobDemanda = false) {
   const supabase = await createClient()
-  if (getString(formData, 'origem') === 'maestro') await assertCaptacaoGlobalAtiva(supabase)
+  if (getString(formData, 'origem') === 'maestro' && !sobDemanda) await assertCaptacaoGlobalAtiva(supabase)
 
   const receitaId = getString(formData, 'receita_id')
 
@@ -129,17 +130,38 @@ export async function executarAgenteReceita(formData: FormData) {
 }
 
 export async function executarAgenteReceitaComAcompanhamento(formData: FormData): Promise<
-  { ok: true; execucaoId: string; condominioId: string | null } |
+  { ok: true; execucaoId: string; condominioId: string | null; executorUrl: string } |
   { ok: false; error: string }
 > {
   try {
-    const resultado = await criarExecucaoAgenteReceita(formData)
-    return { ok: true, ...resultado }
+    const supabase = await createClient()
+    const { data: receita, error } = await supabase.from('agente_receitas').select('script_key').eq('id', getString(formData, 'receita_id')).single()
+    if (error || !receita) throw new Error('Receita não encontrada ou fora do seu acesso.')
+    coletorManual(receita.script_key)
+    const resultado = await criarExecucaoAgenteReceita(formData, true)
+    return { ok: true, ...resultado, executorUrl: urlExecutorMaestro(resultado.execucaoId) }
   } catch (error) {
     return {
       ok: false,
       error: error instanceof Error ? error.message : 'Não foi possível iniciar a execução.',
     }
+  }
+}
+
+export async function prepararExecutorMaestro(execucaoId: string) {
+  try {
+    const supabase = await createClient()
+    const scope = await getPermittedCarteiras()
+    let query = supabase.from('agente_execucoes').select('id,status,receita:agente_receitas!inner(script_key)')
+      .eq('id', execucaoId).in('origem', ['maestro', 'manual']).is('agendado_para', null)
+    if (scope.carteiraIds !== null) query = query.in('carteira_id', scope.carteiraIds)
+    const { data: execucao, error } = await query.single()
+    if (error || !execucao) throw new Error('Execução não encontrada ou fora do seu acesso.')
+    const receita = Array.isArray(execucao.receita) ? execucao.receita[0] : execucao.receita
+    if (execucao.status === 'pendente') coletorManual(receita.script_key)
+    return { ok: true as const, execucaoId: execucao.id, executorUrl: execucao.status === 'pendente' ? urlExecutorMaestro(execucao.id) : null }
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : 'Não foi possível abrir o executor.' }
   }
 }
 

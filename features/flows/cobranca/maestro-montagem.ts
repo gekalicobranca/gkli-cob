@@ -72,12 +72,14 @@ async function planejar(db: ReturnType<typeof createAdminClient>, job: any) {
   return { ...job, plano, regua_id: regua.id, pendencias }
 }
 
-export async function processarMontagemMaestro() {
+export async function processarMontagemMaestro(execucaoManualId?: string) {
   const db = createAdminClient()
   const { data: controle, error: controleError } = await db.from('automacao_controle').select('ativo').eq('chave', 'captacao_global').maybeSingle()
   if (controleError) throw new Error('Não foi possível conferir o controle do Maestro.')
-  if (controle?.ativo === false) return { processadas: 0, pausada: true }
-  const { data, error } = await db.rpc('maestro_flow_claim')
+  if (controle?.ativo === false && !execucaoManualId) return { processadas: 0, pausada: true }
+  const { data, error } = execucaoManualId
+    ? await db.rpc('maestro_flow_claim_execucao', { p_execucao_id: execucaoManualId })
+    : await db.rpc('maestro_flow_claim')
   if (error) throw new Error(error.message)
   let job = data?.[0]
   if (!job) return { processadas: 0 }

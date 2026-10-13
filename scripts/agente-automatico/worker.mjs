@@ -432,7 +432,7 @@ async function run() {
   for (;;) {
     try {
       const captacaoAtiva = await captacaoGlobalAtiva(supabase)
-      if (captacaoAtiva) await agendarCaptacoesMensais()
+      if (captacaoAtiva && !process.env.AGENTE_EXECUCAO_ID) await agendarCaptacoesMensais()
       const execution = await claimNextExecution(captacaoAtiva)
       if (execution) await collectBbzCondominio(execution)
     } catch (error) {

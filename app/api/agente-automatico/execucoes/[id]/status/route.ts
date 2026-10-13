@@ -43,8 +43,23 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       conversao = result.data
     }
     const ultimoSinal = workerResult.data?.ultimo_sinal_em ?? null
-    const resumo = resumirMonitor(execucao, arquivo, conversao, ultimoSinal)
-    return NextResponse.json({ ok: true, ...resumo, execucao, arquivo, conversao,
+    const semInadimplencia = execucao.status === 'sucesso' && logsResult.data?.some(l => l.step === 'sem_inadimplencia')
+    let resumo = semInadimplencia
+      ? { state: 'completed', terminal: true, online: false, detail: 'Consulta concluída: sem inadimplência no portal. Não há cobranças para importar ou flows para montar.' }
+      : resumirMonitor(execucao, arquivo, conversao, ultimoSinal)
+    let montagem = null
+    if (execucao.origem === 'maestro' && conversao && ['concluido', 'concluido_com_alertas'].includes(conversao.status)) {
+      const result = await admin.from('maestro_flow_montagens').select('status,flow_ids,erro').eq('execucao_id', id).eq('carteira_id', execucao.carteira_id).maybeSingle()
+      if (result.error) throw result.error
+      montagem = result.data
+      if (!['falha', 'cancelada', 'precisa_intervencao'].includes(execucao.status)) resumo = { ...resumo, terminal: ['concluido', 'atencao'].includes(montagem?.status ?? ''),
+        state: montagem?.status === 'concluido' ? 'completed' : montagem?.status === 'atencao' ? 'attention' : 'running',
+        detail: montagem?.status === 'concluido' ? `Montagem concluída: ${montagem.flow_ids?.length ?? 0} flow(s), aguardando liberação para envio.` : montagem?.status === 'atencao' ? montagem.erro || 'Montagem requer revisão.' : 'Importação concluída; montagem dos flows em andamento.',
+      }
+    } else if (execucao.status === 'pendente' && ['maestro', 'manual'].includes(execucao.origem ?? '')) {
+      resumo = { ...resumo, detail: 'Aguardando abertura do executor manual neste computador. Use Abrir executor manual e permita a abertura no navegador.' }
+    }
+    return NextResponse.json({ ok: true, ...resumo, execucao, arquivo, conversao, montagem,
       worker: { scriptKey: receita?.script_key ?? null, ultimoSinal, online: resumo.online }, logs: logsResult.data ?? [], consultadoEm: new Date().toISOString(),
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch {
