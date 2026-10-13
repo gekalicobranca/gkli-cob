@@ -36,6 +36,17 @@ async function main() {
     assert.equal(parseSuperlogicaPendentesCobrancasPdf(text.replaceAll("AE", marker))[0].marcadorOrigem, marker);
   }
 
+  const clipped = `Bloco: A Unidade: 000807 EXEMPLO
+6085431110/04/20253879462542COTA R$1.462,581.462,5829,25116,96268,531.877,3
+Total do Recibo:R$1.462,581.462,5829,25116,96268,531.877,3
+Total Geral da Unidade:R$1.462,581.462,5829,25116,96268,531.877
+Quantidade de Unidades inadimplentes do Condomínio: 1Total:1.462,581.462,5829,25116,96268,531.877`;
+  const recovered = parseSuperlogicaPendentesCobrancasPdf(clipped);
+  assert.equal(recovered.length, 1);
+  assert.deepEqual([recovered[0].valorPrincipal, recovered[0].multa, recovered[0].correcao, recovered[0].juros, recovered[0].valorTotal], [1462.58, 29.25, 116.96, 268.53, 1877.32]);
+  assert.throws(() => parseSuperlogicaPendentesCobrancasPdf(clipped.replace("1.877,3\nTotal Geral", "1.877,4\nTotal Geral")), /total cortado incompatível/);
+  assert.throws(() => parseSuperlogicaPendentesCobrancasPdf(clipped.replace("Total Geral da Unidade:R$1.462,581.462,58", "Total Geral da Unidade:R$1.462,581.462,60")), /totais divergentes/);
+
   if (process.argv[2]) {
     const result = await parseRelatorioBuffer({
       buffer: readFileSync(process.argv[2]), filename: "referencia.pdf", tipoConversao: "cobrancas", condominioCnpj: "52.151.457/0003-62",

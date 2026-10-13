@@ -3737,6 +3737,27 @@ function totaisFromMoneyList(values: number[]) {
   return null;
 }
 
+function totaisSuperlogicaFromText(line: string) {
+  const matches = [...line.matchAll(/(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g)];
+  const values = matches.map((match) => parseMoney(match[0]));
+  // Impressões do portal podem cortar a última coluna na margem direita.
+  // Cinco valores completos mais um total parcial ainda são seis colunas;
+  // não devem ser interpretados como o layout que omite o valor original.
+  if (values.length === 5 && matches.at(-1)) {
+    const last = matches.at(-1)!;
+    const tail = line.slice(last.index! + last[0].length).trim().replace(/\s*R\$$/, "").trim();
+    if (/^(?:\d{1,3}(?:\.\d{3})*|\d+)(?:,\d)?$/.test(tail)) {
+      const total = roundMoney(values[1] + values[2] + values[3] + values[4]);
+      const formatted = total.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (!formatted.startsWith(tail)) {
+        throw new Error("Superlógica: total cortado incompatível com os componentes. A planilha não foi gerada.");
+      }
+      return { valorPrincipal: values[1], multa: values[2], correcao: values[3], juros: values[4], valorTotal: total };
+    }
+  }
+  return totaisFromMoneyList(values);
+}
+
 export function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
   const lines = normalizePdfText(text)
@@ -3817,7 +3838,7 @@ export function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondo
     }
 
     if (/^Total\s+(?:Geral\s+)?da\s+Unidade\s*:/i.test(line)) {
-      const totaisUnidade = totaisFromMoneyList(moneyMatchesFromText(line));
+      const totaisUnidade = totaisSuperlogicaFromText(line);
 
       // Alguns relatórios da Superlógica suprimem a linha "Total do recibo"
       // quando a unidade possui um único recibo curto. Nesses casos, o fechamento
@@ -3885,7 +3906,7 @@ export function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondo
 
     const totalReciboMatch = /^Total\s+do\s+recibo\s*:/i.test(line);
     if (totalReciboMatch) {
-      const totais = totaisFromMoneyList(moneyMatchesFromText(line));
+      const totais = totaisSuperlogicaFromText(line);
       if (totais) {
         totaisPendentes = totais;
         reciboPendenteJaIncluido = false;
@@ -3923,7 +3944,7 @@ export function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondo
       continue;
     }
     if (/^Total\s+(?:Geral\s+)?da\s+Unidade\s*:/i.test(line)) {
-      cadastro.totais = totaisFromMoneyList(moneyMatchesFromText(line));
+      cadastro.totais = totaisSuperlogicaFromText(line);
       agenda = null;
       continue;
     }
@@ -3963,7 +3984,7 @@ export function parseSuperlogicaPendentesCobrancasPdf(text: string): ReciboCondo
     if (summary) {
       const expectedCount = Number(summary.match(/Condom[íi]nio:\s*(\d+)/i)?.[1]);
       if (expectedCount !== cadastros.size) throw new Error("Superlógica: quantidade de unidades divergente do relatório.");
-      const totals = totaisFromMoneyList(moneyMatchesFromText(summary));
+      const totals = totaisSuperlogicaFromText(summary);
       if (totals) checkTotals(recibos, totals, "total geral");
     }
   }
