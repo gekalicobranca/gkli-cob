@@ -588,7 +588,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                         </ListItemMeta>
                         {row.unidade_bloqueada_por_judicializacao ? (
                           <p className="mt-1 text-xs font-medium text-red-700">
-                            Bloquear acordos para esta unidade: há cobrança em pré-jurídico ou judicializada.
+                            Informativo: há cobrança em pré-jurídico ou judicializada nesta unidade. O bloqueio é individual por cobrança.
                           </p>
                         ) : null}
                       </div>

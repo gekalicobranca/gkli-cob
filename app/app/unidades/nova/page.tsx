@@ -86,7 +86,7 @@ export default async function NovaUnidadePage() {
 
           <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-950">
             <input name="acao_judicial" type="checkbox" className="mt-1 h-4 w-4 accent-red-700" />
-            <span><strong className="block">Unidade com ação judicial</strong><span className="mt-1 block text-red-800">Bloqueia cobranças e novos acordos. Novas cobranças importadas entrarão como Judicializado.</span></span>
+            <span><strong className="block">Unidade com ação judicial</strong><span className="mt-1 block text-red-800">Informação sobre a unidade. O bloqueio de cobrança e acordo depende da situação de cada cobrança.</span></span>
           </label>
 
           <div className="flex justify-end gap-2">

@@ -25,7 +25,6 @@ import {
   ACORDO_STATUS,
   COBRANCA_STATUS,
   COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO,
-  COBRANCA_STATUS_JUDICIALIZACAO,
   PARCELA_ACORDO_STATUS,
 } from "@/lib/core/status";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
@@ -725,18 +724,6 @@ export async function createAcordo(formData: FormData) {
   const carteiraScope = await getPermittedCarteiras();
   assertCarteiraPermitida(carteiraScope, cobrancaPrincipal.carteira_id);
 
-  const { data: unidadeJudicial, error: unidadeJudicialError } = await supabase
-    .from("unidades")
-    .select("acao_judicial")
-    .eq("id", cobrancaPrincipal.unidade_id)
-    .maybeSingle();
-  if (unidadeJudicialError) {
-    throw new Error(`Erro ao verificar ação judicial da unidade: ${unidadeJudicialError.message}`);
-  }
-  if (unidadeJudicial?.acao_judicial) {
-    throw new Error("Esta unidade está marcada com ação judicial e não pode receber novos acordos.");
-  }
-
   const { data: pendenciaPlanilha, error: pendenciaPlanilhaError } = await supabase
     .from("central_pendencias")
     .select("id")
@@ -790,25 +777,6 @@ export async function createAcordo(formData: FormData) {
   if (bloqueada) {
     throw new Error(
       "Uma das cobranças selecionadas não está elegível para novo acordo.",
-    );
-  }
-
-  const { data: judicializacaoUnidade, error: judicializacaoUnidadeError } = await somenteCobrancasCanonicas(supabase
-    .from("cobrancas")
-    .select("id"))
-    .eq("unidade_id", cobrancaPrincipal.unidade_id)
-    .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")})`)
-    .limit(1);
-
-  if (judicializacaoUnidadeError) {
-    throw new Error(
-      `Erro ao verificar judicialização da unidade: ${judicializacaoUnidadeError.message}`,
-    );
-  }
-
-  if ((judicializacaoUnidade ?? []).length > 0) {
-    throw new Error(
-      "Esta unidade possui cobrança judicializada. Novas dívidas/vincendas não podem ser agrupadas em acordo; use o saneamento para decisão do gestor da carteira.",
     );
   }
 

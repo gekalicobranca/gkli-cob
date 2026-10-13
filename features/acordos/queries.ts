@@ -25,53 +25,15 @@ function statusOperacionalDaCobranca(cobranca: any) {
   return getCobrancaStatusOperacional(cobranca);
 }
 
-async function getUnidadeIdsComJudicializacaoAtiva(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  unidadeIds: string[],
-) {
-  const ids = uniqueStrings(unidadeIds);
-  if (ids.length === 0) return new Set<string>();
-
-  const { data, error } = await supabase
-    .from("unidades")
-    .select("id")
-    .in("id", ids)
-    .eq("acao_judicial", true);
-
-  if (error) {
-    throw new Error(`Erro ao verificar judicialização por unidade: ${error.message}`);
-  }
-
-  const unidadesMarcadas = new Set((data ?? []).map((row: any) => row.id).filter(Boolean));
-  const { data: cobrancas, error: cobrancasError } = await somenteCobrancasCanonicas(supabase
-    .from("cobrancas")
-    .select("unidade_id, status, status_operacional"))
-    .in("unidade_id", ids)
-    .or(`status_operacional.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")}),status.in.(${COBRANCA_STATUS_JUDICIALIZACAO.join(",")})`);
-  if (cobrancasError) throw new Error(`Erro ao verificar judicialização por unidade: ${cobrancasError.message}`);
-  for (const row of cobrancas ?? []) if (row.unidade_id) unidadesMarcadas.add(row.unidade_id);
-  return unidadesMarcadas;
-}
-
 async function marcarBloqueioJudicializacaoUnidade(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  _supabase: Awaited<ReturnType<typeof createClient>>,
   cobrancas: any[],
 ) {
-  let unidadesJudicializadas = new Set<string>();
-
-  try {
-    unidadesJudicializadas = await getUnidadeIdsComJudicializacaoAtiva(
-      supabase,
-      cobrancas.map((cobranca) => cobranca.unidade_id),
-    );
-  } catch (error) {
-    console.error("Erro ao verificar judicializacao por unidade:", error);
-  }
-
   return cobrancas.map((cobranca) => ({
     ...cobranca,
-    unidade_bloqueada_por_judicializacao: Boolean(
-      cobranca.unidade_id && unidadesJudicializadas.has(cobranca.unidade_id),
+    // Campo legado: nunca propagar o bloqueio para as demais cobranças da unidade.
+    unidade_bloqueada_por_judicializacao: (COBRANCA_STATUS_JUDICIALIZACAO as readonly string[]).includes(
+      statusOperacionalDaCobranca(cobranca),
     ),
   }));
 }
@@ -546,9 +508,7 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
   }
 
   const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, (data ?? []) as any[]);
-  const unidadeBloqueadaPorJudicializacao = cobrancas.some((cobranca) =>
-    Boolean(cobranca.unidade_bloqueada_por_judicializacao),
-  );
+  const unidadeBloqueadaPorJudicializacao = false; // A seleção bloqueia cada cobrança individualmente.
 
   return {
     cobrancaOrigemId: cobrancaId ?? null,

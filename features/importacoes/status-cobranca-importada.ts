@@ -61,17 +61,7 @@ export async function statusOperacionalParaCobrancaImportada(
   supabase: SupabaseLike,
   payload: Record<string, any>,
 ) {
-  const unidadeId = String(payload.unidade_id ?? "");
-  if (unidadeId) {
-    const { data: unidade, error } = await supabase
-      .from("unidades")
-      .select("acao_judicial")
-      .eq("id", unidadeId)
-      .maybeSingle();
-    if (error) throw new Error(`Erro ao verificar ação judicial da unidade: ${error.message}`);
-    if (unidade?.acao_judicial) return COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO;
-  }
-
+  // A marcação judicial da unidade é informativa; o status pertence à cobrança.
   const { data: condominio, error: condominioError } = await supabase.from('condominios')
     .select('inicio_cobranca_dias,dias_apos_vencimento_regua').eq('id', payload.condominio_id).maybeSingle();
   if (condominioError) throw new Error('Erro ao verificar régua do condomínio: ' + condominioError.message);
