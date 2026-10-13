@@ -232,10 +232,8 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   // Gerar flows precisa avaliar a elegibilidade no conjunto filtrado inteiro.
   // Paginar antes dos vínculos pode produzir páginas vazias e totais incorretos.
   async function carregarPagina(query: any) {
-    if (!options.somenteSaneamento || options.page === undefined) return { ...await todasCobrancas(query), hasNext: false }
-    const offset = (Math.max(1, options.page) - 1) * COBRANCAS_FLOW_PAGE_SIZE
-    const { data, error } = await query.order('id').range(offset, offset + COBRANCAS_FLOW_PAGE_SIZE)
-    return { data: (data ?? []).slice(0, COBRANCAS_FLOW_PAGE_SIZE), error, hasNext: (data?.length ?? 0) > COBRANCAS_FLOW_PAGE_SIZE }
+    // A paginação deve ocorrer após retirar as dispensadas, evitando páginas vazias.
+    return { ...await todasCobrancas(query), hasNext: false }
   }
   const [painelResult, disponibilidadeResult] = await Promise.all([
     carregarPagina(painelQuery),
@@ -295,8 +293,20 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const offset = (Math.max(1, options.page ?? 1) - 1) * COBRANCAS_FLOW_PAGE_SIZE
   const paginar = (rows: any[]) => options.page === undefined ? rows : rows.slice(offset, offset + COBRANCAS_FLOW_PAGE_SIZE)
 
+  const saneamentoAtual = [...new Map([...novas.saneamento, ...ativas.saneamento, ...saneamentoMaestro].map(row => [row.id, row])).values()]
+  const dispensadas = new Set<string>()
+  for (let inicio = 0; inicio < saneamentoAtual.length; inicio += 100) {
+    let query = supabase.from('flow_saneamento_dispensas').select('cobranca_id')
+      .in('cobranca_id', saneamentoAtual.slice(inicio, inicio + 100).map(row => row.id))
+    if (normalized.canal) query = query.eq('canal', normalized.canal)
+    const { data, error } = await query
+    if (error) throw new Error('Não foi possível conferir as cobranças retiradas do saneamento.')
+    for (const row of data ?? []) dispensadas.add(row.cobranca_id)
+  }
+
+  const saneamentoVisivel = saneamentoAtual.filter(row => !dispensadas.has(row.id)).map(normalize)
   const result = {
-    saneamento: [...new Map([...novas.saneamento, ...ativas.saneamento, ...saneamentoMaestro].map(row => [row.id, row])).values()].map(normalize),
+    saneamento: options.somenteSaneamento ? paginar(saneamentoVisivel) : saneamentoVisivel,
     painel: paginar(painelElegivel),
     disponibilidade: paginar(disponibilidadeElegivel),
     totalDisponibilidade: disponibilidadeElegivel.length,
@@ -305,7 +315,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
     unidadesPainel: new Set(painelElegivel.map(row => row.unidade_id).filter(Boolean)).size,
     reguas: options.somenteSaneamento ? [] : reguasDoCanal,
     flows: [] as any[],
-    hasNext: options.somenteSaneamento ? painelResult.hasNext || disponibilidadeResult.hasNext
+    hasNext: options.somenteSaneamento ? options.page !== undefined && saneamentoVisivel.length > offset + COBRANCAS_FLOW_PAGE_SIZE
       : options.page !== undefined && Math.max(painelElegivel.length, disponibilidadeElegivel.length) > offset + COBRANCAS_FLOW_PAGE_SIZE,
   }
   registrarPerformanceFlow({ area: options.somenteSaneamento ? 'saneamento' : 'gerar', inicio, canal: normalized.canal,

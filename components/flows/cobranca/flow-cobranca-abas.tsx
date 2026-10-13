@@ -2,7 +2,8 @@
 
 import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download } from 'lucide-react'
+import { Download, Eraser } from 'lucide-react'
+import { limparSaneamento } from '@/features/flows/cobranca/saneamento-actions'
 import { Button, ButtonLink } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { FlowCobrancaPainelWorkbench } from './cobrancas-painel-workbench'
@@ -23,6 +24,29 @@ export function FlowCobrancaAbas({ canal, aba, maestro, painel, disponibilidade,
   const [atualizacaoSolicitada, setAtualizacaoSolicitada] = useState(false)
   const [exportando, setExportando] = useState(false)
   const [erroExportacao, setErroExportacao] = useState('')
+  const [limpando, startLimpeza] = useTransition()
+  const [resultadoLimpeza, setResultadoLimpeza] = useState<{ error?: string; total?: number } | null>(null)
+  function limparLista() {
+    if (!window.confirm('Retirar todas as cobranças dos resultados filtrados do saneamento deste canal, incluindo outras páginas? Os cadastros e valores serão preservados.')) return
+    setResultadoLimpeza(null)
+    setAtualizacaoSolicitada(false)
+    const params = new URLSearchParams(returnQuery)
+    startLimpeza(async () => {
+      try {
+        setResultadoLimpeza(await limparSaneamento({
+          canal,
+          carteiraId: params.get('carteira') ?? undefined,
+          condominioId: params.get('condominio') ?? undefined,
+          vencimentoDe: params.get('vencimento_de') ?? undefined,
+          vencimentoAte: params.get('vencimento_ate') ?? params.get('vencimento') ?? undefined,
+          inclusaoDe: params.get('inclusao_de') ?? undefined,
+          inclusaoAte: params.get('inclusao_ate') ?? undefined,
+        }))
+      } catch {
+        setResultadoLimpeza({ error: 'Não foi possível limpar o saneamento. Tente novamente.' })
+      }
+    })
+  }
   async function exportarSaneamento() {
     setExportando(true)
     setErroExportacao('')
@@ -61,14 +85,16 @@ export function FlowCobrancaAbas({ canal, aba, maestro, painel, disponibilidade,
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
         <div><h2 className="font-semibold">Cobranças para saneamento</h2><p className="mt-1 text-sm text-slate-500">Corrija o responsável ou {canal === 'email' ? 'o e-mail' : 'o telefone'} da unidade.{canal === 'email' ? ' Para pendências do Maestro, use Reavaliar pendências na montagem após a correção.' : ''}</p><p className="mt-1 text-xs text-slate-500">O Excel respeita os filtros e inclui contatos por unidade, campos para correção, cobranças e resumo por condomínio.</p></div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" loading={atualizando} loadingLabel="Atualizando…" onClick={() => {
+          <Button type="button" variant="secondary" loading={limpando} loadingLabel="Limpando…" disabled={atualizando || exportando || !saneamento.length} onClick={limparLista}><Eraser size={16} aria-hidden="true" />Limpar</Button>
+          <Button type="button" variant="secondary" disabled={limpando} loading={atualizando} loadingLabel="Atualizando…" onClick={() => {
             setAtualizacaoSolicitada(true)
             startRefresh(() => router.refresh())
           }}>Atualizar lista</Button>
-          <Button type="button" variant="secondary" loading={exportando} loadingLabel="Gerando Excel…" onClick={exportarSaneamento}><Download size={16} aria-hidden="true" />Exportar todos os resultados</Button>
+          <Button type="button" variant="secondary" disabled={limpando} loading={exportando} loadingLabel="Gerando Excel…" onClick={exportarSaneamento}><Download size={16} aria-hidden="true" />Exportar todos os resultados</Button>
         </div>
       </div>
       {erroExportacao ? <p role="alert" className="px-4 py-3 text-sm text-rose-700">{erroExportacao}</p> : null}
+      {resultadoLimpeza ? <p role={resultadoLimpeza.error ? 'alert' : 'status'} className={`px-4 py-3 text-sm ${resultadoLimpeza.error ? 'text-rose-700' : 'text-slate-600'}`}>{resultadoLimpeza.error ?? `${resultadoLimpeza.total} cobrança(s) retiradas da lista de saneamento.`}</p> : null}
       {atualizacaoSolicitada && !atualizando ? <p role="status" className="px-4 py-3 text-sm text-slate-600">Lista atualizada. {saneamentoTotal} cobrança(s) precisam de correção nesta página.</p> : null}
       {!saneamento.length ? <p className="p-5 text-sm text-slate-500">Nenhuma cobrança para saneamento nesta página.</p> : <div className="divide-y divide-slate-100">{saneamento.map(row => <div key={row.id} className="grid items-center gap-3 p-4 lg:grid-cols-[minmax(260px,1fr)_140px_150px_auto]">
         <div><p className="text-sm font-semibold">{row.condominio?.nome_operacional || row.condominio?.nome || 'Condomínio não informado'}</p><p className="text-sm text-amber-700">{row.motivo_saneamento || 'Responsável da unidade não cadastrado'}</p><p className="text-sm text-slate-600">{row.unidade?.bloco ? `Bloco ${row.unidade.bloco} · ` : ''}Unidade {row.unidade?.identificacao || 'não vinculada'}</p></div>
