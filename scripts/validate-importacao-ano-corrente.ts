@@ -66,6 +66,8 @@ async function main() {
     observacoesComRecibo: () => '',
     conciliarCobrancaImportada: async () => ({ status: 'nova' }),
     statusOperacionalParaCobrancaImportada: async () => 'novo',
+    criarContextoClassificacaoJudicial: () => ({ unidadesJudiciais: new Map() }),
+    reclassificarCobrancaJudicialImportada: async () => false,
     statusComBloqueioGarantidora: (status: string) => status,
     observacaoComBloqueioGarantidora: (value: string) => value,
     encontrarCobrancasAbertasAusentes: async () => ({ total: 0, mensagens: [], ausentes: [] }),

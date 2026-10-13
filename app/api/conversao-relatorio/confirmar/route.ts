@@ -11,6 +11,7 @@ import {
 import { formatOrigemImportacao } from "@/features/importacoes/origem-importacao"
 import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
 import { statusOperacionalParaCobrancaImportada } from "@/features/importacoes/status-cobranca-importada"
+import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "@/features/importacoes/regra-judicial-importacao"
 import {
   avaliarBloqueioGarantidora,
   observacaoComBloqueioGarantidora,
@@ -215,7 +216,7 @@ export async function POST(request: NextRequest) {
     const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
     const { data: condominioConfiguracao } = await supabase
       .from("condominios")
-      .select("inicio_cobranca_dias, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
+      .select("inicio_cobranca_dias, dias_apos_vencimento_regua, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
       .eq("id", condominioId)
       .maybeSingle()
 
@@ -243,7 +244,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    for (const item of cobrancas) {
+    const contextoJudicial = criarContextoClassificacaoJudicial(cobrancas.map((item: any) => ({
+      ...item, condominio_id: condominioId,
+      vencimento: brDateToIso(String(item.vencimento ?? '')) ?? (Array.isArray(item.parcelas)
+        ? item.parcelas.map((p: any) => brDateToIso(String(p.vencimento ?? ''))).filter(Boolean).sort()[0] : null),
+    })))
+    for (const [indiceItem, item] of cobrancas.entries()) {
       const unidadeLabel = String(item.unidade ?? "").trim()
       const blocoLabel = String(item.bloco ?? "").trim()
       const responsavelNome = String(item.responsavel ?? "").trim()
@@ -346,7 +352,7 @@ export async function POST(request: NextRequest) {
         vencimento: vencimentoMaisAntigo,
         unidade_id: unidadeId,
         observacoes,
-      })
+      }, contextoJudicial, indiceItem)
       const statusOperacional = statusComBloqueioGarantidora(statusCalculado, bloqueioGarantidora.bloqueada)
 
       const importadaConciliacao: CobrancaImportadaConciliacao = {
@@ -366,6 +372,9 @@ export async function POST(request: NextRequest) {
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao)
 
       if (conciliacao.status === "ja_existente") {
+        await reclassificarCobrancaJudicialImportada(supabase, conciliacao.cobrancaId, statusOperacional, {
+          unidade_id: unidadeId, condominio_id: condominioId, conversao_relatorio_id: conversaoId,
+        }, contextoJudicial)
         await registrarSaneamentoConversao(supabase, {
           carteiraId,
           condominioId,
@@ -402,9 +411,9 @@ export async function POST(request: NextRequest) {
 
       const reguaImportacao = avaliarReguaImportacao({
         vencimento: vencimentoMaisAntigo,
-        inicioCobrancaDias: (condominioConfiguracao as any)?.inicio_cobranca_dias,
+        inicioCobrancaDias: (condominioConfiguracao as any)?.dias_apos_vencimento_regua ?? (condominioConfiguracao as any)?.inicio_cobranca_dias,
       })
-      if (reguaImportacao.foraRegua) {
+      if (reguaImportacao.foraRegua && contextoJudicial.unidadesJudiciais.get(String(unidadeId)) !== true) {
         await registrarSaneamentoConversao(supabase, {
           carteiraId,
           condominioId,

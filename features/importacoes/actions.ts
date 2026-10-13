@@ -31,6 +31,7 @@ import { carregarItensImportacao } from "./carregar-itens";
 import { explicarCobrancasPreservadas } from "./mensagens-preservacao";
 import { substituirCobrancasAnterioresDaImportacao } from "./substituir-anteriores";
 import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
+import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "./regra-judicial-importacao";
 import { reservarLoteImportacao, salvarLoteImportacao, TAMANHO_LOTE_IMPORTACAO, type ExecucaoImportacao } from "./execucao-lotes";
 import {
   avaliarBloqueioGarantidora,
@@ -2682,11 +2683,12 @@ async function importarCobrancas(
   payloads: Record<string, any>[],
   origemImportacao: string,
   somenteAnoCorrente = true,
-  opcoes: { validarAusencias?: boolean; somenteAusencias?: boolean } = {},
+  opcoes: { validarAusencias?: boolean; somenteAusencias?: boolean; cobrancasClassificacao?: Record<string, any>[]; indiceInicial?: number } = {},
 ): Promise<ImportExecutionResult> {
   const resultado = emptyImportExecutionResult();
   const importadasParaAusencia: CobrancaImportadaConciliacao[] = [];
   const unidadesResolvidas = new Map<string, Awaited<ReturnType<typeof garantirUnidadeDaImportacao>>>();
+  const contextoJudicial = criarContextoClassificacaoJudicial(opcoes.cobrancasClassificacao ?? payloads);
 
   for (const [index, payload] of payloads.entries()) {
     const linha = Number(payload.__linha ?? index + 1);
@@ -2725,13 +2727,19 @@ async function importarCobrancas(
       importadasParaAusencia.push(importadaConciliacao);
       if (opcoes.somenteAusencias) continue;
 
+      const statusCalculado = await statusOperacionalParaCobrancaImportada(supabase, payload, contextoJudicial, index + (opcoes.indiceInicial ?? 0));
+      const statusOperacional = statusComBloqueioGarantidora(statusCalculado, Boolean(payload.bloqueio_garantidora));
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao);
       const cobrancaExistenteId = conciliacao.cobrancaId;
       if (conciliacao.status === "ja_existente") {
-        resultado.ignorados += 1;
-        resultado.erros.push(
-          `Linha ${linha}: cobrança já existia e foi ignorada (${cobrancaExistenteId}).`,
-        );
+        const reclassificada = await reclassificarCobrancaJudicialImportada(supabase, cobrancaExistenteId, statusOperacional, payload, contextoJudicial);
+        if (reclassificada) resultado.atualizados += 1;
+        else {
+          resultado.ignorados += 1;
+          resultado.erros.push(
+            `Linha ${linha}: cobrança já existia e foi ignorada (${cobrancaExistenteId}).`,
+          );
+        }
         continue;
       }
 
@@ -2744,16 +2752,13 @@ async function importarCobrancas(
         continue;
       }
 
-      if (payload.importar_cobranca === false) {
+      if (payload.importar_cobranca === false && contextoJudicial.unidadesJudiciais.get(String(payload.unidade_id)) !== true) {
         resultado.ignorados += 1;
         resultado.erros.push(
           `Linha ${linha}: cobrança mantida apenas no histórico da importação. ${payload.motivo_prioridade ?? "Vencimento fora da régua de cobrança."}`,
         );
         continue;
       }
-
-      const statusCalculado = await statusOperacionalParaCobrancaImportada(supabase, payload);
-      const statusOperacional = statusComBloqueioGarantidora(statusCalculado, Boolean(payload.bloqueio_garantidora));
 
       const { error } = await supabase.from("cobrancas").insert({
         carteira_id: payload.carteira_id,
@@ -3429,7 +3434,7 @@ async function executarLoteImportacao(formData: FormData) {
       payload.unidade_id = unidadesAtuais.get(unidadeKey({ condominio_id: payload.condominio_id,
         identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco }))?.id ?? null;
     }
-    const resultado = await importarCobrancas(supabase, lote, origem, resumo.somente_ano_corrente !== false, { validarAusencias: false });
+    const resultado = await importarCobrancas(supabase, lote, origem, resumo.somente_ano_corrente !== false, { validarAusencias: false, cobrancasClassificacao: payloads, indiceInicial: execucao.cursor });
     const acumulado = { ...execucao.resultado, erros: [...execucao.resultado.erros, ...resultado.erros] };
     for (const chave of ["importados", "criados", "atualizados", "divergentes", "ausentes", "ignorados"] as const) acumulado[chave] += resultado[chave];
     execucao = { ...execucao, cursor: execucao.cursor + lote.length, resultado: acumulado };
