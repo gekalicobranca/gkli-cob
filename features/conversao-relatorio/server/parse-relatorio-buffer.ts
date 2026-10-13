@@ -3403,7 +3403,10 @@ export function parseSuperlogicaUnidadesPdf(text: string): UnidadeConversaoPrevi
     const contatos = extractContactSummary(
       [contatoUnidade, contatoCliente].filter(Boolean).join("\n"),
     );
-    const telefone = contatos.telefone;
+    // Feed every extracted number into the shared classifier. Additional
+    // contacts must not live only in observations when the first lacks a DDD.
+    const telefone = [contatos.telefone, ...contatos.telefonesAdicionais]
+      .filter(Boolean).join(" | ");
     const email = contatos.email;
     const documento = documentoMatch ? cleanDocument(documentoMatch[2]) : "";
     const tipo =

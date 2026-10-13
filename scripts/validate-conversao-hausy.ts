@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as XLSX from "xlsx";
+import { classificarContatos } from "../lib/core/telefone";
 import { parseRelatorioBuffer, parseSuperlogicaUnidadesPdf } from "../features/conversao-relatorio/server/parse-relatorio-buffer";
 import { anoCorrenteImportacao } from "../features/importacoes/recorte-cobrancas";
 import { detectHausyInadimplencia, parseHausyInadimplencia } from "../features/conversao-relatorio/server/hausy-inadimplencia";
@@ -37,6 +38,14 @@ Rateio/frações`;
   assert.equal(complete[0].responsavelDocumento, "123.456.789-00");
   assert.equal(complete[0].email, "ana@example.com.br");
   assert.match(complete[0].observacoes, /contato@example.com/);
+  const withPhones = parseSuperlogicaUnidadesPdf(fullText.replace(
+    "Telefone/e-mail do cliente",
+    "Telefone/e-mail do cliente\nCelular - 93801-2131 Celular - (11) 98219-7272\nTelefone residencial - 3562-2577 Telefone comercial - (11) 4372-4371",
+  ));
+  const phones = classificarContatos(withPhones[0].telefone);
+  assert.equal(phones.celular, "5511982197272");
+  assert.equal(phones.telefone_fixo, "551143724371");
+  assert.equal(phones.telefone_outros, "938012131 | 35622577");
   assert.equal(parseSuperlogicaUnidadesPdf(fullText.replaceAll("CPF: 123.456.789-00", "CPF:"))[0].responsavelDocumento, "");
   assert.ok(detectHausyInadimplencia(debt));
   assert.equal(detectHausyInadimplencia(debt.replace("Valor Original", "Outra coluna")), null);
