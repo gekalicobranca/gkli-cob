@@ -56,11 +56,15 @@ Rateio/frações`;
   const squareText = fullText.replace("12.345.678/0001-90", "14.234.598/0001-98")
     .replace("Telefone/e-mail do cliente", "Telefone/e-mail do cliente\nCelular - 99603-3499 Telefone comercial - 2409-2750 Celular - (21) 98219-7272 Celular - 7753-6064");
   const squarePhones = classificarContatos(aplicarDddPadraoConversao(parseSuperlogicaUnidadesPdf(squareText)[0].telefone));
-  assert.equal(squarePhones.celular, "5511996033499 | 5521982197272");
+  assert.equal(squarePhones.celular, "5511996033499 | 5521982197272 | 5511977536064");
   assert.equal(squarePhones.telefone_fixo, "551124092750");
-  assert.equal(squarePhones.telefone_outros, "77536064");
+  assert.equal(squarePhones.telefone_outros, null);
   assert.equal(aplicarDddPadraoConversao("99603-3499 | 2409-2750 | (21) 98219-7272 | 77536064 | +12345678 | 1e8"),
-    "11996033499 | 1124092750 | (21) 98219-7272 | 77536064 | +12345678 | 1e8");
+    "11996033499 | 1124092750 | (21) 98219-7272 | 11977536064 | +12345678 | 1e8");
+  assert.equal(aplicarDddPadraoConversao("(19) 9774-6571 | 6199350441 | +551199485058 | 01177536064 | 00551177536064 | 5577536064 | 0077536064 | 1234567"),
+    "19997746571 | 61999350441 | 11999485058 | 11977536064 | 11977536064 | 55977536064 | 0077536064 | 1234567");
+  const updatedPhones = aplicarDddPadraoConversao("77536064 | 24092750 | (19) 9774-6571");
+  assert.equal(aplicarDddPadraoConversao(updatedPhones), updatedPhones);
   assert.equal(parseSuperlogicaUnidadesPdf(fullText.replaceAll("CPF: 123.456.789-00", "CPF:"))[0].responsavelDocumento, "");
   assert.ok(detectHausyInadimplencia(debt));
   assert.equal(detectHausyInadimplencia(debt.replace("Valor Original", "Outra coluna")), null);
