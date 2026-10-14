@@ -14,7 +14,7 @@ export function filtrarAtendimentos(casos: KeilaCaso[], unidades: UnidadeBusca[]
     if (filtros.estado && c.payload.estado !== filtros.estado) return false
     if (filtros.condominio_id && c.condominio_id !== filtros.condominio_id) return false
     if (filtros.intencao && c.payload.intencao !== filtros.intencao) return false
-    const resposta = c.payload.resposta_aprovada ? 'aprovada' : c.payload.resposta_simulada?.trim() ? 'rascunho' : 'sem_resposta'
+    const resposta = c.payload.rascunho_whatsapp ? 'rascunho' : c.payload.resposta_aprovada ? 'aprovada' : c.payload.resposta_simulada?.trim() ? 'rascunho' : 'sem_resposta'
     if (filtros.resposta && resposta !== filtros.resposta) return false
     const pendencias = acompanhamento(c.payload).pendencias.filter(p => !p.resolvida_em)
     if (filtros.prazo === 'acompanhar' && (['concluido', 'atendimento_humano'].includes(c.payload.estado) || !pendencias.some(p => p.prazo <= hoje))) return false
