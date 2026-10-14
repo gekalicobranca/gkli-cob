@@ -21,6 +21,7 @@ export function RoteiroAtendimentoKeila({ caso, execucao }: { caso: KeilaCaso; e
   const proposta = acordos.length > 0 || !!propostaJSON
   const aprovacao = acordos.some(a => a.exige_aprovacao)
   const whatsapp = caso.payload.rascunho_whatsapp
+  if(caso.payload.falhas_email?.length && caso.payload.intencao==='outro')return <div className="space-y-3"><h3 className="font-semibold">Recuperar o contato após falha de e-mail</h3><p className="rounded-lg bg-sky-50 p-3 text-sm">{caso.payload.proxima_acao}</p><p className="text-sm">Confira o diagnóstico e o celular, revise o aviso e libere o envio aprovado pela fila de WhatsApp da Keila.</p><Link href="#resposta-caso" className="text-sm underline">Abrir aviso e acompanhamento</Link></div>
   const resposta = !!caso.payload.resposta_simulada?.trim() || !!whatsapp
   const etapas = [
     { titulo: 'Consultar a administradora', situacao: execucao ? execucao.status.replaceAll('_', ' ') : 'Consulta ainda não vinculada',

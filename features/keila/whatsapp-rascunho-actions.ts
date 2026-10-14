@@ -39,3 +39,18 @@ export async function liberarWhatsAppKeila(form:FormData){
  revalidatePath('/app/gestao/keila');revalidatePath('/app/mensageria')
  redirect(`/app/gestao/keila?${new URLSearchParams({caso:id,...(erro?{erro}:{resultado:'WhatsApp liberado na fila. Acompanhe o status do transporte; liberação não confirma envio.'})})}`)
 }
+
+export async function cancelarWhatsAppKeila(form:FormData){
+ await requireRole(['admin','gestor','operador'])
+ const scope=await getPermittedCarteiras(),db=createAdminClient(),id=String(form.get('id')??'');let erro=''
+ try{
+  if(form.get('confirmar')!=='sim')throw new Error('Confirme o cancelamento desta mensagem.')
+  const c=await carregarCaso(db,id,scope.carteiraIds)
+  const mid=c.payload.rascunho_whatsapp?.liberacao?.mensagem_id
+  if(!mid)throw new Error('Nenhuma mensagem liberada neste atendimento.')
+  const {error}=await db.rpc('keila_cancelar_whatsapp',{p_caso:id,p_mensagem:mid,p_usuario:scope.userId})
+  if(error)throw new Error(error.message)
+ }catch(e){erro=e instanceof Error?e.message:'Não foi possível cancelar a mensagem.'}
+ revalidatePath('/app/gestao/keila');revalidatePath('/app/mensageria')
+ redirect(`/app/gestao/keila?${new URLSearchParams({tab:'whatsapp',...(erro?{erro}:{resultado:'WhatsApp cancelado antes do início do envio.'})})}`)
+}
