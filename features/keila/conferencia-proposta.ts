@@ -33,7 +33,10 @@ export function extrairCotasLello(rows: unknown[][], codigo: string): CotaFonte[
   }
  }
  if (!cotas.length) throw new Error('Unidade sem cotas identificáveis no relatório Lello. Conferência necessária.')
- if (new Set(cotas.map(c => c.vencimento)).size !== cotas.length) throw new Error('Mais de uma cota no mesmo vencimento. Concilie os recibos antes de propor.')
+ // Pré-2026 permanece integralmente na evidência e é excluído do cálculo.
+ // Repetições desse grupo suspenso não podem bloquear as cotas elegíveis.
+ const negociaveis=cotas.filter(c=>c.vencimento>='2026-01-01')
+ if (new Set(negociaveis.map(c => c.vencimento)).size !== negociaveis.length) throw new Error('Mais de uma cota no mesmo vencimento. Concilie os recibos antes de propor.')
  return cotas.sort((a,b) => a.vencimento.localeCompare(b.vencimento))
 }
 export function conferirProposta(cotas: CotaFonte[], cadastro: CotaCadastro[], regras: RegrasConferencia, quantidade: number, vencimento: string, hoje = new Date()) {

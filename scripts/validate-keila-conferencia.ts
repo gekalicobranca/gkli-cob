@@ -17,6 +17,11 @@ async function main(){
  assert.equal(divergente.divergencias.length,4)
  assert.match(divergente.divergencias[0].motivo,/cadastro preservado/)
  assert.throws(()=>extrairCotasLello([...rows,header('200035'),cota('10/06/2026','573,09')],'200035'),/mesmo vencimento/)
+ const repetidasSuspensas=extrairCotasLello([...rows,header('200035'),cota('01/11/2025','247,73'),header('200035'),cota('01/11/2025','247,73')],'200035')
+ assert.equal(repetidasSuspensas.filter(c=>c.vencimento==='2025-11-01').length,2,'Preservar as duas linhas da fonte, sem deduplicar silenciosamente')
+ const semSuspensas=conferirProposta(repetidasSuspensas,cadastro,regras,3,'2026-10-16',hoje)
+ assert.equal(semSuspensas.excluidas.filter(c=>c.vencimento==='2025-11-01').length,2)
+ assert.equal(semSuspensas.avista.base,plano.avista.base,'Repetições pré-2026 não entram no cálculo')
  const texto=renderizarPropostaConferida('Catiana','unidade 35, bloco 2','Safira','2026-10-13',plano)
  assert.match(texto,/716,46/);assert.match(texto,/Fora da régua/)
  const fonteBloqueada=[...fonte,{vencimento:'2025-02-10',valor:544.60,linha:99}]
