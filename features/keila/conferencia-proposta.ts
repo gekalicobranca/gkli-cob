@@ -8,6 +8,9 @@ export function hashConferencia(value: unknown): string {
  const canonico = (v: unknown): string => Array.isArray(v) ? `[${v.map(canonico).join(',')}]` : v !== null && typeof v === 'object' ? `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${canonico((v as Record<string,unknown>)[k])}`).join(',')}}` : JSON.stringify(v)
  return createHash('sha256').update(canonico(value)).digest('hex')
 }
+export function incluirAcolhimentoProposta(texto:string,acolhimento?:'desculpas_whatsapp_sem_retorno'){
+ return acolhimento==='desculpas_whatsapp_sem_retorno'?texto.replace('\n\n','\n\nPedimos desculpas pela falta de retorno à sua tentativa de contato pelo WhatsApp.\n\n'):texto
+}
 /** Varre a planilha inteira: a Lello repete o cabeçalho da unidade a cada cota. */
 export function extrairCotasLello(rows: unknown[][], codigo: string): CotaFonte[] {
  const cotas: CotaFonte[] = []
@@ -75,4 +78,4 @@ export function renderizarPropostaConferida(nome: string, unidade: string, condo
  }
  return `Olá, ${nome}.\n\nPara ${unidade}, do ${condominio}, o relatório da administradora de ${data(dataFonte)} apresenta as seguintes cotas incluídas na proposta:\n\n${plano.incluidas.map(c=>`• Vencimento ${data(c.vencimento)}: ${moeda(c.valor)}.`).join('\n')}\nTotal atualizado das cotas: ${moeda(plano.avista.base)}.\n\nOpções conforme as regras atuais do condomínio:\n• À vista: ${moeda(plano.avista.total)}, incluindo ${moeda(plano.avista.despesas)} de despesas de cobrança (${plano.avista.percentual}%), vencimento proposto em ${data(plano.avista.parcelas[0].vencimento)}.\n• Em ${plano.parcelado.parcelas.length} parcelas: ${moeda(plano.parcelado.total)}, incluindo ${moeda(plano.parcelado.despesas)} de despesas de cobrança (${plano.parcelado.percentual}%).\n${plano.parcelado.parcelas.map(p=>`${p.numero}ª parcela: ${moeda(p.valor)}, vencimento proposto em ${data(p.vencimento)}.`).join('\n')}\n\n${plano.excluidas.length ? `Cotas não incluídas nesta proposta:\n${plano.excluidas.map(c=>`• ${data(c.vencimento)}: ${c.motivo}.`).join('\n')}\n\n` : ''}Os vencimentos são sugestões e dependem da sua confirmação. Qual opção fica melhor para você? Após a confirmação das condições, o acordo e os boletos serão providenciados junto à administradora.\n\nKeila | GEKALI`
 }
-export type ConferenciaProposta = { versao: 1; arquivo_id: string; execucao_id: string; sha256: string; data_fonte: string; quantidade: number; vencimento: string; nome: string; unidade: string; condominio: string; plano: ReturnType<typeof conferirProposta>; texto: string; hash: string; orientacao?:{parcelamento_solicitado:true;segunda_via_vencimento?:string;administradora:string} }
+export type ConferenciaProposta = { versao: 1; arquivo_id: string; execucao_id: string; sha256: string; data_fonte: string; quantidade: number; vencimento: string; nome: string; unidade: string; condominio: string; plano: ReturnType<typeof conferirProposta>; texto: string; hash: string; acolhimento?:'desculpas_whatsapp_sem_retorno'; orientacao?:{parcelamento_solicitado:true;segunda_via_vencimento?:string;administradora:string} }

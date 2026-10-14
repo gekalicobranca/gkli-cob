@@ -24,6 +24,7 @@ export async function carregarCaso(supabase: SupabaseClient, id: string, carteir
 export async function salvarCaso(supabase: SupabaseClient, caso: Awaited<ReturnType<typeof carregarCaso>>, payload: KeilaCasoPayload, usuarioId: string | null) {
   if (caso.payload.rascunho_whatsapp?.liberacao && JSON.stringify(caso.payload.rascunho_whatsapp) !== JSON.stringify(payload.rascunho_whatsapp)) throw new Error('WhatsApp liberado é imutável. Concilie o envio e preserve a versão anterior no histórico antes de preparar outra.')
   if(caso.payload.resposta_aprovada&&payload.resposta_aprovada&&JSON.stringify(caso.payload.orientacao_proposta)!==JSON.stringify(payload.orientacao_proposta))throw new Error('Orientação da resposta aprovada é imutável; preserve a versão anterior antes de corrigir.')
+  if(caso.payload.resposta_aprovada&&payload.resposta_aprovada&&caso.payload.acolhimento_resposta!==payload.acolhimento_resposta)throw new Error('Acolhimento da resposta aprovada é imutável; preserve a versão anterior antes de corrigir.')
   if (caso.payload.resposta_aprovada && payload.resposta_aprovada && (caso.payload.resposta_simulada !== payload.resposta_simulada || JSON.stringify(caso.payload.conferencia_proposta) !== JSON.stringify(payload.conferencia_proposta))) throw new Error('Resposta aprovada é imutável. Arquive a versão anterior após conciliar o envio antes de corrigir.')
   const status = payload.estado === 'concluido' ? 'resolvida' : 'em_tratamento'
   const { data, error } = await supabase.from('central_pendencias').update({

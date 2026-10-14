@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { extrairCotasLello, conferirProposta, renderizarPropostaConferida, hashConferencia } from '../features/keila/conferencia-proposta'
+import { extrairCotasLello, conferirProposta, renderizarPropostaConferida, incluirAcolhimentoProposta, hashConferencia } from '../features/keila/conferencia-proposta'
 import { salvarCaso } from '../features/keila/casos-service'
 async function main(){
  const header=(id:string)=>{const r:unknown[]=Array(26).fill('');r[4]='Unidade';r[10]=id;r[12]='CATIANA';return r}
@@ -19,6 +19,11 @@ async function main(){
  assert.throws(()=>extrairCotasLello([...rows,header('200035'),cota('10/06/2026','573,09')],'200035'),/mesmo vencimento/)
  const texto=renderizarPropostaConferida('Catiana','unidade 35, bloco 2','Safira','2026-10-13',plano)
  assert.match(texto,/716,46/);assert.match(texto,/Fora da régua/)
+ assert.equal(incluirAcolhimentoProposta(texto),texto,'Sem acolhimento, versões anteriores permanecem idênticas')
+ const desculpas=incluirAcolhimentoProposta(texto,'desculpas_whatsapp_sem_retorno')
+ assert.match(desculpas,/Pedimos desculpas pela falta de retorno.*WhatsApp/)
+ assert.match(desculpas,/716,46/)
+ assert.doesNotMatch(desculpas,/falha técnica|problema no sistema/)
  const vanessa=conferirProposta([{vencimento:'2026-07-10',valor:396.56,linha:1},{vencimento:'2026-08-10',valor:393.18,linha:2},{vencimento:'2026-10-10',valor:384.30,linha:3}],[{id:'julho',vencimento:'2026-07-10',status_operacional:'em_cobranca_ativa',status_financeiro:'em_aberto'},{id:'agosto',vencimento:'2026-08-10',status_operacional:'em_cobranca_ativa',status_financeiro:'em_aberto'}],regras,2,'2026-11-05',new Date('2026-10-14T15:00:00Z'))
  assert.equal(vanessa.parcelado.total,947.69)
  assert.deepEqual(vanessa.parcelado.parcelas.map(p=>p.vencimento),['2026-11-05','2026-12-05'])

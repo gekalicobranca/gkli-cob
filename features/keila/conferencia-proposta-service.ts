@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
 import type { KeilaCasoPayload } from './casos'
 import { salvarCaso, type carregarCaso } from './casos-service'
-import { extrairCotasLello, conferirProposta, renderizarPropostaConferida, hashConferencia, type ConferenciaProposta } from './conferencia-proposta'
+import { extrairCotasLello, conferirProposta, renderizarPropostaConferida, incluirAcolhimentoProposta, hashConferencia, type ConferenciaProposta } from './conferencia-proposta'
 
 /** Evidência é recalculada no servidor a partir do arquivo, nunca aceita pelo JSON do operador. */
 export async function gerarConferenciaProposta(db: SupabaseClient, caso: {condominio_id: string; carteira_id: string; payload: KeilaCasoPayload}, input: {arquivo_id: string; quantidade: number; vencimento: string}, hoje = new Date()): Promise<ConferenciaProposta> {
@@ -37,8 +37,9 @@ export async function gerarConferenciaProposta(db: SupabaseClient, caso: {condom
  const codigo=String(unidade.identificacao)
  const descricao=/^[1-9]\d{5}$/.test(codigo) ? `a unidade ${Number(codigo.slice(1))}, bloco ${codigo[0]}` : `a unidade ${codigo}`
  const orientacao=caso.payload.orientacao_proposta?{...caso.payload.orientacao_proposta,administradora:condominio.administradora?.toUpperCase()==='LELLO'?'Lello':condominio.administradora?.trim()||'administradora'}:undefined
- const texto=renderizarPropostaConferida(email.nome,descricao,condominio.nome,dia,plano,orientacao)
- const base={versao:1 as const,arquivo_id:arquivo.id,execucao_id:execucaoId,sha256:createHash('sha256').update(buffer).digest('hex'),data_fonte:dia,quantidade:input.quantidade,vencimento:input.vencimento,nome:email.nome,unidade:descricao,condominio:condominio.nome,plano,texto,...(orientacao?{orientacao}:{})}
+ const acolhimento=caso.payload.acolhimento_resposta
+ const texto=incluirAcolhimentoProposta(renderizarPropostaConferida(email.nome,descricao,condominio.nome,dia,plano,orientacao),acolhimento)
+ const base={versao:1 as const,arquivo_id:arquivo.id,execucao_id:execucaoId,sha256:createHash('sha256').update(buffer).digest('hex'),data_fonte:dia,quantidade:input.quantidade,vencimento:input.vencimento,nome:email.nome,unidade:descricao,condominio:condominio.nome,plano,texto,...(orientacao?{orientacao}:{}),...(acolhimento?{acolhimento}:{})}
  return {...base,hash:hashConferencia({...base,email_chave:email.chave,destinatario:email.remetente,anexos:caso.payload.resposta_anexos??[]})}
 }
 export async function validarConferenciaAtual(db: SupabaseClient, caso: {condominio_id:string;carteira_id:string;payload:KeilaCasoPayload}) {
