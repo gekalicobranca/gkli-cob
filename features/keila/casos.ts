@@ -29,6 +29,7 @@ export type KeilaCasoPayload = {
   proxima_acao: string
   execucao_id?: string | null
   conferencia_proposta?: import('./conferencia-proposta').ConferenciaProposta
+  orientacao_proposta?: {parcelamento_solicitado:true;segunda_via_vencimento?:string}
   rascunho_whatsapp?: import('./whatsapp-rascunho').RascunhoWhatsAppKeila
   falhas_email?: import('./retorno-email-whatsapp').FalhaEmailKeila[]
   resposta_simulada?: string | null

@@ -23,6 +23,7 @@ export const registroKeilaSchema = z.object({
   proxima_acao: z.string().min(1).max(1000), resposta_rascunho: z.string().max(10000).optional(),
   conferencia: z.object({arquivo_id:z.uuid(),quantidade:z.number().int().min(2).max(120),vencimento:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)}).optional(),
   execucao_id: z.uuid().optional(),
+  orientacao_proposta:z.object({parcelamento_solicitado:z.literal(true),segunda_via_vencimento:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()}).optional(),
 })
 export type RegistroKeilaJSON = z.infer<typeof registroKeilaSchema>
 
@@ -79,6 +80,7 @@ export async function registrarKeilaJSON(db: SupabaseClient, value: unknown, con
   const vinculo = { ...registro.email.outlook, interlocutor: registro.email.nome }
   const acompanhamento = caso.payload.acompanhamento ?? { conversas: [], pendencias: [] }
   let payload = caso.payload
+  if(registro.orientacao_proposta)payload={...payload,orientacao_proposta:registro.orientacao_proposta}
   if (registro.resposta_rascunho !== undefined) {
     let statusAnterior: string | undefined
     if (payload.resposta_aprovada) {
