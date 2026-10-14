@@ -6,6 +6,14 @@ import {getPermittedCarteiras} from '@/utils/auth/get-permitted-carteiras'
 import {createAdminClient} from '@/utils/supabase/admin'
 import {carregarCaso,salvarCaso} from './casos-service'
 import {aprovarRascunhoWhatsApp,validarLiberacaoWhatsApp} from './whatsapp-rascunho'
+import {validarConferenciaAtual} from './conferencia-proposta-service'
+
+async function conferirPropostaWhatsApp(db:Parameters<typeof validarConferenciaAtual>[0],c:Awaited<ReturnType<typeof carregarCaso>>){
+ const r=c.payload.rascunho_whatsapp!
+ if(!r.conferencia_hash)return
+ const conferencia=await validarConferenciaAtual(db,c)
+ if(conferencia.hash!==r.conferencia_hash||r.texto.trim()!==conferencia.texto.trim())throw new Error('Proposta do WhatsApp mudou. Refaça a conferência e aprove a nova versão.')
+}
 /** Aprova apenas o texto. Não cria mensagens, agenda, links de envio ou chama provedores. */
 export async function aprovarWhatsAppKeila(form:FormData){
  await requireRole(['admin','gestor','operador'])
@@ -18,6 +26,7 @@ export async function aprovarWhatsAppKeila(form:FormData){
   if(c.payload.unidade_ids.length!==1)throw new Error('Confirme a unidade do contato.')
   const {data:u,error}=await db.from('unidades').select('telefone').eq('id',c.payload.unidade_ids[0]).eq('carteira_id',c.carteira_id).single()
   if(error||u.telefone?.replace(/\D/g,'')!==c.payload.rascunho_whatsapp.destinatario)throw new Error('Celular mudou no cadastro. Revise o destinatário.')
+  await conferirPropostaWhatsApp(db,c)
   const r=aprovarRascunhoWhatsApp(c.payload.rascunho_whatsapp,String(form.get('versao_hash')??''),scope.userId)
   if(!c.payload.rascunho_whatsapp.aprovacao)await salvarCaso(db,c,{...c.payload,rascunho_whatsapp:r,proxima_acao:'Texto de WhatsApp aprovado para '+r.destinatario+'. Nenhuma mensagem enviada ou agendada; envio depende de solicitação posterior.',atividades:[...c.payload.atividades,{em:r.aprovacao!.em,usuario_id:scope.userId,descricao:'Rascunho de WhatsApp aprovado na tela, versão '+r.versao_hash+'. Sem envio ou agendamento.'}]},scope.userId)
  }catch(e){erro=e instanceof Error?e.message:'Não foi possível aprovar o rascunho.'}
@@ -33,6 +42,7 @@ export async function liberarWhatsAppKeila(form:FormData){
   const c=await carregarCaso(db,id,scope.carteiraIds)
   if(!c.payload.rascunho_whatsapp)throw new Error('Rascunho não encontrado.')
   validarLiberacaoWhatsApp(c.payload.rascunho_whatsapp,String(form.get('versao_hash')??''))
+  if(!c.payload.rascunho_whatsapp.liberacao)await conferirPropostaWhatsApp(db,c)
   const {error}=await db.rpc('keila_liberar_whatsapp',{p_caso:id,p_updated_at:String(form.get('updated_at')??''),p_hash:c.payload.rascunho_whatsapp.versao_hash,p_usuario:scope.userId})
   if(error)throw new Error(error.message)
  }catch(e){erro=e instanceof Error?e.message:'Não foi possível liberar o envio.'}

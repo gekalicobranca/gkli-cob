@@ -2,12 +2,13 @@ import { createHash } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
 import type { KeilaCasoPayload } from './casos'
+import {destinoRespostaKeila} from './destino-resposta'
 import { salvarCaso, type carregarCaso } from './casos-service'
 import { extrairCotasLello, conferirProposta, renderizarPropostaConferida, incluirAcolhimentoProposta, hashConferencia, type ConferenciaProposta } from './conferencia-proposta'
 
 /** Evidência é recalculada no servidor a partir do arquivo, nunca aceita pelo JSON do operador. */
 export async function gerarConferenciaProposta(db: SupabaseClient, caso: {condominio_id: string; carteira_id: string; payload: KeilaCasoPayload}, input: {arquivo_id: string; quantidade: number; vencimento: string}, hoje = new Date()): Promise<ConferenciaProposta> {
- if (!Number.isInteger(input.quantidade) || input.quantidade < 2 || input.quantidade > 120) throw new Error('Informe entre 2 e 120 parcelas para a proposta.')
+ if (!Number.isInteger(input.quantidade) || input.quantidade < 1 || input.quantidade > 120) throw new Error('Informe entre 1 e 120 parcelas para a proposta (1 = à vista).')
  if (caso.payload.unidade_ids.length !== 1) throw new Error('Conferência automática requer uma única unidade.')
  const execucaoId=caso.payload.execucao_id
  if (!execucaoId) throw new Error('Vincule uma coleta de débitos concluída.')
@@ -18,7 +19,7 @@ export async function gerarConferenciaProposta(db: SupabaseClient, caso: {condom
  if(arqError || !arquivo?.storage_path?.startsWith(`${execucaoId}/`) || !/\.xlsx?$/i.test(arquivo.nome_arquivo)) throw new Error('Arquivo da coleta indisponível ou incompatível.')
  const {data: unidade,error: unError}=await db.from('unidades').select('id,identificacao,responsavel_nome,email,acao_judicial').eq('id',caso.payload.unidade_ids[0]).eq('condominio_id',caso.condominio_id).eq('carteira_id',caso.carteira_id).single()
  if(unError || !unidade || unidade.acao_judicial) throw new Error('Unidade sem conferência ou com bloqueio judicial.')
- const email=caso.payload.emails.at(-1)
+ const email=destinoRespostaKeila(caso.payload)
  if(!email || unidade.email?.trim().toLowerCase()!==email.remetente.trim().toLowerCase()) throw new Error('Remetente diverge do contato principal da unidade. Revisão necessária.')
  const {data: blob,error: downloadError}=await db.storage.from('agente-relatorios').download(arquivo.storage_path)
  if(downloadError || !blob || blob.size>20*1024*1024) throw new Error('Não foi possível conferir o relatório completo.')
@@ -57,7 +58,7 @@ export async function prepararPropostaConferida(db: SupabaseClient, caso: Awaite
  const em=new Date().toISOString(),resumo=`Relatório completo conciliado: ${conferida.plano.incluidas.length} cotas incluídas, ${conferida.plano.excluidas.length} excluídas. Nova aprovação necessária; nenhum envio.`
  const eventos=caso.payload.registro_json?.eventos??[]
  const id=`conferencia-automatica-${conferida.hash}`
- await salvarCaso(db,caso,{...caso.payload,estado:'proposta_preparada',conferencia_proposta:conferida,resposta_simulada:conferida.texto,resposta_email_chave:caso.payload.emails.at(-1)!.chave,
+ await salvarCaso(db,caso,{...caso.payload,estado:'proposta_preparada',conferencia_proposta:conferida,resposta_simulada:conferida.texto,resposta_email_chave:destinoRespostaKeila(caso.payload)!.chave,
   proxima_acao:'Conferência automática concluída. Revise cotas, exclusões, valores e datas propostas e aprove esta versão. Nenhum envio realizado.',
   registro_json:{versao:1,eventos:eventos.some(e=>e.id===id)?eventos:[...eventos,{id,em,tipo:'proposta_preparada',resumo,dados:{versao_hash:conferida.hash,arquivo_id:conferida.arquivo_id,sha256:conferida.sha256}}]},
   atividades:[...caso.payload.atividades,{em,usuario_id:usuarioId,descricao:resumo+` Versão ${conferida.hash}.`}]},usuarioId)

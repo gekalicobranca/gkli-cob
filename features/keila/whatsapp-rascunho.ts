@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto'
-export type RascunhoWhatsAppKeila={destinatario:string;texto:string;versao_hash:string;criado_em:string;aprovacao?:{em:string;usuario_id:string;versao_hash:string};liberacao?:{em:string;usuario_id:string;mensagem_id:string;email_chave:string|null}}
+export type RascunhoWhatsAppKeila={destinatario:string;texto:string;versao_hash:string;criado_em:string;conferencia_hash?:string;aprovacao?:{em:string;usuario_id:string;versao_hash:string};liberacao?:{em:string;usuario_id:string;mensagem_id:string;email_chave:string|null}}
 export function criarRascunhoWhatsApp(destinatario:string,texto:string,em=new Date().toISOString()):RascunhoWhatsAppKeila{
  if(!/^55\d{2}9\d{8}$/.test(destinatario))throw new Error('Celular brasileiro inválido para o rascunho.')
  texto=texto.trim();if(!texto||texto.length>4000)throw new Error('Texto de WhatsApp inválido.')

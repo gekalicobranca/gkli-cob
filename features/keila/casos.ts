@@ -24,6 +24,7 @@ export type KeilaCasoPayload = {
   intencao: 'debitos' | 'parcelamento' | 'outro'
   unidade_ids: string[]
   emails: KeilaEmail[]
+  contato_proativo?: {origem:'solicitacao_operador';nome:string;email:string;assunto:string;solicitado_em:string}
   retornos?: { chave: string; canal: 'email' | 'whatsapp'; remetente: string; recebido_em: string; resumo: string; mensagem_id: string; flow_id: string }[]
   atividades: KeilaAtividade[]
   proxima_acao: string

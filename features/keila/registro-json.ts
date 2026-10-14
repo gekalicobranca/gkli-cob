@@ -21,7 +21,7 @@ export const registroKeilaSchema = z.object({
     resumo: z.string().min(1).max(4000), dados: z.record(z.string(), z.json()).default({}),
   })).min(1),
   proxima_acao: z.string().min(1).max(1000), resposta_rascunho: z.string().max(10000).optional(),
-  conferencia: z.object({arquivo_id:z.uuid(),quantidade:z.number().int().min(2).max(120),vencimento:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)}).optional(),
+  conferencia: z.object({arquivo_id:z.uuid(),quantidade:z.number().int().min(1).max(120),vencimento:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)}).optional(),
   execucao_id: z.uuid().optional(),
   orientacao_proposta:z.object({parcelamento_solicitado:z.literal(true),segunda_via_vencimento:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()}).optional(),
   acolhimento_resposta:z.literal('desculpas_whatsapp_sem_retorno').optional(),

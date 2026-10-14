@@ -10,6 +10,7 @@ import { getEmailRemetenteKey, getSmtpConfigStatus } from '../mensageria/email-p
 import { validarConferenciaAtual } from './conferencia-proposta-service'
 import { hashConferencia } from './conferencia-proposta'
 import { anexosKeilaSchema, baixarAnexosKeila } from './anexos'
+import {destinoRespostaKeila} from './destino-resposta'
 
 export async function aprovarEnviarRespostaKeila(form: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
@@ -21,7 +22,7 @@ export async function aprovarEnviarRespostaKeila(form: FormData) {
     const db = createAdminClient()
     let caso = await carregarCaso(db, id, scope.carteiraIds)
     if (['atendimento_humano', 'concluido'].includes(caso.payload.estado)) throw new Error('Este atendimento não permite envio pela Keila.')
-    const email = caso.payload.emails.at(-1)
+    const email = destinoRespostaKeila(caso.payload)
     const texto = caso.payload.resposta_simulada?.trim()
     if (!email || !texto || texto.length > 10000) throw new Error('Salve a resposta antes de aprovar.')
     if (caso.payload.resposta_email_chave && caso.payload.resposta_email_chave !== email.chave) throw new Error('O rascunho pertence a uma mensagem anterior. Revise e salve a resposta ao novo retorno.')
@@ -47,7 +48,7 @@ export async function aprovarEnviarRespostaKeila(form: FormData) {
       const anexos = anexosKeilaSchema.parse(caso.payload.resposta_anexos ?? [])
       await baixarAnexosKeila(db, id, anexos)
       const em = new Date().toISOString()
-      const aprovada = { versao_hash:versaoHash, mensagem_id: casoId(caso.condominio_id, caso.payload.unidade_ids, `${id}:resposta:${caso.updated_at}`), em, usuario_id: scope.userId, destinatario: email.remetente, assunto: /^re:/i.test(email.assunto) ? email.assunto : `Re: ${email.assunto}`, texto, email_chave: email.chave }
+      const aprovada = { versao_hash:versaoHash, mensagem_id: casoId(caso.condominio_id, caso.payload.unidade_ids, `${id}:resposta:${caso.updated_at}`), em, usuario_id: scope.userId, destinatario: email.remetente, assunto: email.proativo || /^re:/i.test(email.assunto) ? email.assunto : `Re: ${email.assunto}`, texto, email_chave: email.chave }
       await salvarCaso(db, caso, { ...caso.payload, resposta_aprovada: { ...aprovada, anexos },
         atividades: [...caso.payload.atividades, { em, usuario_id: scope.userId, descricao: `Resposta aprovada para ${aprovada.destinatario}. Registro ${aprovada.mensagem_id}.` }] }, scope.userId)
       caso = await carregarCaso(db, id, scope.carteiraIds)
