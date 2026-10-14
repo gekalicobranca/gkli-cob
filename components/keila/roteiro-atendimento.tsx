@@ -29,7 +29,7 @@ export function RoteiroAtendimentoKeila({ caso, execucao }: { caso: KeilaCaso; e
       detalhe: conferenciaJSON?.resumo || confirmacao?.evidencia || 'Registre a fonte, a data da atualização e os débitos conferidos. Não inclua cobranças suspensas ou judiciais.', href: '#acompanhamento-caso', acao: 'Abrir conferência' },
     { titulo: 'Aplicar regras e preparar proposta', situacao: aprovacao ? 'Depende de aprovação' : proposta ? 'Proposta registrada' : 'Proposta ainda não preparada',
       detalhe: propostaJSON?.resumo || 'Confira os percentuais, o limite de parcelas e a régua do condomínio. Revise os valores por unidade antes de apresentar as condições.', href: '#propostas-caso', acao: 'Abrir regras e proposta' },
-    { titulo: 'Revisar a resposta', situacao: whatsapp ? (whatsapp.aprovacao ? 'WhatsApp aprovado · sem envio' : 'WhatsApp · rascunho para revisão') : caso.payload.resposta_aprovada ? 'Resposta aprovada · acompanhar envio' : resposta ? 'Rascunho salvo para revisão' : 'Resposta ainda não preparada',
+    { titulo: 'Revisar a resposta', situacao: whatsapp ? (whatsapp.liberacao ? 'WhatsApp liberado · acompanhar envio' : whatsapp.aprovacao ? 'WhatsApp aprovado · aguardando liberação' : 'WhatsApp · rascunho para revisão') : caso.payload.resposta_aprovada ? 'Resposta aprovada · acompanhar envio' : resposta ? 'Rascunho salvo para revisão' : 'Resposta ainda não preparada',
       detalhe: 'A resposta deve apresentar o resultado da consulta e, quando solicitado, a proposta concreta. Salvar o rascunho não envia e-mail.', href: '#resposta-caso', acao: 'Abrir resposta' },
   ]
   return <div className="space-y-4">
