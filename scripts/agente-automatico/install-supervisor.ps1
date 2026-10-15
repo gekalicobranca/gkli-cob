@@ -6,6 +6,6 @@ $login = New-ScheduledTaskTrigger -AtLogOn -User $identity
 $watchdog = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) -RepetitionInterval (New-TimeSpan -Minutes 5)
 $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 $principal = New-ScheduledTaskPrincipal -UserId $identity -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName 'GKLI-Maestro-Supervisor' -Action $action -Trigger @($login,$watchdog) -Settings $settings -Principal $principal -Description 'Inicia coletores do Maestro somente para pedidos liberados; encerra ao esvaziar a fila.' -Force | Out-Null
+Register-ScheduledTask -TaskName 'GKLI-Maestro-Supervisor' -Action $action -Trigger @($login,$watchdog) -Settings $settings -Principal $principal -Description 'Supervisor operacional: Maestro, PDFs e importação sob demanda; encerra os workers ao esvaziar a fila.' -Force | Out-Null
 Start-ScheduledTask -TaskName 'GKLI-Maestro-Supervisor'
 Get-ScheduledTask -TaskName 'GKLI-Maestro-Supervisor' | Select-Object TaskName,State

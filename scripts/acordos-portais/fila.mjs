@@ -51,7 +51,7 @@ try {
       if (error) throw error
       job = data?.[0]
     }
-    if (!job) { if (selecionadas === null) await new Promise(r => setTimeout(r, 5000)); continue }
+    if (!job) { if (selecionadas === null) break; continue }
     try {
       const config = await cadastro(job)
       const pasta = path.join(saida, job.id); await mkdir(pasta, { recursive: true })
@@ -84,6 +84,9 @@ try {
       console.error(`Resgate falhou: ${job.id} (${error.code || 'coleta'})`)
     }
   }
+} catch (error) {
+  await db.from('agente_acordos_execucoes').update({ status:'falha',finalizado_em:new Date().toISOString(),mensagem:'Worker interrompido. Confira o PDF antes de solicitar novamente.' }).eq('worker_id',workerId).eq('status','em_execucao')
+  throw error
 } finally {
   clearInterval(heartbeat)
   await db.from('agente_acordos_workers').delete().eq('nome', nomeWorker).eq('worker_id', workerId)

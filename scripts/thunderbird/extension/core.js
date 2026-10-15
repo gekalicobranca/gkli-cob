@@ -1,5 +1,16 @@
 /* Shared worker logic; no credential or message body is stored in the journal. */
 (function (root) {
+  function emailWindow(now) {
+    const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',hourCycle:'h23'}).format(now));
+    return hour>=22||hour<6;
+  }
+  function nextWake(now=new Date(), nextAt=null) {
+    const requested=Date.parse(nextAt);
+    const wake=new Date(Math.max(now.getTime()+1000,Math.min(requested>now.getTime()?requested:Infinity,now.getTime()+5*60000)));
+    if(emailWindow(wake))return wake.getTime();
+    const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(wake).map(p=>[p.type,p.value]));
+    return wake.getTime()+((22-Number(parts.hour))*3600-Number(parts.minute)*60-Number(parts.second))*1000-wake.getMilliseconds();
+  }
   async function acknowledge(deps, record) {
     await deps.api({ action: 'complete', jobId: record.id, state: record.state, receipt: record.receipt, error: record.error });
     await deps.save(null);
@@ -35,7 +46,7 @@
     await acknowledge(deps, result);
     return result;
   }
-  const api = { runJob, recover };
+  const api = { runJob, recover, emailWindow, nextWake };
   if (typeof module !== 'undefined') module.exports = api;
   root.GkliTb = api;
 })(globalThis);

@@ -4,6 +4,7 @@ import { registrarLogMensageria } from '@/features/mensageria/engine/logs'
 import { getWhatsAppCloudConfig, sendWhatsAppTemplate, WhatsAppProviderError, normalizeWhatsAppPhone } from './provider'
 import { validarMensagemSemCobrancaArquivada } from '../validar-arquivamento'
 import { recalcularReferenciasMensagem } from './flows'
+import { whatsappEnviosPermitidos } from '../whatsapp-pausa'
 
 type ScheduledMessage = {
   id: string
@@ -60,6 +61,7 @@ async function destinatarioBloqueado(supabase: any, original: string | null, nor
 
 export async function executarDisparosWhatsapp(limit = 50, options: WhatsAppDispatchOptions = {}) {
   const supabase = createAdminClient()
+  if (!await whatsappEnviosPermitidos(supabase)) return { avaliadas: 0, enviadas: 0, reagendadas: 0, falhas: 0, puladas: 0 }
   const agora = new Date().toISOString()
   let query = supabase
     .from('mensagens')

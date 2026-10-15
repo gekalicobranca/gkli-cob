@@ -1,4 +1,5 @@
-import { mkdir, readFile, rename, stat } from "node:fs/promises"
+import { mkdir, readFile, rename, stat, unlink } from "node:fs/promises"
+import { abrirTrava } from '../acordos-portais/manual.mjs'
 import os from "node:os"
 import path from "node:path"
 import process from "node:process"
@@ -77,10 +78,17 @@ async function main() {
   const intervalo = Math.max(3000, Number(process.env.CAPTACAO_AUTOMATIZADA_INTERVALO_MS || 10000))
   await mkdir(processados, { recursive: true }); await mkdir(falhas, { recursive: true })
   console.log(`Captação automatizada ativa em ${entrada}`)
+  const lockPath=path.join(raiz,'.codex-tmp','captacao-worker.lock')
+  await mkdir(path.dirname(lockPath),{recursive:true})
+  const lock=await abrirTrava(lockPath,{pid:process.pid})
+  try {
   for (;;) {
     try {
-      const ligada = await captacaoGlobalAtiva()
-      for (const nome of ligada ? await arquivosElegiveis() : []) {
+      const arquivos = await arquivosElegiveis()
+      if (!arquivos.length && String(process.env.CAPTACAO_RUN_ONCE || 'true').toLowerCase()==='true') break
+      // A pasta vazia não precisa consultar o controle no banco.
+      const ligada = arquivos.length > 0 && await captacaoGlobalAtiva()
+      for (const nome of ligada ? arquivos : []) {
         const origem = path.join(entrada, nome)
         try {
           const antes = await stat(origem); await new Promise((r) => setTimeout(r, 1500)); const depois = await stat(origem)
@@ -101,8 +109,9 @@ async function main() {
     } catch (error) {
       console.error(`Falha temporária no ciclo da captação: ${error instanceof Error ? error.message : error}`)
     }
-    if (String(process.env.CAPTACAO_RUN_ONCE || "false").toLowerCase() === "true") break
+    if (String(process.env.CAPTACAO_RUN_ONCE || "true").toLowerCase() === "true") break
     await new Promise((r) => setTimeout(r, intervalo))
   }
+  } finally {await lock.close();await unlink(lockPath)}
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })

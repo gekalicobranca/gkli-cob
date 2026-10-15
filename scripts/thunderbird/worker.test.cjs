@@ -1,6 +1,14 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { runJob, recover } = require('./extension/core');
+const { emailWindow, nextWake } = require('./extension/core');
+test('agendamento Thunderbird respeita 22h–06h e não repete consultas por reserva vencida',()=>{
+ assert.equal(emailWindow(new Date('2026-10-16T01:00Z')),true);
+ assert.equal(emailWindow(new Date('2026-10-16T09:00Z')),false);
+ assert.equal(new Date(nextWake(new Date('2026-10-15T15:00Z'))).toISOString(),'2026-10-16T01:00:00.000Z');
+ assert.equal(new Date(nextWake(new Date('2026-10-16T08:59Z'))).toISOString(),'2026-10-17T01:00:00.000Z');
+ assert.equal(new Date(nextWake(new Date('2026-10-16T01:00Z'),'2026-10-15T12:00Z')).toISOString(),'2026-10-16T01:05:00.000Z');
+});
 function mock() {
   const state = { sent: 0, journal: null, completed: [] };
   const deps = {

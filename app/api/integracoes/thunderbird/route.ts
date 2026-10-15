@@ -53,7 +53,13 @@ export async function POST(request: Request) {
     }
     const { data: e, error } = await db.rpc('thunderbird_reservar', { p_dispositivo: d.id, p_somente_teste: body.testOnly })
     if (error) throw new Error('Falha ao reservar mensagem.')
-    if (!e) return json({ job: null })
+    if (!e) {
+      const { data: next, error: nextError } = await db.from('email_agenda')
+        .select('agendada_para,mensagem:mensagens!inner(status)').eq('carteira_id',d.carteira_id)
+        .eq('mensagem.status','agendada').order('agendada_para').limit(1).maybeSingle()
+      if (nextError) throw new Error('Falha ao consultar o próximo horário de e-mail.')
+      return json({ job: null, nextAt: next?.agendada_para ?? null })
+    }
     try {
       let to = e.destinatario, subject = e.assunto, text = e.corpo, bcc = null
       const attachments = []

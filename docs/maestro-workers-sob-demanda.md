@@ -1,5 +1,7 @@
 # Workers do Maestro sob demanda
 
+O supervisor também atende PDFs e importações; veja `workers-sob-demanda.md`.
+
 O supervisor é o único processo de coleta que permanece ligado. A cada 30 segundos,
 uma RPC consulta apenas pedidos pendentes com receita ativa e horário liberado.
 Na mesma RPC, a cada cinco minutos, cria as agendas mensais de Brasília, preservando

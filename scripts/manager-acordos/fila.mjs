@@ -41,7 +41,7 @@ try {
       if (error) throw error
       job = jobs?.[0]
     }
-    if (!job) { if (selecionadas === null) await new Promise(resolve => setTimeout(resolve, 10000)); continue }
+    if (!job) { if (selecionadas === null) break; continue }
     try {
       const { data: config, error: configError } = await db.from('agente_acordos_configuracoes').select('*').eq('condominio_id', job.condominio_id).single()
       const { data: condo, error: condoError } = await db.from('condominios').select('status,administradora,carteira_id').eq('id', job.condominio_id).single()
@@ -67,6 +67,9 @@ try {
       console.error(`Resgate falhou: ${job.id}`)
     }
   }
+} catch (error) {
+  await db.from('agente_acordos_execucoes').update({ status:'falha',finalizado_em:new Date().toISOString(),mensagem:'Worker interrompido. Confira o PDF antes de solicitar novamente.' }).eq('worker_id',workerId).eq('status','em_execucao')
+  throw error
 } finally {
   clearInterval(heartbeat)
   await db.from('agente_acordos_workers').delete().eq('nome', 'manager-acordos').eq('worker_id', workerId)

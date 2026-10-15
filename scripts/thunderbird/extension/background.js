@@ -45,18 +45,28 @@ async function tick(testOnly = false) {
     if (!pairing) return { message: 'Importe o arquivo de conexão.' };
     if (await GkliTb.recover(deps, journal)) return { message: 'Resultado anterior sincronizado; nenhum reenvio.' };
     if (!enabled && !testOnly) return { message: 'Fila automática pausada.' };
+    if (!testOnly && !GkliTb.emailWindow(new Date())) return {message:'Fila aguardando a janela das 22h às 06h.'};
     const status = await api({ action: 'status' });
     await identity(status.email); // Never claim a job without its configured local identity.
-    const { job } = await api({ action: 'claim', testOnly });
-    if (!job) return { message: 'Nenhum envio elegível agora.', status };
+    const { job, nextAt } = await api({ action: 'claim', testOnly });
+    if (!job) return { message: 'Nenhum envio elegível agora.', status, nextAt };
     const result = await GkliTb.runJob(deps, job);
     const message = result.state === 'enviado' ? 'Envio confirmado pelo Thunderbird.' : 'Envio bloqueado: ' + result.error;
     await browser.storage.local.set({ lastResult: message });
     return { message };
   } finally { busy = false; }
 }
-browser.alarms.create('gkli-poll', { periodInMinutes: 1 });
-browser.alarms.onAlarm.addListener(() => tick().catch(error => browser.storage.local.set({ lastResult: error.message })));
+async function arm(nextAt=null) {
+  const {pairing,enabled,journal}=await browser.storage.local.get(['pairing','enabled','journal']);
+  await browser.alarms.clear('gkli-poll');
+  if(pairing&&(enabled||journal))browser.alarms.create('gkli-poll',{when:journal?Date.now()+60000:GkliTb.nextWake(new Date(),nextAt)});
+}
+browser.alarms.onAlarm.addListener(async alarm => {
+  if(alarm.name!=='gkli-poll')return;
+  try {const result=await tick();await arm(result.nextAt)}
+  catch(error){await browser.storage.local.set({lastResult:error.message});await arm()}
+});
+void arm();
 browser.browserAction.onClicked.addListener(() => browser.runtime.openOptionsPage());
 browser.runtime.onMessage.addListener(async message => {
   try {
@@ -66,15 +76,17 @@ browser.runtime.onMessage.addListener(async message => {
       if (journal) throw new Error('Sincronize o resultado pendente antes de trocar a conexão.');
       if (message.pairing?.endpoint !== ENDPOINT || !/^[\w-]{43}$/.test(message.pairing.token)) throw new Error('Arquivo de conexão inválido.');
       await browser.storage.local.set({ pairing: message.pairing, enabled: false });
+      await arm();
       const status = await api({ action: 'status' }); await identity(status.email);
       return { message: 'Conectado à conta ' + status.email, status };
     }
-    if (message.action === 'test') return await tick(true);
+    if (message.action === 'test') {const result=await tick(true);await arm();return result;}
     if (message.action === 'mode') {
       if (busy) throw new Error('Aguarde a operação atual.');
       const status = await api({ action: 'status' }); await identity(status.email);
       await api({ action: 'mode', enabled: message.enabled === true });
       await browser.storage.local.set({ enabled: message.enabled === true });
+      await arm(new Date(Date.now()+1000).toISOString());
       return { message: message.enabled ? 'Fila automática ativada.' : 'Fila automática pausada.' };
     }
     if (message.action === 'status') {

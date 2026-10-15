@@ -27,7 +27,6 @@ await loadLocalEnv()
 
 const baseUrl = String(process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
 const secret = process.env.REGUA_CRON_SECRET ?? process.env.CRON_SECRET
-const intervalMs = Math.max(15_000, Number(process.env.WHATSAPP_WORKER_INTERVAL_MS ?? 60_000))
 
 if (!baseUrl) throw new Error('NEXT_PUBLIC_APP_URL não configurada.')
 if (!secret) throw new Error('REGUA_CRON_SECRET ou CRON_SECRET não configurado.')
@@ -48,12 +47,13 @@ async function dispatch() {
   if (total > 0) console.log(new Date().toISOString(), result)
 }
 
-console.log(`Worker de mensagens (e-mail e WhatsApp) ativo: consulta a cada ${Math.round(intervalMs / 1000)} segundos.`)
+console.log('Worker de mensagens iniciado sob demanda.')
 while (!stopping) {
   try {
     await dispatch()
   } catch (error) {
     console.error(new Date().toISOString(), error instanceof Error ? error.message : error)
   }
-  if (!stopping) await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  // Uma chamada por processo. Novas partidas pertencem ao supervisor.
+  break
 }
