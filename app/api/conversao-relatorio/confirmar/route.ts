@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     const { data: conversao, error: conversaoError } = await supabase
       .from("conversoes_relatorio")
-      .select("id, status, preview_json")
+      .select("id, status, preview_json, condominio_id, carteira_id")
       .eq("id", conversaoId)
       .single()
 
@@ -187,6 +187,10 @@ export async function POST(request: NextRequest) {
         },
         { status: 404 }
       )
+    }
+
+    if (chamadaMaestro && (conversao.condominio_id !== condominioId || conversao.carteira_id !== carteiraId)) {
+      return NextResponse.json({ ok: false, error: "Conversão não corresponde ao condomínio e carteira informados." }, { status: 403 })
     }
 
     if (["concluido", "concluido_com_alertas"].includes(String((conversao as any).status ?? ""))) {
@@ -233,14 +237,20 @@ export async function POST(request: NextRequest) {
     const anoCorrente = anoCorrenteImportacao()
 
     if (limparCobrancasAnteriores) {
-      cobrancasAnterioresRemovidas = await limparCobrancasDaNovaImportacao(supabase as any, {
-        condominioIds: [condominioId],
-        carteiraId,
-        anoCorrente,
-      })
+      if (chamadaMaestro) {
+        const { data: limpeza, error: limpezaError } = await supabase.rpc('maestro_substituir_cobrancas_conversao', { p_conversao: conversaoId })
+        if (limpezaError) throw new Error(`Erro ao substituir cobranças do Maestro: ${limpezaError.message}`)
+        cobrancasAnterioresRemovidas = Number(limpeza?.removidas ?? 0)
+      } else {
+        cobrancasAnterioresRemovidas = await limparCobrancasDaNovaImportacao(supabase as any, {
+          condominioIds: [condominioId],
+          carteiraId,
+          anoCorrente,
+        })
+      }
       if (cobrancasAnterioresRemovidas > 0) {
         inconsistencias.push(
-          `${cobrancasAnterioresRemovidas} cobrança(s) anterior(es) com status Novo e vencimento em ${anoCorrente} foram removidas antes da nova carga.`
+          `${cobrancasAnterioresRemovidas} cobrança(s) anterior(es) com status ${chamadaMaestro ? 'Regular, Novo ou Cobrança ativa' : 'Novo'} e vencimento em ${anoCorrente} foram removidas antes da nova carga.`
         )
       }
     }

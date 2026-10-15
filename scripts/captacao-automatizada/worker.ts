@@ -42,7 +42,7 @@ async function concluirPipeline(resumo: Awaited<ReturnType<typeof processarRelat
     conversaoId: resumo.conversaoId,
     condominioId: resumo.condominioId,
     carteiraId: resumo.carteiraId,
-    limparCobrancasAnteriores: false,
+    limparCobrancasAnteriores: true,
   }, "Importação automática")
   if (String(process.env.CAPTACAO_AUTOMATIZADA_PROCESSAR_REGUA || "true").toLowerCase() === "false") {
     return "importado_sem_regua"

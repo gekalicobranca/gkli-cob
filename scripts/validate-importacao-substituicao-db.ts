@@ -44,6 +44,29 @@ async function main() {
     await db.exec(readFileSync('supabase/migrations/20261008161105_importacao_substituir_novo_e_ativa.sql', 'utf8'))
     await db.exec(readFileSync('supabase/migrations/20261008181542_importacao_preservar_historico_whatsapp.sql', 'utf8'))
     await db.exec(readFileSync('supabase/migrations/20261008203444_importacao_substituir_regular.sql', 'utf8'))
+    await db.exec(`create table conversoes_relatorio(id uuid primary key,carteira_id uuid,condominio_id uuid,status text);
+      insert into conversoes_relatorio values('${id(60)}','${id(2)}','${id(3)}','preview');`)
+    await db.exec(readFileSync('supabase/migrations/20261015143031_maestro_substituir_cobrancas_conversao.sql', 'utf8'))
+    await db.exec('begin; savepoint maestro')
+    await db.exec(`insert into cobrancas values('${id(61)}','${id(3)}','${id(2)}','${id(4)}','2026-01-05',null,'regular','em_aberto')`)
+    await db.exec(`insert into mensagens(id,cobranca_id,cobranca_flow_id,payload,status) values('${id(63)}','${id(61)}','${id(40)}','{"cobranca_ids":["${id(61)}"]}','agendada');
+      insert into whatsapp_web_envios values('${id(63)}','reservado');
+      insert into lote_itens values('${id(64)}','${id(61)}','${id(40)}');`)
+    const maestro = async () => (await db.query<{ result: any }>('select maestro_substituir_cobrancas_conversao($1) result', [id(60)])).rows[0].result
+    await db.exec('savepoint falha; alter table auditoria_eventos add constraint audit_failure check(false)')
+    await assert.rejects(maestro(), /audit_failure/)
+    await db.exec('rollback to savepoint falha; release savepoint falha')
+    assert.equal((await db.query<any>('select limpeza_maestro_em from conversoes_relatorio')).rows[0].limpeza_maestro_em, null)
+    assert.deepEqual((await maestro()).ids.sort(), [id(10),id(12),id(14),id(61)])
+    const mensagemMaestro = (await db.query<any>('select status,cobranca_id from mensagens where id=$1',[id(63)])).rows[0]
+    assert.equal(mensagemMaestro.status, 'cancelada')
+    assert.equal(mensagemMaestro.cobranca_id, null)
+    assert.equal((await db.query('select * from whatsapp_web_envios where mensagem_id=$1',[id(63)])).rows.length, 1)
+    assert.equal((await db.query('select * from cobrancas where id=$1', [id(11)])).rows.length, 1, 'Preserva anos anteriores')
+    await db.exec(`insert into cobrancas values('${id(62)}','${id(3)}','${id(2)}','${id(4)}','2026-02-05',null,'novo','em_aberto')`)
+    assert.equal((await maestro()).ja_executada, true)
+    assert.equal((await db.query('select * from cobrancas where id=$1', [id(62)])).rows.length, 1, 'Retomada preserva nova carga')
+    await db.exec('rollback to savepoint maestro; release savepoint maestro; commit')
     const run = async () => (await db.query<{ result: any }>('select importacao_substituir_cobrancas_anteriores($1) result', [id(1)])).rows[0].result
     await db.exec("begin; savepoint year_scope; update importacoes set resumo=jsonb_set(resumo,'{somente_ano_corrente}','true')")
     assert.deepEqual((await run()).ids.sort(), [id(10), id(12), id(14)])

@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }
     const response = await confirmarConversao(new NextRequest(new URL('/api/conversao-relatorio/confirmar', request.url), {
       method: 'POST', headers: { 'content-type': 'application/json', authorization: request.headers.get('authorization')! },
-      body: JSON.stringify({ conversaoId: arquivo.id, condominioId: execucao.condominio_id, carteiraId: execucao.carteira_id, limparCobrancasAnteriores: false }),
+      body: JSON.stringify({ conversaoId: arquivo.id, condominioId: execucao.condominio_id, carteiraId: execucao.carteira_id, limparCobrancasAnteriores: true }),
     }))
     const result = await response.json()
     if (!response.ok || !result.ok) throw new Error(result.error || 'Falha na importação.')
