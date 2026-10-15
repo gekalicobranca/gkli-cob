@@ -108,17 +108,6 @@ function cobrancasHref(params: Record<string, string>, overrides: Record<string,
   return qs ? `/app/cobrancas?${qs}` : "/app/cobrancas";
 }
 
-function cobrancasRelatorioHref(params: Record<string, string>) {
-  const query = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value) query.set(key, value);
-  }
-
-  const qs = query.toString();
-  return qs ? `/api/cobrancas/relatorio?${qs}` : "/api/cobrancas/relatorio";
-}
-
 function cobrancasRelatorioExecutivoHref(params: Record<string, string>) {
   const query = new URLSearchParams();
 
@@ -272,7 +261,6 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     judicializacao_unidade: "nao",
   });
   const exibirTodasHref = cobrancasHref(queryParams, { status: "todos", judicializacao_unidade: "todos" });
-  const relatorioHref = cobrancasRelatorioHref(queryParams);
   const relatorioExecutivoHref = cobrancasRelatorioExecutivoHref(queryParams);
 
   const scope = await getPermittedCarteiras();
@@ -326,14 +314,14 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
           description="Fila operacional de débitos, negociações e encaminhamentos. Priorize por risco, valor e última movimentação."
           actions={
             <>
-              <ButtonLink href={relatorioHref} variant="secondary">
+              <Button type="button" disabled variant="secondary" title="Relatórios temporariamente indisponíveis">
                 <Download size={16} />
                 Exportar
-              </ButtonLink>
-              <ButtonLink href={relatorioExecutivoHref} variant="secondary">
+              </Button>
+              <Button type="button" disabled variant="secondary" title="Relatórios temporariamente indisponíveis">
                 <FileText size={16} />
                 Executivo
-              </ButtonLink>
+              </Button>
               <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo', '/catalogo')} prefetch={false} variant="secondary" title="Cotas na regra de cobrança, incluindo jurídico e pré-jurídico">
                 <FileText size={16} />
                 Catálogo PDF

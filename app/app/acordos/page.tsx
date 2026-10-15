@@ -64,26 +64,6 @@ function pageHref(params: Record<string, string | undefined>, page: number) {
   return `/app/acordos?${query.toString()}`
 }
 
-function acordosRelatorioExecutivoHref(params: Record<string, string | undefined>) {
-  const query = new URLSearchParams()
-  for (const key of ['q', 'condominio_id', 'unidade_id', 'carteira_id', 'status', 'data_de', 'data_ate', 'ordenar']) {
-    const value = params[key]
-    if (value) query.set(key, value)
-  }
-  const qs = query.toString()
-  return qs ? `/api/acordos/relatorio-executivo?${qs}` : '/api/acordos/relatorio-executivo'
-}
-
-function acordosRelatorioHref(params: Record<string, string | undefined>) {
-  const query = new URLSearchParams()
-  for (const key of ['q', 'condominio_id', 'unidade_id', 'carteira_id', 'status', 'data_de', 'data_ate', 'ordenar']) {
-    const value = params[key]
-    if (value) query.set(key, value)
-  }
-  const qs = query.toString()
-  return qs ? `/api/acordos/relatorio?${qs}` : '/api/acordos/relatorio'
-}
-
 function clean(value: unknown) {
   return String(value ?? '').trim()
 }
@@ -166,8 +146,6 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
   const rows = acordosPage.rows
   const groups = groupAcordos(rows)
   const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.carteira_id || params.status || params.data_de || params.data_ate || params.ordenar)
-  const relatorioHref = acordosRelatorioHref(params)
-  const relatorioExecutivoHref = acordosRelatorioExecutivoHref(params)
 
   const { ativos, atraso, rompidos, valorAtivo } = acordosPage.resumo
 
@@ -179,8 +157,8 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
         description="Controle acordos, parcelas, atrasos e quebras operacionais."
         actions={
           <>
-            <ButtonLink href={relatorioHref} variant="secondary"><Download size={16} />Exportar</ButtonLink>
-            <ButtonLink href={relatorioExecutivoHref} variant="secondary" target="_blank"><FileText size={16} />Relatório executivo</ButtonLink>
+            <Button type="button" disabled variant="secondary" title="Relatórios temporariamente indisponíveis"><Download size={16} />Exportar</Button>
+            <Button type="button" disabled variant="secondary" title="Relatórios temporariamente indisponíveis"><FileText size={16} />Relatório executivo</Button>
             <ButtonLink href="/app/acordos/gestao" variant="secondary"><AlertTriangle size={16} />Gestão de quebrados</ButtonLink>
           </>
         }
