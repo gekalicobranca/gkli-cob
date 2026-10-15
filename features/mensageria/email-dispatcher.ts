@@ -3,9 +3,12 @@ import { sendSmtpEmail } from './email-provider'
 import { EmailAdiadoError } from './email-agenda'
 import { listarAnexosMensagem } from '@/features/pre-juridico/documentos'
 import { recalcularReferenciasMensagem } from './whatsapp-cloud/flows'
+import { emailHorarioPermitido } from './email-janela'
 
 // A autorização final e a reserva de cota são atômicas no provedor/banco.
 export async function executarDisparosEmail(limit = 50, cobrancaFlowId?: string) {
+  // Evita carregar fila, templates e anexos durante o horário de uso do app.
+  if (!emailHorarioPermitido()) return { avaliadas: 0, enviadas: 0, adiadas: 0, falhas: 0 }
   const db = createAdminClient()
   // Somente mensagens que entraram explicitamente na nova agenda podem ser disparadas.
   let query = db.from('mensagens').select('*,carteira:carteiras!inner(email_transporte),reserva:email_agenda!inner(mensagem_id)').neq('carteira.email_transporte', 'thunderbird').eq('canal', 'email').eq('status', 'agendada')
