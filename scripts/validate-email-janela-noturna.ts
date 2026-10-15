@@ -62,5 +62,17 @@ test('SQL: cron, madrugada, cotas, bloqueio diurno e concorrência', async () =>
     assert.ok(new Date(capped).getTime() >= new Date('2050-09-18T03:00Z').getTime())
     await db.exec('set role authenticated')
     await assert.rejects(db.query("select email_janela_noturna('2050-09-17T01:00Z')"), /permission denied/)
+    await db.exec(`reset role;
+      alter table acordo_flows add column proximo_disparo_em timestamptz;
+      alter table pre_juridico_flows add column proximo_disparo_em timestamptz;
+      create table auditoria_eventos(carteira_id uuid,entidade_tipo text,entidade_id uuid,evento_tipo text,titulo text,descricao text,antes jsonb,depois jsonb);
+      update carteiras set email_limite_diario=50;
+    `)
+    await db.query("insert into cobranca_flows(id,status) values ($1,'em_execucao')", [id(9)])
+    await db.query('update mensagens set cobranca_flow_id=$1', [id(9)])
+    await db.exec(clock(readFileSync('scripts/email-remanejar-noturno.sql', 'utf8')))
+    assert.equal((await db.query('select * from auditoria_eventos')).rows.length, 1)
+    assert.equal((await db.query('select * from email_agenda where not email_janela_noturna(agendada_para)')).rows.length, 0)
+    assert.equal((await db.query('select * from email_tentativas')).rows.length, 1)
   } finally { await db.close() }
 })
