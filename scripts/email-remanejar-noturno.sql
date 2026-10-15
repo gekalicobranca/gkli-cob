@@ -9,6 +9,7 @@ create temporary table email_remanejamento on commit drop as
  a.remetente,a.agendada_para horario_anterior,to_jsonb(m) mensagem_anterior,to_jsonb(a) reserva_anterior
  from public.mensagens m join public.email_agenda a on a.mensagem_id=m.id
  where m.canal='email' and m.status='agendada'
+ and not public.email_janela_noturna(a.agendada_para)
  and coalesce(m.cobranca_flow_id,m.acordo_flow_id,m.pre_juridico_flow_id) is not null
  and not exists(select 1 from public.email_tentativas t where t.mensagem_id=m.id and t.estado in ('em_envio','enviado','incerto'));
 do $$begin
