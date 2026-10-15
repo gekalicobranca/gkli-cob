@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { separarSaneamento, unicoCondominio } from '../features/flows/cobranca/eligibilidade'
+import { separarSaneamento, motivoImpedimentoFlow, unicoCondominio } from '../features/flows/cobranca/eligibilidade'
 import { hasResponsavelVinculado } from '../features/flows/cobranca/eligibilidade'
 import { dividirCriacaoFlows, LIMITE_COBRANCAS_CHAMADA } from '../features/flows/cobranca/dividir-criacao'
 import { somenteCobrancasCanonicas } from '../lib/core/cobranca-arquivamento'
@@ -29,6 +29,50 @@ test('saneamento retira da seleção responsáveis ausentes e devolve após corr
   assert.deepEqual(before.saneamento.map(r => r.id), ['2', '3'])
   rows[1].unidade = { responsavel_nome: 'Ana' }
   assert.deepEqual(separarSaneamento(rows).aptas.map(r => r.id), ['1', '2', '4'])
+})
+
+test('geração exclui bloqueadas e judicializadas mesmo com status ativo e responsável', () => {
+  const base = { status: 'em_cobranca_ativa', status_operacional: 'em_cobranca_ativa', unidade: { responsavel_nome: 'Maria' } }
+  const rows = [
+    { ...base, id: 'apta' },
+    { ...base, id: 'bloqueada', automacao_bloqueada: true },
+    { ...base, id: 'judicializada', unidade: { ...base.unidade, acao_judicial: true } },
+    { ...base, id: 'judicializada-array', unidade: [{ ...base.unidade, acao_judicial: true }] },
+    { ...base, id: 'quitada', status_financeiro: 'quitado' },
+    { ...base, id: 'suspensa', status: 'suspenso' },
+  ]
+  assert.deepEqual(separarSaneamento(rows).aptas.map(row => row.id), ['apta'])
+  assert.deepEqual(separarSaneamento(rows).saneamento, [])
+})
+
+test('servidor recusa bloqueio e ação judicial antes de criar lote, inclusive seleção antiga', async () => {
+  const source = readFileSync(new URL('../features/flows/cobranca/actions.ts', import.meta.url), 'utf8')
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
+  for (const bloqueio of [{ automacao_bloqueada: true }, { unidade: { responsavel_nome: 'Maria', acao_judicial: true } }]) {
+    const row = { id: 'cobranca', carteira_id: 'genske', condominio_id: 'inspire', status_operacional: 'em_cobranca_ativa', unidade: { responsavel_nome: 'Maria' }, ...bloqueio }
+    const unexpected = () => { throw new Error('Não deve criar lote ou processar cobrança impedida') }
+    const deps: Record<string, any> = {
+      '../../../lib/core/cobranca-arquivamento': { somenteCobrancasCanonicas },
+      './dividir-criacao': { dividirCriacaoFlows, LIMITE_COBRANCAS_CHAMADA },
+      '@/utils/auth/require-role': { requireRole: async () => {} },
+      '@/utils/auth/require-user': { requireUser: async () => ({ id: 'user' }) },
+      '@/utils/auth/get-permitted-carteiras': { getPermittedCarteiras: async () => ({ carteiraIds: ['genske'] }) },
+      '@/utils/auth/apply-carteira-scope': { applyCarteiraScope: (query: any) => query },
+      '@/lib/constants/cobrancas': { COBRANCA_STATUS_OPERACIONAL: { EM_COBRANCA_ATIVA: 'em_cobranca_ativa' } },
+      './eligibilidade': { unicoCondominio, hasResponsavelVinculado, motivoImpedimentoFlow },
+      '@/utils/supabase/admin': { createAdminClient: () => ({ from: (table: string) => {
+        assert.equal(table, 'cobrancas')
+        const query = { is: () => query, in: async () => ({ data: [row], error: null }) }
+        return { select: (columns: string) => { assert.match(columns, /automacao_bloqueada/); assert.match(columns, /acao_judicial/); return query }, insert: unexpected }
+      } }) },
+    }
+    const exports: any = {}
+    vm.runInNewContext(output, { exports, require: (key: string) => deps[key] ?? new Proxy({}, { get: () => unexpected }) })
+    const form = new FormData()
+    form.append('cobranca_id', row.id)
+    const result = await exports.criarFlowsCobranca(null, form)
+    assert.match(result.error, /Automação bloqueada|ação judicial/)
+  }
 })
 
 test('ações do servidor rejeitam mistura de condomínios antes de gravar ou processar', async () => {

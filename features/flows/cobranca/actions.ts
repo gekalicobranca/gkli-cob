@@ -17,7 +17,7 @@ import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-perm
 import { requireRole } from '@/utils/auth/require-role'
 import { requireUser } from '@/utils/auth/require-user'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { hasResponsavelVinculado, unicoCondominio } from './eligibilidade'
+import { hasResponsavelVinculado, motivoImpedimentoFlow, unicoCondominio } from './eligibilidade'
 import { dividirCriacaoFlows, LIMITE_COBRANCAS_CHAMADA, LIMITE_EMAILS_FLOW } from './dividir-criacao'
 
 type SupabaseAdmin = ReturnType<typeof createAdminClient>
@@ -107,7 +107,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
 
   let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional),unidade:unidades(responsavel_nome)'))
+    .select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional),unidade:unidades(responsavel_nome,acao_judicial)'))
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
@@ -121,6 +121,8 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
   if (cobrancas.some((row) => !hasResponsavelVinculado(row))) {
     return { error: 'Uma ou mais cobranças não possuem responsável vinculado. Corrija o cadastro ou retire essas cobranças da seleção antes de criar o Flow.' }
   }
+  const impedimento = cobrancas.map(motivoImpedimentoFlow).find(Boolean)
+  if (impedimento) return { error: `${impedimento} Atualize a lista e revise a seleção antes de criar o Flow.` }
   const grupos = new Map<string, any[]>()
   for (const cobranca of cobrancas) {
     const carteiraId = String(cobranca.carteira_id ?? '')
@@ -222,7 +224,7 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
   for (let offset = 0; offset < cobrancaIds.length; offset += 200) {
     let query = somenteCobrancasCanonicas(supabase
       .from('cobrancas')
-      .select('id,carteira_id,condominio_id,status,status_operacional,unidade:unidades(responsavel_nome)'))
+      .select('id,carteira_id,condominio_id,status,status_operacional,status_financeiro,automacao_bloqueada,unidade:unidades(responsavel_nome,acao_judicial)'))
       .in('id', cobrancaIds.slice(offset, offset + 200))
     query = applyCarteiraScope(query, scope.carteiraIds)
     const { data, error } = await query
@@ -246,12 +248,13 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
   }
 
   const elegiveis = rows
+    .filter((row) => !motivoImpedimentoFlow(row))
     .filter((row) => !vinculadasIds.has(String(row.id)))
     .filter((row) => row.status_operacional === COBRANCA_STATUS_OPERACIONAL.NOVO || row.status === COBRANCA_STATUS_OPERACIONAL.NOVO)
     .filter(hasResponsavelVinculado)
     .map((row) => row.id)
 
-  if (!elegiveis.length) throw new Error('Nenhuma cobrança filtrada continua elegível para virar Cobrança ativa. Verifique se há responsável vinculado nas unidades selecionadas.')
+  if (!elegiveis.length) throw new Error('Nenhuma cobrança filtrada continua elegível para virar Cobrança ativa. Verifique bloqueios de automação, ações judiciais e responsáveis nas unidades selecionadas.')
 
   for (let offset = 0; offset < elegiveis.length; offset += 200) {
     const { error: updateError } = await supabase

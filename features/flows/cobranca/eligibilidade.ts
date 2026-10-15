@@ -1,4 +1,22 @@
-type UnidadeResponsavel = { responsavel_nome?: string | null }
+type UnidadeResponsavel = { responsavel_nome?: string | null; acao_judicial?: boolean | null }
+
+type CobrancaAutomacao = {
+  automacao_bloqueada?: boolean | null
+  status?: string | null
+  status_operacional?: string | null
+  status_financeiro?: string | null
+  unidade?: UnidadeResponsavel | UnidadeResponsavel[] | null
+}
+
+export function motivoImpedimentoFlow(cobranca: CobrancaAutomacao) {
+  const unidade = Array.isArray(cobranca.unidade) ? cobranca.unidade[0] : cobranca.unidade
+  if (cobranca.automacao_bloqueada) return 'Automação bloqueada na cobrança.'
+  if (unidade?.acao_judicial) return 'Unidade com ação judicial.'
+  const impedidos = ['possivel_acordo', 'acordo_firmado', 'acordo_efetivado', 'pre_distribuicao', 'pre_juridico', 'judicializado', 'suspenso']
+  if (impedidos.includes(cobranca.status ?? '') || impedidos.includes(cobranca.status_operacional ?? '')) return 'Status fora da cobrança automática.'
+  if (['quitado', 'renegociado'].includes(cobranca.status_financeiro ?? '')) return 'Débito quitado ou renegociado.'
+  return null
+}
 
 export function hasResponsavelVinculado(cobranca: {
   unidade?: UnidadeResponsavel | UnidadeResponsavel[] | null
@@ -13,9 +31,10 @@ export function unicoCondominio(rows: { condominio_id?: string | null; carteira_
     row.condominio_id === first.condominio_id && row.carteira_id === first.carteira_id))
 }
 
-export function separarSaneamento<T extends { id: string; unidade?: UnidadeResponsavel | UnidadeResponsavel[] | null }>(rows: T[]) {
+export function separarSaneamento<T extends CobrancaAutomacao & { id: string }>(rows: T[]) {
+  const permitidas = rows.filter(row => !motivoImpedimentoFlow(row))
   return {
-    aptas: rows.filter(hasResponsavelVinculado),
-    saneamento: rows.filter(row => !hasResponsavelVinculado(row)),
+    aptas: permitidas.filter(hasResponsavelVinculado),
+    saneamento: permitidas.filter(row => !hasResponsavelVinculado(row)),
   }
 }

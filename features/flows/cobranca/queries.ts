@@ -26,10 +26,11 @@ const COBRANCA_SELECT = `
   status,
   status_operacional,
   status_financeiro,
+  automacao_bloqueada,
   updated_at,
   carteira:carteiras(nome),
   condominio:condominios(id,nome,nome_operacional,regua_cobranca_id),
-  unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone)
+  unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone,acao_judicial)
 `
 
 export type FlowCobrancaFilters = {
