@@ -216,6 +216,9 @@ export async function createCondominio(formData: FormData) {
 
   const { data, error } = await supabase.from('condominios').insert(payload).select('id, carteira_id, nome').single()
 
+  if (error?.code === '23505' && error.message.includes('condominios_cnpj_key')) {
+    return { error: 'Este CNPJ já está cadastrado em outro condomínio. Confira o número informado ou localize o cadastro existente na lista de condomínios.' }
+  }
   if (error) throw new Error(`Erro ao criar condomínio: ${error.message}`)
 
   await registrarAuditoria(supabase, {
@@ -376,4 +379,8 @@ export async function salvarCondominioFormulario(_state: { error: string } | nul
     unstable_rethrow(error)
     return { error: error instanceof Error ? error.message : 'Não foi possível salvar o condomínio. Tente novamente.' }
   }
+}
+
+export async function criarCondominioFormulario(_state: { error: string } | null, formData: FormData) {
+  return await createCondominio(formData)
 }

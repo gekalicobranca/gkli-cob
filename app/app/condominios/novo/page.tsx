@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCarteirasForSelect } from '@/features/cadastros/queries'
-import { createCondominio } from '@/features/condominios/actions'
+import { CondominioCadastroForm } from '@/features/condominios/components/cadastro-form'
 import { ClassificacaoOperacionalField } from '@/features/condominios/components/classificacao-operacional'
 
 export default async function NovoCondominioPage() {
@@ -26,7 +26,7 @@ export default async function NovoCondominioPage() {
       />
 
       <Card>
-        <form action={createCondominio} className="space-y-5">
+        <CondominioCadastroForm novo>
           <div className="grid gap-5 md:grid-cols-2">
             <FormField label="Carteira">
               <SearchableSelect
@@ -172,7 +172,7 @@ export default async function NovoCondominioPage() {
             <ButtonLink href="/app/condominios" variant="secondary">Cancelar</ButtonLink>
             <Button type="submit">Salvar condomínio</Button>
           </div>
-        </form>
+        </CondominioCadastroForm>
       </Card>
     </div>
   )
