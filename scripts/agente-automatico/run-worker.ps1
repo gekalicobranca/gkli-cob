@@ -7,6 +7,10 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+if ($NpmScript -ne 'captacao:worker') {
+  & (Join-Path $PSScriptRoot 'install-supervisor.ps1')
+  exit 0
+}
 $projectDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $logDir = Join-Path $projectDir '.codex-tmp\worker-logs'
 $outputLog = Join-Path $logDir "$LogName.log"

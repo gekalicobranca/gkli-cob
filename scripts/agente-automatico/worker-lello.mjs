@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
+import { execucaoReivindicada } from './reivindicacao.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 import { captacaoGlobalAtiva } from './controle-global.mjs'
 
@@ -252,15 +253,7 @@ async function reivindicarExecucao(captacaoAtiva) {
     .maybeSingle()
 
   if (claimError) throw claimError
-  if (claimed) return execucao
-
-  const { data: atual, error: atualError } = await supabase
-    .from('agente_execucoes')
-    .select('status')
-    .eq('id', execucao.id)
-    .maybeSingle()
-  if (atualError) throw atualError
-  return atual?.status === 'em_execucao' ? execucao : null
+  return execucaoReivindicada(claimed, execucao)
 }
 
 async function loginLello(page, execucao, config) {

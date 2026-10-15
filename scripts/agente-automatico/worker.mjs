@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
+import { execucaoReivindicada } from './reivindicacao.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 import { captacaoGlobalAtiva } from './controle-global.mjs'
 
@@ -114,15 +115,7 @@ async function claimNextExecution(captacaoAtiva) {
     .maybeSingle()
 
   if (claimError) throw claimError
-  if (claimed) return execution
-
-  const { data: current, error: currentError } = await supabase
-    .from('agente_execucoes')
-    .select('status')
-    .eq('id', execution.id)
-    .maybeSingle()
-  if (currentError) throw currentError
-  return current?.status === 'em_execucao' ? execution : null
+  return execucaoReivindicada(claimed, execution)
 }
 
 function saoPauloAgora() {

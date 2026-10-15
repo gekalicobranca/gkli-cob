@@ -16,7 +16,7 @@ export async function caminhoDownloadMaestro(supabase, execucaoId, pasta, nome) 
   return path.join(destino, nome)
 }
 
-export async function concluirExecucaoMaestro(supabase, execucaoId, fetcher = fetch, sobDemanda = process.env.AGENTE_EXECUCAO_ID === execucaoId) {
+export async function concluirExecucaoMaestro(supabase, execucaoId, fetcher = fetch, sobDemanda = process.env.AGENTE_EXECUCAO_ID === execucaoId && process.env.AGENTE_SUPERVISIONADO !== 'true') {
   if (!await veioDoMaestro(supabase, execucaoId)) return false
   const base = String(process.env.CAPTACAO_MAESTRO_URL || process.env.CAPTACAO_ORQUESTRADOR_URL || process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
   const secret = process.env.CAPTACAO_ORQUESTRADOR_SECRET || process.env.CRON_SECRET || process.env.REGUA_CRON_SECRET

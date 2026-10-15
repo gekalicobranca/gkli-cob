@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
+import { execucaoReivindicada } from './reivindicacao.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 import { captacaoGlobalAtiva } from './controle-global.mjs'
 import { aguardarSaidaRelatorioHflex } from './hflex-saida-relatorio.mjs'
@@ -86,7 +87,7 @@ async function reivindicarExecucao(captacaoAtiva) {
     erro_mensagem: null, tentativas: Number(execucao.tentativas || 0) + 1,
   }).eq('id', execucao.id).eq('status', 'pendente').select('id').maybeSingle()
   if (claimError) throw claimError
-  return claimed ? execucao : null
+  return execucaoReivindicada(claimed, execucao)
 }
 
 async function login(page, execucao, config) {
