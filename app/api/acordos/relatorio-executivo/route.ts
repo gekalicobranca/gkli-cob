@@ -1,3 +1,4 @@
+import { valorAcordadoRelatorio, excluidoDaSomaDivida } from "@/features/acordos/valor-relatorio";
 import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { applyCarteiraScope } from "@/utils/auth/carteira-scope";
@@ -319,7 +320,7 @@ function resumir(rows: any[], keyFor: (row: any) => string): AcordoResumo[] {
     current.criticos += resumo.saude === "critico" ? 1 : 0;
     current.parcelasAbertas += resumo.abertas;
     current.parcelasVencidas += resumo.vencidas;
-    current.valorAcordado += Number(row.valor_acordado ?? 0);
+    current.valorAcordado += valorAcordadoRelatorio(row);
     current.valorPago += resumo.valorPago;
     current.saldoAberto += resumo.saldoAberto;
     map.set(key, current);
@@ -387,7 +388,7 @@ function drawCover(pages: PdfPage[], totals: { carteiras: number; condominios: n
   const taxaRecuperacao = totals.valorAcordado > 0 ? (totals.valorPago / totals.valorAcordado) * 100 : 0;
   const yTop = 400;
   card(ops, MARGIN_X, yTop, 220, 78, "Acordos", numberText(totals.acordos), `${numberText(totals.ativos)} ativos - ${numberText(totals.atraso)} em atraso`, TEAL);
-  card(ops, MARGIN_X + 250, yTop, 220, 78, "Valor acordado", formatCurrency(totals.valorAcordado), `${percentText(taxaRecuperacao)} recuperado`, GREEN);
+  card(ops, MARGIN_X + 250, yTop, 220, 78, "Valor acordado", formatCurrency(totals.valorAcordado), `${percentText(taxaRecuperacao)} recebido / base ajustada`, GREEN);
   card(ops, MARGIN_X, yTop - 100, 220, 78, "Saldo aberto", formatCurrency(totals.saldoAberto), "parcelas ainda em aberto", AMBER);
   card(ops, MARGIN_X + 250, yTop - 100, 220, 78, "Risco", numberText(totals.rompidos), "acordos rompidos/cancelados", ROSE);
   card(ops, MARGIN_X, yTop - 200, 220, 78, "Carteiras", numberText(totals.carteiras), "visão consolidada", NAVY);
@@ -507,7 +508,7 @@ function drawDetailRow(ops: string[], y: number, row: any) {
   rect(ops, MARGIN_X, y - 32, CONTENT_WIDTH, 32, WHITE, LINE);
   drawText(ops, short(unidadeDisplay(row), 12), MARGIN_X + 4, y - 12, { size: 7.3, bold: true });
   drawText(ops, short(unidade?.responsavel_nome ?? "Responsável não informado", 29), MARGIN_X + 56, y - 12, { size: 7.1 });
-  const contato = unidade?.telefone || unidade?.email || "";
+  const contato = excluidoDaSomaDivida(row) ? "Histórico excluído da soma da dívida" : unidade?.telefone || unidade?.email || "";
   if (contato) drawText(ops, short(contato, 30), MARGIN_X + 56, y - 24, { size: 6.5, color: MUTED });
   drawText(ops, short(statusLabel(row.status), 15), MARGIN_X + 186, y - 12, { size: 7.1 });
   drawText(ops, healthLabel(resumo.saude), MARGIN_X + 256, y - 12, { size: 7.1, color: resumo.saude === "critico" ? ROSE : resumo.saude === "atencao" ? AMBER : GREEN });
@@ -634,7 +635,7 @@ function montarPdf(rows: any[]) {
     ativos: rows.filter((row) => !isAcordoRompido(row) && !isAcordoQuitado(row)).length,
     atraso: rows.filter(isAcordoEmAtraso).length,
     rompidos: rows.filter(isAcordoRompido).length,
-    valorAcordado: rows.reduce((sum, row) => sum + Number(row.valor_acordado ?? 0), 0),
+    valorAcordado: rows.reduce((sum, row) => sum + valorAcordadoRelatorio(row), 0),
     valorPago: rows.reduce((sum, row) => sum + Number(row.parcelas_resumo?.valorPago ?? 0), 0),
     saldoAberto: rows.reduce((sum, row) => sum + Number(row.parcelas_resumo?.saldoAberto ?? 0), 0),
   };
@@ -660,6 +661,7 @@ async function carregarAcordos(searchParams: URLSearchParams) {
       cobranca_id,
       data_acordo,
       valor_acordado,
+      observacoes,
       entrada,
       quantidade_parcelas,
       status,

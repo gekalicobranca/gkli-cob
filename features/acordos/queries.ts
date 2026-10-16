@@ -1,3 +1,4 @@
+import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { carregarParcelasRelatorio } from "./parcelas-relatorio";
@@ -757,6 +758,7 @@ const ACORDOS_PAGE_SELECT = `
   cobranca_id,
   data_acordo,
   valor_acordado,
+  observacoes,
   entrada,
   status,
   status_financeiro,
@@ -874,7 +876,7 @@ function resumoAcordosPage(rows: any[]) {
   const rompidos = normalizados.filter((row) => [ACORDO_STATUS.QUEBRADO, "rompido"].includes(row.status)).length;
   const valorAtivo = normalizados
     .filter((row) => ACORDO_STATUS_VIGENTES.includes(row.status))
-    .reduce((sum, row) => sum + Number(row.valor_acordado ?? 0), 0);
+    .reduce((sum, row) => sum + valorAcordadoRelatorio(row), 0);
 
   return { ativos, atraso, rompidos, valorAtivo };
 }
@@ -944,7 +946,7 @@ export async function listAcordosComSaudePage(
 
   let resumoQuery = supabase
     .from("acordos")
-    .select("status, valor_acordado");
+    .select("id, status, valor_acordado, observacoes");
   resumoQuery = applyAcordosDirectFilters(resumoQuery, filters, scope);
 
   const [{ data: rowsData, error: rowsError, count }, { data: resumoRows, error: resumoError }] = await Promise.all([
@@ -1324,7 +1326,7 @@ async function getParcelasDosAcordos(acordoIds: string[]) {
 
 function calculateAgreementSummary(acordos: any[], parcelas: any[]): AgreementPerformanceSummary {
   const valorAcordado = acordos.reduce(
-    (sum, acordo) => sum + Number(acordo.valor_acordado ?? 0),
+    (sum, acordo) => sum + valorAcordadoRelatorio(acordo),
     0,
   );
   const valorRecuperado = parcelas
@@ -1430,7 +1432,7 @@ export async function listAgreementBreakReport(scope?: CarteiraScope) {
       acordos: [],
     };
     current.qtdRompimentos += 1;
-    current.valorRompido += Number(acordo.valor_acordado ?? 0);
+    current.valorRompido += valorAcordadoRelatorio(acordo);
     current.acordos.push(acordo);
     byCondominio.set(condominioId, current);
   }
