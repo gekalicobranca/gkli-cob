@@ -35,8 +35,10 @@ function mockDb(tables: Record<string, any[]>) {
     let single = false
     const q: any = {
       select: () => q, order: () => q,
-      eq: (key: string, val: any) => { filters.push(row => row[key] === val); return q },
-      in: (key: string, vals: any[]) => { filters.push(row => vals.includes(row[key])); return q },
+      eq: (key: string, val: any) => { filters.push(row => key.split('.').reduce((value, part) => value?.[part], row) === val); return q },
+      neq: (key: string, val: any) => { filters.push(row => key.split('.').reduce((value, part) => value?.[part], row) !== val); return q },
+      in: (key: string, vals: any[]) => { filters.push(row => vals.includes(key.split('.').reduce((value, part) => value?.[part], row))); return q },
+      limit: () => q,
       is: (key: string, val: any) => { filters.push(row => (row[key] ?? null) === val); return q },
       not: (key: string) => { filters.push(row => row[key] != null); return q },
       range: () => q, single: () => { single = true; return q },
@@ -45,6 +47,11 @@ function mockDb(tables: Record<string, any[]>) {
     return q
   } } as any
 }
+
+test('não cria outro Flow de e-mail para novas parcelas de unidade com e-mail pendente', async () => {
+  const tables = { reguas: [{ ...email, tipo:'cobranca', ativo:true }], mensagens: [{ id:'mensagem', carteira_id:'a', canal:'email', status:'agendada', cobranca:{unidade_id:'unidade'}, flow:{regua_id:'email',status:'em_execucao'} }] }
+  await assert.rejects(validarCriacaoPorCanal(mockDb(tables), [{id:'nova-parcela',carteira_id:'a',condominio_id:'c',unidade_id:'unidade'}], 'email'), /Consolide as parcelas/)
+})
 
 test('vínculos consolidados, tentativas vazias e mensagens órfãs mantêm o canal ocupado', async () => {
   const db = mockDb({ lote_itens: [

@@ -240,10 +240,14 @@ async function getConfig(options?: SmtpConfig | SmtpSendOptions): Promise<SmtpCo
 function readResponse(socket: net.Socket | tls.TLSSocket): Promise<string> {
   return new Promise((resolve, reject) => {
     let buffer = ''
+    const timeout = setTimeout(() => onError(new Error('Tempo excedido aguardando confirmação SMTP.')), 20_000)
+    const onClose = () => onError(new Error('Conexão SMTP encerrada sem confirmação.'))
 
     const cleanup = () => {
+      clearTimeout(timeout)
       socket.off('data', onData)
       socket.off('error', onError)
+      socket.off('close', onClose)
     }
 
     const onError = (error: Error) => {
@@ -264,25 +268,28 @@ function readResponse(socket: net.Socket | tls.TLSSocket): Promise<string> {
 
     socket.on('data', onData)
     socket.on('error', onError)
+    socket.on('close', onClose)
   })
 }
+
+class SmtpRespostaRecusadaError extends Error {}
 
 function smtpCommandError(commandLabel: string, response: string) {
   const cleanResponse = response.trim()
   const lower = cleanResponse.toLowerCase()
 
   if (cleanResponse.includes('5.7.139') || lower.includes('smtpclientauthentication is disabled')) {
-    return new Error(
+    return new SmtpRespostaRecusadaError(
       'Autenticação SMTP recusada pelo Microsoft 365: o SMTP AUTH está desativado no tenant ou nesta caixa postal. ' +
       'Ative "Authenticated SMTP" no Microsoft 365 para o tenant e para o usuário/remetente, ou use outro método de envio compatível, como Graph/OAuth.',
     )
   }
 
   if (commandLabel === 'AUTH LOGIN') {
-    return new Error(`SMTP recusou a autenticação: ${cleanResponse}`)
+    return new SmtpRespostaRecusadaError(`SMTP recusou a autenticação: ${cleanResponse}`)
   }
 
-  return new Error(`SMTP rejeitou comando "${commandLabel}": ${cleanResponse}`)
+  return new SmtpRespostaRecusadaError(`SMTP rejeitou comando "${commandLabel}": ${cleanResponse}`)
 }
 
 async function command(
@@ -415,6 +422,7 @@ function createSocket(config: SmtpConfig): Promise<net.Socket | tls.TLSSocket> {
       : net.connect(config.port, config.host, () => resolve(socket))
 
     socket.once('error', (error) => reject(smtpConnectionError(error, config)))
+    socket.setTimeout(20_000, () => socket.destroy(new Error('Tempo excedido na conexão SMTP.')))
   })
 }
 
@@ -514,7 +522,8 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
     // O aceite de DATA confirma o envio; falha ao encerrar a conexão não autoriza reenvio.
     await command(socket, 'QUIT', [221]).catch(() => undefined)
   } catch (error) {
-    if (tentativaId && !aceito) await finalizarDisparoEmail(tentativaId, dadosTransmitidos ? 'incerto' : 'falha')
+    if (tentativaId && !aceito) await finalizarDisparoEmail(tentativaId,
+      dadosTransmitidos && !(error instanceof SmtpRespostaRecusadaError) ? 'incerto' : 'falha')
     throw error
   } finally {
     socket?.destroy()

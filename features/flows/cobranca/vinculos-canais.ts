@@ -83,13 +83,23 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
   return map
 }
 
-export async function validarCriacaoPorCanal(db: ReturnType<typeof createAdminClient>, rows: { id: string; carteira_id: string; condominio_id: string }[], reguaId: string) {
+export async function validarCriacaoPorCanal(db: ReturnType<typeof createAdminClient>, rows: { id: string; carteira_id: string; condominio_id: string; unidade_id?: string }[], reguaId: string) {
   if (!rows.length || rows.some(row => row.carteira_id !== rows[0].carteira_id || row.condominio_id !== rows[0].condominio_id)) throw new Error('Selecione um condomínio e uma carteira por Flow.')
   const { data: regua, error } = await db.from('reguas').select('id,carteira_id,tipo,ativo,status,etapas:regua_etapas(canal,ativo)').eq('id', reguaId).single()
   if (error || !regua || regua.tipo !== 'cobranca' || regua.ativo === false || regua.status === 'inativa'
     || (regua.carteira_id && regua.carteira_id !== rows[0].carteira_id)) throw new Error('Selecione uma régua de cobrança ativa desta carteira.')
   const canais = canaisDaRegua(regua)
   if (!canais.length) throw new Error('A régua não tem etapas ativas.')
+  const unidades = [...new Set(rows.map(row => row.unidade_id).filter(Boolean))]
+  if (canais.includes('email') && unidades.length) {
+    const { data: pendentes, error: pendentesError } = await db.from('mensagens')
+      .select('id,cobranca:cobrancas!inner(unidade_id),flow:cobranca_flows!inner(regua_id,status)')
+      .eq('carteira_id', rows[0].carteira_id).eq('canal', 'email')
+      .in('cobranca.unidade_id', unidades).in('status', ['pendente_aprovacao','aprovada','agendada'])
+      .eq('flow.regua_id', reguaId).neq('flow.status', 'cancelado').limit(1)
+    if (pendentesError) throw new Error('Não foi possível conferir os e-mails pendentes da unidade.')
+    if (pendentes?.length) throw new Error('Uma unidade já tem e-mail pendente nesta régua. Consolide as parcelas antes de criar outro Flow para a mesma unidade.')
+  }
   const { data: jobs, error: jobError } = await db.from('maestro_flow_montagens')
     .select('id,regua:reguas(etapas:regua_etapas(canal,ativo))').eq('condominio_id', rows[0].condominio_id)
     .in('status', ['pendente', 'processando', 'atencao'])

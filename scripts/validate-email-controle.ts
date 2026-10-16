@@ -20,6 +20,7 @@ test('e-mail de controle é opcional e aceita somente um endereço válido', () 
 test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', async () => {
   const deliveries: Array<{ recipients: string[]; message: string }> = []
   let rejectControl = false
+  let dataMode: 'accept' | 'reject' | 'disconnect' = 'accept'
   const server = net.createServer((socket) => {
     let buffer = ''
     let readingData = false
@@ -34,6 +35,8 @@ test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', a
         buffer = buffer.slice(end + 2)
         if (readingData) {
           if (line === '.') {
+            if (dataMode === 'reject') { socket.write('554 5.2.252 SendAsDenied\r\n'); readingData = false; continue }
+            if (dataMode === 'disconnect') { socket.destroy(); continue }
             deliveries.push({ recipients, message: message.join('\r\n') })
             readingData = false
             socket.write('250 accepted\r\n')
@@ -57,10 +60,11 @@ test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', a
   const lookups: string[] = []
   const db = { from(table: string) {
     assert.equal(table, 'carteiras')
+    let columns = ''
     const query = {
-      select: () => query,
-      eq: (_column: string, id: string) => { lookups.push(id); return query },
-      single: async () => ({ data: { email_controle: email }, error: lookupError ? { message: 'indisponível' } : null }),
+      select: (value: string) => { columns = value; return query },
+      eq: (_column: string, id: string) => { if (columns === 'email_controle') lookups.push(id); return query },
+      single: async () => ({ data: { email_controle: email, email_transporte: 'smtp' }, error: lookupError && columns === 'email_controle' ? { message: 'indisponível' } : null }),
     }
     return query
   } }
@@ -72,6 +76,9 @@ test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', a
     if (id === './email-agenda') return { reservarDisparoEmail: async () => { if (!permitir) throw new Error('Cota indisponível'); return 'tentativa' }, finalizarDisparoEmail: async (_id: string, estado: string) => finais.push(estado) }
     if (id === '@/utils/supabase/admin') return { createAdminClient: () => db }
     if (id === '@/features/carteiras/email-controle') return { normalizarEmailControle }
+    if (id === './validar-destino-email') return { validarDestinoEmail: async () => {} }
+    if (id === './validar-arquivamento') return { validarMensagemSemCobrancaArquivada: async () => {} }
+    if (id === './google-oauth') return {}
     return require(id)
   }, exports)
   const options = {
@@ -123,6 +130,13 @@ test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', a
     rejectControl = true
     await assert.rejects(exports.sendSmtpEmail(payload, { ...options, mensagemId: 'outra' }), /SMTP rejeitou/)
     assert.deepEqual(finais, ['enviado', 'falha'])
+    rejectControl = false
+    dataMode = 'reject'
+    await assert.rejects(exports.sendSmtpEmail(payload, { ...options, mensagemId: 'rejeitada' }), /SendAsDenied/)
+    assert.equal(finais.at(-1), 'falha')
+    dataMode = 'disconnect'
+    await assert.rejects(exports.sendSmtpEmail(payload, { ...options, mensagemId: 'incerta' }), /sem confirmação/)
+    assert.equal(finais.at(-1), 'incerto')
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
   }

@@ -491,11 +491,21 @@ export async function reenviarItemFlowCobranca(itemId: string) {
 
   const { data: mensagem, error: mensagemError } = await supabase
     .from('mensagens')
-    .select('id,canal,status,status_operacional,payload')
+    .select('id,canal,status,status_operacional,payload,sent_at,enviada_em,enviado_em,provider_message_id,provider_status')
     .eq('id', mensagemId)
     .maybeSingle()
   if (mensagemError) throw new Error(`Erro ao carregar mensagem do Flow: ${mensagemError.message}`)
   if (!mensagem) throw new Error('Mensagem do item não encontrada.')
+  if (mensagem.sent_at || mensagem.enviada_em || mensagem.enviado_em || mensagem.provider_message_id
+    || ['sent','delivered','read'].includes(mensagem.provider_status ?? '') || mensagem.payload?.conferencia_envio || mensagem.payload?.consolidada_em) {
+    throw new Error('Mensagem enviada ou sem confirmação de entrega. Confira o resultado antes de autorizar qualquer reenvio.')
+  }
+  if (mensagem.payload?.pendencia_cadastro) throw new Error('O contato precisa ser corrigido antes de reenviar esta mensagem.')
+  const tabelaTentativas = mensagem.canal === 'email' ? 'email_tentativas' : 'whatsapp_web_envios'
+  const { data: tentativas, error: tentativasError } = await supabase.from(tabelaTentativas)
+    .select('estado').eq('mensagem_id', mensagemId).in('estado', ['em_envio','incerto','enviado']).limit(1)
+  if (tentativasError) throw new Error('Não foi possível conferir as tentativas anteriores; reenvio bloqueado.')
+  if (tentativas?.length) throw new Error('Tentativa anterior enviada ou sem confirmação; confira o resultado antes de reenviar.')
   const statusMensagem = String((mensagem as any).status_operacional ?? (mensagem as any).status ?? '')
   if (statusMensagem !== MENSAGEM_STATUS.FALHA) throw new Error('Somente mensagens com falha podem ser reenviadas.')
 
