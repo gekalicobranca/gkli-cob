@@ -285,9 +285,10 @@ async function abrirAreaDoCliente(context, page, execucaoId) {
     .getByRole('link', { name: /[ÁA]rea\s+do\s+Cliente/i })
     .or(page.getByRole('button', { name: /[ÁA]rea\s+do\s+Cliente/i }))
     .or(page.getByText(/^[ÁA]rea\s+do\s+Cliente$/i))
+    .filter({ visible: true })
     .first()
 
-  if (await areaDoCliente.isVisible().catch(() => false)) {
+  if (await areaDoCliente.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false)) {
     await registrarLog(execucaoId, 'area_cliente', 'Abrindo menu superior Área do Cliente.')
     page = await clicarPossivelNovaAba(context, page, areaDoCliente)
     return await aguardarLoginOuPortalAtipass(context, 60_000)
@@ -363,7 +364,7 @@ async function coletarAtipass(execucao) {
 
   try {
     browserSession = await criarContextoChromeIsolado(chromium, rootDir, 'atipass', {
-      channel, headless, chromiumSandbox: true, acceptDownloads: true, viewport: null,
+      channel, headless, chromiumSandbox: true, acceptDownloads: true, viewport: { width: 1366, height: 900 },
     })
     const context = browserSession.context
     let page = context.pages()[0] || (await context.newPage())
