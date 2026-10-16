@@ -1,6 +1,7 @@
+import { coletarLiving } from './living-segmentos.mjs'
 import { concluirExecucaoMaestro, caminhoDownloadMaestro } from './concluir-maestro.mjs'
 import { createHash } from 'node:crypto'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -244,6 +245,13 @@ async function collectBbzCondominio(execution) {
     const nomePortalConfigurado = config.condominio_portal || config.condominio || condominioNome
     const nomePortal = nomePortalConfigurado.replace(/^(?:CONDOM[IÍ]NIO|COND\.)\s+/i, '').trim()
 
+    let bytes, filename, localPath
+    if (config.condominio_id === 'cb988811-e0ea-45d6-990b-6476271eb109') {
+      bytes = await coletarLiving(page, context, page.url())
+      filename = `LIVING_WELLNESS_ACLIMACAO_CONSOLIDADO_${downloadDate()}.xls`
+      localPath = await caminhoDownloadMaestro(supabase, execution.id, localDownloadDir, filename)
+      await writeFile(localPath, bytes)
+    } else {
     // O acesso do In Jardim Sul só é inicializado corretamente pelo CondoPro
     // depois que a sessão entra em outro condomínio e retorna à relação.
     if (/\bIN JARDIM SUL\b/i.test(nomePortal)) {
@@ -358,11 +366,12 @@ async function collectBbzCondominio(execution) {
       .filter(Boolean)
       .join(' ')
     const prefixo = nomeArquivoBase.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase()
-    const filename = `${prefixo}_${downloadDate()}.xls`
-    const localPath = await caminhoDownloadMaestro(supabase, execution.id, localDownloadDir, filename)
+    filename = `${prefixo}_${downloadDate()}.xls`
+    localPath = await caminhoDownloadMaestro(supabase, execution.id, localDownloadDir, filename)
     await download.saveAs(localPath)
 
-    const bytes = await readFile(localPath)
+    bytes = await readFile(localPath)
+    }
     if (bytes.length === 0) throw new Error('O portal gerou um arquivo vazio.')
     const conteudoNormalizado = bytes.toString('latin1').normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]+/gi, ' ').toUpperCase()

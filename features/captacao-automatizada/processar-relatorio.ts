@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises"
+import { escopoLiving } from '@/features/importacoes/living-escopo'
 import path from "node:path"
 import * as XLSX from "xlsx"
 import { createAdminClient } from "@/utils/supabase/admin"
@@ -304,6 +305,7 @@ export async function processarRelatorioCaptado(
 
   const previewComContexto = {
     ...preview,
+    ...escopoLiving(buffer, condominio.id),
     captacaoAutomatizada: true,
     condominioId: condominio.id,
     carteiraId: condominio.carteira_id,
