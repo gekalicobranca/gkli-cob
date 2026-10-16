@@ -3,6 +3,7 @@ import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamen
 import { registrarPerformanceFlow } from '../performance'
 import { flowCobrancaOrdem, type OrdemFlowCobranca } from './rotas'
 import { carregarCanaisOcupados } from './vinculos-canais'
+import { carregarContatosFlow } from './contatos-flow'
 import { reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from './canais'
 import { listReguasForSelect } from '@/features/reguas/queries'
 import { COBRANCA_STATUS_OPERACIONAL } from '@/lib/constants/cobrancas'
@@ -248,9 +249,15 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
 
   const novas = separarSaneamento(painel ?? [])
   const ativas = separarSaneamento(disponibilidade ?? [])
+  const comContatos = await carregarContatosFlow(supabase, [...novas.aptas, ...ativas.aptas])
+  const contatosPorId = new Map(comContatos.map(row => [row.id, row]))
+  const semContato = comContatos.filter(row => reguasDisponiveis({ ...row, canais_sem_destinatario: [] }, reguasDoCanal).length > 0
+    && reguasDisponiveis(row, reguasDoCanal).length === 0)
+    .map(row => ({ ...row, motivo_saneamento: `Responsável sem destinatário para ${row.canais_sem_destinatario.map((canal: string) => canal === 'email' ? 'e-mail' : 'WhatsApp').join(' e ')}.` }))
+  const idsSemContato = new Set(semContato.map(row => row.id))
   // Só cobranças aptas com uma régua neste canal podem gerar Flow.
   // As demais permanecem no saneamento sem consultar seus vínculos.
-  const candidatas = ativas.aptas.filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
+  const candidatas = ativas.aptas.map(row => contatosPorId.get(row.id)!).filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
   const canaisPromise = options.somenteSaneamento ? Promise.resolve(new Map<string, Set<string>>()) : carregarCanaisOcupados(supabase, candidatas.map((row: any) => row.id), {
     carteiraIds: candidatas.every((row: any) => row.carteira_id) ? candidatas.map((row: any) => row.carteira_id) : undefined,
   })
@@ -286,7 +293,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const saneamentoMaestro = [...(painel ?? []), ...(disponibilidade ?? [])].filter((row: any) => motivos.has(row.id))
     .map((row: any) => ({ ...row, motivo_saneamento: motivos.get(row.id) }))
   const normalize = (row: any) => ({ ...row, carteira: relation(row.carteira), condominio: relation(row.condominio), unidade: relation(row.unidade) })
-  const painelElegivel = options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id)).map(normalize)
+  const painelElegivel = options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id) && !idsSemContato.has(row.id)).map(normalize)
   const disponibilidadeElegivel = options.somenteSaneamento ? [] : candidatas
     .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
     .filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
@@ -294,7 +301,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const offset = (Math.max(1, options.page ?? 1) - 1) * COBRANCAS_FLOW_PAGE_SIZE
   const paginar = (rows: any[]) => options.page === undefined ? rows : rows.slice(offset, offset + COBRANCAS_FLOW_PAGE_SIZE)
 
-  const saneamentoAtual = [...new Map([...novas.saneamento, ...ativas.saneamento, ...saneamentoMaestro].map(row => [row.id, row])).values()]
+  const saneamentoAtual = [...new Map([...novas.saneamento, ...ativas.saneamento, ...saneamentoMaestro, ...semContato].map(row => [row.id, row])).values()]
   const dispensadas = new Set<string>()
   for (let inicio = 0; inicio < saneamentoAtual.length; inicio += 100) {
     let query = supabase.from('flow_saneamento_dispensas').select('cobranca_id')

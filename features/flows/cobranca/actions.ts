@@ -4,6 +4,7 @@ import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamen
 import { temFlowEmAndamento, validarCriacaoPorCanal } from './vinculos-canais'
 import { canalFlowCobranca, flowCobrancaPath } from './rotas'
 import { consolidarEmailsLote } from './consolidar-emails'
+import { carregarContatosFlow } from './contatos-flow'
 import { consolidarWhatsAppLote } from './consolidar-whatsapp'
 import { getEmailRemetenteKey } from '@/features/mensageria/email-provider'
 import { revalidatePath } from 'next/cache'
@@ -107,7 +108,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
 
   let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional),unidade:unidades(responsavel_nome,acao_judicial)'))
+    .select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional),unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone,acao_judicial)'))
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
@@ -141,6 +142,10 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
     let canais: string[]
     try { canais = await validarCriacaoPorCanal(supabase, rows, reguaId) }
     catch (error) { return { error: error instanceof Error ? error.message : 'Não foi possível conferir os canais.' } }
+    const comContatos = await carregarContatosFlow(supabase, rows)
+    if (comContatos.some(row => canais.some(canal => row.canais_sem_destinatario.includes(canal)))) {
+      return { error: 'Uma ou mais cobranças não possuem destinatário para os canais da régua. Corrija os contatos no saneamento antes de criar o Flow.' }
+    }
     const resultado = await processarReguaCobranca({
       scope,
       origem: 'manual',
