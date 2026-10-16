@@ -660,8 +660,9 @@ function decodeHtmlSpreadsheet(buffer: Buffer) {
   const looksUtf16Le =
     hasUtf16LeBom || oddNulls >= Math.max(8, sample.length / 6);
 
+  const declaresUtf8 = /charset\s*=\s*["']?utf-?8/i.test(sample.toString("ascii"));
   return buffer
-    .toString(looksUtf16Le ? "utf16le" : "latin1")
+    .toString(looksUtf16Le ? "utf16le" : declaresUtf8 ? "utf8" : "latin1")
     .replace(/^\uFEFF/, "");
 }
 
@@ -816,6 +817,7 @@ function parseHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
   const recibos: ReciboCondopro[] = [];
   let unidadeAtual = "";
   let responsavelAtual = "Responsável não identificado";
+  let contatosAtuais = extractContactSummary("");
   let header: ReturnType<typeof hflexRowsHeader> | null = null;
 
   for (const row of rows) {
@@ -836,6 +838,12 @@ function parseHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
     if (unitRow) {
       unidadeAtual = unitRow.unidade;
       responsavelAtual = unitRow.responsavel || "Responsável não identificado";
+      contatosAtuais = extractContactSummary(normalized.join(" "));
+      continue;
+    }
+
+    if (normalized.some((cell) => /^CONTATOS\s*:/i.test(cell))) {
+      contatosAtuais = extractContactSummary(normalized.join(" "));
       continue;
     }
 
@@ -861,6 +869,8 @@ function parseHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
       bloco: "0",
       unidade: unidadeAtual,
       responsavel: responsavelAtual,
+      email: contatosAtuais.email || undefined,
+      telefone: contatosAtuais.telefone || undefined,
       recibo,
       vencimento,
       valorPrincipal: parseMoney(
@@ -875,7 +885,7 @@ function parseHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
       valorTotal,
       marcadorOrigem: acordo ? "A" : advogado ? "J" : undefined,
       situacaoOrigem,
-      detalhesOrigem: cobranca ? `Cobrança ${cobranca}` : undefined,
+      detalhesOrigem: [cobranca ? `Cobrança ${cobranca}` : "", formatAdditionalContactsObservacao(contatosAtuais)].filter(Boolean).join(" | ") || undefined,
     });
   }
 

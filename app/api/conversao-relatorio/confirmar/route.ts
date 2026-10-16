@@ -314,6 +314,8 @@ export async function POST(request: NextRequest) {
             identificacao: unidadeLabel,
             bloco: blocoLabel || null,
             responsavel_nome: responsavelNome || "Responsável não identificado",
+            email: item.email || null,
+            telefone: item.telefone || null,
             status: "ativa",
           } as any)
           .select("id, carteira_id, condominio_id, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email")
@@ -333,6 +335,19 @@ export async function POST(request: NextRequest) {
         inconsistencias.push(
           `Unidade ${unidadeLabel}: usada unidade existente equivalente (${unidadeSugerida.identificacao}) e criada pendência de saneamento para conferência.`
         )
+      }
+
+      // Complete missing contact data without replacing an operator's existing values.
+      if (!unidadeCriada && unidadeUsada) {
+        const complemento: Record<string, string> = {}
+        if ((!unidadeUsada.responsavel_nome?.trim() || unidadeUsada.responsavel_nome === "Responsável não identificado") && responsavelNome) complemento.responsavel_nome = responsavelNome
+        if (!unidadeUsada.email?.trim() && item.email) complemento.email = item.email
+        if (!unidadeUsada.telefone?.trim() && item.telefone) complemento.telefone = item.telefone
+        if (Object.keys(complemento).length) {
+          const { error: contatoError } = await supabase.from("unidades").update(complemento).eq("id", unidadeId!)
+          if (contatoError) throw new Error(`Erro ao completar contatos da unidade ${unidadeLabel}: ${contatoError.message}`)
+          unidadeUsada = { ...unidadeUsada, ...complemento }
+        }
       }
 
       const valorPrincipal = Number(item.valorPrincipal ?? item.valorTotal ?? 0)

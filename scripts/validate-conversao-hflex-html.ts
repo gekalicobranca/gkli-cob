@@ -5,6 +5,7 @@ async function main() {
   const html = `
     <html><body><table>
       <tr><th>RIO NEGRO</th><th>000113</th><th>JOSE RUBENS CORDEIRO LEITE JUNIOR</th></tr>
+      <tr><th colspan="10">CONTATOS: (11) 99999-1234, jose@example.com, adicional@example.com</th></tr>
       <tr><th>RECIBO</th><th>COBRANÇA</th><th>ADVOGADO</th><th>ACORDO</th><th>VENCIMENTO</th><th>VALOR</th><th>MULTA</th><th>JUROS</th><th>CORREÇÃO</th><th>CORRIGIDO</th></tr>
       <tr><td>3218496</td><td></td><td></td><td>193334</td><td>05/04/2026</td><td>311,62</td><td>6,23</td><td>21,01</td><td>11,34</td><td>350,20</td></tr>
       <tr><td>CONDOMÍNIO ABRIL/2026</td><td>311,62</td><td>6,23</td><td>16,71</td><td>11,34</td><td>345,90</td></tr>
@@ -28,6 +29,9 @@ async function main() {
   );
   assert.equal(result.preview.padraoDetectado?.condominioDetectado, "RIO NEGRO");
   assert.equal(result.preview.totalParcelas, 2);
+  assert.equal(result.preview.cobrancas[0].email, "jose@example.com");
+  assert.ok(result.preview.cobrancas[0].telefone);
+  assert.equal(result.preview.cobrancas[1].email, undefined);
   assert.equal(result.preview.valorTotal, 1357.46);
   assert.deepEqual(
     result.preview.cobrancas.map((item) => ({
