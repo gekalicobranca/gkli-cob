@@ -171,9 +171,16 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
       if (mensagensError) throw new Error(`Erro ao contar mensagens do Flow: ${mensagensError.message}`)
 
       const totalMensagens = (mensagens ?? []).filter(m => m.status !== 'cancelada').length
+      if (totalMensagens === 0) {
+        const { data: itens, error: itensError } = await supabase.from('lote_itens')
+          .select('motivo').eq('lote_id', loteId).limit(10)
+        if (itensError) throw new Error(`Erro ao conferir impedimentos do lote: ${itensError.message}`)
+        const motivos = [...new Set((itens ?? []).map(item => String(item.motivo ?? '').trim()).filter(Boolean))]
+        return { error: `Nenhuma mensagem válida foi gerada; nenhum Flow foi criado para este lote. ${motivos.join(' ') || 'Revise a elegibilidade das cobranças e as etapas da régua.'}`, flowIds }
+      }
       if (totalMensagens > LIMITE_EMAILS_FLOW) throw new Error('Esta unidade gerou mais de 20 mensagens distintas. O lote foi preservado para revisão, sem ativar envios.')
       const totalFalhas = n(lote?.total_erros)
-      const statusInicial = totalMensagens > 0 ? (criarPausado ? 'pausado' : 'pronto') : totalFalhas > 0 ? 'concluido_com_falhas' : 'concluido'
+      const statusInicial = criarPausado ? 'pausado' : 'pronto'
       const carteira = Array.isArray(rows[0]?.carteira) ? rows[0]?.carteira[0] : rows[0]?.carteira
       const condominio = Array.isArray(rows[0]?.condominio) ? rows[0]?.condominio[0] : rows[0]?.condominio
 
