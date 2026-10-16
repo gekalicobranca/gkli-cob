@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises"
-import { escopoLiving } from '@/features/importacoes/living-escopo'
+import { escopoLiving, lerAnaliseLiving } from '@/features/importacoes/living-escopo'
 import path from "node:path"
 import * as XLSX from "xlsx"
 import { createAdminClient } from "@/utils/supabase/admin"
@@ -285,7 +285,8 @@ export async function processarRelatorioCaptado(
   preview = aplicarFiltroBlocoManager(preview, condominio.nome)
   // A análise preserva todas as datas, antes do recorte da importação operacional.
   try {
-    const analise = lerAnaliseOriginal(buffer, nomeArquivo)
+    const analise = condominio.id === 'cb988811-e0ea-45d6-990b-6476271eb109'
+      ? lerAnaliseLiving(buffer, nomeArquivo) : lerAnaliseOriginal(buffer, nomeArquivo)
     if (analise) {
       const escopo = aplicarFiltroBlocoManager(aplicarBlocoPadrao({ cobrancas: analise.recibos }, blocoPadraoCaptacao), condominio.nome)
       analise.recibos = escopo.cobrancas
