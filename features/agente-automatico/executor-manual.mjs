@@ -7,6 +7,7 @@ export const COLETORES_MANUAIS = {
   captacao_atipass: 'worker-atipass.mjs',
   captacao_hflex: 'worker-hflex.mjs',
   captacao_graiche: 'worker-graiche.mjs',
+  captacao_habitacional: 'worker-habitacional.mjs',
   captacao_sell: 'worker-sell.mjs',
 }
 

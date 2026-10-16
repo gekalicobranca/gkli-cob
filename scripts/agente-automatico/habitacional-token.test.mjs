@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {extrairTokenHabita} from './worker-habitacional.mjs';
+test('token só é extraído da mensagem Habita',()=>{assert.equal(extrairTokenHabita('paravoce@habita.com.br\nHabita Para Você – Envio de Token\nInsira o seguinte código para concluir o login: 123456'),'123456');assert.equal(extrairTokenHabita('outro@example.com\nconcluir o login: 123456'),undefined);assert.equal(extrairTokenHabita('paravoce@habita.com.br\nTelefone: 11999999999'),undefined)});

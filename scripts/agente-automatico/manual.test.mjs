@@ -18,7 +18,7 @@ test('protocolo valida destino e ID sem permitir comandos ou outro coletor', () 
   assert.equal(execucaoDaUrlMaestro(urlExecutorMaestro(id)), id)
   for (const url of [`https://executar?id=${id}`, `gkli-maestro://outro?id=${id}`, `gkli-maestro://executar?id=${id}&script=cmd`, `gkli-maestro://executar?id=${id}&id=${outro}`, 'gkli-maestro://executar?id=;powershell']) assert.throws(() => execucaoDaUrlMaestro(url))
   assert.equal(coletorManual('captacao_sell'), 'worker-sell.mjs')
-  assert.throws(() => coletorManual('captacao_habitacional'), /ainda não está disponível/)
+  assert.equal(coletorManual('captacao_habitacional'), 'worker-habitacional.mjs')
   assert.throws(() => coletorManual('toString'))
 })
 
