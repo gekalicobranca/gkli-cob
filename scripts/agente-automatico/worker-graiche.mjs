@@ -1,3 +1,4 @@
+import { navegarGraiche } from './graiche-navegacao.mjs'
 import { concluirExecucaoMaestro, caminhoDownloadMaestro } from './concluir-maestro.mjs'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
@@ -113,35 +114,16 @@ async function coletar(execucao) {
       const retorno = page.locator('a[href*="administradora/default.asp"]').first()
       if (await retorno.count()) await retorno.click()
     }
-    const password = page.locator('input[type="password"]').first()
-    await Promise.any([
-      password.waitFor({ state: 'visible', timeout: 60_000 }),
-      page.getByText(/Cotas Pendentes Online/i, { exact: true }).first().waitFor({ state: 'visible', timeout: 60_000 }),
-    ])
-    if (await password.isVisible()) {
-      await page.locator('input[type="text"]').first().fill(usuario)
-      await password.fill(senha)
-      await page.getByRole('button', { name: /Entrar/i }).click()
-      await Promise.any([
-        page.getByText(/Cotas Pendentes Online/i, { exact: true }).first().waitFor({ state: 'visible', timeout: 60_000 }),
-        page.getByText(/identifique-se corretamente/i).first().waitFor({ state: 'visible', timeout: 60_000 }),
-      ])
-      if (await page.getByText(/identifique-se corretamente/i).first().isVisible()) throw new Error('Login recusado pela Graiche. Atualize as credenciais ou o endereço do portal na receita.')
-
-    }
-
-    const cotas = page.getByText(/Cotas Pendentes Online/i, { exact: true }).first()
-    await cotas.waitFor({ state: 'visible', timeout: 60_000 })
-    const titulo = await page.title()
-    if (execucao.id === 'diagnostico') console.log(JSON.stringify({ titulo, portal: new URL(page.url()).origin }))
     const esperado = execucao.receita?.config_json?.titulo_portal_validado
-    if (execucao.id !== 'diagnostico' && (!esperado || titulo.trim() !== esperado.trim())) throw new Error('Condomínio do portal não validado para esta receita; revisar configuração antes da coleta.')
+    const cotas = await navegarGraiche(page, { usuario, senha, titulo: esperado, log: mensagem => log(execucao.id, 'navegacao', mensagem) })
     await log(execucao.id, 'login', `Acesso confirmado para ${condominioNome}.`)
     await cotas.click()
     await page.waitForURL(url => /rtPendentes\.asp$/i.test(url.pathname), { timeout: 60_000 })
     const unidades = page.locator('select').first()
+    await unidades.waitFor({ state: 'visible', timeout: 30000 })
+    if (await unidades.locator('option').count() === 0) throw new Error('Portal Graiche: seletor de unidades vazio. Revisar permissões ou cadastro do condomínio na administradora.')
     const opcoes = await unidades.locator('option').evaluateAll(items => items.map(item => ({ value: item.value, label: item.textContent })))
-    const todas = opcoes.find(item => /Todas as Unidades/i.test(item.label))
+    const todas = opcoes.find(item => /Todas.*Unidades/i.test(item.label))
     if (!todas) throw new Error('Opção Todas as Unidades não encontrada; revisar o portal.')
     await unidades.selectOption(todas.value)
     await page.getByRole('button', { name: /Consultar/i }).click()
@@ -176,7 +158,7 @@ async function coletar(execucao) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (execucao.id === 'diagnostico') throw error
-    const precisaIntervencao = /Timeout|login|captcha|2fa|credenciais|não validado/i.test(message)
+    const precisaIntervencao = /Timeout|login|captcha|2fa|credenciais|não validado|seletor de unidades vazio/i.test(message)
     await supabase.from('agente_execucoes').update({ status: precisaIntervencao ? 'precisa_intervencao' : 'falha', finalizado_em: new Date().toISOString(), erro_mensagem: message }).eq('id', execucao.id)
     await log(execucao.id, 'erro', message, 'error')
     console.error(`Execução ${execucao.id}:`, message)
