@@ -277,19 +277,22 @@ class SmtpRespostaRecusadaError extends Error {}
 function smtpCommandError(commandLabel: string, response: string) {
   const cleanResponse = response.trim()
   const lower = cleanResponse.toLowerCase()
+  // Só 4xx/5xx confirmam recusa. Uma resposta inesperada após DATA
+  // continua incerta e não pode liberar reenvio automático.
+  const ClasseErro = /^[45]\d{2}\b/.test(cleanResponse) ? SmtpRespostaRecusadaError : Error
 
   if (cleanResponse.includes('5.7.139') || lower.includes('smtpclientauthentication is disabled')) {
-    return new SmtpRespostaRecusadaError(
+    return new ClasseErro(
       'Autenticação SMTP recusada pelo Microsoft 365: o SMTP AUTH está desativado no tenant ou nesta caixa postal. ' +
       'Ative "Authenticated SMTP" no Microsoft 365 para o tenant e para o usuário/remetente, ou use outro método de envio compatível, como Graph/OAuth.',
     )
   }
 
   if (commandLabel === 'AUTH LOGIN') {
-    return new SmtpRespostaRecusadaError(`SMTP recusou a autenticação: ${cleanResponse}`)
+    return new ClasseErro(`SMTP recusou a autenticação: ${cleanResponse}`)
   }
 
-  return new SmtpRespostaRecusadaError(`SMTP rejeitou comando "${commandLabel}": ${cleanResponse}`)
+  return new ClasseErro(`SMTP rejeitou comando "${commandLabel}": ${cleanResponse}`)
 }
 
 async function command(

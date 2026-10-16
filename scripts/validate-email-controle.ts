@@ -20,7 +20,7 @@ test('e-mail de controle é opcional e aceita somente um endereço válido', () 
 test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', async () => {
   const deliveries: Array<{ recipients: string[]; message: string }> = []
   let rejectControl = false
-  let dataMode: 'accept' | 'reject' | 'disconnect' = 'accept'
+  let dataMode: 'accept' | 'reject' | 'disconnect' | 'unexpected' = 'accept'
   const server = net.createServer((socket) => {
     let buffer = ''
     let readingData = false
@@ -35,6 +35,7 @@ test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', a
         buffer = buffer.slice(end + 2)
         if (readingData) {
           if (line === '.') {
+            if (dataMode === 'unexpected') { socket.write('251 unexpected response\r\n'); readingData = false; continue }
             if (dataMode === 'reject') { socket.write('554 5.2.252 SendAsDenied\r\n'); readingData = false; continue }
             if (dataMode === 'disconnect') { socket.destroy(); continue }
             deliveries.push({ recipients, message: message.join('\r\n') })
@@ -136,6 +137,9 @@ test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', a
     assert.equal(finais.at(-1), 'falha')
     dataMode = 'disconnect'
     await assert.rejects(exports.sendSmtpEmail(payload, { ...options, mensagemId: 'incerta' }), /sem confirmação/)
+    assert.equal(finais.at(-1), 'incerto')
+    dataMode = 'unexpected'
+    await assert.rejects(exports.sendSmtpEmail(payload, { ...options, mensagemId: 'resposta-inesperada' }), /251/)
     assert.equal(finais.at(-1), 'incerto')
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
