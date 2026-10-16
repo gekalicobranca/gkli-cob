@@ -14,10 +14,6 @@ function validateEmail(value: string) {
   return value.includes("@") && value.includes(".");
 }
 
-function isUndefinedColumnError(error: { code?: string; message?: string } | null | undefined) {
-  return error?.code === "42703" || String(error?.message ?? "").toLowerCase().includes("column");
-}
-
 async function findAuthUserIdByEmail(email: string) {
   const admin = createAdminClient();
   let page = 1;
@@ -82,8 +78,7 @@ export async function createSindicoAccess(formData: FormData) {
     const alreadyExists =
       createError.message.toLowerCase().includes("already been registered") ||
       createError.message.toLowerCase().includes("already registered") ||
-      createError.message.toLowerCase().includes("already exists") ||
-      createError.status === 422;
+      createError.message.toLowerCase().includes("already exists");
 
     if (!alreadyExists) {
       throw new Error(`Erro ao criar sindico no Auth: ${createError.message}`);
@@ -96,6 +91,14 @@ export async function createSindicoAccess(formData: FormData) {
 
   if (!userId) {
     throw new Error("Nao foi possivel localizar o usuario do sindico no Auth.");
+  }
+
+  // Never turn an existing internal user into a portal-only user.
+  const { data: existingProfile, error: existingProfileError } = await admin
+    .from("profiles").select("role").eq("id", userId).maybeSingle();
+  if (existingProfileError) throw new Error(`Erro ao verificar perfil: ${existingProfileError.message}`);
+  if (!created?.user && existingProfile && existingProfile.role !== "sindico") {
+    throw new Error("Este e-mail pertence a um acesso interno. Use outro e-mail para o síndico.");
   }
 
   const { error: profileError } = await admin.from("profiles").upsert(
@@ -112,38 +115,22 @@ export async function createSindicoAccess(formData: FormData) {
     throw new Error(`Erro ao salvar perfil do sindico: ${profileError.message}`);
   }
 
-  let portalUserResult = await admin
-    .from("portal_sindico_usuarios")
-    .upsert(
-      {
-        user_id: userId,
-        nome,
-        email,
-        telefone,
-        documento,
-        status: "ativo",
-      },
-      { onConflict: "user_id" },
-    )
-    .select("id")
-    .single();
-
-  if (isUndefinedColumnError(portalUserResult.error)) {
-    portalUserResult = await admin
-      .from("portal_sindico_usuarios")
-      .upsert(
-        {
-          user_id: userId,
-          nome,
-          email,
-          telefone,
-          documento,
-        },
-        { onConflict: "user_id" },
-      )
-      .select("id")
-      .single();
+  const { data: existingPortal, error: existingPortalError } = await admin
+    .from("portal_sindico_usuarios").select("id,user_id")
+    .eq("email", email).maybeSingle();
+  if (existingPortalError) throw new Error(`Erro ao verificar acesso: ${existingPortalError.message}`);
+  if (existingPortal?.user_id && existingPortal.user_id !== userId) {
+    throw new Error("Este acesso já está vinculado a outro usuário.");
   }
+  const portalPayload = { user_id: userId, nome, email, telefone, documento };
+  // The legacy hash is required on INSERT only. Authentication uses Supabase
+  // Auth; this marker cannot authenticate and never replaces an existing hash.
+  const portalUserResult = existingPortal
+    ? await admin.from("portal_sindico_usuarios").update(portalPayload)
+        .eq("id", existingPortal.id).select("id").single()
+    : await admin.from("portal_sindico_usuarios").insert({
+        ...portalPayload, senha_hash: "!SUPABASE_AUTH_ONLY!", status: "ativo", ativo: true,
+      }).select("id").single();
 
   const { data: portalUser, error: portalUserError } = portalUserResult;
 
@@ -151,27 +138,24 @@ export async function createSindicoAccess(formData: FormData) {
     throw new Error(`Erro ao salvar usuario do portal: ${portalUserError.message}`);
   }
 
-  let vinculoResult = await admin.from("portal_sindico_condominios").upsert(
-    {
-      portal_usuario_id: portalUser.id,
-      condominio_id: condominioId,
-      carteira_id: (condominio as any).carteira_id ?? null,
-      perfil: "sindico",
-      status: "ativo",
-    },
-    { onConflict: "portal_usuario_id,condominio_id" },
-  );
-
-  if (isUndefinedColumnError(vinculoResult.error)) {
-    vinculoResult = await admin.from("portal_sindico_condominios").upsert(
-      {
-        portal_usuario_id: portalUser.id,
-        condominio_id: condominioId,
-        carteira_id: (condominio as any).carteira_id ?? null,
-      },
-      { onConflict: "portal_usuario_id,condominio_id" },
-    );
-  }
+  const { data: existingLink, error: existingLinkError } = await admin
+    .from("portal_sindico_condominios").select("id")
+    .eq("condominio_id", condominioId)
+    .or(`portal_usuario_id.eq.${portalUser.id},usuario_id.eq.${portalUser.id}`)
+    .maybeSingle();
+  if (existingLinkError) throw new Error(`Erro ao verificar vínculo: ${existingLinkError.message}`);
+  const linkPayload = {
+    usuario_id: portalUser.id,
+    portal_usuario_id: portalUser.id,
+    condominio_id: condominioId,
+    carteira_id: condominio.carteira_id ?? null,
+  };
+  // Keep legacy and current IDs aligned without reactivating existing access.
+  const vinculoResult = existingLink
+    ? await admin.from("portal_sindico_condominios").update(linkPayload).eq("id", existingLink.id)
+    : await admin.from("portal_sindico_condominios").insert({
+        ...linkPayload, perfil: "sindico", papel: "sindico", status: "ativo", ativo: true,
+      });
 
   const { error: vinculoError } = vinculoResult;
 

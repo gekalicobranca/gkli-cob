@@ -25,7 +25,7 @@ async function listSindicoAccesses() {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("portal_sindico_usuarios")
-    .select("id, nome, email, telefone, portal_sindico_condominios (id, condominios:condominio_id (nome))")
+    .select("id, nome, email, telefone, status, portal_sindico_condominios!portal_sindico_condominios_portal_usuario_id_fkey (id, condominios:condominio_id (nome)), vinculos_legados:portal_sindico_condominios!portal_sindico_condominios_usuario_id_fkey (id, condominios:condominio_id (nome))")
     .order("created_at", { ascending: false })
     .limit(30);
 
@@ -129,7 +129,10 @@ export default async function SindicoAccessPage({
           {acessos.length ? (
             <div className="divide-y divide-slate-100">
               {acessos.map((acesso) => {
-                const vinculos = acesso.portal_sindico_condominios ?? [];
+                const vinculos = [...new Map(
+                  [...(acesso.portal_sindico_condominios ?? []), ...(acesso.vinculos_legados ?? [])]
+                    .map((vinculo: any) => [vinculo.id, vinculo]),
+                ).values()];
                 return (
                   <div key={acesso.id} className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(220px,1fr)_1fr_100px] lg:items-center">
                     <div className="min-w-0">
