@@ -172,6 +172,11 @@ async function aguardarLogin(page, execucao) {
   const credenciais = extrairCredenciais(config.acesso_raw)
   const usuario = process.env.AGENTE_WINKER_USUARIO || credenciais.login || process.env.AGENTE_VERTI_USUARIO
   const senha = process.env.AGENTE_WINKER_SENHA || credenciais.senha || process.env.AGENTE_VERTI_SENHA
+  if (config.login_via_oma === true) {
+    const { entrarPeloFormularioOma } = await import('./oma-login.mjs')
+    await registrarLog(execucao.id, 'login', 'Autenticando pelo formulário Condomínios no site da OMA.')
+    return entrarPeloFormularioOma(page, usuario, senha)
+  }
   const userInput = page.locator('input[type="text"], input[type="email"]').first()
   const passwordInput = page.locator('input[type="password"]').first()
 
