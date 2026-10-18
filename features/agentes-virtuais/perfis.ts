@@ -10,9 +10,14 @@ export function escopoLidia(carteiraIds: string[] | null): string[] {
 }
 
 export function validarCondominioLidia(condominio: { id: string; carteira_id: string }) {
-  if (condominio.carteira_id !== AGENTES_VIRTUAIS.lidia.carteiraId || condominio.id !== AGENTES_VIRTUAIS.lidia.pilotoCondominioId) {
-    throw new Error('O piloto da Lidia está restrito ao Edifício Oasis, da carteira Genske Advogados.')
+  if (condominio.carteira_id !== AGENTES_VIRTUAIS.lidia.carteiraId || !condominioPilotoLidia(condominio.id)) {
+    throw new Error('O piloto da Lidia está restrito ao Oasis e ao Cádiz, da carteira Genske Advogados.')
   }
+}
+
+// Mantém o piloto existente; Cádiz foi incluído para conferência pelo Dot.
+export function condominioPilotoLidia(id: string) {
+  return [AGENTES_VIRTUAIS.lidia.pilotoCondominioId, '47926d7c-030b-4469-8713-b23eda558a56'].includes(id)
 }
 
 export function formatarEmailAgente(agenteId: AgenteVirtualId, nome: string, texto: string, agora = new Date()) {

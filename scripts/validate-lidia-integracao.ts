@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createClient } from '@supabase/supabase-js'
-import { AGENTES_VIRTUAIS } from '../features/agentes-virtuais/perfis'
+import { AGENTES_VIRTUAIS, condominioPilotoLidia } from '../features/agentes-virtuais/perfis'
 import { carregarCaso, registrarCasoKeila } from '../features/keila/casos-service'
 import { getKeilaCasos } from '../features/keila/queries'
 
@@ -15,8 +15,8 @@ async function main() {
   const scope = { userId: '', perfil: 'admin', isAdmin: true, carteiraIds: null }
   const dados = await getKeilaCasos(scope, undefined, perfil.pilotoCondominioId, 'lidia')
   assert.ok(dados.condominios.some((c: any) => c.id === perfil.pilotoCondominioId))
-  assert.ok(dados.casos.every(c => c.condominio_id === perfil.pilotoCondominioId))
-  assert.ok(dados.condominios.every((c: any) => c.id === perfil.pilotoCondominioId))
+  assert.ok(dados.casos.every(c => condominioPilotoLidia(c.condominio_id)))
+  assert.ok(dados.condominios.every((c: any) => condominioPilotoLidia(c.id)))
   const casoId = dados.casos[0]?.id
   if (casoId) {
   const caso = await carregarCaso(db, casoId, [perfil.carteiraId], 'lidia')

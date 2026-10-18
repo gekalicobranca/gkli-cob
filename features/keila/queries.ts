@@ -2,7 +2,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { lerCasoPayload, type KeilaCasoPayload } from './casos'
-import { AGENTES_VIRTUAIS, escopoLidia, type AgenteVirtualId } from '../agentes-virtuais/perfis'
+import { AGENTES_VIRTUAIS, condominioPilotoLidia, escopoLidia, type AgenteVirtualId } from '../agentes-virtuais/perfis'
 
 export type KeilaCaso = {
   id: string; carteira_id: string; titulo: string; status: string; updated_at: string; condominio_id: string; payload: KeilaCasoPayload
@@ -14,7 +14,7 @@ export async function getKeilaCasos(scope: CarteiraScope, casoId?: string, condo
   if (agenteId === 'lidia') {
     scope = { ...scope, carteiraIds: escopoLidia(scope.carteiraIds) }
     if (!scope.carteiraIds?.length) throw new Error('Sem acesso à carteira Genske Advogados.')
-    if (condominioId && condominioId !== AGENTES_VIRTUAIS.lidia.pilotoCondominioId) throw new Error('Condomínio fora do piloto da Lidia.')
+    if (condominioId && !condominioPilotoLidia(condominioId)) throw new Error('Condomínio fora do piloto da Lidia.')
   }
   const supabase = createAdminClient()
   const selection = 'id,carteira_id,titulo,status,updated_at,condominio_id,payload'
@@ -34,7 +34,7 @@ export async function getKeilaCasos(scope: CarteiraScope, casoId?: string, condo
     return { ...row, condominio: null,
       payload: { ...payload, ...(['resolvida', 'cancelada'].includes(row.status) ? { estado: 'concluido' as const } : {}) },
     } as KeilaCaso
-  }).filter((row: KeilaCaso | null): row is KeilaCaso => row !== null && (agenteId !== 'lidia' || row.condominio_id === AGENTES_VIRTUAIS.lidia.pilotoCondominioId))
+  }).filter((row: KeilaCaso | null): row is KeilaCaso => row !== null && (agenteId !== 'lidia' || condominioPilotoLidia(row.condominio_id)))
   const unidadeIds = [...new Set(casos.flatMap(c => c.payload.unidade_ids))]
   const execucaoIds = [...new Set(casos.map(c => c.payload.execucao_id).filter(Boolean))]
   const [unidadesResult, execucoesResult, condominiosResult] = await Promise.all([
@@ -46,5 +46,5 @@ export async function getKeilaCasos(scope: CarteiraScope, casoId?: string, condo
   for (const result of [unidadesResult, execucoesResult, condominiosResult]) if (result.error) throw new Error(result.error.message)
   const condominios = new Map((condominiosResult.data ?? []).map((c: any) => [c.id, c]))
   for (const caso of casos) caso.condominio = condominios.get(caso.condominio_id) as KeilaCaso['condominio'] ?? null
-  return { casos, unidades: unidadesResult.data ?? [], execucoes: execucoesResult.data ?? [], condominios: (condominiosResult.data ?? []).filter((c: any) => agenteId !== 'lidia' || c.id === AGENTES_VIRTUAIS.lidia.pilotoCondominioId) }
+  return { casos, unidades: unidadesResult.data ?? [], execucoes: execucoesResult.data ?? [], condominios: (condominiosResult.data ?? []).filter((c: any) => agenteId !== 'lidia' || condominioPilotoLidia(c.id)) }
 }
