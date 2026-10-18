@@ -51,4 +51,20 @@ assert.equal(atalho.searchParams.get('q'), 'João')
 assert.equal(atalho.searchParams.get('condominio_id'), 'cadiz')
 assert.equal(atalho.searchParams.get('prazo'), 'vencidas')
 assert.equal(atalho.searchParams.get('ordem'), 'antigos')
+const emailAprovado = { em: '2026-10-13T10:00:00Z', usuario_id: 'operador', mensagem_id: 'mensagem', destinatario: 'joao@example.com', assunto: 'Resposta', texto: 'Texto aprovado' }
+const whatsapp = { destinatario: '5511999999999', texto: 'Aviso para revisão', versao_hash: 'versao', criado_em: '2026-10-13T10:00:00Z' }
+const whatsappAprovado = { ...whatsapp, aprovacao: { em: '2026-10-13T10:00:00Z', usuario_id: 'operador', versao_hash: 'versao' } }
+const revisoes: KeilaCaso[] = [
+  caso,
+  { ...outro, id: 'email-rascunho' },
+  { ...outro, id: 'email-aprovado', payload: { ...outro.payload, resposta_aprovada: emailAprovado } },
+  { ...caso, id: 'whatsapp-rascunho', payload: { ...caso.payload, rascunho_whatsapp: whatsapp } },
+  { ...caso, id: 'whatsapp-aprovado', payload: { ...caso.payload, rascunho_whatsapp: whatsappAprovado } },
+  { ...outro, id: 'ambos-rascunhos', payload: { ...outro.payload, rascunho_whatsapp: whatsapp } },
+  { ...outro, id: 'email-pendente-whatsapp-aprovado', payload: { ...outro.payload, rascunho_whatsapp: whatsappAprovado } },
+  { ...outro, id: 'humano-rascunho', payload: { ...outro.payload, estado: 'atendimento_humano' } },
+  { ...outro, id: 'concluido-rascunho', payload: { ...outro.payload, estado: 'concluido' } },
+]
+assert.deepEqual(filtrarAtendimentos(revisoes, unidades, { resposta: 'aguardando_aprovacao' }, '2026-10-13').map(c => c.id).sort(),
+  ['ambos-rascunhos', 'email-pendente-whatsapp-aprovado', 'email-rascunho', 'whatsapp-rascunho'])
 console.log('Filtros combinados, busca sem acentos, unidades, ordenação e preservação de URL: OK')

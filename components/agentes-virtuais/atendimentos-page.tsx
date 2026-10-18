@@ -24,7 +24,7 @@ import { registrarAtendimentoLidia, atualizarAtendimentoLidia, coletarDebitosAte
 import { AGENTES_VIRTUAIS, escopoLidia, type AgenteVirtualId } from '@/features/agentes-virtuais/perfis'
 import { AreaAtendimento, FocoAtendimento } from './area-atendimento'
 import { ListCollapsibleFilters, ListFiltersForm, ClearFiltersLink } from '@/components/layout/list-page'
-import { filtrarAtendimentos, linkAtendimento, prioridadeAtendimento, type FiltrosAtendimento } from '@/features/keila/filtros-atendimentos'
+import { filtrarAtendimentos, linkAtendimento, prioridadeAtendimento, aguardaAprovacaoAtendimento, type FiltrosAtendimento } from '@/features/keila/filtros-atendimentos'
 
 type Props = { agenteId: AgenteVirtualId; searchParams?: Promise<Record<string, string | string[] | undefined>> }
 function first(v?: string | string[]) { return Array.isArray(v) ? v[0] : v }
@@ -50,12 +50,13 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
   const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const filtros: FiltrosAtendimento = Object.fromEntries(['q', 'estado', 'condominio_id', 'intencao', 'resposta', 'prazo', 'ordem'].map(key => [key, first(params[key])]))
   const lista = filtrarAtendimentos(casos, unidades, filtros, hoje)
-  const filtrosAtalhos = { ...filtros, estado: undefined, prazo: undefined }
+  const filtrosAtalhos = { ...filtros, estado: undefined, prazo: undefined, resposta: undefined }
   const baseAtalhos = filtrarAtendimentos(casos, unidades, filtrosAtalhos, hoje)
   const atalhos = [
-    { titulo: 'Todos', quantidade: baseAtalhos.length, filtros: filtrosAtalhos, ativo: !filtros.estado && !filtros.prazo },
-    { titulo: 'Pendências vencidas', quantidade: baseAtalhos.filter(c => prioridadeAtendimento(c, hoje).grupo === 0).length, filtros: { ...filtrosAtalhos, prazo: 'vencidas' }, ativo: filtros.prazo === 'vencidas' },
-    { titulo: 'Atuação humana', quantidade: baseAtalhos.filter(c => c.payload.estado === 'atendimento_humano').length, filtros: { ...filtrosAtalhos, estado: 'atendimento_humano' }, ativo: filtros.estado === 'atendimento_humano' && !filtros.prazo },
+    { titulo: 'Todos', quantidade: baseAtalhos.length, filtros: filtrosAtalhos, ativo: !filtros.estado && !filtros.prazo && !filtros.resposta },
+    { titulo: 'Pendências vencidas', quantidade: baseAtalhos.filter(c => prioridadeAtendimento(c, hoje).grupo === 0).length, filtros: { ...filtrosAtalhos, prazo: 'vencidas' }, ativo: filtros.prazo === 'vencidas' && !filtros.resposta },
+    { titulo: 'Atuação humana', quantidade: baseAtalhos.filter(c => c.payload.estado === 'atendimento_humano').length, filtros: { ...filtrosAtalhos, estado: 'atendimento_humano' }, ativo: filtros.estado === 'atendimento_humano' && !filtros.prazo && !filtros.resposta },
+    { titulo: 'Aguardando aprovação', quantidade: baseAtalhos.filter(aguardaAprovacaoAtendimento).length, filtros: { ...filtrosAtalhos, resposta: 'aguardando_aprovacao' }, ativo: filtros.resposta === 'aguardando_aprovacao' && !filtros.estado && !filtros.prazo },
   ]
   const totalFiltros = Object.entries(filtros).filter(([key, value]) => value && key !== 'ordem').length
   const limparHref = linkAtendimento(agente.caminho, {}, selectedId)
@@ -103,7 +104,7 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
             <FormField label="Condomínio"><Select aria-label="Filtrar por condomínio" name="condominio_id" defaultValue={filtros.condominio_id ?? ''}><option value="">Todos os condomínios</option>{condominios.map((c: { id: string; nome: string }) => <option key={c.id} value={c.id}>{c.nome}</option>)}</Select></FormField>
             <FormField label="Situação"><Select aria-label="Filtrar por situação" name="estado" defaultValue={estado ?? ''}><option value="">Todas</option>{Object.entries(KEILA_ESTADOS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</Select></FormField>
             <FormField label="Pedido"><Select aria-label="Filtrar por pedido" name="intencao" defaultValue={filtros.intencao ?? ''}><option value="">Todos</option><option value="debitos">Débitos atualizados</option><option value="parcelamento">Parcelamento</option><option value="outro">Outro</option></Select></FormField>
-            <FormField label="Resposta"><Select aria-label="Filtrar por resposta" name="resposta" defaultValue={filtros.resposta ?? ''}><option value="">Todas</option><option value="sem_resposta">Ainda não preparada</option><option value="rascunho">Rascunho para revisão</option><option value="aprovada">Aprovada · acompanhar envio</option></Select></FormField>
+            <FormField label="Resposta"><Select aria-label="Filtrar por resposta" name="resposta" defaultValue={filtros.resposta ?? ''}><option value="">Todas</option><option value="sem_resposta">Ainda não preparada</option><option value="rascunho">Rascunho para revisão</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="aprovada">Aprovada · acompanhar envio</option></Select></FormField>
             <FormField label="Acompanhamento"><Select aria-label="Filtrar por acompanhamento" name="prazo" defaultValue={filtros.prazo ?? ''}><option value="">Todos</option><option value="acompanhar">Prazo até hoje</option><option value="vencidas">Com pendências vencidas</option><option value="pendente">Com pendências abertas</option></Select></FormField>
             <FormField label="Ordenar"><Select aria-label="Ordenar atendimentos" name="ordem" defaultValue={filtros.ordem ?? ''}><option value="">Prioridade de atendimento</option><option value="recentes">Atualizados recentemente</option><option value="antigos">Sem atualização há mais tempo</option></Select></FormField>
             <div className="flex flex-wrap items-center gap-2 md:col-span-2 xl:col-span-4"><Button type="submit" variant="secondary">Aplicar filtros</Button><ClearFiltersLink href={limparHref} show={totalFiltros > 0 || !!filtros.ordem} /><p role="status" className="text-xs text-slate-500">{lista.length} de {casos.length} atendimentos carregados · até 200 recentes</p></div>

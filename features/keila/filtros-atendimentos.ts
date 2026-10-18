@@ -7,6 +7,14 @@ export type FiltrosAtendimento = {
 type UnidadeBusca = { id: string; identificacao: string; bloco: string | null }
 const normalizar = (texto: string) => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 
+export function aguardaAprovacaoAtendimento(caso: Pick<KeilaCaso, 'payload'>) {
+  const p = caso.payload
+  if (['atendimento_humano', 'concluido'].includes(p.estado)) return false
+  const whatsapp = p.rascunho_whatsapp
+  return (!!p.resposta_simulada?.trim() && !p.resposta_aprovada)
+    || (!!whatsapp?.texto.trim() && !whatsapp.aprovacao && !whatsapp.liberacao)
+}
+
 export function prioridadeAtendimento(caso: KeilaCaso, hoje: string) {
   if (caso.payload.estado === 'concluido') return { grupo: 5, prazo: '', rotulo: '' }
   const prazo = acompanhamento(caso.payload).pendencias.filter(p => !p.resolvida_em).map(p => p.prazo).sort()[0] ?? ''
@@ -25,7 +33,8 @@ export function filtrarAtendimentos(casos: KeilaCaso[], unidades: UnidadeBusca[]
     if (filtros.condominio_id && c.condominio_id !== filtros.condominio_id) return false
     if (filtros.intencao && c.payload.intencao !== filtros.intencao) return false
     const resposta = c.payload.rascunho_whatsapp ? (c.payload.rascunho_whatsapp.liberacao ? 'aprovada' : 'rascunho') : c.payload.resposta_aprovada ? 'aprovada' : c.payload.resposta_simulada?.trim() ? 'rascunho' : 'sem_resposta'
-    if (filtros.resposta && resposta !== filtros.resposta) return false
+    if (filtros.resposta === 'aguardando_aprovacao' && !aguardaAprovacaoAtendimento(c)) return false
+    if (filtros.resposta && filtros.resposta !== 'aguardando_aprovacao' && resposta !== filtros.resposta) return false
     const pendencias = acompanhamento(c.payload).pendencias.filter(p => !p.resolvida_em)
     if (filtros.prazo === 'vencidas' && (c.payload.estado === 'concluido' || !pendencias.some(p => p.prazo < hoje))) return false
     if (filtros.prazo === 'acompanhar' && (['concluido', 'atendimento_humano'].includes(c.payload.estado) || !pendencias.some(p => p.prazo <= hoje))) return false
