@@ -42,4 +42,13 @@ assert.equal(filtrarAtendimentos(prioridades, unidades, { ordem: 'recentes' }, '
 const resolvida = { ...comPrazo('resolvida', '2026-10-01'), updated_at: '2026-10-01T10:00:00Z' }
 resolvida.payload.acompanhamento!.pendencias[0].resolvida_em = '2026-10-02'
 assert.deepEqual(filtrarAtendimentos([resolvida, caso], unidades, {}, '2026-10-13').map(c => c.id), ['caso-1', 'resolvida'])
+assert.deepEqual(filtrarAtendimentos(prioridades, unidades, { prazo: 'vencidas' }, '2026-10-13').map(c => c.id), ['mais-vencida', 'vencida'])
+assert.deepEqual(filtrarAtendimentos(prioridades, unidades, { estado: 'atendimento_humano' }, '2026-10-13').map(c => c.id), ['humano'])
+assert.equal(filtrarAtendimentos([comPrazo('humano-vencido', '2026-10-12', 'atendimento_humano')], unidades, { prazo: 'vencidas' }, '2026-10-13').length, 1)
+assert.equal(filtrarAtendimentos([resolvida], unidades, { prazo: 'vencidas' }, '2026-10-13').length, 0)
+const atalho = new URL(linkAtendimento('/app/gestao/lidia', { q: 'João', condominio_id: 'cadiz', prazo: 'vencidas', ordem: 'antigos' }), 'http://localhost')
+assert.equal(atalho.searchParams.get('q'), 'João')
+assert.equal(atalho.searchParams.get('condominio_id'), 'cadiz')
+assert.equal(atalho.searchParams.get('prazo'), 'vencidas')
+assert.equal(atalho.searchParams.get('ordem'), 'antigos')
 console.log('Filtros combinados, busca sem acentos, unidades, ordenação e preservação de URL: OK')

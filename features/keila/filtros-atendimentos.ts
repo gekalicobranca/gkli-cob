@@ -27,6 +27,7 @@ export function filtrarAtendimentos(casos: KeilaCaso[], unidades: UnidadeBusca[]
     const resposta = c.payload.rascunho_whatsapp ? (c.payload.rascunho_whatsapp.liberacao ? 'aprovada' : 'rascunho') : c.payload.resposta_aprovada ? 'aprovada' : c.payload.resposta_simulada?.trim() ? 'rascunho' : 'sem_resposta'
     if (filtros.resposta && resposta !== filtros.resposta) return false
     const pendencias = acompanhamento(c.payload).pendencias.filter(p => !p.resolvida_em)
+    if (filtros.prazo === 'vencidas' && (c.payload.estado === 'concluido' || !pendencias.some(p => p.prazo < hoje))) return false
     if (filtros.prazo === 'acompanhar' && (['concluido', 'atendimento_humano'].includes(c.payload.estado) || !pendencias.some(p => p.prazo <= hoje))) return false
     if (filtros.prazo === 'pendente' && !pendencias.length) return false
     const texto = normalizar([c.titulo, c.condominio?.nome ?? '', c.payload.proxima_acao,

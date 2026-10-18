@@ -50,6 +50,13 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
   const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const filtros: FiltrosAtendimento = Object.fromEntries(['q', 'estado', 'condominio_id', 'intencao', 'resposta', 'prazo', 'ordem'].map(key => [key, first(params[key])]))
   const lista = filtrarAtendimentos(casos, unidades, filtros, hoje)
+  const filtrosAtalhos = { ...filtros, estado: undefined, prazo: undefined }
+  const baseAtalhos = filtrarAtendimentos(casos, unidades, filtrosAtalhos, hoje)
+  const atalhos = [
+    { titulo: 'Todos', quantidade: baseAtalhos.length, filtros: filtrosAtalhos, ativo: !filtros.estado && !filtros.prazo },
+    { titulo: 'Pendências vencidas', quantidade: baseAtalhos.filter(c => prioridadeAtendimento(c, hoje).grupo === 0).length, filtros: { ...filtrosAtalhos, prazo: 'vencidas' }, ativo: filtros.prazo === 'vencidas' },
+    { titulo: 'Atuação humana', quantidade: baseAtalhos.filter(c => c.payload.estado === 'atendimento_humano').length, filtros: { ...filtrosAtalhos, estado: 'atendimento_humano' }, ativo: filtros.estado === 'atendimento_humano' && !filtros.prazo },
+  ]
   const totalFiltros = Object.entries(filtros).filter(([key, value]) => value && key !== 'ordem').length
   const limparHref = linkAtendimento(agente.caminho, {}, selectedId)
   const indicadores = [
@@ -88,6 +95,7 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
         <FormField label="Referência do atendimento (se a unidade não foi identificada)"><Input aria-label="Referência do atendimento (se a unidade não foi identificada)" name="referencia" /></FormField><FormField label="Próxima ação"><Input aria-label="Próxima ação" name="proxima_acao" required /></FormField>
         <div className="md:col-span-2"><FormField label="Conteúdo do e-mail"><Textarea aria-label="Conteúdo do e-mail" name="resumo" required maxLength={10000} rows={5} /></FormField></div><Button type="submit">Registrar atendimento</Button>
       </form> : <p>{podeEditar ? 'Escolha o condomínio para registrar o e-mail e associar as unidades.' : 'Seu perfil permite apenas consultar os atendimentos.'}</p>}</Card> : <>
+        <nav aria-label="Atalhos de atendimento" className="flex flex-wrap gap-2">{atalhos.map(atalho => <Link key={atalho.titulo} href={linkAtendimento(agente.caminho, atalho.filtros)} aria-current={atalho.ativo ? 'page' : undefined} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700 ${atalho.ativo ? 'border-cyan-700 bg-cyan-50 text-cyan-950' : 'border-slate-200 bg-white text-slate-700 hover:border-cyan-500'}`}><span>{atalho.titulo}</span><span className={`rounded-full px-2 py-0.5 text-xs ${atalho.ativo ? 'bg-cyan-100 text-cyan-950' : 'bg-slate-100 text-slate-700'}`}>{atalho.quantidade}</span></Link>)}</nav>
         <ListCollapsibleFilters key={caso?.id ?? 'filtros'} defaultOpen={!caso} label={`Filtros${totalFiltros ? ` · ${totalFiltros} ativos` : ''}`}>
           <ListFiltersForm className="md:grid-cols-2 xl:grid-cols-4">
             {selectedId ? <input type="hidden" name="caso" value={selectedId} /> : null}
@@ -96,7 +104,7 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
             <FormField label="Situação"><Select aria-label="Filtrar por situação" name="estado" defaultValue={estado ?? ''}><option value="">Todas</option>{Object.entries(KEILA_ESTADOS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</Select></FormField>
             <FormField label="Pedido"><Select aria-label="Filtrar por pedido" name="intencao" defaultValue={filtros.intencao ?? ''}><option value="">Todos</option><option value="debitos">Débitos atualizados</option><option value="parcelamento">Parcelamento</option><option value="outro">Outro</option></Select></FormField>
             <FormField label="Resposta"><Select aria-label="Filtrar por resposta" name="resposta" defaultValue={filtros.resposta ?? ''}><option value="">Todas</option><option value="sem_resposta">Ainda não preparada</option><option value="rascunho">Rascunho para revisão</option><option value="aprovada">Aprovada · acompanhar envio</option></Select></FormField>
-            <FormField label="Acompanhamento"><Select aria-label="Filtrar por acompanhamento" name="prazo" defaultValue={filtros.prazo ?? ''}><option value="">Todos</option><option value="acompanhar">Prazo até hoje</option><option value="pendente">Com pendências abertas</option></Select></FormField>
+            <FormField label="Acompanhamento"><Select aria-label="Filtrar por acompanhamento" name="prazo" defaultValue={filtros.prazo ?? ''}><option value="">Todos</option><option value="acompanhar">Prazo até hoje</option><option value="vencidas">Com pendências vencidas</option><option value="pendente">Com pendências abertas</option></Select></FormField>
             <FormField label="Ordenar"><Select aria-label="Ordenar atendimentos" name="ordem" defaultValue={filtros.ordem ?? ''}><option value="">Prioridade de atendimento</option><option value="recentes">Atualizados recentemente</option><option value="antigos">Sem atualização há mais tempo</option></Select></FormField>
             <div className="flex flex-wrap items-center gap-2 md:col-span-2 xl:col-span-4"><Button type="submit" variant="secondary">Aplicar filtros</Button><ClearFiltersLink href={limparHref} show={totalFiltros > 0 || !!filtros.ordem} /><p role="status" className="text-xs text-slate-500">{lista.length} de {casos.length} atendimentos carregados · até 200 recentes</p></div>
           </ListFiltersForm>
