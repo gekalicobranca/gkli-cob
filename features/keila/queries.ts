@@ -34,7 +34,7 @@ export async function getKeilaCasos(scope: CarteiraScope, casoId?: string, condo
     return { ...row, condominio: null,
       payload: { ...payload, ...(['resolvida', 'cancelada'].includes(row.status) ? { estado: 'concluido' as const } : {}) },
     } as KeilaCaso
-  }).filter((row: KeilaCaso | null): row is KeilaCaso => row !== null && (agenteId !== 'lidia' || condominioPilotoLidia(row.condominio_id)))
+  }).filter((row: KeilaCaso | null): row is KeilaCaso => row !== null && (!condominioId || row.condominio_id === condominioId) && (agenteId !== 'lidia' || condominioPilotoLidia(row.condominio_id)))
   const unidadeIds = [...new Set(casos.flatMap(c => c.payload.unidade_ids))]
   const execucaoIds = [...new Set(casos.map(c => c.payload.execucao_id).filter(Boolean))]
   const [unidadesResult, execucoesResult, condominiosResult] = await Promise.all([
