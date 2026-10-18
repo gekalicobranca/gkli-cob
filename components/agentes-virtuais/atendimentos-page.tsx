@@ -22,7 +22,7 @@ import { KEILA_ESTADOS } from '@/features/keila/casos'
 import { registrarAtendimentoKeila, atualizarAtendimentoKeila, coletarDebitosAtendimentoKeila } from '@/features/keila/casos-actions'
 import { registrarAtendimentoLidia, atualizarAtendimentoLidia, coletarDebitosAtendimentoLidia } from '@/features/lidia/actions'
 import { AGENTES_VIRTUAIS, escopoLidia, type AgenteVirtualId } from '@/features/agentes-virtuais/perfis'
-import { AreaAtendimento } from './area-atendimento'
+import { AreaAtendimento, FocoAtendimento } from './area-atendimento'
 import { ListCollapsibleFilters, ListFiltersForm, ClearFiltersLink } from '@/components/layout/list-page'
 import { filtrarAtendimentos, linkAtendimento, type FiltrosAtendimento } from '@/features/keila/filtros-atendimentos'
 
@@ -102,7 +102,7 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
           </ListFiltersForm>
         </ListCollapsibleFilters>
         <div className="space-y-4">
-          <AreaAtendimento titulo="Atendimentos" resumo={lista.length} aberta>
+          <AreaAtendimento key={caso?.id ?? 'lista'} titulo={caso ? 'Trocar atendimento' : 'Atendimentos'} resumo={lista.length} aberta={!caso} recolherAoSelecionar>
             <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1fr)] gap-4 border-b pb-2 text-xs font-medium uppercase text-slate-400 xl:grid"><span>Contato e condomínio</span><span>Situação e resposta</span><span>Próxima ação</span><span>Atualização</span></div>
             <div className="divide-y divide-slate-100">{lista.length ? lista.map(c => <Link key={c.id} href={`${linkAtendimento(agente.caminho, filtros, c.id)}#detalhes-caso`} aria-current={caso?.id === c.id ? 'true' : undefined} className={`grid min-w-0 gap-3 rounded-lg border-l-4 p-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1fr)] xl:items-start ${caso?.id === c.id ? 'border-cyan-600 bg-cyan-50' : 'border-transparent hover:bg-slate-50'} focus-visible:outline-2 focus-visible:outline-cyan-700`}>
             <div className="min-w-0"><p className="text-sm font-semibold">{c.titulo}</p><p className="mt-1 text-xs text-slate-500">{c.condominio?.nome}</p></div>
@@ -110,7 +110,7 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
             <div className="min-w-0"><p className="line-clamp-3 text-sm text-slate-600">{c.payload.proxima_acao}</p>{acompanhamento(c.payload).pendencias.filter(p => !p.resolvida_em).map(p => <p key={p.id} className="mt-1 text-xs text-amber-800">Aguardando {p.aguardando} · {p.prazo.split('-').reverse().join('/')}{!['atendimento_humano', 'concluido'].includes(c.payload.estado) && p.prazo <= hoje ? ' · acompanhar agora' : ''}</p>)}</div>
             <div className="text-xs text-slate-500"><p>{date(c.updated_at)}</p><p className="mt-1">{c.payload.emails.length} e-mail(s)</p><span className="mt-2 inline-block font-medium text-cyan-800">{caso?.id === c.id ? 'Caso selecionado' : 'Abrir atendimento'}</span></div>
           </Link>) : <p className="py-8 text-sm text-slate-500">Nenhum caso encontrado. Ajuste ou limpe os filtros.</p>}</div></AreaAtendimento>
-          {caso ? <div key={caso.id} id="detalhes-caso" className="scroll-mt-4 space-y-4">
+          {caso ? <FocoAtendimento key={caso.id}>
             <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4"><p className="text-xs font-medium uppercase text-cyan-800">Atendimento selecionado</p><h2 className="mt-1 text-lg font-semibold">{caso.titulo}</h2><p className="mt-1 text-sm text-slate-600">{caso.condominio?.nome} · {KEILA_ESTADOS[caso.payload.estado]} · {caso.payload.estado === 'atendimento_humano' ? 'Equipe humana' : `${agente.nome} sob supervisão`}</p>{!lista.some(c => c.id === caso.id) ? <p className="mt-2 text-sm text-amber-800">Este caso está fora dos filtros atuais. Os detalhes permanecem abertos para consulta.</p> : null}</div>
             <RoteiroAtendimentoKeila caso={caso} execucao={execucao} paineis={{
               retorno: <><div className="space-y-5">{agenteId === 'keila' ? <FalhasEmailKeila falhas={caso.payload.falhas_email??[]} /> : null}<section className="space-y-3"><h4 className="font-semibold">Mensagens e referências</h4><div className="space-y-3">{caso.payload.emails.map(e => <article key={e.chave} className="rounded-lg border border-slate-200 p-3"><p className="text-sm font-medium">{e.nome || e.remetente} · {date(e.recebido_em)}</p><p className="text-xs text-slate-500">{e.remetente}</p><p className="mt-2 text-sm font-medium">{e.assunto}</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{e.resumo}</p></article>)}{caso.payload.retornos?.filter(r => r.canal === 'whatsapp').map(r => <article key={r.chave} className="rounded-lg border border-slate-200 p-3"><p className="text-sm font-medium">WhatsApp · {date(r.recebido_em)}</p><p className="text-xs text-slate-500">{r.remetente}</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{r.resumo}</p></article>)}</div><LinksWebmail emails={caso.payload.emails} /></section><details className="rounded-lg border border-slate-200 p-4"><summary className="cursor-pointer text-sm font-semibold">Histórico de atividades · {caso.payload.atividades.length}</summary><div className="mt-4 space-y-4">{caso.payload.atividades.map((a, i) => <div key={`${a.em}:${i}`} className="border-l-2 border-sky-200 pl-3"><p className="text-xs text-slate-500">{date(a.em)}</p><p className="mt-1 whitespace-pre-wrap text-sm">{a.descricao}</p></div>)}</div></details></div></>,
@@ -128,7 +128,7 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
             <FormField label="Atividade realizada"><Textarea aria-label="Atividade realizada" name="descricao" required rows={3} maxLength={4000} /></FormField><FormField label="Próxima ação"><Input aria-label="Próxima ação" name="proxima_acao" defaultValue={caso.payload.proxima_acao} /></FormField>
             <FormField label="Rascunho da resposta — salve antes de aprovar"><Textarea aria-label="Rascunho da resposta — salve antes de aprovar" name="resposta_simulada" defaultValue={caso.payload.resposta_simulada ?? ''} rows={8} /></FormField><Button type="submit">Salvar andamento</Button>
           </form></Card> : caso.payload.resposta_simulada ? <Card className="p-5"><h3 className="font-semibold">Resposta simulada</h3><p className="mt-3 whitespace-pre-wrap text-sm">{caso.payload.resposta_simulada}</p></Card> : null}</>,
-            }} /></div> : <Card className="p-8 text-center text-slate-500"><Bot className="mx-auto mb-3" /><p>{selectedId ? 'Caso não encontrado nas carteiras permitidas.' : 'Selecione um caso para acompanhar mensagens, coleta e atividades.'}</p></Card>}
+            }} /></FocoAtendimento> : <Card className="p-8 text-center text-slate-500"><Bot className="mx-auto mb-3" /><p>{selectedId ? 'Caso não encontrado nas carteiras permitidas.' : 'Selecione um caso para acompanhar mensagens, coleta e atividades.'}</p></Card>}
         </div>
       </>}
     </LiteScrollArea></LiteWorkArea>
