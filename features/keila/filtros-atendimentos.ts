@@ -7,6 +7,16 @@ export type FiltrosAtendimento = {
 type UnidadeBusca = { id: string; identificacao: string; bloco: string | null }
 const normalizar = (texto: string) => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 
+export function prioridadeAtendimento(caso: KeilaCaso, hoje: string) {
+  if (caso.payload.estado === 'concluido') return { grupo: 5, prazo: '', rotulo: '' }
+  const prazo = acompanhamento(caso.payload).pendencias.filter(p => !p.resolvida_em).map(p => p.prazo).sort()[0] ?? ''
+  if (prazo && prazo < hoje) return { grupo: 0, prazo, rotulo: 'Pendência vencida' }
+  if (caso.payload.estado === 'atendimento_humano') return { grupo: 1, prazo, rotulo: 'Atuação humana' }
+  if (prazo === hoje) return { grupo: 2, prazo, rotulo: 'Prazo hoje' }
+  if (prazo) return { grupo: 3, prazo, rotulo: '' }
+  return { grupo: 4, prazo: '', rotulo: '' }
+}
+
 export function filtrarAtendimentos(casos: KeilaCaso[], unidades: UnidadeBusca[], filtros: FiltrosAtendimento, hoje: string) {
   const porId = new Map(unidades.map(u => [u.id, u]))
   const termos = normalizar(filtros.q ?? '').split(/\s+/).filter(Boolean)
@@ -24,7 +34,15 @@ export function filtrarAtendimentos(casos: KeilaCaso[], unidades: UnidadeBusca[]
       ...c.payload.unidade_ids.map(id => { const u = porId.get(id); return u ? `unidade ${u.identificacao} ${Number(u.identificacao) || ''} bloco ${u.bloco ?? ''}` : '' }),
     ].join(' '))
     return termos.every(t => texto.includes(t))
-  }).sort((a, b) => filtros.ordem === 'antigos' ? a.updated_at.localeCompare(b.updated_at) : a.updated_at.localeCompare(b.updated_at) * -1)
+  }).sort((a, b) => {
+    if (filtros.ordem === 'antigos') return a.updated_at.localeCompare(b.updated_at) || a.id.localeCompare(b.id)
+    if (filtros.ordem === 'recentes') return b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id)
+    const pa = prioridadeAtendimento(a, hoje), pb = prioridadeAtendimento(b, hoje)
+    if (pa.grupo !== pb.grupo) return pa.grupo - pb.grupo
+    // Pendências mais antigas primeiro; depois, casos há mais tempo sem atualização.
+    if ([0, 2, 3].includes(pa.grupo) && pa.prazo !== pb.prazo) return pa.prazo.localeCompare(pb.prazo)
+    return (pa.grupo < 4 ? a.updated_at.localeCompare(b.updated_at) : b.updated_at.localeCompare(a.updated_at)) || a.id.localeCompare(b.id)
+  })
 }
 
 export function linkAtendimento(caminho: string, filtros: FiltrosAtendimento, casoId?: string) {

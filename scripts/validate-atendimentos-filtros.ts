@@ -26,4 +26,20 @@ assert.equal(url.searchParams.get('q'), 'João & Maria')
 assert.equal(url.searchParams.get('condominio_id'), 'safira')
 assert.equal(url.searchParams.get('caso'), 'caso-1')
 assert.equal(linkAtendimento('/app/gestao/keila', {}, 'caso-1'), '/app/gestao/keila?caso=caso-1')
+const comPrazo = (id: string, prazo: string, estado: KeilaCaso['payload']['estado'] = 'em_analise'): KeilaCaso => ({
+  ...pendente, id, payload: { ...pendente.payload, estado, acompanhamento: { conversas: [], pendencias: [{ ...pendente.payload.acompanhamento!.pendencias[0], prazo }] } },
+})
+const prioridades = [
+  { ...caso, id: 'recente', updated_at: '2026-10-13T23:00:00Z' },
+  comPrazo('encerrado', '2026-10-01', 'concluido'),
+  comPrazo('futura', '2026-10-20'), comPrazo('hoje', '2026-10-13'),
+  { ...caso, id: 'humano', payload: { ...caso.payload, estado: 'atendimento_humano' as const } },
+  comPrazo('vencida', '2026-10-12'), comPrazo('mais-vencida', '2026-10-10'),
+]
+assert.deepEqual(filtrarAtendimentos(prioridades, unidades, {}, '2026-10-13').map(c => c.id),
+  ['mais-vencida', 'vencida', 'humano', 'hoje', 'futura', 'recente', 'encerrado'])
+assert.equal(filtrarAtendimentos(prioridades, unidades, { ordem: 'recentes' }, '2026-10-13')[0].id, 'recente')
+const resolvida = { ...comPrazo('resolvida', '2026-10-01'), updated_at: '2026-10-01T10:00:00Z' }
+resolvida.payload.acompanhamento!.pendencias[0].resolvida_em = '2026-10-02'
+assert.deepEqual(filtrarAtendimentos([resolvida, caso], unidades, {}, '2026-10-13').map(c => c.id), ['caso-1', 'resolvida'])
 console.log('Filtros combinados, busca sem acentos, unidades, ordenação e preservação de URL: OK')
