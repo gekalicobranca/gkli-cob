@@ -88,7 +88,7 @@ export async function AtendimentosAgentePage({ searchParams, agenteId }: Props) 
         <FormField label="Referência do atendimento (se a unidade não foi identificada)"><Input aria-label="Referência do atendimento (se a unidade não foi identificada)" name="referencia" /></FormField><FormField label="Próxima ação"><Input aria-label="Próxima ação" name="proxima_acao" required /></FormField>
         <div className="md:col-span-2"><FormField label="Conteúdo do e-mail"><Textarea aria-label="Conteúdo do e-mail" name="resumo" required maxLength={10000} rows={5} /></FormField></div><Button type="submit">Registrar atendimento</Button>
       </form> : <p>{podeEditar ? 'Escolha o condomínio para registrar o e-mail e associar as unidades.' : 'Seu perfil permite apenas consultar os atendimentos.'}</p>}</Card> : <>
-        <ListCollapsibleFilters defaultOpen label={`Filtros${totalFiltros ? ` · ${totalFiltros} ativos` : ''}`}>
+        <ListCollapsibleFilters key={caso?.id ?? 'filtros'} defaultOpen={!caso} label={`Filtros${totalFiltros ? ` · ${totalFiltros} ativos` : ''}`}>
           <ListFiltersForm className="md:grid-cols-2 xl:grid-cols-4">
             {selectedId ? <input type="hidden" name="caso" value={selectedId} /> : null}
             <div className="md:col-span-2"><FormField label="Buscar atendimento"><Input aria-label="Buscar atendimento" name="q" defaultValue={filtros.q} placeholder="Nome, e-mail, condomínio, unidade ou assunto" /></FormField></div>
