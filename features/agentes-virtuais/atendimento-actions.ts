@@ -80,5 +80,5 @@ export async function negociarAtendimentoVirtual(agenteId: AgenteVirtualId, form
       parcelas: Number(texto(form, 'parcelas')), vencimento: texto(form, 'vencimento') })
   } catch (error) { erro = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? 'Falha na negociação.') }
   for (const caminho of [agente.caminho, '/app/cobrancas', '/app/acordos', '/app/pendencias']) revalidatePath(caminho)
-  redirect(`${agente.caminho}?${new URLSearchParams({ caso: id, ...(erro ? { erro } : { resultado: aceitar ? 'Acordo firmado no app. Atendimento humano: formalizar na administradora e obter termo e boletos. Nenhum envio realizado.' : 'Proposta preparada; cobranças em possível acordo.' }) })}`)
+  redirect(`${agente.caminho}?${new URLSearchParams({ caso: id, ...(erro ? { erro } : { resultado: aceitar ? 'Acordo firmado no app. Atendimento humano: formalizar na administradora e obter termo e boletos. Consulte o status do aviso interno no atendimento.' : 'Proposta preparada; cobranças em possível acordo.' }) })}`)
 }

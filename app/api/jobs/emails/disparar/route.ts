@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const unauthorized = authorized ? null : requireCronSecret(request)
   if (unauthorized) return unauthorized
   try {
-    const result = await executarDisparosEmail(50)
+    const result = await executarDisparosEmail(50, undefined, new URL(request.url).searchParams.get('avisos_internos') === '1')
     await registrarWorker('email', 'operando')
     return NextResponse.json({ ok: true, ...result })
   } catch (error) {

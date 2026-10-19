@@ -6,14 +6,14 @@ import { recalcularReferenciasMensagem } from './whatsapp-cloud/flows'
 import { emailHorarioPermitido } from './email-janela'
 
 // A autorização final e a reserva de cota são atômicas no provedor/banco.
-export async function executarDisparosEmail(limit = 50, cobrancaFlowId?: string) {
-  // Evita carregar fila, templates e anexos durante o horário de uso do app.
-  if (!emailHorarioPermitido()) return { avaliadas: 0, enviadas: 0, adiadas: 0, falhas: 0 }
+export async function executarDisparosEmail(limit = 50, cobrancaFlowId?: string, somenteAvisosInternos = false) {
   const db = createAdminClient()
   // Somente mensagens que entraram explicitamente na nova agenda podem ser disparadas.
   let query = db.from('mensagens').select('*,carteira:carteiras!inner(email_transporte),reserva:email_agenda!inner(mensagem_id)').neq('carteira.email_transporte', 'thunderbird').eq('canal', 'email').eq('status', 'agendada')
     .is('pre_juridico_flow_id', null).lte('agendada_para', new Date().toISOString())
     .order('agendada_para').limit(Math.max(1, Math.min(limit || 50, 100)))
+  // O banco reconfere destinatários, carteira e vínculo real antes do disparo.
+  if (somenteAvisosInternos || !emailHorarioPermitido()) query = query.in('payload->aviso_formalizacao->>regra', ['operador_gekali_v1', 'operador_lidia_v1'])
   if (cobrancaFlowId) query = query.eq('cobranca_flow_id', cobrancaFlowId)
   const { data, error } = await query
   if (error) throw new Error(`Erro ao carregar agenda de e-mail: ${error.message}`)
