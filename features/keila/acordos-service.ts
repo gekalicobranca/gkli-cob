@@ -40,13 +40,14 @@ export async function proporAcordoKeila(db: SupabaseClient, input: {
   return resultado.data
 }
 
-export async function aceitarAcordoKeila(db: SupabaseClient, input: { casoId: string; unidadeId: string; evidencia: string; agenteId?: AgenteVirtualId }) {
+export async function aceitarAcordoKeila(db: SupabaseClient, input: { casoId: string; unidadeId: string; evidencia: string; updatedAt?: string; agenteId?: AgenteVirtualId }) {
   const agenteId = input.agenteId ?? 'keila'
   const caso = await carregarCaso(db, input.casoId, null, agenteId)
   if (!caso.payload.unidade_ids.includes(input.unidadeId)) throw new Error('Unidade fora do atendimento.')
   if (!input.evidencia.trim()) throw new Error('Registre a resposta de aceite real recebida.')
+  if (input.updatedAt && input.updatedAt !== caso.updated_at) throw new Error('O atendimento mudou. Recarregue e confira as condições aceitas.')
   const resultado = await db.rpc(AGENTES_VIRTUAIS[agenteId].negociarRpc, { p_caso: input.casoId, p_unidade: input.unidadeId,
-    p_operacao: 'aceitar', p_dados: {}, p_evidencia: input.evidencia.trim() })
+    p_operacao: 'aceitar', p_dados: { updated_at: caso.updated_at }, p_evidencia: input.evidencia.trim() })
   if (resultado.error) throw resultado.error
   return resultado.data
 }

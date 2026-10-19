@@ -9,6 +9,7 @@ export type KeilaAcordo = {
   base: number; despesas: number; total: number; percentual: number
   parcelas: { numero: number; valor: number; vencimento: string; tipo_parcela: string; status: string }[]
   destinatario: string | null; cc: string[]; assunto: string; solicitado_em?: string
+  formalizacao?: { status: 'pendente'; registrada_em: string; evidencia?: string; usuario_id?: string | null; proposta_aceita: { total: number; parcelas: { numero: number; valor: number; vencimento: string }[] }; aprovacao?: unknown }
 }
 
 export function montarPropostaKeila(cobrancas: Parameters<typeof simularPropostaKeila>[0], dias: number,

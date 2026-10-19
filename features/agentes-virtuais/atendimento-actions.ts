@@ -72,10 +72,13 @@ export async function negociarAtendimentoVirtual(agenteId: AgenteVirtualId, form
   try {
     if (carteiraIds?.length === 0) throw new Error('Sem acesso à carteira do agente.')
     const db = await createClient()
-    if (aceitar) await aceitarAcordoKeila(db, { agenteId, casoId: id, unidadeId: texto(form, 'unidade_id'), evidencia: texto(form, 'evidencia') })
+    if (aceitar) {
+      if (form.get('confirmar_aceite') !== 'sim' || !texto(form, 'updated_at')) throw new Error('Confira a proposta e confirme o aceite real recebido.')
+      await aceitarAcordoKeila(db, { agenteId, casoId: id, unidadeId: texto(form, 'unidade_id'), evidencia: texto(form, 'evidencia'), updatedAt: texto(form, 'updated_at') })
+    }
     else await proporAcordoKeila(db, { casoId: id, unidadeId: texto(form, 'unidade_id'), carteiraIds, agenteId,
       parcelas: Number(texto(form, 'parcelas')), vencimento: texto(form, 'vencimento') })
   } catch (error) { erro = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? 'Falha na negociação.') }
   for (const caminho of [agente.caminho, '/app/cobrancas', '/app/acordos', '/app/pendencias']) revalidatePath(caminho)
-  redirect(`${agente.caminho}?${new URLSearchParams({ caso: id, ...(erro ? { erro } : { resultado: aceitar ? 'Aceite registrado e acordo firmado. Nenhum e-mail enviado.' : 'Proposta preparada; cobranças em possível acordo.' }) })}`)
+  redirect(`${agente.caminho}?${new URLSearchParams({ caso: id, ...(erro ? { erro } : { resultado: aceitar ? 'Acordo firmado no app. Atendimento humano: formalizar na administradora e obter termo e boletos. Nenhum envio realizado.' : 'Proposta preparada; cobranças em possível acordo.' }) })}`)
 }

@@ -1,3 +1,4 @@
+import { formalizacoesPendentes } from './formalizacao-administradora'
 import type { KeilaCasoPayload } from './casos'
 import type { PendenciaKeila } from './acompanhamento'
 
@@ -29,6 +30,7 @@ export function atencaoEtapas({ payload, execucao, conferida, proposta, envios, 
     return etapas
   }
   if (payload.estado === 'concluido') return etapas
+  if (payload.estado === 'atendimento_humano' && formalizacoesPendentes(payload).length > 0) return marcar('acompanhamento-caso', 'Formalizar na administradora', 'Acordo firmado no app. Operador humano: obter termo e boletos e conferir o registro bancário.', 'humana')
   if (payload.estado === 'atendimento_humano') return marcar('acompanhamento-caso', 'Atuação humana', 'Revisar a pendência com a equipe responsável. Não iniciar negociação paralela.', 'humana')
   if (envios.some(e => e?.provider_status === 'incerto')) return marcar('resposta-caso', 'Envio incerto', 'Conferir o transporte antes de qualquer nova tentativa.', 'urgente')
   if (envios.some(e => e?.erro_envio || (e && ['falha', 'erro', 'cancelada'].includes(e.status)))) return marcar('resposta-caso', 'Revisar envio', 'Há falha ou cancelamento registrado. Confira o motivo na resposta.', 'urgente')

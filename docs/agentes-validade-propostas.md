@@ -17,3 +17,13 @@ Antes de enfileirar e novamente antes de enviar por SMTP ou Thunderbird, conferi
 Propostas históricas sem a nova identificação não recebem lembretes retroativos nem têm seus textos alterados. Este recurso não ativa flows de cobrança, não envia propostas sem aprovação e não autoriza criar acordos automaticamente.
 
 Validação: `scripts/validate-propostas-validade.ts` e `scripts/validate-keila-conferencia.ts`.
+
+## Após o aceite
+
+Ao registrar o aceite real, Keila e Lidia mantêm a criação do acordo no app como **acordo firmado**, com as verificações financeiras e de validade existentes. O operador confere os valores, parcelas e vencimentos e registra a evidência recebida. Uma alteração do caso durante essa conferência exige recarregar a tela.
+
+Na mesma transação, o atendimento passa para **atuação humana**, preserva a proposta aceita e sua aprovação e recebe uma pendência vinculada ao acordo: **formalizar na administradora e obter termo e boletos**. Se essa pendência não puder ser registrada, a criação financeira também é revertida. Repetições não criam uma segunda pendência.
+
+O operador define se realizará o cadastro no portal ou solicitará que a administradora o faça, confere termo, grade, boletos e registro bancário e submete a comunicação para aprovação. Este encaminhamento não cadastra nada na administradora nem envia mensagens. O acordo só é efetivado pela rotina financeira após pagamento confirmado. O aviso destacado de formalização pendente desaparece quando a pendência correspondente for resolvida.
+
+Validação do aceite e encaminhamento: `scripts/validate-aceite-formalizacao.ts`.
