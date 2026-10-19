@@ -28,11 +28,11 @@ O operador define se realizará o cadastro no portal ou solicitará que a admini
 
 Validação do aceite e encaminhamento: `scripts/validate-aceite-formalizacao.ts`.
 
-### Aviso interno autorizado na carteira GEKALI
+### Avisos internos por carteira
 
-Novos acordos firmados e encaminhados para atuação humana na carteira GEKALI geram um único e-mail automático para **Danielle.lima@gekali.com.br**, com **edi.neves@gekali.com.br** em cópia visível. O aviso contém condomínio, unidade, condições aceitas, evidência do aceite, tarefa de formalização e links do atendimento e do acordo. Não aplicar esses destinatários à carteira Genske/Lidia sem autorização específica.
+Novos acordos firmados e encaminhados para atuação humana na carteira GEKALI geram um único e-mail automático para **Danielle.lima@gekali.com.br**, com **edi.neves@gekali.com.br** em cópia visível. O aviso contém condomínio, unidade, condições aceitas, evidência do aceite, tarefa de formalização e links do atendimento e do acordo. Para a **Lidia**, na carteira **Genske Advogados**, o destinatário autorizado é **acordos.camila@genskeadvogados.com.br**, com **edi.neves@gekali.com.br** em cópia visível. O roteamento confere agente e carteira, sem cruzar os destinatários.
 
-O registro do aviso é criado na mesma transação do encaminhamento e entra na agenda normal da carteira, com a janela atual de envio das 22h às 06h (Brasília), limites e bloqueios existentes. GEKALI usa SMTP, que envia a mesma mensagem aos dois destinatários com cabeçalho Cc. O Thunderbird bloqueia mensagens com cópia para não omitir destinatários. Se o transporte for alterado, manter esses avisos pelo SMTP ou atualizar o suporte a cópias antes de liberá-los.
+O registro do aviso é criado na mesma transação do encaminhamento e entra na agenda normal da carteira, com a janela atual de envio das 22h às 06h (Brasília), limites e bloqueios existentes. GEKALI e Genske Advogados usam SMTP, que envia a mesma mensagem aos dois destinatários com cabeçalho Cc. O Thunderbird bloqueia mensagens com cópia para não omitir destinatários. Se o transporte for alterado, manter esses avisos pelo SMTP ou atualizar o suporte a cópias antes de liberá-los.
 
 Uma chave única vincula aviso, caso e acordo; atualizações posteriores não recriam avisos enviados, cancelados, falhos ou incertos. Não gerar avisos retroativos de acordos anteriores. A tela informa se o aviso está na fila, foi enviado ou apresentou falha, consultando o transporte. Aviso interno não substitui a aprovação exigida para mensagens e documentos destinados ao condômino ou à administradora.
 

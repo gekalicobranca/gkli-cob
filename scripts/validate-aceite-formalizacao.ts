@@ -34,12 +34,15 @@ async function main() {
   `)
   await db.exec(readFileSync('supabase/migrations/20261019004657_aceite_agentes_encaminhar_humano.sql','utf8'))
   await db.exec(readFileSync('supabase/migrations/20261019005823_avisar_operador_acordo_firmado.sql','utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261019010614_aviso_operador_lidia_camila.sql','utf8'))
   const id='00000000-0000-0000-0000-000000000001',unidade='00000000-0000-0000-0000-000000000002'
   const proposta={id:'proposta-original',unidade_id:unidade,unidade:'35',etapa:'possivel_acordo',base:100,despesas:10,total:110,percentual:10,parcelas:[{numero:1,valor:110,vencimento:'2026-11-05'}]}
   const original={versao:1,estado:'proposta_preparada',acordos:[proposta],resposta_aprovada:{texto:'texto aprovado',mensagem_id:'mensagem-original'},atividades:[],acompanhamento:{conversas:[{message_id:'original'}],pendencias:[{id:'anterior',tipo:'proposta',prazo:'2026-10-20',proxima_acao:'Preservar'}]}}
-  for(const [agente,falhaAgenda] of [['keila',false],['lidia',false],['keila',true]] as const) {
+  const cenarios: [string,boolean,string?][]=[['keila',false],['lidia',false],['keila',true],['keila',false,'06827218-e2b1-4267-ad8f-81a0ab222cad'],['lidia',false,'e1f6e3ac-1098-4b30-9e0f-af4c47b351a3']]
+  for(const [agente,falhaAgenda,carteiraAlternativa] of cenarios) {
    await db.query('update teste_agenda set falhar=$1',[falhaAgenda])
-   const carteira=agente==='keila'?'e1f6e3ac-1098-4b30-9e0f-af4c47b351a3':'06827218-e2b1-4267-ad8f-81a0ab222cad'
+   const carteira=carteiraAlternativa??(agente==='keila'?'e1f6e3ac-1098-4b30-9e0f-af4c47b351a3':'06827218-e2b1-4267-ad8f-81a0ab222cad')
+   const deveAvisar=!carteiraAlternativa
    await db.query("insert into condominios values('00000000-0000-0000-0000-000000000004',$1,'Condomínio de teste')",[carteira])
    await db.query("insert into central_pendencias values($1,$2,$4,'00000000-0000-0000-0000-000000000004','em_tratamento','',$3::jsonb,'2026-10-18T12:00:00Z')",[id,`${agente}_atendimento`,JSON.stringify(original),carteira])
    const aceitar=(evidencia='Aceito os valores e vencimentos',versao='2026-10-18T12:00:00Z')=>db.query('select agente_virtual_negociar_acordo($1,$2,$3,$4,$5::jsonb,$6)',[agente,id,unidade,'aceitar',JSON.stringify({updated_at:versao}),evidencia])
@@ -60,15 +63,16 @@ async function main() {
    assert.deepEqual(registro.acompanhamento!.conversas,original.acompanhamento.conversas)
    assert.equal((await db.query<{n:number}>("select count(*)::int n from acordos where status='ativo' and devedor_aceito_em is not null")).rows[0].n,1,'Acordo permanece criado no app')
    const avisos=(await db.query<{destinatario:string;payload:{email_cc:string[]};conteudo:string;status:string}>('select * from mensagens')).rows
-   assert.equal(avisos.length,agente==='keila'?1:0,'Destinatários autorizados somente para carteira GEKALI')
-   if(agente==='keila') {
-    assert.equal(avisos[0].destinatario,'danielle.lima@gekali.com.br')
+   assert.equal(avisos.length,deveAvisar?1:0,'Destinatários restritos ao agente e à carteira autorizados')
+   if(deveAvisar) {
+    assert.equal(avisos[0].destinatario,agente==='keila'?'danielle.lima@gekali.com.br':'acordos.camila@genskeadvogados.com.br')
     assert.deepEqual(avisos[0].payload.email_cc,['edi.neves@gekali.com.br'])
     assert.equal(avisos[0].status,falhaAgenda?'falha':'agendada','Falha de agenda fica registrada sem perder o acordo e o encaminhamento')
     assert.match(avisos[0].conteudo,/Total aceito: R\$ 110,00/)
     assert.match(avisos[0].conteudo,/Aceito os valores e vencimentos/)
     assert.match(avisos[0].conteudo,new RegExp('caso='+id))
     assert.ok(acordo.formalizacao?.aviso_operador_mensagem_id)
+    if(agente==='lidia') {assert.match(avisos[0].conteudo,/^Camila,/);assert.match(avisos[0].conteudo,/Genske Advogados/);assert.doesNotMatch(avisos[0].conteudo,/Danielle|GEKALI/)}
    } else assert.equal(acordo.formalizacao?.aviso_operador_mensagem_id,null)
    const atencao=atencaoEtapas({payload:registro,conferida:true,proposta:true,envios:[],hoje:'2026-10-18'})
    assert.equal(atencao['acompanhamento-caso'].alerta?.titulo,'Formalizar na administradora')
@@ -77,7 +81,7 @@ async function main() {
    assert.deepEqual(repetido,registro,'Atualização posterior não duplica pendências nem evidências')
    await assert.rejects(aceitar('aceito',new Date().toISOString()))
    assert.equal((await db.query<{n:number}>('select count(*)::int n from acordos')).rows[0].n,1,'Repetição não cria segundo acordo')
-   assert.equal((await db.query<{n:number}>('select count(*)::int n from mensagens')).rows[0].n,agente==='keila'?1:0,'Aviso não se repete em atualizações posteriores')
+   assert.equal((await db.query<{n:number}>('select count(*)::int n from mensagens')).rows[0].n,deveAvisar?1:0,'Aviso não se repete em atualizações posteriores')
    registro.acompanhamento!.pendencias[1].resolvida_em='2026-10-18T18:00:00Z'
    assert.equal(formalizacoesPendentes(registro).length,0,'Pendência resolvida deixa de destacar formalização em aberto')
    await db.exec('delete from central_pendencias; delete from acordos; delete from mensagens; delete from condominios;')
