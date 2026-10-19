@@ -11,3 +11,11 @@ O envelope SMTP e o cabeçalho From usam a conta Lidia; o cabeçalho Reply-To ap
 Autenticação SMTP pode ser verificada sem destinatários e sem DATA. Isso comprova acesso à conta, mas não equivale a um teste de entrega ou de recebimento. A leitura do Outlook e o atendimento do piloto são etapas independentes da troca do remetente; a troca não habilita um monitor da caixa.
 
 Validação: `scripts/validate-smtp-rota-condominio.ts`, `scripts/validate-email-controle.ts` e `scripts/validate-smtp-remetente.ts`.
+
+## Teste pontual fora da janela
+
+Em 19/10/2026 o operador autorizou expressamente o disparo imediato dos sete e-mails já agendados do flow `0dcffd39-e00d-480c-97e8-a4b8ef388d00`. A migração `20261019205138_email_excecao_teste_restrita.sql` adiciona autorizações administrativas por mensagem, condomínio, carteira, flow e assinatura do destinatário/conteúdo. Elas expiram em até uma hora e são revogadas após cada tentativa pelo executor pontual. Alterar conteúdo, destinatário ou vínculos invalida a autorização. Clientes anônimos e autenticados não podem consultar nem conceder exceções.
+
+A exceção dispensa somente janela noturna e intervalo entre disparos das mensagens expressamente selecionadas. Cotas diárias, transporte, aprovação, elegibilidade, bloqueios de endereço, cobranças arquivadas e proteção contra envio duplicado ou incerto continuam no provedor original. O cron e o filtro diurno do dispatcher não foram alterados; o teste usa o provedor SMTP habitual diretamente, com registro de tentativa e atualização do flow. Qualquer nova execução exige nova autorização do operador e nova concessão administrativa; não há reenvio automático pelo teste.
+
+Validação adicional: `scripts/validate-email-excecao-teste.ts`. O aviso informativo de RLS sem políticas é intencional nesta tabela exclusiva do servidor: todos os privilégios de clientes foram revogados.
