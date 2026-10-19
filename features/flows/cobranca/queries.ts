@@ -396,6 +396,8 @@ export async function getFlowCobrancaMonitorData(scope: CarteiraScope, filters: 
   flowsQuery = applyCarteiraScope(flowsQuery, scope.carteiraIds)
   if (normalized.carteiraId) flowsQuery = flowsQuery.eq('carteira_id', normalized.carteiraId)
   if (normalized.condominioId) flowsQuery = flowsQuery.eq('payload->>condominio_id', normalized.condominioId)
+  // Arquivados saem da listagem padrão; o filtro de inclusão permite consultar o histórico.
+  if (!normalized.inclusaoDe && !normalized.inclusaoAte) flowsQuery = flowsQuery.is('payload->>arquivado_em', null)
   flowsQuery = aplicarCanalNaConsultaFlows(flowsQuery, normalized.canal)
 
 
