@@ -26,6 +26,9 @@ async function main(){
  assert.match(texto,/716,46/);assert.match(texto,/Fora da régua/)
  const fonteBloqueada=[...fonte,{vencimento:'2025-02-10',valor:544.60,linha:99}]
  const planoBloqueado=conferirProposta(fonteBloqueada,[...cadastro,{id:'garantidora',vencimento:'2025-02-10',status_operacional:'suspenso',status_financeiro:'em_aberto',observacoes:'Suspensa: competência abrangida pelo Bloqueio Garantidora.'}],regras,3,'2026-10-16',hoje)
+ assert.match(texto,/validade de 7 dias a partir do envio/);assert.match(texto,/primeira parcela passar/);
+ assert.match(renderizarPropostaConferida('Teste','unidade 1','Condomínio','2026-10-13',plano,undefined,{agenteId:'lidia'}),/Lidia \| Genske Advogados/)
+ assert.doesNotMatch(renderizarPropostaConferida('Teste','unidade 1','Condomínio','2026-10-13',plano,undefined,{historica:true}),/validade de 7 dias/)
  const avisoBloqueio=renderizarPropostaConferida('Monique','unidade 93','Safira','2026-10-13',planoBloqueado)
  assert.match(avisoBloqueio,/há cotas em bloqueio.*garantidora/)
  assert.doesNotMatch(avisoBloqueio,/10\/02\/2025|544,60|544.60/)

@@ -1,3 +1,5 @@
+import { AVISO_VALIDADE_PROPOSTA } from '../agentes-virtuais/validade-proposta'
+import { AGENTES_VIRTUAIS, type AgenteVirtualId } from '../agentes-virtuais/perfis'
 import { createHash } from 'node:crypto'
 import { montarPropostaKeila } from './acordos'
 
@@ -71,7 +73,13 @@ export function conferirProposta(cotas: CotaFonte[], cadastro: CotaCadastro[], r
  const cotasBloqueioGarantidora=cadastro.filter(c=>!c.duplicada_de_id&&c.status_operacional==='suspenso'&&/bloqueio.*garantidora/i.test(c.observacoes??'')).map(c=>c.vencimento).sort()
  return { incluidas, excluidas, divergencias, regras, avista, parcelado,...(cotasBloqueioGarantidora.length?{cotas_bloqueio_garantidora:cotasBloqueioGarantidora}:{}) }
 }
-export function renderizarPropostaConferida(nome: string, unidade: string, condominio: string, dataFonte: string, plano: ReturnType<typeof conferirProposta>, orientacao?:{parcelamento_solicitado:true;segunda_via_vencimento?:string;administradora:string}) {
+export function renderizarPropostaConferida(nome: string, unidade: string, condominio: string, dataFonte: string, plano: ReturnType<typeof conferirProposta>, orientacao?:{parcelamento_solicitado:true;segunda_via_vencimento?:string;administradora:string}, politica?:{historica?:boolean;agenteId?:AgenteVirtualId}) {
+ const texto=renderizarPropostaSemValidade(nome,unidade,condominio,dataFonte,plano,orientacao)
+ if(politica?.historica)return texto
+ const agente=AGENTES_VIRTUAIS[politica?.agenteId??'keila']
+ return texto.replace('Keila | GEKALI',`${AVISO_VALIDADE_PROPOSTA}\n\n${agente.nome} | ${agente.marca}`)
+}
+function renderizarPropostaSemValidade(nome: string, unidade: string, condominio: string, dataFonte: string, plano: ReturnType<typeof conferirProposta>, orientacao?:{parcelamento_solicitado:true;segunda_via_vencimento?:string;administradora:string}) {
  const moeda=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
  const data=(d:string)=>d.split('-').reverse().join('/')
  const bloqueadas=new Set(plano.cotas_bloqueio_garantidora??[])
@@ -86,4 +94,4 @@ export function renderizarPropostaConferida(nome: string, unidade: string, condo
  }
  return `Olá, ${nome}.\n\nPara ${unidade}, do ${condominio}, o relatório da administradora de ${data(dataFonte)} apresenta as seguintes cotas incluídas na proposta:\n\n${plano.incluidas.map(c=>`• Vencimento ${data(c.vencimento)}: ${moeda(c.valor)}.`).join('\n')}\nTotal atualizado das cotas: ${moeda(plano.avista.base)}.\n\nOpções conforme as regras atuais do condomínio:\n• À vista: ${moeda(plano.avista.total)}, incluindo ${moeda(plano.avista.despesas)} de despesas de cobrança (${plano.avista.percentual}%), vencimento proposto em ${data(plano.avista.parcelas[0].vencimento)}.\n• Em ${plano.parcelado.parcelas.length} parcelas: ${moeda(plano.parcelado.total)}, incluindo ${moeda(plano.parcelado.despesas)} de despesas de cobrança (${plano.parcelado.percentual}%).\n${plano.parcelado.parcelas.map(p=>`${p.numero}ª parcela: ${moeda(p.valor)}, vencimento proposto em ${data(p.vencimento)}.`).join('\n')}\n\n${excluidasResposta.length ? `Cotas não incluídas nesta proposta:\n${excluidasResposta.map(c=>`• ${data(c.vencimento)}: ${c.motivo}.`).join('\n')}\n\n` : ''}${observacaoGarantidora}Os vencimentos são sugestões e dependem da sua confirmação. Qual opção fica melhor para você? Após a confirmação das condições, o acordo e os boletos serão providenciados junto à administradora.\n\nKeila | GEKALI`
 }
-export type ConferenciaProposta = { versao: 1; arquivo_id: string; execucao_id: string; sha256: string; data_fonte: string; quantidade: number; vencimento: string; nome: string; unidade: string; condominio: string; plano: ReturnType<typeof conferirProposta>; texto: string; hash: string; acolhimento?:'desculpas_whatsapp_sem_retorno'; orientacao?:{parcelamento_solicitado:true;segunda_via_vencimento?:string;administradora:string} }
+export type ConferenciaProposta = { validade_regra?: 'sete_dias_v1'; versao: 1; arquivo_id: string; execucao_id: string; sha256: string; data_fonte: string; quantidade: number; vencimento: string; nome: string; unidade: string; condominio: string; plano: ReturnType<typeof conferirProposta>; texto: string; hash: string; acolhimento?:'desculpas_whatsapp_sem_retorno'; orientacao?:{parcelamento_solicitado:true;segunda_via_vencimento?:string;administradora:string} }

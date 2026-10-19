@@ -1,3 +1,5 @@
+import { validarConferenciaAtual } from './conferencia-proposta-service'
+import { validarVencimentoProposta } from '../agentes-virtuais/validade-proposta'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { AGENTES_VIRTUAIS, type AgenteVirtualId } from '../agentes-virtuais/perfis'
 import { carregarCaso, salvarCaso } from './casos-service'
@@ -8,6 +10,7 @@ import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 export async function proporAcordoKeila(db: SupabaseClient, input: {
   casoId: string; unidadeId: string; parcelas: number; vencimento: string; carteiraIds: string[] | null; agenteId?: AgenteVirtualId
 }) {
+  validarVencimentoProposta(input.vencimento)
   const agenteId = input.agenteId ?? 'keila'
   const caso = await carregarCaso(db, input.casoId, input.carteiraIds, agenteId)
   if (!caso.payload.unidade_ids.includes(input.unidadeId)) throw new Error('Unidade fora do atendimento.')
@@ -28,6 +31,8 @@ export async function proporAcordoKeila(db: SupabaseClient, input: {
     throw new Error('Multa por infração identificada. Caso encaminhado para avaliação humana; nenhuma proposta criada.')
   }
   const elegiveis = (cobrancas ?? []).filter(c => !(condominio.bloqueio_garantidora_habilitado && c.vencimento >= condominio.bloqueio_garantidora_inicio && c.vencimento <= condominio.bloqueio_garantidora_fim))
+  const conferida = await validarConferenciaAtual(db, caso)
+  if (conferida.data_fonte !== new Intl.DateTimeFormat('en-CA', {timeZone:'America/Sao_Paulo'}).format(new Date()) || conferida.vencimento !== input.vencimento || conferida.quantidade !== input.parcelas) throw new Error('Gere uma nova proposta conferida, com relatório de hoje e os vencimentos escolhidos.')
   const proposta = montarPropostaKeila(elegiveis, Number(condominio.dias_apos_vencimento_regua ?? condominio.inicio_cobranca_dias ?? 30), input.parcelas, input.vencimento, new Date(), condominio)
   const resultado = await db.rpc(AGENTES_VIRTUAIS[agenteId].negociarRpc, { p_caso: caso.id, p_unidade: input.unidadeId,
     p_operacao: 'propor', p_dados: proposta, p_evidencia: 'Proposta preparada pelo operador com os valores disponíveis no cadastro.' })

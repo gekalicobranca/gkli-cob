@@ -1,3 +1,4 @@
+import { diaBrasilia } from '../agentes-virtuais/validade-proposta'
 import { createHash } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { enfileirarColetaReceita } from '../agente-automatico/execucoes-service'
@@ -113,10 +114,10 @@ export async function buscarDebitosCasoKeila(supabase: SupabaseClient, input: {
   const caso = await carregarCaso(supabase, input.id, input.carteiraIds, input.agenteId)
   if (['atendimento_humano', 'concluido'].includes(caso.payload.estado)) throw new Error('Este caso não permite uma nova coleta pelo agente virtual.')
   if (caso.payload.execucao_id) {
-    const { data: execucao, error } = await supabase.from('agente_execucoes').select('id,status')
+    const { data: execucao, error } = await supabase.from('agente_execucoes').select('id,status,created_at')
       .eq('id', caso.payload.execucao_id).eq('condominio_id', caso.condominio_id).single()
     if (error) throw new Error(error.message)
-    if (execucao && ['pendente', 'em_execucao', 'sucesso'].includes(execucao.status)) return execucao.id as string
+    if (execucao && (['pendente', 'em_execucao'].includes(execucao.status) || (execucao.status === 'sucesso' && diaBrasilia(new Date(execucao.created_at)) === diaBrasilia()))) return execucao.id as string
   }
   const { data: receitas, error } = await supabase.from('agente_receitas')
     .select('id,administradora:agente_administradoras!inner(ativo)')

@@ -11,7 +11,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!/^[0-3]$/.test(indice)) return new Response('Anexo inválido.', { status: 400 })
   const db = createAdminClient()
   try {
-    const caso = await carregarCaso(db, id, scope.carteiraIds)
+    const agenteId = new URL(_request.url).searchParams.get('agente') === 'lidia' ? 'lidia' : 'keila'
+    const caso = await carregarCaso(db, id, scope.carteiraIds, agenteId)
     const refs = caso.payload.resposta_aprovada?.anexos ?? caso.payload.resposta_anexos ?? []
     const ref = refs[Number(indice)]
     if (!ref) return new Response('Anexo não encontrado.', { status: 404 })

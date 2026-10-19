@@ -1,3 +1,4 @@
+import { REGRA_VALIDADE_PROPOSTA, validarVencimentoProposta } from '../agentes-virtuais/validade-proposta'
 import { createHash } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
@@ -7,7 +8,8 @@ import { salvarCaso, type carregarCaso } from './casos-service'
 import { extrairCotasLello, conferirProposta, renderizarPropostaConferida, incluirAcolhimentoProposta, hashConferencia, type ConferenciaProposta } from './conferencia-proposta'
 
 /** Evidência é recalculada no servidor a partir do arquivo, nunca aceita pelo JSON do operador. */
-export async function gerarConferenciaProposta(db: SupabaseClient, caso: {condominio_id: string; carteira_id: string; payload: KeilaCasoPayload}, input: {arquivo_id: string; quantidade: number; vencimento: string}, hoje = new Date()): Promise<ConferenciaProposta> {
+export async function gerarConferenciaProposta(db: SupabaseClient, caso: {condominio_id: string; carteira_id: string; payload: KeilaCasoPayload; tipo?: string}, input: {arquivo_id: string; quantidade: number; vencimento: string}, hoje = new Date(), historica = false): Promise<ConferenciaProposta> {
+ if (!historica) validarVencimentoProposta(input.vencimento, hoje)
  if (!Number.isInteger(input.quantidade) || input.quantidade < 1 || input.quantidade > 120) throw new Error('Informe entre 1 e 120 parcelas para a proposta (1 = à vista).')
  if (caso.payload.unidade_ids.length !== 1) throw new Error('Conferência automática requer uma única unidade.')
  const execucaoId=caso.payload.execucao_id
@@ -39,14 +41,14 @@ export async function gerarConferenciaProposta(db: SupabaseClient, caso: {condom
  const descricao=/^[1-9]\d{5}$/.test(codigo) ? `a unidade ${Number(codigo.slice(1))}, bloco ${codigo[0]}` : `a unidade ${codigo}`
  const orientacao=caso.payload.orientacao_proposta?{...caso.payload.orientacao_proposta,administradora:condominio.administradora?.toUpperCase()==='LELLO'?'Lello':condominio.administradora?.trim()||'administradora'}:undefined
  const acolhimento=caso.payload.acolhimento_resposta
- const texto=incluirAcolhimentoProposta(renderizarPropostaConferida(email.nome,descricao,condominio.nome,dia,plano,orientacao),acolhimento)
- const base={versao:1 as const,arquivo_id:arquivo.id,execucao_id:execucaoId,sha256:createHash('sha256').update(buffer).digest('hex'),data_fonte:dia,quantidade:input.quantidade,vencimento:input.vencimento,nome:email.nome,unidade:descricao,condominio:condominio.nome,plano,texto,...(orientacao?{orientacao}:{}),...(acolhimento?{acolhimento}:{})}
+ const texto=incluirAcolhimentoProposta(renderizarPropostaConferida(email.nome,descricao,condominio.nome,dia,plano,orientacao,{historica,agenteId:caso.tipo==='lidia_atendimento'?'lidia':'keila'}),acolhimento)
+ const base={...(historica?{}:{validade_regra:REGRA_VALIDADE_PROPOSTA}),versao:1 as const,arquivo_id:arquivo.id,execucao_id:execucaoId,sha256:createHash('sha256').update(buffer).digest('hex'),data_fonte:dia,quantidade:input.quantidade,vencimento:input.vencimento,nome:email.nome,unidade:descricao,condominio:condominio.nome,plano,texto,...(orientacao?{orientacao}:{}),...(acolhimento?{acolhimento}:{})}
  return {...base,hash:hashConferencia({...base,email_chave:email.chave,destinatario:email.remetente,anexos:caso.payload.resposta_anexos??[]})}
 }
-export async function validarConferenciaAtual(db: SupabaseClient, caso: {condominio_id:string;carteira_id:string;payload:KeilaCasoPayload}) {
+export async function validarConferenciaAtual(db: SupabaseClient, caso: {condominio_id:string;carteira_id:string;payload:KeilaCasoPayload;tipo?:string}) {
  const c=caso.payload.conferencia_proposta
  if(!c)throw new Error('Proposta sem conferência automática. Gere uma versão conferida antes de aprovar.')
- const atual=await gerarConferenciaProposta(db,caso,c)
+ const atual=await gerarConferenciaProposta(db,caso,c,new Date(),!c.validade_regra && !!caso.payload.resposta_aprovada)
  if(c.hash!==atual.hash || caso.payload.resposta_simulada?.trim()!==atual.texto.trim()) throw new Error('Fonte, regras, cotas, anexos ou texto mudaram. Gere uma nova versão e revise antes de aprovar.')
  return atual
 }
