@@ -6,6 +6,7 @@ import { googleToken, openGoogleSecret, xoauth2 } from './google-oauth'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { normalizarEmailControle } from '@/features/carteiras/email-controle'
 import { validarMensagemSemCobrancaArquivada } from './validar-arquivamento'
+import { buscarRotaSmtpFlow } from './smtp-rota-condominio'
 
 export type EmailPayload = {
   to: string
@@ -13,6 +14,7 @@ export type EmailPayload = {
   subject: string
   text: string
   from?: string
+  replyTo?: string
   attachments?: Array<{
     filename: string
     contentType?: string
@@ -351,6 +353,7 @@ function base64Lines(content: Buffer | Uint8Array | string) {
 
 function buildMimeMessage(input: {
   from: string
+  replyTo?: string
   to: string
   cc?: string[]
   subject: string
@@ -361,6 +364,7 @@ function buildMimeMessage(input: {
   if (!attachments.length) {
     return [
       `From: ${input.from}`,
+      ...(input.replyTo ? [`Reply-To: ${input.replyTo}`] : []),
       `To: ${input.to}`,
       ...(input.cc?.length ? [`Cc: ${input.cc.join(', ')}`] : []),
       `Subject: ${encodeSubject(input.subject)}`,
@@ -376,6 +380,7 @@ function buildMimeMessage(input: {
   const boundary = `gkli-${Date.now()}-${Math.random().toString(16).slice(2)}`
   const parts = [
     `From: ${input.from}`,
+    ...(input.replyTo ? [`Reply-To: ${input.replyTo}`] : []),
     `To: ${input.to}`,
     ...(input.cc?.length ? [`Cc: ${input.cc.join(', ')}`] : []),
     `Subject: ${encodeSubject(input.subject)}`,
@@ -466,8 +471,18 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
     if (error) throw new Error(`Erro ao consultar e-mail de controle da carteira: ${error.message}`)
     emailControle = normalizarEmailControle(data.email_controle)
   }
-  const config = await getConfig(options)
+  const rota = normalizedOptions.mensagemId && carteiraId && !normalizedOptions.overrideConfig
+    ? await buscarRotaSmtpFlow(createAdminClient(), normalizedOptions.mensagemId, carteiraId) : null
+  const config = rota ? rowToConfig(rota.config) : await getConfig(options)
+  if (!config) throw new Error('Configuração SMTP específica inválida.')
+  if (rota && (smtpSender(config.from).address.toLowerCase() !== rota.remetente.toLowerCase()
+    || (payload.from && smtpSender(payload.from).address.toLowerCase() !== rota.remetente.toLowerCase()))) {
+    throw new Error('Remetente diverge da conta autorizada para o condomínio.')
+  }
   const sender = smtpSender(payload.from || config.from)
+  const replyTo = rota?.responderPara ?? payload.replyTo
+  if (replyTo && (/[\r\n<>]/.test(replyTo) || !/^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(replyTo))) throw new Error('Endereço de resposta inválido.')
+  if (rota && payload.replyTo && payload.replyTo.toLowerCase() !== rota.responderPara.toLowerCase()) throw new Error('Resposta diverge da caixa autorizada para o condomínio.')
   const from = sender.address
   const to = sanitizeAddress(payload.to)
   if (payload.cc && (!Array.isArray(payload.cc) || payload.cc.length > 10)) throw new Error('Cópias de e-mail inválidas.')
@@ -522,6 +537,7 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
 
     const message = buildMimeMessage({
       from: sender.header,
+      replyTo,
       to,
       cc,
       subject,

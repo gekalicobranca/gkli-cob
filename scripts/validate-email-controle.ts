@@ -80,6 +80,7 @@ test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', a
     if (id === './validar-destino-email') return { validarDestinoEmail: async () => {} }
     if (id === './validar-arquivamento') return { validarMensagemSemCobrancaArquivada: async () => {} }
     if (id === './google-oauth') return {}
+    if (id === './smtp-rota-condominio') return {}
     return require(id)
   }, exports)
   const options = {

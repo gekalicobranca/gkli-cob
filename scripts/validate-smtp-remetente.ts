@@ -10,7 +10,12 @@ const compiled = ts.transpileModule(readFileSync('features/mensageria/email-prov
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
 }).outputText
 const api: any = {}
-new Function('require', 'exports', compiled)((id: string) => id.startsWith('node:') ? require(id) : {}, api)
+new Function('require', 'exports', compiled)((id: string) => {
+  if (id.startsWith('node:')) return require(id)
+  if (id === '@/utils/supabase/admin') return { createAdminClient: () => ({}) }
+  if (id === './validar-destino-email') return { validarDestinoEmail: async () => {} }
+  return {}
+}, api)
 const sender = 'Operação Azevedo Araujo <operacao@azevedoaraujoadvs.com.br>'
 const header = `=?UTF-8?B?${Buffer.from('Operação Azevedo Araujo').toString('base64')}?= <operacao@azevedoaraujoadvs.com.br>`
 
