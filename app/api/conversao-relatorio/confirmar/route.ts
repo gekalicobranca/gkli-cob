@@ -13,6 +13,7 @@ import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
 import { statusOperacionalParaCobrancaImportada } from "@/features/importacoes/status-cobranca-importada"
 import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "@/features/importacoes/regra-judicial-importacao"
 import { associarCobrancaConciliada } from "@/features/importacoes/reaproveitar-conversao"
+import { observacoesComComposicao, persistirComposicaoConciliada } from "@/features/importacoes/composicao-origem"
 import {
   avaliarBloqueioGarantidora,
   observacaoComBloqueioGarantidora,
@@ -371,7 +372,7 @@ export async function POST(request: NextRequest) {
           bloqueioGarantidora = avaliarBloqueioGarantidora(condominioConfiguracao as any, { vencimento: parcelaBloqueada })
         }
       }
-      const observacoes = observacaoComBloqueioGarantidora(observacoesBase, bloqueioGarantidora.bloqueada)
+      const observacoes = observacoesComComposicao(observacaoComBloqueioGarantidora(observacoesBase, bloqueioGarantidora.bloqueada), item)
       const statusCalculado = await statusOperacionalParaCobrancaImportada(supabase as any, {
         ...item,
         condominio_id: condominioId,
@@ -398,6 +399,9 @@ export async function POST(request: NextRequest) {
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao)
 
       if (conciliacao.status === "ja_existente") {
+        await persistirComposicaoConciliada(supabase, conciliacao.cobrancaId, {
+          condominioId, carteiraId, recibo, vencimento: vencimentoMaisAntigo,
+        }, item)
         await associarCobrancaConciliada(supabase, conciliacao.cobrancaId, {
           condominio_id: condominioId, carteira_id: carteiraId, unidade_id: unidadeId, conversao_relatorio_id: conversaoId,
         })
@@ -519,7 +523,8 @@ export async function POST(request: NextRequest) {
             valor_original: Number(item.valorPrincipal ?? parcela.valor ?? 0),
             valor_atualizado: Number(item.valorTotal ?? parcela.valor ?? 0),
             status: "aberto",
-            origem_linha_json: { ...parcela, recibo, multa, correcao, juros, valorTotal },
+            origem_linha_json: { ...parcela, recibo, multa, correcao, juros, valorTotal,
+              detalhesOrigem: item.detalhesOrigem, composicaoOrigem: item.composicaoOrigem, tiposCobranca: item.tiposCobranca },
           }))
           .filter((parcela: any) => parcela.data_vencimento && parcela.valor_atualizado > 0)
 

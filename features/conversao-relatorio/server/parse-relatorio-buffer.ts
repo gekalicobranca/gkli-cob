@@ -15,6 +15,7 @@ import { detectThomazInadimplentes, parseThomazInadimplentes } from "./thomaz-in
 import { detectBrcondominioDebitos, parseBrcondominioDebitos } from "./brcondominio-debitos";
 import { avaliarRecorteAnoCorrente } from "@/features/importacoes/recorte-cobrancas";
 import type { RankingMensalCaptacao } from "@/features/captacao-automatizada/ranking-mensal";
+import { tipoCobrancaDoHistorico, type ComposicaoCobrancaOrigem, type ComponenteCobrancaOrigem } from "@/features/importacoes/composicao-origem";
 
 export type ParcelaNormalizada = {
   unidade: string;
@@ -34,7 +35,7 @@ export type SituacaoOrigemCobranca =
   | "boleto_bancario"
   | "protesto";
 
-export type CobrancaPreview = {
+export type CobrancaPreview = ComposicaoCobrancaOrigem & {
   competencia?: string;
   unidade: string;
   bloco?: string;
@@ -135,7 +136,7 @@ type PdfTextQualityReport = {
   };
 };
 
-export type ReciboCondopro = {
+export type ReciboCondopro = ComposicaoCobrancaOrigem & {
   competencia?: string;
   bloco: string;
   unidade: string;
@@ -910,6 +911,8 @@ function getHeaderIndex(row: unknown[]) {
   const header = row.map((cell) => normalize(cell).toLowerCase());
 
   return {
+    conta: header.findIndex((cell) => cell === "conta"),
+    historico: header.findIndex((cell) => cell.normalize('NFD').replace(/[\u0300-\u036f]/g, '') === "historico"),
     recibo: header.findIndex((cell) => cell.includes("recibo")),
     vencimento: header.findIndex((cell) => cell.includes("vencimento")),
     valorPrincipal: header.findIndex((cell) =>
@@ -935,6 +938,7 @@ function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
   let headerIndex: ReturnType<typeof getHeaderIndex> | null = null;
   let reciboAtual = "";
   let vencimentoAtual = "";
+  let composicaoAtual: ComponenteCobrancaOrigem[] = [];
 
   for (const rawRow of rows) {
     const row = rawRow.map((cell) => normalize(cell));
@@ -955,6 +959,7 @@ function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
       unidadeAtual = unidadeMatch[2] || "SEM-UNIDADE";
       responsavelAtual =
         normalize(unidadeMatch[3]) || "Responsável não identificado";
+      composicaoAtual = [];
       reciboAtual = "";
       vencimentoAtual = "";
       continue;
@@ -966,6 +971,7 @@ function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
       /valor\s+principal/i.test(text)
     ) {
       headerIndex = getHeaderIndex(row);
+      composicaoAtual = [];
       reciboAtual = "";
       vencimentoAtual = "";
       continue;
@@ -994,10 +1000,16 @@ function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
         correcao: totais.correcao,
         juros: totais.juros,
         valorTotal: totais.valorTotal,
+        ...(composicaoAtual.length ? {
+          composicaoOrigem: composicaoAtual,
+          tiposCobranca: [...new Set(composicaoAtual.map(item => item.tipo))],
+          detalhesOrigem: composicaoAtual.map(item => `${item.conta} ${item.historico}: R$ ${moneyToCsv(item.valorPrincipal)}`).join('; '),
+        } : {}),
       });
 
       reciboAtual = "";
       vencimentoAtual = "";
+      composicaoAtual = [];
       continue;
     }
 
@@ -1015,6 +1027,14 @@ function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
 
     if (recibo) reciboAtual = recibo;
     if (vencimento) vencimentoAtual = vencimento;
+    const conta = headerIndex.conta >= 0 ? normalize(row[headerIndex.conta]) : '';
+    const historico = headerIndex.historico >= 0 ? normalize(row[headerIndex.historico]) : '';
+    if (reciboAtual && /^\d+$/.test(conta) && historico) {
+      composicaoAtual.push({ conta, historico, tipo: tipoCobrancaDoHistorico(historico),
+        valorPrincipal: parseCondoproMoney(row[headerIndex.valorPrincipal]),
+        valorTotal: parseCondoproMoney(row[headerIndex.total]),
+      });
+    }
   }
 
   return recibos;
@@ -1422,6 +1442,8 @@ export function buildPreviewFromRecibos({
         marcadorOrigem: recibo.marcadorOrigem,
         situacaoOrigem: recibo.situacaoOrigem,
         detalhesOrigem: recibo.detalhesOrigem,
+        composicaoOrigem: recibo.composicaoOrigem,
+        tiposCobranca: recibo.tiposCobranca,
         parcelas: [
           {
             unidade: recibo.unidade,
