@@ -29,6 +29,7 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 type MensagemEnvio = {
   id: string;
+  payload?: Record<string, unknown> | null;
   carteira_id: string | null;
   lote_id: string | null;
   lote_item_id: string | null;
@@ -83,6 +84,7 @@ async function getMensagemEnvio(supabase: SupabaseClient, id: string) {
       status,
       status_operacional,
       canal,
+      payload,
       destinatario,
       conteudo,
       conteudo_renderizado,
@@ -435,6 +437,7 @@ export async function enviarMensagemEmail(id: string) {
 
     const { emailControle } = await sendSmtpEmail({
       to: mensagem.destinatario || "",
+      cc: mensagem.payload?.email_cc as string[] | undefined,
       subject: assunto || "Mensagem GKLI Cobrança",
       text: conteudo,
       attachments: anexos,

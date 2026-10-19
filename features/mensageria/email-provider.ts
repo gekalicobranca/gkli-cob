@@ -9,6 +9,7 @@ import { validarMensagemSemCobrancaArquivada } from './validar-arquivamento'
 
 export type EmailPayload = {
   to: string
+  cc?: string[]
   subject: string
   text: string
   from?: string
@@ -351,6 +352,7 @@ function base64Lines(content: Buffer | Uint8Array | string) {
 function buildMimeMessage(input: {
   from: string
   to: string
+  cc?: string[]
   subject: string
   body: string
   attachments?: EmailPayload['attachments']
@@ -360,6 +362,7 @@ function buildMimeMessage(input: {
     return [
       `From: ${input.from}`,
       `To: ${input.to}`,
+      ...(input.cc?.length ? [`Cc: ${input.cc.join(', ')}`] : []),
       `Subject: ${encodeSubject(input.subject)}`,
       'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=UTF-8',
@@ -374,6 +377,7 @@ function buildMimeMessage(input: {
   const parts = [
     `From: ${input.from}`,
     `To: ${input.to}`,
+    ...(input.cc?.length ? [`Cc: ${input.cc.join(', ')}`] : []),
     `Subject: ${encodeSubject(input.subject)}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
@@ -466,7 +470,12 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
   const sender = smtpSender(payload.from || config.from)
   const from = sender.address
   const to = sanitizeAddress(payload.to)
+  if (payload.cc && (!Array.isArray(payload.cc) || payload.cc.length > 10)) throw new Error('Cópias de e-mail inválidas.')
+  if (payload.cc?.some(address => typeof address !== 'string' || /[\r\n<>]/.test(address))) throw new Error('Endereço em cópia inválido.')
+  const cc = [...new Set((payload.cc ?? []).map(address => sanitizeAddress(address).toLowerCase()))].filter(address => address !== to.toLowerCase())
+  if (cc.some(address => !/^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(address))) throw new Error('Endereço em cópia inválido.')
   await validarDestinoEmail(createAdminClient(), carteiraId, to)
+  for (const address of cc) await validarDestinoEmail(createAdminClient(), carteiraId, address)
   const subject = payload.subject?.trim() || 'Mensagem GKLI Cobrança'
   const body = payload.text?.trim()
 
@@ -504,8 +513,9 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
 
     await command(socket, `MAIL FROM:<${from}>`, [250])
     await command(socket, `RCPT TO:<${to}>`, [250, 251])
+    for (const address of cc) await command(socket, `RCPT TO:<${address}>`, [250, 251])
     // CCO: recebe a mesma mensagem e anexos, sem expor o endereço nos cabeçalhos.
-    if (emailControle && emailControle.toLowerCase() !== to.toLowerCase()) {
+    if (emailControle && emailControle.toLowerCase() !== to.toLowerCase() && !cc.includes(emailControle.toLowerCase())) {
       await command(socket, `RCPT TO:<${emailControle}>`, [250, 251])
     }
     await command(socket, 'DATA', [354])
@@ -513,6 +523,7 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
     const message = buildMimeMessage({
       from: sender.header,
       to,
+      cc,
       subject,
       body,
       attachments: payload.attachments,

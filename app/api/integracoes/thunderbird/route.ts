@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       if (e.mensagem_id) {
         const { data: m, error } = await db.from('mensagens').select('*').eq('id', e.mensagem_id).eq('carteira_id', d.carteira_id).single()
         if (error || !m) throw new Error('Mensagem indisponível.')
+        if (m.payload?.email_cc?.length) throw new Error('Mensagem com cópia requer o transporte SMTP para preservar todos os destinatários.')
         to = m.destinatario; text = m.conteudo_renderizado || m.conteudo
         subject = m.email_assunto
         if (!subject && m.template_id) {

@@ -29,6 +29,7 @@ export async function executarDisparosEmail(limit = 50, cobrancaFlowId?: string)
       const contexto = m.payload?.contexto ?? {}
       assunto = String(assunto || 'Mensagem GKLI Cobrança').replace(/\{\{\s*(\w+)\s*\}\}/g, (_match, key) => String(contexto[key] ?? ''))
       await sendSmtpEmail({ to: m.destinatario || '', subject: assunto,
+        cc: m.payload?.email_cc,
         text: m.conteudo_renderizado || m.conteudo || '', attachments: await listarAnexosMensagem(db, m.id) },
       { carteiraId: m.carteira_id, mensagemId: m.id, copiarControleFlow: Boolean(m.cobranca_flow_id || m.acordo_flow_id) })
       const now = new Date().toISOString()

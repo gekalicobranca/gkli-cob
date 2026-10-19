@@ -24,6 +24,16 @@ Ao registrar o aceite real, Keila e Lidia mantêm a criação do acordo no app c
 
 Na mesma transação, o atendimento passa para **atuação humana**, preserva a proposta aceita e sua aprovação e recebe uma pendência vinculada ao acordo: **formalizar na administradora e obter termo e boletos**. Se essa pendência não puder ser registrada, a criação financeira também é revertida. Repetições não criam uma segunda pendência.
 
-O operador define se realizará o cadastro no portal ou solicitará que a administradora o faça, confere termo, grade, boletos e registro bancário e submete a comunicação para aprovação. Este encaminhamento não cadastra nada na administradora nem envia mensagens. O acordo só é efetivado pela rotina financeira após pagamento confirmado. O aviso destacado de formalização pendente desaparece quando a pendência correspondente for resolvida.
+O operador define se realizará o cadastro no portal ou solicitará que a administradora o faça, confere termo, grade, boletos e registro bancário e submete a comunicação para aprovação. Este encaminhamento não cadastra nada na administradora nem envia mensagens ao condômino ou à administradora. O acordo só é efetivado pela rotina financeira após pagamento confirmado. O aviso destacado de formalização pendente desaparece quando a pendência correspondente for resolvida.
 
 Validação do aceite e encaminhamento: `scripts/validate-aceite-formalizacao.ts`.
+
+### Aviso interno autorizado na carteira GEKALI
+
+Novos acordos firmados e encaminhados para atuação humana na carteira GEKALI geram um único e-mail automático para **Danielle.lima@gekali.com.br**, com **edi.neves@gekali.com.br** em cópia visível. O aviso contém condomínio, unidade, condições aceitas, evidência do aceite, tarefa de formalização e links do atendimento e do acordo. Não aplicar esses destinatários à carteira Genske/Lidia sem autorização específica.
+
+O registro do aviso é criado na mesma transação do encaminhamento e entra na agenda normal da carteira, com a janela atual de envio das 22h às 06h (Brasília), limites e bloqueios existentes. GEKALI usa SMTP, que envia a mesma mensagem aos dois destinatários com cabeçalho Cc. O Thunderbird bloqueia mensagens com cópia para não omitir destinatários. Se o transporte for alterado, manter esses avisos pelo SMTP ou atualizar o suporte a cópias antes de liberá-los.
+
+Uma chave única vincula aviso, caso e acordo; atualizações posteriores não recriam avisos enviados, cancelados, falhos ou incertos. Não gerar avisos retroativos de acordos anteriores. A tela informa se o aviso está na fila, foi enviado ou apresentou falha, consultando o transporte. Aviso interno não substitui a aprovação exigida para mensagens e documentos destinados ao condômino ou à administradora.
+
+Validação de destinatários, isolamento de carteira e deduplicação: `scripts/validate-aceite-formalizacao.ts`. Validação de Cc no envelope e no conteúdo SMTP, com e sem anexos: `scripts/validate-email-controle.ts`.

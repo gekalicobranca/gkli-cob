@@ -141,6 +141,16 @@ test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', a
     dataMode = 'unexpected'
     await assert.rejects(exports.sendSmtpEmail(payload, { ...options, mensagemId: 'resposta-inesperada' }), /251/)
     assert.equal(finais.at(-1), 'incerto')
+    dataMode = 'accept'
+    email = 'edi.neves@gekali.com.br'
+    await exports.sendSmtpEmail({ ...payload, to:'Danielle.lima@gekali.com.br', cc:['edi.neves@gekali.com.br','EDI.NEVES@GEKALI.COM.BR','Danielle.lima@gekali.com.br'] }, options)
+    assert.deepEqual(deliveries.at(-1)!.recipients,['RCPT TO:<Danielle.lima@gekali.com.br>','RCPT TO:<edi.neves@gekali.com.br>'])
+    assert.match(deliveries.at(-1)!.message,/Cc: edi.neves@gekali.com.br/)
+    await exports.sendSmtpEmail({ ...payload, cc:['edi.neves@gekali.com.br'],attachments:[] }, {...options,copiarControleFlow:false})
+    assert.match(deliveries.at(-1)!.message,/Cc: edi.neves@gekali.com.br/)
+    const totalAntes=deliveries.length
+    for(const cc of [['a@example.com\r\nBcc: outro@example.com'],['inválido'],['a@example.com,b@example.com']]) await assert.rejects(exports.sendSmtpEmail({...payload,cc},options),/cópia inválido/)
+    assert.equal(deliveries.length,totalAntes)
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
   }
