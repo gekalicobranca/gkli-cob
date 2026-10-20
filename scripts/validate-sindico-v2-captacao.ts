@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   montarCaptacao,
+  listarCompetenciasDisponiveis,
   montarCaptacaoComHistorico,
   competenciaDoRegistro,
   type RegistroCaptacao,
@@ -68,3 +69,9 @@ assert.equal(preferirRelatorio.ciclos[0].valor, 100)
 const historicoIncompleto = montarCaptacaoComHistorico([], [{ ...historico, unidade_identificacao: '' }], 'condominio', mensal)
 assert.equal(historicoIncompleto.estado, 'indisponivel')
 console.log('Captação validada: fronteiras, deduplicação, conciliação, cobertura anual e minimização dos dados.')
+
+assert.deepEqual(listarCompetenciasDisponiveis([registro()], [], 'condominio', now), ['2026-09'])
+assert.deepEqual(listarCompetenciasDisponiveis([registro()], [], 'outro', now), [])
+assert.deepEqual(listarCompetenciasDisponiveis([registro({ unidades_ranking: null })], [], 'condominio', now), [])
+assert.deepEqual(listarCompetenciasDisponiveis([registro()], [], 'condominio', new Date('2026-09-09T12:00:00Z')), [])
+assert.deepEqual(listarCompetenciasDisponiveis([registro(), registro()], [], 'condominio', now), ['2026-09'])

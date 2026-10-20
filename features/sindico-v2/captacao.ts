@@ -1,4 +1,4 @@
-import { PORTAL_TIME_ZONE, type PeriodoSindico } from './periodos'
+import { PORTAL_TIME_ZONE, resolverPeriodo, ultimaCompetenciaFechada, type PeriodoSindico } from './periodos'
 
 export type RegistroCaptacao = {
   id: string
@@ -177,4 +177,17 @@ export function montarCaptacaoComHistorico(
   })
   const ciclosDisponiveis = ciclos.filter((ciclo) => ciclo.estado === 'disponivel').length
   return { ciclos, ciclosDisponiveis, estado: !ciclosDisponiveis ? 'indisponivel' : ciclosDisponiveis === ciclos.length ? 'disponivel' : 'parcial' }
+}
+
+export function listarCompetenciasDisponiveis(
+  registros: RegistroCaptacao[], historicos: RegistroCaptacaoHistorica[], condominioId: string, agora = new Date(),
+) {
+  const ultima = ultimaCompetenciaFechada(agora)
+  const candidatos = [...new Set([
+    ...registros.filter((row) => row.condominio_id === condominioId).map((row) => competenciaDoRegistro(row.atualizado_em)),
+    ...historicos.filter((row) => row.condominio_id === condominioId).map((row) => row.competencia),
+  ])].filter((item): item is string => Boolean(item && /^(19|[2-9]\d)\d{2}-(0[1-9]|1[0-2])$/.test(item) && item <= ultima))
+  return candidatos.filter((competencia) =>
+    montarCaptacaoComHistorico(registros, historicos, condominioId, resolverPeriodo({ competencia }, agora)).ciclosDisponiveis > 0,
+  ).sort().reverse()
 }

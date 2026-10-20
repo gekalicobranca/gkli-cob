@@ -1,17 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import type { PeriodoSindico } from '@/features/sindico-v2/periodos'
+import { tituloCompetencia, type PeriodoSindico } from '@/features/sindico-v2/periodos'
 
-export function FiltrosSindico({ condominios, selecionado, periodo, ultima, action = '/sindico/visao-v2' }: {
-  condominios: { id: string; nome: string }[]; selecionado?: string; periodo: PeriodoSindico; ultima: string; action?: string
+export function FiltrosSindico({ condominios, selecionado, periodo, competenciasDisponiveis, action = '/sindico/visao-v2' }: {
+  condominios: { id: string; nome: string }[]; selecionado?: string; periodo: PeriodoSindico; competenciasDisponiveis: string[]; action?: string
 }) {
   const [modo, setModo] = useState(periodo.modo)
+  const anos = [...new Set(competenciasDisponiveis.map((item) => item.slice(0, 4)))]
   const field = 'mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:outline-2 focus:outline-cyan-700'
   return (
     <form action={action} method="get" className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto] lg:items-end">
       <label className="text-sm font-medium text-slate-700">Condomínio
-        <select name="condominio" required defaultValue={selecionado ?? ''} className={field}>
+        <select name="condominio" onChange={(event) => event.currentTarget.form?.requestSubmit()} required defaultValue={selecionado ?? ''} className={field}>
           <option value="" disabled>Selecione um condomínio</option>
           {condominios.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}
         </select>
@@ -23,14 +24,23 @@ export function FiltrosSindico({ condominios, selecionado, periodo, ultima, acti
       </label>
       {modo === 'mensal' ? (
         <label key="mensal" className="text-sm font-medium text-slate-700">Competência de encerramento
-          <input type="month" name="competencia" required min="1900-01" max={ultima} defaultValue={periodo.competencia} className={field} />
+          <select name="competencia" disabled={!competenciasDisponiveis.length} required defaultValue={periodo.competencia} className={field}>
+            {!competenciasDisponiveis.length && <option value="">Sem competências disponíveis</option>}
+            {competenciasDisponiveis.map((competencia) => (
+              <option key={competencia} value={competencia}>{tituloCompetencia(competencia)}</option>
+            ))}
+          </select>
         </label>
       ) : (
         <label key="anual" className="text-sm font-medium text-slate-700">Ano
-          <input type="number" name="ano" required min={1900} max={Number(ultima.slice(0, 4))} defaultValue={periodo.ano} className={field} />
+          <select name="ano" required disabled={!anos.length} defaultValue={periodo.ano} className={field}>
+            {!anos.length && <option value="">Sem anos disponíveis</option>}
+            {anos.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
+          </select>
         </label>
       )}
-      <button type="submit" disabled={!condominios.length} className="h-11 rounded-lg bg-cyan-800 px-5 text-sm font-semibold text-white hover:bg-cyan-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700 disabled:opacity-50">Aplicar período</button>
+      {!competenciasDisponiveis.length && <p role="status" className="text-sm text-slate-500 sm:col-span-2 lg:col-span-4">Não há competências com dados disponíveis para este condomínio.</p>}
+      <button type="submit" disabled={!condominios.length || !competenciasDisponiveis.length} className="h-11 rounded-lg bg-cyan-800 px-5 text-sm font-semibold text-white hover:bg-cyan-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700 disabled:opacity-50">Aplicar período</button>
     </form>
   )
 }

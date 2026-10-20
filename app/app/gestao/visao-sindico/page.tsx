@@ -6,7 +6,7 @@ import { FiltrosSindico } from '@/components/sindico-v2/filtros'
 import { ButtonLink } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { carregarVisaoSindicoV2Gestao } from '@/features/sindico-v2/captacao-queries'
-import { formatarDataCiclo, resolverPeriodo, ultimaCompetenciaFechada } from '@/features/sindico-v2/periodos'
+import { formatarDataCiclo, resolverPeriodo } from '@/features/sindico-v2/periodos'
 import { requireAdmin } from '@/utils/auth/require-admin'
 
 const areas = [
@@ -45,11 +45,11 @@ export default async function VisaoSindicoGestaoPage({
 
   const params = searchParams ? await searchParams : {}
   const agora = new Date()
-  const periodo = resolverPeriodo(
+  const periodoSolicitado = resolverPeriodo(
     { modo: texto(params, 'modo'), competencia: texto(params, 'competencia'), ano: texto(params, 'ano') },
     agora,
   )
-  const { acesso, captacao } = await carregarVisaoSindicoV2Gestao(texto(params, 'condominio'), periodo)
+  const { acesso, captacao, periodo, competenciasDisponiveis } = await carregarVisaoSindicoV2Gestao(texto(params, 'condominio'), periodoSolicitado)
 
   return (
     <div className="space-y-5">
@@ -71,7 +71,7 @@ export default async function VisaoSindicoGestaoPage({
         condominios={acesso.condominios}
         selecionado={acesso.selecionado?.id}
         periodo={periodo}
-        ultima={ultimaCompetenciaFechada(agora)}
+        competenciasDisponiveis={competenciasDisponiveis}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 px-1">

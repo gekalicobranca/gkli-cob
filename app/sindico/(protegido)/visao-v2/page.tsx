@@ -3,7 +3,7 @@ import { AreaRecolhivel } from '@/components/sindico-v2/area-recolhivel'
 import { FiltrosSindico } from '@/components/sindico-v2/filtros'
 import { carregarVisaoSindicoV2 } from '@/features/sindico-v2/captacao-queries'
 import { CaptacaoArea } from '@/components/sindico-v2/captacao'
-import { formatarDataCiclo, resolverPeriodo, ultimaCompetenciaFechada } from '@/features/sindico-v2/periodos'
+import { formatarDataCiclo, resolverPeriodo } from '@/features/sindico-v2/periodos'
 
 const areas = [
   { titulo: 'Cobrança em andamento', descricao: 'A evolução das cobranças do condomínio.', indicadores: ['Saldo em cobrança', 'Unidades acompanhadas', 'Faixas de atraso'], detalhes: 'Cobranças por unidade, valores e andamento no encerramento do ciclo.' },
@@ -17,8 +17,8 @@ export default async function NovaVisaoSindico({ searchParams }: {
   const params = await searchParams
   const texto = (key: string) => typeof params[key] === 'string' ? params[key] as string : undefined
   const agora = new Date()
-  const periodo = resolverPeriodo({ modo: texto('modo'), competencia: texto('competencia'), ano: texto('ano') }, agora)
-  const { acesso, captacao } = await carregarVisaoSindicoV2(texto('condominio'), periodo)
+  const periodoSolicitado = resolverPeriodo({ modo: texto('modo'), competencia: texto('competencia'), ano: texto('ano') }, agora)
+  const { acesso, captacao, periodo, competenciasDisponiveis } = await carregarVisaoSindicoV2(texto('condominio'), periodoSolicitado)
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <header className="bg-slate-950 text-white">
@@ -30,7 +30,7 @@ export default async function NovaVisaoSindico({ searchParams }: {
         </div>
       </header>
       <div className="mx-auto max-w-7xl space-y-5 px-5 py-6 sm:px-8">
-        <FiltrosSindico key={`${acesso.selecionado?.id}-${periodo.modo}-${periodo.competencia}`} condominios={acesso.condominios} selecionado={acesso.selecionado?.id} periodo={periodo} ultima={ultimaCompetenciaFechada(agora)} />
+        <FiltrosSindico key={`${acesso.selecionado?.id}-${periodo.modo}-${periodo.competencia}`} condominios={acesso.condominios} selecionado={acesso.selecionado?.id} periodo={periodo} competenciasDisponiveis={competenciasDisponiveis} />
         <div className="flex flex-wrap items-center justify-between gap-3 px-1">
           <div><h2 className="text-lg font-semibold capitalize">{periodo.titulo}</h2>
             <p className="mt-1 text-sm text-slate-500">De {formatarDataCiclo(periodo.inicio)} até {formatarDataCiclo(periodo.fimExclusivo)} · O dia final inicia o próximo ciclo.</p></div>

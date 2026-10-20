@@ -4,11 +4,12 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { carregarAcessoSindicoV2 } from './queries'
 import {
   montarCaptacaoComHistorico,
+  listarCompetenciasDisponiveis,
   type CaptacaoSindico,
   type RegistroCaptacao,
   type RegistroCaptacaoHistorica,
 } from './captacao'
-import type { PeriodoSindico } from './periodos'
+import { resolverPeriodo, ultimaCompetenciaFechada, type PeriodoSindico } from './periodos'
 
 type AcessoVisaoSindicoV2 = {
   nome: string
@@ -42,7 +43,7 @@ export async function carregarVisaoSindicoV2Gestao(condominioId: string | undefi
 }
 
 async function carregarCaptacaoParaAcesso(acesso: AcessoVisaoSindicoV2, periodo: PeriodoSindico) {
-  if (!acesso.selecionado) return { acesso, captacao: null }
+  if (!acesso.selecionado) return { acesso, captacao: null, periodo, competenciasDisponiveis: [] as string[] }
   const admin = createAdminClient()
   const registros: RegistroCaptacao[] = []
   const historicos: RegistroCaptacaoHistorica[] = []
@@ -65,7 +66,7 @@ async function carregarCaptacaoParaAcesso(acesso: AcessoVisaoSindicoV2, periodo:
         id,condominio_id,unidade_id,competencia,referencia_em,data_entrada,valor,
         debito_descricao,debito_inicial,debito_final,situacao,unidade_identificacao,bloco
       `).eq('condominio_id', acesso.selecionado.id)
-        .in('competencia', periodo.competencias)
+        .lte('competencia', ultimaCompetenciaFechada())
         .eq('uso_sistema', 'liberada')
         .order('data_entrada', { ascending: true })
         .order('id', { ascending: true })
@@ -75,8 +76,17 @@ async function carregarCaptacaoParaAcesso(acesso: AcessoVisaoSindicoV2, periodo:
       if (!data || data.length < 500) break
     }
     // Só o objeto sanitizado sai do servidor: não inclui nomes de devedores, contatos ou arquivos.
-    return { acesso, captacao: montarCaptacaoComHistorico(registros, historicos, acesso.selecionado.id, periodo) }
+    const competenciasDisponiveis = listarCompetenciasDisponiveis(registros, historicos, acesso.selecionado.id)
+    const maisRecente = competenciasDisponiveis[0]
+    if (maisRecente) {
+      if (periodo.modo === 'mensal' && !competenciasDisponiveis.includes(periodo.competencia)) {
+        periodo = resolverPeriodo({ competencia: maisRecente })
+      } else if (periodo.modo === 'anual' && !competenciasDisponiveis.some((item) => Number(item.slice(0, 4)) === periodo.ano)) {
+        periodo = resolverPeriodo({ modo: 'anual', ano: maisRecente.slice(0, 4) })
+      }
+    }
+    return { acesso, periodo, competenciasDisponiveis, captacao: montarCaptacaoComHistorico(registros, historicos, acesso.selecionado.id, periodo) }
   } catch {
-    return { acesso, captacao: { estado: 'erro', ciclos: [], ciclosDisponiveis: 0 } as CaptacaoSindico }
+    return { acesso, periodo, competenciasDisponiveis: [] as string[], captacao: { estado: 'erro', ciclos: [], ciclosDisponiveis: 0 } as CaptacaoSindico }
   }
 }
