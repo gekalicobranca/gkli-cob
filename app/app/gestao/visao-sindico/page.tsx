@@ -1,6 +1,6 @@
 import { ExternalLink } from 'lucide-react'
 
-import { AreaRecolhivel } from '@/components/sindico-v2/area-recolhivel'
+import { OperacaoArea } from '@/components/sindico-v2/operacao'
 import { CaptacaoArea } from '@/components/sindico-v2/captacao'
 import { FiltrosSindico } from '@/components/sindico-v2/filtros'
 import { ButtonLink } from '@/components/ui/button'
@@ -8,27 +8,6 @@ import { PageHeader } from '@/components/ui/page-header'
 import { carregarVisaoSindicoV2Gestao } from '@/features/sindico-v2/captacao-queries'
 import { formatarDataCiclo, resolverPeriodo } from '@/features/sindico-v2/periodos'
 import { requireAdmin } from '@/utils/auth/require-admin'
-
-const areas = [
-  {
-    titulo: 'Cobrança em andamento',
-    descricao: 'A evolução das cobranças do condomínio.',
-    indicadores: ['Saldo em cobrança', 'Unidades acompanhadas', 'Faixas de atraso'],
-    detalhes: 'Cobranças por unidade, valores e andamento no encerramento do ciclo.',
-  },
-  {
-    titulo: 'Acordos',
-    descricao: 'Negociações, recebimentos e parcelas.',
-    indicadores: ['Valor negociado', 'Recebimentos no período', 'Posição das parcelas'],
-    detalhes: 'Acordos por unidade, condições negociadas e evolução dos pagamentos.',
-  },
-  {
-    titulo: 'Pendências',
-    descricao: 'O que precisa de atenção e o que depende do síndico.',
-    indicadores: ['Aprovações', 'Procurações', 'Dependem do síndico'],
-    detalhes: 'Itens em acompanhamento, responsável pela próxima ação e situação no fechamento.',
-  },
-]
 
 type SearchParams = Record<string, string | string[] | undefined>
 
@@ -49,14 +28,14 @@ export default async function VisaoSindicoGestaoPage({
     { modo: texto(params, 'modo'), competencia: texto(params, 'competencia'), ano: texto(params, 'ano') },
     agora,
   )
-  const { acesso, captacao, periodo, competenciasDisponiveis } = await carregarVisaoSindicoV2Gestao(texto(params, 'condominio'), periodoSolicitado)
+  const { acesso, captacao, periodo, competenciasDisponiveis, operacao } = await carregarVisaoSindicoV2Gestao(texto(params, 'condominio'), periodoSolicitado)
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Gestão"
         title="Visão do síndico"
-        description="Nova leitura por ciclo completo, com captação histórica e áreas recolhíveis para cobrança, acordos e pendências."
+        description="Captação histórica, cobranças em acompanhamento, acordos e pendências do condomínio."
         actions={
           <ButtonLink href="/sindico/visao-v2" target="_blank" variant="secondary">
             <ExternalLink className="h-4 w-4" />
@@ -95,36 +74,12 @@ export default async function VisaoSindicoGestaoPage({
       ) : (
         <>
           <p role="status" className="rounded-xl border border-cyan-100 bg-cyan-50 p-4 text-sm leading-6 text-cyan-950">
-            Esta versão usa ciclos completos de competência, sempre do dia 10 ao dia 10, e preserva a captação histórica do fechamento.
+            O período vai do dia 10 ao dia 10. A captação preserva o histórico; cobranças e pendências mostram a situação atual. Negociações e recebimentos seguem o período selecionado.
           </p>
 
           {captacao && <CaptacaoArea key={`${acesso.selecionado.id}-${periodo.modo}-${periodo.competencia}`} data={captacao} />}
 
-          {areas.map((area, index) => (
-            <AreaRecolhivel
-              key={area.titulo}
-              titulo={area.titulo}
-              descricao={area.descricao}
-              numero={String(index + 2).padStart(2, '0')}
-              resumo="Em preparação"
-              dashboard={
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {area.indicadores.map((indicador) => (
-                    <div key={indicador} className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="text-sm font-medium text-slate-600">{indicador}</p>
-                      <p className="mt-3 text-sm text-slate-500">Disponível após validação do histórico</p>
-                    </div>
-                  ))}
-                </div>
-              }
-            >
-              <h3 className="font-semibold text-slate-800">Detalhamento</h3>
-              <p className="mt-2 text-sm text-slate-500">{area.detalhes}</p>
-              <p className="mt-4 border-l-2 border-slate-200 pl-3 text-sm text-slate-500">
-                Dados deste período ainda não disponibilizados nesta versão.
-              </p>
-            </AreaRecolhivel>
-          ))}
+          {operacao.map((area) => <OperacaoArea key={`${acesso.selecionado.id}-${periodo.modo}-${periodo.competencia}-${area.numero}`} area={area} />)}
         </>
       )}
     </div>

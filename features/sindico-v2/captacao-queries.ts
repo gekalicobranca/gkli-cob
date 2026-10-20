@@ -10,6 +10,8 @@ import {
   type RegistroCaptacaoHistorica,
 } from './captacao'
 import { resolverPeriodo, ultimaCompetenciaFechada, type PeriodoSindico } from './periodos'
+import { carregarFonteOperacao } from './operacao-queries'
+import { competenciasOperacao, montarOperacaoSindico } from './operacao'
 
 type AcessoVisaoSindicoV2 = {
   nome: string
@@ -43,10 +45,12 @@ export async function carregarVisaoSindicoV2Gestao(condominioId: string | undefi
 }
 
 async function carregarCaptacaoParaAcesso(acesso: AcessoVisaoSindicoV2, periodo: PeriodoSindico) {
-  if (!acesso.selecionado) return { acesso, captacao: null, periodo, competenciasDisponiveis: [] as string[] }
+  if (!acesso.selecionado) return { acesso, captacao: null, periodo, competenciasDisponiveis: [] as string[], operacao: [] }
   const admin = createAdminClient()
+  const fontePromise = carregarFonteOperacao(acesso.selecionado.id)
   const registros: RegistroCaptacao[] = []
   const historicos: RegistroCaptacaoHistorica[] = []
+  let erroCaptacao = false
   try {
     for (let offset = 0; ; offset += 200) {
       const { data, error } = await admin.from('conversoes_relatorio').select(`
@@ -75,18 +79,26 @@ async function carregarCaptacaoParaAcesso(acesso: AcessoVisaoSindicoV2, periodo:
       historicos.push(...(data ?? []) as unknown as RegistroCaptacaoHistorica[])
       if (!data || data.length < 500) break
     }
-    // Só o objeto sanitizado sai do servidor: não inclui nomes de devedores, contatos ou arquivos.
-    const competenciasDisponiveis = listarCompetenciasDisponiveis(registros, historicos, acesso.selecionado.id)
-    const maisRecente = competenciasDisponiveis[0]
-    if (maisRecente) {
-      if (periodo.modo === 'mensal' && !competenciasDisponiveis.includes(periodo.competencia)) {
-        periodo = resolverPeriodo({ competencia: maisRecente })
-      } else if (periodo.modo === 'anual' && !competenciasDisponiveis.some((item) => Number(item.slice(0, 4)) === periodo.ano)) {
-        periodo = resolverPeriodo({ modo: 'anual', ano: maisRecente.slice(0, 4) })
-      }
-    }
-    return { acesso, periodo, competenciasDisponiveis, captacao: montarCaptacaoComHistorico(registros, historicos, acesso.selecionado.id, periodo) }
   } catch {
-    return { acesso, periodo, competenciasDisponiveis: [] as string[], captacao: { estado: 'erro', ciclos: [], ciclosDisponiveis: 0 } as CaptacaoSindico }
+    erroCaptacao = true
+  }
+  const fonte = await fontePromise
+  // Somente dados sanitizados e competências do condomínio autorizado saem do servidor.
+  const competenciasDisponiveis = [...new Set([
+    ...(!erroCaptacao ? listarCompetenciasDisponiveis(registros, historicos, acesso.selecionado.id) : []),
+    ...competenciasOperacao(fonte, acesso.selecionado.id),
+  ])].sort().reverse()
+  const maisRecente = competenciasDisponiveis[0]
+  if (maisRecente) {
+    if (periodo.modo === 'mensal' && !competenciasDisponiveis.includes(periodo.competencia)) {
+      periodo = resolverPeriodo({ competencia: maisRecente })
+    } else if (periodo.modo === 'anual' && !competenciasDisponiveis.some((item) => Number(item.slice(0, 4)) === periodo.ano)) {
+      periodo = resolverPeriodo({ modo: 'anual', ano: maisRecente.slice(0, 4) })
+    }
+  }
+  return {
+    acesso, periodo, competenciasDisponiveis,
+    captacao: erroCaptacao ? { estado: 'erro', ciclos: [], ciclosDisponiveis: 0 } as CaptacaoSindico : montarCaptacaoComHistorico(registros, historicos, acesso.selecionado.id, periodo),
+    operacao: montarOperacaoSindico(fonte, acesso.selecionado.id, periodo),
   }
 }
