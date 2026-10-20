@@ -28,7 +28,7 @@ export async function createConversionFormData(
   file: File,
   tipoConversao: string,
   condominioCnpj = "",
-  somenteAnoCorrente = true,
+  _somenteAnoCorrente = false,
 ) {
   let prepared = preparedFiles.get(file);
   if (!prepared) {
@@ -41,7 +41,7 @@ export async function createConversionFormData(
   formData.append("file", upload, file.name);
   formData.append("tipo_conversao", tipoConversao);
   formData.append("condominio_cnpj", condominioCnpj);
-  formData.append("somente_ano_corrente", String(somenteAnoCorrente));
+  formData.append("somente_ano_corrente", "false");
   if (upload !== file) {
     formData.append("file_encoding", "gzip");
     formData.append("original_mime_type", file.type);

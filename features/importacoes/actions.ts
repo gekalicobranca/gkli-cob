@@ -1386,7 +1386,7 @@ async function enrichCobrancaPreview(
   rows: Array<{ linha: number; payload: Record<string, any> }>,
   condominioPadrao?: CondominioImportacaoRow | null,
   somenteValidasNaRegua = true,
-  somenteAnoCorrente = true,
+  _somenteAnoCorrente = false,
 ) {
   const cnpjs = rows
     .map((row) => cnpjKeyFromPayload(row.payload))
@@ -1468,22 +1468,12 @@ async function enrichCobrancaPreview(
     }
 
     const recorteAnoCorrente = avaliarRecorteAnoCorrente(payload.vencimento);
-    const permitidoPeloAno = !somenteAnoCorrente || recorteAnoCorrente.dentroDoAnoCorrente;
     const reguaImportacao = avaliarReguaImportacao({
       vencimento: payload.vencimento,
       inicioCobrancaDias: condominio?.dias_apos_vencimento_regua ?? condominio?.inicio_cobranca_dias ?? 30,
     });
-    const importarPeloRecorte = somenteValidasNaRegua
-      ? permitidoPeloAno && !reguaImportacao.foraRegua
-      : permitidoPeloAno;
-    const motivoRecorte = !permitidoPeloAno
-      ? recorteAnoCorrente.motivo
-      : somenteValidasNaRegua && reguaImportacao.foraRegua
-        ? reguaImportacao.motivo
-        : null;
-    if (!permitidoPeloAno && recorteAnoCorrente.motivo) {
-      alertas.push(`${recorteAnoCorrente.motivo} Linha será mantida apenas no histórico da importação.`);
-    }
+    const importarPeloRecorte = !somenteValidasNaRegua || !reguaImportacao.foraRegua;
+    const motivoRecorte = somenteValidasNaRegua && reguaImportacao.foraRegua ? reguaImportacao.motivo : null;
     if (somenteValidasNaRegua && reguaImportacao.foraRegua && reguaImportacao.motivo) {
       alertas.push(`Fora da régua de cobrança: ${reguaImportacao.motivo} Linha será mantida apenas no histórico da importação.`);
     }
@@ -2259,7 +2249,7 @@ export async function createImportacaoPreview(formData: FormData) {
 }
 
 async function createImportacaoPreviewInternal(formData: FormData) {
-  const somenteAnoCorrente = formData.get("recorte_ano") !== "todos";
+  const somenteAnoCorrente = false;
   const tipo = String(formData.get("tipo") ?? "");
   const file = formData.get("arquivo");
   const recorteRegua = String(formData.get("recorte_regua") ?? "");
@@ -2694,7 +2684,7 @@ async function importarCobrancas(
   supabase: SupabaseClient,
   payloads: Record<string, any>[],
   origemImportacao: string,
-  somenteAnoCorrente = true,
+  _somenteAnoCorrente = false,
   opcoes: { validarAusencias?: boolean; somenteAusencias?: boolean; cobrancasClassificacao?: Record<string, any>[]; indiceInicial?: number } = {},
 ): Promise<ImportExecutionResult> {
   const resultado = emptyImportExecutionResult();
@@ -2707,14 +2697,6 @@ async function importarCobrancas(
     const linha = Number(payload.__linha ?? index + 1);
 
     try {
-      const recorteAnoCorrente = avaliarRecorteAnoCorrente(payload.vencimento);
-      if (somenteAnoCorrente && !recorteAnoCorrente.dentroDoAnoCorrente) {
-        resultado.ignorados += 1;
-        resultado.erros.push(
-          `Linha ${linha}: cobrança mantida apenas no histórico da importação. ${recorteAnoCorrente.motivo}`,
-        );
-        continue;
-      }
 
       const chaveUnidade = unidadeKey({ condominio_id: payload.condominio_id,
         identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco });
@@ -2766,7 +2748,12 @@ async function importarCobrancas(
         continue;
       }
 
-      if (payload.importar_cobranca === false && contextoJudicial.unidadesJudiciais.get(String(payload.unidade_id)) !== true) {
+      // Prévias antigas podem ter excluído a linha somente pelo ano.
+      // A restrição explícita da régua continua sendo respeitada.
+      const excluidaSomentePeloAno = payload.fora_ano_corrente === true
+        && /importação operacional considera apenas/i.test(String(payload.motivo_prioridade ?? ''))
+        && !(payload.recorte_regua === 'ja_na_regua' && payload.fora_regua_cobranca === true);
+      if (payload.importar_cobranca === false && !excluidaSomentePeloAno && contextoJudicial.unidadesJudiciais.get(String(payload.unidade_id)) !== true) {
         resultado.ignorados += 1;
         resultado.erros.push(
           `Linha ${linha}: cobrança mantida apenas no histórico da importação. ${payload.motivo_prioridade ?? "Vencimento fora da régua de cobrança."}`,

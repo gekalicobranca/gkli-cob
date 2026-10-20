@@ -4,7 +4,6 @@ import path from "node:path"
 import * as XLSX from "xlsx"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { parseRelatorioBuffer } from "@/features/conversao-relatorio/server/parse-relatorio-buffer"
-import { avaliarRecorteAnoCorrente } from "@/features/importacoes/recorte-cobrancas"
 import { buildRankingMensalFromCobrancas } from "@/features/captacao-automatizada/ranking-mensal"
 import { lerAnaliseOriginal } from "@/features/condominios/relatorio-inadimplencia/leitura"
 import { somarValores } from "@/features/condominios/relatorio-inadimplencia/modelo"
@@ -55,11 +54,9 @@ function aplicarRecorteOperacionalDeVencimento(preview: any) {
   const muitoAntigas = cobrancas.filter((item: any) => vencimentoComMaisDeCincoAnos(item.vencimento ?? item.vencimentoMaisAntigo))
   const elegiveis = cobrancas.filter((item: any) => {
     const vencimento = item.vencimento ?? item.vencimentoMaisAntigo
-    const recorte = avaliarRecorteAnoCorrente(vencimento)
-    return !vencimentoComMaisDeCincoAnos(vencimento) && recorte.dentroDoAnoCorrente
+    return !vencimentoComMaisDeCincoAnos(vencimento)
   })
   const desprezadas = cobrancas.length - elegiveis.length
-  const foraAnoCorrente = cobrancas.length - muitoAntigas.length - elegiveis.length
   const previewSemBaseRanking = { ...preview }
   delete previewSemBaseRanking.cobrancasRankingMensal
   return {
@@ -73,13 +70,10 @@ function aplicarRecorteOperacionalDeVencimento(preview: any) {
     valorTotal: elegiveis.reduce((total: number, item: any) => total + Number(item.valorTotal ?? 0), 0),
     inconsistencias: [
       ...(preview.inconsistencias ?? []),
-      foraAnoCorrente
-        ? `${foraAnoCorrente} cota(s) fora do ano corrente foram mantidas fora da importação operacional.`
-        : null,
       muitoAntigas.length
         ? `${muitoAntigas.length} cota(s) com vencimento superior a 5 anos foram desprezadas.`
         : null,
-      desprezadas && !foraAnoCorrente && !muitoAntigas.length
+      desprezadas && !muitoAntigas.length
         ? `${desprezadas} cota(s) foram desprezadas pelo recorte operacional.`
         : null,
     ].filter(Boolean),
@@ -300,7 +294,7 @@ export async function processarRelatorioCaptado(
     preview.inconsistencias = [...(preview.inconsistencias ?? []), `Relatório detalhado indisponível: ${erro instanceof Error ? erro.message : 'falha na validação do original'}`]
   }
   preview = aplicarRecorteOperacionalDeVencimento(preview)
-  if (!preview.cobrancas?.length && !preview.semPendencias && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos") || item.includes("fora do ano corrente"))) {
+  if (!preview.cobrancas?.length && !preview.semPendencias && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos"))) {
     throw new Error("O relatório não contém cobranças reconhecíveis.")
   }
 

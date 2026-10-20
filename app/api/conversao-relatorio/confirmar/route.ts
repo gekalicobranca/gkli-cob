@@ -26,7 +26,6 @@ import {
 import { persistirCaptacaoHistoricaSindico } from "@/features/captacao-automatizada/historico-sindico"
 import {
   anoCorrenteImportacao,
-  avaliarRecorteAnoCorrente,
   limparCobrancasDaNovaImportacao,
 } from "@/features/importacoes/recorte-cobrancas"
 import {
@@ -280,14 +279,6 @@ export async function POST(request: NextRequest) {
         : []
 
       const vencimentoMaisAntigo = vencimentoPorRecibo ?? vencimentos[0] ?? null
-      const recorteAnoCorrente = avaliarRecorteAnoCorrente(vencimentoMaisAntigo, anoCorrente)
-      if (preview.somenteAnoCorrente !== false && !recorteAnoCorrente.dentroDoAnoCorrente) {
-        cobrancasIgnoradas += 1
-        inconsistencias.push(
-          `Unidade ${unidadeLabel}: cobrança mantida apenas no histórico da conversão. ${recorteAnoCorrente.motivo}`
-        )
-        continue
-      }
 
       const unidadeExistente = await buscarUnidadeLiteral(supabase, {
         condominioId,

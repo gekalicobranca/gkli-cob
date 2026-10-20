@@ -13,7 +13,6 @@ import { extractPdfVisualText } from "./pdf-visual-text";
 import { detectSuperlogicaResumida, parseSuperlogicaResumida } from "./superlogica-resumida";
 import { detectThomazInadimplentes, parseThomazInadimplentes } from "./thomaz-inadimplentes";
 import { detectBrcondominioDebitos, parseBrcondominioDebitos } from "./brcondominio-debitos";
-import { avaliarRecorteAnoCorrente } from "@/features/importacoes/recorte-cobrancas";
 import type { RankingMensalCaptacao } from "@/features/captacao-automatizada/ranking-mensal";
 import { tipoCobrancaDoHistorico, type ComposicaoCobrancaOrigem, type ComponenteCobrancaOrigem } from "@/features/importacoes/composicao-origem";
 
@@ -931,6 +930,7 @@ function getHeaderIndex(row: unknown[]) {
 
 function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
   const recibos: ReciboCondopro[] = [];
+  let layoutWinker = false;
 
   let blocoAtual = "";
   let unidadeAtual = "";
@@ -971,6 +971,8 @@ function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
       /valor\s+principal/i.test(text)
     ) {
       headerIndex = getHeaderIndex(row);
+      layoutWinker = row.some(cell => /atualiza.*monet/i.test(cell));
+      if (layoutWinker) headerIndex.correcao = row.findIndex(cell => /atualiza.*monet/i.test(cell));
       composicaoAtual = [];
       reciboAtual = "";
       vencimentoAtual = "";
@@ -986,7 +988,16 @@ function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
     if (isTotalRecibo) {
       if (!reciboAtual || !vencimentoAtual) continue;
 
-      const totais = extractCondoproTotalRecibo(row);
+      // O Winker mantém as colunas quando exporta "." no total.
+      const totais = layoutWinker ? (() => {
+        const valorPrincipal = parseMoney(rawRow[headerIndex!.valorPrincipal]);
+        const multa = parseMoney(rawRow[headerIndex!.multa]);
+        const correcao = parseMoney(rawRow[headerIndex!.correcao]);
+        const juros = parseMoney(rawRow[headerIndex!.juros]);
+        const total = parseMoney(rawRow[headerIndex!.total]);
+        return { valorPrincipal, multa, correcao, juros,
+          valorTotal: total > 0 ? total : roundMoney(valorPrincipal + multa + correcao + juros) };
+      })() : extractCondoproTotalRecibo(row);
       if (!totais || totais.valorTotal <= 0) continue;
 
       recibos.push({
@@ -1031,8 +1042,8 @@ function parseCondoproBbz(rows: unknown[][]): ReciboCondopro[] {
     const historico = headerIndex.historico >= 0 ? normalize(row[headerIndex.historico]) : '';
     if (reciboAtual && /^\d+$/.test(conta) && historico) {
       composicaoAtual.push({ conta, historico, tipo: tipoCobrancaDoHistorico(historico),
-        valorPrincipal: parseCondoproMoney(row[headerIndex.valorPrincipal]),
-        valorTotal: parseCondoproMoney(row[headerIndex.total]),
+        valorPrincipal: layoutWinker ? parseMoney(rawRow[headerIndex.valorPrincipal]) : parseCondoproMoney(row[headerIndex.valorPrincipal]),
+        valorTotal: layoutWinker ? parseMoney(rawRow[headerIndex.total]) : parseCondoproMoney(row[headerIndex.total]),
       });
     }
   }
@@ -1388,7 +1399,7 @@ export function buildPreviewFromRecibos({
   filename,
   recibos,
   condominioCnpj,
-  somenteAnoCorrente = true,
+  somenteAnoCorrente: _somenteAnoCorrente = false,
   padraoDetectado,
   origemSistema,
 }: {
@@ -1412,11 +1423,9 @@ export function buildPreviewFromRecibos({
 
   const recibosMuitoAntigos = recibos.filter((recibo) => vencimentoComMaisDeCincoAnos(recibo.vencimento));
   const recibosElegiveis = recibos.filter((recibo) => {
-    const recorte = avaliarRecorteAnoCorrente(recibo.vencimento);
-    return !vencimentoComMaisDeCincoAnos(recibo.vencimento) && (!somenteAnoCorrente || recorte.dentroDoAnoCorrente);
+    return !vencimentoComMaisDeCincoAnos(recibo.vencimento);
   });
   const totalDesprezado = recibos.length - recibosElegiveis.length;
-  const totalForaAnoCorrente = recibos.length - recibosMuitoAntigos.length - recibosElegiveis.length;
   const cobrancasCompletas = recibos.map(
     (recibo) =>
       ({
@@ -1462,7 +1471,7 @@ export function buildPreviewFromRecibos({
     ok: true,
     preview: {
       tipoConversao: "cobrancas",
-      somenteAnoCorrente,
+      somenteAnoCorrente: false,
       origem,
       arquivo: filename,
       totalParcelas: recibosElegiveis.length,
@@ -1475,13 +1484,10 @@ export function buildPreviewFromRecibos({
       cobrancas,
       unidades: [],
       inconsistencias: [
-        totalForaAnoCorrente
-          ? `${totalForaAnoCorrente} cota(s) fora do ano corrente foram mantidas fora da importação operacional.`
-          : null,
         recibosMuitoAntigos.length
           ? `${recibosMuitoAntigos.length} cota(s) com vencimento superior a 5 anos foram desprezadas.`
           : null,
-        totalDesprezado && !totalForaAnoCorrente && !recibosMuitoAntigos.length
+        totalDesprezado && !recibosMuitoAntigos.length
           ? `${totalDesprezado} cota(s) foram desprezadas pelo recorte operacional.`
           : null,
       ].filter(Boolean) as string[],
@@ -1497,7 +1503,7 @@ function buildPreviewFromParcelas({
   filename,
   parcelas,
   condominioCnpj,
-  somenteAnoCorrente = true,
+  somenteAnoCorrente: _somenteAnoCorrente = false,
 }: {
   origem: string;
   filename: string;
@@ -1515,11 +1521,9 @@ function buildPreviewFromParcelas({
 
   const parcelasMuitoAntigas = parcelas.filter((parcela) => vencimentoComMaisDeCincoAnos(parcela.vencimento));
   const parcelasElegiveis = parcelas.filter((parcela) => {
-    const recorte = avaliarRecorteAnoCorrente(parcela.vencimento);
-    return !vencimentoComMaisDeCincoAnos(parcela.vencimento) && (!somenteAnoCorrente || recorte.dentroDoAnoCorrente);
+    return !vencimentoComMaisDeCincoAnos(parcela.vencimento);
   });
   const totalDesprezado = parcelas.length - parcelasElegiveis.length;
-  const totalForaAnoCorrente = parcelas.length - parcelasMuitoAntigas.length - parcelasElegiveis.length;
   const groupedCompleto = new Map<string, CobrancaPreview>();
 
   for (const parcela of parcelas) {
@@ -1583,7 +1587,7 @@ function buildPreviewFromParcelas({
     ok: true,
     preview: {
       tipoConversao: "cobrancas",
-      somenteAnoCorrente,
+      somenteAnoCorrente: false,
       origem,
       arquivo: filename,
       totalParcelas: parcelasElegiveis.length,
@@ -1594,13 +1598,10 @@ function buildPreviewFromParcelas({
       cobrancas,
       unidades: [],
       inconsistencias: [
-        totalForaAnoCorrente
-          ? `${totalForaAnoCorrente} cota(s) fora do ano corrente foram mantidas fora da importação operacional.`
-          : null,
         parcelasMuitoAntigas.length
           ? `${parcelasMuitoAntigas.length} cota(s) com vencimento superior a 5 anos foram desprezadas.`
           : null,
-        totalDesprezado && !totalForaAnoCorrente && !parcelasMuitoAntigas.length
+        totalDesprezado && !parcelasMuitoAntigas.length
           ? `${totalDesprezado} cota(s) foram desprezadas pelo recorte operacional.`
           : null,
       ].filter(Boolean) as string[],

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       mimeType: encoding ? String(formData.get("original_mime_type") ?? "") : file.type,
       condominioCnpj,
       tipoConversao,
-      somenteAnoCorrente: formData.get("somente_ano_corrente") !== "false",
+      somenteAnoCorrente: false,
     })
 
     return NextResponse.json(result)
