@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { consultarVinculacaoWhatsapp, solicitarVinculacaoWhatsapp } from '@/features/mensageria/whatsapp-pairing-actions'
 import type { PairingView } from '@/features/mensageria/whatsapp-pairing-state'
 
@@ -10,6 +10,12 @@ export function WhatsappPairing({ session }: { session: string }) {
   const [error, setError] = useState('')
   const [now, setNow] = useState(0)
   const requestVersion = useRef(0)
+  const [expiresAtMonotonic, setExpiresAtMonotonic] = useState(0)
+  const receive = useCallback((result: PairingView) => {
+    const receivedAt = performance.now()
+    setExpiresAtMonotonic(receivedAt + Math.max(0, result.expiresInMs ?? 0))
+    setView(result); setNow(receivedAt)
+  }, [])
   useEffect(() => {
     if (!open) return
     let cancelled = false
@@ -18,22 +24,22 @@ export function WhatsappPairing({ session }: { session: string }) {
       const version = requestVersion.current
       try {
         const result = await consultarVinculacaoWhatsapp(session)
-        if (!cancelled && version === requestVersion.current) { setView(result); setError(''); setNow(Date.now()) }
+        if (!cancelled && version === requestVersion.current) { receive(result); setError('') }
       } catch { if (!cancelled && version === requestVersion.current) { setView(null); setError('Não foi possível consultar a conexão. Tentando novamente…') } }
       finally { if (!cancelled) timer = setTimeout(poll, 5000) }
     }
     void poll()
-    const clock = setInterval(() => setNow(Date.now()), 1000)
+    const clock = setInterval(() => setNow(performance.now()), 1000)
     return () => { cancelled = true; clearTimeout(timer); clearInterval(clock) }
-  }, [open, session])
+  }, [open, session, receive])
   async function request(mode: 'qr' | 'codigo') {
     requestVersion.current++
     setBusy(true); setError(''); setView(null)
-    try { setView(await solicitarVinculacaoWhatsapp(session, mode)); setNow(Date.now()) }
+    try { receive(await solicitarVinculacaoWhatsapp(session, mode)) }
     catch { setError('Não foi possível gerar a vinculação. Verifique se o worker está ativo e sem envio em andamento.') }
     finally { requestVersion.current++; setBusy(false) }
   }
-  const seconds = view?.expiresAt ? Math.max(0, Math.ceil((Date.parse(view.expiresAt) - now) / 1000)) : 0
+  const seconds = view?.status === 'available' ? Math.max(0, Math.ceil((expiresAtMonotonic - now) / 1000)) : 0
   const available = view?.status === 'available' && seconds > 0 && !busy
   const disabled = busy || !view || ['connected', 'offline', 'paused', 'waiting'].includes(view.status)
   return <details className="border-t border-slate-100 px-5 py-4" onToggle={event => setOpen(event.currentTarget.open)}>

@@ -35,3 +35,11 @@ test('migração preserva vinculação privada para service_role', async () => {
     assert.deepEqual(result.rows[0], { anon: false, authenticated: false, service: true })
   } finally { await db.close() }
 })
+
+
+test('validade do QR é relativa ao servidor, independente do relógio do celular ou computador', () => {
+  const result = pairingView({ ...control, vinculacao_modo: 'qr', vinculacao_payload: 'data:image/png;base64,aGVsbG8=', vinculacao_expira_em: new Date(now + 20000).toISOString() }, session, now);
+  assert.equal(result.status, 'available');
+  assert.equal(result.expiresInMs, 20000);
+  assert.equal(pairingView({ ...control, vinculacao_expira_em: new Date(now - 1).toISOString() }, session, now).payload, undefined);
+});
