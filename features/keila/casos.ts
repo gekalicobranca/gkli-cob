@@ -21,6 +21,7 @@ export type KeilaRespostaAprovada = { versao_hash?: string; mensagem_id: string;
 export type KeilaCasoPayload = {
   versao: 1
   estado: KeilaEstado
+  encaminhamento_humano?: { motivo: 'pedido_boletos' }
   intencao: 'debitos' | 'parcelamento' | 'outro'
   unidade_ids: string[]
   emails: KeilaEmail[]
