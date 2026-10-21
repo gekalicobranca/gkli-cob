@@ -173,6 +173,7 @@ const settingsGroups: SidebarSection[] = [
     id: 'gestao-avancada',
     title: 'Gestão avançada',
     items: [
+      { label: 'Painel TV', href: '/app/dashboard/tv', icon: 'dashboard' },
       { label: 'Saúde sistema', href: '/app/gestao/saude-sistema', icon: 'alert' },
       { label: 'Saneamento cobranças', href: '/app/gestao/saneamento-cobrancas', icon: 'shield' },
     ],
@@ -375,6 +376,8 @@ export function AppShell({
       </Link>
     )
   }
+
+  if (pathname === '/app/dashboard/tv') return <>{children}</>
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--gkli-background)]">
