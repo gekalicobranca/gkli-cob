@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { checkAcordosStatus } from '../features/acordos/status-service'
-import { dataOperacionalAcordos, diasAtrasoAcordo, classificarPrazoAcordo } from '../features/acordos/atraso-calendario'
+import { dataOperacionalAcordos, diasAtrasoAcordo, classificarPrazoAcordo, classificarSituacaoNoPeriodo } from '../features/acordos/atraso-calendario'
 
 test('calendário usa São Paulo sem depender do fuso do servidor', () => {
   assert.equal(dataOperacionalAcordos(new Date('2026-10-21T01:30:00Z')), '2026-10-20')
@@ -9,11 +9,12 @@ test('calendário usa São Paulo sem depender do fuso do servidor', () => {
   assert.equal(diasAtrasoAcordo('2026-10-14', '2026-10-20'), 6)
 })
 
-test('em dia entra em atraso/quebra; pagamentos, contratos e acordos encerrados são preservados', async () => {
+test('período aberto mantém pendências como ativo; quebra e quitação continuam preservadas', async () => {
   const hoje = dataOperacionalAcordos()
   const dia = (dias: number) => new Date(Date.parse(`${hoje}T00:00:00Z`) - dias * 86400000).toISOString().slice(0, 10)
   const statuses = ['em_dia', 'em_dia', 'quitado', 'cancelado', 'renegociado', 'quebrado', 'em_dia', 'em_dia', 'em_dia']
   const tables: Record<string, any[]> = {
+    fechamento_periodos: [{ status: 'rascunho', data_abertura: dia(20), data_fechamento: dia(-10) }],
     acordos: statuses.map((status, i) => ({ id: String(i), status, status_financeiro: 'em_aberto', valor_acordado: 718.2, entrada: 0, unidade_id: null, cobranca_id: null })),
     parcelas_acordo: statuses.map((_, i) => ({ id: `p${i}`, acordo_id: String(i), status: i === 6 ? 'paga' : 'aberta', vencimento: dia(i === 0 ? 15 : 30), data_pagamento: i === 6 || i === 7 ? dia(2) : null, valor: 718.2 })),
     acordo_cobrancas: [],
@@ -23,16 +24,22 @@ test('em dia entra em atraso/quebra; pagamentos, contratos e acordos encerrados 
   const db = { from(table: string) {
     let patch: any
     let faixa: [number, number] | undefined
+    let single = false
     const filters: ((row: any) => boolean)[] = []
     const query: any = {
       select() { return query },
       order() { return query },
+      limit() { return query },
+      maybeSingle() { single = true; return query },
       range(inicio: number, fim: number) { faixa = [inicio, fim]; return query },
       update(value: any) {
         if (table === 'acordos' && value.status === 'quitado') tentativasQuitacao++
         patch = value; return query
       },
       eq(key: string, value: any) { filters.push(row => row[key] === value); return query },
+      neq(key: string, value: any) { filters.push(row => row[key] !== value); return query },
+      lte(key: string, value: any) { filters.push(row => row[key] <= value); return query },
+      gte(key: string, value: any) { filters.push(row => row[key] >= value); return query },
       is(key: string, value: any) { filters.push(row => (row[key] ?? null) === value); return query },
       in(key: string, values: any[]) { filters.push(row => values.includes(row[key])); return query },
       lt(key: string, value: any) { filters.push(row => row[key] < value); return query },
@@ -40,7 +47,7 @@ test('em dia entra em atraso/quebra; pagamentos, contratos e acordos encerrados 
         let rows = tables[table].filter(row => filters.every(f => f(row)))
         if (faixa) rows = rows.slice(faixa[0], faixa[1] + 1)
         if (patch) rows.forEach(row => Object.assign(row, patch))
-        return Promise.resolve({ data: structuredClone(rows), error: null, count: rows.length }).then(resolve, reject)
+        return Promise.resolve({ data: structuredClone(single ? rows[0] ?? null : rows), error: null, count: rows.length }).then(resolve, reject)
       },
     }
     return query
@@ -48,9 +55,9 @@ test('em dia entra em atraso/quebra; pagamentos, contratos e acordos encerrados 
   const deps = { createAdminClient: () => db as any, registrarEventoOperacional: async () => undefined as any }
   const options = { acordoIds: statuses.map((_, i) => String(i)).filter(id => id !== '8') }
   const result = await checkAcordosStatus(options, deps)
-  assert.equal(result.acordosMarcadosEmAtraso, 1)
+  assert.equal(result.acordosMarcadosEmAtraso, 0)
   assert.equal(result.acordosRompidos, 1)
-  assert.equal(tables.acordos[0].status, 'em_atraso')
+  assert.equal(tables.acordos[0].status, 'ativo')
   assert.equal(tables.acordos[1].status, 'quebrado')
   assert.equal(result.acordosQuitados, 2)
   for (const i of [6, 7]) {
@@ -70,6 +77,21 @@ test('em dia entra em atraso/quebra; pagamentos, contratos e acordos encerrados 
   assert.equal(repeat.acordosRompidos, 0)
   assert.equal(repeat.acordosQuitados, 0)
   assert.equal(tentativasQuitacao, 2, 'acordos já quitados não geram novas tentativas de atualização')
+})
+
+test('ativo/em dia considera todas as parcelas do fechamento e ignora outros períodos', () => {
+  const inicio = '2026-10-13', fim = '2026-11-12'
+  const paga = { vencimento: inicio, status: 'paga', valor: 100 }
+  const naoPaga = { vencimento: fim, status: 'aberta', valor: 100 }
+  assert.equal(classificarSituacaoNoPeriodo([paga, naoPaga], inicio, fim), 'ativo')
+  assert.equal(classificarSituacaoNoPeriodo([{ ...naoPaga, status: 'vencida' }], inicio, fim), 'ativo')
+  assert.equal(classificarSituacaoNoPeriodo([paga, { ...naoPaga, status: 'paga' }], inicio, fim), 'em_dia')
+  assert.equal(classificarSituacaoNoPeriodo([paga, { ...naoPaga, vencimento: '2026-11-13' }], inicio, fim), 'em_dia')
+  assert.equal(classificarSituacaoNoPeriodo([{ ...paga, vencimento: '2026-10-12' }, naoPaga], inicio, fim), 'ativo')
+  assert.equal(classificarSituacaoNoPeriodo([paga, { ...naoPaga, status: 'cancelada' }], inicio, fim), 'em_dia')
+  assert.equal(classificarSituacaoNoPeriodo([{ ...naoPaga, status: 'aberta', data_pagamento: '2026-10-20' }], inicio, fim), 'em_dia')
+  assert.equal(classificarSituacaoNoPeriodo([{ ...paga, vencimento: '2026-10-12' }], inicio, fim), null)
+  assert.equal(classificarSituacaoNoPeriodo([], inicio, fim), null)
 })
 
 test('parcela do período paga é em dia; quitação exige todas pagas e cobertura do contrato em centavos', () => {

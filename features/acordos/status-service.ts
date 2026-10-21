@@ -5,7 +5,7 @@ import {
 } from "@/lib/core/status";
 import { registrarEventoOperacional } from "@/features/operacional/service";
 import { ACORDO_STATUS_VIGENTES } from '@/lib/constants/acordos';
-import { dataOperacionalAcordos, classificarPrazoAcordo } from './atraso-calendario';
+import { dataOperacionalAcordos, classificarPrazoAcordo, classificarSituacaoNoPeriodo } from './atraso-calendario';
 
 type CheckAcordosStatusOptions = {
   diasParaRomper?: number;
@@ -44,6 +44,12 @@ export async function checkAcordosStatus(
   const hojeISO = dataOperacionalAcordos();
 
   const supabase = dependencies.createAdminClient();
+
+  const { data: periodoAberto, error: periodoError } = await supabase.from('fechamento_periodos')
+    .select('data_abertura,data_fechamento').neq('status', 'cancelado')
+    .lte('data_abertura', hojeISO).gte('data_fechamento', hojeISO)
+    .order('data_abertura', { ascending: false }).limit(1).maybeSingle();
+  if (periodoError) throw new Error('Erro ao carregar fechamento aberto: ' + periodoError.message);
 
   // Reparos pontuais não devem processar outros acordos da carteira.
   if (options.acordoIds?.length === 0) throw new Error('Informe pelo menos um acordo.');
@@ -112,8 +118,11 @@ export async function checkAcordosStatus(
       if ([...ACORDO_STATUS_VIGENTES, ACORDO_STATUS.QUEBRADO].includes(row.status)) acordosElegiveisQuitacao.add(row.id);
     }
   }
-  const classificados = [...porAcordo].map(([id, parcelas]) => ({ id,
-    status: classificarPrazoAcordo(parcelas, hojeISO, diasParaAtraso, diasParaRomper, valoresContratados.get(id)) }));
+  const classificados = [...porAcordo].map(([id, parcelas]) => {
+    const prazo = classificarPrazoAcordo(parcelas, hojeISO, diasParaAtraso, diasParaRomper, valoresContratados.get(id));
+    return { id, status: prazo === 'quitado' || prazo === 'quebrado' ? prazo
+      : periodoAberto ? classificarSituacaoNoPeriodo(parcelas, periodoAberto.data_abertura, periodoAberto.data_fechamento) : null };
+  });
   const acordoIdsComAtraso = classificados.filter(a => a.status === 'em_atraso').map(a => a.id);
   const acordoIdsParaRomper = classificados.filter(a => a.status === 'quebrado').map(a => a.id);
 
@@ -123,7 +132,7 @@ export async function checkAcordosStatus(
         && (porAcordo.get(a.id)!.some(p => p.status === 'paga' || Boolean(p.data_pagamento)) ? 'parcial' : 'em_aberto') === financeiro).map(a => a.id);
       for (let i = 0; i < ids.length; i += 100) {
         const { error } = await supabase.from('acordos').update({ status, status_financeiro: financeiro })
-          .in('id', ids.slice(i, i + 100)).in('status', ACORDO_STATUS_VIGENTES);
+          .in('id', ids.slice(i, i + 100)).in('status', [...ACORDO_STATUS_VIGENTES, ACORDO_STATUS.VENCIDO]);
         if (error) throw new Error('Erro ao atualizar situação do período: ' + error.message);
       }
     }

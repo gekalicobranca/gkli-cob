@@ -10,6 +10,14 @@ export function diasAtrasoAcordo(vencimento: string, hoje: string) {
 
 type Parcela = { vencimento: string; numero?: number; status: string; data_pagamento?: string | null; valor?: number | string }
 
+export function classificarSituacaoNoPeriodo(parcelas: Parcela[], inicio: string, fim: string) {
+  const periodo = parcelas.filter(p => !['cancelada', 'cancelado'].includes(p.status)
+    && p.vencimento.slice(0, 10) >= inicio && p.vencimento.slice(0, 10) <= fim)
+  if (!periodo.length) return null
+  const paga = (p: Parcela) => ['paga', 'pago', 'quitada', 'quitado', 'efetivado', 'efetivada'].includes(p.status) || Boolean(p.data_pagamento)
+  return periodo.every(paga) ? 'em_dia' : 'ativo'
+}
+
 export function classificarPrazoAcordo(parcelas: Parcela[], hoje: string, diasParaAtraso = 15, diasParaRomper = 30, valorAcordado?: number | string) {
   const ordenadas = parcelas.filter(p => p.status !== 'cancelada')
     .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || (a.numero ?? 0) - (b.numero ?? 0))
