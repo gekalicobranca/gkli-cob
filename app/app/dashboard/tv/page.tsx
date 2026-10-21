@@ -107,9 +107,9 @@ export default function TvDashboard() {
         </div>
         <div className="flex items-center gap-4 text-sm text-slate-300"><Link href="/app/dashboard">Voltar</Link><button onClick={toggleFullscreen} className="rounded-lg border border-white/20 px-4 py-2">Tela cheia ↗</button></div>
       </div>
-      {data && activeSlide && <nav aria-label="Slides por carteira" className="mb-[2vh] flex flex-wrap items-center gap-3 text-sm">
+      {data && activeSlide && <nav aria-label="Slides de resultados" className="mb-[2vh] flex flex-wrap items-center gap-3 text-sm">
         <span aria-hidden="true" className="h-5 w-5 rounded-full border border-white/25" style={{ backgroundColor: activeSlide.color }} />
-        <label htmlFor="tv-wallet" className="text-slate-400">Carteira</label>
+        <label htmlFor="tv-wallet" className="text-slate-400">{activeSlide.kind === 'group' ? 'Grupo' : activeSlide.kind === 'wallet' ? 'Carteira' : 'Visão'}</label>
         <select id="tv-wallet" value={activeSlide.id} onChange={event => setSlideId(event.target.value)} className="max-w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2 [color-scheme:dark]">
           {data.slides.map((slide, index) => <option key={slide.id} value={slide.id}>{index + 1}. {slide.name}</option>)}
         </select>

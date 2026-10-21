@@ -5,6 +5,7 @@ import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from '@/lib/constants/cobrancas'
 import { getCobrancaStatusFinanceiro, getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 export type TvAgreement = {
+  condominio_id?: string | null
   cobranca_id?: string | null
   carteira_id?: string | null
   id: string; data_acordo: string | null; valor_acordado: number | string | null
@@ -12,6 +13,7 @@ export type TvAgreement = {
   despesa_cobranca_valor: number | string | null; despesa_cobranca_percentual: number | string | null
 }
 export type TvCharge = {
+  condominio_id?: string | null
   id?: string
   unidades?: { acao_judicial?: boolean | null } | { acao_judicial?: boolean | null }[] | null
   bloqueada_para_captacao?: boolean

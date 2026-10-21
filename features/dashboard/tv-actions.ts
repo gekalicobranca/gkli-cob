@@ -35,7 +35,7 @@ export async function getTvResults(start: string, end: string) {
   const db = await createClient()
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const nextDay = new Date(Date.parse(end) + 86400000).toISOString().slice(0, 10)
-  const agreementFields = 'id,cobranca_id,carteira_id,data_acordo,valor_acordado,observacoes,status,status_financeiro,despesa_cobranca_valor,despesa_cobranca_percentual'
+  const agreementFields = 'id,cobranca_id,carteira_id,condominio_id,data_acordo,valor_acordado,observacoes,status,status_financeiro,despesa_cobranca_valor,despesa_cobranca_percentual'
   async function pages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>, label: string) {
     const rows: T[] = []
     for (let offset = 0; ; offset += 1000) {
@@ -45,9 +45,9 @@ export async function getTvResults(start: string, end: string) {
       if (data.length < 1000) return rows
     }
   }
-  const [charges, agreements, installments, wallets, judicialRows, agreementLinks] = await Promise.all([
+  const [charges, agreements, installments, wallets, judicialRows, agreementLinks, condominiums] = await Promise.all([
     pages<TvCharge>((from, to) => applyCarteiraIdsScope(somenteCobrancasCanonicas(db.from('cobrancas')
-      .select('id,carteira_id,unidade_id,valor_atualizado,vencimento,status,status_operacional,status_financeiro,unidades(acao_judicial)'))
+      .select('id,carteira_id,condominio_id,unidade_id,valor_atualizado,vencimento,status,status_operacional,status_financeiro,unidades(acao_judicial)'))
       .lte('vencimento', today < end ? today : end)
       .or('status_operacional.in.(novo,em_cobranca_ativa,em_negociacao,possivel_acordo),status_operacional.is.null'), scope.carteiraIds).order('id').range(from, to), 'a captação'),
     pages<TvAgreement>((from, to) => applyCarteiraIdsScope(db.from('acordos').select(agreementFields)
@@ -67,8 +67,10 @@ export async function getTvResults(start: string, end: string) {
       .select('acordo_id,cobranca_id,acordos!inner(status,carteira_id)')
       .in('acordos.status', TV_COLLECTION_AGREEMENT_STATUSES), scope.carteiraIds, 'acordos.carteira_id')
       .order('acordo_id').order('cobranca_id').range(from, to), 'os vínculos dos acordos'),
+    pages<{ id: string; grupo: string | null }>((from, to) => applyCarteiraIdsScope(db.from('condominios')
+      .select('id,grupo'), scope.carteiraIds).order('id').range(from, to), 'os grupos dos condomínios'),
   ])
   const availableCharges = prepareTvCollectionCharges(charges, judicialRows, agreements, agreementLinks)
-  const slides = buildTvSlides(start, end, today, wallets, availableCharges, agreements, installments)
+  const slides = buildTvSlides(start, end, today, wallets, availableCharges, agreements, installments, condominiums)
   return { start, end, today, updatedAt: new Date().toISOString(), ...slides[0].metrics, slides }
 }

@@ -53,6 +53,39 @@ test('cores diferenciam as duas carteiras Genske, GEKALI e Azevedo', () => {
   assert.equal(tvWalletTheme('Escritório Genske Adv').color, '#b3679b')
 })
 
+test('grupo Azevedo reúne condomínios de carteiras diferentes e exclui quem saiu do grupo', () => {
+  const wallets = [{ id: 'az', nome: 'Azevedo Araújo' }, { id: 'gk', nome: 'GEKALI' }]
+  const condos = [{ id: 'topazio', grupo: 'AZEVEDO' }, { id: 'safira', grupo: 'Azevedo' }, { id: 'outro', grupo: 'OUTRO' }]
+  const charges = [
+    charge({ carteira_id: 'az', condominio_id: 'topazio', unidade_id: 'u1', valor_atualizado: 100 }),
+    charge({ carteira_id: 'gk', condominio_id: 'safira', unidade_id: 'u2', valor_atualizado: 200 }),
+    charge({ carteira_id: 'az', condominio_id: 'outro', unidade_id: 'u3', valor_atualizado: 400 }),
+    charge({ carteira_id: 'gk', condominio_id: 'sem-acesso', unidade_id: 'u4', valor_atualizado: 800 }),
+  ]
+  const agreements = [agreement({ id: 'a1', carteira_id: 'az', condominio_id: 'topazio' }), agreement({ id: 'a2', carteira_id: 'gk', condominio_id: 'safira' }), agreement({ id: 'a3', carteira_id: 'az', condominio_id: 'outro' })]
+  const installments = [installment({ id: 'p1', acordos: agreements[0] }), installment({ id: 'p2', acordos: [agreements[1]], status: 'paga', data_pagamento: '2026-10-20' }), installment({ id: 'p3', acordos: agreements[2] })]
+  const slides = buildTvSlides('2026-10-13', '2026-11-12', '2026-10-20', wallets, charges, agreements, installments, condos)
+  const group = slides.find(slide => slide.id === 'group:azevedo')!
+  assert.equal(slides.some(slide => slide.id === 'az'), false)
+  assert.equal(group.kind, 'group')
+  assert.equal(group.metrics.capture.units, 2)
+  assert.equal(group.metrics.capture.value, 300)
+  assert.equal(group.metrics.agreements.period, 2)
+  assert.equal(group.metrics.result.expectedValue, 400)
+  assert.equal(group.metrics.result.paidValue, 200)
+  assert.equal(slides[0].metrics.capture.value, 1500)
+  const moved = buildTvSlides('2026-10-13', '2026-11-12', '2026-10-20', wallets,
+    charges.map(row => ({ ...row, carteira_id: 'gk' })), agreements.map(row => ({ ...row, carteira_id: 'gk' })), installments, condos)
+  assert.deepEqual(moved.find(slide => slide.id === 'group:azevedo')!.metrics, group.metrics)
+})
+
+test('grupo Azevedo aparece com condomínios permitidos mesmo sem acesso à carteira de mesmo nome', () => {
+  const slides = buildTvSlides('2026-10-13', '2026-11-12', '2026-10-20', [{ id: 'gk', nome: 'GEKALI' }],
+    [charge({ carteira_id: 'gk', condominio_id: 'safira' })], [], [], [{ id: 'safira', grupo: 'AZEVEDO' }])
+  assert.equal(slides.find(slide => slide.id === 'group:azevedo')?.metrics.capture.value, 100)
+  assert.equal(buildTvSlides('2026-10-13', '2026-11-12', '2026-10-20', [], [], [], [], []).length, 1)
+})
+
 test('jurídico bloqueia toda a unidade, inclusive dívida ativa diferente e indicação cadastral', () => {
   const rows = prepareTvCollectionCharges([
     charge({ id: 'active', unidade_id: 'judicial', status_operacional: 'novo' }),
