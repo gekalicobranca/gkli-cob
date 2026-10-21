@@ -1,3 +1,4 @@
+import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -173,9 +174,9 @@ export async function getCentralAnalitica(scope: CarteiraScope): Promise<Central
     .limit(5000)
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
 
-  let acordosQuery = supabase
+  let acordosQuery = somenteAcordosCanonicos(supabase
     .from('acordos')
-    .select('id, carteira_id, status, status_financeiro, valor_acordado, data_acordo, created_at')
+    .select('id, carteira_id, status, status_financeiro, valor_acordado, data_acordo, created_at'))
     .order('created_at', { ascending: false })
     .limit(3000)
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)

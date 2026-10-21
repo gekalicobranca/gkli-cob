@@ -1,3 +1,4 @@
+import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { applyCarteiraScope } from "@/utils/auth/carteira-scope";
@@ -650,7 +651,7 @@ function montarPdf(rows: any[]) {
 async function carregarAcordos(searchParams: URLSearchParams) {
   const scope = await getPermittedCarteiras();
   const supabase = await createClient();
-  let query = supabase
+  let query = somenteAcordosCanonicos(supabase
     .from("acordos")
     .select(`
       id,
@@ -671,7 +672,7 @@ async function carregarAcordos(searchParams: URLSearchParams) {
       unidades:unidade_id (id, identificacao, bloco, responsavel_nome, telefone, email),
       carteiras:carteira_id (id, nome),
       cobrancas:cobranca_id (id, valor_original, valor_atualizado, vencimento, competencia, status, status_operacional, status_financeiro)
-    `);
+    `));
 
   query = applyCarteiraScope(query, scope);
 

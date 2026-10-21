@@ -1,4 +1,5 @@
 import { excluidoDaSomaDivida, valorAcordadoRelatorio } from '@/features/acordos/valor-relatorio'
+import { acordoDuplicadoConciliado } from '@/lib/core/acordo-arquivamento'
 import { ACORDO_STATUS_VIGENTES } from '@/lib/constants/acordos'
 import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from '@/lib/constants/cobrancas'
 import { getCobrancaStatusFinanceiro, getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
@@ -46,7 +47,11 @@ export function buildTvMetrics(start: string, end: string, today: string, charge
     && !['pago', 'quitado', 'cancelado', 'cancelada'].includes(normalize(row.status))
     && !['quitado', 'renegociado'].includes(getCobrancaStatusFinanceiro(row))
     && (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as readonly string[]).includes(getCobrancaStatusOperacional(row)))
-  const paid = installments.filter(row => paidStatuses.has(normalize(row.status)) && inPeriod(row.data_pagamento))
+  const paid = installments.filter(row => {
+    const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
+    return agreement && !acordoDuplicadoConciliado(agreement)
+      && paidStatuses.has(normalize(row.status)) && inPeriod(row.data_pagamento)
+  })
   const expected = installments.filter(row => {
     const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
     return agreement && inPeriod(row.vencimento) && !cancelledStatuses.has(normalize(row.status))

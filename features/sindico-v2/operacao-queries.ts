@@ -1,3 +1,4 @@
+import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import 'server-only'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { somenteCobrancasCanonicas } from '@/lib/core/cobranca-arquivamento'
@@ -20,8 +21,8 @@ export async function carregarFonteOperacao(condominioId: string): Promise<Fonte
     paginar<FonteOperacao['cobrancas'][number]>((inicio, fim) => somenteCobrancasCanonicas(admin.from('cobrancas')
       .select(`id,condominio_id,unidade_id,created_at,valor_atualizado,valor_original,status,status_operacional,status_financeiro,vencimento,${unidade}`))
       .eq('condominio_id', condominioId).order('id').range(inicio, fim)),
-    paginar<FonteOperacao['acordos'][number]>((inicio, fim) => admin.from('acordos')
-      .select(`id,condominio_id,unidade_id,created_at,data_acordo,valor_acordado,quantidade_parcelas,status,exige_aprovacao_sindico,sindico_aprovado_em,${unidade}`)
+    paginar<FonteOperacao['acordos'][number]>((inicio, fim) => somenteAcordosCanonicos(admin.from('acordos')
+      .select(`id,condominio_id,unidade_id,created_at,data_acordo,valor_acordado,quantidade_parcelas,status,exige_aprovacao_sindico,sindico_aprovado_em,${unidade}`))
       .eq('condominio_id', condominioId).order('data_acordo', { ascending: false }).order('id').range(inicio, fim)),
     paginar<FonteOperacao['parcelas'][number]>((inicio, fim) => admin.from('parcelas_acordo')
       .select('id,acordo_id,numero,valor,vencimento,status,data_pagamento,acordos!inner(condominio_id)')

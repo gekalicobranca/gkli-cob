@@ -1,3 +1,4 @@
+import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -219,9 +220,9 @@ export async function getCarteiraProdutividadeData(
     .order('created_at', { ascending: false })
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
 
-  let acordosQuery = supabase
+  let acordosQuery = somenteAcordosCanonicos(supabase
     .from('acordos')
-    .select('id, carteira_id, cobranca_id, status, status_financeiro, valor_acordado, created_at')
+    .select('id, carteira_id, cobranca_id, status, status_financeiro, valor_acordado, created_at'))
     .order('created_at', { ascending: false })
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
 

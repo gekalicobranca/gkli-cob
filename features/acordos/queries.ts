@@ -1,3 +1,4 @@
+import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { carregarParcelasRelatorio } from "./parcelas-relatorio";
@@ -47,7 +48,7 @@ function isBloqueadaParaAcordo(cobranca: any) {
 export async function listAcordos(scope?: CarteiraScope) {
   const supabase = await createClient();
 
-  let query = supabase
+  let query = somenteAcordosCanonicos(supabase
     .from("acordos")
     .select(
       `
@@ -79,7 +80,7 @@ export async function listAcordos(scope?: CarteiraScope) {
       ),
       termos:acordos_termos (*)
     `,
-    )
+    ))
     .order("data_acordo", { ascending: false });
 
   if (scope) {
@@ -936,15 +937,15 @@ export async function listAcordosComSaudePage(
   }
 
   const supabase = await createClient();
-  let rowsQuery = supabase
+  let rowsQuery = somenteAcordosCanonicos(supabase
     .from("acordos")
-    .select(ACORDOS_PAGE_SELECT, { count: "exact" });
+    .select(ACORDOS_PAGE_SELECT, { count: "exact" }));
   rowsQuery = applyAcordosDirectFilters(rowsQuery, filters, scope);
   rowsQuery = applyAcordosOrder(rowsQuery, ordenar).range(from, to);
 
-  let resumoQuery = supabase
+  let resumoQuery = somenteAcordosCanonicos(supabase
     .from("acordos")
-    .select("status, valor_acordado");
+    .select("status, valor_acordado"));
   resumoQuery = applyAcordosDirectFilters(resumoQuery, filters, scope);
 
   const [{ data: rowsData, error: rowsError, count }, { data: resumoRows, error: resumoError }] = await Promise.all([
@@ -1247,9 +1248,9 @@ export async function getAgreementOperationalIntelligence(params: {
   }
 
   const supabase = await createClient();
-  let query = supabase
+  let query = somenteAcordosCanonicos(supabase
     .from("acordos")
-    .select("id,status,status_financeiro")
+    .select("id,status,status_financeiro"))
     .eq("unidade_id", params.unidadeId);
 
   query = applyCarteiraScope(query, params.scope.carteiraIds);

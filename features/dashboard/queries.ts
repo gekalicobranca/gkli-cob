@@ -1,3 +1,4 @@
+import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
@@ -218,7 +219,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds);
 
-  let acordosQuery = supabase
+  let acordosQuery = somenteAcordosCanonicos(supabase
     .from("acordos")
     .select(
       `
@@ -232,7 +233,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
       condominios(nome),
       parcelas_acordo(valor, vencimento, status, data_pagamento)
     `,
-    )
+    ))
     .order("data_acordo", { ascending: false });
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds);
@@ -573,7 +574,7 @@ export async function getManagementDashboardTabs(scope: CarteiraScope) {
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds);
 
-  let acordosQuery = supabase
+  let acordosQuery = somenteAcordosCanonicos(supabase
     .from("acordos")
     .select(
       `
@@ -591,7 +592,7 @@ export async function getManagementDashboardTabs(scope: CarteiraScope) {
       unidades(identificacao, bloco, responsavel_nome),
       parcelas_acordo(valor, vencimento, status, data_pagamento)
     `,
-    )
+    ))
     .order("data_acordo", { ascending: false });
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds);
