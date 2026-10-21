@@ -10,7 +10,8 @@ export async function GET(request: Request) {
 
   try {
     const result = await checkAcordosStatus({
-      diasParaRomper: 7,
+      diasParaRomper: 30,
+      diasParaAtraso: 15,
     })
 
     return NextResponse.json(result)

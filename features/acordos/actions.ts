@@ -3297,7 +3297,8 @@ export async function atualizarAtrasosERompimentosAcordos() {
   await requireRole(["admin", "gestor"]);
 
   const result = await checkAcordosStatus({
-    diasParaRomper: 7,
+    diasParaRomper: 30,
+    diasParaAtraso: 15,
   });
 
   revalidatePath("/app/acordos");
