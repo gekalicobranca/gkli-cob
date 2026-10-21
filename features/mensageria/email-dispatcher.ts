@@ -13,7 +13,7 @@ export async function executarDisparosEmail(limit = 50, cobrancaFlowId?: string,
     .is('pre_juridico_flow_id', null).lte('agendada_para', new Date().toISOString())
     .order('agendada_para').limit(Math.max(1, Math.min(limit || 50, 100)))
   // O banco reconfere destinatários, carteira e vínculo real antes do disparo.
-  if (somenteAvisosInternos || !emailHorarioPermitido()) query = query.in('payload->aviso_formalizacao->>regra', ['operador_gekali_v1', 'operador_lidia_v1', 'operador_lidia_boletos_v1'])
+  if (somenteAvisosInternos || !emailHorarioPermitido()) query = query.in('payload->aviso_formalizacao->>regra', ['operador_gekali_v1', 'operador_lidia_v1', 'operador_lidia_boletos_v1', 'operador_gekali_boletos_v1'])
   if (cobrancaFlowId) query = query.eq('cobranca_flow_id', cobrancaFlowId)
   const { data, error } = await query
   if (error) throw new Error(`Erro ao carregar agenda de e-mail: ${error.message}`)
