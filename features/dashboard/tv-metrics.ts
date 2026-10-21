@@ -5,6 +5,9 @@ import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from '@/lib/constants/cobrancas'
 import { getCobrancaStatusFinanceiro, getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 export type TvAgreement = {
+  fluxo_status?: string | null
+  boletos_solicitados_em?: string | null
+  tem_parcela_paga?: boolean
   condominio_id?: string | null
   cobranca_id?: string | null
   carteira_id?: string | null
@@ -32,6 +35,15 @@ const cancelledStatuses = new Set(['cancelado', 'cancelada'])
 const money = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0
 const round = (value: number) => Math.round((value + Math.max(1, Math.abs(value)) * Number.EPSILON) * 100) / 100
 
+export const TV_PAID_INSTALLMENT_STATUSES = [...paidStatuses]
+
+// Pagamento de qualquer data efetiva o acordo, mesmo fora do fechamento selecionado.
+export function tvAgreementStage(agreement: TvAgreement) {
+  if (agreement.tem_parcela_paga) return 'efetivado'
+  if (agreement.boletos_solicitados_em || ['boletos_solicitados', 'boletos_recebidos', 'boletos_enviados'].includes(normalize(agreement.fluxo_status ?? null))) return 'firmado'
+  return null
+}
+
 // Mesma regra do relatório de parcelas: informado, rateio da despesa ou percentual.
 export function tvExpectedTransfer(agreement: TvAgreement, installment: TvInstallment) {
   const informed = installment.valor_repasse_informado
@@ -44,7 +56,7 @@ export function tvExpectedTransfer(agreement: TvAgreement, installment: TvInstal
 
 export function buildTvMetrics(start: string, end: string, today: string, charges: TvCharge[], agreements: TvAgreement[], installments: TvInstallment[]) {
   const inPeriod = (date: string | null) => Boolean(date && date.slice(0, 10) >= start && date.slice(0, 10) <= end)
-  const eligible = agreements.filter(row => !excluidoDaSomaDivida(row) && !cancelledStatuses.has(normalize(row.status)))
+  const eligible = agreements.filter(row => tvAgreementStage(row) && !excluidoDaSomaDivida(row) && !cancelledStatuses.has(normalize(row.status)))
   const periodAgreements = eligible.filter(row => inPeriod(row.data_acordo))
   const dayAgreements = eligible.filter(row => row.data_acordo?.slice(0, 10) === today)
   const current = eligible.filter(row => (ACORDO_STATUS_VIGENTES as readonly string[]).includes(normalize(row.status)) && !['quitado', 'pago'].includes(normalize(row.status_financeiro)))
@@ -62,7 +74,7 @@ export function buildTvMetrics(start: string, end: string, today: string, charge
   const expected = installments.filter(row => {
     const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
     return agreement && inPeriod(row.vencimento) && !cancelledStatuses.has(normalize(row.status))
-      && !cancelledStatuses.has(normalize(agreement.status)) && !excluidoDaSomaDivida(agreement)
+      && tvAgreementStage(agreement) && !cancelledStatuses.has(normalize(agreement.status)) && !excluidoDaSomaDivida(agreement)
       && (paidStatuses.has(normalize(row.status)) || !['quebrado', 'rompido', 'renegociado'].includes(normalize(agreement.status)))
   })
   return {
