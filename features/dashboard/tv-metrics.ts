@@ -75,7 +75,7 @@ export function buildTvMetrics(start: string, end: string, today: string, charge
     const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
     return agreement && inPeriod(row.vencimento) && !cancelledStatuses.has(normalize(row.status))
       && tvAgreementStage(agreement) && !cancelledStatuses.has(normalize(agreement.status)) && !excluidoDaSomaDivida(agreement)
-      && (paidStatuses.has(normalize(row.status)) || !['quebrado', 'rompido', 'renegociado'].includes(normalize(agreement.status)))
+      && !['quebrado', 'rompido', 'renegociado'].includes(normalize(agreement.status))
   })
   return {
     capture: { units: new Set(available.map(row => row.unidade_id).filter(Boolean)).size, value: round(available.reduce((sum, row) => sum + money(row.valor_atualizado), 0)), cutoff },
