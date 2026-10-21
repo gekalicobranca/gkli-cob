@@ -47,6 +47,7 @@ function toneFor(status: string): BadgeTone {
       'cancelado',
       'cancelada',
       'rompido',
+      'acordo_quebrado',
     ].includes(status)
   ) {
     return 'red'
