@@ -74,7 +74,7 @@ export default function TvDashboard() {
       cards: [
         { label: 'Realizados no período', value: number(metrics.agreements.period), detail: formatCurrency(metrics.agreements.periodValue) + ' acordados' },
         { label: 'Realizados hoje', value: number(metrics.agreements.today), detail: `${dateLabel(data.today)} · ${formatCurrency(metrics.agreements.todayValue)}` },
-        { label: 'Totais vigentes', value: number(metrics.agreements.current), detail: 'Ativos, em dia e em atraso · todas as datas' },
+        { label: 'Acordos vigentes', value: number(metrics.agreements.current), detail: 'Ativos, em dia e em atraso · todas as datas' },
       ],
     },
     {
