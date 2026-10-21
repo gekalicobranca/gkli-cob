@@ -146,6 +146,7 @@ export function AcordoSimulatorForm({
   const [numeroProcesso, setNumeroProcesso] = useState(formularioInicial.numero_processo || "");
   const [despesaCobrancaPercentual, setDespesaCobrancaPercentual] =
     useState(formularioInicial.despesa_cobranca_percentual || "10,00");
+  const [jurosAdicional, setJurosAdicional] = useState(formularioInicial.juros_adicional === "on");
   const [entrada, setEntrada] = useState(formularioInicial.entrada || "0,00");
   const [usarCreditoAdministradora, setUsarCreditoAdministradora] = useState(formularioInicial.usar_credito_administradora === "on");
   const [entradaVencimento, setEntradaVencimento] = useState(() => formularioInicial.entrada_vencimento || toISODate(new Date()));
@@ -223,10 +224,10 @@ export function AcordoSimulatorForm({
     const calculo = calcularDespesasAcordo(
       cobrancasSelecionadas.map((item) => ({ id: item.id, valor: getValorAtualizado(item) })),
       cotasSemDespesas, percentualDespesa, creditoUtilizado,
-      { quantidadeParcelas: Number(quantidadeParcelas), entrada: parseMoney(entrada) },
+      { quantidadeParcelas: Number(quantidadeParcelas), entrada: parseMoney(entrada), jurosAdicional },
     );
     const despesaCobranca = calculo.despesa;
-    const total = roundMoney(valorAposCredito + despesaCobranca);
+    const total = calculo.total;
     const entradaNumber = parseMoney(entrada);
     const parcelasCount = Math.max(1, Number(quantidadeParcelas) || 1);
     const saldo = Math.max(0, roundMoney(total - entradaNumber));
@@ -255,6 +256,8 @@ export function AcordoSimulatorForm({
 
     return {
       isencaoAplicada: calculo.isencaoAplicada,
+      pagamentoAVista: calculo.pagamentoAVista,
+      jurosAdicional: calculo.jurosAdicional,
       valorOriginal,
       creditoDisponivel,
       creditoUtilizado,
@@ -276,6 +279,7 @@ export function AcordoSimulatorForm({
     quantidadeParcelas,
     primeiroVencimento,
     usarCreditoAdministradora,
+    jurosAdicional,
     cobrancaSelecionada?.unidades?.credito_administradora,
   ]);
 
@@ -295,10 +299,15 @@ export function AcordoSimulatorForm({
     );
     return Array.from(new Set(limites)).slice(0, 4).map((parcelas) => ({
       parcelas,
-      valor: parcelas > 0 ? roundMoney(preview.saldo / parcelas) : preview.saldo,
+      valor: roundMoney(Math.max(0, calcularDespesasAcordo(
+        cobrancasSelecionadas.map((item) => ({ id: item.id, valor: getValorAtualizado(item) })),
+        cotasSemDespesas, preview.percentualDespesa, preview.creditoUtilizado,
+        { quantidadeParcelas: parcelas, entrada: preview.entrada, jurosAdicional },
+      ).total - preview.entrada) / parcelas),
       exigeSindico: limiteParcelasSemSindico > 0 && parcelas > limiteParcelasSemSindico,
     }));
-  }, [preview.saldo, limiteParcelasSemSindico, parcelasInformadas]);
+  }, [cobrancasSelecionadas, cotasSemDespesas, preview.percentualDespesa, preview.creditoUtilizado,
+    preview.entrada, jurosAdicional, limiteParcelasSemSindico, parcelasInformadas]);
 
   function handleCobrancaChange(value: string) {
     setCobrancaId(value);
@@ -354,6 +363,7 @@ export function AcordoSimulatorForm({
         ? "Cota do mês à vista, sem despesas de cobrança, com autorização da administradora."
         : "Cota do mês incluída com despesas de cobrança: pagamento parcelado."] : []),
       `Despesa de cobrança (${preview.percentualDespesa.toLocaleString("pt-BR")}%): ${formatCurrency(preview.despesaCobranca)}`,
+      ...(preview.jurosAdicional > 0 ? [`Juros adicionais (1% ao mês, juros simples sobre o saldo após a entrada): ${formatCurrency(preview.jurosAdicional)}`] : []),
       `Valor total proposto: ${formatCurrency(preview.total)}`,
       `Entrada: ${formatCurrency(preview.entrada)}`,
       `Saldo parcelado: ${formatCurrency(preview.saldo)}`,
@@ -666,6 +676,23 @@ export function AcordoSimulatorForm({
           </FormField>
         </div>
 
+        <label className="flex items-start gap-3 rounded-2xl border border-slate-200 p-4">
+          <input
+            type="checkbox"
+            name="juros_adicional"
+            checked={jurosAdicional}
+            disabled={preview.pagamentoAVista}
+            onChange={(event) => setJurosAdicional(event.target.checked)}
+            className="mt-1"
+          />
+          <span className="text-sm text-slate-700">
+            Aplicar juros de 1% ao mês no parcelamento
+            <span className="mt-1 block text-xs text-slate-500">
+              Juros simples: 1% × número de parcelas sobre o saldo após a entrada, distribuídos nas parcelas. Não se aplica ao pagamento à vista.
+            </span>
+          </span>
+        </label>
+
         <FormField label="Link do documento/pasta">
           <Input
             name="documento_url"
@@ -899,6 +926,12 @@ export function AcordoSimulatorForm({
                 {formatCurrency(preview.despesaCobranca)}
               </strong>
             </div>
+            {preview.jurosAdicional > 0 ? (
+              <div className="flex justify-between rounded-2xl bg-slate-50 p-4">
+                <span className="text-sm text-slate-500">Juros simples (1% ao mês × {parcelasInformadas})</span>
+                <strong className="text-sm text-slate-950">{formatCurrency(preview.jurosAdicional)}</strong>
+              </div>
+            ) : null}
             <div className="flex justify-between rounded-2xl bg-slate-50 p-4">
               <span className="text-sm text-slate-500">Valor acordado</span>
               <strong className="text-sm text-slate-950">

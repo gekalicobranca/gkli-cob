@@ -60,14 +60,26 @@ export function calcularDespesasAcordo(
   cotasSemDespesas: string[],
   percentual: number,
   credito: number,
-  pagamento: { quantidadeParcelas: number; entrada: number },
+  pagamento: { quantidadeParcelas: number; entrada: number; jurosAdicional?: boolean },
 ) {
   const comIsencao = calcularValores(itens, cotasSemDespesas, percentual, credito);
   const pagamentoAVista = (pagamento.quantidadeParcelas === 1 && pagamento.entrada === 0)
     || (comIsencao.total > 0 && round(pagamento.entrada) >= comIsencao.total);
   const isencaoAplicada = pagamentoAVista && cotasSemDespesas.length > 0;
+  const valores = isencaoAplicada ? comIsencao : calcularValores(itens, [], percentual, credito);
+  const jurosAdicional = pagamento.jurosAdicional && !pagamentoAVista
+    ? round(Math.max(0, round(valores.total - pagamento.entrada)) * 0.01 * pagamento.quantidadeParcelas)
+    : 0;
+  const jurosRateados = ratear(jurosAdicional, valores.itens.map((item) => item.total));
   return {
-    ...(isencaoAplicada ? comIsencao : calcularValores(itens, [], percentual, credito)),
+    ...valores,
+    total: round(valores.total + jurosAdicional),
+    jurosAdicional,
+    itens: valores.itens.map((item, index) => ({
+      ...item,
+      jurosAdicional: jurosRateados[index],
+      total: round(item.total + jurosRateados[index]),
+    })),
     pagamentoAVista,
     isencaoAplicada,
   };

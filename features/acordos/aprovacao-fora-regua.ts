@@ -14,7 +14,7 @@ export function propostaFinanceiraParaAprovacao(params: Record<string, unknown>)
 export function guardarFormularioProposta(formData: FormData): FormularioPropostaForaRegua {
   const campos = [
     'tipo', 'numero_processo', 'despesa_cobranca_percentual', 'entrada',
-    'usar_credito_administradora', 'entrada_vencimento', 'quantidade_parcelas',
+    'usar_credito_administradora', 'juros_adicional', 'entrada_vencimento', 'quantidade_parcelas',
     'primeiro_vencimento', 'documento_url', 'observacoes', 'cota_mes_autorizada',
   ];
   return {

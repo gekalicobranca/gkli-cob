@@ -240,6 +240,7 @@ function montarResumoAcordo(params: {
   responsavelTelefone?: string | null;
   valorBase: number;
   despesa: number;
+  jurosAdicional?: number;
   valorAcordado: number;
   entrada: number;
   quantidadeParcelas: number;
@@ -267,6 +268,7 @@ function montarResumoAcordo(params: {
     "Resumo financeiro:",
     `Valor das cobranças: ${formatBRL(params.valorBase)}`,
     `Despesa de cobrança: ${formatBRL(params.despesa)}`,
+    params.jurosAdicional ? `Juros simples (1% ao mês × ${params.quantidadeParcelas} parcelas): ${formatBRL(params.jurosAdicional)}` : null,
     `Valor total do acordo: ${formatBRL(params.valorAcordado)}`,
     `Entrada: ${formatBRL(params.entrada)}`,
     `Quantidade de parcelas: ${params.quantidadeParcelas}`,
@@ -814,10 +816,10 @@ export async function createAcordo(formData: FormData) {
   const calculoDespesas = calcularDespesasAcordo(
     cobrancasComValores.map((item) => ({ id: item.id, valor: item.valor_base_acordo })),
     cotasSemDespesas, despesaCobrancaPercentual, creditoAdministradoraUtilizado,
-    { quantidadeParcelas, entrada },
+    { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on" },
   );
   const despesaCobrancaValor = calculoDespesas.despesa;
-  const valorAcordado = roundMoney(valorBaseAposCredito + despesaCobrancaValor);
+  const valorAcordado = calculoDespesas.total;
 
   if (valorBaseCobranca <= 0)
     throw new Error("Valor das cobranças deve ser maior que zero.");
@@ -847,9 +849,9 @@ export async function createAcordo(formData: FormData) {
       cobranca_id: item.id,
       valor_original_no_acordo: Number(item.valor_original ?? 0),
       valor_atualizado_no_acordo: item.valor_base_acordo,
-      encargos_no_acordo: despesaRateada,
+      encargos_no_acordo: roundMoney(despesaRateada + calculoDespesas.itens[index].jurosAdicional),
       valor_total_no_acordo: roundMoney(
-        item.valor_base_acordo - creditoRateado + despesaRateada,
+        item.valor_base_acordo - creditoRateado + despesaRateada + calculoDespesas.itens[index].jurosAdicional,
       ),
     };
   });
@@ -906,7 +908,8 @@ export async function createAcordo(formData: FormData) {
       p_fluxo_status: fluxoStatusInicial,
       p_exige_aprovacao_sindico: false,
       p_documento_url: documentoUrl || null,
-      p_observacoes: observacoes || null,
+      p_observacoes: [observacoes, calculoDespesas.jurosAdicional > 0
+        ? `Juros simples de 1% ao mês × ${quantidadeParcelas} parcelas sobre o saldo após a entrada: ${formatBRL(calculoDespesas.jurosAdicional)}.` : ""].filter(Boolean).join("\n") || null,
       p_itens: itensAcordo,
       p_parcelas: parcelas,
       p_cobranca_status: COBRANCA_STATUS.EM_NEGOCIACAO,
@@ -936,6 +939,7 @@ export async function createAcordo(formData: FormData) {
     responsavelTelefone: contatoResponsavel.telefone || null,
     valorBase: valorBaseCobranca,
     despesa: despesaCobrancaValor,
+    jurosAdicional: calculoDespesas.jurosAdicional,
     valorAcordado,
     entrada,
     quantidadeParcelas,
@@ -1015,6 +1019,10 @@ export async function createAcordo(formData: FormData) {
       valor_base_cobranca: valorBaseCobranca,
       credito_administradora_utilizado: creditoAdministradoraUtilizado,
       valor_base_apos_credito: valorBaseAposCredito,
+      juros_adicional_valor: calculoDespesas.jurosAdicional,
+      juros_adicional_modalidade: "simples_mensal",
+      juros_adicional_taxa_mensal: 1,
+      juros_adicional: formData.get("juros_adicional") === "on" && !calculoDespesas.pagamentoAVista,
       valor_acordado: valorAcordado,
       entrada,
       quantidade_parcelas: quantidadeParcelas,
@@ -1343,7 +1351,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
       + Number(item.correcao ?? 0) - Number(item.desconto ?? 0)),
   })), cotasSemDespesas, despesaCobrancaPercentual,
     formData.get("usar_credito_administradora") === "on" ? Number(unidadeReferencia?.credito_administradora ?? 0) : 0,
-    { quantidadeParcelas, entrada });
+    { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on" });
   const despesaCobrancaValor = calculo.despesa;
   const valorAcordado = calculo.total;
 
@@ -1422,6 +1430,10 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
         unidade_id: unidadeId,
         tipo,
         numero_processo: tipo === "judicial" ? numeroProcesso : null,
+        juros_adicional_valor: calculo.jurosAdicional,
+        juros_adicional_modalidade: "simples_mensal",
+        juros_adicional_taxa_mensal: 1,
+        juros_adicional: formData.get("juros_adicional") === "on" && !calculo.pagamentoAVista,
         valor_acordado: valorAcordado,
         entrada,
         quantidade_parcelas: quantidadeParcelas,

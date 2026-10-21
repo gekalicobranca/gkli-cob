@@ -1,6 +1,37 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { calcularDespesasAcordo, validarCotasSemDespesas } from "../features/acordos/calculo-despesas";
+import { guardarFormularioProposta } from "../features/acordos/aprovacao-fora-regua";
+
+test("opção mensal é preservada ao recuperar a proposta", () => {
+  const form = new FormData();
+  assert.equal(guardarFormularioProposta(form).juros_adicional, "");
+  form.set("juros_adicional", "on");
+  assert.equal(guardarFormularioProposta(form).juros_adicional, "on");
+});
+
+test("juros simples mensais incidem no saldo após crédito, despesas e entrada", () => {
+  const calcular = (entrada: number, quantidadeParcelas = 3, jurosAdicional = true) =>
+    calcularDespesasAcordo([{ id: "a", valor: 1000 }], [], 10, 100,
+      { entrada, quantidadeParcelas, jurosAdicional });
+  const resultado = calcular(200);
+  assert.equal(resultado.jurosAdicional, 23.7);
+  assert.equal(resultado.total, 1013.7);
+  assert.equal(resultado.itens[0].total, resultado.total);
+  assert.equal(resultado.despesa, 90);
+  assert.equal(calcular(200, 3, false).total, 990);
+  assert.equal(calcular(0, 1).jurosAdicional, 0);
+  assert.equal(calcular(990).jurosAdicional, 0);
+  assert.equal(calcular(200, 1).jurosAdicional, 7.9);
+});
+
+test("rateio dos juros fecha em centavos com o total contratado", () => {
+  const resultado = calcularDespesasAcordo([
+    { id: "a", valor: 333.33 }, { id: "b", valor: 333.33 }, { id: "c", valor: 333.34 },
+  ], [], 0, 0, { entrada: 123.45, quantidadeParcelas: 3, jurosAdicional: true });
+  assert.equal(resultado.jurosAdicional, 26.3);
+  assert.equal(Math.round(resultado.itens.reduce((soma, item) => soma + item.total, 0) * 100), 102630);
+});
 
 const aVista = { quantidadeParcelas: 1, entrada: 0 };
 const itens = [{ id: "atrasada", valor: 1000 }, { id: "mes", valor: 500 }];
@@ -66,4 +97,14 @@ test("parcelamento com crédito mantém despesas sobre a cota e troca de modalid
   assert.equal(parcelado.total, 1320);
   assert.equal(parcelado.itens[1].despesa, 40);
   assert.equal(calcularDespesasAcordo(itens, ["mes"], 10, 300, aVista).total, 1280);
+});
+
+
+test("1% ao mês por três parcelas soma 30 reais a um saldo de mil", () => {
+  const resultado = calcularDespesasAcordo([{ id: "a", valor: 1200 }], [], 0, 0,
+    { entrada: 200, quantidadeParcelas: 3, jurosAdicional: true });
+  assert.equal(resultado.jurosAdicional, 30);
+  assert.equal(resultado.total - 200, 1030);
+  assert.equal(calcularDespesasAcordo([{ id: "a", valor: 1200 }], [], 0, 0,
+    { entrada: 200, quantidadeParcelas: 6, jurosAdicional: true }).jurosAdicional, 60);
 });
