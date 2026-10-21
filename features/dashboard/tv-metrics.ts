@@ -5,12 +5,16 @@ import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from '@/lib/constants/cobrancas'
 import { getCobrancaStatusFinanceiro, getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 export type TvAgreement = {
+  cobranca_id?: string | null
   carteira_id?: string | null
   id: string; data_acordo: string | null; valor_acordado: number | string | null
   status: string | null; status_financeiro: string | null; observacoes: string | null
   despesa_cobranca_valor: number | string | null; despesa_cobranca_percentual: number | string | null
 }
 export type TvCharge = {
+  id?: string
+  unidades?: { acao_judicial?: boolean | null } | { acao_judicial?: boolean | null }[] | null
+  bloqueada_para_captacao?: boolean
   carteira_id?: string | null
   unidade_id: string | null; valor_atualizado: number | string | null; vencimento: string | null
   status: string | null; status_operacional: string | null; status_financeiro: string | null
@@ -44,6 +48,7 @@ export function buildTvMetrics(start: string, end: string, today: string, charge
   const current = eligible.filter(row => (ACORDO_STATUS_VIGENTES as readonly string[]).includes(normalize(row.status)) && !['quitado', 'pago'].includes(normalize(row.status_financeiro)))
   const cutoff = today < end ? today : end
   const available = charges.filter(row => row.vencimento && row.vencimento <= cutoff && money(row.valor_atualizado) > 0
+    && !row.bloqueada_para_captacao
     && !['pago', 'quitado', 'cancelado', 'cancelada'].includes(normalize(row.status))
     && !['quitado', 'renegociado'].includes(getCobrancaStatusFinanceiro(row))
     && (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as readonly string[]).includes(getCobrancaStatusOperacional(row)))

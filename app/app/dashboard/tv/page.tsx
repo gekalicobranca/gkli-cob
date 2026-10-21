@@ -63,10 +63,10 @@ export default function TvDashboard() {
   const walletSlide = activeSlide && activeSlide.id !== 'general'
   const groups = data && metrics ? [
     {
-      title: 'Captação', subtitle: 'Valores disponíveis para cobrar', tone: 'text-sky-300', border: 'border-sky-300/20', background: 'from-sky-400/10',
+      title: 'Captação', subtitle: 'Disponível para cobrança extrajudicial', tone: 'text-sky-300', border: 'border-sky-300/20', background: 'from-sky-400/10',
       cards: [
-        { label: 'Unidades para cobrar', value: number(metrics.capture.units), detail: 'Unidades únicas com saldo disponível' },
-        { label: 'Inadimplência para cobrar', value: formatCurrency(metrics.capture.value), detail: `Saldo cobrável até ${dateLabel(metrics.capture.cutoff)}, incluindo anteriores` },
+        { label: 'Unidades para cobrar', value: number(metrics.capture.units), detail: 'Unidades com saldo livre de jurídico e acordos' },
+        { label: 'Saldo extrajudicial disponível', value: formatCurrency(metrics.capture.value), detail: `Até ${dateLabel(metrics.capture.cutoff)}, incluindo anteriores · sem jurídico e acordos vigentes ou quitados` },
       ],
     },
     {

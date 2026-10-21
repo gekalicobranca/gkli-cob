@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildTvMetrics, tvExpectedTransfer, type TvAgreement, type TvCharge, type TvInstallment } from '../features/dashboard/tv-metrics'
 import { buildTvSlides, tvWalletTheme } from '../features/dashboard/tv-slides'
+import { prepareTvCollectionCharges } from '../features/dashboard/tv-collection'
 
 const agreement = (changes: Partial<TvAgreement> = {}): TvAgreement => ({ id: 'a', data_acordo: '2026-10-20', valor_acordado: 1000, status: 'ativo', status_financeiro: 'em_aberto', observacoes: null, despesa_cobranca_valor: 100, despesa_cobranca_percentual: 20, ...changes })
 const charge = (changes: Partial<TvCharge> = {}): TvCharge => ({ unidade_id: 'u', vencimento: '2026-09-01', valor_atualizado: 100, status: 'novo', status_operacional: 'novo', status_financeiro: 'em_aberto', ...changes })
@@ -50,4 +51,35 @@ test('cores diferenciam as duas carteiras Genske, GEKALI e Azevedo', () => {
   assert.equal(tvWalletTheme('GEKALI').color, '#03658C')
   assert.equal(tvWalletTheme('Azevedo Araújo').color, '#FCA17D')
   assert.equal(tvWalletTheme('Escritório Genske Adv').color, '#b3679b')
+})
+
+test('jurídico bloqueia toda a unidade, inclusive dívida ativa diferente e indicação cadastral', () => {
+  const rows = prepareTvCollectionCharges([
+    charge({ id: 'active', unidade_id: 'judicial', status_operacional: 'novo' }),
+    charge({ id: 'registry', unidade_id: 'registry', unidades: { acao_judicial: true } }),
+    charge({ id: 'array', unidade_id: 'array', unidades: [{ acao_judicial: true }] }),
+    charge({ id: 'free', unidade_id: 'free', valor_atualizado: 50 }),
+  ], [{ unidade_id: 'judicial' }], [], [])
+  assert.deepEqual(calculate(rows).capture, { units: 1, value: 50, cutoff: '2026-10-20' })
+})
+
+test('acordos antigos bloqueiam tanto vínculo direto quanto composição, sem bloquear outras dívidas da unidade', () => {
+  const rows = prepareTvCollectionCharges([
+    charge({ id: 'direct' }), charge({ id: 'composition' }), charge({ id: 'settled' }),
+    charge({ id: 'cancelled', valor_atualizado: 40 }), charge({ id: 'free', valor_atualizado: 60 }),
+  ], [], [agreement({ cobranca_id: 'direct', data_acordo: '2025-01-01' }), agreement({ cobranca_id: 'cancelled', status: 'cancelado' })], [
+    { cobranca_id: 'composition', acordos: { status: 'em_atraso' } },
+    { cobranca_id: 'settled', acordos: [{ status: 'quitado' }] },
+  ])
+  assert.deepEqual(calculate(rows).capture, { units: 1, value: 100, cutoff: '2026-10-20' })
+})
+
+test('bloqueios permanecem no geral e em cada carteira, preservando os indicadores de acordos', () => {
+  const contracts = [agreement({ id: 'contract', carteira_id: 'g', cobranca_id: 'contracted' })]
+  const rows = prepareTvCollectionCharges([charge({ id: 'contracted', carteira_id: 'g' }), charge({ id: 'free', carteira_id: 'g', unidade_id: 'free', valor_atualizado: 25 }), charge({ id: 'judicial', carteira_id: 'k', unidade_id: 'judicial' })], [{ unidade_id: 'judicial' }], contracts, [])
+  const slides = buildTvSlides('2026-10-13', '2026-11-12', '2026-10-20', [{ id: 'g', nome: 'Genske' }, { id: 'k', nome: 'GEKALI' }], rows, contracts, [])
+  assert.equal(slides[0].metrics.capture.value, 25)
+  assert.equal(slides[1].metrics.capture.value, 25)
+  assert.equal(slides[2].metrics.capture.value, 0)
+  assert.equal(slides[1].metrics.agreements.period, 1)
 })

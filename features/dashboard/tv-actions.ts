@@ -6,6 +6,7 @@ import { applyCarteiraIdsScope } from '@/utils/auth/carteira-scope'
 import { somenteCobrancasCanonicas } from '@/lib/core/cobranca-arquivamento'
 import { type TvCharge, type TvAgreement, type TvInstallment } from './tv-metrics'
 import { buildTvSlides } from './tv-slides'
+import { prepareTvCollectionCharges, TV_COLLECTION_AGREEMENT_STATUSES, type TvAgreementLink } from './tv-collection'
 
 export async function getTvClosingResults(periodId = '') {
   await getPermittedCarteiras()
@@ -34,7 +35,7 @@ export async function getTvResults(start: string, end: string) {
   const db = await createClient()
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const nextDay = new Date(Date.parse(end) + 86400000).toISOString().slice(0, 10)
-  const agreementFields = 'id,carteira_id,data_acordo,valor_acordado,observacoes,status,status_financeiro,despesa_cobranca_valor,despesa_cobranca_percentual'
+  const agreementFields = 'id,cobranca_id,carteira_id,data_acordo,valor_acordado,observacoes,status,status_financeiro,despesa_cobranca_valor,despesa_cobranca_percentual'
   async function pages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>, label: string) {
     const rows: T[] = []
     for (let offset = 0; ; offset += 1000) {
@@ -44,13 +45,13 @@ export async function getTvResults(start: string, end: string) {
       if (data.length < 1000) return rows
     }
   }
-  const [charges, agreements, installments, wallets] = await Promise.all([
+  const [charges, agreements, installments, wallets, judicialRows, agreementLinks] = await Promise.all([
     pages<TvCharge>((from, to) => applyCarteiraIdsScope(somenteCobrancasCanonicas(db.from('cobrancas')
-      .select('id,carteira_id,unidade_id,valor_atualizado,vencimento,status,status_operacional,status_financeiro'))
+      .select('id,carteira_id,unidade_id,valor_atualizado,vencimento,status,status_operacional,status_financeiro,unidades(acao_judicial)'))
       .lte('vencimento', today < end ? today : end)
       .or('status_operacional.in.(novo,em_cobranca_ativa,em_negociacao,possivel_acordo),status_operacional.is.null'), scope.carteiraIds).order('id').range(from, to), 'a captação'),
     pages<TvAgreement>((from, to) => applyCarteiraIdsScope(db.from('acordos').select(agreementFields)
-      .or(`and(data_acordo.gte.${start},data_acordo.lt.${nextDay}),data_acordo.eq.${today},status.in.(ativo,em_dia,em_atraso)`), scope.carteiraIds)
+      .or(`and(data_acordo.gte.${start},data_acordo.lt.${nextDay}),data_acordo.eq.${today},status.in.(${TV_COLLECTION_AGREEMENT_STATUSES.join(',')})`), scope.carteiraIds)
       .order('id').range(from, to), 'os acordos'),
     pages<TvInstallment>((from, to) => applyCarteiraIdsScope(db.from('parcelas_acordo')
       .select(`id,valor,vencimento,status,data_pagamento,valor_repasse_informado,acordos!inner(${agreementFields})`)
@@ -58,7 +59,16 @@ export async function getTvResults(start: string, end: string) {
       .order('id').range(from, to), 'as parcelas'),
     pages<{ id: string; nome: string }>((from, to) => applyCarteiraIdsScope(db.from('carteiras').select('id,nome'), scope.carteiraIds, 'id')
       .order('id').range(from, to), 'as carteiras'),
+    pages<{ unidade_id: string | null }>((from, to) => applyCarteiraIdsScope(somenteCobrancasCanonicas(db.from('cobrancas')
+      .select('id,unidade_id'))
+      .or('status_operacional.in.(pre_distribuicao,pre_juridico,judicializado),status.in.(pre_distribuicao,pre_juridico,judicializado)'), scope.carteiraIds)
+      .order('id').range(from, to), 'os bloqueios jurídicos'),
+    pages<TvAgreementLink>((from, to) => applyCarteiraIdsScope(db.from('acordo_cobrancas')
+      .select('acordo_id,cobranca_id,acordos!inner(status,carteira_id)')
+      .in('acordos.status', TV_COLLECTION_AGREEMENT_STATUSES), scope.carteiraIds, 'acordos.carteira_id')
+      .order('acordo_id').order('cobranca_id').range(from, to), 'os vínculos dos acordos'),
   ])
-  const slides = buildTvSlides(start, end, today, wallets, charges, agreements, installments)
+  const availableCharges = prepareTvCollectionCharges(charges, judicialRows, agreements, agreementLinks)
+  const slides = buildTvSlides(start, end, today, wallets, availableCharges, agreements, installments)
   return { start, end, today, updatedAt: new Date().toISOString(), ...slides[0].metrics, slides }
 }
