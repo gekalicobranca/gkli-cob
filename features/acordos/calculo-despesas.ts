@@ -1,5 +1,23 @@
 const round = (value: number) => Math.round(value * 100) / 100;
 
+/** Price mensal com juros arredondados por período e quitação exata na última parcela. */
+export function calcularParcelamentoAcordo(saldo: number, quantidade: number, price: boolean) {
+  if (!Number.isInteger(quantidade) || quantidade < 1 || !Number.isFinite(saldo) || saldo <= 0) return [];
+  let saldoCentavos = Math.round(saldo * 100);
+  const fator = Math.pow(1.01, quantidade);
+  const prestacao = price
+    ? Math.round(saldoCentavos * 0.01 * fator / (fator - 1))
+    : Math.floor(saldoCentavos / quantidade);
+  return Array.from({ length: quantidade }, (_, index) => {
+    const juros = price ? Math.round(saldoCentavos * 0.01) : 0;
+    const valor = index === quantidade - 1 ? saldoCentavos + juros : Math.min(prestacao, saldoCentavos + juros);
+    const amortizacao = valor - juros;
+    saldoCentavos -= amortizacao;
+    return { numero: index + 1, valor: valor / 100, juros: juros / 100,
+      amortizacao: amortizacao / 100, saldoDevedor: saldoCentavos / 100 };
+  });
+}
+
 /** Rateia em centavos para que os itens fechem exatamente com o total. */
 function ratear(total: number, bases: number[]) {
   const pesos = bases.map((base) => Math.round(base * 100));
@@ -67,14 +85,15 @@ export function calcularDespesasAcordo(
     || (comIsencao.total > 0 && round(pagamento.entrada) >= comIsencao.total);
   const isencaoAplicada = pagamentoAVista && cotasSemDespesas.length > 0;
   const valores = isencaoAplicada ? comIsencao : calcularValores(itens, [], percentual, credito);
-  const jurosAdicional = pagamento.jurosAdicional && !pagamentoAVista
-    ? round(Math.max(0, round(valores.total - pagamento.entrada)) * 0.01 * pagamento.quantidadeParcelas)
-    : 0;
+  const parcelas = calcularParcelamentoAcordo(round(valores.total - pagamento.entrada),
+    pagamento.quantidadeParcelas, Boolean(pagamento.jurosAdicional && !pagamentoAVista));
+  const jurosAdicional = round(parcelas.reduce((total, parcela) => total + parcela.juros, 0));
   const jurosRateados = ratear(jurosAdicional, valores.itens.map((item) => item.total));
   return {
     ...valores,
     total: round(valores.total + jurosAdicional),
     jurosAdicional,
+    parcelas,
     itens: valores.itens.map((item, index) => ({
       ...item,
       jurosAdicional: jurosRateados[index],

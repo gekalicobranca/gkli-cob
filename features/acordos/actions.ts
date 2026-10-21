@@ -245,14 +245,16 @@ function montarResumoAcordo(params: {
   entrada: number;
   quantidadeParcelas: number;
   primeiroVencimento: string;
-  parcelas: Array<{ numero: number; valor: number; vencimento: string; tipo_parcela?: string }>;
+  parcelas: Array<{ numero: number; valor: number; vencimento: string; tipo_parcela?: string; juros?: number; amortizacao?: number; saldoDevedor?: number }>;
   tipo: string;
   numeroProcesso?: string | null;
 }) {
   const linhasParcelas = params.parcelas
     .map((parcela) => {
       const label = parcela.tipo_parcela === "entrada" ? "Entrada" : `Parcela ${parcela.numero}`;
-      return `${label}: ${formatBRL(Number(parcela.valor ?? 0))} · vencimento ${formatDate(parcela.vencimento)}`;
+      return `${label}: ${formatBRL(Number(parcela.valor ?? 0))} · vencimento ${formatDate(parcela.vencimento)}`
+        + (params.jurosAdicional && parcela.tipo_parcela !== "entrada" && parcela.juros !== undefined
+          ? ` · Amortização: ${formatBRL(parcela.amortizacao ?? 0)} · Juros: ${formatBRL(parcela.juros)} · Saldo devedor: ${formatBRL(parcela.saldoDevedor ?? 0)}` : "");
     })
     .join("\n");
 
@@ -268,7 +270,7 @@ function montarResumoAcordo(params: {
     "Resumo financeiro:",
     `Valor das cobranças: ${formatBRL(params.valorBase)}`,
     `Despesa de cobrança: ${formatBRL(params.despesa)}`,
-    params.jurosAdicional ? `Juros simples (1% ao mês × ${params.quantidadeParcelas} parcelas): ${formatBRL(params.jurosAdicional)}` : null,
+    params.jurosAdicional ? `Juros pela tabela Price (1% ao mês sobre o saldo devedor): ${formatBRL(params.jurosAdicional)}` : null,
     `Valor total do acordo: ${formatBRL(params.valorAcordado)}`,
     `Entrada: ${formatBRL(params.entrada)}`,
     `Quantidade de parcelas: ${params.quantidadeParcelas}`,
@@ -869,22 +871,11 @@ export async function createAcordo(formData: FormData) {
     });
   }
 
-  const baseParcela =
-    Math.floor((saldoParcelado / quantidadeParcelas) * 100) / 100;
-  let acumulado = 0;
-
   for (let index = 1; index <= quantidadeParcelas && saldoParcelado > 0; index++) {
-    const isLast = index === quantidadeParcelas;
-    const valor = isLast
-      ? roundMoney(saldoParcelado - acumulado)
-      : roundMoney(baseParcela);
-
-    acumulado = roundMoney(acumulado + valor);
-
+    const parcelaCalculada = calculoDespesas.parcelas[index - 1];
     parcelas.push({
-      numero: index,
       tipo_parcela: "parcela",
-      valor,
+      ...parcelaCalculada,
       vencimento: toISODate(
         addMonths(new Date(`${primeiroVencimento}T00:00:00`), index - 1),
       ),
@@ -909,7 +900,7 @@ export async function createAcordo(formData: FormData) {
       p_exige_aprovacao_sindico: false,
       p_documento_url: documentoUrl || null,
       p_observacoes: [observacoes, calculoDespesas.jurosAdicional > 0
-        ? `Juros simples de 1% ao mês × ${quantidadeParcelas} parcelas sobre o saldo após a entrada: ${formatBRL(calculoDespesas.jurosAdicional)}.` : ""].filter(Boolean).join("\n") || null,
+        ? `Juros pela tabela Price de 1% ao mês sobre o saldo devedor após a entrada: ${formatBRL(calculoDespesas.jurosAdicional)}.` : ""].filter(Boolean).join("\n") || null,
       p_itens: itensAcordo,
       p_parcelas: parcelas,
       p_cobranca_status: COBRANCA_STATUS.EM_NEGOCIACAO,
@@ -1020,7 +1011,7 @@ export async function createAcordo(formData: FormData) {
       credito_administradora_utilizado: creditoAdministradoraUtilizado,
       valor_base_apos_credito: valorBaseAposCredito,
       juros_adicional_valor: calculoDespesas.jurosAdicional,
-      juros_adicional_modalidade: "simples_mensal",
+      juros_adicional_modalidade: "price",
       juros_adicional_taxa_mensal: 1,
       juros_adicional: formData.get("juros_adicional") === "on" && !calculoDespesas.pagamentoAVista,
       valor_acordado: valorAcordado,
@@ -1431,7 +1422,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
         tipo,
         numero_processo: tipo === "judicial" ? numeroProcesso : null,
         juros_adicional_valor: calculo.jurosAdicional,
-        juros_adicional_modalidade: "simples_mensal",
+        juros_adicional_modalidade: "price",
         juros_adicional_taxa_mensal: 1,
         juros_adicional: formData.get("juros_adicional") === "on" && !calculo.pagamentoAVista,
         valor_acordado: valorAcordado,
