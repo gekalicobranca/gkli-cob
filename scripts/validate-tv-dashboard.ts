@@ -73,6 +73,11 @@ test('grupo Azevedo reúne condomínios de carteiras diferentes e exclui quem sa
   assert.equal(group.metrics.agreements.period, 2)
   assert.equal(group.metrics.result.expectedValue, 400)
   assert.equal(group.metrics.result.paidValue, 200)
+  const gekali = slides.find(slide => slide.id === 'gk')!
+  assert.equal(gekali.metrics.capture.value, 800)
+  assert.equal(gekali.metrics.agreements.period, 0)
+  assert.equal(gekali.metrics.result.expectedValue, 0)
+  assert.equal(gekali.metrics.result.paidValue, 0)
   assert.equal(slides[0].metrics.capture.value, 1500)
   const moved = buildTvSlides('2026-10-13', '2026-11-12', '2026-10-20', wallets,
     charges.map(row => ({ ...row, carteira_id: 'gk' })), agreements.map(row => ({ ...row, carteira_id: 'gk' })), installments, condos)

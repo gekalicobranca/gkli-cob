@@ -15,16 +15,18 @@ const isAzevedo = (name: string) => ['azevedo', 'azevedo araujo'].includes(norma
 export function buildTvSlides(start: string, end: string, today: string, wallets: Array<{ id: string; nome: string }>, charges: TvCharge[], agreements: TvAgreement[], installments: TvInstallment[], condominiums: Array<{ id: string; grupo: string | null }> = []) {
   // Os dados recebidos já respeitam as carteiras permitidas ao usuário.
   const azevedoIds = new Set(condominiums.filter(row => isAzevedo(row.grupo ?? '')).map(row => row.id))
+  const belongsToWallet = (wallet: { id: string; nome: string }, row: { carteira_id?: string | null; condominio_id?: string | null }) =>
+    row.carteira_id === wallet.id && !(normalizeGroup(wallet.nome) === 'gekali' && row.condominio_id && azevedoIds.has(row.condominio_id))
   return [
     { id: 'general', kind: 'general', name: 'Visão geral', color: '#2dd4bf', foreground: '#99f6e4', metrics: buildTvMetrics(start, end, today, charges, agreements, installments) },
     ...wallets.filter(wallet => !isAzevedo(wallet.nome)).map(wallet => ({
       id: wallet.id, kind: 'wallet', name: wallet.nome, ...tvWalletTheme(wallet.nome),
       metrics: buildTvMetrics(start, end, today,
-        charges.filter(row => row.carteira_id === wallet.id),
-        agreements.filter(row => row.carteira_id === wallet.id),
+        charges.filter(row => belongsToWallet(wallet, row)),
+        agreements.filter(row => belongsToWallet(wallet, row)),
         installments.filter(row => {
           const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
-          return agreement?.carteira_id === wallet.id
+          return agreement && belongsToWallet(wallet, agreement)
         })),
     })),
     ...(azevedoIds.size || wallets.some(wallet => isAzevedo(wallet.nome)) ? [{
