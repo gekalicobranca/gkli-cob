@@ -4,20 +4,29 @@ export const AGENTES_VIRTUAIS = {
   lidia: { id: 'lidia', nome: 'Lidia', marca: 'Genske Advogados', email: 'lidia@genskeadvogados.com.br', tipoCaso: 'lidia_atendimento', caminho: '/app/gestao/lidia', modeloEnv: 'LIDIA_OPENAI_MODEL', negociarRpc: 'lidia_negociar_acordo', carteiraId: '06827218-e2b1-4267-ad8f-81a0ab222cad', pilotoCondominioId: '2fef8e0b-664e-4aad-b7af-1d702c586065' },
 } as const
 
+// Autorizações por par condomínio/carteira: não libera outros condomínios dessas carteiras.
+export const LIDIA_PILOTOS = [
+  { id: AGENTES_VIRTUAIS.lidia.pilotoCondominioId, carteira_id: AGENTES_VIRTUAIS.lidia.carteiraId },
+  { id: '47926d7c-030b-4469-8713-b23eda558a56', carteira_id: '36b6c087-56d2-4297-be63-6dcbe02a9f00' },
+] as const
+
 export function escopoLidia(carteiraIds: string[] | null): string[] {
-  const carteira = AGENTES_VIRTUAIS.lidia.carteiraId
-  return carteiraIds === null || carteiraIds.includes(carteira) ? [carteira] : []
+  return [...new Set(LIDIA_PILOTOS.map(p => p.carteira_id))]
+    .filter(carteira => carteiraIds === null || carteiraIds.includes(carteira))
+}
+
+export function condominioCarteiraLidia(condominio: { id: string; carteira_id: string }) {
+  return LIDIA_PILOTOS.some(p => p.id === condominio.id && p.carteira_id === condominio.carteira_id)
 }
 
 export function validarCondominioLidia(condominio: { id: string; carteira_id: string }) {
-  if (condominio.carteira_id !== AGENTES_VIRTUAIS.lidia.carteiraId || !condominioPilotoLidia(condominio.id)) {
-    throw new Error('O piloto da Lidia está restrito ao Oasis e ao Cádiz, da carteira Genske Advogados.')
+  if (!condominioCarteiraLidia(condominio)) {
+    throw new Error('Condomínio ou carteira fora do piloto autorizado da Lidia.')
   }
 }
 
-// Mantém o piloto existente; Cádiz foi incluído para conferência pelo Dot.
 export function condominioPilotoLidia(id: string) {
-  return [AGENTES_VIRTUAIS.lidia.pilotoCondominioId, '47926d7c-030b-4469-8713-b23eda558a56'].includes(id)
+  return LIDIA_PILOTOS.some(p => p.id === id)
 }
 
 export function formatarEmailAgente(agenteId: AgenteVirtualId, nome: string, texto: string, agora = new Date()) {

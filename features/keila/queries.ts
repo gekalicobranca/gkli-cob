@@ -2,7 +2,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { lerCasoPayload, type KeilaCasoPayload } from './casos'
-import { AGENTES_VIRTUAIS, condominioPilotoLidia, escopoLidia, type AgenteVirtualId } from '../agentes-virtuais/perfis'
+import { AGENTES_VIRTUAIS, condominioPilotoLidia, condominioCarteiraLidia, escopoLidia, type AgenteVirtualId } from '../agentes-virtuais/perfis'
 
 export type KeilaCaso = {
   id: string; carteira_id: string; titulo: string; status: string; updated_at: string; condominio_id: string; payload: KeilaCasoPayload
@@ -21,12 +21,12 @@ export async function getKeilaCasos(scope: CarteiraScope, casoId?: string, condo
   const { data, error } = await applyCarteiraScope(supabase.from('central_pendencias').select(selection)
     .eq('tipo', tipoCaso).order('updated_at', { ascending: false }).limit(200), scope.carteiraIds)
   if (error) throw new Error(`Erro ao carregar atendimentos de ${AGENTES_VIRTUAIS[agenteId].nome}: ${error.message}`)
-  let rows = data ?? []
+  let rows = (data ?? []).filter(row => agenteId !== 'lidia' || condominioCarteiraLidia({ id: row.condominio_id, carteira_id: row.carteira_id }))
   if (casoId && !rows.some((row: { id: string }) => row.id === casoId)) {
     const { data: detalhe, error: detalheError } = await applyCarteiraScope(supabase.from('central_pendencias').select(selection)
       .eq('tipo', tipoCaso).eq('id', casoId), scope.carteiraIds).maybeSingle()
     if (detalheError) throw new Error(detalheError.message)
-    if (detalhe) rows = [...rows, detalhe]
+    if (detalhe && (agenteId !== 'lidia' || condominioCarteiraLidia({ id: detalhe.condominio_id, carteira_id: detalhe.carteira_id }))) rows = [...rows, detalhe]
   }
   const casos: KeilaCaso[] = rows.map((row: any) => {
     const payload = lerCasoPayload(row.payload)
@@ -41,10 +41,10 @@ export async function getKeilaCasos(scope: CarteiraScope, casoId?: string, condo
     condominioId ? applyCarteiraScope(supabase.from('unidades').select('id,condominio_id,identificacao,bloco').eq('condominio_id', condominioId).order('identificacao'), scope.carteiraIds)
       : unidadeIds.length ? applyCarteiraScope(supabase.from('unidades').select('id,condominio_id,identificacao,bloco').in('id', unidadeIds), scope.carteiraIds) : { data: [], error: null },
     execucaoIds.length ? applyCarteiraScope(supabase.from('agente_execucoes').select('id,status,finalizado_em,erro_mensagem,arquivos:agente_arquivos(id,nome_arquivo,status_validacao)').in('id', execucaoIds), scope.carteiraIds) : { data: [], error: null },
-    applyCarteiraScope(supabase.from('condominios').select('id,nome,operacao_virtual_habilitada,despesas_acordo_avista_percentual,despesas_acordo_parcelado_percentual,parcelas_acordo_sem_aprovacao_sindico').eq('status', 'ativo').order('nome'), scope.carteiraIds),
+    applyCarteiraScope(supabase.from('condominios').select('id,carteira_id,nome,operacao_virtual_habilitada,despesas_acordo_avista_percentual,despesas_acordo_parcelado_percentual,parcelas_acordo_sem_aprovacao_sindico').eq('status', 'ativo').order('nome'), scope.carteiraIds),
   ])
   for (const result of [unidadesResult, execucoesResult, condominiosResult]) if (result.error) throw new Error(result.error.message)
   const condominios = new Map((condominiosResult.data ?? []).map((c: any) => [c.id, c]))
   for (const caso of casos) caso.condominio = condominios.get(caso.condominio_id) as KeilaCaso['condominio'] ?? null
-  return { casos, unidades: unidadesResult.data ?? [], execucoes: execucoesResult.data ?? [], condominios: (condominiosResult.data ?? []).filter((c: any) => agenteId !== 'lidia' || condominioPilotoLidia(c.id)) }
+  return { casos, unidades: unidadesResult.data ?? [], execucoes: execucoesResult.data ?? [], condominios: (condominiosResult.data ?? []).filter((c: any) => agenteId !== 'lidia' || condominioCarteiraLidia(c)) }
 }

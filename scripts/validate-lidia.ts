@@ -6,10 +6,12 @@ import { aplicarPrioridadeHumana } from '../features/keila/prioridade-humana'
 import type { DecisaoObservacaoKeila } from '../features/keila/observacao'
 import { montarPropostaKeila, solicitarBoletosKeila } from '../features/keila/acordos'
 
-test('Lidia restringe administradores e usuários à carteira Genske', () => {
+test('Lidia restringe administradores e usuários aos pares de condomínio/carteira autorizados', () => {
   const carteira = AGENTES_VIRTUAIS.lidia.carteiraId
-  assert.deepEqual(escopoLidia(null), [carteira])
+  const carteiraCadiz = '36b6c087-56d2-4297-be63-6dcbe02a9f00'
+  assert.deepEqual(escopoLidia(null), [carteira, carteiraCadiz])
   assert.deepEqual(escopoLidia([carteira, 'outra']), [carteira])
+  assert.deepEqual(escopoLidia([carteiraCadiz]), [carteiraCadiz])
   assert.deepEqual(escopoLidia(['outra']), [])
   assert.deepEqual(escopoLidia([]), [])
   assert.throws(() => validarCondominioLidia({ id: AGENTES_VIRTUAIS.lidia.pilotoCondominioId, carteira_id: 'outra' }))
@@ -18,7 +20,10 @@ test('Lidia restringe administradores e usuários à carteira Genske', () => {
   assert.equal(AGENTES_VIRTUAIS.lidia.pilotoCondominioId, '2fef8e0b-664e-4aad-b7af-1d702c586065')
   assert.equal(carteira, '06827218-e2b1-4267-ad8f-81a0ab222cad')
   assert.doesNotThrow(() => validarCondominioLidia({ id: AGENTES_VIRTUAIS.lidia.pilotoCondominioId, carteira_id: carteira }))
-  assert.doesNotThrow(() => validarCondominioLidia({ id: '47926d7c-030b-4469-8713-b23eda558a56', carteira_id: carteira }))
+  assert.doesNotThrow(() => validarCondominioLidia({ id: '47926d7c-030b-4469-8713-b23eda558a56', carteira_id: carteiraCadiz }))
+  assert.throws(() => validarCondominioLidia({ id: '47926d7c-030b-4469-8713-b23eda558a56', carteira_id: carteira }))
+  assert.throws(() => validarCondominioLidia({ id: AGENTES_VIRTUAIS.lidia.pilotoCondominioId, carteira_id: carteiraCadiz }))
+  assert.throws(() => validarCondominioLidia({ id: 'outro', carteira_id: carteiraCadiz }))
   assert.throws(() => validarCondominioLidia({ id: '47926d7c-030b-4469-8713-b23eda558a56', carteira_id: 'outra' }))
 })
 test('A mesma conversa não colide entre agentes e o id legado da Keila se mantém', () => {
