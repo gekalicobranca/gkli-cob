@@ -1,5 +1,4 @@
 import { excluidoDaSomaDivida, valorAcordadoRelatorio } from '@/features/acordos/valor-relatorio'
-import { acordoDuplicadoConciliado } from '@/lib/core/acordo-arquivamento'
 import { ACORDO_STATUS_VIGENTES } from '@/lib/constants/acordos'
 import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from '@/lib/constants/cobrancas'
 import { getCobrancaStatusFinanceiro, getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
@@ -44,6 +43,12 @@ export function tvAgreementStage(agreement: TvAgreement) {
   return null
 }
 
+function eligibleTvAgreement(agreement: TvAgreement) {
+  return Boolean(tvAgreementStage(agreement)) && !excluidoDaSomaDivida(agreement)
+    && !(agreement.observacoes ?? '').includes('[DUPLICIDADE_ACORDO_CONCILIADA]')
+    && !['cancelado', 'cancelada', 'quebrado', 'rompido', 'renegociado'].includes(normalize(agreement.status))
+}
+
 // Mesma regra do relatório de parcelas: informado, rateio da despesa ou percentual.
 export function tvExpectedTransfer(agreement: TvAgreement, installment: TvInstallment) {
   const informed = installment.valor_repasse_informado
@@ -56,7 +61,7 @@ export function tvExpectedTransfer(agreement: TvAgreement, installment: TvInstal
 
 export function buildTvMetrics(start: string, end: string, today: string, charges: TvCharge[], agreements: TvAgreement[], installments: TvInstallment[]) {
   const inPeriod = (date: string | null) => Boolean(date && date.slice(0, 10) >= start && date.slice(0, 10) <= end)
-  const eligible = agreements.filter(row => tvAgreementStage(row) && !excluidoDaSomaDivida(row) && !cancelledStatuses.has(normalize(row.status)))
+  const eligible = agreements.filter(eligibleTvAgreement)
   const periodAgreements = eligible.filter(row => inPeriod(row.data_acordo))
   const dayAgreements = eligible.filter(row => row.data_acordo?.slice(0, 10) === today)
   const current = eligible.filter(row => (ACORDO_STATUS_VIGENTES as readonly string[]).includes(normalize(row.status)) && !['quitado', 'pago'].includes(normalize(row.status_financeiro)))
@@ -68,14 +73,13 @@ export function buildTvMetrics(start: string, end: string, today: string, charge
     && (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as readonly string[]).includes(getCobrancaStatusOperacional(row)))
   const paid = installments.filter(row => {
     const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
-    return agreement && !acordoDuplicadoConciliado(agreement)
+    return agreement && eligibleTvAgreement(agreement)
       && paidStatuses.has(normalize(row.status)) && inPeriod(row.data_pagamento)
   })
   const expected = installments.filter(row => {
     const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
     return agreement && inPeriod(row.vencimento) && !cancelledStatuses.has(normalize(row.status))
-      && tvAgreementStage(agreement) && !cancelledStatuses.has(normalize(agreement.status)) && !excluidoDaSomaDivida(agreement)
-      && !['quebrado', 'rompido', 'renegociado'].includes(normalize(agreement.status))
+      && eligibleTvAgreement(agreement)
   })
   return {
     capture: { units: new Set(available.map(row => row.unidade_id).filter(Boolean)).size, value: round(available.reduce((sum, row) => sum + money(row.valor_atualizado), 0)), cutoff },

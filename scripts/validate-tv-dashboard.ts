@@ -9,6 +9,22 @@ const charge = (changes: Partial<TvCharge> = {}): TvCharge => ({ unidade_id: 'u'
 const installment = (changes: Partial<TvInstallment> = {}): TvInstallment => ({ id: 'p', valor: 200, vencimento: '2026-10-25', data_pagamento: null, status: 'aberta', valor_repasse_informado: null, acordos: agreement(), ...changes })
 const calculate = (charges: TvCharge[] = [], agreements: TvAgreement[] = [], installments: TvInstallment[] = []) => buildTvMetrics('2026-10-13', '2026-11-12', '2026-10-20', charges, agreements, installments)
 
+test('quebrados, encerrados e duplicidades conciliadas saem de todos os totais da TV', () => {
+  const excluded = [
+    ...['quebrado', 'rompido', 'renegociado', 'cancelado', 'cancelada'].map(status => agreement({ id: status, status })),
+    agreement({ id: 'duplicate', observacoes: '[DUPLICIDADE_ACORDO_CONCILIADA]' }),
+    agreement({ id: 'replacement', observacoes: '[EXCLUIR_SOMA_DIVIDA_SUBSTITUICAO_PENDENTE]' }),
+  ]
+  const valid = agreement({ id: 'valid' })
+  const settled = agreement({ id: 'settled', status: 'quitado', tem_parcela_paga: true })
+  const rows = [...excluded, valid, settled]
+  const metrics = calculate([], rows, rows.map((row, index) => installment({
+    id: `p-${index}`, acordos: index % 2 ? [row] : row, status: 'paga', data_pagamento: '2026-10-20',
+  })))
+  assert.deepEqual(metrics.agreements, { period: 2, periodValue: 2000, today: 2, todayValue: 2000, current: 1, currentValue: 1000 })
+  assert.deepEqual(metrics.result, { expected: 2, expectedValue: 400, paid: 2, paidValue: 400, transfer: 40 })
+})
+
 test('somente pagamentos reais ou solicitação de boletos qualificam acordos e suas parcelas', () => {
   const pending = agreement({ id: 'pending', fluxo_status: 'aguardando_aceite_devedor' })
   const misleading = agreement({ id: 'misleading', fluxo_status: 'acordo_efetivado', status_financeiro: 'parcial' })
