@@ -1,0 +1,136 @@
+.screen {
+  padding: 2vh 2vw;
+}
+
+.screen :is(select, button, a):focus-visible {
+  outline: 3px solid #5eead4;
+  outline-offset: 3px;
+}
+
+.screen > header {
+  gap: 1vw;
+  padding-bottom: 1vh;
+}
+
+.screen > header img {
+  width: clamp(44px, 5vh, 80px);
+  height: clamp(44px, 5vh, 80px);
+}
+
+.screen > header h1 {
+  margin-top: 0;
+  font-size: clamp(24px, 3.5vh, 52px);
+  line-height: 1.15;
+}
+
+.screen > header p {
+  font-size: clamp(12px, 1.6vh, 22px);
+}
+
+.screen > header > div:last-child > p:first-child {
+  font-size: clamp(24px, 3.5vh, 48px);
+}
+
+.screen > div:not(.metrics) {
+  margin-block: 1vh;
+  gap: .6vh 1vw;
+}
+
+.screen > nav {
+  margin-bottom: 1vh;
+  gap: .6vh .8vw;
+}
+
+.screen :is(select, button) {
+  padding: .5vh .7vw;
+}
+
+.screen :is(label, nav > span:last-child, footer, section header > p:last-child, article > p:last-child) {
+  color: #cbd5e1;
+}
+
+.metrics > section {
+  min-width: 0;
+  padding: 1.4vh 1.3vw;
+  background-color: #0d2033;
+}
+
+.metrics section > header {
+  margin-bottom: 0;
+  padding-bottom: 1vh;
+}
+
+.metrics h2 {
+  margin-top: .3vh;
+  font-size: clamp(24px, 3vh, 42px);
+  line-height: 1.15;
+}
+
+.metrics article {
+  min-height: 0;
+  padding-block: 1vh;
+}
+
+.metrics h3 {
+  font-size: clamp(16px, 1.3vw, 30px);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.metrics article > p:first-of-type {
+  margin-block: .6vh;
+  color: #f8fafc !important;
+  font-size: clamp(28px, 3vw, 76px);
+  line-height: 1.1;
+  overflow-wrap: normal;
+}
+
+.metrics article > p:last-child {
+  font-size: clamp(13px, 1vw, 24px);
+  line-height: 1.25;
+}
+
+.screen > footer {
+  margin-top: .8vh;
+  gap: .5vw;
+  font-size: clamp(11px, .85vw, 18px);
+  line-height: 1.2;
+}
+
+/* Landscape displays use the remaining viewport height for all eight indicators. */
+@media (min-width: 960px) and (min-height: 540px) and (orientation: landscape) {
+  .screen {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .screen > :not(.metrics) {
+    flex-shrink: 0;
+  }
+
+  .metrics {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.2vw;
+  }
+
+  .metrics section > div {
+    min-height: 0;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+
+  .metrics section:first-child > div {
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  .screen > [role='alert'] {
+    margin-bottom: .6vh;
+    padding: .5vh 1vw;
+    font-size: clamp(12px, 1.5vh, 18px);
+  }
+}

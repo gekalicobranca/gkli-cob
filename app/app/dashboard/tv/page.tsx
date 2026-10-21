@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { getTvClosingResults } from '@/features/dashboard/tv-actions'
 import { formatCurrency } from '@/utils/formatters/currency'
+import styles from './tv.module.css'
 
 type Results = Awaited<ReturnType<typeof getTvClosingResults>>
 const dateLabel = (date: string) => date.split('-').reverse().join('/')
@@ -87,7 +88,7 @@ export default function TvDashboard() {
     },
   ] : []
   return (
-    <main className="min-h-screen border-t-[6px] bg-[#07131f] px-[3vw] py-[3vh] text-slate-100 transition-colors duration-700" style={{ borderColor: activeSlide?.color ?? '#2dd4bf', backgroundImage: walletSlide ? `radial-gradient(ellipse at top left, ${activeSlide.color}55, transparent 75%)` : undefined }}>
+    <main className={`${styles.screen} min-h-screen border-t-[6px] bg-[#07131f] px-[3vw] py-[3vh] text-slate-100 transition-colors duration-700`} style={{ borderColor: activeSlide?.color ?? '#2dd4bf', backgroundImage: walletSlide ? `radial-gradient(ellipse at top left, ${activeSlide.color}55, transparent 75%)` : undefined }}>
       <header className="flex flex-wrap items-center justify-between gap-6 border-b border-white/10 pb-[3vh]">
         <div className="flex items-center gap-[1.5vw]">
           <Image src="/logo-gkit-app-icon.png" alt="GKLI APP" width={112} height={112} preload className="h-[clamp(64px,6vw,112px)] w-[clamp(64px,6vw,112px)] shrink-0 rounded-2xl" />
@@ -118,7 +119,7 @@ export default function TvDashboard() {
       {error && <p role="alert" className="mb-5 rounded-lg border border-amber-400/30 bg-amber-400/10 p-4 text-amber-200">{error} {data && 'Exibindo a última consulta bem-sucedida.'}</p>}
       {!data && <p role="status" className="py-20 text-center text-2xl text-slate-400">{error ? 'Aguardando uma consulta válida.' : 'Consultando os resultados do período…'}</p>}
       {data && <>
-        <div className="grid gap-[1.5vw] lg:grid-cols-3">
+        <div className={`${styles.metrics} grid gap-[1.5vw] lg:grid-cols-3`}>
           {groups.map((group, index) => (
             <section key={group.title} aria-label={group.title} style={walletSlide ? { borderColor: `${activeSlide.color}b3`, backgroundImage: `linear-gradient(to bottom, ${activeSlide.color}40, transparent)` } : undefined} className={`flex flex-col rounded-2xl border bg-gradient-to-b ${group.border} ${group.background} to-transparent p-[clamp(18px,1.6vw,36px)]`}>
               <header className="mb-[2vh] border-b border-white/10 pb-[2vh]">
