@@ -6,13 +6,15 @@ import { createClient } from '@supabase/supabase-js'
 import { retryDelay, expiredHeartbeat, bounded } from './recovery.mjs'
 import { createPeriodicTask } from '../worker-cadence.mjs'
 import { createServerClock } from './server-clock.mjs'
+import { supervisorConfiguration } from './supervisor-sessions.mjs'
 const serverClock = createServerClock()
+const configuration = supervisorConfiguration(process.env.WHATSAPP_WEB_SUPERVISOR_SESSIONS)
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(dir, '../..')
 const local = path.join(root, '.whatsapp-web')
 await mkdir(local, { recursive: true })
-const lock = path.join(local, 'supervisor.lock')
+const lock = path.join(local, configuration.lock)
 try {
   const old = Number(await readFile(lock, 'utf8'))
   try { process.kill(old, 0); throw new Error('Supervisor já está ativo.') }
@@ -25,7 +27,7 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABA
   auth: { persistSession: false, autoRefreshToken: false },
   global: { fetch: (url, init) => serverClock.fetch(url, { ...init, signal: AbortSignal.timeout(15000) }) },
 })
-const states = ['genske', 'gekali', 'azevedo'].map(sessao => ({ sessao, child: null, failures: 0, next: 0, started: 0, reconcile: true, stopReason: null, publish: createPeriodicTask({ intervalMs: 30_000 }) }))
+const states = configuration.sessions.map(sessao => ({ sessao, child: null, failures: 0, next: 0, started: 0, reconcile: true, stopReason: null, publish: createPeriodicTask({ intervalMs: 30_000 }) }))
 let stopping = false
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { stopping = true })
 
