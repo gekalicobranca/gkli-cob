@@ -19,6 +19,7 @@ test('em dia entra em atraso/quebra; pagamentos, contratos e acordos encerrados 
     acordo_cobrancas: [],
   }
   const before = structuredClone(tables)
+  let tentativasQuitacao = 0
   const db = { from(table: string) {
     let patch: any
     let faixa: [number, number] | undefined
@@ -27,7 +28,10 @@ test('em dia entra em atraso/quebra; pagamentos, contratos e acordos encerrados 
       select() { return query },
       order() { return query },
       range(inicio: number, fim: number) { faixa = [inicio, fim]; return query },
-      update(value: any) { patch = value; return query },
+      update(value: any) {
+        if (table === 'acordos' && value.status === 'quitado') tentativasQuitacao++
+        patch = value; return query
+      },
       eq(key: string, value: any) { filters.push(row => row[key] === value); return query },
       is(key: string, value: any) { filters.push(row => (row[key] ?? null) === value); return query },
       in(key: string, values: any[]) { filters.push(row => values.includes(row[key])); return query },
@@ -65,6 +69,7 @@ test('em dia entra em atraso/quebra; pagamentos, contratos e acordos encerrados 
   assert.equal(repeat.acordosMarcadosEmAtraso, 0)
   assert.equal(repeat.acordosRompidos, 0)
   assert.equal(repeat.acordosQuitados, 0)
+  assert.equal(tentativasQuitacao, 2, 'acordos já quitados não geram novas tentativas de atualização')
 })
 
 test('parcela do período paga é em dia; quitação exige todas pagas e cobertura do contrato em centavos', () => {

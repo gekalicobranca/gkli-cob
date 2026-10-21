@@ -102,11 +102,15 @@ export async function checkAcordosStatus(
   const candidatosQuitacao = [...porAcordo].filter(([, parcelas]) => parcelas.length > 0
     && parcelas.every(p => p.status === 'paga' || Boolean(p.data_pagamento))).map(([id]) => id);
   const valoresContratados = new Map<string, number>();
+  const acordosElegiveisQuitacao = new Set<string>();
   for (let i = 0; i < candidatosQuitacao.length; i += 100) {
-    const { data, error } = await supabase.from('acordos').select('id, valor_acordado')
+    const { data, error } = await supabase.from('acordos').select('id, valor_acordado, status')
       .in('id', candidatosQuitacao.slice(i, i + 100));
     if (error) throw new Error('Erro ao conferir saldo dos acordos: ' + error.message);
-    for (const row of data ?? []) valoresContratados.set(row.id, row.valor_acordado);
+    for (const row of data ?? []) {
+      valoresContratados.set(row.id, row.valor_acordado);
+      if ([...ACORDO_STATUS_VIGENTES, ACORDO_STATUS.QUEBRADO].includes(row.status)) acordosElegiveisQuitacao.add(row.id);
+    }
   }
   const classificados = [...porAcordo].map(([id, parcelas]) => ({ id,
     status: classificarPrazoAcordo(parcelas, hojeISO, diasParaAtraso, diasParaRomper, valoresContratados.get(id)) }));
@@ -130,7 +134,7 @@ export async function checkAcordosStatus(
   let cobrancasAguardandoLiberacao = 0;
   let acordosQuitados = 0;
 
-  for (const acordo of classificados.filter(a => a.status === 'quitado')) {
+  for (const acordo of classificados.filter(a => a.status === 'quitado' && acordosElegiveisQuitacao.has(a.id))) {
     const pagamentos = porAcordo.get(acordo.id)!.map(p => p.data_pagamento).filter(Boolean).sort();
     const dataQuitacao = pagamentos.at(-1) ?? hojeISO;
     const { data, error } = await supabase.from('acordos').update({
