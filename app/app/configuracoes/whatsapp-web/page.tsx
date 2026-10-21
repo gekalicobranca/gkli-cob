@@ -48,7 +48,7 @@ export default async function WhatsappWebPage() {
     <Card className="p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-700">Verde: pronto para enviar. Amarelo: aguardando conexão ou ação. Vermelho: indisponível ou sem resposta. Cinza: pausado ou outro canal.</p>
-        <a href="http://127.0.0.1:3877" target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-emerald-800">Abrir QR Code ou código de vinculação</a>
+        <a href="http://localhost:3877" target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-emerald-800">Abrir QR Code ou código de vinculação</a>
       </div>
       <details className="mt-3 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-sm text-slate-500">Como funcionam os envios e a recuperação</summary>
       <p className="mt-2 text-sm text-slate-600">O computador dos workers precisa permanecer ligado e conectado. Uma sessão em conexão ainda não está pronta para enviar.</p>

@@ -14,6 +14,9 @@ import { resilientClient } from './resilient-client.mjs'
 import { pairingPublisher } from './pairing-publisher.mjs'
 import { reservationRecovery } from './reservation-recovery.mjs'
 import { shutdownBrowser } from './browser-shutdown.mjs'
+import { createPeriodicTask } from '../worker-cadence.mjs'
+import { createServerClock } from './server-clock.mjs'
+const serverClock = createServerClock()
 
 const { Client, LocalAuth, MessageMedia } = whatsapp
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -23,7 +26,7 @@ if (!/^[a-zA-Z0-9_-]{1,60}$/.test(session)) throw new Error('WHATSAPP_WEB_SESSIO
 const expectedPhone = normalizePhone(process.env.WHATSAPP_WEB_PHONE)
 if (!expectedPhone) throw new Error('Configure WHATSAPP_WEB_PHONE com o número brasileiro da sessão.')
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Configure as credenciais do Supabase no ambiente local.')
-const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(15000) }) } })
+const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (url, init) => serverClock.fetch(url, { ...init, signal: AbortSignal.timeout(15000) }) } })
 const pairingControl = await db.from('whatsapp_worker_controles').select('reiniciar_id,vinculacao_pedido,vinculacao_modo').eq('sessao', session).maybeSingle()
 if (pairingControl.error) throw new Error('Não foi possível consultar o modo de vinculação.')
 const pairingRequest = pairingControl.data?.vinculacao_pedido === pairingControl.data?.reiniciar_id ? pairingControl.data?.vinculacao_pedido : null
@@ -58,6 +61,8 @@ async function timeout(promise, ms = 45000) {
 }
 const check = ({ data, error }) => { if (error) throw new Error(error.message); return data }
 const recoverConnection = connectionRecovery({ probe: () => assertBrowserHealthy(client) })
+const publishSession = createPeriodicTask({ intervalMs: 30_000 })
+const publishMonitor = createPeriodicTask({ intervalMs: 30_000 })
 async function publishHeartbeat() {
   if (initialized && !stopping) {
     const health = await recoverConnection()
@@ -69,13 +74,18 @@ async function publishHeartbeat() {
   const status={ id: session, numero: connectedPhone, status: connection, atualizado_em: new Date().toISOString() }
   await mkdir(path.join(root,'.whatsapp-web'),{recursive:true})
   await writeFile(path.join(root,'.whatsapp-web',`status-${session}.json`),JSON.stringify({...status,pid:process.pid,connectOnly,pairByCode,pairingCode:connection === 'aguardando_qr' ? pairingCode : null,pairingCodeExpiresAt}))
-  check(await db.from('whatsapp_web_sessoes').upsert(status))
+  await publishSession(JSON.stringify([status.numero, status.status]), async () => {
+    check(await db.from('whatsapp_web_sessoes').upsert({ ...status, atualizado_em: serverClock.iso() }))
+  })
   try {
-    const { error } = await db.from('agente_workers').upsert({
-      script_key: `mensageria:web:${session}`, ultimo_sinal_em: status.atualizado_em, updated_at: status.atualizado_em,
-      metadata_json: { estado: connection === 'conectado' ? (connectOnly ? 'conexao' : 'operando') : (['iniciando', 'aguardando_qr'].includes(connection) ? 'aguardando' : 'erro') },
+    const estado = connection === 'conectado' ? (connectOnly ? 'conexao' : 'operando') : (['iniciando', 'aguardando_qr'].includes(connection) ? 'aguardando' : 'erro')
+    await publishMonitor(estado, async () => {
+      const { error } = await db.from('agente_workers').upsert({
+        script_key: `mensageria:web:${session}`, ultimo_sinal_em: serverClock.iso(), updated_at: serverClock.iso(),
+        metadata_json: { estado },
+      })
+      if (error) throw new Error(error.message)
     })
-    if (error) console.error('Falha ao registrar monitor do worker:', error.message)
   } catch { console.error('Falha ao registrar monitor do worker.') }
 }
 const heartbeat = heartbeatGate(publishHeartbeat, error => console.error(new Date().toISOString(), 'Falha no heartbeat; novos envios aguardam o banco:', error.message))
@@ -96,7 +106,7 @@ client.on('code', (code) => {
   pairingRevision++
   ready = false; connection = 'aguardando_qr'
   pairingCode = code
-  pairingCodeExpiresAt = new Date(Date.now() + 180000).toISOString()
+  pairingCodeExpiresAt = new Date(serverClock.now() + 180000).toISOString()
   void publishPairing(code, pairingCodeExpiresAt).catch(reportPairing)
   console.log(`Código de vinculação da sessão ${session} disponível no painel local.`)
   heartbeat().catch(error => console.error('Falha ao atualizar código:', error.message))
@@ -108,7 +118,7 @@ client.on('qr', async (value) => {
   // 30-second timer can hide it throughout its 20-second display lifetime.
   void heartbeat()
   // Queue publication before awaiting file writes; never log pairing secrets.
-  const expiresAt = new Date(Date.now() + 20000).toISOString()
+  const expiresAt = new Date(serverClock.now() + 20000).toISOString()
   try {
     const png = await QRCode.toDataURL(value, { width: 420, margin: 2 })
     if (revision !== pairingRevision || ready || stopping || connection !== 'aguardando_qr') return

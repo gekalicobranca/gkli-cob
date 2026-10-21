@@ -4,6 +4,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 import { retryDelay, expiredHeartbeat, bounded } from './recovery.mjs'
+import { createPeriodicTask } from '../worker-cadence.mjs'
+import { createServerClock } from './server-clock.mjs'
+const serverClock = createServerClock()
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(dir, '../..')
@@ -20,9 +23,9 @@ const handle = await open(lock, 'wx')
 await handle.writeFile(String(process.pid)); await handle.close()
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
-  global: { fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(15000) }) },
+  global: { fetch: (url, init) => serverClock.fetch(url, { ...init, signal: AbortSignal.timeout(15000) }) },
 })
-const states = ['genske', 'gekali', 'azevedo'].map(sessao => ({ sessao, child: null, failures: 0, next: 0, started: 0, reconcile: true, stopReason: null }))
+const states = ['genske', 'gekali', 'azevedo'].map(sessao => ({ sessao, child: null, failures: 0, next: 0, started: 0, reconcile: true, stopReason: null, publish: createPeriodicTask({ intervalMs: 30_000 }) }))
 let stopping = false
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { stopping = true })
 
@@ -90,10 +93,17 @@ try {
     }
   }
   while (!stopping) {
+    const { data: controls, error: controlsError } = await db.from('whatsapp_worker_controles')
+      .select('sessao,habilitado,reiniciar_id,aplicado_id').in('sessao', states.map(s => s.sessao))
+    if (controlsError) {
+      console.error(new Date().toISOString(), 'Supervisor:', controlsError.message)
+      await new Promise(resolve => setTimeout(resolve, 15000))
+      continue
+    }
     for (const s of states) {
       try {
-        const { data: control, error } = await db.from('whatsapp_worker_controles').select('*').eq('sessao', s.sessao).single()
-        if (error) throw error
+        const control = controls?.find(row => row.sessao === s.sessao)
+        if (!control) throw new Error('Controle da sessão indisponível.')
         const restart = control.reiniciar_id !== control.aplicado_id
         if (!control.habilitado || restart) {
           await terminate(s)
@@ -111,12 +121,14 @@ try {
         }
         if (control.habilitado && !s.child && !s.stopReason && Date.now() >= s.next) await start(s)
         const status = !control.habilitado ? 'pausado' : s.stopReason || (s.child ? 'supervisionando' : 'reconectando')
-        const { error: updateError } = await db.from('whatsapp_worker_controles').update({ supervisor_em: new Date().toISOString(), supervisor_status: status, reinicios: s.failures }).eq('sessao', s.sessao)
-        if (updateError) throw updateError
+        await s.publish(JSON.stringify([status, s.failures]), async () => {
+          const { error: updateError } = await db.from('whatsapp_worker_controles').update({ supervisor_em: serverClock.iso(), supervisor_status: status, reinicios: s.failures }).eq('sessao', s.sessao)
+          if (updateError) throw updateError
+        })
         await writeFile(path.join(local, `supervisor-${s.sessao}.json`), JSON.stringify({ status, atualizado_em: new Date().toISOString(), pid: process.pid, childPid: s.child?.pid ?? null }))
       } catch (error) { console.error(new Date().toISOString(), s.sessao, 'Supervisor:', error.message) }
     }
-    await new Promise(resolve => setTimeout(resolve, 5000))
+    await new Promise(resolve => setTimeout(resolve, 10000))
   }
 } finally {
   await Promise.all(states.map(terminate))
