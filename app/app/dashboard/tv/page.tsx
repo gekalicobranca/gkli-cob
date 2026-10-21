@@ -73,7 +73,7 @@ export default function TvDashboard() {
       title: 'Acordos', subtitle: 'Conversão em compromissos', tone: 'text-violet-300', border: 'border-violet-300/20', background: 'from-violet-400/10',
       cards: [
         { label: 'Realizados no período', value: number(metrics.agreements.period), detail: formatCurrency(metrics.agreements.periodValue) + ' acordados' },
-        { label: 'Realizados no dia', value: number(metrics.agreements.today), detail: `${dateLabel(data.today)} · ${formatCurrency(metrics.agreements.todayValue)}` },
+        { label: 'Realizados hoje', value: number(metrics.agreements.today), detail: `${dateLabel(data.today)} · ${formatCurrency(metrics.agreements.todayValue)}` },
         { label: 'Totais vigentes', value: number(metrics.agreements.current), detail: 'Ativos, em dia e em atraso · todas as datas' },
       ],
     },
