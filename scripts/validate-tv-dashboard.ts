@@ -46,7 +46,7 @@ test('somente pagamentos reais ou solicitação de boletos qualificam acordos e 
 test('pagamento fora do fechamento efetiva parcelas futuras sem substituir a data do vencimento', () => {
   const funded = agreement({ fluxo_status: null, data_acordo: '2026-08-01', tem_parcela_paga: true })
   const metrics = calculate([], [funded], [installment({ acordos: funded }), installment({ acordos: funded, vencimento: '2026-11-13' })])
-  assert.equal(metrics.agreements.period, 0)
+  assert.equal(metrics.agreements.period, 1)
   assert.equal(metrics.agreements.current, 1)
   assert.equal(metrics.result.expected, 1)
 })
@@ -55,9 +55,9 @@ test('captação conta unidades únicas e exclui cobranças indisponíveis e fut
   const metrics = calculate([charge(), charge({ valor_atualizado: 50 }), charge({ status_financeiro: 'quitado' }), charge({ status_operacional: 'acordo_firmado' }), charge({ vencimento: '2026-10-21' }), charge({ status_operacional: 'judicializado' })])
   assert.deepEqual(metrics.capture, { units: 1, value: 150, cutoff: '2026-10-20' })
 })
-test('acordos separam dia, fechamento e vigentes de todas as datas', () => {
+test('acordos separam dia de criação, vencimentos no fechamento e vigentes de todas as datas', () => {
   const metrics = calculate([], [agreement(), agreement({ data_acordo: '2026-10-13', status: 'quitado' }), agreement({ data_acordo: '2026-08-01', status: 'em_atraso' }), agreement({ status: 'cancelado' }), agreement({ observacoes: '[EXCLUIR_SOMA_DIVIDA_SUBSTITUICAO_PENDENTE]' })])
-  assert.equal(metrics.agreements.period, 2)
+  assert.equal(metrics.agreements.period, 0)
   assert.equal(metrics.agreements.today, 1)
   assert.equal(metrics.agreements.current, 2)
 })
@@ -65,6 +65,20 @@ test('previstas usam vencimento e pagas usam pagamento, incluindo pagamento de p
   const metrics = calculate([], [], [installment(), installment({ id: 'p2', vencimento: '2026-09-20', status: 'paga', data_pagamento: '2026-10-20' }), installment({ status: 'cancelada' }), installment({ acordos: agreement({ status: 'quebrado' }) }), installment({ vencimento: '2026-11-12' }), installment({ vencimento: '2026-11-13' })])
   assert.deepEqual(metrics.result, { expected: 2, expectedValue: 400, paid: 1, paidValue: 200, transfer: 40 })
 })
+test('acordos válidos incluem quitados antigos e contam uma vez por ID usando parcelas do período', () => {
+  const old = agreement({ id: 'old', data_acordo: '2025-01-01', status: 'quitado', valor_acordado: 600 })
+  const recent = agreement({ id: 'recent', data_acordo: '2026-10-20', valor_acordado: 400 })
+  const metrics = calculate([], [recent], [
+    installment({ id: 'p1', acordos: old, vencimento: '2026-10-13', status: 'paga' }),
+    installment({ id: 'p2', acordos: [old], vencimento: '2026-11-12', status: 'paga' }),
+    installment({ id: 'p3', acordos: recent, vencimento: '2026-11-13' }),
+    installment({ id: 'p4', acordos: recent, status: 'cancelada' }),
+  ])
+  assert.equal(metrics.agreements.period, 1)
+  assert.equal(metrics.agreements.periodValue, 600)
+  assert.equal(metrics.result.expected, 2)
+})
+
 test('repasse prioriza informado, aceita zero, rateia despesa e usa percentual como alternativa', () => {
   assert.equal(tvExpectedTransfer(agreement(), installment({ valor_repasse_informado: 15 })), 15)
   assert.equal(tvExpectedTransfer(agreement(), installment({ valor_repasse_informado: 0 })), 0)
@@ -161,5 +175,5 @@ test('bloqueios permanecem no geral e em cada carteira, preservando os indicador
   assert.equal(slides[0].metrics.capture.value, 25)
   assert.equal(slides[1].metrics.capture.value, 25)
   assert.equal(slides[2].metrics.capture.value, 0)
-  assert.equal(slides[1].metrics.agreements.period, 1)
+  assert.equal(slides[1].metrics.agreements.period, 0)
 })

@@ -62,7 +62,6 @@ export function tvExpectedTransfer(agreement: TvAgreement, installment: TvInstal
 export function buildTvMetrics(start: string, end: string, today: string, charges: TvCharge[], agreements: TvAgreement[], installments: TvInstallment[]) {
   const inPeriod = (date: string | null) => Boolean(date && date.slice(0, 10) >= start && date.slice(0, 10) <= end)
   const eligible = agreements.filter(eligibleTvAgreement)
-  const periodAgreements = eligible.filter(row => inPeriod(row.data_acordo))
   const dayAgreements = eligible.filter(row => row.data_acordo?.slice(0, 10) === today)
   const current = eligible.filter(row => (ACORDO_STATUS_VIGENTES as readonly string[]).includes(normalize(row.status)) && !['quitado', 'pago'].includes(normalize(row.status_financeiro)))
   const cutoff = today < end ? today : end
@@ -81,6 +80,11 @@ export function buildTvMetrics(start: string, end: string, today: string, charge
     return agreement && inPeriod(row.vencimento) && !cancelledStatuses.has(normalize(row.status))
       && eligibleTvAgreement(agreement)
   })
+  // O acordo conta uma única vez, mesmo com várias parcelas no fechamento.
+  const periodAgreements = [...new Map(expected.map(row => {
+    const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
+    return [agreement.id, agreement] as const
+  })).values()]
   return {
     capture: { units: new Set(available.map(row => row.unidade_id).filter(Boolean)).size, value: round(available.reduce((sum, row) => sum + money(row.valor_atualizado), 0)), cutoff },
     agreements: {
