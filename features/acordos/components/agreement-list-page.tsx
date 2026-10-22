@@ -1,4 +1,5 @@
 import type { AgreementKind } from '@/features/acordos/agreement-kind'
+import { isJudicialUnderReview } from '@/features/acordos/agreement-kind'
 import Link from 'next/link'
 import { AlertTriangle, ArrowUpRight, ChevronDown, Download, FileText, Handshake } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
@@ -156,7 +157,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
   const groups = groupAcordos(rows)
   const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.carteira_id || params.status || params.data_de || params.data_ate || params.criacao_de || params.criacao_ate || params.operador_id || params.ordenar)
 
-  const { ativos, atraso, rompidos, valorAtivo } = acordosPage.resumo
+  const { ativos, atraso, rompidos, valorAtivo, emConferencia } = acordosPage.resumo
 
   return (
     <ListPage>
@@ -175,6 +176,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
       />
 
       <ListKpiGrid>
+        {judicial && <KpiCard label="Em conferência" value={emConferencia} />}
         <KpiCard label="Valor ativo" value={formatCurrency(valorAtivo)} icon={<Handshake size={18} />} />
         {[
           ['Ativos', ativos, 'andamento', 'bg-emerald-50 text-emerald-700'],
@@ -326,7 +328,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                           >
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <StatusBadge status={row.status} />
+                                {isJudicialUnderReview(row) ? <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Em conferência</span> : <StatusBadge status={row.status} />}
                                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.carteiras?.nome ?? 'Carteira não informada'}</span>
                               </div>
                               <ListItemTitle className="mt-2">{getUnitLabel(row.unidades)}</ListItemTitle>

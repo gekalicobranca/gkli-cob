@@ -1,7 +1,7 @@
 import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
-import { applyAgreementKind, matchesAgreementKind, type AgreementKind } from './agreement-kind';
+import { applyAgreementKind, matchesAgreementKind, isJudicialUnderReview, type AgreementKind } from './agreement-kind';
 import { carregarParcelasRelatorio } from "./parcelas-relatorio";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import type { CarteiraScope } from "@/utils/auth/get-permitted-carteiras";
@@ -888,7 +888,8 @@ function filterAcordosPageRows(rows: any[], filters: ListAcordosComSaudePageFilt
 }
 
 function resumoAcordosPage(rows: any[]) {
-  const normalizados = rows.map((row) => ({ ...row, status: normalizeStatus(row.status) }));
+  const emConferencia = rows.filter(isJudicialUnderReview).length;
+  const normalizados = rows.filter(row => !isJudicialUnderReview(row)).map((row) => ({ ...row, status: normalizeStatus(row.status) }));
   const ativos = normalizados.filter((row) => [ACORDO_STATUS.ATIVO, ACORDO_STATUS.EM_DIA].includes(row.status)).length;
   const atraso = normalizados.filter((row) => row.status === ACORDO_STATUS.EM_ATRASO).length;
   const rompidos = normalizados.filter((row) => [ACORDO_STATUS.QUEBRADO, "rompido"].includes(row.status)).length;
@@ -896,7 +897,7 @@ function resumoAcordosPage(rows: any[]) {
     .filter((row) => ACORDO_STATUS_VIGENTES.includes(row.status))
     .reduce((sum, row) => sum + Number(row.valor_acordado ?? 0), 0);
 
-  return { ativos, atraso, rompidos, valorAtivo };
+  return { ativos, atraso, rompidos, valorAtivo, emConferencia };
 }
 
 function canUsePagedAcordosQuery(filters: ListAcordosComSaudePageFilters) {
@@ -967,7 +968,7 @@ export async function listAcordosComSaudePage(
 
   let resumoQuery = somenteAcordosCanonicos(supabase
     .from("acordos")
-    .select("status, valor_acordado"));
+    .select("status, valor_acordado, tipo, fluxo_status"));
   resumoQuery = (await applyAcordosDirectFilters(resumoQuery, filters, scope)).query;
 
   const [{ data: rowsData, error: rowsError, count }, { data: resumoRows, error: resumoError }] = await Promise.all([
