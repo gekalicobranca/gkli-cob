@@ -22,7 +22,7 @@ test('quebrados, encerrados e duplicidades conciliadas saem de todos os totais d
     id: `p-${index}`, acordos: index % 2 ? [row] : row, status: 'paga', data_pagamento: '2026-10-20',
   })))
   assert.deepEqual(metrics.agreements, { period: 2, periodValue: 2000, today: 2, todayValue: 2000, current: 1, currentValue: 1000 })
-  assert.deepEqual(metrics.result, { expected: 2, expectedValue: 400, paid: 2, paidValue: 400, transfer: 40 })
+  assert.deepEqual(metrics.result, { expected: 2, expectedValue: 400, paid: 2, paidValue: 400, transferToday: 200, transfer: 40 })
 })
 
 test('somente pagamentos reais ou solicitação de boletos qualificam acordos e suas parcelas', () => {
@@ -63,7 +63,7 @@ test('acordos separam dia de criação, vencimentos no fechamento e vigentes de 
 })
 test('previstas usam vencimento e pagas usam pagamento, incluindo pagamento de parcela antiga', () => {
   const metrics = calculate([], [], [installment(), installment({ id: 'p2', vencimento: '2026-09-20', status: 'paga', data_pagamento: '2026-10-20' }), installment({ status: 'cancelada' }), installment({ acordos: agreement({ status: 'quebrado' }) }), installment({ vencimento: '2026-11-12' }), installment({ vencimento: '2026-11-13' })])
-  assert.deepEqual(metrics.result, { expected: 2, expectedValue: 400, paid: 1, paidValue: 200, transfer: 40 })
+  assert.deepEqual(metrics.result, { expected: 2, expectedValue: 400, paid: 1, paidValue: 200, transferToday: 0, transfer: 40 })
 })
 test('acordos válidos incluem quitados antigos e contam uma vez por ID usando parcelas do período', () => {
   const old = agreement({ id: 'old', data_acordo: '2025-01-01', status: 'quitado', valor_acordado: 600 })
@@ -176,4 +176,15 @@ test('bloqueios permanecem no geral e em cada carteira, preservando os indicador
   assert.equal(slides[1].metrics.capture.value, 25)
   assert.equal(slides[2].metrics.capture.value, 0)
   assert.equal(slides[1].metrics.agreements.period, 0)
+})
+
+
+test('repasses no dia somam o repasse total dos acordos realizados hoje, independente de pagamentos', () => {
+  const today = agreement({ id: 'hoje', despesa_cobranca_valor: 123.45 })
+  const percentage = agreement({ id: 'percentual', despesa_cobranca_valor: 0, despesa_cobranca_percentual: 15 })
+  const old = agreement({ id: 'antigo', data_acordo: '2026-10-19' })
+  const broken = agreement({ id: 'quebrado', status: 'quebrado' })
+  const rows = [today, percentage, old, broken]
+  assert.equal(calculate([], rows, []).result.transferToday, 273.45)
+  assert.equal(calculate([], [old], [installment({ acordos: old, status: 'paga', data_pagamento: '2026-10-20' })]).result.transferToday, 0)
 })

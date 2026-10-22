@@ -95,6 +95,10 @@ export function buildTvMetrics(start: string, end: string, today: string, charge
     result: {
       expected: expected.length, expectedValue: round(expected.reduce((sum, row) => sum + money(row.valor), 0)),
       paid: paid.length, paidValue: round(paid.reduce((sum, row) => sum + money(row.valor), 0)),
+      transferToday: round(dayAgreements.reduce((sum, row) => sum + tvExpectedTransfer(row, {
+        id: row.id, valor: row.valor_acordado, vencimento: null, data_pagamento: null,
+        status: null, valor_repasse_informado: null, acordos: row,
+      }), 0)),
       transfer: round(expected.reduce((sum, row) => {
         const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
         return sum + tvExpectedTransfer(agreement, row)

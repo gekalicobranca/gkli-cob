@@ -75,7 +75,7 @@ export default function TvDashboard() {
       cards: [
         { label: 'Acordos válidos', value: number(metrics.agreements.period), detail: formatCurrency(metrics.agreements.periodValue) + ' contratados · com parcelas no período, inclui quitados' },
         { label: 'Realizados hoje', value: number(metrics.agreements.today), detail: `${dateLabel(data.today)} · ${formatCurrency(metrics.agreements.todayValue)}` },
-        { label: 'Acordos vigentes', value: number(metrics.agreements.current), detail: 'Ativos, em dia e em atraso · todas as datas' },
+        { label: 'Repasses no dia', value: formatCurrency(metrics.result.transferToday), detail: `${dateLabel(data.today)} · repasse contratado nos acordos realizados hoje` },
       ],
     },
     {
