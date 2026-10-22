@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/normalize-relation'
+import { clausulasBuscaCondominio } from './busca'
 
 const CONDOMINIO_SELECT = `
   id,
@@ -63,10 +64,6 @@ function cleanFilter(value?: string | string[] | null) {
   return value?.trim() || undefined
 }
 
-function onlyDigits(value: string) {
-  return value.replace(/\D/g, '')
-}
-
 export function normalizeCondominioFilters(filters: CondominioFilters = {}) {
   return {
     search: cleanFilter(filters.search),
@@ -109,21 +106,8 @@ export async function listCondominios(scope: CarteiraScope, filters: CondominioF
   }
 
   if (normalized.search) {
-    const term = normalized.search.replace(/[%_]/g, '')
-    const digits = onlyDigits(term)
-    const clauses = [
-      `nome.ilike.%${term}%`,
-      `nome_operacional.ilike.%${term}%`,
-      `administradora.ilike.%${term}%`,
-    ]
-
-    if (digits) {
-      clauses.push(`cnpj.ilike.%${digits}%`)
-    } else {
-      clauses.push(`cnpj.ilike.%${term}%`)
-    }
-
-    query = query.or(clauses.join(','))
+    const clauses = clausulasBuscaCondominio(normalized.search)
+    if (clauses.length) query = query.or(clauses.join(','))
   }
 
   const rows: any[] = []
