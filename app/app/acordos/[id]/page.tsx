@@ -338,7 +338,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/app/acordos"
+              href={acordo.tipo === 'judicial' ? '/app/acordos/judiciais' : '/app/acordos'}
               className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
             >
               Voltar

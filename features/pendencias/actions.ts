@@ -12,6 +12,7 @@ type ActionState = {
 
 function revalidatePendenciasOperacionais() {
   revalidatePath('/app/pendencias')
+  revalidatePath('/app/acordos/judiciais/pendencias')
   revalidatePath('/app/inbox')
   revalidatePath('/app')
 }

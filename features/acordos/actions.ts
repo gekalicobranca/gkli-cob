@@ -1629,6 +1629,9 @@ export async function marcarParcelaComoPaga(formData: FormData) {
   revalidatePath(`/app/acordos/${acordoId}`);
   revalidatePath("/app/acordos");
   revalidatePath("/app/acordos/fila");
+  revalidatePath("/app/acordos/judiciais");
+  revalidatePath("/app/acordos/judiciais/fila");
+  revalidatePath("/app/acordos/judiciais/pendencias");
   revalidatePath("/app/cobrancas");
   revalidatePath("/app");
   revalidatePath("/app/dashboard");
@@ -1824,6 +1827,9 @@ export async function solicitarReemissaoParcelaAcordo(formData: FormData) {
   });
 
   revalidatePath("/app/acordos/fila");
+  revalidatePath("/app/acordos/judiciais");
+  revalidatePath("/app/acordos/judiciais/fila");
+  revalidatePath("/app/acordos/judiciais/pendencias");
   revalidatePath("/app/pendencias");
   revalidatePath("/app/gestao/acionamentos-acordos");
   revalidatePath(`/app/acordos/${acordoId}`);
@@ -1998,6 +2004,9 @@ export async function registrarAjusteReemissaoParcelaAcordo(formData: FormData) 
 
   revalidatePath("/app/gestao/acionamentos-acordos");
   revalidatePath("/app/acordos/fila");
+  revalidatePath("/app/acordos/judiciais");
+  revalidatePath("/app/acordos/judiciais/fila");
+  revalidatePath("/app/acordos/judiciais/pendencias");
   revalidatePath(`/app/acordos/${acordoId}`);
 }
 
@@ -2144,6 +2153,9 @@ export async function marcarBoletoReemissaoEnviado(formData: FormData) {
 
   revalidatePath("/app/gestao/acionamentos-acordos");
   revalidatePath("/app/acordos/fila");
+  revalidatePath("/app/acordos/judiciais");
+  revalidatePath("/app/acordos/judiciais/fila");
+  revalidatePath("/app/acordos/judiciais/pendencias");
   revalidatePath(`/app/acordos/${acordoId}`);
 }
 
@@ -3365,6 +3377,9 @@ export async function revisarParcelaAcordo(formData: FormData) {
 
   revalidatePath("/app/acordos");
   revalidatePath("/app/acordos/fila");
+  revalidatePath("/app/acordos/judiciais");
+  revalidatePath("/app/acordos/judiciais/fila");
+  revalidatePath("/app/acordos/judiciais/pendencias");
   revalidatePath(`/app/acordos/${acordoId}`);
   revalidatePath("/app/dashboard");
 }

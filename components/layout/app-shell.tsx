@@ -75,7 +75,8 @@ const sections: SidebarSection[] = [
     title: 'Operação',
     items: [
       { label: 'Cobranças', href: '/app/cobrancas', icon: 'money' },
-      { label: 'Acordos', href: '/app/acordos', icon: 'handshake' },
+      { label: 'Acordos extrajudiciais', href: '/app/acordos', icon: 'handshake' },
+      { label: 'Acordos judiciais', href: '/app/acordos/judiciais', icon: 'handshake' },
       { label: 'Controle de parcelas', href: '/app/acordos/fila', icon: 'clipboard' },
     ],
   },
