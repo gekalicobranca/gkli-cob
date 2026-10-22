@@ -1,3 +1,6 @@
+import { criadoNoIntervalo } from '@/lib/core/filtros-criacao'
+import { operadorResponsavelId } from '@/lib/core/operador-responsavel'
+import { listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
 import Link from 'next/link'
 import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CheckCircle2, ChevronDown, RotateCcw } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
@@ -33,6 +36,9 @@ type SearchParams = Promise<{
   carteira_id?: string
   vencimento_de?: string
   vencimento_ate?: string
+  criacao_de?: string
+  criacao_ate?: string
+  operador_id?: string
   status?: string
   tipo?: string
   ordenar?: string
@@ -132,6 +138,8 @@ function filterRows(rows: any[], filters: Awaited<SearchParams>) {
 
   return rows.filter((row) => {
     const acordo = row.acordo ?? {}
+    if (!criadoNoIntervalo(row.created_at, filters.criacao_de, filters.criacao_ate)) return false
+    if (filters.operador_id && operadorResponsavelId(acordo) !== filters.operador_id.trim()) return false
     const condominio = acordo.condominios ?? {}
     const unidade = acordo.unidades ?? {}
     const vencimento = String(row.vencimento ?? '')
@@ -230,7 +238,7 @@ function ParcelaActions({ row }: { row: any }) {
 export default async function FilaOperacionalAcordosPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const scope = await getPermittedCarteiras()
-  const allRows = await listParcelasAcordosOperacionais(scope)
+  const [allRows, operadores] = await Promise.all([listParcelasAcordosOperacionais(scope), listOperadoresCadastro()])
   const filteredRows = sortRows(filterRows(allRows, params), String(params.ordenar ?? 'vencimento_asc'))
   const page = getPageParam(params.page)
   const rows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -244,7 +252,7 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
     const dias = getDiasAtraso(row.vencimento)
     return !isParcelaPaga(row) && dias !== null && dias > 0
   })
-  const hasFilters = Boolean(params.condominio_id || params.carteira_id || params.vencimento_de || params.vencimento_ate || params.status || params.tipo || params.ordenar || params.q)
+  const hasFilters = Boolean(params.criacao_de || params.criacao_ate || params.operador_id || params.condominio_id || params.carteira_id || params.vencimento_de || params.vencimento_ate || params.status || params.tipo || params.ordenar || params.q)
 
   return (
     <div className="space-y-3">
@@ -324,6 +332,18 @@ export default async function FilaOperacionalAcordosPage({ searchParams }: { sea
           </ListFilterField>
           <ListFilterField label="Vencimento até" className="xl:col-span-2">
             <Input name="vencimento_ate" type="date" defaultValue={dateValue(params.vencimento_ate)} />
+          </ListFilterField>
+          <ListFilterField label="Operador responsável" className="xl:col-span-3">
+            <Select name="operador_id" defaultValue={params.operador_id ?? ''}>
+              <option value="">Todos</option>
+              {operadores.map(operador => <option key={operador.id} value={operador.id}>{operador.nome}</option>)}
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Criação da parcela de" className="xl:col-span-2">
+            <Input name="criacao_de" type="date" defaultValue={dateValue(params.criacao_de)} />
+          </ListFilterField>
+          <ListFilterField label="Criação da parcela até" className="xl:col-span-2">
+            <Input name="criacao_ate" type="date" defaultValue={dateValue(params.criacao_ate)} />
           </ListFilterField>
           <ListFilterField label="Ordenar por" className="xl:col-span-3">
             <Select name="ordenar" defaultValue={params.ordenar ?? 'vencimento_asc'}>

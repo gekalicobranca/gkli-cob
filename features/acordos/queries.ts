@@ -12,6 +12,9 @@ import {
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 import { ACORDO_STATUS, ACORDO_STATUS_VIGENTES } from "@/lib/constants/acordos";
 import { normalizeStatus } from "@/lib/core/status";
+import { aplicarFiltroCriacao, criadoNoIntervalo } from '@/lib/core/filtros-criacao';
+import { operadorResponsavelId } from '@/lib/core/operador-responsavel';
+import { aplicarFiltroOperador } from '@/features/cadastros/filtro-operador';
 import {
   PRE_JURIDICO_EVENT_CODES,
   criarPreJuridicoSteps,
@@ -55,6 +58,7 @@ export async function listAcordos(scope?: CarteiraScope) {
       *,
       condominios:condominio_id (
         id,
+        operador_id,
         nome,
         parcelas_acordo_sem_aprovacao_sindico,
         dias_reemissao_parcela_acordo_atrasada
@@ -75,25 +79,26 @@ export async function listAcordos(scope?: CarteiraScope) {
       ),
       carteiras:carteira_id (
         id,
+        operador_id,
         nome,
         pre_juridico_habilitado
       ),
       termos:acordos_termos (*)
     `,
     ))
-    .order("data_acordo", { ascending: false });
+    .order("data_acordo", { ascending: false }).order("id", { ascending: true });
 
   if (scope) {
     query = applyCarteiraScope(query, scope.carteiraIds);
   }
 
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(`Erro ao carregar acordos: ${error.message}`);
+  const rows: any[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await query.range(offset, offset + 499);
+    if (error) throw new Error(`Erro ao carregar acordos: ${error.message}`);
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < 500) return rows;
   }
-
-  return data ?? [];
 }
 
 export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
@@ -740,6 +745,7 @@ export async function listAcordosComSaude(scope?: CarteiraScope) {
 }
 
 export type ListAcordosComSaudePageFilters = {
+  operador_id?: string;
   q?: string;
   condominio_id?: string;
   unidade_id?: string;
@@ -747,11 +753,15 @@ export type ListAcordosComSaudePageFilters = {
   status?: string;
   data_de?: string;
   data_ate?: string;
+  criacao_de?: string;
+  criacao_ate?: string;
   ordenar?: string;
 };
 
 const ACORDOS_PAGE_SELECT = `
   id,
+  created_at,
+  operador_id,
   condominio_id,
   unidade_id,
   carteira_id,
@@ -765,6 +775,7 @@ const ACORDOS_PAGE_SELECT = `
   numero_processo,
   condominios:condominio_id (
     id,
+    operador_id,
     nome,
     parcelas_acordo_sem_aprovacao_sindico,
     dias_reemissao_parcela_acordo_atrasada
@@ -785,6 +796,7 @@ const ACORDOS_PAGE_SELECT = `
   ),
   carteiras:carteira_id (
     id,
+    operador_id,
     nome,
     pre_juridico_habilitado
   )
@@ -844,6 +856,8 @@ function filterAcordosPageRows(rows: any[], filters: ListAcordosComSaudePageFilt
 
   return rows.filter((row) => {
     const data = cleanPageFilter(row.data_acordo).slice(0, 10);
+    if (!criadoNoIntervalo(row.created_at, filters.criacao_de, filters.criacao_ate)) return false;
+    if (filters.operador_id && operadorResponsavelId(row) !== filters.operador_id.trim()) return false;
     if (condominioId && row.condominio_id !== condominioId) return false;
     if (unidadeId && row.unidade_id !== unidadeId) return false;
     if (carteiraId && row.carteira_id !== carteiraId) return false;
@@ -886,7 +900,9 @@ function canUsePagedAcordosQuery(filters: ListAcordosComSaudePageFilters) {
   return ["data_desc", "data_asc", "valor_desc", "valor_asc", "status"].includes(ordenar);
 }
 
-function applyAcordosDirectFilters(query: any, filters: ListAcordosComSaudePageFilters, scope?: CarteiraScope) {
+async function applyAcordosDirectFilters(query: any, filters: ListAcordosComSaudePageFilters, scope?: CarteiraScope) {
+  query = (await aplicarFiltroOperador(query, await createClient(), scope, filters.operador_id)).query;
+  query = aplicarFiltroCriacao(query, filters.criacao_de, filters.criacao_ate);
   if (scope) query = applyCarteiraScope(query, scope.carteiraIds);
   const condominioId = cleanPageFilter(filters.condominio_id);
   const unidadeId = cleanPageFilter(filters.unidade_id);
@@ -902,7 +918,7 @@ function applyAcordosDirectFilters(query: any, filters: ListAcordosComSaudePageF
   if (dataDe) query = query.gte("data_acordo", dataDe);
   if (dataAte) query = query.lte("data_acordo", dataAte);
 
-  return query;
+  return { query };
 }
 
 function applyAcordosOrder(query: any, ordenar: string) {
@@ -940,13 +956,13 @@ export async function listAcordosComSaudePage(
   let rowsQuery = somenteAcordosCanonicos(supabase
     .from("acordos")
     .select(ACORDOS_PAGE_SELECT, { count: "exact" }));
-  rowsQuery = applyAcordosDirectFilters(rowsQuery, filters, scope);
+  rowsQuery = (await applyAcordosDirectFilters(rowsQuery, filters, scope)).query;
   rowsQuery = applyAcordosOrder(rowsQuery, ordenar).range(from, to);
 
   let resumoQuery = somenteAcordosCanonicos(supabase
     .from("acordos")
     .select("status, valor_acordado"));
-  resumoQuery = applyAcordosDirectFilters(resumoQuery, filters, scope);
+  resumoQuery = (await applyAcordosDirectFilters(resumoQuery, filters, scope)).query;
 
   const [{ data: rowsData, error: rowsError, count }, { data: resumoRows, error: resumoError }] = await Promise.all([
     rowsQuery,
@@ -1316,7 +1332,7 @@ async function getParcelasDosAcordos(acordoIds: string[]) {
   return await carregarParcelasRelatorio(ids, (batch, from, to) =>
     supabase
       .from("parcelas_acordo")
-      .select("id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento,valor_repasse_informado")
+      .select("id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento,valor_repasse_informado,created_at")
       .in("acordo_id", batch)
       .order("id", { ascending: true })
       .range(from, to),

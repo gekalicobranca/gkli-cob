@@ -12,6 +12,7 @@ export async function GET(request: Request) {
   const rows = await listCobrancasCatalogo(scope, {
     search: get('q'), administradoraId: get('administradora_id'), condominioId: get('condominio_id'),
     unidadeId: get('unidade_id'), vencimentoDe: get('vencimento_de'), vencimentoAte: get('vencimento_ate'),
+    operadorId: get('operador_id'), criacaoDe: get('criacao_de'), criacaoAte: get('criacao_ate'),
   })
   const data = dataCatalogo()
   const pdf = await gerarCatalogoPdf(montarCatalogo(rows as CotaCatalogo[], data), data)

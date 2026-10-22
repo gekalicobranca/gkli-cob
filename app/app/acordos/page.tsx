@@ -33,6 +33,7 @@ import { listCondominiosForSelect, listUnidadesForSelect } from '@/features/cada
 import { listAcordosComSaudePage } from '@/features/acordos/queries'
 import { listCarteiras } from '@/features/carteiras/queries'
 import { AgreementHealthBadge } from '@/features/acordos/components/agreement-health-badge'
+import { listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
 
 type AcordosPageProps = {
   searchParams?: Promise<{
@@ -43,6 +44,9 @@ type AcordosPageProps = {
     status?: string
     data_de?: string
     data_ate?: string
+    criacao_de?: string
+    criacao_ate?: string
+    operador_id?: string
     ordenar?: string
     page?: string
   }>
@@ -135,17 +139,18 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
   const params = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
   const page = getPageParam(params.page)
-  const [acordosPage, condominios, unidades, carteiras] = await Promise.all([
+  const [acordosPage, condominios, unidades, carteiras, operadores] = await Promise.all([
     listAcordosComSaudePage(scope, params, page, PAGE_SIZE),
     listCondominiosForSelect(scope),
     clean(params.condominio_id)
       ? listUnidadesForSelect(scope, { condominioId: clean(params.condominio_id) })
       : Promise.resolve([]),
     listCarteiras(scope),
+    listOperadoresCadastro(),
   ])
   const rows = acordosPage.rows
   const groups = groupAcordos(rows)
-  const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.carteira_id || params.status || params.data_de || params.data_ate || params.ordenar)
+  const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.carteira_id || params.status || params.data_de || params.data_ate || params.criacao_de || params.criacao_ate || params.operador_id || params.ordenar)
 
   const { ativos, atraso, rompidos, valorAtivo } = acordosPage.resumo
 
@@ -240,11 +245,23 @@ export default async function AcordosPage({ searchParams }: AcordosPageProps) {
                 ))}
               </Select>
             </ListFilterField>
-            <ListFilterField label="Data início" className="xl:col-span-2">
+            <ListFilterField label="Data do acordo de" className="xl:col-span-2">
               <Input name="data_de" type="date" defaultValue={dateFilter(params.data_de)} />
             </ListFilterField>
-            <ListFilterField label="Data fim" className="xl:col-span-2">
+            <ListFilterField label="Data do acordo até" className="xl:col-span-2">
               <Input name="data_ate" type="date" defaultValue={dateFilter(params.data_ate)} />
+            </ListFilterField>
+            <ListFilterField label="Operador responsável" className="xl:col-span-3">
+              <Select name="operador_id" defaultValue={clean(params.operador_id)}>
+                <option value="">Todos</option>
+                {operadores.map(operador => <option key={operador.id} value={operador.id}>{operador.nome}</option>)}
+              </Select>
+            </ListFilterField>
+            <ListFilterField label="Criação de" className="xl:col-span-2">
+              <Input name="criacao_de" type="date" defaultValue={dateFilter(params.criacao_de)} />
+            </ListFilterField>
+            <ListFilterField label="Criação até" className="xl:col-span-2">
+              <Input name="criacao_ate" type="date" defaultValue={dateFilter(params.criacao_ate)} />
             </ListFilterField>
             <ListFilterField label="Ordenar por" className="xl:col-span-3">
               <Select name="ordenar" defaultValue={clean(params.ordenar) || 'data_desc'}>

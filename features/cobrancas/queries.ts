@@ -11,9 +11,12 @@ import {
 } from '@/lib/constants/cobrancas'
 import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 import { getAdministradoraAliasKey } from '@/lib/core/administradora'
+import { aplicarFiltroCriacao } from '@/lib/core/filtros-criacao'
+import { aplicarFiltroOperador } from '@/features/cadastros/filtro-operador'
 
 export type CobrancaListFilters = {
   search?: string
+  operadorId?: string
   administradoraId?: string
   condominioId?: string
   unidadeId?: string
@@ -21,6 +24,8 @@ export type CobrancaListFilters = {
   statusList?: string[]
   vencimentoDe?: string
   vencimentoAte?: string
+  criacaoDe?: string
+  criacaoAte?: string
   judicializacaoUnidade?: string
   limit?: number
 }
@@ -209,7 +214,8 @@ async function applyCobrancaFilters(
   scope: CarteiraScope,
   filters: CobrancaListFilters,
 ) {
-  let scopedQuery = query
+  let scopedQuery = aplicarFiltroCriacao(query, filters.criacaoDe, filters.criacaoAte)
+  scopedQuery = (await aplicarFiltroOperador(scopedQuery, supabase, scope, filters.operadorId)).query
 
   if (filters.statusList?.length) {
     scopedQuery = scopedQuery.or(

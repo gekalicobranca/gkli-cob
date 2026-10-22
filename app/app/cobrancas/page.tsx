@@ -49,6 +49,7 @@ import {
 } from "@/lib/constants/cobrancas";
 import { resolveFiltrosStatus, STATUS_BLOQUEIOS, STATUS_OPERACIONAIS } from "@/features/cobrancas/filtros-status";
 import { CobrancasBulkForm } from "./cobrancas-bulk-controls";
+import { listOperadoresCadastro } from '@/features/condominios/organizacao-queries';
 
 type PageProps = {
   searchParams?: Promise<{
@@ -59,6 +60,9 @@ type PageProps = {
     status?: string;
     vencimento_de?: string;
     vencimento_ate?: string;
+    criacao_de?: string;
+    criacao_ate?: string;
+    operador_id?: string;
     judicializacao_unidade?: string;
     ordenar?: string;
     page?: string;
@@ -223,6 +227,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const statusFilter = resolveFiltrosStatus(statusParam, getParam(params.judicializacao_unidade));
   const filters = {
     search: getParam(params.q),
+    operadorId: getParam(params.operador_id),
     administradoraId: getParam(params.administradora_id),
     condominioId: getParam(params.condominio_id),
     unidadeId: getParam(params.unidade_id),
@@ -230,28 +235,36 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     statusList: statusFilter.statusList,
     vencimentoDe: getParam(params.vencimento_de),
     vencimentoAte: getParam(params.vencimento_ate),
+    criacaoDe: getParam(params.criacao_de),
+    criacaoAte: getParam(params.criacao_ate),
     judicializacaoUnidade: statusFilter.judicializacaoUnidade,
     ordenar: getParam(params.ordenar) || "vencimento_asc",
   };
   const queryParams = {
     q: filters.search,
+    operador_id: filters.operadorId,
     administradora_id: filters.administradoraId,
     condominio_id: filters.condominioId,
     unidade_id: filters.unidadeId,
     status: statusFilter.statusSelect === "operacionais" ? "" : statusFilter.statusSelect,
     vencimento_de: filters.vencimentoDe,
     vencimento_ate: filters.vencimentoAte,
+    criacao_de: filters.criacaoDe,
+    criacao_ate: filters.criacaoAte,
     judicializacao_unidade: filters.judicializacaoUnidade,
     ordenar: filters.ordenar,
   };
   const hasFilters = Boolean(
     filters.search ||
+    filters.operadorId ||
     filters.administradoraId ||
     filters.condominioId ||
     filters.unidadeId ||
     statusFilter.statusSelect !== "operacionais" ||
     filters.vencimentoDe ||
     filters.vencimentoAte ||
+    filters.criacaoDe ||
+    filters.criacaoAte ||
     filters.ordenar !== "vencimento_asc" ||
     filters.judicializacaoUnidade !== "nao",
   );
@@ -264,7 +277,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const relatorioExecutivoHref = cobrancasRelatorioExecutivoHref(queryParams);
 
   const scope = await getPermittedCarteiras();
-  const [pageData, resumo, administradoras, condominios, unidades] = await Promise.all([
+  const [pageData, resumo, administradoras, condominios, unidades, operadores] = await Promise.all([
     listCobrancasPage(scope, filters, { page, pageSize: PAGE_SIZE, orderBy: filters.ordenar }).catch((error) => {
       console.error("Erro ao carregar lista de cobrancas:", error);
       return emptyPageData(page);
@@ -287,6 +300,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
           return [];
         })
       : Promise.resolve([]),
+    listOperadoresCadastro(),
   ]);
   const rows = pageData.rows;
   const pageGroups = groupCobrancas(rows);
@@ -456,6 +470,18 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                 </ListFilterField>
                 <ListFilterField label="Vencimento até" className="xl:col-span-2">
                   <Input name="vencimento_ate" type="date" defaultValue={filters.vencimentoAte} />
+                </ListFilterField>
+                <ListFilterField label="Operador responsável" className="xl:col-span-3">
+                  <Select name="operador_id" defaultValue={filters.operadorId}>
+                    <option value="">Todos</option>
+                    {operadores.map(operador => <option key={operador.id} value={operador.id}>{operador.nome}</option>)}
+                  </Select>
+                </ListFilterField>
+                <ListFilterField label="Criação de" className="xl:col-span-2">
+                  <Input name="criacao_de" type="date" defaultValue={filters.criacaoDe} />
+                </ListFilterField>
+                <ListFilterField label="Criação até" className="xl:col-span-2">
+                  <Input name="criacao_ate" type="date" defaultValue={filters.criacaoAte} />
                 </ListFilterField>
                 <ListFilterField label="Bloqueios" className="xl:col-span-2">
                   <Select name="judicializacao_unidade" defaultValue={filters.judicializacaoUnidade}>
