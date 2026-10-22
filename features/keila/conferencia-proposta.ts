@@ -3,7 +3,7 @@ import { AGENTES_VIRTUAIS, type AgenteVirtualId } from '../agentes-virtuais/perf
 import { createHash } from 'node:crypto'
 import { montarPropostaKeila } from './acordos'
 
-export type CotaFonte = { vencimento: string; valor: number; linha: number }
+export type CotaFonte = { vencimento: string; valor: number; linha: number; recibo?:string; planilha?:string; linha_planilha?:number }
 export type CotaCadastro = { id: string; vencimento: string; valor_atualizado?: number | string | null; status_operacional?: string | null; status_financeiro?: string | null; duplicada_de_id?: string | null; observacoes?: string | null }
 export type RegrasConferencia = { dias_apos_vencimento_regua: number; despesas_acordo_avista_percentual: number | null; despesas_acordo_parcelado_percentual: number | null; parcelas_acordo_sem_aprovacao_sindico: number | null }
 export function hashConferencia(value: unknown): string {
@@ -41,7 +41,7 @@ export function extrairCotasLello(rows: unknown[][], codigo: string): CotaFonte[
  if (new Set(negociaveis.map(c => c.vencimento)).size !== negociaveis.length) throw new Error('Mais de uma cota no mesmo vencimento. Concilie os recibos antes de propor.')
  return cotas.sort((a,b) => a.vencimento.localeCompare(b.vencimento))
 }
-export function conferirProposta(cotas: CotaFonte[], cadastro: CotaCadastro[], regras: RegrasConferencia, quantidade: number, vencimento: string, hoje = new Date()) {
+export function conferirProposta(cotas: CotaFonte[], cadastro: CotaCadastro[], regras: RegrasConferencia, quantidade: number, vencimento: string, hoje = new Date(), politica: {suspenderAntesDe:string|null} = {suspenderAntesDe:'2026-01-01'}) {
  if (!Number.isFinite(regras.dias_apos_vencimento_regua) || regras.dias_apos_vencimento_regua < 0 ||
   ![regras.despesas_acordo_avista_percentual,regras.despesas_acordo_parcelado_percentual].every(v=>typeof v==='number' && Number.isFinite(v) && v>=0 && v<=100) ||
   !Number.isInteger(regras.parcelas_acordo_sem_aprovacao_sindico) || (regras.parcelas_acordo_sem_aprovacao_sindico??0)<1) throw new Error('Regras do condomínio incompletas ou inválidas. Conferência necessária.')
@@ -52,7 +52,7 @@ export function conferirProposta(cotas: CotaFonte[], cadastro: CotaCadastro[], r
  const divergencias: {vencimento:string;cadastro:number;fonte:number;motivo:string}[] = []
  for (const cota of cotas) {
   const atraso = Math.round((Date.parse(`${dia}T12:00:00Z`)-Date.parse(`${cota.vencimento}T12:00:00Z`))/86400000)
-  if (cota.vencimento < '2026-01-01') { excluidas.push({...cota,motivo:'Anterior a 2026 — suspensa'}); continue }
+  if (politica.suspenderAntesDe && cota.vencimento < politica.suspenderAntesDe) { excluidas.push({...cota,motivo:'Anterior a 2026 — suspensa'}); continue }
   if (atraso < regras.dias_apos_vencimento_regua) { excluidas.push({...cota,motivo:`Fora da régua de ${regras.dias_apos_vencimento_regua} dias`}); continue }
   const correspondentes = cadastro.filter(c => !c.duplicada_de_id && c.vencimento === cota.vencimento)
   if (correspondentes.length !== 1) throw new Error(`Conciliação pendente em ${cota.vencimento}: ${correspondentes.length} cobranças no cadastro para a cota da fonte.`)
@@ -63,7 +63,7 @@ export function conferirProposta(cotas: CotaFonte[], cadastro: CotaCadastro[], r
   catch { throw new Error(`Cota ${cota.vencimento} consta na fonte, mas está bloqueada ou baixada no cadastro. Revisão necessária.`) }
   incluidas.push({...cota,cobranca_id:c.id}); snapshot.push({...c,valor_atualizado:cota.valor})
  }
- for (const c of cadastro.filter(c=>!c.duplicada_de_id && c.status_financeiro==='em_aberto' && c.vencimento >= '2026-01-01')) {
+ for (const c of cadastro.filter(c=>!c.duplicada_de_id && c.status_financeiro==='em_aberto' && (!politica.suspenderAntesDe || c.vencimento >= politica.suspenderAntesDe))) {
   if (!cotas.some(f=>f.vencimento===c.vencimento)) throw new Error(`Cobrança ${c.vencimento} está aberta no cadastro e ausente da fonte. Concilie antes de propor.`)
  }
  const avista = montarPropostaKeila(snapshot,regras.dias_apos_vencimento_regua,1,vencimento,hoje,regras)
@@ -94,4 +94,4 @@ function renderizarPropostaSemValidade(nome: string, unidade: string, condominio
  }
  return `Olá, ${nome}.\n\nPara ${unidade}, do ${condominio}, o relatório da administradora de ${data(dataFonte)} apresenta as seguintes cotas incluídas na proposta:\n\n${plano.incluidas.map(c=>`• Vencimento ${data(c.vencimento)}: ${moeda(c.valor)}.`).join('\n')}\nTotal atualizado das cotas: ${moeda(plano.avista.base)}.\n\nOpções conforme as regras atuais do condomínio:\n• À vista: ${moeda(plano.avista.total)}, incluindo ${moeda(plano.avista.despesas)} de despesas de cobrança (${plano.avista.percentual}%), vencimento proposto em ${data(plano.avista.parcelas[0].vencimento)}.\n• Em ${plano.parcelado.parcelas.length} parcelas: ${moeda(plano.parcelado.total)}, incluindo ${moeda(plano.parcelado.despesas)} de despesas de cobrança (${plano.parcelado.percentual}%).\n${plano.parcelado.parcelas.map(p=>`${p.numero}ª parcela: ${moeda(p.valor)}, vencimento proposto em ${data(p.vencimento)}.`).join('\n')}\n\n${excluidasResposta.length ? `Cotas não incluídas nesta proposta:\n${excluidasResposta.map(c=>`• ${data(c.vencimento)}: ${c.motivo}.`).join('\n')}\n\n` : ''}${observacaoGarantidora}Os vencimentos são sugestões e dependem da sua confirmação. Qual opção fica melhor para você? Após a confirmação das condições, o acordo e os boletos serão providenciados junto à administradora.\n\nKeila | GEKALI`
 }
-export type ConferenciaProposta = { validade_regra?: 'sete_dias_v1'; versao: 1; arquivo_id: string; execucao_id: string; sha256: string; data_fonte: string; quantidade: number; vencimento: string; nome: string; unidade: string; condominio: string; plano: ReturnType<typeof conferirProposta>; texto: string; hash: string; acolhimento?:'desculpas_whatsapp_sem_retorno'; orientacao?:{parcelamento_solicitado:true;segunda_via_vencimento?:string;administradora:string} }
+export type ConferenciaProposta = { validade_regra?: 'sete_dias_v1'; fonte_formato?:'manager_cadiz_v1'; versao: 1; arquivo_id: string; execucao_id: string; sha256: string; data_fonte: string; quantidade: number; vencimento: string; nome: string; unidade: string; condominio: string; plano: ReturnType<typeof conferirProposta>; texto: string; hash: string; acolhimento?:'desculpas_whatsapp_sem_retorno'; orientacao?:{parcelamento_solicitado:true;segunda_via_vencimento?:string;administradora:string} }
