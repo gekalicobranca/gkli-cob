@@ -175,7 +175,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
         }
       />
 
-      <ListKpiGrid>
+      <ListKpiGrid className={judicial ? "xl:grid-cols-5" : undefined}>
         {judicial && <KpiCard label="Em conferência" value={emConferencia} />}
         <KpiCard label="Valor ativo" value={formatCurrency(valorAtivo)} icon={<Handshake size={18} />} />
         {[
