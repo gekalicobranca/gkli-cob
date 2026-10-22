@@ -118,14 +118,16 @@ function getCarteiras(rows: any[]) {
 }
 
 function groupRows(rows: any[]) {
-  const groups = new Map<string, { id: string; nome: string; parcelas: any[] }>()
+  const groups = new Map<string, { id: string; nome: string; carteiraId: string; carteiraNome: string; parcelas: any[] }>()
   for (const row of rows) {
     const condominio = row.acordo?.condominios
-    const id = condominio?.id ?? 'sem-condominio'
-    if (!groups.has(id)) groups.set(id, { id, nome: condominio?.nome ?? 'Condomínio não informado', parcelas: [] })
+    const carteiraId = row.acordo?.carteiras?.id ?? row.acordo?.carteira_id ?? 'sem-carteira'
+    const carteiraNome = row.acordo?.carteiras?.nome ?? 'Carteira não informada'
+    const id = `${carteiraId}:${condominio?.id ?? 'sem-condominio'}`
+    if (!groups.has(id)) groups.set(id, { id, nome: condominio?.nome ?? 'Condomínio não informado', carteiraId, carteiraNome, parcelas: [] })
     groups.get(id)!.parcelas.push(row)
   }
-  return Array.from(groups.values()).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  return Array.from(groups.values()).sort((a, b) => a.carteiraNome.localeCompare(b.carteiraNome, 'pt-BR') || a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
 function filterRows(rows: any[], filters: Awaited<SearchParams>) {
@@ -250,6 +252,12 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
   const page = Math.min(getPageParam(params.page), totalPages)
   const groups = allGroups.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const rows = groups.flatMap((group) => group.parcelas)
+  const carteiraGroups = Array.from(groups.reduce((map, group) => {
+    const carteira = map.get(group.carteiraId) ?? { id: group.carteiraId, nome: group.carteiraNome, condominios: [] as typeof groups }
+    carteira.condominios.push(group)
+    map.set(group.carteiraId, carteira)
+    return map
+  }, new Map<string, { id: string; nome: string; condominios: typeof groups }>()).values())
   const condominios = getCondominios(allRows)
   const carteiras = getCarteiras(allRows)
 
@@ -374,7 +382,7 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><CalendarClock size={18} /></div>
             <div>
-              <h2 className="text-base font-medium text-slate-950">Parcelas por condomínio</h2>
+              <h2 className="text-base font-medium text-slate-950">Parcelas por carteira e condomínio</h2>
               <p className="text-xs text-slate-500">{groups.length} de {allGroups.length} condomínio(s) nesta página</p>
             </div>
           </div>
@@ -384,7 +392,19 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
           <div className="p-3"><EmptyState title="Nenhuma parcela encontrada" description="Ajuste os filtros para ampliar a consulta." /></div>
         ) : (
           <div className="divide-y divide-slate-200">
-            {groups.map((group) => (
+            {carteiraGroups.map((carteira) => (
+              <details key={carteira.id} className="group/carteira bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-y border-slate-200 bg-slate-100/80 px-4 py-3 transition hover:bg-slate-200/70 [&::-webkit-details-marker]:hidden">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open/carteira:rotate-180" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-950">{carteira.nome}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{carteira.condominios.length} condomínio(s) nesta página</p>
+                    </div>
+                  </div>
+                </summary>
+                <div className="divide-y divide-slate-200 pl-3">
+            {carteira.condominios.map((group) => (
               <details key={group.id} className="group/condominio bg-white">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 bg-slate-50/80 px-4 py-3 transition hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
                   <div className="flex min-w-0 items-center gap-3">
@@ -425,6 +445,9 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
                 </div>
                     )
                   })}
+                </div>
+              </details>
+            ))}
                 </div>
               </details>
             ))}
