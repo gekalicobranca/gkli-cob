@@ -24,6 +24,7 @@ import {
   classificarRankingMensalComApp,
 } from "@/features/captacao-automatizada/ranking-mensal"
 import { persistirCaptacaoHistoricaSindico } from "@/features/captacao-automatizada/historico-sindico"
+import { conversaoPdfDeCobrancas, removerAusentesDaConversaoPdf } from "@/features/importacoes/ausentes-conversao"
 import {
   anoCorrenteImportacao,
   limparCobrancasDaNovaImportacao,
@@ -189,7 +190,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (chamadaMaestro && (conversao.condominio_id !== condominioId || conversao.carteira_id !== carteiraId)) {
+    if ((chamadaMaestro && (conversao.condominio_id !== condominioId || conversao.carteira_id !== carteiraId))
+      || (conversao.condominio_id && conversao.condominio_id !== condominioId)
+      || (conversao.carteira_id && conversao.carteira_id !== carteiraId)) {
       return NextResponse.json({ ok: false, error: "Conversão não corresponde ao condomínio e carteira informados." }, { status: 403 })
     }
 
@@ -218,12 +221,17 @@ export async function POST(request: NextRequest) {
     }
 
     const preview = conversao.preview_json as any
+    const captacaoPdf = conversaoPdfDeCobrancas(preview)
     const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
-    const { data: condominioConfiguracao } = await supabase
+    const { data: condominioConfiguracao, error: condominioError } = await supabase
       .from("condominios")
-      .select("inicio_cobranca_dias, dias_apos_vencimento_regua, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
+      .select("carteira_id, inicio_cobranca_dias, dias_apos_vencimento_regua, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
       .eq("id", condominioId)
       .maybeSingle()
+    if (condominioError) throw new Error(`Erro ao conferir condomínio: ${condominioError.message}`)
+    if (!condominioConfiguracao || condominioConfiguracao.carteira_id !== carteiraId) {
+      return NextResponse.json({ ok: false, error: "Condomínio não pertence à carteira informada." }, { status: 403 })
+    }
 
     let cobrancasCriadas = 0
     let cobrancasIgnoradas = 0
@@ -231,12 +239,15 @@ export async function POST(request: NextRequest) {
     let cobrancasAusentes = 0
     let parcelasCriadas = 0
     let cobrancasAnterioresRemovidas = 0
+    let falhasImportacao = 0
+    let limpezaAusentesPdf: { removidas: number; motivo?: string } | undefined
     const inconsistencias: string[] = []
     const importadasParaAusencia: CobrancaImportadaConciliacao[] = []
     const origemImportacao = formatOrigemImportacao("conversao_relatorio")
     const anoCorrente = anoCorrenteImportacao()
 
-    if (limparCobrancasAnteriores) {
+    // No PDF, substitui apenas os ausentes depois de conferir a captação inteira.
+    if (limparCobrancasAnteriores && !captacaoPdf) {
       if (chamadaMaestro) {
         const { data: limpeza, error: limpezaError } = await supabase.rpc('maestro_substituir_cobrancas_conversao', { p_conversao: conversaoId })
         if (limpezaError) throw new Error(`Erro ao substituir cobranças do Maestro: ${limpezaError.message}`)
@@ -266,6 +277,7 @@ export async function POST(request: NextRequest) {
       const responsavelNome = String(item.responsavel ?? "").trim()
 
       if (!unidadeLabel) {
+        falhasImportacao += 1
         inconsistencias.push("Cobrança ignorada: unidade vazia.")
         continue
       }
@@ -314,6 +326,7 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (unidadeError || !novaUnidade) {
+          falhasImportacao += 1
           inconsistencias.push(
             `Unidade ${unidadeLabel}: ${unidadeError?.message ?? "erro ao criar unidade"}`
           )
@@ -479,6 +492,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (cobrancaError || !cobranca) {
+        falhasImportacao += 1
         inconsistencias.push(
           `Unidade ${unidadeLabel}: ${cobrancaError?.message ?? "erro ao criar cobrança"}`
         )
@@ -525,6 +539,7 @@ export async function POST(request: NextRequest) {
             .insert(payload as any)
 
           if (parcelasError) {
+            falhasImportacao += 1
             inconsistencias.push(
               `Unidade ${unidadeLabel}: ${parcelasError.message}`
             )
@@ -535,7 +550,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    try {
+    if (captacaoPdf && limparCobrancasAnteriores) {
+      const limpeza = await removerAusentesDaConversaoPdf(supabase, {
+        conversaoId, condominioId, carteiraId, preview, importadas: importadasParaAusencia,
+        falhas: falhasImportacao + cobrancasDivergentes,
+      })
+      limpezaAusentesPdf = limpeza
+      cobrancasAnterioresRemovidas += Number(limpeza.removidas ?? 0)
+      if (limpeza.motivo) inconsistencias.push(limpeza.motivo)
+    } else try {
       const ausentes = await encontrarCobrancasAbertasAusentes(supabase, {
         condominioIds: [condominioId],
         carteiraId,
@@ -588,7 +611,8 @@ export async function POST(request: NextRequest) {
       .update({
         status: inconsistencias.length ? "concluido_com_alertas" : "concluido",
         inconsistencias_json: inconsistencias,
-        preview_json: rankingMensal ? { ...previewSemBaseRanking, rankingMensal } : previewSemBaseRanking,
+        preview_json: { ...previewSemBaseRanking, ...(rankingMensal ? { rankingMensal } : {}),
+          ...(limpezaAusentesPdf ? { limpezaAusentesPdf } : {}) },
         atualizado_em: new Date().toISOString(),
       } as any)
       .eq("id", conversaoId)
