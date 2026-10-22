@@ -21,6 +21,7 @@ import { CondominioCadastroForm } from '@/features/condominios/components/cadast
 import { ClassificacaoOperacionalBadge, ClassificacaoOperacionalField } from '@/features/condominios/components/classificacao-operacional'
 import { getCondominioAgenteStatus } from '@/features/agente-automatico/queries'
 import { RelatorioRanking } from '@/features/condominios/components/relatorio-ranking'
+import { RELATORIOS_EXECUTIVOS_PUBLICADOS } from '@/features/condominios/relatorios-publicados'
 
 type CondominioAba = 'cadastro' | 'cobranca' | 'reguas' | 'historico' | 'auditoria' | 'rankings'
 
@@ -102,6 +103,7 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
         description={condominio.nome_operacional && condominio.nome_operacional !== condominio.nome ? `Razão/Nome oficial: ${condominio.nome}` : 'Cadastro integral, exportações e parâmetros operacionais do condomínio.'}
         actions={
           <>
+            {RELATORIOS_EXECUTIVOS_PUBLICADOS[condominio.id] ? <ButtonLink href={`/api/condominios/${condominio.id}/relatorio-por-unidade`} prefetch={false} target="_blank" rel="noopener noreferrer" variant="secondary" title={`Cotas, acordos e processos por unidade - posição de ${RELATORIOS_EXECUTIVOS_PUBLICADOS[condominio.id].data}`}><ClipboardList size={16} />Relatório por unidade</ButtonLink> : null}
             <ButtonLink href={`/api/condominios/${condominio.id}/exportacoes/unidades`} variant="secondary"><Download size={16} />Exportar unidades</ButtonLink>
             <ButtonLink href={`/api/condominios/${condominio.id}/exportacoes/cobrancas`} variant="secondary"><Download size={16} />Exportar cobranças</ButtonLink>
             <ButtonLink href={`/api/condominios/${condominio.id}/exportacoes/acordos`} variant="secondary"><Download size={16} />Exportar acordos</ButtonLink>
