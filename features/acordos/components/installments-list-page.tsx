@@ -47,7 +47,7 @@ type SearchParams = Promise<{
   page?: string
 }>
 
-const PAGE_SIZE = 100
+const PAGE_SIZE = 30
 
 function getPageParam(value: unknown) {
   const page = Number(value ?? 1)
@@ -245,11 +245,13 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
   const scope = await getPermittedCarteiras()
   const [allRows, operadores] = await Promise.all([listParcelasAcordosOperacionais(scope, agreementKind), listOperadoresCadastro()])
   const filteredRows = sortRows(filterRows(allRows, params), String(params.ordenar ?? 'vencimento_asc'))
-  const page = getPageParam(params.page)
-  const rows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const allGroups = groupRows(filteredRows)
+  const totalPages = Math.max(1, Math.ceil(allGroups.length / PAGE_SIZE))
+  const page = Math.min(getPageParam(params.page), totalPages)
+  const groups = allGroups.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const rows = groups.flatMap((group) => group.parcelas)
   const condominios = getCondominios(allRows)
   const carteiras = getCarteiras(allRows)
-  const groups = groupRows(rows)
 
   const pagas = filteredRows.filter(isParcelaPaga)
   const abertas = filteredRows.filter((row) => !isParcelaPaga(row))
@@ -373,7 +375,7 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
             <div className="rounded-2xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><CalendarClock size={18} /></div>
             <div>
               <h2 className="text-base font-medium text-slate-950">Parcelas por condomínio</h2>
-              <p className="text-xs text-slate-500">{groups.length} condomínio(s) na seleção</p>
+              <p className="text-xs text-slate-500">{groups.length} de {allGroups.length} condomínio(s) nesta página</p>
             </div>
           </div>
         </div>
@@ -431,9 +433,9 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
         <ListPagination
           page={page}
           pageSize={PAGE_SIZE}
-          total={filteredRows.length}
+          total={allGroups.length}
           previousHref={page > 1 ? pageHref(params, page - 1, basePath) : undefined}
-          nextHref={page * PAGE_SIZE < filteredRows.length ? pageHref(params, page + 1, basePath) : undefined}
+          nextHref={page * PAGE_SIZE < allGroups.length ? pageHref(params, page + 1, basePath) : undefined}
         />
         </Card>
     </div>
