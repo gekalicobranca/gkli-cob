@@ -55,6 +55,23 @@ export async function checkAcordosStatus(
   if (options.acordoIds?.length === 0) throw new Error('Informe pelo menos um acordo.');
   const escopo = (query: any) => options.acordoIds ? query.in('acordo_id', options.acordoIds) : query;
 
+  // A pausa de envios, sozinha, não suspende a apuração financeira. Esta marca
+  // explícita impede inferir atraso, quebra ou quitação antes da conciliação.
+  const emConciliacao = new Set<string>();
+  for (let inicio = 0; ; inicio += 500) {
+    const { data, error } = await escopo(supabase.from('regua_pausas')
+      .select('id, acordo_id, pausa_ate, payload').eq('ativo', true)
+      .eq('payload->>conciliacao_pagamentos_pendente', 'true')
+      .order('id').range(inicio, inicio + 499));
+    if (error) throw new Error('Erro ao conferir pausas de conciliação: ' + error.message);
+    for (const pausa of data ?? []) {
+      const vigente = !pausa.pausa_ate || (pausa.pausa_ate.length === 10
+        ? pausa.pausa_ate >= hojeISO : Date.parse(pausa.pausa_ate) >= Date.now());
+      if (pausa.acordo_id && vigente) emConciliacao.add(pausa.acordo_id);
+    }
+    if ((data ?? []).length < 500) break;
+  }
+
   const { data: parcelasAbertasVencidas, error: parcelasError } = await escopo(supabase
     .from("parcelas_acordo")
     .select("id, acordo_id, vencimento, status")
@@ -68,8 +85,8 @@ export async function checkAcordosStatus(
     );
   }
 
-  const parcelasParaVencer = (parcelasAbertasVencidas ??
-    []) as ParcelaAcordoStatusRow[];
+  const parcelasParaVencer = ((parcelasAbertasVencidas ??
+    []) as ParcelaAcordoStatusRow[]).filter(p => !emConciliacao.has(p.acordo_id));
 
   if (parcelasParaVencer.length > 0) {
     const ids = parcelasParaVencer.map((parcela) => parcela.id);
@@ -101,6 +118,7 @@ export async function checkAcordosStatus(
 
   const porAcordo = new Map<string, any[]>();
   for (const parcela of parcelasConferidas) {
+    if (emConciliacao.has(parcela.acordo_id)) continue;
     const lista = porAcordo.get(parcela.acordo_id) ?? [];
     lista.push(parcela);
     porAcordo.set(parcela.acordo_id, lista);

@@ -14,6 +14,7 @@ test('período aberto mantém pendências como ativo; quebra e quitação contin
   const dia = (dias: number) => new Date(Date.parse(`${hoje}T00:00:00Z`) - dias * 86400000).toISOString().slice(0, 10)
   const statuses = ['em_dia', 'em_dia', 'quitado', 'cancelado', 'renegociado', 'quebrado', 'em_dia', 'em_dia', 'em_dia']
   const tables: Record<string, any[]> = {
+    regua_pausas: [],
     fechamento_periodos: [{ status: 'rascunho', data_abertura: dia(20), data_fechamento: dia(-10) }],
     acordos: statuses.map((status, i) => ({ id: String(i), status, status_financeiro: 'em_aberto', valor_acordado: 718.2, entrada: 0, unidade_id: null, cobranca_id: null })),
     parcelas_acordo: statuses.map((_, i) => ({ id: `p${i}`, acordo_id: String(i), status: i === 6 ? 'paga' : 'aberta', vencimento: dia(i === 0 ? 15 : 30), data_pagamento: i === 6 || i === 7 ? dia(2) : null, valor: 718.2 })),
