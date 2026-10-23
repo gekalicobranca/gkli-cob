@@ -4,6 +4,7 @@ import { registrarPerformanceFlow } from '../performance'
 import { flowCobrancaOrdem, type OrdemFlowCobranca } from './rotas'
 import { carregarCanaisOcupados } from './vinculos-canais'
 import { carregarContatosFlow } from './contatos-flow'
+import { priorizarWhatsappSemEmail } from './prioridade-whatsapp'
 import { reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from './canais'
 import { listReguasForSelect } from '@/features/reguas/queries'
 import { COBRANCA_STATUS_OPERACIONAL } from '@/lib/constants/cobrancas'
@@ -293,11 +294,11 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const saneamentoMaestro = [...(painel ?? []), ...(disponibilidade ?? [])].filter((row: any) => motivos.has(row.id))
     .map((row: any) => ({ ...row, motivo_saneamento: motivos.get(row.id) }))
   const normalize = (row: any) => ({ ...row, carteira: relation(row.carteira), condominio: relation(row.condominio), unidade: relation(row.unidade) })
-  const painelElegivel = options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id) && !idsSemContato.has(row.id)).map(normalize)
-  const disponibilidadeElegivel = options.somenteSaneamento ? [] : candidatas
+  const painelElegivel = priorizarWhatsappSemEmail(options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id) && !idsSemContato.has(row.id)).map(row => normalize(contatosPorId.get(row.id) ?? row)), normalized.canal)
+  const disponibilidadeElegivel = priorizarWhatsappSemEmail(options.somenteSaneamento ? [] : candidatas
     .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
     .filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
-    .map(normalize)
+    .map(normalize), normalized.canal)
   const offset = (Math.max(1, options.page ?? 1) - 1) * COBRANCAS_FLOW_PAGE_SIZE
   const paginar = (rows: any[]) => options.page === undefined ? rows : rows.slice(offset, offset + COBRANCAS_FLOW_PAGE_SIZE)
 

@@ -1,6 +1,7 @@
 import { carregarApoiosParaCorrespondencia } from '@/features/responsaveis-unidades/correspondencia'
 import { escolherContatoRegua } from '@/features/regua/services/regua-shared'
 import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade'
+import { responsavelWhatsappSemEmail } from './prioridade-whatsapp'
 
 // Usa a mesma correspondência e escolha de destinatário do processamento da régua.
 export function canaisSemDestinatarioFlow(row: any, apoios: any[]) {
@@ -18,5 +19,11 @@ export async function carregarContatosFlow(db: { from: (table: string) => any },
     list.push(apoio)
     porCondominio.set(apoio.condominio_id, list)
   }
-  return rows.map(row => ({ ...row, canais_sem_destinatario: canaisSemDestinatarioFlow(row, porCondominio.get(row.condominio_id) ?? []) }))
+  return rows.map(row => {
+    const unidade = Array.isArray(row.unidade) ? row.unidade[0] : row.unidade
+    const apoios = porCondominio.get(row.condominio_id) ?? []
+    const contatos = resolverCorrespondenciasUnidade({ ...unidade, condominio_id: row.condominio_id }, apoios).correspondencias
+    const contato = escolherContatoRegua({ unidade, apoios: contatos, canal: 'whatsapp' })
+    return { ...row, canais_sem_destinatario: canaisSemDestinatarioFlow(row, apoios), whatsapp_sem_email: responsavelWhatsappSemEmail(contato) }
+  })
 }

@@ -174,7 +174,7 @@ export function FlowCobrancaWorkbench({
     try {
       const ids = new Set(formData.getAll('cobranca_id').map(String))
       const reguasPorCondominio = Object.fromEntries([...formData.entries()].filter(([key]) => key.startsWith('regua_condominio:')).map(([key, value]) => [key.slice('regua_condominio:'.length), String(value)]))
-      const partes = planejarFlowsSequenciais(disponiveis.filter(row => ids.has(row.id)), reguasPorCondominio)
+      const partes = planejarFlowsSequenciais(disponiveis.filter(row => ids.has(row.id)), reguasPorCondominio, canal)
       if (!partes.length) return { error: 'Selecione um condomínio para criar os flows.' }
       for (let index = 0; index < partes.length; index += 1) {
         setProgresso(`Criando parte ${index + 1} de ${partes.length} · ${criados} flow(s) pronto(s)`)
@@ -216,9 +216,9 @@ export function FlowCobrancaWorkbench({
   const selected = useMemo(() => new Set(selectedCobrancas.map(row => row.id)), [selectedCobrancas])
   const grupos = useMemo(() => agruparCobrancasFlow(selectedCobrancas), [selectedCobrancas])
   const plano = useMemo(() => {
-    try { return { quantidade: planejarFlowsSequenciais(selectedCobrancas, Object.fromEntries(gruposDisponiveis.map(grupo => [grupo.condominioId, grupo.reguaEscolhida]))).length, error: '' } }
+    try { return { quantidade: planejarFlowsSequenciais(selectedCobrancas, Object.fromEntries(gruposDisponiveis.map(grupo => [grupo.condominioId, grupo.reguaEscolhida])), canal).length, error: '' } }
     catch (error) { return { quantidade: 0, error: error instanceof Error ? error.message : 'Revise o período selecionado.' } }
-  }, [selectedCobrancas, gruposDisponiveis])
+  }, [selectedCobrancas, gruposDisponiveis, canal])
   const carteirasDisponiveis = useMemo(() => {
     const carteiras = new Map<string, { id: string; nome: string; grupos: typeof gruposDisponiveis; quantidade: number }>()
     for (const grupo of gruposDisponiveis) {
