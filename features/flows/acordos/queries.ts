@@ -197,7 +197,7 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
     .select(PARCELA_SELECT)
     .in('status', [PARCELA_ACORDO_STATUS.PENDENTE, PARCELA_ACORDO_STATUS.VENCIDA])
     .order('vencimento', { ascending: true })
-    .limit(500)
+    .order('id', { ascending: true })
 
   if (scope.carteiraIds !== null) parcelasQuery = parcelasQuery.in('acordo.carteira_id', scope.carteiraIds)
   if (normalized.carteiraId) parcelasQuery = parcelasQuery.eq('acordo.carteira_id', normalized.carteiraId)
@@ -237,8 +237,18 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
     .limit(100)
   flowsQuery = applyCarteiraScope(flowsQuery, scope.carteiraIds)
 
+  async function carregarTodasParcelas() {
+    const rows: any[] = []
+    for (let from = 0; ; from += 500) {
+      const { data, error } = await parcelasQuery.range(from, from + 499)
+      if (error) return { data: null, error }
+      rows.push(...(data ?? []))
+      if (!data || data.length < 500) return { data: rows, error: null }
+    }
+  }
+
   const [{ data: parcelasData, error: parcelasError }, { data: flows, error: flowsError }, reguas] = await Promise.all([
-    parcelasQuery,
+    carregarTodasParcelas(),
     flowsQuery,
     reguasPromise,
   ])

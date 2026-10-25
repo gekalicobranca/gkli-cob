@@ -13,6 +13,8 @@ import { getFlowAcordosPageData, hasFlowAcordosFilters, normalizeFlowAcordosFilt
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { formatCurrency } from '@/utils/formatters/currency'
 
+export const maxDuration = 300
+
 type Params = Promise<{ step?: string; criados?: string; carteira?: string; condominio?: string; vencimento_de?: string; vencimento_ate?: string }>
 
 function safeStep(value: unknown) {
@@ -51,8 +53,8 @@ export default async function FlowAcordosPage({ searchParams }: { searchParams: 
   return <ListPage>
     <PageHeader
       eyebrow="Flows"
-      title="Flow acordos"
-      description="Monte lembretes de pagamento para parcelas geradas/ativas de acordos, vincule uma régua e monitore os disparos."
+      title="Flow de acordos"
+      description="Organize os lembretes das parcelas antes e após o vencimento: selecione as parcelas, monte lotes por carteira, vincule a régua e acompanhe os envios."
       actions={<div className="flex flex-wrap gap-2">
         <ButtonLink href="/app/regua-acordo" variant="header"><Network size={16} />Réguas</ButtonLink>
         <ButtonLink href="/app/mensageria/templates?tipo=acordo" variant="header"><FileText size={16} />Templates</ButtonLink>
