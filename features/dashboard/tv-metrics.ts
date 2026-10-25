@@ -43,7 +43,7 @@ export function tvAgreementStage(agreement: TvAgreement) {
   return null
 }
 
-function eligibleTvAgreement(agreement: TvAgreement) {
+export function eligibleTvAgreement(agreement: TvAgreement) {
   return Boolean(tvAgreementStage(agreement)) && !excluidoDaSomaDivida(agreement)
     && !(agreement.observacoes ?? '').includes('[DUPLICIDADE_ACORDO_CONCILIADA]')
     && !['cancelado', 'cancelada', 'quebrado', 'rompido', 'renegociado'].includes(normalize(agreement.status))

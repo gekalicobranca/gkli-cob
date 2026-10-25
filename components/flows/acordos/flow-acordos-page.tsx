@@ -40,6 +40,10 @@ export default async function FlowAcordosPage({ searchParams, canal = 'whatsapp'
     listCarteiras(scope),
     listCondominios(scope, filters.carteiraId ? { carteiraId: filters.carteiraId } : {}),
   ])
+  const periodQuery = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) if (value && key !== 'step' && key !== 'criados') periodQuery.set(key, value)
+  periodQuery.set('vencimento_de', data.periodo.inicio)
+  periodQuery.set('vencimento_ate', data.periodo.fim)
   const parcelas = (data.parcelas ?? []) as any[]
   const ativos = data.flows.filter((flow: any) => ['pronto', 'em_execucao', 'pausado'].includes(String(flow.status))).length
   const agendadas = data.flows.reduce((sum: number, flow: any) => sum + Number(flow.total_agendadas ?? 0), 0)
@@ -65,8 +69,8 @@ export default async function FlowAcordosPage({ searchParams, canal = 'whatsapp'
     />
 
     <nav aria-label="Canal dos flows de acordos" className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2">
-      <ButtonLink href="/app/flows/acordos/email" variant={canal === 'email' ? 'primary' : 'ghost'} aria-current={canal === 'email' ? 'page' : undefined}>E-mail</ButtonLink>
-      <ButtonLink href="/app/flows/acordos/whatsapp" variant={canal === 'whatsapp' ? 'primary' : 'ghost'} aria-current={canal === 'whatsapp' ? 'page' : undefined}>WhatsApp</ButtonLink>
+      <ButtonLink href={`/app/flows/acordos/email?${periodQuery}`} variant={canal === 'email' ? 'primary' : 'ghost'} aria-current={canal === 'email' ? 'page' : undefined}>E-mail</ButtonLink>
+      <ButtonLink href={`/app/flows/acordos/whatsapp?${periodQuery}`} variant={canal === 'whatsapp' ? 'primary' : 'ghost'} aria-current={canal === 'whatsapp' ? 'page' : undefined}>WhatsApp</ButtonLink>
     </nav>
     {!data.reguas.length ? <Card className="p-4 text-sm text-slate-600">Nenhuma régua de acordos ativa para {canalLabel}. Cadastre ou ajuste as etapas em <ButtonLink href="/app/regua-acordo" variant="ghost">Réguas de acordos</ButtonLink>.</Card> : null}
     {params.criados ? (
@@ -75,6 +79,7 @@ export default async function FlowAcordosPage({ searchParams, canal = 'whatsapp'
       </Card>
     ) : null}
 
+    <Card className="p-3 text-sm text-slate-600">Vencimentos de <strong>{data.periodo.inicio.split('-').reverse().join('/')}</strong> a <strong>{data.periodo.fim.split('-').reverse().join('/')}</strong> · somente parcelas não pagas de acordos válidos, conforme o painel da TV.</Card>
     <ListKpiGrid>
       {kpis.map(({ label, value, icon: Icon, tag, tagClass, tone }) => <Card key={label} className="relative overflow-hidden p-3">
         {Icon ? <div className={`absolute right-4 top-3 rounded-lg p-2 ${tone}`}><Icon size={18} /></div> : null}
@@ -90,14 +95,15 @@ export default async function FlowAcordosPage({ searchParams, canal = 'whatsapp'
       <ListFiltersForm action={basePath} className="grid-cols-1 md:grid-cols-2 xl:grid-cols-10">
         <ListFilterField label="Carteira" className="xl:col-span-2"><Select name="carteira" defaultValue={filters.carteiraId ?? ''}><option value="">Todas</option>{carteiras.map((carteira: any) => <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>)}</Select></ListFilterField>
         <ListFilterField label="Condomínio" className="xl:col-span-3"><CondominioSearchSelect name="condominio" options={condominios.map((row: any) => ({ id: row.id, nome: row.nome_operacional || row.nome || 'Condomínio não informado', administradora: null })) as any[]} selectedId={filters.condominioId ?? ''} defaultToFirst={false} inputClassName="" /></ListFilterField>
-        <ListFilterField label="Vencimento de" className="xl:col-span-2"><Input type="date" name="vencimento_de" defaultValue={filters.vencimentoDe ?? ''} /></ListFilterField>
-        <ListFilterField label="Vencimento até" className="xl:col-span-2"><Input type="date" name="vencimento_ate" defaultValue={filters.vencimentoAte ?? ''} /></ListFilterField>
+        <ListFilterField label="Vencimento de" className="xl:col-span-2"><Input type="date" name="vencimento_de" defaultValue={data.periodo.inicio} /></ListFilterField>
+        <ListFilterField label="Vencimento até" className="xl:col-span-2"><Input type="date" name="vencimento_ate" defaultValue={data.periodo.fim} /></ListFilterField>
         <Button type="submit" className="w-full xl:col-span-1">Filtrar</Button>
       </ListFiltersForm>
     </ListCollapsibleFilters>
 
     <FlowAcordosWorkbench
       canal={canal}
+      periodo={data.periodo}
       parcelas={parcelas}
       reguas={data.reguas as any[]}
       flows={data.flows as any[]}

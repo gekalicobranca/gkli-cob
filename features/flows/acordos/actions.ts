@@ -2,6 +2,7 @@
 
 import { etapasDoCanal } from '@/lib/core/flow-acordos-canais'
 
+import { enriquecerEfetivacaoFlow, parcelaValidaFlow, validarPeriodoFlow } from './elegibilidade'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { processarReguaAcordos } from '@/features/regua/services/processar-regua-acordos'
@@ -121,6 +122,7 @@ export async function criarFlowsAcordos(formData: FormData) {
   const supabase = createAdminClient()
   const canal = String(formData.get('canal') ?? '')
   if (canal !== 'email' && canal !== 'whatsapp') throw new Error('Selecione e-mail ou WhatsApp para criar o Flow.')
+  const periodo = validarPeriodoFlow(String(formData.get('vencimento_de') ?? ''), String(formData.get('vencimento_ate') ?? ''))
   const parcelaIds = Array.from(new Set(formData.getAll('parcela_id').map(String).map((id) => id.trim()).filter(Boolean)))
   if (!parcelaIds.length) throw new Error('Selecione ao menos uma parcela gerada/ativa.')
 
@@ -130,11 +132,16 @@ export async function criarFlowsAcordos(formData: FormData) {
       id,
       acordo_id,
       status,
+      vencimento,
+      data_pagamento,
       acordo:acordos(
         id,
         carteira_id,
         status,
         status_financeiro,
+        fluxo_status,
+        boletos_solicitados_em,
+        observacoes,
         carteira:carteiras(nome),
         unidade:unidades(responsavel_nome)
       )
@@ -148,9 +155,9 @@ export async function criarFlowsAcordos(formData: FormData) {
   if (parcelas.some((row) => ![PARCELA_ACORDO_STATUS.PENDENTE, PARCELA_ACORDO_STATUS.VENCIDA].includes(row.status))) {
     throw new Error('Uma ou mais parcelas não estão geradas/ativas.')
   }
-  if (parcelas.some((row) => !(ACORDO_STATUS_VIGENTES as string[]).includes(String(row.acordo?.status ?? '')) || String(row.acordo?.status_financeiro ?? '') === 'quitado')) {
-    throw new Error('Uma ou mais parcelas pertencem a acordos que não estão ativos.')
-  }
+  for (const parcela of parcelas) assertCarteiraPermitida(scope, parcela.acordo?.carteira_id)
+  const efetivados = await enriquecerEfetivacaoFlow(supabase, parcelas.map(row => row.acordo).filter(Boolean))
+  if (parcelas.some(row => !parcelaValidaFlow({ ...row, acordo: efetivados.get(row.acordo?.id) }, periodo))) throw new Error('A seleção contém parcela paga, fora do período ou de acordo inválido. Atualize os filtros.')
   if (parcelas.some((row) => !hasResponsavelVinculado(row))) {
     throw new Error('Uma ou mais parcelas pertencem a unidades sem responsável vinculado. Corrija o cadastro antes de criar o Flow.')
   }
@@ -228,6 +235,7 @@ export async function criarFlowsAcordos(formData: FormData) {
           atualizado_por: user.id,
           payload: {
             contexto: 'flow_acordos_parcelas',
+            periodo,
             canal,
             parcela_ids: rows.map((row) => row.id),
             acordo_ids: rows.map((row) => row.acordo_id),
@@ -249,7 +257,7 @@ export async function criarFlowsAcordos(formData: FormData) {
   revalidatePath('/app/flows/acordos/email')
   revalidatePath('/app/flows/acordos/whatsapp')
   revalidatePath(`/app/flows/acordos/${canal}`)
-  redirect(`/app/flows/acordos/${canal}?step=flows&criados=${flowIds.length}`)
+  redirect(`/app/flows/acordos/${canal}?step=flows&criados=${flowIds.length}&vencimento_de=${periodo.inicio}&vencimento_ate=${periodo.fim}`)
 }
 
 export async function enviarFlowAcordos(flowId: string) {
