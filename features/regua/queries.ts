@@ -416,46 +416,9 @@ export async function listReguaCobrancaPreview(scope: CarteiraScope, filters: Re
 
 
 export const DEFAULT_ACORDO_ETAPAS: ReguaEtapa[] = [
-  {
-    id: 'default-acordo-1',
-    regua_id: 'default-acordo',
-    ordem: 1,
-    delay_dias: -3,
-    canal: 'whatsapp',
-    tom: 'leve',
-    template:
-      'Olá, {{responsavel}}. Passando para lembrar que a parcela {{parcela_numero}} do acordo da unidade {{unidade}} vence em {{vencimento}}, no valor de {{valor_parcela}}.',
-  },
-  {
-    id: 'default-acordo-2',
-    regua_id: 'default-acordo',
-    ordem: 2,
-    delay_dias: 0,
-    canal: 'whatsapp',
-    tom: 'medio',
-    template:
-      'Olá, {{responsavel}}. A parcela {{parcela_numero}} do acordo da unidade {{unidade}} vence hoje, no valor de {{valor_parcela}}. Podemos confirmar o pagamento?',
-  },
-  {
-    id: 'default-acordo-3',
-    regua_id: 'default-acordo',
-    ordem: 3,
-    delay_dias: 2,
-    canal: 'whatsapp',
-    tom: 'medio',
-    template:
-      'Olá, {{responsavel}}. A parcela {{parcela_numero}} do acordo da unidade {{unidade}} está vencida desde {{vencimento}}. Regularize para manter as condições pactuadas.',
-  },
-  {
-    id: 'default-acordo-4',
-    regua_id: 'default-acordo',
-    ordem: 4,
-    delay_dias: 7,
-    canal: 'whatsapp',
-    tom: 'agressivo',
-    template:
-      'Olá, {{responsavel}}. O acordo da unidade {{unidade}} segue com parcela vencida. A ausência de regularização poderá caracterizar quebra do acordo.',
-  },
+  { id: 'default-acordo-1', regua_id: 'default-acordo', ordem: 1, delay_dias: -3, canal: 'whatsapp', tom: 'leve', template: 'Olá, {{responsavel}}. Lembramos que a parcela {{parcela_numero}} do acordo da unidade {{unidade}} vence em {{vencimento}}, no valor de {{valor_parcela}}. Se já efetuou o pagamento, desconsidere este lembrete e envie o comprovante para conferência.' },
+  { id: 'default-acordo-2', regua_id: 'default-acordo', ordem: 2, delay_dias: 0, canal: 'whatsapp', tom: 'medio', template: 'Olá, {{responsavel}}. A parcela {{parcela_numero}} do acordo da unidade {{unidade}} vence hoje, no valor de {{valor_parcela}}. Se já efetuou o pagamento, desconsidere este lembrete e envie o comprovante para conferência.' },
+  { id: 'default-acordo-3', regua_id: 'default-acordo', ordem: 3, delay_dias: 5, canal: 'whatsapp', tom: 'medio', template: 'Olá, {{responsavel}}. Após conferência, ainda não identificamos o pagamento da parcela {{parcela_numero}} do acordo da unidade {{unidade}}, com vencimento em {{vencimento}} e valor de {{valor_parcela}}. Fale conosco para regularizar ou solicitar orientação sobre o boleto. Se já efetuou o pagamento, desconsidere este lembrete e envie o comprovante para conferência.' },
 ]
 
 function parseDateSafe(value: string | null | undefined) {
@@ -582,7 +545,7 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
     }
 
     const diasRelativos = diasRelativosParcela(parcela.vencimento)
-    const elegivel = diasRelativos >= -3
+    const elegivel = diasRelativos >= -3 && !(diasRelativos > 0 && diasRelativos < 5)
     const etapa = selecionarEtapaAcordoPreview(etapas, diasRelativos) ?? etapas[0] ?? DEFAULT_ACORDO_ETAPAS[0]
     const contatoRegua = escolherContatoRegua({
       unidade,

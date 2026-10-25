@@ -89,7 +89,8 @@ function janelaDaParcela(vencimento?: string | null) {
   if (dias < -3) return 'programar D-3'
   if (dias < 0) return '3 dias antes'
   if (dias === 0) return 'vence hoje'
-  return 'reemissão'
+  if (dias < 5) return 'aguardar baixa bancária'
+  return 'conferir atraso D+5'
 }
 
 function flowCounters(rows: any[]) {

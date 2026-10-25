@@ -501,6 +501,14 @@ export async function processarReguaAcordos(
 
         try {
           const diasRelativos = diasRelativosAoVencimento(parcela.vencimento)
+          if (diasRelativos > 0 && diasRelativos < 5) {
+            const motivo = 'Aguardando prazo de baixa bancária: aviso de atraso somente a partir de D+5.'
+            total.puladas += 1
+            lote.contadores.puladas += 1
+            itens.push({ acordoId: acordo.id, parcelaId: parcela.id, status: LOTE_ITEM_STATUS.PULADA, motivo })
+            await criarItemLote({ supabase, loteId: lote.id, acordo, parcela, status: LOTE_ITEM_STATUS.PULADA, motivo, payload: { parcela_id: parcela.id, dias_relativos_vencimento: diasRelativos, origem: 'aguardando_baixa_bancaria' } })
+            continue
+          }
           const condominio = acordo.condominios
           const unidade = acordo.unidades
 
