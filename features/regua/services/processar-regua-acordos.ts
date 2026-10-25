@@ -1,3 +1,4 @@
+import { etapasDoCanal } from '@/lib/core/flow-acordos-canais'
 import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade'
 import { carregarApoiosParaCorrespondencia } from '@/features/responsaveis-unidades/correspondencia'
 import { differenceInCalendarDays } from 'date-fns'
@@ -40,6 +41,7 @@ const PAGE_SIZE = 1000
 type LoteItemStatus = (typeof LOTE_ITEM_STATUS)[keyof typeof LOTE_ITEM_STATUS]
 
 type ProcessarReguaAcordosParams = {
+  canal?: 'email' | 'whatsapp'
   scope?: CarteiraScope
   origem?: 'manual' | 'api' | 'cron'
   q?: string
@@ -539,7 +541,9 @@ export async function processarReguaAcordos(
             continue
           }
 
-          const etapas = await carregarEtapasDeReguaAdmin(params.reguaId || condominio?.regua_acordo_id, 'acordo')
+          const etapasDaRegua = await carregarEtapasDeReguaAdmin(params.reguaId || condominio?.regua_acordo_id, 'acordo')
+          const etapas = etapasDoCanal(etapasDaRegua, params.canal)
+          if (params.canal && !etapas.length) throw new Error('A régua não possui etapas ativas para o canal selecionado.')
           const etapa = selecionarEtapaAcordo({ etapas, diasRelativos }) ?? etapas[0] ?? DEFAULT_ACORDO_ETAPAS[0]
           const canal = etapa?.canal ?? 'whatsapp'
           if (!(await carteiraPermiteCanal(acordo.carteira_id, canal))) {

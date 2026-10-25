@@ -155,10 +155,12 @@ export function FlowAcordosWorkbench({
   reguas,
   flows,
   initialStep,
+  canal,
 }: {
   parcelas: any[]
   reguas: any[]
   flows: any[]
+  canal: 'email' | 'whatsapp'
   initialStep?: StepId
 }) {
   const aptas = useMemo(() => parcelas.filter((row) => parcelaEntity(row).hasResponsavel), [parcelas])
@@ -270,6 +272,7 @@ export function FlowAcordosWorkbench({
           <ListCollapsibleSectionHeader title="Lotes + régua" count={gruposCarteira.length} />
         </summary>
         {gruposCarteira.length ? <form action={criarFlowsAcordos} onSubmit={(event) => { if (!window.confirm(`Criar ${gruposCarteira.length} Flow(s) de acordos?`)) event.preventDefault() }}>
+          <input type="hidden" name="canal" value={canal} />
           {selectedParcelas.map((parcela) => <input key={parcela.id} type="hidden" name="parcela_id" value={parcela.id} />)}
           <div className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
             {selectedParcelas.length} parcela(s) selecionada(s), agrupadas em {gruposCarteira.length} lote(s) por carteira.

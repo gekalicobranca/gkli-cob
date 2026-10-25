@@ -1,3 +1,4 @@
+import { etapasDoCanal } from '@/lib/core/flow-acordos-canais'
 import { differenceInCalendarDays } from 'date-fns'
 import { registrarPerformanceFlow } from '../performance'
 import { listReguasForSelect } from '@/features/reguas/queries'
@@ -32,6 +33,7 @@ const PARCELA_SELECT = `
 `
 
 export type FlowAcordosFilters = {
+  canal?: string
   carteiraId?: string
   condominioId?: string
   vencimentoDe?: string
@@ -44,6 +46,7 @@ function cleanFilter(value?: string | null) {
 
 export function normalizeFlowAcordosFilters(filters: FlowAcordosFilters = {}) {
   return {
+    canal: filters.canal === 'email' ? 'email' as const : 'whatsapp' as const,
     carteiraId: cleanFilter(filters.carteiraId),
     condominioId: cleanFilter(filters.condominioId),
     vencimentoDe: cleanFilter(filters.vencimentoDe),
@@ -190,7 +193,7 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
   const inicio = Date.now()
   const supabase = createAdminClient()
   const normalized = normalizeFlowAcordosFilters(filters)
-  const reguasPromise = listReguasForSelect(scope, 'acordo')
+  const reguasPromise = listReguasForSelect(scope, 'acordo').then(rows => rows.filter(row => etapasDoCanal(row.etapas ?? [], normalized.canal).length > 0))
 
   let parcelasQuery = supabase
     .from('parcelas_acordo')
@@ -236,6 +239,7 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
     .order('created_at', { ascending: false })
     .limit(100)
   flowsQuery = applyCarteiraScope(flowsQuery, scope.carteiraIds)
+  flowsQuery = flowsQuery.eq('payload->>canal', normalized.canal)
 
   async function carregarTodasParcelas() {
     const rows: any[] = []
