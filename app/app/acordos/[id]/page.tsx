@@ -376,7 +376,10 @@ export default async function AcordoDetalhePage({ params }: Props) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Contexto operacional</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-950">{acordo.condominios?.nome || "Condomínio não informado"}</h2>
-            <p className="mt-1 text-sm text-slate-500">Unidade {acordo.unidades?.identificacao || "-"}{acordo.unidades?.bloco ? ` · Bloco ${acordo.unidades.bloco}` : ""}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[...new Map(cobrancasVinculadas.map((v: any) => {const u=v.cobrancas?.unidades;return [u?.id,u];})).values()].filter(Boolean).map((u: any) => <Link key={u.id} href={`/app/unidades/${u.id}`} className="text-xs text-sky-700 underline">Unidade {u.identificacao}{u.bloco ? ` / ${u.bloco}` : ""}{u.id === acordo.unidade_id ? " (titular)" : " (participante)"}</Link>)}
+            </div>
+            <p className="mt-1 text-sm text-slate-500">Unidade titular {acordo.unidades?.identificacao || "-"}{acordo.unidades?.bloco ? ` · Bloco ${acordo.unidades.bloco}` : ""}</p>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Responsável pelo acordo</p>
@@ -524,7 +527,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
                   >
                     <div>
                       <div className="font-semibold text-slate-950">
-                        Venc. {formatDate(item.cobrancas?.vencimento)} ·{" "}
+                        Unidade {item.cobrancas?.unidades?.identificacao ?? "-"}{item.cobrancas?.unidades?.bloco ? ` / ${item.cobrancas.unidades.bloco}` : ""} · Venc. {formatDate(item.cobrancas?.vencimento)} ·{" "}
                         {item.cobrancas?.competencia || "Sem competência"}
                       </div>
                       <div className="mt-1 text-sm text-slate-500">

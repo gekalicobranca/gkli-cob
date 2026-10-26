@@ -1,5 +1,7 @@
 "use client";
 
+import {rotuloUnidade} from "@/features/acordos/unidade-titular";
+
 import { type ChangeEvent, useActionState, useMemo, useState } from "react";
 import { AlertTriangle, Mail, Phone, Save, UserRound } from "lucide-react";
 import {
@@ -41,6 +43,7 @@ type CobrancaOption = {
   unidades?: {
     id?: string | null;
     identificacao: string;
+    bloco?: string | null;
     responsavel_nome: string | null;
     email?: string | null;
     telefone?: string | null;
@@ -142,6 +145,7 @@ export function AcordoSimulatorForm({
   const initial =
     cobrancas.find((item) => item.id === initialCobrancaId) ?? cobrancas[0];
   const [cobrancaId, setCobrancaId] = useState(initial?.id ?? "");
+  const [titularId, setTitularId] = useState(formularioInicial.unidade_titular_id || initial?.unidade_id || "");
   const [tipo, setTipo] = useState(formularioInicial.tipo || "extrajudicial");
   const [numeroProcesso, setNumeroProcesso] = useState(formularioInicial.numero_processo || "");
   const [despesaCobrancaPercentual, setDespesaCobrancaPercentual] =
@@ -164,9 +168,10 @@ export function AcordoSimulatorForm({
   const cobrancasSelecionadas = isSelecaoAgrupada
     ? cobrancas.filter((item) => selectedCobrancaIds.includes(item.id))
     : cobrancas.filter((item) => item.id === cobrancaId);
+  const unidadesSelecionadas = [...new Map(cobrancasSelecionadas.map(c => [c.unidade_id,c])).values()];
   const cobrancaSelecionada =
-    cobrancasSelecionadas[0] ??
-    cobrancas.find((item) => item.id === cobrancaId);
+    cobrancasSelecionadas.find(c => c.unidade_id === titularId) ?? cobrancasSelecionadas[0] ??
+    cobrancas.find((item) => item.id === cobrancaId);  const [returnPath, returnQuery] = returnTo.split('?');  const returnParams = new URLSearchParams(returnQuery);  returnParams.set('unidade_titular_id', cobrancaSelecionada?.unidade_id ?? '');  const returnToTitular = `${returnPath}?${returnParams.toString()}`;
   const responsavelAcionado = {
     unidadeId: cobrancaSelecionada?.unidade_id ?? cobrancaSelecionada?.unidades?.id ?? "",
     nome: cobrancaSelecionada?.unidades?.responsavel_nome ?? "Responsável não informado",
@@ -321,7 +326,7 @@ export function AcordoSimulatorForm({
     const cobrancasResumo = cobrancasSelecionadas
       .map(
         (cobranca, index) =>
-          `${index + 1}. Vencimento ${formatDateBR(cobranca.vencimento)} · Competência ${cobranca.competencia ?? "-"} · Valor ${formatCurrency(getValorAtualizado(cobranca))}`,
+          `${index + 1}. ${rotuloUnidade(cobranca.unidades)} · Vencimento ${formatDateBR(cobranca.vencimento)} · Competência ${cobranca.competencia ?? "-"} · Valor ${formatCurrency(getValorAtualizado(cobranca))}`,
       )
       .join("\n");
 
@@ -344,7 +349,7 @@ export function AcordoSimulatorForm({
       "Encaminhamos para análise e aprovação a simulação de acordo abaixo.",
       "",
       `Condomínio: ${condominioNome}`,
-      `Unidade: ${unidadeLabel}`,
+      `Unidade titular: ${unidadeLabel}`,
       `Responsável: ${responsavelNome}`,
       `Tipo de acordo: ${tipo === "judicial" ? "Judicial" : "Extrajudicial"}`,
       tipo === "judicial" && numeroProcesso
@@ -415,6 +420,7 @@ export function AcordoSimulatorForm({
           value={cobranca.id}
         />
       ))}
+      <input type="hidden" name="unidade_titular_id" value={cobrancaSelecionada?.unidade_id ?? ""} />
       {cotasSemDespesas.map((id) => <input key={id} type="hidden" name="cotas_sem_despesas" value={id} />)}
       <input type="hidden" name="cobranca_id_origem" value={cobrancaSelecionada?.id ?? cobrancaId} />
       <Card className="space-y-5">
@@ -424,6 +430,12 @@ export function AcordoSimulatorForm({
             Confirmo que a administradora autorizou a inclusão da cota do mês fora da régua. A isenção de despesas vale apenas para pagamento à vista (uma parcela sem entrada ou quitação integral na entrada). No parcelamento, as despesas incidem também sobre a cota do mês.
           </label>
         )}
+        <FormField label="Unidade titular do acordo">
+          <Select value={cobrancaSelecionada?.unidade_id ?? ""} onChange={(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setTitularId(event.target.value)} required>
+            {unidadesSelecionadas.map(c => <option key={c.unidade_id} value={c.unidade_id}>{rotuloUnidade(c.unidades)} · {c.unidades?.responsavel_nome ?? "Responsável não informado"}</option>)}
+          </Select>
+          <p className="mt-1 text-xs text-slate-500">A administradora controlará boletos, parcelas e pagamentos pela unidade titular. As cobranças mantêm suas unidades de origem.</p>
+        </FormField>
         {isSelecaoAgrupada ? (
           <div className="space-y-3 rounded-2xl border border-[#DDE5E2] bg-[#F6F8F7] p-4">
             <div>
@@ -446,7 +458,7 @@ export function AcordoSimulatorForm({
                 >
                   <div>
                     <p className="text-sm font-semibold text-slate-950">
-                      Venc. {formatDateBR(cobranca.vencimento)} ·{" "}
+                      {rotuloUnidade(cobranca.unidades)} · Venc. {formatDateBR(cobranca.vencimento)} ·{" "}
                       {cobranca.competencia ?? "Sem competência"}
                     </p>
                     <p className="text-xs text-slate-500">
@@ -810,7 +822,7 @@ export function AcordoSimulatorForm({
       <div className="space-y-4">
         <Card>
           <input type="hidden" name="unidade_id" value={responsavelAcionado.unidadeId} />
-          <input type="hidden" name="return_to" value={returnTo} />
+          <input type="hidden" name="return_to" value={returnToTitular} />
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--gkli-primary)]">
             Responsável acionado
           </p>

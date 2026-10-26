@@ -1,5 +1,7 @@
 "use server";
 
+import {selecionarCobrancaTitular, rotuloUnidade} from "./unidade-titular";
+
 import { calcularDespesasAcordo, validarCotasSemDespesas } from "./calculo-despesas";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
@@ -235,6 +237,7 @@ function montarResumoAcordo(params: {
   acordoId: string;
   condominioNome: string;
   unidadeLabel: string;
+  unidadesIncluidas?: string[];
   responsavelNome: string;
   responsavelEmail?: string | null;
   responsavelTelefone?: string | null;
@@ -260,7 +263,8 @@ function montarResumoAcordo(params: {
 
   return [
     `Condomínio: ${params.condominioNome}`,
-    `Unidade: ${params.unidadeLabel}`,
+    `Unidade titular: ${params.unidadeLabel}`,
+    ...(params.unidadesIncluidas ? [`Unidades incluídas: ${params.unidadesIncluidas.join('; ')}`] : []),
     `Responsável: ${params.responsavelNome}`,
     params.responsavelEmail ? `E-mail do responsável: ${params.responsavelEmail}` : null,
     params.responsavelTelefone ? `Celular do responsável: ${params.responsavelTelefone}` : null,
@@ -646,7 +650,8 @@ export async function createAcordo(formData: FormData) {
         : [cobrancaIdLegado].filter(Boolean),
     ),
   );
-  const cobrancaIdPrincipal = cobrancaIds[0] ?? "";
+  let cobrancaIdPrincipal = cobrancaIds[0] ?? "";
+  const titularId = String(formData.get("unidade_titular_id") ?? "").trim();
   const tipo = String(formData.get("tipo") ?? "extrajudicial");
   const numeroProcesso = String(formData.get("numero_processo") ?? "").trim();
   const despesaCobrancaPercentual = toNumber(
@@ -706,8 +711,9 @@ export async function createAcordo(formData: FormData) {
     );
   }
 
-  const cobrancaPrincipal =
-    cobrancas.find((item) => item.id === cobrancaIdPrincipal) ?? cobrancas[0];
+  const cobrancaPrincipal = selecionarCobrancaTitular(cobrancas, titularId, cobrancaIdPrincipal);
+  cobrancaIdPrincipal = cobrancaPrincipal.id;
+  const unidadesSelecionadas = [...new Set(cobrancas.map(item => item.unidade_id))];
 
   const mesmaCarteira = cobrancas.every(
     (item) => item.carteira_id === cobrancaPrincipal.carteira_id,
@@ -715,13 +721,10 @@ export async function createAcordo(formData: FormData) {
   const mesmoCondominio = cobrancas.every(
     (item) => item.condominio_id === cobrancaPrincipal.condominio_id,
   );
-  const mesmaUnidade = cobrancas.every(
-    (item) => item.unidade_id === cobrancaPrincipal.unidade_id,
-  );
 
-  if (!mesmaCarteira || !mesmoCondominio || !mesmaUnidade) {
+  if (!mesmaCarteira || !mesmoCondominio) {
     throw new Error(
-      "O acordo só pode agrupar cobranças da mesma carteira, condomínio e unidade.",
+      "O acordo só pode agrupar cobranças do mesmo condomínio e carteira.",
     );
   }
 
@@ -734,7 +737,7 @@ export async function createAcordo(formData: FormData) {
     .eq("tipo", "planilha_debitos_administradora")
     .eq("carteira_id", cobrancaPrincipal.carteira_id)
     .eq("condominio_id", cobrancaPrincipal.condominio_id)
-    .eq("unidade_id", cobrancaPrincipal.unidade_id)
+    .in("unidade_id", unidadesSelecionadas)
     .in("status", ["aberta", "em_tratamento"])
     .limit(1);
 
@@ -756,7 +759,7 @@ export async function createAcordo(formData: FormData) {
     .eq("tipo", "aprovacao_acordo_sindico")
     .eq("carteira_id", cobrancaPrincipal.carteira_id)
     .eq("condominio_id", cobrancaPrincipal.condominio_id)
-    .eq("unidade_id", cobrancaPrincipal.unidade_id)
+    .in("unidade_id", unidadesSelecionadas)
     .in("status", ["aberta", "em_tratamento"])
     .limit(1);
 
@@ -925,6 +928,7 @@ export async function createAcordo(formData: FormData) {
     acordoId: acordo.id,
     condominioNome: condominioPrincipal?.nome ?? "Condomínio não informado",
     unidadeLabel,
+    unidadesIncluidas: [...new Set(cobrancas.map((c: any) => rotuloUnidade(c.unidades)))],
     responsavelNome: contatoResponsavel.nome,
     responsavelEmail: contatoResponsavel.email || null,
     responsavelTelefone: contatoResponsavel.telefone || null,
@@ -1004,6 +1008,8 @@ export async function createAcordo(formData: FormData) {
     payload: {
       cobranca_id: cobrancaPrincipal.id,
       cobranca_ids: cobrancaIds,
+      unidade_titular_id: cobrancaPrincipal.unidade_id,
+      unidade_ids: unidadesSelecionadas,
       cotas_sem_despesas: calculoDespesas.isencaoAplicada ? cotasSemDespesas : [],
       cotas_mes: cotasSemDespesas,
       cota_mes_autorizada: cotasSemDespesas.length > 0,
@@ -1063,6 +1069,7 @@ export async function createAcordo(formData: FormData) {
   revalidatePath("/app/cobrancas");
   revalidatePath("/app");
   revalidatePath("/app/dashboard");
+  for (const unidadeId of unidadesSelecionadas) revalidatePath(`/app/unidades/${unidadeId}`);
   redirect(`/app/acordos/${acordo.id}`);
 }
 
@@ -1250,8 +1257,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
       [
         ...cobrancaIdsFromList,
         ...cobrancaIdsFromSelecao,
-        cobrancaIdOrigem,
-        cobrancaIdLegado,
+        ...(cobrancaIdsFromList.length || cobrancaIdsFromSelecao.length ? [] : [cobrancaIdOrigem, cobrancaIdLegado]),
       ].filter(Boolean),
     ),
   );
@@ -1310,15 +1316,13 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
     throw new Error("Uma ou mais cobranças selecionadas não foram encontradas.");
   }
 
-  const cobrancaReferencia =
-    cobrancas.find((item) => item.id === (cobrancaIdOrigem || cobrancaIdLegado)) ?? cobrancas[0];
+  const cobrancaReferencia = selecionarCobrancaTitular(cobrancas, String(formData.get("unidade_titular_id") ?? "").trim(), cobrancaIdOrigem || cobrancaIdLegado);
 
   const mesmaCarteira = cobrancas.every((item) => item.carteira_id === cobrancaReferencia.carteira_id);
   const mesmoCondominio = cobrancas.every((item) => item.condominio_id === cobrancaReferencia.condominio_id);
-  const mesmaUnidade = cobrancas.every((item) => item.unidade_id === cobrancaReferencia.unidade_id);
 
-  if (!mesmaCarteira || !mesmoCondominio || !mesmaUnidade) {
-    throw new Error("A proposta para aprovação do síndico só pode agrupar cobranças da mesma carteira, condomínio e unidade.");
+  if (!mesmaCarteira || !mesmoCondominio) {
+    throw new Error("A proposta para aprovação do síndico só pode agrupar cobranças do mesmo condomínio e carteira.");
   }
 
   const cobrancaReferenciaAny = cobrancaReferencia as any;
@@ -1444,7 +1448,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
   revalidatePath("/app/pendencias");
   revalidatePath("/app/acordos/novo");
 
-  redirect(`/app/acordos/novo?cobrancaIds=${encodeURIComponent(cobrancaIds.join(","))}&cotasSemDespesas=${encodeURIComponent(cotasSemDespesas.join(","))}&sindico=solicitada`);
+  redirect(`/app/acordos/novo?cobrancaIds=${encodeURIComponent(cobrancaIds.join(","))}&cotasSemDespesas=${encodeURIComponent(cotasSemDespesas.join(","))}&unidade_titular_id=${encodeURIComponent(unidadeId)}&sindico=solicitada`);
 }
 
 export async function marcarParcelaComoPaga(formData: FormData) {

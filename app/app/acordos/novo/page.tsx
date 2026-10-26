@@ -22,6 +22,7 @@ type PageProps = {
     cobrancaIds?: string | string[];
     cotasSemDespesas?: string | string[];
     unidade_id?: string;
+    unidade_titular_id?: string;
     sindico?: string;
     aprovacao_fora_regua?: string;
   }>;
@@ -89,13 +90,14 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
   }
 
   const cobrancas = await listCobrancasSelecionadasParaAcordo(scope, selectedIds);
-  const cobrancaReferencia = (cobrancas as any[])[0];
+  const cobrancaReferencia = (cobrancas as any[]).find(c => c.unidade_id === query.unidade_titular_id) ?? (cobrancas as any[])[0];
   const pendenciaPlanilha = cobrancaReferencia
     ? await getPendenciaPlanilhaDebitosAberta({
         scope,
         carteiraId: cobrancaReferencia.carteira_id,
         condominioId: cobrancaReferencia.condominio_id,
         unidadeId: cobrancaReferencia.unidade_id,
+        unidadeIds: [...new Set((cobrancas as any[]).map(c => c.unidade_id as string))],
       })
     : null;
   const pendenciaAprovacaoSindico = cobrancaReferencia
@@ -104,6 +106,7 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
         carteiraId: cobrancaReferencia.carteira_id,
         condominioId: cobrancaReferencia.condominio_id,
         unidadeId: cobrancaReferencia.unidade_id,
+        unidadeIds: [...new Set((cobrancas as any[]).map(c => c.unidade_id as string))],
       })
     : null;
   const inteligenciaOperacional = cobrancaReferencia
@@ -124,7 +127,7 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
       <PageHeader
         eyebrow="Base Operacional"
         title="Novo acordo"
-        description="Simule o acordo com as cobranças previamente agrupadas para a unidade."
+        description="Simule o acordo com as cobranças selecionadas e escolha a unidade titular."
         actions={
           <ButtonLink
             href={`/app/acordos/selecionar?cobrancaId=${selectedIds[0]}`}
@@ -137,7 +140,7 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
 
       <AcordoSimulatorForm
         key={aprovacao ? `${aprovacao.id}:${aprovacao.status}` : selectedIds.join(",")}
-        formularioInicial={aprovacao?.formulario}
+        formularioInicial={aprovacao?.formulario ?? {unidade_titular_id: query.unidade_titular_id ?? cobrancaReferencia?.unidade_id ?? ""}}
         acordoJaCriado={Boolean(aprovacao?.acordo_id)}
         contemCobrancasForaRegua={(cobrancas as any[]).some((cobranca) => avaliarReguaImportacao({
           vencimento: cobranca.vencimento,

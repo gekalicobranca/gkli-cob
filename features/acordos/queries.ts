@@ -1,3 +1,4 @@
+import {acordoIdsDaUnidade} from './unidades-consulta';
 import { acordoTemParcelaNoPeriodo } from './filtro-vencimento'
 import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
@@ -229,6 +230,8 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
       criado_em,
       cobrancas:cobranca_id (
         id,
+        unidade_id,
+        unidades:unidade_id (id,identificacao,bloco),
         competencia,
         vencimento,
         status,
@@ -436,6 +439,7 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
   scope: CarteiraScope;
   cobrancaId?: string;
   unidadeId?: string;
+  incluirOutrasUnidades?: boolean;
 }) {
   const supabase = await createClient();
   const cobrancaId = params.cobrancaId?.trim();
@@ -468,6 +472,10 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
       cobrancas: [],
     };
 
+  let contextoQuery = supabase.from("unidades").select("condominio_id,carteira_id").eq("id",unidadeId);
+  contextoQuery = applyCarteiraScope(contextoQuery,params.scope.carteiraIds);
+  const {data: contexto,error: contextoError} = await contextoQuery.maybeSingle();
+  if (contextoError || !contexto) throw new Error("Unidade fora do escopo permitido.");
   let query = somenteCobrancasCanonicas(supabase
     .from("cobrancas")
     .select(
@@ -505,15 +513,19 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
       )
     `,
     ))
-    .eq("unidade_id", unidadeId)
-    .order("vencimento", { ascending: true });
+    .eq("condominio_id", contexto.condominio_id)
+    .eq("carteira_id", contexto.carteira_id)
+    .order("vencimento", { ascending: true }).order("id");
+  if (!params.incluirOutrasUnidades) query = query.eq("unidade_id", unidadeId);
 
   query = applyCarteiraScope(query, params.scope.carteiraIds);
 
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(`Erro ao carregar cobranças da unidade: ${error.message}`);
+  const data: any[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const {data: pagina, error} = await query.range(offset, offset + 499);
+    if (error) throw new Error(`Erro ao carregar cobranças da unidade: ${error.message}`);
+    data.push(...(pagina ?? []));
+    if (!pagina || pagina.length < 500) break;
   }
 
   const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, (data ?? []) as any[]);
@@ -601,15 +613,17 @@ export async function getPendenciaPlanilhaDebitosAberta(params: {
   carteiraId?: string | null;
   condominioId?: string | null;
   unidadeId?: string | null;
+  unidadeIds?: string[];
 }) {
-  if (!params.unidadeId) return null;
+  const unidadeIds = params.unidadeIds?.length ? params.unidadeIds : [params.unidadeId].filter(Boolean) as string[];
+  if (!unidadeIds.length) return null;
 
   const supabase = await createClient();
   let query = supabase
     .from("central_pendencias")
     .select("id, titulo, status, prioridade, prazo_limite, created_at")
     .eq("tipo", "planilha_debitos_administradora")
-    .eq("unidade_id", params.unidadeId)
+    .in("unidade_id", unidadeIds)
     .in("status", ["aberta", "em_tratamento"])
     .order("created_at", { ascending: false })
     .limit(1);
@@ -636,15 +650,17 @@ export async function getPendenciaAprovacaoSindicoAberta(params: {
   carteiraId?: string | null;
   condominioId?: string | null;
   unidadeId?: string | null;
+  unidadeIds?: string[];
 }) {
-  if (!params.unidadeId) return null;
+  const unidadeIds = params.unidadeIds?.length ? params.unidadeIds : [params.unidadeId].filter(Boolean) as string[];
+  if (!unidadeIds.length) return null;
 
   const supabase = await createClient();
   let query = supabase
     .from("central_pendencias")
     .select("id, titulo, status, prioridade, prazo_limite, created_at")
     .eq("tipo", "aprovacao_acordo_sindico")
-    .eq("unidade_id", params.unidadeId)
+    .in("unidade_id", unidadeIds)
     .in("status", ["aberta", "em_tratamento"])
     .order("created_at", { ascending: false })
     .limit(1);
@@ -754,6 +770,7 @@ export type ListAcordosComSaudePageFilters = {
   q?: string;
   condominio_id?: string;
   unidade_id?: string;
+  acordo_ids_unidade?: string[];
   carteira_id?: string;
   status?: string;
   data_de?: string;
@@ -866,7 +883,7 @@ function filterAcordosPageRows(rows: any[], filters: ListAcordosComSaudePageFilt
     if (!criadoNoIntervalo(row.created_at, filters.criacao_de, filters.criacao_ate)) return false;
     if (filters.operador_id && operadorResponsavelId(row) !== filters.operador_id.trim()) return false;
     if (condominioId && row.condominio_id !== condominioId) return false;
-    if (unidadeId && row.unidade_id !== unidadeId) return false;
+    if (unidadeId && !filters.acordo_ids_unidade?.includes(row.id)) return false;
     if (carteiraId && row.carteira_id !== carteiraId) return false;
     if (status && row.status !== status) return false;
     if (!acordoTemParcelaNoPeriodo(row.parcelas_periodo, dataDe, dataAte)) return false;
@@ -920,7 +937,7 @@ async function applyAcordosDirectFilters(query: any, filters: ListAcordosComSaud
   const dataAte = datePageFilter(filters.data_ate);
 
   if (condominioId) query = query.eq("condominio_id", condominioId);
-  if (unidadeId) query = query.eq("unidade_id", unidadeId);
+  if (unidadeId) query = query.in("id", filters.acordo_ids_unidade ?? []);
   if (carteiraId) query = query.eq("carteira_id", carteiraId);
   if (status) query = query.eq("status", status);
   if (dataDe) query = query.gte("parcelas_periodo.vencimento", dataDe);
@@ -943,6 +960,7 @@ export async function listAcordosComSaudePage(
   page = 1,
   pageSize = 100,
 ) {
+  if (filters.unidade_id) filters = {...filters, acordo_ids_unidade: await acordoIdsDaUnidade(filters.unidade_id,scope)};
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
   const safePageSize = Math.min(Math.max(Math.floor(pageSize) || 100, 1), 200);
   const from = (safePage - 1) * safePageSize;
@@ -1006,6 +1024,7 @@ export async function listAcordosComSaudeFiltered(
   filters: ListAcordosComSaudePageFilters = {},
 ) {
   const ordenar = cleanPageFilter(filters.ordenar) || "data_desc";
+  if (filters.unidade_id) filters = {...filters, acordo_ids_unidade: await acordoIdsDaUnidade(filters.unidade_id,scope)};
   const allRows = await listAcordosComSaude(scope, filters.tipo_acordo);
   const filteredRows = filterAcordosPageRows(allRows, filters);
   return sortAcordosPageRows(filteredRows, ordenar);

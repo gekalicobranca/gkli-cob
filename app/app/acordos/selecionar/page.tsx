@@ -22,6 +22,7 @@ type PageProps = {
     unidadeId?: string;
     unidade_id?: string;
     planilha?: string;
+    todas_unidades?: string;
   }>;
 };
 
@@ -76,6 +77,7 @@ export default async function SelecionarCobrancasAcordoPage({
       scope,
       cobrancaId,
       unidadeId,
+      incluirOutrasUnidades: query.todas_unidades === "1",
     });
   } catch (error) {
     console.error("Erro ao carregar cobrancas para agrupamento:", error);
@@ -160,6 +162,10 @@ export default async function SelecionarCobrancasAcordoPage({
           <input type="hidden" name="cobranca_id_origem" value={origem?.id ?? ""} />
           <input type="hidden" name="unidade_id" value={data.unidadeId ?? ""} />
           <Card className="space-y-4">
+            <ButtonLink href={`/app/acordos/selecionar?${new URLSearchParams({...(cobrancaId ? {cobrancaId} : {unidadeId: data.unidadeId ?? ""}), ...(query.todas_unidades === "1" ? {} : {todas_unidades:"1"})}).toString()}`} variant="secondary">
+              {query.todas_unidades === "1" ? "Mostrar apenas a unidade de origem" : "Incluir cobranças de outras unidades do condomínio"}
+            </ButtonLink>
+            {query.todas_unidades === "1" && <p className="text-sm text-slate-600">Selecione as cobranças das unidades participantes. Na próxima etapa, escolha a unidade titular.</p>}
             <div className="rounded-2xl border border-[#DDE5E2] bg-[#F6F8F7] p-4">
               <p className="text-sm font-semibold text-slate-950">
                 {condominio?.nome ?? "Condomínio não informado"}
@@ -183,6 +189,7 @@ export default async function SelecionarCobrancasAcordoPage({
                 <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500">
                   <tr>
                     <th className="w-12 px-4 py-3">Sel.</th>
+                    <th className="px-4 py-3">Unidade / bloco</th>
                     <th className="px-4 py-3">Vencimento</th>
                     <th className="px-4 py-3">Competência</th>
                     <th className="px-4 py-3">Status</th>
@@ -195,7 +202,7 @@ export default async function SelecionarCobrancasAcordoPage({
                     const bloqueada = isBloqueada(cobranca);
                     const defaultChecked =
                       cobranca.id === data.cobrancaOrigemId ||
-                      (!data.cobrancaOrigemId && !bloqueada);
+                      (!query.todas_unidades && !data.cobrancaOrigemId && !bloqueada);
                     return (
                       <tr
                         key={cobranca.id}
@@ -211,6 +218,7 @@ export default async function SelecionarCobrancasAcordoPage({
                             className="h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]"
                           />
                         </td>
+                        <td className="px-4 py-3 align-top">{cobranca.unidades?.identificacao ?? "-"}{cobranca.unidades?.bloco ? ` / ${cobranca.unidades.bloco}` : ""}</td>
                         <td className="px-4 py-3 align-top font-medium text-slate-950">
                           {formatDateBR(cobranca.vencimento)}
                         </td>

@@ -1,3 +1,4 @@
+import {acordoIdsDaUnidade} from "@/features/acordos/unidades-consulta";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -351,6 +352,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
 
+  const idsAcordosDaUnidade = await acordoIdsDaUnidade(id,scope);
   let acordosQuery = supabase
     .from('acordos')
     .select(`
@@ -367,7 +369,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
       fluxo_status,
       created_at
     `)
-    .eq('unidade_id', id)
+    .in('id', idsAcordosDaUnidade)
     .order('data_acordo', { ascending: false })
     .limit(40)
 

@@ -15,7 +15,7 @@ export function guardarFormularioProposta(formData: FormData): FormularioPropost
   const campos = [
     'tipo', 'numero_processo', 'despesa_cobranca_percentual', 'entrada',
     'usar_credito_administradora', 'juros_adicional', 'entrada_vencimento', 'quantidade_parcelas',
-    'primeiro_vencimento', 'documento_url', 'observacoes', 'cota_mes_autorizada',
+    'primeiro_vencimento', 'documento_url', 'observacoes', 'cota_mes_autorizada', 'unidade_titular_id',
   ];
   return {
     ...Object.fromEntries(campos.map((key) => [key, String(formData.get(key) ?? '')])),
