@@ -71,7 +71,8 @@ export default async function EmailMonitorPage() {
           <div className="space-y-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-sm text-slate-700">
             <p>{state.detail}</p><p><strong>Próximo passo:</strong> {state.next}</p>
             <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-slate-600">
-              <p><strong>Limite diário da carteira:</strong> {wallet.email_limite_diario ?? 50}</p>
+              <p><strong>Limite diário por conta nesta carteira:</strong> {wallet.email_limite_diario ?? 100} · máximo de 100 por conta, somando as carteiras</p>
+              <p><strong>Intervalo entre e-mails da mesma conta:</strong> 2 minutos</p>
               <p><strong>Cópia de controle:</strong> {wallet.email_controle || 'Não configurada'}</p>
               {!thunderbird ? <p><strong>Configuração:</strong> {smtp ? smtp.carteira_id ? 'Própria da carteira' : 'Compartilhada' : monitor.envConfigured ? 'Compartilhada do ambiente' : 'Ausente'}</p> : <p><strong>Teste concluído:</strong> {formatSignal(device?.testado_em)}</p>}
             </div>
