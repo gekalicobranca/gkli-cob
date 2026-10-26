@@ -1,3 +1,5 @@
+import { enriquecerEfetivacaoFlow, parcelaValidaFlow, resolverPeriodoFlow } from './elegibilidade'
+import { etapasDoCanal } from '@/lib/core/flow-acordos-canais'
 import { differenceInCalendarDays } from 'date-fns'
 import { registrarPerformanceFlow } from '../performance'
 import { listReguasForSelect } from '@/features/reguas/queries'
@@ -13,6 +15,7 @@ const PARCELA_SELECT = `
   acordo_id,
   numero,
   tipo_parcela,
+  data_pagamento,
   valor,
   vencimento,
   status,
@@ -23,6 +26,9 @@ const PARCELA_SELECT = `
     unidade_id,
     valor_acordado,
     data_acordo,
+    fluxo_status,
+    boletos_solicitados_em,
+    observacoes,
     status,
     status_financeiro,
     carteira:carteiras(nome),
@@ -32,6 +38,7 @@ const PARCELA_SELECT = `
 `
 
 export type FlowAcordosFilters = {
+  canal?: string
   carteiraId?: string
   condominioId?: string
   vencimentoDe?: string
@@ -44,6 +51,7 @@ function cleanFilter(value?: string | null) {
 
 export function normalizeFlowAcordosFilters(filters: FlowAcordosFilters = {}) {
   return {
+    canal: filters.canal === 'email' ? 'email' as const : 'whatsapp' as const,
     carteiraId: cleanFilter(filters.carteiraId),
     condominioId: cleanFilter(filters.condominioId),
     vencimentoDe: cleanFilter(filters.vencimentoDe),
@@ -86,7 +94,8 @@ function janelaDaParcela(vencimento?: string | null) {
   if (dias < -3) return 'programar D-3'
   if (dias < 0) return '3 dias antes'
   if (dias === 0) return 'vence hoje'
-  return 'reemissão'
+  if (dias < 5) return 'aguardar baixa bancária'
+  return 'conferir atraso D+5'
 }
 
 function flowCounters(rows: any[]) {
@@ -190,22 +199,21 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
   const inicio = Date.now()
   const supabase = createAdminClient()
   const normalized = normalizeFlowAcordosFilters(filters)
-  const reguasPromise = listReguasForSelect(scope, 'acordo')
+  const periodo = await resolverPeriodoFlow(supabase, normalized.vencimentoDe, normalized.vencimentoAte)
+  const reguasPromise = listReguasForSelect(scope, 'acordo').then(rows => rows.filter(row => etapasDoCanal(row.etapas ?? [], normalized.canal).length > 0))
 
   let parcelasQuery = supabase
     .from('parcelas_acordo')
     .select(PARCELA_SELECT)
     .in('status', [PARCELA_ACORDO_STATUS.PENDENTE, PARCELA_ACORDO_STATUS.VENCIDA])
     .order('vencimento', { ascending: true })
-    .limit(500)
+    .order('id', { ascending: true })
 
   if (scope.carteiraIds !== null) parcelasQuery = parcelasQuery.in('acordo.carteira_id', scope.carteiraIds)
   if (normalized.carteiraId) parcelasQuery = parcelasQuery.eq('acordo.carteira_id', normalized.carteiraId)
   if (normalized.condominioId) parcelasQuery = parcelasQuery.eq('acordo.condominio_id', normalized.condominioId)
-  parcelasQuery = parcelasQuery.in('acordo.status', ACORDO_STATUS_VIGENTES as unknown as string[])
-  parcelasQuery = parcelasQuery.neq('acordo.status_financeiro', 'quitado')
-  if (normalized.vencimentoDe) parcelasQuery = parcelasQuery.gte('vencimento', normalized.vencimentoDe)
-  if (normalized.vencimentoAte) parcelasQuery = parcelasQuery.lte('vencimento', normalized.vencimentoAte)
+  parcelasQuery = parcelasQuery.is('data_pagamento', null)
+  parcelasQuery = parcelasQuery.gte('vencimento', periodo.inicio).lte('vencimento', periodo.fim)
 
   let flowsQuery = supabase
     .from('acordo_flows')
@@ -236,9 +244,20 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
     .order('created_at', { ascending: false })
     .limit(100)
   flowsQuery = applyCarteiraScope(flowsQuery, scope.carteiraIds)
+  flowsQuery = flowsQuery.eq('payload->>canal', normalized.canal)
+
+  async function carregarTodasParcelas() {
+    const rows: any[] = []
+    for (let from = 0; ; from += 500) {
+      const { data, error } = await parcelasQuery.range(from, from + 499)
+      if (error) return { data: null, error }
+      rows.push(...(data ?? []))
+      if (!data || data.length < 500) return { data: rows, error: null }
+    }
+  }
 
   const [{ data: parcelasData, error: parcelasError }, { data: flows, error: flowsError }, reguas] = await Promise.all([
-    parcelasQuery,
+    carregarTodasParcelas(),
     flowsQuery,
     reguasPromise,
   ])
@@ -246,11 +265,12 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
   if (parcelasError) throw new Error(`Erro ao carregar parcelas disponíveis para Flow: ${parcelasError.message}`)
   if (flowsError && !['42P01', 'PGRST205'].includes(String(flowsError.code))) throw new Error(`Erro ao carregar Flows de acordos: ${flowsError.message}`)
 
+  const efetivados = await enriquecerEfetivacaoFlow(supabase, ((parcelasData ?? []) as any[]).map(row => relation(row.acordo)).filter(Boolean))
   const parcelasNormalizadas = ((parcelasData ?? []) as any[])
     .map(normalizeParcela)
     .filter((row) => row.acordo)
-    .filter((row) => (ACORDO_STATUS_VIGENTES as string[]).includes(String(row.acordo?.status ?? '')))
-    .filter((row) => String(row.acordo?.status_financeiro ?? '') !== 'quitado')
+    .map(row => ({ ...row, acordo: efetivados.get(row.acordo.id) }))
+    .filter(row => parcelaValidaFlow(row, periodo))
     .filter((row) => !normalized.carteiraId || row.acordo?.carteira_id === normalized.carteiraId)
     .filter((row) => !normalized.condominioId || row.acordo?.condominio_id === normalized.condominioId)
     .map((row) => ({ ...row, janela: janelaDaParcela(row.vencimento), dias_relativos_vencimento: diasRelativos(row.vencimento) }))
@@ -286,6 +306,7 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
   }
 
   const result = {
+    periodo,
     parcelas: parcelasNormalizadas.filter((row) => !parcelasJaVinculadas.has(String(row.id))),
     reguas,
     flows: flowRows.map((flow) => ({

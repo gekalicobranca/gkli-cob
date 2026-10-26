@@ -1,5 +1,8 @@
 'use server'
 
+import { etapasDoCanal } from '@/lib/core/flow-acordos-canais'
+
+import { enriquecerEfetivacaoFlow, parcelaValidaFlow, validarPeriodoFlow } from './elegibilidade'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { processarReguaAcordos } from '@/features/regua/services/processar-regua-acordos'
@@ -117,6 +120,9 @@ export async function criarFlowsAcordos(formData: FormData) {
   const user = await requireUser()
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
+  const canal = String(formData.get('canal') ?? '')
+  if (canal !== 'email' && canal !== 'whatsapp') throw new Error('Selecione e-mail ou WhatsApp para criar o Flow.')
+  const periodo = validarPeriodoFlow(String(formData.get('vencimento_de') ?? ''), String(formData.get('vencimento_ate') ?? ''))
   const parcelaIds = Array.from(new Set(formData.getAll('parcela_id').map(String).map((id) => id.trim()).filter(Boolean)))
   if (!parcelaIds.length) throw new Error('Selecione ao menos uma parcela gerada/ativa.')
 
@@ -126,11 +132,16 @@ export async function criarFlowsAcordos(formData: FormData) {
       id,
       acordo_id,
       status,
+      vencimento,
+      data_pagamento,
       acordo:acordos(
         id,
         carteira_id,
         status,
         status_financeiro,
+        fluxo_status,
+        boletos_solicitados_em,
+        observacoes,
         carteira:carteiras(nome),
         unidade:unidades(responsavel_nome)
       )
@@ -144,9 +155,9 @@ export async function criarFlowsAcordos(formData: FormData) {
   if (parcelas.some((row) => ![PARCELA_ACORDO_STATUS.PENDENTE, PARCELA_ACORDO_STATUS.VENCIDA].includes(row.status))) {
     throw new Error('Uma ou mais parcelas não estão geradas/ativas.')
   }
-  if (parcelas.some((row) => !(ACORDO_STATUS_VIGENTES as string[]).includes(String(row.acordo?.status ?? '')) || String(row.acordo?.status_financeiro ?? '') === 'quitado')) {
-    throw new Error('Uma ou mais parcelas pertencem a acordos que não estão ativos.')
-  }
+  for (const parcela of parcelas) assertCarteiraPermitida(scope, parcela.acordo?.carteira_id)
+  const efetivados = await enriquecerEfetivacaoFlow(supabase, parcelas.map(row => row.acordo).filter(Boolean))
+  if (parcelas.some(row => !parcelaValidaFlow({ ...row, acordo: efetivados.get(row.acordo?.id) }, periodo))) throw new Error('A seleção contém parcela paga, fora do período ou de acordo inválido. Atualize os filtros.')
   if (parcelas.some((row) => !hasResponsavelVinculado(row))) {
     throw new Error('Uma ou mais parcelas pertencem a unidades sem responsável vinculado. Corrija o cadastro antes de criar o Flow.')
   }
@@ -155,19 +166,27 @@ export async function criarFlowsAcordos(formData: FormData) {
 
   const { data: vinculadas, error: vinculadasError } = await supabase
     .from('lote_itens')
-    .select('payload')
+    .select('payload, flow:acordo_flows!inner(payload)')
     .not('acordo_flow_id', 'is', null)
+    .eq('flow.payload->>canal', canal)
   if (vinculadasError && !['42703', 'PGRST204'].includes(String(vinculadasError.code))) {
     throw new Error(`Erro ao verificar vínculos existentes: ${vinculadasError.message}`)
   }
   const vinculadasIds = new Set(((vinculadas ?? []) as any[]).map((row) => parcelaIdFromPayload(row.payload)).filter(Boolean))
   if (parcelas.some((row) => vinculadasIds.has(String(row.id)))) throw new Error('Uma ou mais parcelas já estão vinculadas a outro Flow.')
 
+  const reguasValidadas = new Set<string>()
   const grupos = new Map<string, any[]>()
   for (const parcela of parcelas) {
     const carteiraId = String(parcela.acordo?.carteira_id ?? '')
     const reguaId = String(formData.get(`regua_id:${carteiraId}`) ?? '').trim()
     if (!reguaId) throw new Error('Selecione a régua de cada lote antes de criar o Flow.')
+    const validacaoKey = `${carteiraId}|${reguaId}`
+    if (!reguasValidadas.has(validacaoKey)) {
+    const { data: regua, error: reguaError } = await supabase.from('reguas').select('id,tipo,ativo,carteira_id,etapas:regua_etapas(canal,ativo)').eq('id', reguaId).single()
+    if (reguaError || !regua || regua.tipo !== 'acordo' || regua.ativo === false || (regua.carteira_id && regua.carteira_id !== carteiraId) || !etapasDoCanal(regua.etapas ?? [], canal).length) throw new Error('Régua indisponível para o canal ou carteira selecionados.')
+    reguasValidadas.add(validacaoKey)
+    }
     const key = `${carteiraId}|${reguaId}`
     const list = grupos.get(key) ?? []
     list.push(parcela)
@@ -182,6 +201,7 @@ export async function criarFlowsAcordos(formData: FormData) {
       origem: 'manual',
       parcelaIds: rows.map((row) => row.id),
       reguaId,
+      canal,
     })
 
     for (const loteId of resultado.loteIds) {
@@ -215,6 +235,8 @@ export async function criarFlowsAcordos(formData: FormData) {
           atualizado_por: user.id,
           payload: {
             contexto: 'flow_acordos_parcelas',
+            periodo,
+            canal,
             parcela_ids: rows.map((row) => row.id),
             acordo_ids: rows.map((row) => row.acordo_id),
             lote_id: loteId,
@@ -232,7 +254,10 @@ export async function criarFlowsAcordos(formData: FormData) {
   }
 
   revalidatePath('/app/flows/acordos')
-  redirect(`/app/flows/acordos?step=flows&criados=${flowIds.length}`)
+  revalidatePath('/app/flows/acordos/email')
+  revalidatePath('/app/flows/acordos/whatsapp')
+  revalidatePath(`/app/flows/acordos/${canal}`)
+  redirect(`/app/flows/acordos/${canal}?step=flows&criados=${flowIds.length}&vencimento_de=${periodo.inicio}&vencimento_ate=${periodo.fim}`)
 }
 
 export async function enviarFlowAcordos(flowId: string) {
@@ -297,6 +322,8 @@ export async function enviarFlowAcordos(flowId: string) {
   })
 
   revalidatePath('/app/flows/acordos')
+  revalidatePath('/app/flows/acordos/email')
+  revalidatePath('/app/flows/acordos/whatsapp')
 }
 
 export async function pausarFlowAcordos(flowId: string) {
@@ -319,6 +346,8 @@ export async function pausarFlowAcordos(flowId: string) {
     .eq('id', flowId)
   if (error) throw new Error(`Erro ao pausar Flow: ${error.message}`)
   revalidatePath('/app/flows/acordos')
+  revalidatePath('/app/flows/acordos/email')
+  revalidatePath('/app/flows/acordos/whatsapp')
 }
 
 export async function cancelarFlowAcordos(flowId: string) {
@@ -351,6 +380,8 @@ export async function cancelarFlowAcordos(flowId: string) {
   if (error) throw new Error(`Erro ao cancelar Flow: ${error.message}`)
 
   revalidatePath('/app/flows/acordos')
+  revalidatePath('/app/flows/acordos/email')
+  revalidatePath('/app/flows/acordos/whatsapp')
 }
 
 export async function reenviarItemFlowAcordos(itemId: string) {
@@ -411,4 +442,6 @@ export async function reenviarItemFlowAcordos(itemId: string) {
 
   await recalcularFlowAcordos(supabase, flowId)
   revalidatePath('/app/flows/acordos')
+  revalidatePath('/app/flows/acordos/email')
+  revalidatePath('/app/flows/acordos/whatsapp')
 }

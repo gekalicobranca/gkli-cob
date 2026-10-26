@@ -95,9 +95,10 @@ const sections: SidebarSection[] = [
     id: 'flows',
     title: 'Flows',
     items: [
-      { label: 'Flows e-mails', href: '/app/flows/cobranca/email', icon: 'inbox' },
-      { label: 'Flows WhatsApps', href: '/app/flows/cobranca/whatsapp', icon: 'message' },
-      { label: 'Flows acordos', href: '/app/flows/acordos', icon: 'handshake' },
+      { label: 'Cobranças - Emails', href: '/app/flows/cobranca/email', icon: 'inbox' },
+      { label: 'Cobranças - Whapps', href: '/app/flows/cobranca/whatsapp', icon: 'message' },
+      { label: 'Acordos - Emails', href: '/app/flows/acordos/email', icon: 'inbox' },
+      { label: 'Acordos - Whapps', href: '/app/flows/acordos/whatsapp', icon: 'message' },
       { label: 'Exportar para GKLI-FLOW', href: '/app/flows/exportar', icon: 'inbox' },
     ],
   },
