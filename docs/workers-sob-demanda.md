@@ -27,16 +27,17 @@ avulsas. Não há partida automática do WhatsApp até liberação explícita.
 Para uma futura retomada, o administrador precisa liberar essa chave e os controles
 das sessões desejadas. Esta instalação não libera nem reconecta nenhuma sessão.
 
-E-mails continuam sendo jobs hospedados, sem daemon local. O cron executa das
-22h às 06h de Brasília, exclusivamente, e só chama o dispatcher quando há fila.
+E-mails SMTP continuam sendo jobs hospedados, sem daemon local. O cron consulta a cada
+dois minutos, das 22h às 06h de Brasília, e só chama o dispatcher quando há fila.
 As reservas e a autorização final preservam cotas, cadência e bloqueios judiciais.
 
 No Thunderbird, alarmes pontuais substituem o timer periódico. Sem fila habilitada,
-não existe alarme. Fora da janela noturna, agenda o próximo despertar às 22h sem
-consultar o app; durante a noite, considera a próxima reserva e consulta no máximo
-a cada cinco minutos quando ocioso. Recuperação de confirmação pendente continua
+não existe alarme. Fora da janela noturna, normalmente agenda o próximo despertar às 22h.
+Uma reserva diurna autorizada no servidor pode antecipar esse despertar, preservando
+a cota de 100 por conta e o intervalo mínimo de dois minutos. Considera a próxima reserva
+e consulta no máximo a cada cinco minutos quando ocioso. Recuperação de confirmação pendente continua
 permitida sem repetir o envio. Testes explicitamente solicitados mantêm o comportamento
-manual existente. A extensão 0.2.0 está em `output/thunderbird/` e no perfil local instalado.
+manual existente. A extensão instalada é a 0.3.1; o pacote e a versão anterior estão preservados em `.codex-tmp/`.
 
 Logs, estado e manifesto ficam em `.codex-tmp/maestro-supervisor/`. Falhas mantêm
 espera progressiva e resultados não confirmados nunca são repetidos automaticamente.

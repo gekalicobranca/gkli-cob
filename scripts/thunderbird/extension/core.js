@@ -7,7 +7,8 @@
   function nextWake(now=new Date(), nextAt=null) {
     const requested=Date.parse(nextAt);
     const wake=new Date(Math.max(now.getTime()+1000,Math.min(requested>now.getTime()?requested:Infinity,now.getTime()+5*60000)));
-    if(emailWindow(wake))return wake.getTime();
+    // Um horário diurno explícito vem do servidor; a autorização ainda é conferida no claim/start.
+    if(emailWindow(wake)||(requested>now.getTime()&&!emailWindow(new Date(requested))))return wake.getTime();
     const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(wake).map(p=>[p.type,p.value]));
     return wake.getTime()+((22-Number(parts.hour))*3600-Number(parts.minute)*60-Number(parts.second))*1000-wake.getMilliseconds();
   }

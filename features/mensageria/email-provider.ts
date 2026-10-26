@@ -7,6 +7,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { normalizarEmailControle } from '@/features/carteiras/email-controle'
 import { validarMensagemSemCobrancaArquivada } from './validar-arquivamento'
 import { buscarRotaSmtpFlow } from './smtp-rota-condominio'
+import { normalizarContaEnvio } from './email-conta'
 
 export type EmailPayload = {
   to: string
@@ -446,10 +447,16 @@ async function upgradeToTls(socket: net.Socket, config: SmtpConfig) {
 }
 
 export async function getEmailRemetenteKey(carteiraId: string) {
-  const { data: device } = await createAdminClient().from('thunderbird_dispositivos').select('email').eq('carteira_id', carteiraId).eq('ativo', true).eq('automatico', true).maybeSingle()
-  if (device) return device.email.split('@').pop()!.toLowerCase()
+  const db = createAdminClient()
+  const { data: carteira, error } = await db.from('carteiras').select('email_transporte').eq('id', carteiraId).single()
+  if (error) throw new Error('Não foi possível verificar a conta de envio.')
+  if (carteira.email_transporte === 'thunderbird') {
+    const { data: device, error: deviceError } = await db.from('thunderbird_dispositivos').select('email').eq('carteira_id', carteiraId).eq('ativo', true).single()
+    if (deviceError) throw new Error('Conta Thunderbird indisponível.')
+    return normalizarContaEnvio(device.email)
+  }
   const config = await getConfig({ carteiraId })
-  return smtpSender(config.from).address.split('@').pop()!.toLowerCase()
+  return normalizarContaEnvio(config.user)
 }
 
 export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig | SmtpSendOptions) {
@@ -498,7 +505,7 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
   if (!body) throw new Error('Conteúdo do e-mail vazio')
 
   const tentativaId = normalizedOptions.mensagemId
-    ? await reservarDisparoEmail(normalizedOptions.mensagemId, from.split('@').pop()!.toLowerCase()) : null
+    ? await reservarDisparoEmail(normalizedOptions.mensagemId, normalizarContaEnvio(config.user)) : null
   let socket: net.Socket | tls.TLSSocket | undefined
   let dadosTransmitidos = false
   let aceito = false

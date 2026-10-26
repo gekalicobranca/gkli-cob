@@ -19,6 +19,29 @@ function mock() {
   };
   return { state, deps };
 }
+
+test('horário explícito do servidor pode antecipar a janela sem liberar a agenda padrão',()=>{
+ const now=new Date('2026-10-26T19:00Z');
+ assert.equal(new Date(nextWake(now,'2026-10-26T19:10Z')).toISOString(),'2026-10-26T19:05:00.000Z');
+ assert.equal(new Date(nextWake(now,'2026-10-27T01:00Z')).toISOString(),'2026-10-27T01:00:00.000Z');
+ assert.equal(new Date(nextWake(now)).toISOString(),'2026-10-27T01:00:00.000Z');
+ assert.equal(new Date(nextWake(now,'inválido')).toISOString(),'2026-10-27T01:00:00.000Z');
+ assert.equal(new Date(nextWake(new Date('2026-10-27T01:00Z'),'2026-10-27T02:00Z')).toISOString(),'2026-10-27T01:05:00.000Z');
+});
+
+test('worker agenda nova consulta depois de entregar uma mensagem durante o dia',async()=>{
+ const vm=require('node:vm');const fs=require('node:fs');
+ const sandbox={Date,URL,AbortSignal,console,fetch:async(_url,options)=>({ok:true,json:async()=>JSON.parse(options.body).action==='status'?{email:'operacao@example.com'}:{job:{id:'job'}}}),
+  GkliTb:{recover:async()=>false,runJob:async()=>({state:'enviado'}),nextWake:(now,next)=>Date.parse(next)||now.getTime()+60000},
+  browser:{storage:{local:{get:async()=>({pairing:{token:'local-test'},enabled:true}),set:async()=>{}}},
+   accounts:{list:async()=>[{identities:[{id:'id',email:'operacao@example.com'}]}]},compose:{},tabs:{},
+   runtime:{onMessage:{addListener:()=>{}}},browserAction:{onClicked:{addListener:()=>{}}},
+   alarms:{clear:async()=>{},create:()=>{},onAlarm:{addListener:()=>{}}}}};
+ vm.createContext(sandbox);vm.runInContext(fs.readFileSync(require.resolve('./extension/background.js'),'utf8'),sandbox);
+ const before=Date.now();const result=await vm.runInContext('tick()',sandbox);
+ assert.ok(Date.parse(result.nextAt)>=before+60000);
+ assert.ok(Date.parse(result.nextAt)<=Date.now()+60000);
+});
 test('envio confirmado registra recibo uma única vez', async () => {
   const { state, deps } = mock(); await runJob(deps, { id: 'one' });
   assert.equal(state.sent, 1); assert.equal(state.completed[0].state, 'enviado'); assert.equal(state.journal, null);

@@ -76,8 +76,8 @@ function getCarteiraFiscalPayload(formData: FormData) {
 }
 
 function getCarteiraOperacionalPayload(formData: FormData) {
-  const emailLimite = Number(formData.get("email_limite_diario") ?? 50);
-  if (!Number.isInteger(emailLimite) || emailLimite < 1 || emailLimite > 50) throw new Error("Informe um limite de 1 a 50 e-mails por dia.");
+  const emailLimite = Number(formData.get("email_limite_diario") ?? 100);
+  if (!Number.isInteger(emailLimite) || emailLimite < 1 || emailLimite > 100) throw new Error("Informe um limite de 1 a 100 e-mails por conta por dia.");
   const whatsappHabilitado = formData.get("whatsapp_habilitado") === "on";
   const whatsappRemetenteModo = String(formData.get("whatsapp_remetente_modo") ?? "global").trim();
   if (!["global", "proprio"].includes(whatsappRemetenteModo)) {
