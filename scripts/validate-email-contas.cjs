@@ -39,7 +39,9 @@ test('cotas e cadência por conta autenticada preservam as travas do envio',asyn
  async function message(n,w=1,condo=100+w){const k=id(n);await db.query('insert into cobrancas(id,carteira_id,condominio_id)values($1,$2,$3)',[k,id(w),id(condo)]);await db.query('insert into mensagens(id,carteira_id,cobranca_id,cobranca_flow_id)values($1,$2,$1,$3)',[k,id(w),id(200+w)]);return k;}
  // Tentativa anterior à alteração: seu agrupamento original deve permanecer auditável.
  const legacy=await message(900);await db.query("insert into email_tentativas(mensagem_id,carteira_id,remetente,iniciado_em,estado)values($1,$2,'shared.example',test_now(),'enviado')",[legacy,id(1)]);
- await db.exec(clock(fs.readFileSync('supabase/migrations/20261026193107_email_cem_por_conta_intervalo_dois_minutos.sql','utf8')));
+ const migration=fs.readdirSync('supabase/migrations').find(name=>name.endsWith('_email_cem_por_conta_intervalo_dois_minutos.sql'));
+ assert.ok(migration,'Migração de cotas por conta ausente');
+ await db.exec(clock(fs.readFileSync('supabase/migrations/'+migration,'utf8')));
  await db.exec('update carteiras set email_limite_diario=100');
  const one=async(s,p=[]) => (await db.query(s,p)).rows[0];
  await t.test('histórico, privilégios e cron ficam coerentes',async()=>{
