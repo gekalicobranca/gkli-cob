@@ -26,6 +26,8 @@ O servidor guarda somente o hash do token do dispositivo. O endpoint `/api/integ
 
 O transporte reaproveita a reserva atômica de e-mail, horários, limite diário, intervalo de dez minutos, aprovação e elegibilidade dos Flows. O SMTP do servidor bloqueia carteiras com transporte Thunderbird. Anexos usam URLs assinadas de curta duração; a extensão admite somente o Storage do projeto e até 20 MB por mensagem.
 
+A versão 0.3.0 também consulta o servidor quando uma execução é solicitada fora da janela. Isso não libera a fila inteira: cobranças antecipadas exigem uma autorização administrativa em `email_liberacoes_imediatas`, vinculada à mensagem, carteira, condomínio e Flow, com assinatura do conteúdo e validade máxima de três horas. Alterar conteúdo ou destinatário invalida a autorização. Aprovação, elegibilidade, pausa, intervalo de dez minutos, cota diária e proteção contra reenvio continuam obrigatórios. O próximo horário explícito devolvido pelo servidor é respeitado pela extensão; sem ele, permanece a janela padrão de 22h às 06h.
+
 Antes de transmitir, registra uma tentativa local durável e obtém autorização final no servidor. Uma resposta perdida após envio não causa nova transmissão: somente a confirmação é repetida. Reinício durante transmissão registra `incerto`. Reservas abandonadas, resultados incertos e falhas precisam de conferência; não há expiração que libere reenvio automático.
 
 Para retirar um dispositivo, desative `thunderbird_dispositivos.ativo`. Para voltar ao SMTP, confira primeiro todas as tentativas pendentes e configure `carteiras.email_transporte='smtp'`. Não libere reenvios sem comparar o registro com a pasta Enviados do Thunderbird.

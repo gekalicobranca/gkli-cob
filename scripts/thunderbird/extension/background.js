@@ -45,7 +45,7 @@ async function tick(testOnly = false) {
     if (!pairing) return { message: 'Importe o arquivo de conexão.' };
     if (await GkliTb.recover(deps, journal)) return { message: 'Resultado anterior sincronizado; nenhum reenvio.' };
     if (!enabled && !testOnly) return { message: 'Fila automática pausada.' };
-    if (!testOnly && !GkliTb.emailWindow(new Date())) return {message:'Fila aguardando a janela das 22h às 06h.'};
+    // O servidor aplica a janela e as liberações humanas por mensagem, além dos limites.
     const status = await api({ action: 'status' });
     await identity(status.email); // Never claim a job without its configured local identity.
     const { job, nextAt } = await api({ action: 'claim', testOnly });
@@ -53,7 +53,8 @@ async function tick(testOnly = false) {
     const result = await GkliTb.runJob(deps, job);
     const message = result.state === 'enviado' ? 'Envio confirmado pelo Thunderbird.' : 'Envio bloqueado: ' + result.error;
     await browser.storage.local.set({ lastResult: message });
-    return { message };
+    // Após uma entrega, consultar a próxima reserva também durante a liberação diurna.
+    return { message, nextAt: new Date(Date.now() + 60000).toISOString() };
   } finally { busy = false; }
 }
 async function arm(nextAt=null) {

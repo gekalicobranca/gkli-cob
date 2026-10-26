@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "GKLI — Envio pelo Thunderbird",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "Envia a fila autorizada da carteira pelo Thunderbird e registra cada resultado no GKLI.",
   "browser_specific_settings": { "gecko": { "id": "thunderbird@gkli-cob.local", "strict_min_version": "128.0" } },
   "permissions": ["accountsRead", "compose", "compose.send", "storage", "alarms", "https://gkli-cob.vercel.app/*", "https://vjcmotflmcczoepflhwc.supabase.co/*"],
