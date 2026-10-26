@@ -136,6 +136,7 @@ export async function criarFlowsAcordos(formData: FormData) {
       data_pagamento,
       acordo:acordos(
         id,
+        tipo,
         carteira_id,
         status,
         status_financeiro,

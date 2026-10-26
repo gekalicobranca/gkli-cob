@@ -188,3 +188,15 @@ test('repasses no dia somam o repasse total dos acordos realizados hoje, indepen
   assert.equal(calculate([], rows, []).result.transferToday, 273.45)
   assert.equal(calculate([], [old], [installment({ acordos: old, status: 'paga', data_pagamento: '2026-10-20' })]).result.transferToday, 0)
 })
+
+test('judiciais efetivados não entram nos totais extrajudiciais, mesmo após migrar parcelas', () => {
+  const judicial = agreement({ id: 'judicial-canonico', tipo: 'judicial', tem_parcela_paga: true, data_acordo: '2026-10-20' })
+  const duplicado = agreement({ id: 'duplicado-arquivado', tipo: 'extrajudicial', status: 'cancelado', observacoes: '[DUPLICIDADE_ACORDO_CONCILIADA]' })
+  const metrics = calculate([], [judicial, duplicado], [installment({ id: 'futura-preservada', acordos: judicial }), installment({ id: 'paga-preservada', status: 'paga', data_pagamento: '2026-10-20', acordos: judicial })])
+  assert.equal(metrics.agreements.period, 0)
+  assert.equal(metrics.agreements.today, 0)
+  assert.equal(metrics.result.expected, 0)
+  assert.equal(metrics.result.paid, 0)
+  assert.equal(metrics.result.transfer, 0)
+  assert.equal(metrics.result.transferToday, 0)
+})

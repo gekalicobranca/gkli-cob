@@ -4,6 +4,7 @@ import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from '@/lib/constants/cobrancas'
 import { getCobrancaStatusFinanceiro, getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 export type TvAgreement = {
+  tipo?: string | null
   fluxo_status?: string | null
   boletos_solicitados_em?: string | null
   tem_parcela_paga?: boolean
@@ -44,7 +45,7 @@ export function tvAgreementStage(agreement: TvAgreement) {
 }
 
 export function eligibleTvAgreement(agreement: TvAgreement) {
-  return Boolean(tvAgreementStage(agreement)) && !excluidoDaSomaDivida(agreement)
+  return normalize(agreement.tipo ?? null) !== 'judicial' && Boolean(tvAgreementStage(agreement)) && !excluidoDaSomaDivida(agreement)
     && !(agreement.observacoes ?? '').includes('[DUPLICIDADE_ACORDO_CONCILIADA]')
     && !['cancelado', 'cancelada', 'quebrado', 'rompido', 'renegociado'].includes(normalize(agreement.status))
 }

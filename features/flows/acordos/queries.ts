@@ -21,6 +21,7 @@ const PARCELA_SELECT = `
   status,
   acordo:acordos!inner(
     id,
+    tipo,
     carteira_id,
     condominio_id,
     unidade_id,
@@ -205,6 +206,7 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
   let parcelasQuery = supabase
     .from('parcelas_acordo')
     .select(PARCELA_SELECT)
+    .eq('acordo.tipo', 'extrajudicial')
     .in('status', [PARCELA_ACORDO_STATUS.PENDENTE, PARCELA_ACORDO_STATUS.VENCIDA])
     .order('vencimento', { ascending: true })
     .order('id', { ascending: true })

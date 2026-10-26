@@ -18,3 +18,10 @@ test('pagamento anterior ao período efetiva o acordo sem incluir parcela paga n
   assert.equal(parcelaValidaFlow({ ...row, acordo: acordos.get('a') }, periodo), true)
   assert.equal(parcelaValidaFlow({ ...row, status: 'paga', acordo: acordos.get('a') }, periodo), false)
 })
+
+test('e-mail e WhatsApp excluem parcelas migradas para acordo judicial, ainda que firmado ou pago', () => {
+  for (const tipo of ['judicial', 'JUDICIAL']) {
+    assert.equal(parcelaValidaFlow({ ...row, acordo: { ...acordo, tipo, tem_parcela_paga: true } }, periodo), false)
+  }
+  assert.equal(parcelaValidaFlow({ ...row, acordo: { ...acordo, tipo: 'extrajudicial' } }, periodo), true)
+})

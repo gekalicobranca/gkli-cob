@@ -416,6 +416,7 @@ export async function processarReguaAcordos(
         unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
       `,
       )
+      .eq('tipo', 'extrajudicial')
       .in('status', ACORDO_STATUS_VIGENTES)
       .neq('status_financeiro', 'quitado')
       .range(from, to)
