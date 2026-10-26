@@ -252,10 +252,10 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                 ))}
               </Select>
             </ListFilterField>
-            <ListFilterField label="Data do acordo de" className="xl:col-span-2">
+            <ListFilterField label="Vencimento das parcelas de" className="xl:col-span-2">
               <Input name="data_de" type="date" defaultValue={dateFilter(params.data_de)} />
             </ListFilterField>
-            <ListFilterField label="Data do acordo até" className="xl:col-span-2">
+            <ListFilterField label="Vencimento das parcelas até" className="xl:col-span-2">
               <Input name="data_ate" type="date" defaultValue={dateFilter(params.data_ate)} />
             </ListFilterField>
             <ListFilterField label="Operador responsável" className="xl:col-span-3">

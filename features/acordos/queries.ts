@@ -1,3 +1,4 @@
+import { acordoTemParcelaNoPeriodo } from './filtro-vencimento'
 import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
@@ -734,6 +735,7 @@ function attachAgreementHealth(acordos: any[], parcelas: any[]) {
     const health = calculateAgreementHealth(parcelasDoAcordo);
     return {
       ...acordo,
+      parcelas_periodo: parcelasDoAcordo.map(parcela => ({ vencimento: parcela.vencimento })),
       parcelas_alertas: health,
       saude_acordo: health.saude,
     };
@@ -860,15 +862,14 @@ function filterAcordosPageRows(rows: any[], filters: ListAcordosComSaudePageFilt
 
   return rows.filter((row) => {
     if (filters.tipo_acordo && !matchesAgreementKind(row, filters.tipo_acordo)) return false;
-    const data = cleanPageFilter(row.data_acordo).slice(0, 10);
+
     if (!criadoNoIntervalo(row.created_at, filters.criacao_de, filters.criacao_ate)) return false;
     if (filters.operador_id && operadorResponsavelId(row) !== filters.operador_id.trim()) return false;
     if (condominioId && row.condominio_id !== condominioId) return false;
     if (unidadeId && row.unidade_id !== unidadeId) return false;
     if (carteiraId && row.carteira_id !== carteiraId) return false;
     if (status && row.status !== status) return false;
-    if (dataDe && data < dataDe) return false;
-    if (dataAte && data > dataAte) return false;
+    if (!acordoTemParcelaNoPeriodo(row.parcelas_periodo, dataDe, dataAte)) return false;
 
     if (termo) {
       const haystack = normalizePageText([
@@ -922,8 +923,8 @@ async function applyAcordosDirectFilters(query: any, filters: ListAcordosComSaud
   if (unidadeId) query = query.eq("unidade_id", unidadeId);
   if (carteiraId) query = query.eq("carteira_id", carteiraId);
   if (status) query = query.eq("status", status);
-  if (dataDe) query = query.gte("data_acordo", dataDe);
-  if (dataAte) query = query.lte("data_acordo", dataAte);
+  if (dataDe) query = query.gte("parcelas_periodo.vencimento", dataDe);
+  if (dataAte) query = query.lte("parcelas_periodo.vencimento", dataAte);
 
   return { query };
 }
@@ -960,20 +961,31 @@ export async function listAcordosComSaudePage(
   }
 
   const supabase = await createClient();
+  const parcelasPeriodoSelect = datePageFilter(filters.data_de) || datePageFilter(filters.data_ate)
+    ? ',parcelas_periodo:parcelas_acordo!inner(id,vencimento)' : '';
   let rowsQuery = somenteAcordosCanonicos(supabase
     .from("acordos")
-    .select(ACORDOS_PAGE_SELECT, { count: "exact" }));
+    .select(ACORDOS_PAGE_SELECT + parcelasPeriodoSelect, { count: "exact" }));
   rowsQuery = (await applyAcordosDirectFilters(rowsQuery, filters, scope)).query;
   rowsQuery = applyAcordosOrder(rowsQuery, ordenar).range(from, to);
 
   let resumoQuery = somenteAcordosCanonicos(supabase
     .from("acordos")
-    .select("status, valor_acordado, tipo, fluxo_status"));
+    .select("id,status, valor_acordado, tipo, fluxo_status" + parcelasPeriodoSelect));
   resumoQuery = (await applyAcordosDirectFilters(resumoQuery, filters, scope)).query;
 
+  async function carregarResumoCompleto() {
+    const rows: any[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await resumoQuery.order('id').range(offset, offset + 499);
+      if (error) return { data: null, error };
+      rows.push(...(data ?? []));
+      if (!data || data.length < 500) return { data: rows, error: null };
+    }
+  }
   const [{ data: rowsData, error: rowsError, count }, { data: resumoRows, error: resumoError }] = await Promise.all([
     rowsQuery,
-    resumoQuery,
+    carregarResumoCompleto(),
   ]);
 
   if (rowsError) throw new Error(`Erro ao carregar acordos: ${rowsError.message}`);
