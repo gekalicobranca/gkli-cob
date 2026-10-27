@@ -2,9 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { StatusBadge } from "@/components/data/status-badge";
 import { formatCurrency } from "@/utils/formatters/currency";
-import { formatDateBR } from "@/utils/formatters/date";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import {
   getPendenciaPlanilhaDebitosAberta,
@@ -13,7 +11,7 @@ import {
 import { solicitarPlanilhaDebitosAdministradora } from "@/features/acordos/actions";
 import { COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO } from "@/lib/core/status";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
-import { SelectAllCobrancas } from "./select-all-cobrancas";
+import { SelecaoCobrancas } from "@/components/acordos/selecao-cobrancas";
 
 type PageProps = {
   searchParams: Promise<{
@@ -157,7 +155,7 @@ export default async function SelecionarCobrancasAcordoPage({
       ) : (
         <form
           action="/app/acordos/novo"
-          className="grid gap-6 xl:grid-cols-[1fr_360px]"
+          className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_320px]"
         >
           <input type="hidden" name="cobranca_id_origem" value={origem?.id ?? ""} />
           <input type="hidden" name="unidade_id" value={data.unidadeId ?? ""} />
@@ -177,72 +175,17 @@ export default async function SelecionarCobrancasAcordoPage({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <SelectAllCobrancas total={selecionaveis.length} />
-              <span className="text-xs font-medium text-slate-500">
-                Itens bloqueados permanecem travados.
-              </span>
-            </div>
-
-            <div className="overflow-hidden rounded-2xl border border-slate-200">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500">
-                  <tr>
-                    <th className="w-12 px-4 py-3">Sel.</th>
-                    <th className="px-4 py-3">Unidade / bloco</th>
-                    <th className="px-4 py-3">Vencimento</th>
-                    <th className="px-4 py-3">Competência</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Valor</th>
-                    <th className="px-4 py-3">Cota do mês</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {cobrancas.map((cobranca) => {
-                    const bloqueada = isBloqueada(cobranca);
-                    const defaultChecked =
-                      cobranca.id === data.cobrancaOrigemId ||
-                      (!query.todas_unidades && !data.cobrancaOrigemId && !bloqueada);
-                    return (
-                      <tr
-                        key={cobranca.id}
-                        className={bloqueada ? "bg-slate-50 opacity-70" : ""}
-                      >
-                        <td className="px-4 py-3 align-top">
-                          <input
-                            type="checkbox"
-                            name="cobrancaIds"
-                            value={cobranca.id}
-                            defaultChecked={defaultChecked && !bloqueada}
-                            disabled={bloqueada}
-                            className="h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]"
-                          />
-                        </td>
-                        <td className="px-4 py-3 align-top">{cobranca.unidades?.identificacao ?? "-"}{cobranca.unidades?.bloco ? ` / ${cobranca.unidades.bloco}` : ""}</td>
-                        <td className="px-4 py-3 align-top font-medium text-slate-950">
-                          {formatDateBR(cobranca.vencimento)}
-                        </td>
-                        <td className="px-4 py-3 align-top text-slate-600">
-                          {cobranca.competencia ?? "-"}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <StatusBadge status={getCobrancaStatusOperacional(cobranca)} />
-                        </td>
-                        <td className="px-4 py-3 align-top text-right font-semibold text-slate-950">
-                          {formatCurrency(getValorAtualizado(cobranca))}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          <label className="flex items-start gap-2 text-xs text-slate-600">
-                            <input type="checkbox" name="cotasSemDespesas" value={cobranca.id} disabled={bloqueada} className="mt-1 accent-[var(--gkli-primary)]" />
-                            Sem despesas somente à vista (autorizada pela administradora)
-                          </label>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <SelecaoCobrancas cobrancas={cobrancas.map(c => ({
+              id: c.id,
+              unidade: [c.unidades?.identificacao ?? "—", c.unidades?.bloco].filter(Boolean).join(" / "),
+              responsavel: c.unidades?.responsavel_nome ?? "",
+              vencimento: c.vencimento ?? "",
+              competencia: c.competencia ?? "",
+              status: getCobrancaStatusOperacional(c),
+              valor: getValorAtualizado(c),
+              bloqueada: Boolean(isBloqueada(c)),
+              selecionada: c.id === data.cobrancaOrigemId || (!query.todas_unidades && !data.cobrancaOrigemId),
+            }))} />
           </Card>
 
           <div className="space-y-4">
@@ -288,7 +231,7 @@ export default async function SelecionarCobrancasAcordoPage({
 
               <div className="mt-5 rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Total selecionável
+                  Total disponível antes da seleção
                 </p>
                 <p className="mt-1 text-2xl font-semibold text-slate-950">
                   {formatCurrency(totalSelecionavel)}

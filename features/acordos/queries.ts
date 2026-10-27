@@ -213,7 +213,11 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
     );
   }
 
-  const eventosOperacionais = await listEventosOperacionaisDoAcordo(id);
+  const [eventosOperacionais, contatosResult] = await Promise.all([
+    listEventosOperacionaisDoAcordo(id),
+    supabase.from("interacoes").select("id,tipo,conteudo,created_at,profiles(nome)").eq("acordo_id", id),
+  ]);
+  if (contatosResult.error) throw new Error(`Erro ao carregar contatos do acordo: ${contatosResult.error.message}`);
 
   const { data: cobrancasVinculadas, error: cobrancasVinculadasError } =
     await supabase
@@ -273,6 +277,14 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
     cobrancasVinculadas: cobrancasVinculadas ?? [],
     parcelas: parcelasNormalizadas,
     timeline: [
+      ...((contatosResult.data ?? []) as any[]).map(contato => ({
+        id: contato.id,
+        tipo: "interacao",
+        descricao: `${contato.tipo} · ${(Array.isArray(contato.profiles) ? contato.profiles[0] : contato.profiles)?.nome ?? "Operador"} · ${contato.conteudo}`,
+        criado_em: contato.created_at,
+        severidade: "info",
+        origem: "interacao",
+      })),
       ...eventosOperacionais.map((evento) => ({
         id: evento.id,
         tipo: evento.tipo,

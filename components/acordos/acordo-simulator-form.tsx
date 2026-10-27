@@ -1,9 +1,11 @@
 "use client";
 
+import { ContatoRapidoAcordo } from "@/components/acordos/contato-rapido";
+
 import {rotuloUnidade} from "@/features/acordos/unidade-titular";
 
 import { type ChangeEvent, useActionState, useMemo, useState } from "react";
-import { AlertTriangle, Mail, Phone, Save, UserRound } from "lucide-react";
+import { AlertTriangle, Mail, Phone, Save, UserRound, Calculator, CheckCircle2, FileText, Layers } from "lucide-react";
 import {
   createAcordoComEstado,
   salvarContatoResponsavelAcordoComEstado,
@@ -16,7 +18,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { formatCurrency } from "@/utils/formatters/currency";
-import { formatDateBR } from "@/utils/formatters/date";
+import { formatarVencimentoAcordo as formatDateBR } from "@/features/acordos/formatar-vencimento";
 import { calculateAgreementInsight } from "@/features/acordos/insights";
 
 import { calcularDespesasAcordo } from "@/features/acordos/calculo-despesas";
@@ -411,7 +413,7 @@ export function AcordoSimulatorForm({
   }
 
   return (
-    <form action={createAcordoAction} className="grid gap-6 xl:grid-cols-[1fr_420px]">
+    <form action={createAcordoAction} className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px] [&_input:not([type=checkbox]):not([type=hidden])]:min-h-11 [&_input:not([type=checkbox])]:text-base [&_select]:min-h-11 [&_select]:text-base [&_textarea]:text-base [&_button]:min-h-11 [&_button]:h-auto [&_button]:py-2.5">
       {cobrancasSelecionadas.map((cobranca) => (
         <input
           key={cobranca.id}
@@ -423,7 +425,9 @@ export function AcordoSimulatorForm({
       <input type="hidden" name="unidade_titular_id" value={cobrancaSelecionada?.unidade_id ?? ""} />
       {cotasSemDespesas.map((id) => <input key={id} type="hidden" name="cotas_sem_despesas" value={id} />)}
       <input type="hidden" name="cobranca_id_origem" value={cobrancaSelecionada?.id ?? cobrancaId} />
+      <div className="min-w-0 space-y-6">
       <Card className="space-y-5">
+        <h2 className="flex items-center gap-3 text-xl font-semibold text-slate-950"><Layers className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />1. Cobranças e unidade titular</h2>
         {cotasSemDespesas.length > 0 && (
           <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
             <input type="checkbox" name="cota_mes_autorizada" defaultChecked={formularioInicial.cota_mes_autorizada === "on"} required className="mt-1" />
@@ -450,7 +454,9 @@ export function AcordoSimulatorForm({
               </p>
             </div>
 
-            <div className="divide-y divide-slate-200 rounded-xl bg-white/70">
+            <details open={cobrancasSelecionadas.length <= 3} className="rounded-xl bg-white/70 p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-slate-800">{cobrancasSelecionadas.length} cobranças · {formatCurrency(preview.valorOriginal)}</summary>
+            <div className="mt-3 max-h-72 divide-y divide-slate-200 overflow-y-auto">
               {cobrancasSelecionadas.map((cobranca) => (
                 <div
                   key={cobranca.id}
@@ -474,6 +480,7 @@ export function AcordoSimulatorForm({
                 </div>
               ))}
             </div>
+            </details>
           </div>
         ) : (
           <>
@@ -518,26 +525,26 @@ export function AcordoSimulatorForm({
           </>
         )}
 
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Elegibilidade</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{insight.elegibilidadeLabel}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{insight.elegibilidadeMotivo}</p>
+            <p className="mt-1 text-sm leading-5 text-slate-500">{insight.elegibilidadeMotivo}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Recuperação</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{insight.score}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{insight.scoreLabel}</p>
+            <p className="mt-1 text-sm leading-5 text-slate-500">{insight.scoreLabel}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Reincidência</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{insight.reincidenciaLabel}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{inteligenciaOperacional.rompimentos} rompimento(s)</p>
+            <p className="mt-1 text-sm leading-5 text-slate-500">{inteligenciaOperacional.rompimentos} rompimento(s)</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Restrição</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{insight.restricaoPrincipal}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{exigeAprovacaoSindico ? "Síndico aprova antes" : "Fluxo padrão"}</p>
+            <p className="mt-1 text-sm leading-5 text-slate-500">{exigeAprovacaoSindico ? "Síndico aprova antes" : "Fluxo padrão"}</p>
           </div>
         </div>
 
@@ -552,10 +559,14 @@ export function AcordoSimulatorForm({
           </div>
         </div>
 
+      </Card>
+      <Card className="space-y-5">
+        <h2 className="flex items-center gap-3 text-xl font-semibold text-slate-950"><Calculator className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />2. Condições do acordo</h2>
+        <p className="text-sm text-slate-600">Ajuste os valores e confira o resumo e os vencimentos na simulação.</p>
         <div className="grid gap-5 md:grid-cols-2">
           <FormField label="Tipo de acordo">
             <Select
-              name="tipo"
+              aria-label="Tipo de acordo" name="tipo"
               value={tipo}
               onChange={(
                 event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -571,7 +582,7 @@ export function AcordoSimulatorForm({
             hint="Obrigatório apenas para acordo judicial."
           >
             <Input
-              name="numero_processo"
+              aria-label="Número do processo" name="numero_processo"
               value={numeroProcesso}
               onChange={(
                 event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -585,7 +596,7 @@ export function AcordoSimulatorForm({
             hint="Calculada sobre o valor atualizado/original da cobrança."
           >
             <Input
-              name="despesa_cobranca_percentual"
+              aria-label="Despesa de cobrança (%)" name="despesa_cobranca_percentual"
               required
               value={despesaCobrancaPercentual}
               onChange={(
@@ -605,7 +616,7 @@ export function AcordoSimulatorForm({
               />
               <span>
                 <span className="block font-semibold">Descontar crédito da dívida</span>
-                <span className="mt-1 block text-xs leading-5 text-emerald-800">
+                <span className="mt-1 block text-sm leading-5 text-emerald-800">
                   Disponível: {formatCurrency(preview.creditoDisponivel)}. Abatimento nesta simulação: {formatCurrency(preview.creditoUtilizado)}.
                 </span>
               </span>
@@ -634,7 +645,7 @@ export function AcordoSimulatorForm({
             hint="Quando preenchida, gera acompanhamento próprio da entrada."
           >
             <Input
-              name="entrada"
+              aria-label="Entrada" name="entrada"
               value={entrada}
               onChange={(
                 event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -645,7 +656,7 @@ export function AcordoSimulatorForm({
           {preview.entrada > 0 ? (
             <FormField label="Vencimento da entrada">
               <Input
-                name="entrada_vencimento"
+                aria-label="Vencimento da entrada" name="entrada_vencimento"
                 type="date"
                 required
                 value={entradaVencimento}
@@ -655,12 +666,12 @@ export function AcordoSimulatorForm({
               />
             </FormField>
           ) : (
-            <input type="hidden" name="entrada_vencimento" value="" />
+            <input type="hidden" aria-label="Vencimento da entrada" name="entrada_vencimento" value="" />
           )}
 
           <FormField label="Número de parcelas">
             <Input
-              name="quantidade_parcelas"
+              aria-label="Número de parcelas" name="quantidade_parcelas"
               type="number"
               min="1"
               max="60"
@@ -674,7 +685,7 @@ export function AcordoSimulatorForm({
 
           <FormField label="Primeiro vencimento">
             <Input
-              name="primeiro_vencimento"
+              aria-label="Primeiro vencimento" name="primeiro_vencimento"
               type="date"
               required
               value={primeiroVencimento}
@@ -702,9 +713,13 @@ export function AcordoSimulatorForm({
           </span>
         </label>
 
+      </Card>
+      <ContatoRapidoAcordo />
+      <Card className="space-y-5">
+        <h2 className="flex items-center gap-3 text-xl font-semibold text-slate-950"><FileText className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />3. Conferência e criação</h2>
         <FormField label="Link do documento/pasta">
           <Input
-            name="documento_url"
+            aria-label="Link do documento/pasta" name="documento_url"
             placeholder="https://..."
             value={documentoUrl}
             onChange={(
@@ -715,7 +730,7 @@ export function AcordoSimulatorForm({
 
         <FormField label="Observações">
           <Textarea
-            name="observacoes"
+            aria-label="Observações" name="observacoes"
             placeholder="Condições negociadas, observações internas, histórico da tratativa..."
             value={observacoes}
             onChange={(
@@ -793,7 +808,7 @@ export function AcordoSimulatorForm({
         {contemCobrancasForaRegua && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           Esta seleção contém cotas fora da régua. Mantenha as confirmações de autorização para a inclusão e a eventual isenção de despesas.
         </div>}
-        <div className="flex flex-col justify-end gap-2 md:flex-row">
+        <div className="flex flex-col justify-end gap-3">
           {!exigeAprovacaoSindico ? (
             <Button
               type="submit"
@@ -810,17 +825,19 @@ export function AcordoSimulatorForm({
             disabled={acordoJaCriado || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
             loading={isCreatingAcordo}
             loadingLabel="Criando acordo..."
+            className="whitespace-normal"
           >
-            Criar acordo e iniciar fluxo
+            <CheckCircle2 className="size-5" aria-hidden="true" />Criar acordo e iniciar fluxo
           </Button>
         </div>
-        <p className="text-right text-xs leading-5 text-slate-500">
+        <p className="text-right text-sm leading-5 text-slate-500">
           Se o limite operacional do condomínio for ultrapassado, o síndico aprova primeiro; depois o termo público segue ao devedor e, com o aceite, a administradora recebe a solicitação de boletos.
         </p>
       </Card>
 
-      <div className="space-y-4">
-        <Card>
+      </div>
+      <div className="flex min-w-0 flex-col gap-4">
+        <Card className="order-2">
           <input type="hidden" name="unidade_id" value={responsavelAcionado.unidadeId} />
           <input type="hidden" name="return_to" value={returnToTitular} />
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--gkli-primary)]">
@@ -842,13 +859,13 @@ export function AcordoSimulatorForm({
               : "Informe nome e e-mail ou celular para liberar o fluxo do acordo."}
           </div>
 
-          <div className="mt-5 grid gap-3">
+          <div className="mt-5 grid gap-3 tabular-nums">
             <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
               <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gkli-primary)]" aria-hidden="true" />
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Nome</p>
                 <Input
-                  name="contato_responsavel_nome"
+                  aria-label="Nome do responsável" name="contato_responsavel_nome"
                   defaultValue={responsavelAcionado.nome === "Responsável não informado" ? "" : responsavelAcionado.nome}
                   placeholder="Nome do responsável"
                   className="mt-2"
@@ -860,7 +877,7 @@ export function AcordoSimulatorForm({
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">E-mail</p>
                 <Input
-                  name="contato_responsavel_email"
+                  aria-label="E-mail do responsável" name="contato_responsavel_email"
                   type="email"
                   defaultValue={responsavelAcionado.email === "E-mail não informado" ? "" : responsavelAcionado.email}
                   placeholder="email@exemplo.com"
@@ -873,7 +890,7 @@ export function AcordoSimulatorForm({
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Celular</p>
                 <Input
-                  name="contato_responsavel_telefone"
+                  aria-label="Telefone do responsável" name="contato_responsavel_telefone"
                   defaultValue={responsavelAcionado.telefone === "Celular não informado" ? "" : responsavelAcionado.telefone}
                   placeholder="WhatsApp/celular"
                   className="mt-2"
@@ -891,22 +908,23 @@ export function AcordoSimulatorForm({
               type="submit"
               variant="secondary"
               formAction={salvarContatoAction}
+              formNoValidate
               disabled={!responsavelAcionado.unidadeId}
               loading={isSavingContato}
               loadingLabel="Salvando contato..."
             >
               <Save size={16} />
-              Salvar contato
+              Salvar dados do responsável
             </Button>
           </div>
         </Card>
 
-        <Card>
+        <Card className="order-1">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--gkli-primary)]">
             Simulador
           </p>
           <h2 className="mt-2 text-xl font-semibold text-slate-950">
-            Preview financeiro
+            Resumo financeiro
           </h2>
 
           <div className="mt-5 grid gap-3">
@@ -914,7 +932,7 @@ export function AcordoSimulatorForm({
               <span className="text-sm text-slate-500">
                 Valor das cobranças
               </span>
-              <strong className="text-sm text-slate-950">
+              <strong className="text-base text-slate-950">
                 {formatCurrency(preview.valorOriginal)}
               </strong>
             </div>
@@ -978,9 +996,9 @@ export function AcordoSimulatorForm({
           </div>
         </Card>
 
-        <Card>
+        <Card className="order-3">
           <h2 className="text-lg font-semibold text-slate-950">
-            Acompanhamento gerado
+            Vencimentos da simulação
           </h2>
           {preview.entrada > 0 ? (
             <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-3">
@@ -995,7 +1013,7 @@ export function AcordoSimulatorForm({
               </p>
             </div>
           ) : null}
-          <div className="mt-4 divide-y divide-slate-100">
+          <div className="mt-4 max-h-[32rem] divide-y divide-slate-100 overflow-y-auto pr-2 tabular-nums">
             {preview.parcelas.map(
               (parcela: {
                 numero: number;

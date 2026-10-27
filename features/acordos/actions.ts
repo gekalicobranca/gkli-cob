@@ -1,5 +1,7 @@
 "use server";
 
+import { lerContatoRapido } from "@/features/acordos/contato-rapido";
+
 import {selecionarCobrancaTitular, rotuloUnidade} from "./unidade-titular";
 
 import { calcularDespesasAcordo, validarCotasSemDespesas } from "./calculo-despesas";
@@ -640,6 +642,7 @@ export async function salvarContatoResponsavelAcordo(formData: FormData) {
 export async function createAcordo(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();
+  const contatoRapido = lerContatoRapido(formData);
 
   const cobrancaIdsFromList = normalizeUuidList(formData.getAll("cobranca_ids"));
   const cobrancaIdLegado = String(formData.get("cobranca_id") ?? "").trim();
@@ -909,7 +912,7 @@ export async function createAcordo(formData: FormData) {
       p_cobranca_status: COBRANCA_STATUS.EM_NEGOCIACAO,
     };
   const { data: acordoIdData, error: acordoError } = await supabase.rpc(
-    "criar_acordo_financeiro", parametrosFinanceiros as any,
+    "criar_acordo_com_contato", { p_financeiro: parametrosFinanceiros, p_contato: contatoRapido } as any,
   );
 
   if (acordoError || !acordoIdData) {
