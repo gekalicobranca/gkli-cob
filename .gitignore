@@ -22,3 +22,4 @@ restore-work/
 # Credenciais de sessões e planilhas operacionais locais
 .whatsapp-web/
 public/processos/
+.local/
