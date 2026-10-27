@@ -28,10 +28,11 @@ function getCarteiraParam(formData: FormData) {
   return value === "global" ? "" : value;
 }
 
-function redirectWithResult(type: "saved" | "tested" | "error", message?: string, carteiraId?: string | null) {
+function redirectWithResult(type: "saved" | "tested" | "error", message?: string, carteiraId?: string | null, configId?: string) {
   const params = new URLSearchParams({ smtp: type });
   if (message) params.set("msg", message.slice(0, 360));
   if (carteiraId) params.set("carteira", carteiraId);
+  if (configId) params.set('conta', configId);
   redirect(`${PAGE_PATH}?${params.toString()}`);
 }
 
@@ -40,6 +41,8 @@ export async function salvarConfiguracaoSmtp(formData: FormData) {
   const supabase = createAdminClient();
   const carteiraId = getCarteiraParam(formData) || null;
   await authorizeCarteira(carteiraId);
+  const configId = formString(formData, 'config_id');
+  if (configId && !/^[0-9a-f-]{36}$/i.test(configId)) redirectWithResult('error', 'Conta SMTP inválida.', carteiraId);
 
   const host = formString(formData, "host");
   const porta = Number(formString(formData, "porta") || 587);
@@ -52,14 +55,14 @@ export async function salvarConfiguracaoSmtp(formData: FormData) {
   const starttls = !secure && boolValue(formData, "starttls");
 
   if (!host) redirectWithResult("error", "Informe o servidor SMTP.", carteiraId);
-  if (!Number.isFinite(porta) || porta <= 0) redirectWithResult("error", "Informe uma porta valida.", carteiraId);
+  if (!Number.isInteger(porta) || porta <= 0 || porta > 65535) redirectWithResult("error", "Informe uma porta valida.", carteiraId);
+  if (!usuario || !/^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(usuario)) redirectWithResult('error', 'Informe o e-mail da conta autenticada.', carteiraId);
   if (!remetente || !remetente.includes("@")) redirectWithResult("error", "Informe um remetente valido.", carteiraId);
 
   let currentQuery = supabase
     .from("integracoes_smtp_config")
     .select("id,senha,auth_method,usuario")
-    .order("atualizado_em", { ascending: false })
-    .limit(1);
+    .eq('id', configId || '00000000-0000-0000-0000-000000000000');
 
   currentQuery = carteiraId ? currentQuery.eq("carteira_id", carteiraId) : currentQuery.is("carteira_id", null);
 
@@ -68,6 +71,9 @@ export async function salvarConfiguracaoSmtp(formData: FormData) {
   if (currentError) {
     redirectWithResult("error", `Nao foi possivel carregar a configuracao: ${currentError.message}`, carteiraId);
   }
+  if (configId && !atual) redirectWithResult('error', 'Conta SMTP não encontrada nesta carteira.', carteiraId);
+  if (atual?.usuario && usuario?.toLowerCase() !== atual.usuario.toLowerCase()) redirectWithResult('error', 'Para outro e-mail, adicione uma conta SMTP. A identidade desta conta deve ser preservada.', carteiraId);
+  if (ativo && atual?.auth_method !== 'google_oauth' && !senha && !atual?.senha) redirectWithResult('error', 'Informe a senha antes de ativar esta conta.', carteiraId);
 
   if (atual?.auth_method === 'google_oauth' && (usuario !== atual.usuario || host !== 'smtp.gmail.com' || porta !== 465 || !secure || senha)) {
     redirectWithResult('error', 'Esta conta usa Google OAuth. Mantenha o e-mail, SSL e servidor Google; não informe senha.', carteiraId);
@@ -92,11 +98,11 @@ export async function salvarConfiguracaoSmtp(formData: FormData) {
     ? supabase.from("integracoes_smtp_config").update(payload as any).eq("id", (atual as any).id)
     : supabase.from("integracoes_smtp_config").insert(payload as any);
 
-  const { error } = await query;
+  const { data: saved, error } = await query.select('id').single();
   if (error) redirectWithResult("error", `Erro ao salvar SMTP: ${error.message}`, carteiraId);
 
   revalidatePath(PAGE_PATH);
-  redirectWithResult("saved", "Configuracao SMTP salva.", carteiraId);
+  redirectWithResult("saved", "Configuracao SMTP salva.", carteiraId, saved?.id);
 }
 
 export async function testarConfiguracaoSmtp(formData: FormData) {
@@ -104,6 +110,8 @@ export async function testarConfiguracaoSmtp(formData: FormData) {
 
   const carteiraId = getCarteiraParam(formData) || null;
   await authorizeCarteira(carteiraId);
+  const smtpConfigId = formString(formData, 'config_id');
+  if (!smtpConfigId || !/^[0-9a-f-]{36}$/i.test(smtpConfigId)) redirectWithResult('error', 'Selecione e salve a conta SMTP antes de testar.', carteiraId);
   const destinatario = formString(formData, "destinatario_teste");
   if (!destinatario || !destinatario.includes("@")) {
     redirectWithResult("error", "Informe um destinatario de teste valido.", carteiraId);
@@ -120,7 +128,7 @@ export async function testarConfiguracaoSmtp(formData: FormData) {
           `Data/hora: ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`,
         ].join("\n"),
       },
-      { carteiraId },
+      { carteiraId, smtpConfigId },
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -128,5 +136,5 @@ export async function testarConfiguracaoSmtp(formData: FormData) {
   }
 
   revalidatePath(PAGE_PATH);
-  redirectWithResult("tested", `E-mail de teste enviado para ${destinatario}.`, carteiraId);
+  redirectWithResult("tested", `E-mail de teste enviado para ${destinatario}.`, carteiraId, smtpConfigId);
 }

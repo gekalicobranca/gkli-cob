@@ -51,8 +51,10 @@ export default async function EmailMonitorPage() {
         const thunderbird = wallet.email_transporte === 'thunderbird'
         const device = monitor.devices.find(d => d.carteira_id === wallet.id)
         const validConfig = (s: any) => Boolean(s.host && (s.remetente || s.usuario))
-        const smtp = monitor.smtp.find(s => s.carteira_id === wallet.id && validConfig(s)) || monitor.smtp.find(s => s.carteira_id === null && validConfig(s))
-        const from = thunderbird ? device?.email : smtp?.remetente || smtp?.usuario || monitor.envFrom
+        const ownAccounts = monitor.smtp.filter(s => s.carteira_id === wallet.id && validConfig(s))
+        const accounts = ownAccounts.length ? ownAccounts : monitor.smtp.filter(s => s.carteira_id === null && validConfig(s)).slice(0, 1)
+        const smtp = accounts[0]
+        const from = thunderbird ? device?.email : accounts.map(s => s.usuario || s.remetente).join(' · ') || monitor.envFrom
         const state = emailOperationStatus({ enabled: wallet.email_habilitado !== false, transport: wallet.email_transporte, configured: Boolean(smtp || monitor.envConfigured), device, worker: monitor.worker, now })
         const signal = thunderbird ? device?.visto_em : monitor.worker?.ultimo_sinal_em
         return <Card key={wallet.id} className="overflow-hidden p-0">
