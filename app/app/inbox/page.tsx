@@ -25,11 +25,9 @@ import { ButtonLink } from "@/components/ui/button";
 import { StatusBadge } from "@/components/data/status-badge";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { getCockpitInteligente } from "@/features/cockpit/queries";
-import { getProximasAcoesInbox } from "@/features/inbox/proximas-acoes";
 import { priorityClasses, scoreBarClass } from "@/features/cockpit/rules";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
-import { ProximaAcaoPopup } from "./proxima-acao-popup";
 
 export const dynamic = "force-dynamic";
 
@@ -76,10 +74,7 @@ export default async function InboxOperacionalPage({
   const fila = normalizeParam(params.fila, "hoje");
 
   const scope = await getPermittedCarteiras();
-  const [cockpit, proximasAcoes] = await Promise.all([
-    getCockpitInteligente(scope),
-    getProximasAcoesInbox(scope),
-  ]);
+  const cockpit = await getCockpitInteligente(scope);
 
   const semRetorno = cockpit.itens
     .filter((item) => item.ultimaInteracaoAt)
@@ -436,7 +431,6 @@ export default async function InboxOperacionalPage({
         </Card>
       </LiteWorkArea>
 
-      <ProximaAcaoPopup sugestoes={proximasAcoes} />
     </LitePageShell>
   );
 }
