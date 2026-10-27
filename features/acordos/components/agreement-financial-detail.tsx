@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { formatCurrency } from '@/utils/formatters/currency';
@@ -6,7 +7,7 @@ import { resumoRepassesConsulta, valorCadastrado } from '@/features/acordos/cons
 
 const moeda = (value: unknown) => { const n = valorCadastrado(value as number | string | null); return n == null ? 'Não informado' : formatCurrency(n); };
 
-export function AgreementFinancialDetail({ acordo, cotas, parcelas, view = 'complete' }: { acordo: any; cotas: any[]; parcelas: any[]; view?: 'complete' | 'summary' | 'cotas' }) {
+export function AgreementFinancialDetail({ acordo, cotas, parcelas, view = 'complete', identity }: { acordo: any; cotas: any[]; parcelas: any[]; view?: 'complete' | 'summary' | 'cotas'; identity?: ReactNode }) {
   // Older agreements may only have the primary charge. Never show it twice.
   const unicas = [...new Map(cotas.filter(c => c.cobranca_id).map(c => [c.cobranca_id, c])).values()];
   const linhas = unicas.length ? unicas : acordo.cobrancas ? [{ cobranca_id: acordo.cobrancas.id, cobrancas: { ...acordo.cobrancas, unidades: acordo.unidades }, referenciaAtual: true }] : [];
@@ -18,18 +19,21 @@ export function AgreementFinancialDetail({ acordo, cotas, parcelas, view = 'comp
   const correcao = correcaoCompleta ? linhas.reduce((sum, c) => sum + Number(c.cobrancas.correcao), 0) : null;
   const pagas = parcelas.filter(p => p.data_pagamento || ['paga','pago','quitada','quitado'].includes(String(p.status).toLowerCase()));
   const pago = [...new Map(pagas.map(p => [p.id, p])).values()].reduce((sum, p) => sum + Number(p.valor ?? 0), 0);
+  if (view === 'cotas' && linhas.length === 0) return <p id="cotas-acordo" className="scroll-mt-14 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500"><strong className="font-medium text-slate-700">Cotas:</strong> sem cotas de origem vinculadas.</p>;
   return <section className="space-y-4" aria-label={view === 'summary' ? 'Resumo do acordo' : view === 'cotas' ? 'Cotas do acordo' : 'Composição financeira do acordo'}>
-    {view !== 'cotas' && <Card id="resumo-acordo" className="scroll-mt-20"><h2 className="mb-2 text-lg font-semibold text-slate-950">Resumo do acordo</h2><dl className="divide-y divide-slate-100">
-      {[
-        { label: 'Original do acordo', value: moeda(original), help: snapshot ? 'Soma das cotas na negociação' : 'Valor registrado no acordo' },
-        { label: 'Valor acordado', value: moeda(acordo.valor_acordado), help: `Pago: ${formatCurrency(pago)}` },
-        { label: repasse.semRepasse ? 'Repasse cadastrado (parcial)' : 'Repasse previsto', value: repasse.parcelas === repasse.semRepasse ? 'Não informado' : formatCurrency(repasse.total), help: repasse.semRepasse ? `${repasse.semRepasse} parcela(s) sem repasse` : `${repasse.parcelas} parcela(s), incluindo entrada` },
-        { label: repasse.semRepassePagas ? 'Repasse das pagas (parcial)' : 'Repasse das parcelas pagas', value: repasse.semRepassePagas > 0 && repasse.semRepassePagas === repasse.quantidadePagas ? 'Não informado' : formatCurrency(repasse.pagos), help: repasse.semRepassePagas ? `${repasse.semRepassePagas} parcela(s) paga(s) sem repasse cadastrado` : 'Pagamento da parcela; não confirma transferência de honorários' },
-      ].map(m => <div key={m.label} className="py-3 sm:grid sm:grid-cols-[minmax(12rem,1fr)_minmax(9rem,0.7fr)_minmax(12rem,1.3fr)] sm:items-center sm:gap-4"><dt className="text-sm text-slate-600">{m.label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-slate-950 sm:mt-0">{m.value}</dd><dd className="mt-1 text-xs leading-5 text-slate-500 sm:mt-0">{m.help}</dd></div>)}
-    </dl></Card>}
-    {view !== 'summary' && <Card id="cotas-acordo" className="space-y-3 scroll-mt-20">
+    {view !== 'cotas' && <Card id="resumo-acordo" className="space-y-2 scroll-mt-14 p-3">
+      <h2 className="text-base font-semibold text-slate-950">Resumo do acordo</h2>
+      {identity}
+      <dl className="divide-y divide-slate-100">
+        {original != null && <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-1.5 text-sm"><dt className="w-32 shrink-0 text-slate-600">Original</dt><dd className="font-semibold tabular-nums text-slate-950">{moeda(original)}</dd></div>}
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-1.5 text-sm"><dt className="w-32 shrink-0 text-slate-600">Valor acordado</dt><dd className="font-semibold tabular-nums text-slate-950">{moeda(acordo.valor_acordado)}</dd><dd className="text-xs text-slate-500">{pago === Number(acordo.valor_acordado) && pago > 0 ? 'Todas as parcelas pagas' : `Parcelas pagas: ${formatCurrency(pago)}`}</dd></div>
+        {repasse.parcelas > repasse.semRepasse && <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-1.5 text-sm"><dt className="w-32 shrink-0 text-slate-600">{repasse.semRepasse ? 'Repasse parcial' : 'Repasse previsto'}</dt><dd className="font-semibold tabular-nums text-slate-950">{formatCurrency(repasse.total)}</dd>{repasse.quantidadePagas > 0 && repasse.quantidadePagas < repasse.parcelas && <dd className="text-xs text-slate-500">Das parcelas pagas: {formatCurrency(repasse.pagos)}{repasse.semRepassePagas > 0 ? ' (parcial)' : ''}</dd>}</div>}
+      </dl>
+      {(original == null || repasse.semRepasse > 0) && <p className="text-xs leading-5 text-amber-800">Dados não informados: {[original == null ? 'valor original' : '', repasse.semRepasse > 0 ? `repasse de ${repasse.semRepasse} parcela(s)${repasse.semRepassePagas > 0 ? ` (${repasse.semRepassePagas} paga(s))` : ''}` : ''].filter(Boolean).join('; ')}.</p>}
+    </Card>}
+    {view !== 'summary' && <Card id="cotas-acordo" className="space-y-2 scroll-mt-14 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold text-slate-950">Cotas incluídas no acordo</h2>{linhas.length > 0 && <span className="text-sm text-slate-600">{linhas.length} cota(s)</span>}</div>
-      <p className="text-sm text-slate-600">Original, atualizado, encargos e total preservam os valores da negociação quando disponíveis. A correção vem do cadastro atual da cota e pode ter mudado após o acordo.</p>
+      {linhas.length > 0 && <p className="text-xs text-slate-500">Valores da negociação; correção do cadastro atual da cota.</p>}
       {linhas.length ? <div className="max-h-[32rem] overflow-auto rounded-xl border border-slate-200"><table className="w-full text-left text-sm">
         <caption className="sr-only">Cotas que compõem a dívida negociada e seus valores</caption>
         <thead className="sticky top-0 bg-slate-50 text-slate-700"><tr>{['Cota / unidade', 'Original no acordo', 'Correção da cota (atual)', 'Atualizado no acordo', 'Encargos do acordo', 'Total no acordo'].map(h => <th scope="col" key={h} className="min-w-28 px-3 py-3 font-medium">{h}</th>)}</tr></thead>
@@ -42,7 +46,7 @@ export function AgreementFinancialDetail({ acordo, cotas, parcelas, view = 'comp
           <td className="px-3 py-3 align-top font-semibold tabular-nums">{historico ? moeda(c.valor_total_no_acordo) : 'Não registrado'}</td>
         </tr>; })}</tbody>
         <tfoot className="border-t border-slate-200 bg-slate-50 font-semibold tabular-nums"><tr><th scope="row" className="px-3 py-3">Totais das cotas</th>{[somaHistorica('valor_original_no_acordo'), correcao, somaHistorica('valor_atualizado_no_acordo'), somaHistorica('encargos_no_acordo'), somaHistorica('valor_total_no_acordo')].map((value, i) => <td key={i} className="px-3 py-3">{moeda(value)}</td>)}</tr></tfoot>
-      </table></div> : <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Este acordo não tem cotas de origem vinculadas. A composição não pode ser detalhada sem esse vínculo.</p>}
+      </table></div> : <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Sem cotas de origem vinculadas.</p>}
       {(Number(acordo.despesa_cobranca_valor) > 0 || Number(acordo.credito_administradora_utilizado) > 0) && <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-600">{Number(acordo.despesa_cobranca_valor) > 0 && <span>Despesas do acordo: {moeda(acordo.despesa_cobranca_valor)}</span>}{Number(acordo.credito_administradora_utilizado) > 0 && <span>Crédito utilizado: {moeda(acordo.credito_administradora_utilizado)}</span>}</div>}
     </Card>}
   </section>;

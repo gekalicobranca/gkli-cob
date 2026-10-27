@@ -6,8 +6,8 @@ import { repasseConsulta } from '@/features/acordos/consulta-financeira';
 
 export function AgreementInstallmentsTable({ acordo, parcelas, renderActions }: { acordo: any; parcelas: any[]; renderActions?: (parcela: any) => ReactNode }) {
   const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-  return <Card id="parcelas-acordo" className="space-y-3 scroll-mt-20" data-section="parcelas-acordo">
-    <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-semibold text-slate-950">Parcelas do acordo</h2><span className="text-sm text-slate-500">{parcelas.length} pagamento(s), incluindo entrada quando houver</span></div>
+  return <Card id="parcelas-acordo" className="space-y-2 scroll-mt-14 p-3" data-section="parcelas-acordo">
+    <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-base font-semibold text-slate-950">Parcelas do acordo</h2><span className="text-xs text-slate-500">{parcelas.length} parcela(s){parcelas.some(p => p.tipo === 'entrada' || p.tipo_parcela === 'entrada') ? ', incluindo entrada' : ''}</span></div>
     {parcelas.length === 0 ? <p className="py-2 text-sm text-slate-600">Nenhuma parcela cadastrada.</p> : <div className="overflow-x-auto rounded-xl border border-slate-200">
       <table className="w-full text-left text-sm"><caption className="sr-only">Parcelas, pagamentos e repasses do acordo</caption>
         <thead className="bg-slate-50 text-slate-600"><tr>{['Parcela','Status','Vencimento','Pagamento','Valor','Repasse','Ações'].map(label => <th key={label} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{label}</th>)}</tr></thead>

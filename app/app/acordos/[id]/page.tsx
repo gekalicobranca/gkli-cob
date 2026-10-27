@@ -9,7 +9,6 @@ import { notFound } from "next/navigation";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { AppErrorState } from "@/components/feedback/app-error-state";
-import { PageHeader } from "@/components/ui/page-header";
 import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import {
   cancelarFormalizacaoAcordo,
@@ -47,12 +46,6 @@ function normalizeLabel(value?: string | null) {
   if (!value) return "-";
   const label = value.replaceAll("_", " ");
   return label.charAt(0).toUpperCase() + label.slice(1);
-}
-
-function tipoResponsavelLabel(value?: string | null) {
-  if (value === "proprietario") return "Proprietário";
-  if (value === "inquilino") return "Inquilino";
-  return "Tipo não informado";
 }
 
 function badgeTone(value?: string | null) {
@@ -251,6 +244,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
 
   const { acordo, parcelas, timeline, cobrancasVinculadas, responsavelApoio, revisoes } = data;
 
+  const unidadesParticipantes = [...new Map(cobrancasVinculadas.map((v: any) => [v.cobrancas?.unidades?.id, v.cobrancas?.unidades])).values()].filter((u: any) => u && u.id !== acordo.unidade_id) as any[];
   const diasReemissao = Number(acordo.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0);
   const health = calculateAgreementHealth(parcelas);
   const termos = Array.isArray(acordo.termos) ? acordo.termos : [];
@@ -267,22 +261,19 @@ export default async function AcordoDetalhePage({ params }: Props) {
   const actionTextareaClass = "min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10";
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        eyebrow="GKLI Cobrança"
-        title="Acordo operacional"
-        actions={
+    <div className="space-y-2">
+      <header className="flex flex-wrap items-center justify-between gap-2"><h1 className="text-lg font-semibold text-slate-950">Acordo</h1>
           <div className="flex flex-wrap gap-2">
             <Link
               href={acordo.tipo === 'judicial' ? '/app/acordos/judiciais' : '/app/acordos'}
-              className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+              className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Voltar
             </Link>
             {acordo.condominio_id ? (
               <Link
                 href={`/app/condominios/${acordo.condominio_id}`}
-                className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Condomínio
               </Link>
@@ -290,7 +281,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
             {acordo.unidade_id ? (
               <Link
                 href={`/app/unidades/${acordo.unidade_id}`}
-                className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Unidade
               </Link>
@@ -298,48 +289,30 @@ export default async function AcordoDetalhePage({ params }: Props) {
             {acordo.cobranca_id ? (
               <Link
                 href={`/app/cobrancas/${acordo.cobranca_id}`}
-                className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Cobrança
               </Link>
             ) : null}
           </div>
-        }
-      />
+      </header>
+      <AgreementFinancialDetail view="summary" acordo={acordo} cotas={cobrancasVinculadas} parcelas={parcelas} identity={
+        <div id="dados-acordo" className="space-y-1 border-b border-slate-100 pb-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="text-sm font-semibold text-slate-950">{acordo.condominios?.nome || 'Condomínio não informado'}</h3><Badge value={acordo.status} />{String(acordo.status_financeiro ?? '').toLowerCase() !== String(acordo.status ?? '').toLowerCase() && <Badge value={acordo.status_financeiro} />}{!statusFechado && <AgreementHealthBadge health={health.saude} />}</div>
+          <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700"><span>Unidade titular: <Link href={`/app/unidades/${acordo.unidade_id}`} className="text-sky-800 underline">{acordo.unidades?.identificacao || '—'}{acordo.unidades?.bloco ? ` / ${acordo.unidades.bloco}` : ''}</Link></span><span>Responsável: {responsavelApoio?.responsavel_nome || acordo.unidades?.responsavel_nome || 'Não informado'}</span></p>
+          <p className="text-xs text-slate-500">{acordo.carteiras?.nome ?? 'Carteira não informada'} · {normalizeLabel(acordo.tipo)} · {formatDate(acordo.data_acordo)}</p>
+          {unidadesParticipantes.length > 0 && <p className="flex flex-wrap gap-x-3 text-xs text-slate-600"><span>Outras unidades:</span>{unidadesParticipantes.map((u: any) => <Link key={u.id} href={`/app/unidades/${u.id}`} className="text-sky-800 underline">{u.identificacao}{u.bloco ? ` / ${u.bloco}` : ''}</Link>)}</p>}
+        </div>
+      } />
 
-      <AgreementFinancialDetail view="summary" acordo={acordo} cotas={cobrancasVinculadas} parcelas={parcelas} />
-
-      <Card id="dados-acordo" className="border-slate-200 shadow-sm">
-        <CardContent className="space-y-3 p-4">
-          <div>
-            <h2 className="mt-1 text-lg font-semibold text-slate-950">{acordo.condominios?.nome || "Condomínio não informado"}</h2>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {[...new Map(cobrancasVinculadas.map((v: any) => {const u=v.cobrancas?.unidades;return [u?.id,u];})).values()].filter((u: any) => u && u.id !== acordo.unidade_id).map((u: any) => <Link key={u.id} href={`/app/unidades/${u.id}`} className="text-xs text-sky-700 underline">Unidade {u.identificacao}{u.bloco ? ` / ${u.bloco}` : ""} (participante)</Link>)}
-            </div>
-            <p className="mt-1 text-sm text-slate-500">{acordo.carteiras?.nome ?? "Carteira não informada"} · {normalizeLabel(acordo.tipo)} · Acordo em {formatDate(acordo.data_acordo)}</p>
-            <p className="mt-1 text-sm text-slate-500">Unidade titular: <Link href={`/app/unidades/${acordo.unidade_id}`} className="text-sky-800 underline">{acordo.unidades?.identificacao || "-"}{acordo.unidades?.bloco ? ` / ${acordo.unidades.bloco}` : ""}</Link></p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Responsável</p>
-            <p className="mt-1 text-sm font-medium text-slate-950">{responsavelApoio?.responsavel_nome || acordo.unidades?.responsavel_nome || "Não informado"}</p>
-            {responsavelApoio?.tipo_responsavel && <p className="mt-1 text-xs text-slate-500">{tipoResponsavelLabel(responsavelApoio.tipo_responsavel)}</p>}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge value={acordo.status} />
-            {String(acordo.status_financeiro ?? '').toLowerCase() !== String(acordo.status ?? '').toLowerCase() && <Badge value={acordo.status_financeiro} />}
-            <AgreementHealthBadge health={health.saude} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <nav aria-label="Seções do acordo" className="sticky top-0 z-20 flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-        {[['resumo-acordo','Resumo'],['cotas-acordo','Cotas'],['parcelas-acordo','Parcelas e repasses'],['historico-acordo','Histórico']].map(([id,label]) => <a key={id} href={`#${id}`} className="rounded-lg px-3 py-2 text-sm font-medium text-sky-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-sky-700">{label}</a>)}
+      <nav aria-label="Seções do acordo" className="sticky top-0 z-20 flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white px-1 py-0.5">
+        {[['resumo-acordo','Resumo'],['cotas-acordo','Cotas'],['parcelas-acordo','Parcelas e repasses'],['historico-acordo','Histórico']].map(([id,label]) => <a key={id} href={`#${id}`} className="rounded-lg px-3 py-1.5 text-sm font-medium text-sky-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-sky-700">{label}</a>)}
       </nav>
       <AgreementFinancialDetail view="cotas" acordo={acordo} cotas={cobrancasVinculadas} parcelas={parcelas} />
 
       <AgreementInstallmentsTable acordo={acordo} parcelas={parcelas} renderActions={(parcela) => <ParcelaActions parcela={parcela} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />} />
 
-      <details open={possuiFormalizacaoPendente} className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-semibold text-slate-900">Formalização e boletos</summary><div className="mt-3"><AgreementFormalizationCard acordo={acordo} /></div></details>
+      <details open={possuiFormalizacaoPendente} className="rounded-lg border border-slate-200 bg-white p-3"><summary className="cursor-pointer font-semibold text-slate-900">Formalização e boletos</summary><div className="mt-3"><AgreementFormalizationCard acordo={acordo} /></div></details>
 
       {Array.isArray(revisoes) && revisoes.length > 0 ? (
         <Card className="border-slate-200 shadow-sm">
@@ -376,7 +349,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
         </Card>
       ) : null}
 
-      <details className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-semibold text-slate-900">Ações operacionais e exceções</summary>
+      <details className="rounded-lg border border-slate-200 bg-white p-3"><summary className="cursor-pointer font-semibold text-slate-900">Ações operacionais e exceções</summary>
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="space-y-4 p-5">
           <SectionTitle
@@ -477,7 +450,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
       </Card>
       </details>
 
-      <details id="historico-acordo" className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4" open={timeline.length > 0}>
+      <details id="historico-acordo" className="scroll-mt-20 rounded-lg border border-slate-200 bg-white p-3" open={timeline.length > 0}>
         <summary className="cursor-pointer font-semibold text-slate-900">Histórico de atividades · {timeline.length}</summary>
         {timeline.length === 0 ? <p className="mt-3 text-sm text-slate-500">Nenhum evento registrado.</p> : <ol className="mt-3 divide-y divide-slate-100">{timeline.map((evento: any) => <li key={evento.id} className="py-3"><time className="text-xs tabular-nums text-slate-500">{formatDate(evento.criado_em)}</time><p className="mt-1 whitespace-pre-line text-sm text-slate-800">{evento.descricao}</p></li>)}</ol>}
       </details>
