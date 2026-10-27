@@ -19,15 +19,15 @@ export function AgreementFinancialDetail({ acordo, cotas, parcelas }: { acordo: 
   const pagas = parcelas.filter(p => p.data_pagamento || ['paga','pago','quitada','quitado'].includes(String(p.status).toLowerCase()));
   const pago = [...new Map(pagas.map(p => [p.id, p])).values()].reduce((sum, p) => sum + Number(p.valor ?? 0), 0);
   return <section className="space-y-4" aria-label="Composição financeira do acordo">
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <Card id="resumo-acordo" className="scroll-mt-20"><h2 className="mb-2 text-lg font-semibold text-slate-950">Resumo financeiro</h2><dl className="divide-y divide-slate-100">
       {[
         { label: 'Original do acordo', value: moeda(original), help: snapshot ? 'Soma das cotas na negociação' : 'Valor registrado no acordo' },
         { label: 'Valor acordado', value: moeda(acordo.valor_acordado), help: `Pago: ${formatCurrency(pago)}` },
         { label: repasse.semRepasse ? 'Repasse cadastrado (parcial)' : 'Repasse previsto', value: repasse.parcelas === repasse.semRepasse ? 'Não informado' : formatCurrency(repasse.total), help: repasse.semRepasse ? `${repasse.semRepasse} parcela(s) sem repasse` : `${repasse.parcelas} parcela(s), incluindo entrada` },
         { label: repasse.semRepassePagas ? 'Repasse das pagas (parcial)' : 'Repasse das parcelas pagas', value: repasse.semRepassePagas > 0 && repasse.semRepassePagas === repasse.quantidadePagas ? 'Não informado' : formatCurrency(repasse.pagos), help: repasse.semRepassePagas ? `${repasse.semRepassePagas} parcela(s) paga(s) sem repasse cadastrado` : 'Pagamento da parcela; não confirma transferência de honorários' },
-      ].map(m => <Card key={m.label} className="space-y-1"><p className="text-sm text-slate-600">{m.label}</p><p className="text-xl font-semibold tabular-nums text-slate-950">{m.value}</p><p className="text-xs leading-5 text-slate-500">{m.help}</p></Card>)}
-    </div>
-    <Card className="space-y-3">
+      ].map(m => <div key={m.label} className="py-3 sm:grid sm:grid-cols-[minmax(12rem,1fr)_minmax(9rem,0.7fr)_minmax(12rem,1.3fr)] sm:items-center sm:gap-4"><dt className="text-sm text-slate-600">{m.label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-slate-950 sm:mt-0">{m.value}</dd><dd className="mt-1 text-xs leading-5 text-slate-500 sm:mt-0">{m.help}</dd></div>)}
+    </dl></Card>
+    <Card id="cotas-acordo" className="space-y-3 scroll-mt-20">
       <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold text-slate-950">Cotas incluídas no acordo</h2><span className="text-sm text-slate-600">{linhas.length} cota(s)</span></div>
       <p className="text-sm text-slate-600">Original, atualizado, encargos e total preservam os valores da negociação quando disponíveis. A correção vem do cadastro atual da cota e pode ter mudado após o acordo.</p>
       {linhas.length ? <div className="max-h-[32rem] overflow-auto rounded-xl border border-slate-200"><table className="w-full text-left text-sm">

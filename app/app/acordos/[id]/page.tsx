@@ -1,9 +1,8 @@
+import { AgreementInstallmentsTable } from "@/features/acordos/components/agreement-installments-table";
 import { AgreementFinancialDetail } from "@/features/acordos/components/agreement-financial-detail";
-import { repasseConsulta } from "@/features/acordos/consulta-financeira";
 import Link from "next/link";
 import {
   CheckCircle2,
-  Clock3,
   XCircle,
 } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -37,11 +36,6 @@ function formatCurrency(value?: number | null) {
   });
 }
 
-function formatarRepasse(acordo: any, parcela: any) {
-  const { valor } = repasseConsulta(acordo, parcela);
-  return valor == null ? "Não informado" : formatCurrency(valor);
-}
-
 function formatDate(value?: string | null) {
   if (!value) return "-";
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.split("-").reverse().join("/");
@@ -51,7 +45,8 @@ function formatDate(value?: string | null) {
 
 function normalizeLabel(value?: string | null) {
   if (!value) return "-";
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  const label = value.replaceAll("_", " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function tipoResponsavelLabel(value?: string | null) {
@@ -89,15 +84,6 @@ function Badge({ value }: { value?: string | null }) {
       {normalizeLabel(value)}
     </span>
   );
-}
-
-function statusTone(value?: string | null) {
-  const v = String(value || "").toLowerCase();
-
-  if (["paga", "quitado"].includes(v)) return "bg-emerald-500";
-  if (["vencida", "quebrado", "cancelada"].includes(v)) return "bg-rose-500";
-  if (["aberta", "pendente", "em_aberto"].includes(v)) return "bg-sky-500";
-  return "bg-slate-400";
 }
 
 function ParcelaActions({
@@ -265,10 +251,6 @@ export default async function AcordoDetalhePage({ params }: Props) {
 
   const { acordo, parcelas, timeline, cobrancasVinculadas, responsavelApoio, revisoes } = data;
 
-  const entrada = parcelas.find((parcela: any) => parcela.tipo === "entrada");
-  const parcelasNormais = parcelas.filter(
-    (parcela: any) => parcela.tipo !== "entrada",
-  );
   const diasReemissao = Number(acordo.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0);
   const health = calculateAgreementHealth(parcelas);
   const termos = Array.isArray(acordo.termos) ? acordo.termos : [];
@@ -327,7 +309,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
       />
 
       <Card className="border-slate-200 shadow-sm">
-        <CardContent className="grid gap-4 p-5 md:grid-cols-[1.2fr_0.8fr_auto] md:items-center">
+        <CardContent className="space-y-3 p-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Contexto operacional</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-950">{acordo.condominios?.nome || "Condomínio não informado"}</h2>
@@ -342,14 +324,19 @@ export default async function AcordoDetalhePage({ params }: Props) {
             <p className="mt-1 text-sm font-medium text-slate-950">{responsavelApoio?.responsavel_nome || acordo.unidades?.responsavel_nome || "Não informado"}</p>
             <p className="mt-1 text-xs text-slate-500">{tipoResponsavelLabel(responsavelApoio?.tipo_responsavel)}</p>
           </div>
-          <div className="flex flex-wrap gap-2 md:justify-end">
+          <div className="flex flex-wrap gap-2">
             <Badge value={acordo.status} /><Badge value={acordo.status_financeiro} />
             <AgreementHealthBadge health={health.saude} />
           </div>
         </CardContent>
       </Card>
 
+      <nav aria-label="Seções do acordo" className="sticky top-0 z-20 flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+        {[['resumo-acordo','Resumo'],['cotas-acordo','Cotas'],['parcelas-acordo','Parcelas e repasses'],['historico-acordo','Histórico']].map(([id,label]) => <a key={id} href={`#${id}`} className="rounded-lg px-3 py-2 text-sm font-medium text-sky-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-sky-700">{label}</a>)}
+      </nav>
       <AgreementFinancialDetail acordo={acordo} cotas={cobrancasVinculadas} parcelas={parcelas} />
+
+      <AgreementInstallmentsTable acordo={acordo} parcelas={parcelas} renderActions={(parcela) => <ParcelaActions parcela={parcela} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />} />
 
       <details open={possuiFormalizacaoPendente} className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-semibold text-slate-900">Formalização e boletos</summary><div className="mt-3"><AgreementFormalizationCard acordo={acordo} /></div></details>
 
@@ -361,7 +348,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
               description="Histórico de alterações de valor, vencimento e reemissões."
               count={revisoes.length}
             />
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-3">
               {revisoes.map((revisao: any) => (
                 <div key={revisao.id} className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -388,52 +375,6 @@ export default async function AcordoDetalhePage({ params }: Props) {
         </Card>
       ) : null}
 
-      {entrada ? (
-        <Card className="border-slate-200">
-          <CardContent className="space-y-3 p-4">
-            <SectionTitle
-              title="Entrada"
-              description="Primeiro pagamento do acordo."
-            />
-
-            {!entrada ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-5">
-                <div className="text-2xl font-semibold text-slate-950">
-                  Sem entrada
-                </div>
-
-                <p className="mt-2 text-sm text-slate-500">
-                  Este acordo não possui parcela de entrada cadastrada.
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-3xl font-semibold text-slate-950">
-                      {formatCurrency(entrada.valor)}
-                    </div>
-
-                    <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-                      <Clock3 className="h-4 w-4" />
-                      Vencimento: {formatDate(entrada.vencimento)}
-                    </div>
-                  </div>
-
-                  <Badge value={entrada.status} />
-                </div>
-
-                <p className="mt-3 text-sm text-slate-600">Repasse da entrada: <strong>{formatarRepasse(acordo, entrada)}</strong> · {repasseConsulta(acordo, entrada).origem}</p>
-                <div className="mt-5 border-t border-slate-100 pt-4">
-                  <ParcelaActions parcela={entrada} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-      ) : null}
-
       <details className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-semibold text-slate-900">Ações operacionais e exceções</summary>
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="space-y-4 p-5">
@@ -442,7 +383,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
             description="Comandos de exceção para corrigir o fluxo do acordo."
           />
 
-          <div className={["grid gap-3", podeCancelarFormalizacao ? "xl:grid-cols-2" : "xl:grid-cols-1"].join(" ")}>
+          <div className={["grid gap-3", "grid-cols-1"].join(" ")}>
             {podeCancelarFormalizacao ? (
               <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -535,138 +476,10 @@ export default async function AcordoDetalhePage({ params }: Props) {
       </Card>
       </details>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <SectionTitle
-              title="Parcelas do acordo"
-              description="Acompanhamento operacional do parcelamento."
-              count={parcelasNormais.length}
-            />
-
-            {parcelasNormais.length === 0 ? (
-              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
-                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">
-                  □
-                </div>
-
-                <div className="font-semibold text-slate-950">
-                  Nenhuma parcela cadastrada
-                </div>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Este acordo ainda não possui parcelas.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {parcelasNormais.map((parcela: any) => (
-                  <div
-                    key={parcela.id}
-                    className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_auto]"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={[
-                            "h-2.5 w-2.5 rounded-full",
-                            statusTone(parcela.status),
-                          ].join(" ")}
-                        />
-                        <div className="font-semibold text-slate-950">
-                          Parcela #{parcela.numero}
-                        </div>
-                        <Badge value={parcela.status} />
-                        {(() => {
-                          const diff = parcela.vencimento ? Math.round((new Date(`${parcela.vencimento}T00:00:00`).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000) : null;
-                          if (diff === null || ["paga", "cancelada"].includes(String(parcela.status || "").toLowerCase())) return null;
-                          if (diff < 0) return <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">Em atraso</span>;
-                          if (diff === 0) return <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Vence hoje</span>;
-                          if (diff <= 7) return <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">Próximos 7 dias</span>;
-                          return null;
-                        })()}
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
-                        <span>
-                          Vencimento: {formatDate(parcela.vencimento)}
-                        </span>
-                        {parcela.data_pagamento ? (
-                          <span>
-                            Pagamento: {formatDate(parcela.data_pagamento)}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-start gap-3 md:items-end">
-                      <div className="text-left md:text-right">
-                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          Valor
-                        </div>
-                        <div className="mt-1 text-lg font-semibold text-slate-950">
-                          {formatCurrency(parcela.valor)}
-                        </div>
-                        <p className="mt-1 text-sm text-slate-700">Repasse: <strong>{formatarRepasse(acordo, parcela)}</strong></p>
-                        <p className="text-xs text-slate-500">{repasseConsulta(acordo, parcela).origem}</p>
-                      </div>
-
-                      <ParcelaActions parcela={parcela} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="space-y-5">
-          <Card>
-          <CardContent className="space-y-3 p-4">
-            <SectionTitle
-              title="Timeline operacional"
-              description="Eventos registrados neste acordo."
-              count={timeline.length}
-            />
-
-            {timeline.length === 0 ? (
-              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
-                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">
-                  ○
-                </div>
-
-                <div className="font-semibold text-slate-950">
-                  Nenhum evento registrado
-                </div>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  A timeline deste acordo está vazia.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {timeline.map((evento: any) => (
-                  <div
-                    key={evento.id}
-                    className="relative border-l border-slate-200 pl-5"
-                  >
-                    <div className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full bg-sky-600" />
-
-                    <div className="font-semibold text-slate-950">
-                      {evento.descricao}
-                    </div>
-
-                    <div className="mt-1 text-sm text-slate-500">
-                      {formatDate(evento.criado_em)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-          </Card>
-        </div>
-      </div>
+      <details id="historico-acordo" className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-4" open={timeline.length > 0}>
+        <summary className="cursor-pointer font-semibold text-slate-900">Histórico de atividades · {timeline.length}</summary>
+        {timeline.length === 0 ? <p className="mt-3 text-sm text-slate-500">Nenhum evento registrado.</p> : <ol className="mt-3 divide-y divide-slate-100">{timeline.map((evento: any) => <li key={evento.id} className="py-3"><time className="text-xs tabular-nums text-slate-500">{formatDate(evento.criado_em)}</time><p className="mt-1 whitespace-pre-line text-sm text-slate-800">{evento.descricao}</p></li>)}</ol>}
+      </details>
     </div>
   );
 }
