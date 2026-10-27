@@ -80,10 +80,17 @@ export default async function InboxOperacionalPage({
     .filter((item) => item.ultimaInteracaoAt)
     .sort((a, b) =>
       String(a.ultimaInteracaoAt).localeCompare(String(b.ultimaInteracaoAt)),
-    )
-    .slice(0, 20);
+    );
 
   const filas = [
+    {
+      id: "cobrancas",
+      label: "Cobranças",
+      description: "Todas as cotas em aberto dos seus condomínios",
+      count: cockpit.itens.filter(item => item.tipo === 'cobranca').length,
+      items: cockpit.itens.filter(item => item.tipo === 'cobranca'),
+      icon: Landmark,
+    },
     {
       id: "hoje",
       label: "Hoje",
@@ -126,7 +133,11 @@ export default async function InboxOperacionalPage({
     },
   ];
 
-  const selected = filas.find((item) => item.id === fila) ?? filas[0];
+  const selected = filas.find((item) => item.id === fila) ?? filas.find(item => item.id === 'hoje')!;
+  const pageSize = 30;
+  const totalPages = Math.max(1, Math.ceil(selected.items.length / pageSize));
+  const page = Math.min(totalPages, Math.max(1, Number.parseInt(normalizeParam(params.page, '1'), 10) || 1));
+  const pageItems = selected.items.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <LitePageShell>
@@ -271,14 +282,14 @@ export default async function InboxOperacionalPage({
             </div>
           ) : (
             <LiteScrollArea className="flex-1 divide-y divide-slate-100">
-              {selected.items.slice(0, 18).map((item, index) => (
+              {pageItems.map((item, index) => (
                 <Link
                   key={`${item.tipo}-${item.id}`}
                   href={actionHref(item)}
                   className="group grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[44px_minmax(0,1fr)_150px_120px_34px] xl:items-center"
                 >
                   <span className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-600">
-                    {index + 1}
+                    {(page - 1) * pageSize + index + 1}
                   </span>
 
                   <div className="min-w-0">
@@ -332,6 +343,14 @@ export default async function InboxOperacionalPage({
               ))}
             </LiteScrollArea>
           )}
+          {selected.items.length > 0 && <nav aria-label="Paginação da fila" className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-3 text-sm text-slate-600">
+            <span>Exibindo {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, selected.items.length)} de {selected.items.length}</span>
+            <div className="flex items-center gap-3">
+              {page > 1 && <Link className="rounded-lg border px-3 py-1.5 hover:bg-slate-50" href={'/app/inbox?fila=' + selected.id + '&page=' + (page - 1)}>Anterior</Link>}
+              <span>{page} / {totalPages}</span>
+              {page < totalPages && <Link className="rounded-lg border px-3 py-1.5 hover:bg-slate-50" href={'/app/inbox?fila=' + selected.id + '&page=' + (page + 1)}>Próxima</Link>}
+            </div>
+          </nav>}
         </Card>
 
       </LiteWorkArea>

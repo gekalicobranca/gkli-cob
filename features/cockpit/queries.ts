@@ -1,15 +1,11 @@
-import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
+import { carregarBaseInbox } from './inbox-data'
 import { createClient } from '@/utils/supabase/server'
-import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
+import { createAdminClient } from '@/utils/supabase/admin'
+
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
-import { normalizeRelationsList } from '@/utils/supabase/normalize-relation'
+
 import { buildAcordoItem, buildCobrancaItem } from './rules'
-import {
-  ACORDO_STATUS_ATIVOS,
-  COBRANCA_STATUS,
-  COBRANCA_STATUS_OPERACIONAIS_ATIVOS,
-  PARCELA_ACORDO_STATUS,
-} from '@/lib/core/status'
+import { COBRANCA_STATUS, PARCELA_ACORDO_STATUS } from '@/lib/core/status'
 
 async function anexarEventosRecentes(supabase: any, itens: any[]) {
   const cobrancaIds = itens.filter((item) => item.tipo === 'cobranca').map((item) => item.id)
@@ -64,69 +60,11 @@ async function anexarEventosRecentes(supabase: any, itens: any[]) {
 export async function getCockpitInteligente(scope: CarteiraScope) {
   const supabase = await createClient()
 
-  let acordosQuery = supabase
-    .from('acordos')
-    .select(`
-      id,
-      tipo,
-      status,
-      status_financeiro,
-      risco,
-      valor_acordado,
-      entrada,
-      data_acordo,
-      condominios(nome),
-      unidades(identificacao, responsavel_nome),
-      parcelas_acordo(vencimento, status)
-    `)
-    .in('status', ACORDO_STATUS_ATIVOS)
-    .order('data_acordo', { ascending: false })
-    .limit(100)
-
-  acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
-
-  let cobrancasQuery = somenteCobrancasCanonicas(supabase
-    .from('cobrancas')
-    .select(`
-      id,
-      competencia,
-      vencimento,
-      valor_original,
-      valor_atualizado,
-      status,
-      status_operacional,
-      status_financeiro,
-      dias_atraso,
-      score_prioridade,
-      ultima_interacao_at,
-      condominios(nome),
-      unidades(identificacao, responsavel_nome)
-    `))
-    .in('status_operacional', COBRANCA_STATUS_OPERACIONAIS_ATIVOS)
-    .order('vencimento', { ascending: true })
-    .limit(160)
-
-  cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
-
-  const [
-    { data: acordos, error: acordosError },
-    { data: cobrancas, error: cobrancasError },
-  ] = await Promise.all([acordosQuery, cobrancasQuery])
-
-  if (acordosError) {
-    throw new Error(`Erro ao carregar acordos do cockpit: ${acordosError.message}`)
-  }
-
-  if (cobrancasError) {
-    throw new Error(`Erro ao carregar cobranças do cockpit: ${cobrancasError.message}`)
-  }
-
-  const acordosBase = normalizeRelationsList((acordos ?? []) as any[], ['condominios', 'unidades'])
-  const cobrancasBase = normalizeRelationsList((cobrancas ?? []) as any[], ['condominios', 'unidades'])
+  const { acordos: acordosBase, cobrancas: cobrancasBase } = await carregarBaseInbox(supabase, scope, createAdminClient())
 
   const acordosNormalizados = acordosBase.map((acordo: any) => {
     const abertas = (acordo.parcelas_acordo ?? [])
-      .filter((parcela: any) => parcela.status !== PARCELA_ACORDO_STATUS.PAGA)
+      .filter((parcela: any) => !parcela.data_pagamento && parcela.status !== PARCELA_ACORDO_STATUS.PAGA && parcela.status !== 'cancelada' && parcela.status !== 'cancelado')
       .sort((a: any, b: any) => String(a.vencimento).localeCompare(String(b.vencimento)))
 
     return {

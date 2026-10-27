@@ -126,7 +126,7 @@ export function buildAcordoItem(acordo: any): CockpitItem {
 }
 
 export function buildCobrancaItem(cobranca: any): CockpitItem {
-  const valor = Number(cobranca.valor_atualizado ?? 0);
+  const valor = Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0);
   const status = getCobrancaStatusOperacional(cobranca);
   const daysOverdue = safeDaysFromToday(cobranca.vencimento);
 
