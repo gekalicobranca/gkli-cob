@@ -133,6 +133,8 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
       ),
       cobrancas:cobranca_id (
         id,
+        unidade_id,
+        competencia,
         valor_original,
         valor_atualizado,
         juros,
@@ -219,8 +221,7 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
   ]);
   if (contatosResult.error) throw new Error(`Erro ao carregar contatos do acordo: ${contatosResult.error.message}`);
 
-  const { data: cobrancasVinculadas, error: cobrancasVinculadasError } =
-    await supabase
+  const cotasQuery = supabase
       .from("acordo_cobrancas")
       .select(
         `
@@ -237,6 +238,12 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
         unidade_id,
         unidades:unidade_id (id,identificacao,bloco),
         competencia,
+        valor_original,
+        valor_atualizado,
+        correcao,
+        juros,
+        multa,
+        desconto,
         vencimento,
         status,
         status_operacional,
@@ -245,12 +252,16 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
     `,
       )
       .eq("acordo_id", id)
-      .order("criado_em", { ascending: true });
-
-  if (cobrancasVinculadasError && cobrancasVinculadasError.code !== "42P01") {
-    throw new Error(
-      `Erro ao carregar cobranças vinculadas ao acordo: ${cobrancasVinculadasError.message}`,
-    );
+      .order("criado_em", { ascending: true }).order("id", { ascending: true });
+  const cobrancasVinculadas: any[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data: cotas, error: cotasError } = await cotasQuery.range(offset, offset + 499);
+    if (cotasError) {
+      if (cotasError.code === "42P01") break;
+      throw new Error(`Erro ao carregar cobranças vinculadas ao acordo: ${cotasError.message}`);
+    }
+    cobrancasVinculadas.push(...(cotas ?? []));
+    if ((cotas ?? []).length < 500) break;
   }
 
   const { data: revisoes, error: revisoesError } = await supabase

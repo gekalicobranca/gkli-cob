@@ -1,10 +1,9 @@
+import { AgreementFinancialDetail } from "@/features/acordos/components/agreement-financial-detail";
+import { repasseConsulta } from "@/features/acordos/consulta-financeira";
 import Link from "next/link";
 import {
   CheckCircle2,
   Clock3,
-  FileText,
-  Flag,
-  WalletCards,
   XCircle,
 } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -24,7 +23,6 @@ import { calculateAgreementHealth, getAcordoDetalhe } from "@/features/acordos/q
 import { AgreementHealthBadge } from "@/features/acordos/components/agreement-health-badge";
 import { AgreementFormalizationCard } from "@/features/acordos/components/agreement-formalization-card";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
-import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 type Props = {
   params: Promise<{
@@ -39,8 +37,14 @@ function formatCurrency(value?: number | null) {
   });
 }
 
+function formatarRepasse(acordo: any, parcela: any) {
+  const { valor } = repasseConsulta(acordo, parcela);
+  return valor == null ? "Não informado" : formatCurrency(valor);
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "-";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.split("-").reverse().join("/");
 
   return new Intl.DateTimeFormat("pt-BR").format(new Date(String(value).includes("T") ? value : `${value}T00:00:00`));
 }
@@ -189,42 +193,6 @@ function ParcelaActions({
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  helper,
-  icon: Icon = WalletCards,
-}: {
-  label: string;
-  value: string;
-  helper?: string;
-  icon?: any;
-}) {
-  return (
-    <Card className="overflow-hidden border-slate-200 shadow-sm">
-      <CardContent className="flex min-h-[112px] items-center gap-4 p-5">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#351b40]/5 text-[#351b40] ring-1 ring-[#351b40]/10">
-          <Icon className="h-5 w-5" />
-        </div>
-
-        <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-            {label}
-          </div>
-
-          <div className="mt-1 truncate text-xl font-semibold text-slate-950">
-            {value}
-          </div>
-
-          {helper && (
-            <div className="mt-1 text-sm text-slate-500">{helper}</div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function SectionTitle({
   title,
   description,
@@ -301,19 +269,6 @@ export default async function AcordoDetalhePage({ params }: Props) {
   const parcelasNormais = parcelas.filter(
     (parcela: any) => parcela.tipo !== "entrada",
   );
-  const totalParcelas = parcelas.reduce(
-    (total: number, parcela: any) => total + Number(parcela.valor || 0),
-    0,
-  );
-  const totalPago = parcelas
-    .filter((parcela: any) => parcela.status === "paga")
-    .reduce(
-      (total: number, parcela: any) => total + Number(parcela.valor || 0),
-      0,
-    );
-  const totalAberto = Math.max(totalParcelas - totalPago, 0);
-  const percentualPago =
-    totalParcelas > 0 ? Math.round((totalPago / totalParcelas) * 100) : 0;
   const diasReemissao = Number(acordo.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0);
   const health = calculateAgreementHealth(parcelas);
   const termos = Array.isArray(acordo.termos) ? acordo.termos : [];
@@ -330,11 +285,11 @@ export default async function AcordoDetalhePage({ params }: Props) {
   const actionTextareaClass = "min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         eyebrow="GKLI Cobrança"
         title="Acordo operacional"
-        description="Status, parcelas e formalização em uma visão enxuta."
+        description="Cotas negociadas, composição dos valores, parcelas e repasses."
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -379,6 +334,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
             <div className="mt-2 flex flex-wrap gap-2">
               {[...new Map(cobrancasVinculadas.map((v: any) => {const u=v.cobrancas?.unidades;return [u?.id,u];})).values()].filter(Boolean).map((u: any) => <Link key={u.id} href={`/app/unidades/${u.id}`} className="text-xs text-sky-700 underline">Unidade {u.identificacao}{u.bloco ? ` / ${u.bloco}` : ""}{u.id === acordo.unidade_id ? " (titular)" : " (participante)"}</Link>)}
             </div>
+            <p className="mt-1 text-sm text-slate-500">{acordo.carteiras?.nome ?? "Carteira não informada"} · {normalizeLabel(acordo.tipo)} · Acordo em {formatDate(acordo.data_acordo)}</p>
             <p className="mt-1 text-sm text-slate-500">Unidade titular {acordo.unidades?.identificacao || "-"}{acordo.unidades?.bloco ? ` · Bloco ${acordo.unidades.bloco}` : ""}</p>
           </div>
           <div>
@@ -387,51 +343,15 @@ export default async function AcordoDetalhePage({ params }: Props) {
             <p className="mt-1 text-xs text-slate-500">{tipoResponsavelLabel(responsavelApoio?.tipo_responsavel)}</p>
           </div>
           <div className="flex flex-wrap gap-2 md:justify-end">
-            <Badge value={acordo.status} />
+            <Badge value={acordo.status} /><Badge value={acordo.status_financeiro} />
             <AgreementHealthBadge health={health.saude} />
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-4">
-        <MetricCard
-          label="Status"
-          value={normalizeLabel(acordo.status)}
-          helper="Situação operacional"
-          icon={FileText}
-        />
+      <AgreementFinancialDetail acordo={acordo} cotas={cobrancasVinculadas} parcelas={parcelas} />
 
-        <MetricCard
-          label="Financeiro"
-          value={normalizeLabel(acordo.status_financeiro)}
-          helper={`${percentualPago}% pago · ${formatCurrency(totalAberto)} em aberto`}
-          icon={CheckCircle2}
-        />
-
-        <MetricCard
-          label="Valor do acordo"
-          value={formatCurrency(acordo.valor_acordado)}
-          helper={Number(acordo.credito_administradora_utilizado ?? 0) > 0
-            ? `Crédito abatido: ${formatCurrency(acordo.credito_administradora_utilizado)} · Pago: ${formatCurrency(totalPago)}`
-            : `Pago: ${formatCurrency(totalPago)}`}
-          icon={WalletCards}
-        />
-
-        <Card className="overflow-hidden border-slate-200 shadow-sm">
-          <CardContent className="flex min-h-[112px] items-center gap-4 p-5">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#351b40]/5 text-[#351b40] ring-1 ring-[#351b40]/10">
-              <Flag className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Saúde</div>
-              <div className="mt-2"><AgreementHealthBadge health={health.saude} /></div>
-              <div className="mt-2 text-sm text-slate-500">{health.vencidas} vencida(s) · {health.proximos7Dias} nos próximos 7 dias</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <AgreementFormalizationCard acordo={acordo} />
+      <details open={possuiFormalizacaoPendente} className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-semibold text-slate-900">Formalização e boletos</summary><div className="mt-3"><AgreementFormalizationCard acordo={acordo} /></div></details>
 
       {Array.isArray(revisoes) && revisoes.length > 0 ? (
         <Card className="border-slate-200 shadow-sm">
@@ -468,9 +388,9 @@ export default async function AcordoDetalhePage({ params }: Props) {
         </Card>
       ) : null}
 
-      <div className="grid gap-5 xl:grid-cols-5">
-        <Card className="xl:col-span-2">
-          <CardContent className="space-y-5 p-6">
+      {entrada ? (
+        <Card className="border-slate-200">
+          <CardContent className="space-y-3 p-4">
             <SectionTitle
               title="Entrada"
               description="Primeiro pagamento do acordo."
@@ -503,6 +423,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
                   <Badge value={entrada.status} />
                 </div>
 
+                <p className="mt-3 text-sm text-slate-600">Repasse da entrada: <strong>{formatarRepasse(acordo, entrada)}</strong> · {repasseConsulta(acordo, entrada).origem}</p>
                 <div className="mt-5 border-t border-slate-100 pt-4">
                   <ParcelaActions parcela={entrada} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />
                 </div>
@@ -511,72 +432,9 @@ export default async function AcordoDetalhePage({ params }: Props) {
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-3">
-          <CardContent className="space-y-5 p-6">
-            <SectionTitle
-              title="Cobranças agrupadas"
-              description="Origem financeira do acordo."
-            />
+      ) : null}
 
-            {cobrancasVinculadas?.length ? (
-              <div className="space-y-3">
-                {cobrancasVinculadas.map((item: any) => (
-                  <div
-                    key={item.id}
-                    className="grid gap-3 rounded-2xl border border-slate-200 p-4 md:grid-cols-[1fr_auto]"
-                  >
-                    <div>
-                      <div className="font-semibold text-slate-950">
-                        Unidade {item.cobrancas?.unidades?.identificacao ?? "-"}{item.cobrancas?.unidades?.bloco ? ` / ${item.cobrancas.unidades.bloco}` : ""} · Venc. {formatDate(item.cobrancas?.vencimento)} ·{" "}
-                        {item.cobrancas?.competencia || "Sem competência"}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-500">
-                        <Badge value={getCobrancaStatusOperacional(item.cobrancas)} />
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        Total no acordo
-                      </div>
-                      <div className="mt-1 text-lg font-semibold text-slate-950">
-                        {formatCurrency(item.valor_total_no_acordo)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Valor cobrança
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {formatCurrency(acordo.cobrancas?.valor_atualizado)}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Principal
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {formatCurrency(acordo.cobrancas?.valor_original)}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Vencimento
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {formatDate(acordo.cobrancas?.vencimento)}
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
+      <details className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer font-semibold text-slate-900">Ações operacionais e exceções</summary>
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="space-y-4 p-5">
           <SectionTitle
@@ -675,10 +533,11 @@ export default async function AcordoDetalhePage({ params }: Props) {
           </div>
         </CardContent>
       </Card>
+      </details>
 
       <div className="grid gap-5 xl:grid-cols-2">
         <Card>
-          <CardContent className="space-y-5 p-6">
+          <CardContent className="space-y-3 p-4">
             <SectionTitle
               title="Parcelas do acordo"
               description="Acompanhamento operacional do parcelamento."
@@ -748,6 +607,8 @@ export default async function AcordoDetalhePage({ params }: Props) {
                         <div className="mt-1 text-lg font-semibold text-slate-950">
                           {formatCurrency(parcela.valor)}
                         </div>
+                        <p className="mt-1 text-sm text-slate-700">Repasse: <strong>{formatarRepasse(acordo, parcela)}</strong></p>
+                        <p className="text-xs text-slate-500">{repasseConsulta(acordo, parcela).origem}</p>
                       </div>
 
                       <ParcelaActions parcela={parcela} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />
@@ -761,7 +622,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
 
         <div className="space-y-5">
           <Card>
-          <CardContent className="space-y-5 p-6">
+          <CardContent className="space-y-3 p-4">
             <SectionTitle
               title="Timeline operacional"
               description="Eventos registrados neste acordo."
