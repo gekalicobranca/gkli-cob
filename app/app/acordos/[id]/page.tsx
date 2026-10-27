@@ -271,7 +271,6 @@ export default async function AcordoDetalhePage({ params }: Props) {
       <PageHeader
         eyebrow="GKLI Cobrança"
         title="Acordo operacional"
-        description="Cotas negociadas, composição dos valores, parcelas e repasses."
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -308,24 +307,26 @@ export default async function AcordoDetalhePage({ params }: Props) {
         }
       />
 
-      <Card className="border-slate-200 shadow-sm">
+      <AgreementFinancialDetail view="summary" acordo={acordo} cotas={cobrancasVinculadas} parcelas={parcelas} />
+
+      <Card id="dados-acordo" className="border-slate-200 shadow-sm">
         <CardContent className="space-y-3 p-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Contexto operacional</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-950">{acordo.condominios?.nome || "Condomínio não informado"}</h2>
             <div className="mt-2 flex flex-wrap gap-2">
-              {[...new Map(cobrancasVinculadas.map((v: any) => {const u=v.cobrancas?.unidades;return [u?.id,u];})).values()].filter(Boolean).map((u: any) => <Link key={u.id} href={`/app/unidades/${u.id}`} className="text-xs text-sky-700 underline">Unidade {u.identificacao}{u.bloco ? ` / ${u.bloco}` : ""}{u.id === acordo.unidade_id ? " (titular)" : " (participante)"}</Link>)}
+              {[...new Map(cobrancasVinculadas.map((v: any) => {const u=v.cobrancas?.unidades;return [u?.id,u];})).values()].filter((u: any) => u && u.id !== acordo.unidade_id).map((u: any) => <Link key={u.id} href={`/app/unidades/${u.id}`} className="text-xs text-sky-700 underline">Unidade {u.identificacao}{u.bloco ? ` / ${u.bloco}` : ""} (participante)</Link>)}
             </div>
             <p className="mt-1 text-sm text-slate-500">{acordo.carteiras?.nome ?? "Carteira não informada"} · {normalizeLabel(acordo.tipo)} · Acordo em {formatDate(acordo.data_acordo)}</p>
-            <p className="mt-1 text-sm text-slate-500">Unidade titular {acordo.unidades?.identificacao || "-"}{acordo.unidades?.bloco ? ` · Bloco ${acordo.unidades.bloco}` : ""}</p>
+            <p className="mt-1 text-sm text-slate-500">Unidade titular: <Link href={`/app/unidades/${acordo.unidade_id}`} className="text-sky-800 underline">{acordo.unidades?.identificacao || "-"}{acordo.unidades?.bloco ? ` / ${acordo.unidades.bloco}` : ""}</Link></p>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Responsável pelo acordo</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Responsável</p>
             <p className="mt-1 text-sm font-medium text-slate-950">{responsavelApoio?.responsavel_nome || acordo.unidades?.responsavel_nome || "Não informado"}</p>
-            <p className="mt-1 text-xs text-slate-500">{tipoResponsavelLabel(responsavelApoio?.tipo_responsavel)}</p>
+            {responsavelApoio?.tipo_responsavel && <p className="mt-1 text-xs text-slate-500">{tipoResponsavelLabel(responsavelApoio.tipo_responsavel)}</p>}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Badge value={acordo.status} /><Badge value={acordo.status_financeiro} />
+            <Badge value={acordo.status} />
+            {String(acordo.status_financeiro ?? '').toLowerCase() !== String(acordo.status ?? '').toLowerCase() && <Badge value={acordo.status_financeiro} />}
             <AgreementHealthBadge health={health.saude} />
           </div>
         </CardContent>
@@ -334,7 +335,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
       <nav aria-label="Seções do acordo" className="sticky top-0 z-20 flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
         {[['resumo-acordo','Resumo'],['cotas-acordo','Cotas'],['parcelas-acordo','Parcelas e repasses'],['historico-acordo','Histórico']].map(([id,label]) => <a key={id} href={`#${id}`} className="rounded-lg px-3 py-2 text-sm font-medium text-sky-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-sky-700">{label}</a>)}
       </nav>
-      <AgreementFinancialDetail acordo={acordo} cotas={cobrancasVinculadas} parcelas={parcelas} />
+      <AgreementFinancialDetail view="cotas" acordo={acordo} cotas={cobrancasVinculadas} parcelas={parcelas} />
 
       <AgreementInstallmentsTable acordo={acordo} parcelas={parcelas} renderActions={(parcela) => <ParcelaActions parcela={parcela} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />} />
 
