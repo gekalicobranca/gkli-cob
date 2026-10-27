@@ -127,8 +127,6 @@ export default async function InboxOperacionalPage({
   ];
 
   const selected = filas.find((item) => item.id === fila) ?? filas[0];
-  const SelectedIcon = selected.icon;
-  const topItem = selected.items[0];
 
   return (
     <LitePageShell>
@@ -237,81 +235,28 @@ export default async function InboxOperacionalPage({
         </Card>
       </LiteKpiStrip>
 
-      <LiteWorkArea className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_330px]">
-        <Card className="min-h-0 overflow-hidden p-3">
-          <div className="px-2 py-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Filas inteligentes
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Escolha o contexto. Sem tabela pesada.
-            </p>
-          </div>
-
-          <LiteScrollArea className="mt-2 max-h-[calc(100vh-390px)] space-y-2 pr-1">
+      <LiteWorkArea className="flex min-w-0 flex-col">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+          <nav aria-label="Filas inteligentes" className="flex shrink-0 flex-wrap gap-x-1 border-b border-slate-200 px-3 pt-1">
             {filas.map((item) => {
               const Icon = item.icon;
               const active = item.id === selected.id;
-
-              return (
-                <Link
-                  key={item.id}
-                  href={`/app/inbox?fila=${item.id}`}
-                  className={[
-                    "flex items-center gap-3 rounded-2xl border p-3 transition",
-                    active
-                      ? "border-[#b9e0eb] bg-[#edf8fb] text-[#035f7c] shadow-sm"
-                      : "border-transparent bg-white text-slate-600 hover:border-slate-200 hover:bg-slate-50",
-                  ].join(" ")}
-                >
-                  <span
-                    className={[
-                      "grid h-10 w-10 place-items-center rounded-2xl",
-                      active
-                        ? "bg-white text-[#04799a]"
-                        : "bg-slate-100 text-slate-500",
-                    ].join(" ")}
-                  >
-                    <Icon size={17} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">
-                      {item.label}
-                    </span>
-                    <span className="block truncate text-xs opacity-75">
-                      {item.description}
-                    </span>
-                  </span>
-                  <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">
-                    {item.count}
-                  </span>
-                </Link>
-              );
+              return <Link key={item.id} href={'/app/inbox?fila=' + item.id} aria-current={active ? 'page' : undefined}
+                className={[
+                  "inline-flex min-h-12 items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-sky-700",
+                  active ? "border-[#04799a] text-[#035f7c]" : "border-transparent text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                ].join(' ')}>
+                <Icon size={16} aria-hidden="true" />
+                {item.label}
+                <span className={active ? "rounded-full bg-[#edf8fb] px-2 py-0.5 text-xs font-semibold text-[#035f7c]" : "rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"}>{item.count}</span>
+              </Link>;
             })}
-          </LiteScrollArea>
-        </Card>
-
-        <Card className="flex min-h-0 flex-col overflow-hidden p-0">
-          <div className="border-b border-slate-100 bg-white px-5 py-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#edf8fb] text-[#04799a]">
-                  <SelectedIcon size={19} />
-                </span>
-                <div>
-                  <h2 className="text-base font-semibold text-slate-950">
-                    {selected.label}
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    {selected.description}
-                  </p>
-                </div>
-              </div>
-              <button className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm">
-                <Filter size={15} />
-                Mais filtros
-              </button>
-            </div>
+          </nav>
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-2">
+            <div><h2 className="sr-only">{selected.label}</h2><p className="text-sm text-slate-500">{selected.description}</p></div>
+            <button className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm">
+              <Filter size={15} />Mais filtros
+            </button>
           </div>
 
           {selected.items.length === 0 ? (
@@ -325,7 +270,7 @@ export default async function InboxOperacionalPage({
               </p>
             </div>
           ) : (
-            <LiteScrollArea className="divide-y divide-slate-100">
+            <LiteScrollArea className="flex-1 divide-y divide-slate-100">
               {selected.items.slice(0, 18).map((item, index) => (
                 <Link
                   key={`${item.tipo}-${item.id}`}
@@ -389,46 +334,6 @@ export default async function InboxOperacionalPage({
           )}
         </Card>
 
-        <Card className="min-h-0 overflow-hidden p-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="text-[#04799a]" size={18} />
-            <h2 className="text-base font-semibold text-slate-950">
-              Copiloto operacional
-            </h2>
-          </div>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            A IA aparece como contexto dentro da operação, não como módulo
-            obrigatório. A ação principal continua nas cobranças e acordos
-            reais.
-          </p>
-
-          <LiteScrollArea className="mt-4 max-h-[calc(100vh-385px)] space-y-3 pr-1">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                Melhor próxima ação
-              </p>
-              <p className="mt-2 text-sm font-medium text-slate-900">
-                {topItem ? topItem.acao : "Acompanhar fila"}
-              </p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                {topItem
-                  ? topItem.motivo
-                  : "Nenhum item crítico encontrado agora."}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-[#d7eef5] bg-[#f5fbfd] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#04799a]">
-                Orientação Lite
-              </p>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li>• Comece pela fila Hoje.</li>
-                <li>• Resolva críticos antes de abrir listas completas.</li>
-                <li>• Use módulos antigos só para consulta avançada.</li>
-              </ul>
-            </div>
-          </LiteScrollArea>
-        </Card>
       </LiteWorkArea>
 
     </LitePageShell>
