@@ -5,7 +5,7 @@ import { ContatoRapidoAcordo } from "@/components/acordos/contato-rapido";
 import {rotuloUnidade} from "@/features/acordos/unidade-titular";
 
 import { type ChangeEvent, useActionState, useMemo, useState } from "react";
-import { AlertTriangle, Mail, Phone, Save, UserRound, Calculator, CheckCircle2, FileText, Layers } from "lucide-react";
+import { AlertTriangle, Save, UserRound, Calculator, CheckCircle2, FileText, Layers } from "lucide-react";
 import {
   createAcordoComEstado,
   salvarContatoResponsavelAcordoComEstado,
@@ -413,7 +413,7 @@ export function AcordoSimulatorForm({
   }
 
   return (
-    <form action={createAcordoAction} className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px] [&_input:not([type=checkbox]):not([type=hidden])]:min-h-11 [&_input:not([type=checkbox])]:text-base [&_select]:min-h-11 [&_select]:text-base [&_textarea]:text-base [&_button]:min-h-11 [&_button]:h-auto [&_button]:py-2.5">
+    <form action={createAcordoAction} className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px] [&_input:not([type=checkbox]):not([type=hidden])]:min-h-11 [&_input:not([type=checkbox])]:text-base [&_select]:min-h-11 [&_select]:text-base [&_textarea]:text-base [&_button]:min-h-11 [&_button]:h-auto [&_button]:py-2.5">
       {cobrancasSelecionadas.map((cobranca) => (
         <input
           key={cobranca.id}
@@ -425,9 +425,9 @@ export function AcordoSimulatorForm({
       <input type="hidden" name="unidade_titular_id" value={cobrancaSelecionada?.unidade_id ?? ""} />
       {cotasSemDespesas.map((id) => <input key={id} type="hidden" name="cotas_sem_despesas" value={id} />)}
       <input type="hidden" name="cobranca_id_origem" value={cobrancaSelecionada?.id ?? cobrancaId} />
-      <div className="min-w-0 space-y-6">
-      <Card className="space-y-5">
-        <h2 className="flex items-center gap-3 text-xl font-semibold text-slate-950"><Layers className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />1. Cobranças e unidade titular</h2>
+      <div className="min-w-0 space-y-4">
+      <Card className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950"><Layers className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />1. Cobranças e unidade titular</h2>
         {cotasSemDespesas.length > 0 && (
           <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
             <input type="checkbox" name="cota_mes_autorizada" defaultChecked={formularioInicial.cota_mes_autorizada === "on"} required className="mt-1" />
@@ -454,7 +454,7 @@ export function AcordoSimulatorForm({
               </p>
             </div>
 
-            <details open={cobrancasSelecionadas.length <= 3} className="rounded-xl bg-white/70 p-3">
+            <details  className="rounded-xl bg-white/70 p-3">
               <summary className="cursor-pointer text-sm font-semibold text-slate-800">{cobrancasSelecionadas.length} cobranças · {formatCurrency(preview.valorOriginal)}</summary>
             <div className="mt-3 max-h-72 divide-y divide-slate-200 overflow-y-auto">
               {cobrancasSelecionadas.map((cobranca) => (
@@ -525,7 +525,7 @@ export function AcordoSimulatorForm({
           </>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+        <details className="rounded-xl border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium text-slate-700">Análise da negociação · {insight.elegibilidadeLabel} · Score {insight.score}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Elegibilidade</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{insight.elegibilidadeLabel}</p>
@@ -548,22 +548,14 @@ export function AcordoSimulatorForm({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[#DDE5E2] bg-[#F6F8F7] p-4">
-          <p className="text-sm font-semibold text-slate-950">Pré-análise</p>
-          <div className="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-5">
-            <span>{cobrancasSelecionadas.length} cobrança(s)</span>
-            <span>Saldo {formatCurrency(preview.valorOriginal)}</span>
-            <span>Maior atraso {insight.maiorAtrasoDias} dia(s)</span>
-            <span>De {formatDateBR(primeiroVencimentoSelecionado)}</span>
-            <span>Até {formatDateBR(ultimoVencimentoSelecionado)}</span>
-          </div>
-        </div>
+        </details>
+        <p className="text-sm text-slate-600">{cobrancasSelecionadas.length} cobrança(s) · Saldo {formatCurrency(preview.valorOriginal)} · Maior atraso {insight.maiorAtrasoDias} dias</p>
 
       </Card>
-      <Card className="space-y-5">
-        <h2 className="flex items-center gap-3 text-xl font-semibold text-slate-950"><Calculator className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />2. Condições do acordo</h2>
-        <p className="text-sm text-slate-600">Ajuste os valores e confira o resumo e os vencimentos na simulação.</p>
-        <div className="grid gap-5 md:grid-cols-2">
+      <Card className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950"><Calculator className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />2. Condições do acordo</h2>
+
+        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
           <FormField label="Tipo de acordo">
             <Select
               aria-label="Tipo de acordo" name="tipo"
@@ -714,9 +706,161 @@ export function AcordoSimulatorForm({
         </label>
 
       </Card>
-      <ContatoRapidoAcordo />
-      <Card className="space-y-5">
-        <h2 className="flex items-center gap-3 text-xl font-semibold text-slate-950"><FileText className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />3. Conferência e criação</h2>
+
+
+      </div>
+      <div className="flex min-w-0 flex-col gap-4 xl:col-start-2 xl:row-start-1 xl:row-span-2">
+        <Card className="space-y-3" data-section="responsavel-contato">
+          <input type="hidden" name="unidade_id" value={responsavelAcionado.unidadeId} />
+          <input type="hidden" name="return_to" value={returnToTitular} />
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950"><UserRound className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />Responsável e contato</h2>
+          <div className="space-y-1 text-sm text-slate-700">
+            <p className="font-semibold">{responsavelAcionado.nome}</p>
+            <p className="break-all">{responsavelAcionado.email}</p>
+            <p>{responsavelAcionado.telefone}</p>
+          </div>
+          {!contatoAcionavel && <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">Informe nome e e-mail ou celular para liberar o acordo.</p>}
+          <details open={!contatoAcionavel || Boolean(contatoState.error)} className="rounded-xl border border-slate-200 p-3">
+            <summary className="cursor-pointer text-sm font-medium text-[var(--gkli-primary)]">Editar dados do responsável</summary>
+            <div className="mt-3 grid gap-3">
+              <Input aria-label="Nome do responsável" name="contato_responsavel_nome" defaultValue={responsavelAcionado.nome === "Responsável não informado" ? "" : responsavelAcionado.nome} placeholder="Nome do responsável" />
+              <Input aria-label="E-mail do responsável" name="contato_responsavel_email" type="email" defaultValue={responsavelAcionado.email === "E-mail não informado" ? "" : responsavelAcionado.email} placeholder="E-mail" />
+              <Input aria-label="Telefone do responsável" name="contato_responsavel_telefone" defaultValue={responsavelAcionado.telefone === "Celular não informado" ? "" : responsavelAcionado.telefone} placeholder="WhatsApp/celular" />
+              {contatoState.error && <p role="alert" className="text-sm text-rose-800">{contatoState.error}</p>}
+              <Button type="submit" variant="secondary" formAction={salvarContatoAction} formNoValidate disabled={!responsavelAcionado.unidadeId} loading={isSavingContato} loadingLabel="Salvando contato..."><Save size={16} aria-hidden="true" />Salvar dados do responsável</Button>
+            </div>
+          </details>
+          <ContatoRapidoAcordo />
+        </Card>
+
+        <Card className="space-y-3">
+          <h2 className="text-lg font-semibold text-slate-950">
+            Resumo financeiro
+          </h2>
+
+          <div className="grid gap-1">
+            <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+              <span className="text-sm text-slate-500">
+                Valor das cobranças
+              </span>
+              <strong className="text-base text-slate-950">
+                {formatCurrency(preview.valorOriginal)}
+              </strong>
+            </div>
+            {preview.creditoUtilizado > 0 ? (
+              <div className="flex justify-between rounded-2xl bg-emerald-50 p-4">
+                <span className="text-sm text-emerald-800">Crédito descontado</span>
+                <strong className="text-sm text-emerald-950">
+                  - {formatCurrency(preview.creditoUtilizado)}
+                </strong>
+              </div>
+            ) : null}
+            <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+              <span className="text-sm text-slate-500">
+                Despesa de cobrança (
+                {preview.percentualDespesa.toLocaleString("pt-BR")}%)
+              </span>
+              <strong className="text-sm text-slate-950">
+                {formatCurrency(preview.despesaCobranca)}
+              </strong>
+            </div>
+            {preview.jurosAdicional > 0 ? (
+              <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                <span className="text-sm text-slate-500">Juros Price (1% ao mês)</span>
+                <strong className="text-sm text-slate-950">{formatCurrency(preview.jurosAdicional)}</strong>
+              </div>
+            ) : null}
+            <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+              <span className="text-sm text-slate-500">Valor acordado</span>
+              <strong className="text-sm text-slate-950">
+                {formatCurrency(preview.total)}
+              </strong>
+            </div>
+            <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+              <span className="text-sm text-slate-500">Entrada</span>
+              <strong className="text-sm text-slate-950">
+                {formatCurrency(preview.entrada)}
+              </strong>
+            </div>
+            <div className="flex justify-between gap-2 rounded-lg bg-[#E7F1EE] px-3 py-2">
+              <span className="text-sm font-semibold text-[#14352F]">
+                Saldo parcelado
+              </span>
+              <strong className="text-sm text-[#14352F]">
+                {formatCurrency(preview.saldo)}
+              </strong>
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {sugestoesParcelamento.map((item) => (
+              <button
+                key={item.parcelas}
+                type="button"
+                onClick={() => setQuantidadeParcelas(String(item.parcelas))}
+                className="rounded-2xl border border-slate-200 bg-white p-2 text-left transition hover:border-[var(--gkli-primary)]"
+              >
+                <p className="text-sm font-semibold text-slate-950">{item.parcelas}x {formatCurrency(item.valor)}</p>
+                <p className="mt-1 text-xs text-slate-500">{item.exigeSindico ? "Exige aprovação" : "Dentro da regra"}</p>
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card><details><summary className="cursor-pointer text-base font-semibold text-slate-950">Ver vencimentos · {preview.parcelas.length} parcela(s)</summary>
+          {preview.entrada > 0 ? (
+            <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">Entrada</p>
+                <p className="text-xs text-slate-500">
+                  Venc. {formatDateBR(preview.entradaVencimento)}
+                </p>
+              </div>
+              <p className="text-sm font-semibold text-slate-950">
+                {formatCurrency(preview.entrada)}
+              </p>
+            </div>
+          ) : null}
+          <div className="mt-4 max-h-[32rem] divide-y divide-slate-100 overflow-y-auto pr-2 tabular-nums">
+            {preview.parcelas.map(
+              (parcela: {
+                numero: number;
+                valor: number;
+                vencimento: string;
+                juros: number;
+                amortizacao: number;
+                saldoDevedor: number;
+              }) => (
+                <div
+                  key={parcela.numero}
+                  className="flex items-center justify-between gap-4 py-3"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-950">
+                      Parcela {parcela.numero}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Venc. {formatDateBR(parcela.vencimento)}
+                    </p>
+                    {preview.jurosAdicional > 0 ? (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Amortização {formatCurrency(parcela.amortizacao)} · Juros {formatCurrency(parcela.juros)} · Saldo devedor {formatCurrency(parcela.saldoDevedor)}
+                      </p>
+                    ) : null}
+                  </div>
+                  <p className="text-sm font-semibold text-slate-950">
+                    {formatCurrency(parcela.valor)}
+                  </p>
+                </div>
+              ),
+            )}
+          </div>
+        </details>
+        </Card>
+      </div>
+      <Card className="space-y-3 xl:col-start-1 xl:row-start-2">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950"><FileText className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />3. Conferência e criação</h2>
+        <details open={Boolean(documentoUrl || observacoes)} className="rounded-xl border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium text-slate-700">Documento e observações (opcional)</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
         <FormField label="Link do documento/pasta">
           <Input
             aria-label="Link do documento/pasta" name="documento_url"
@@ -738,6 +882,8 @@ export function AcordoSimulatorForm({
             ) => setObservacoes(event.target.value)}
           />
         </FormField>
+
+        </div></details>
 
         {exigeAprovacaoSindico ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
@@ -808,7 +954,7 @@ export function AcordoSimulatorForm({
         {contemCobrancasForaRegua && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           Esta seleção contém cotas fora da régua. Mantenha as confirmações de autorização para a inclusão e a eventual isenção de despesas.
         </div>}
-        <div className="flex flex-col justify-end gap-3">
+        <div className="flex flex-col justify-end gap-2 sm:flex-row [&>button]:flex-1">
           {!exigeAprovacaoSindico ? (
             <Button
               type="submit"
@@ -817,7 +963,7 @@ export function AcordoSimulatorForm({
               onClick={handleOpenAprovacaoSindicoEmail}
               disabled={isCreatingAcordo || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
             >
-              Enviar acordo para aprovação do síndico
+              Pedir aprovação do síndico
             </Button>
           ) : null}
           <Button
@@ -830,225 +976,8 @@ export function AcordoSimulatorForm({
             <CheckCircle2 className="size-5" aria-hidden="true" />Criar acordo e iniciar fluxo
           </Button>
         </div>
-        <p className="text-right text-sm leading-5 text-slate-500">
-          Se o limite operacional do condomínio for ultrapassado, o síndico aprova primeiro; depois o termo público segue ao devedor e, com o aceite, a administradora recebe a solicitação de boletos.
-        </p>
+
       </Card>
-
-      </div>
-      <div className="flex min-w-0 flex-col gap-4">
-        <Card className="order-2">
-          <input type="hidden" name="unidade_id" value={responsavelAcionado.unidadeId} />
-          <input type="hidden" name="return_to" value={returnToTitular} />
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--gkli-primary)]">
-            Responsável acionado
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">
-            Contato do devedor
-          </h2>
-
-          <div
-            className={`mt-4 rounded-2xl border p-3 text-sm ${
-              contatoAcionavel
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                : "border-amber-200 bg-amber-50 text-amber-900"
-            }`}
-          >
-            {contatoAcionavel
-              ? "Contato acionável salvo para seguir com o acordo."
-              : "Informe nome e e-mail ou celular para liberar o fluxo do acordo."}
-          </div>
-
-          <div className="mt-5 grid gap-3 tabular-nums">
-            <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
-              <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gkli-primary)]" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Nome</p>
-                <Input
-                  aria-label="Nome do responsável" name="contato_responsavel_nome"
-                  defaultValue={responsavelAcionado.nome === "Responsável não informado" ? "" : responsavelAcionado.nome}
-                  placeholder="Nome do responsável"
-                  className="mt-2"
-                />
-              </div>
-            </div>
-            <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
-              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gkli-primary)]" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">E-mail</p>
-                <Input
-                  aria-label="E-mail do responsável" name="contato_responsavel_email"
-                  type="email"
-                  defaultValue={responsavelAcionado.email === "E-mail não informado" ? "" : responsavelAcionado.email}
-                  placeholder="email@exemplo.com"
-                  className="mt-2"
-                />
-              </div>
-            </div>
-            <div className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
-              <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[var(--gkli-primary)]" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Celular</p>
-                <Input
-                  aria-label="Telefone do responsável" name="contato_responsavel_telefone"
-                  defaultValue={responsavelAcionado.telefone === "Celular não informado" ? "" : responsavelAcionado.telefone}
-                  placeholder="WhatsApp/celular"
-                  className="mt-2"
-                />
-              </div>
-            </div>
-          </div>
-          {contatoState.error ? (
-            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
-              {contatoState.error}
-            </div>
-          ) : null}
-          <div className="mt-4 flex justify-end">
-            <Button
-              type="submit"
-              variant="secondary"
-              formAction={salvarContatoAction}
-              formNoValidate
-              disabled={!responsavelAcionado.unidadeId}
-              loading={isSavingContato}
-              loadingLabel="Salvando contato..."
-            >
-              <Save size={16} />
-              Salvar dados do responsável
-            </Button>
-          </div>
-        </Card>
-
-        <Card className="order-1">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--gkli-primary)]">
-            Simulador
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">
-            Resumo financeiro
-          </h2>
-
-          <div className="mt-5 grid gap-3">
-            <div className="flex justify-between rounded-2xl bg-slate-50 p-4">
-              <span className="text-sm text-slate-500">
-                Valor das cobranças
-              </span>
-              <strong className="text-base text-slate-950">
-                {formatCurrency(preview.valorOriginal)}
-              </strong>
-            </div>
-            {preview.creditoUtilizado > 0 ? (
-              <div className="flex justify-between rounded-2xl bg-emerald-50 p-4">
-                <span className="text-sm text-emerald-800">Crédito descontado</span>
-                <strong className="text-sm text-emerald-950">
-                  - {formatCurrency(preview.creditoUtilizado)}
-                </strong>
-              </div>
-            ) : null}
-            <div className="flex justify-between rounded-2xl bg-slate-50 p-4">
-              <span className="text-sm text-slate-500">
-                Despesa de cobrança (
-                {preview.percentualDespesa.toLocaleString("pt-BR")}%)
-              </span>
-              <strong className="text-sm text-slate-950">
-                {formatCurrency(preview.despesaCobranca)}
-              </strong>
-            </div>
-            {preview.jurosAdicional > 0 ? (
-              <div className="flex justify-between rounded-2xl bg-slate-50 p-4">
-                <span className="text-sm text-slate-500">Juros Price (1% ao mês)</span>
-                <strong className="text-sm text-slate-950">{formatCurrency(preview.jurosAdicional)}</strong>
-              </div>
-            ) : null}
-            <div className="flex justify-between rounded-2xl bg-slate-50 p-4">
-              <span className="text-sm text-slate-500">Valor acordado</span>
-              <strong className="text-sm text-slate-950">
-                {formatCurrency(preview.total)}
-              </strong>
-            </div>
-            <div className="flex justify-between rounded-2xl bg-slate-50 p-4">
-              <span className="text-sm text-slate-500">Entrada</span>
-              <strong className="text-sm text-slate-950">
-                {formatCurrency(preview.entrada)}
-              </strong>
-            </div>
-            <div className="flex justify-between rounded-2xl bg-[#E7F1EE] p-4">
-              <span className="text-sm font-semibold text-[#14352F]">
-                Saldo parcelado
-              </span>
-              <strong className="text-sm text-[#14352F]">
-                {formatCurrency(preview.saldo)}
-              </strong>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {sugestoesParcelamento.map((item) => (
-              <button
-                key={item.parcelas}
-                type="button"
-                onClick={() => setQuantidadeParcelas(String(item.parcelas))}
-                className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-[var(--gkli-primary)]"
-              >
-                <p className="text-sm font-semibold text-slate-950">{item.parcelas}x {formatCurrency(item.valor)}</p>
-                <p className="mt-1 text-xs text-slate-500">{item.exigeSindico ? "Exige aprovação" : "Dentro da regra"}</p>
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="order-3">
-          <h2 className="text-lg font-semibold text-slate-950">
-            Vencimentos da simulação
-          </h2>
-          {preview.entrada > 0 ? (
-            <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-950">Entrada</p>
-                <p className="text-xs text-slate-500">
-                  Venc. {formatDateBR(preview.entradaVencimento)}
-                </p>
-              </div>
-              <p className="text-sm font-semibold text-slate-950">
-                {formatCurrency(preview.entrada)}
-              </p>
-            </div>
-          ) : null}
-          <div className="mt-4 max-h-[32rem] divide-y divide-slate-100 overflow-y-auto pr-2 tabular-nums">
-            {preview.parcelas.map(
-              (parcela: {
-                numero: number;
-                valor: number;
-                vencimento: string;
-                juros: number;
-                amortizacao: number;
-                saldoDevedor: number;
-              }) => (
-                <div
-                  key={parcela.numero}
-                  className="flex items-center justify-between gap-4 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-950">
-                      Parcela {parcela.numero}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Venc. {formatDateBR(parcela.vencimento)}
-                    </p>
-                    {preview.jurosAdicional > 0 ? (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Amortização {formatCurrency(parcela.amortizacao)} · Juros {formatCurrency(parcela.juros)} · Saldo devedor {formatCurrency(parcela.saldoDevedor)}
-                      </p>
-                    ) : null}
-                  </div>
-                  <p className="text-sm font-semibold text-slate-950">
-                    {formatCurrency(parcela.valor)}
-                  </p>
-                </div>
-              ),
-            )}
-          </div>
-        </Card>
-      </div>
     </form>
   );
 }
