@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     if (state.expires < Date.now() || state.userId !== scope.userId || state.state !== request.nextUrl.searchParams.get('state')) throw new Error('Autorização inválida ou expirada.')
     if (!scope.isAdmin && !scope.carteiraIds?.includes(state.carteiraId)) throw new Error('Carteira não autorizada.')
     target.searchParams.set('carteira', state.carteiraId)
+    target.searchParams.set('conta', state.configId)
     const code = request.nextUrl.searchParams.get('code')
     if (!code || request.nextUrl.searchParams.has('error')) throw new Error('Autorização Google não concluída.')
     const tokens = await googleToken({ code, code_verifier: state.verifier, grant_type: 'authorization_code', redirect_uri: googleSettings().redirectUri })

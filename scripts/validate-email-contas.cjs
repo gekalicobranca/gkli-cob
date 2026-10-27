@@ -6,7 +6,7 @@ test('cotas e cadência por conta autenticada preservam as travas do envio',asyn
  await db.exec(`
  create role anon;create role authenticated;create role service_role bypassrls;
  create table fake_clock(t timestamptz);insert into fake_clock values('2050-10-26T01:00Z');
- create function test_now()returns timestamptz language sql as $$select t from fake_clock$$;
+ create function test_now()returns timestamptz language sql as $$select t from public.fake_clock$$;
  create table carteiras(id uuid primary key,email_limite_diario int default 50 constraint carteiras_email_limite_diario_check check(email_limite_diario between 1 and 50),email_habilitado boolean default true,email_transporte text default 'smtp');
  create table condominios(id uuid primary key,carteira_id uuid);
  create table cobrancas(id uuid primary key,carteira_id uuid,condominio_id uuid,status text default 'em_cobranca_ativa',automacao_bloqueada boolean default false);
@@ -42,12 +42,19 @@ test('cotas e cadência por conta autenticada preservam as travas do envio',asyn
  const migration=fs.readdirSync('supabase/migrations').find(name=>name.endsWith('_email_cem_por_conta_intervalo_dois_minutos.sql'));
  assert.ok(migration,'Migração de cotas por conta ausente');
  await db.exec(clock(fs.readFileSync('supabase/migrations/'+migration,'utf8')));
+ const oldQueue=await message(901);await db.query('select email_reservar_horario($1,$2)',[oldQueue,'lidia@shared.example']);
+ const oldSlot=(await db.query('select agendada_para from email_agenda where mensagem_id=$1',[oldQueue])).rows[0].agendada_para;
+ const multi=fs.readdirSync('supabase/migrations').find(name=>name.endsWith('_multiplos_smtp_por_carteira.sql'));
+ await db.exec(clock(fs.readFileSync('supabase/migrations/'+multi,'utf8')));
  await db.exec('update carteiras set email_limite_diario=100');
  const one=async(s,p=[]) => (await db.query(s,p)).rows[0];
  await t.test('histórico, privilégios e cron ficam coerentes',async()=>{
   const old=await one('select remetente,conta_envio from email_tentativas where mensagem_id=$1',[legacy]);assert.equal(old.remetente,'shared.example');assert.equal(old.conta_envio,'lidia@shared.example');
   assert.equal((await one('select schedule from cron.job')).schedule,'*/2 1-8 * * *');
   assert.equal((await one("select has_function_privilege('authenticated','email_conta_envio(uuid)','EXECUTE') b")).b,false);
+  assert.equal((await one('select smtp_config_id from email_agenda where mensagem_id=$1',[oldQueue])).smtp_config_id,id(301));
+  assert.equal(new Date((await one('select agendada_para from email_agenda where mensagem_id=$1',[oldQueue])).agendada_para).getTime(),new Date(oldSlot).getTime());
+  for(const fn of ['email_smtp_candidatas(uuid)','email_smtp_config_envio(uuid)','email_proximo_horario_conta(mensagens,text,timestamptz)']) assert.equal((await one("select has_function_privilege('authenticated',$1,'EXECUTE') b",[fn])).b,false);
  });
  async function scenario(fn){await db.exec('begin;delete from email_tentativas;delete from email_agenda;');try{await fn()}finally{await db.exec('rollback')}}
  const reserve=async(k,input='shared.example')=>(await one('select email_reservar_horario($1,$2) slot',[k,input])).slot;
@@ -98,6 +105,50 @@ test('cotas e cadência por conta autenticada preservam as travas do envio',asyn
   const job=(await one('select thunderbird_reservar($1,false) r',[id(404)])).r;assert.equal(job.mensagem_id,m);
   assert.equal((await one('select thunderbird_reservar($1,false) r',[id(404)])).r,null);
   assert.equal((await one('select remetente from email_tentativas where mensagem_id=$1',[m])).remetente,'operacao@azevedo.example');
+ }));
+ const addSecond=()=>db.query('insert into integracoes_smtp_config(id,carteira_id,usuario)values($1,$2,$3)',[id(391),id(1),'cobranca@shared.example']);
+ await t.test('duas contas da mesma carteira dividem a fila e fixam a credencial por mensagem',()=>scenario(async()=>{
+  await addSecond();const a=await message(7000),b=await message(7001),c=await message(7002);
+  const sa=await reserve(a),sb=await reserve(b),sc=await reserve(c);
+  assert.equal(new Date(sa).getTime(),new Date(sb).getTime());assert.equal(new Date(sc)-new Date(sa),120000);
+  assert.equal((await one('select email_smtp_config_envio($1) id',[a])).id,id(301));
+  assert.equal((await one('select email_smtp_config_envio($1) id',[b])).id,id(391));
+  await rejectsQuery(()=>claim(b,'lidia@shared.example'),/diverge/);
+  assert.equal((await claim(a,'lidia@shared.example')).permitido,true);
+  assert.equal((await claim(b,'cobranca@shared.example')).permitido,true);
+ }));
+ await t.test('adicionar conta não altera uma reserva já fixada',()=>scenario(async()=>{
+  const a=await message(7100);await reserve(a);await addSecond();
+  assert.equal((await one('select email_conta_envio($1) conta',[a])).conta,'lidia@shared.example');
+  await db.query('update integracoes_smtp_config set atualizado_em=test_now()+interval \'1 day\' where id=$1',[id(391)]);
+  assert.equal((await one('select email_smtp_config_envio($1) id',[a])).id,id(301));
+ }));
+ await t.test('conta desativada bloqueia reserva antiga; reagendamento escolhe outra sem disparar',()=>scenario(async()=>{
+  await addSecond();const a=await message(7200);await reserve(a);await db.query('update integracoes_smtp_config set ativo=false where id=$1',[id(301)]);
+  await rejectsQuery(()=>db.query('select email_smtp_config_envio($1)',[a]),/inativa/);
+  await reserve(a);assert.equal((await one('select email_smtp_config_envio($1) id',[a])).id,id(391));
+  assert.equal((await one('select count(*)::int n from email_tentativas')).n,0);
+ }));
+ await t.test('rotas específicas não são distribuídas entre contas e identidade externa é recusada',()=>scenario(async()=>{
+  await addSecond();await db.query('insert into integracoes_smtp_rotas_condominio(condominio_id,carteira_id,smtp_config_id)values($1,$2,$3)',[id(101),id(1),id(301)]);
+  const a=await message(7300),b=await message(7301);const sa=await reserve(a),sb=await reserve(b);assert.equal(new Date(sb)-new Date(sa),120000);
+  assert.equal((await one('select email_smtp_config_envio($1) id',[b])).id,id(301));
+  await db.query('update email_agenda set smtp_config_id=$1 where mensagem_id=$2',[id(302),b]);
+  await rejectsQuery(()=>db.query('select email_smtp_config_envio($1)',[b]),/escopo autorizado/);
+ }));
+ await t.test('duas contas mantêm o teto de 100 cada, inclusive sob reserva final',()=>scenario(async()=>{
+  await addSecond();await db.exec("update fake_clock set t='2050-10-26T05:00Z'");
+  for(let i=0;i<201;i++)await reserve(await message(8000+i));
+  const totals=(await db.query("select remetente,(agendada_para at time zone 'America/Sao_Paulo')::date dia,count(*)::int n from email_agenda group by 1,2")).rows;
+  assert.equal(totals.reduce((n,r)=>n+r.n,0),201);assert.ok(totals.every(r=>r.n<=100));assert.equal(new Set(totals.map(r=>r.remetente)).size,2);
+  const a=await message(8300);await reserve(a);const account=(await one('select email_conta_envio($1) conta',[a])).conta;
+  await db.query('insert into email_tentativas(carteira_id,remetente,conta_envio,iniciado_em,estado)select $1,$2,$2,test_now()-interval \'2 hours\',\'enviado\' from generate_series(1,100)',[id(1),account]);
+  await db.query('update email_agenda set agendada_para=test_now() where mensagem_id=$1',[a]);
+  assert.equal((await claim(a,account)).permitido,false);
+ }));
+ await t.test('avisos internos conservam a conta principal, mesmo com fila menor na segunda',()=>scenario(async()=>{
+  await addSecond();const a=await message(8400),b=await message(8401);await db.query("update mensagens set payload='{\"interno\":true}' where id in($1,$2)",[a,b]);await reserve(a);await reserve(b);
+  assert.equal((await one('select email_conta_envio($1) conta',[b])).conta,'lidia@shared.example');
  }));
  }finally{await db.close()}
 });

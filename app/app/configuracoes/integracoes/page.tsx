@@ -1,6 +1,7 @@
 import { Mail, Save, Send, Server, ShieldCheck } from "lucide-react";
+import Link from 'next/link';
 import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
-import { getSmtpConfigStatus } from "@/features/mensageria/email-provider";
+import { getSmtpConfigStatus, listSmtpConfigurations, type PublicSmtpConfigStatus } from "@/features/mensageria/email-provider";
 import { salvarConfiguracaoSmtp, testarConfiguracaoSmtp } from "@/features/configuracoes/smtp-actions";
 import { listCarteiras } from "@/features/carteiras/queries";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
@@ -118,7 +119,7 @@ function CarteiraSelector({
           ))}
         </select>
         <span className="text-xs leading-5 text-slate-500">
-          A regua usa primeiro o SMTP da carteira da mensagem. Se nao houver conta ativa, usa o fallback global.
+          Os flows distribuem os novos agendamentos entre as contas SMTP ativas da carteira, respeitando a fila e o limite de cada conta.
         </span>
       </label>
       <button className="mt-4 rounded-lg bg-[#04799a] px-4 py-2 text-sm font-medium text-white shadow-sm" type="submit">
@@ -138,15 +139,22 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
   if (!scope.isAdmin && (!selectedCarteiraId || !scope.carteiraIds?.includes(selectedCarteiraId))) {
     return <p>Selecione uma carteira autorizada para configurar o SMTP.</p>;
   }
-  const [status, carteiras] = await Promise.all([
+  const [defaultStatus, carteiras, accounts] = await Promise.all([
     getSmtpConfigStatus(selectedCarteiraId),
     listCarteiras(scope),
+    listSmtpConfigurations(selectedCarteiraId),
   ]);
+  const accountId = singleParam(params.conta);
+  const newAccount = accountId === 'nova';
+  const selectedAccount = accountId && !newAccount ? accounts.find(a => a.id === accountId) : undefined;
+  if (accountId && !newAccount && !selectedAccount) return <p role="alert">Conta SMTP não encontrada nesta carteira.</p>;
+  const status: PublicSmtpConfigStatus = newAccount ? { ...defaultStatus, id: undefined, authMethod: 'password', source: 'missing', configScope: 'missing', configured: false, active: false, host: null, port: 587, user: null, from: null, secure: false, starttls: true, hasPassword: false, updatedAt: null, unavailableReason: undefined } : selectedAccount || defaultStatus;
   const resultType = singleParam(params.smtp);
   const resultMessage = singleParam(params.msg);
   const selectedCarteira = carteiras.find((carteira: any) => carteira.id === selectedCarteiraId);
   const selectedCarteiraValue = selectedCarteiraId || "global";
-  const editingDatabaseRecord = status.source === "database" && status.configScope !== "fallback_global";
+  const editingDatabaseRecord = !newAccount && status.source === "database" && status.configScope !== "fallback_global";
+  const configId = editingDatabaseRecord ? status.id || '' : '';
 
   const sourceLabel =
     status.configScope === "carteira"
@@ -189,6 +197,21 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
 
       <CarteiraSelector carteiras={carteiras} selectedCarteiraId={selectedCarteiraValue} />
 
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Contas SMTP da carteira">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Contas SMTP · {accounts.length}</h2>
+          <Link href={`?carteira=${selectedCarteiraValue}&conta=nova`} className="rounded-lg bg-[#04799a] px-4 py-2 text-sm font-medium text-white">Adicionar conta SMTP</Link>
+        </div>
+        <p className="mt-2 text-sm text-slate-600">Cada conta mantém sua própria fila: até 100 e-mails por dia e dois minutos entre envios. Contas do mesmo e-mail compartilham o limite, inclusive entre carteiras. Reservas existentes conservam a conta escolhida.</p>
+        <ul className="mt-4 divide-y divide-slate-100">
+          {accounts.map(account => <li key={account.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div><p className="font-medium">{account.user}</p><p className="text-sm text-slate-500">{account.active ? 'Ativa' : 'Inativa'} · {account.host}:{account.port}</p></div>
+            <Link href={`?carteira=${selectedCarteiraValue}&conta=${account.id}`} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">Editar {account.user}</Link>
+          </li>)}
+        </ul>
+        {!accounts.length && <p className="mt-3 text-sm text-slate-500">Nenhuma conta própria cadastrada.</p>}
+      </section>
+
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
         Configurando:{" "}
         <span className="font-medium text-slate-950">
@@ -213,10 +236,11 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <form action={salvarConfiguracaoSmtp} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <input type="hidden" name="carteira_id" value={selectedCarteiraValue} />
+          <input type="hidden" name="config_id" value={configId} />
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">SMTP</span>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">Configuração de envio</h2>
+              <h2 className="mt-2 text-xl font-semibold text-slate-950">{newAccount ? 'Adicionar conta SMTP' : 'Configuração de envio'}</h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
                 Use os dados do provedor de e-mail. A senha fica armazenada no servidor e não é exibida depois de salva.
               </p>
@@ -234,8 +258,8 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
               label="Senha"
               name="senha"
               type="password"
-              placeholder={status.hasPassword ? "Senha já cadastrada" : "Senha do SMTP"}
-              helper={status.hasPassword ? "Deixe em branco para manter a senha atual." : "Será usada somente no servidor."}
+              placeholder={editingDatabaseRecord && status.hasPassword ? "Senha já cadastrada" : "Senha do SMTP"}
+              helper={editingDatabaseRecord && status.hasPassword ? "Deixe em branco para manter a senha atual." : "Será usada somente no servidor."}
             />
             <Field label="Remetente" name="remetente" defaultValue={editingDatabaseRecord ? status.from : ""} placeholder="cobranca@dominio.com.br" />
             <Field label="Domínio EHLO" name="ehlo_domain" defaultValue={editingDatabaseRecord ? status.ehloDomain : "gkli.local"} />
@@ -248,8 +272,9 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
           </div>
         </form>
 
-        {selectedCarteiraId && <form action={conectarGoogleSmtp} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {selectedCarteiraId && configId && <form action={conectarGoogleSmtp} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <input type="hidden" name="carteira_id" value={selectedCarteiraId} />
+          <input type="hidden" name="config_id" value={configId} />
           <h2 className="text-xl font-semibold text-slate-950">Conta Google</h2>
           {status.authMethod === 'google_oauth' && <p className="mt-2 text-sm text-emerald-700">Autorização Google cadastrada para {status.user}.</p>}
           <p className="my-3 text-sm text-slate-600">Conecte o e-mail cadastrado nesta carteira pelo Google, sem informar a senha. A autorização permite o envio automático por SMTP.</p>
@@ -258,15 +283,16 @@ export default async function IntegracoesPage({ searchParams }: PageProps) {
         </form>}
         <form action={testarConfiguracaoSmtp} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <input type="hidden" name="carteira_id" value={selectedCarteiraValue} />
+          <input type="hidden" name="config_id" value={configId} />
           <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Teste</span>
           <h2 className="mt-2 text-xl font-semibold text-slate-950">Enviar e-mail de teste</h2>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Usa a configuração ativa no banco. Se não houver uma ativa, usa o SMTP das variáveis de ambiente.
+            Usa somente a conta selecionada. Testar uma conta envia um e-mail ao destinatário informado.
           </p>
 
           <div className="mt-5 grid gap-4">
             <Field label="Destinatário" name="destinatario_teste" type="email" placeholder="email@dominio.com.br" />
-            <PendingSubmitButton icon={<Send size={16} />} pendingLabel="Enviando..." disabled={!status.configured || !status.active}>
+            <PendingSubmitButton icon={<Send size={16} />} pendingLabel="Enviando..." disabled={!configId || !status.configured || !status.active}>
               Enviar teste
             </PendingSubmitButton>
             {!status.configured || !status.active ? (

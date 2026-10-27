@@ -8,13 +8,14 @@ import { googleSettings, GOOGLE_SMTP_SCOPE, sealGoogleSecret } from '@/features/
 
 export async function conectarGoogleSmtp(form: FormData) {
   const carteiraId = String(form.get('carteira_id') || '')
+  const configId = String(form.get('config_id') || '')
   const scope = await getPermittedCarteiras()
   if (!carteiraId || (!scope.isAdmin && !scope.carteiraIds?.includes(carteiraId))) throw new Error('Carteira não autorizada.')
   let url: URL
   try {
     const settings = googleSettings()
     const { data: config, error } = await createAdminClient().from('integracoes_smtp_config')
-      .select('id,usuario,atualizado_em').eq('carteira_id', carteiraId).order('atualizado_em', { ascending: false }).limit(1).single()
+      .select('id,usuario,atualizado_em').eq('carteira_id', carteiraId).eq('id', configId).single()
     if (error || !config?.usuario) throw new Error('Salve primeiro o endereço de e-mail da carteira.')
     const state = randomBytes(32).toString('base64url')
     const verifier = randomBytes(32).toString('base64url')

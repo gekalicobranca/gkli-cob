@@ -39,12 +39,14 @@ type SmtpConfigScope = 'carteira' | 'global' | 'fallback_global' | 'environment'
 
 type SmtpSendOptions = {
   mensagemId?: string
+  smtpConfigId?: string
   carteiraId?: string | null
   copiarControleFlow?: boolean
   overrideConfig?: SmtpConfig
 }
 
 export type PublicSmtpConfigStatus = {
+  id?: string
   authMethod?: 'password' | 'google_oauth'
   source: 'database' | 'environment' | 'missing'
   configScope: SmtpConfigScope
@@ -103,10 +105,20 @@ function rowToConfig(data: any): SmtpConfig | null {
   }
 }
 
-async function getDatabaseConfig(carteiraId?: string | null): Promise<SmtpConfig | null> {
+async function getDatabaseConfig(carteiraId?: string | null, configId?: string): Promise<SmtpConfig | null> {
   const supabase = createAdminClient()
 
   const normalizedCarteiraId = normalizeCarteiraId(carteiraId)
+
+  if (configId) {
+    let query = supabase.from('integracoes_smtp_config')
+      .select('id,auth_method,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
+      .eq('id', configId)
+    query = normalizedCarteiraId ? query.eq('carteira_id', normalizedCarteiraId) : query.is('carteira_id', null)
+    const { data, error } = await query.single()
+    if (error || !rowToConfig(data)) throw new Error('Conta SMTP selecionada indisponível ou fora da carteira.')
+    return rowToConfig(data)
+  }
 
   if (normalizedCarteiraId) {
     const scopedQuery = supabase
@@ -114,6 +126,7 @@ async function getDatabaseConfig(carteiraId?: string | null): Promise<SmtpConfig
       .select('id,auth_method,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
       .eq('ativo', true)
       .eq('carteira_id', normalizedCarteiraId)
+      .order('prioridade', { ascending: true })
       .order('atualizado_em', { ascending: false })
       .limit(1)
 
@@ -130,6 +143,7 @@ async function getDatabaseConfig(carteiraId?: string | null): Promise<SmtpConfig
     .select('id,auth_method,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain')
     .eq('ativo', true)
     .is('carteira_id', null)
+    .order('prioridade', { ascending: true })
     .order('atualizado_em', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -141,6 +155,7 @@ async function getDatabaseConfig(carteiraId?: string | null): Promise<SmtpConfig
 function databaseStatus(data: any, configScope: SmtpConfigScope, carteiraId: string | null): PublicSmtpConfigStatus {
   const from = data.remetente || data.usuario || null
   return {
+    id: data.id,
     authMethod: data.auth_method === 'google_oauth' ? 'google_oauth' : 'password',
     source: 'database',
     configScope,
@@ -159,6 +174,17 @@ function databaseStatus(data: any, configScope: SmtpConfigScope, carteiraId: str
   }
 }
 
+export async function listSmtpConfigurations(carteiraId?: string | null): Promise<PublicSmtpConfigStatus[]> {
+  const id = normalizeCarteiraId(carteiraId)
+  let query = createAdminClient().from('integracoes_smtp_config')
+    .select('id,auth_method,carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
+    .order('prioridade', { ascending: true }).order('atualizado_em', { ascending: false }).order('id')
+  query = id ? query.eq('carteira_id', id) : query.is('carteira_id', null)
+  const { data, error } = await query
+  if (error) throw new Error('Não foi possível consultar as contas SMTP.')
+  return (data ?? []).map(row => databaseStatus(row, id ? 'carteira' : 'global', id))
+}
+
 export async function getSmtpConfigStatus(carteiraId?: string | null): Promise<PublicSmtpConfigStatus> {
   const normalizedCarteiraId = normalizeCarteiraId(carteiraId)
 
@@ -168,8 +194,9 @@ export async function getSmtpConfigStatus(carteiraId?: string | null): Promise<P
     if (normalizedCarteiraId) {
       const scopedQuery = supabase
         .from('integracoes_smtp_config')
-        .select('auth_method,carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
+        .select('id,auth_method,carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
         .eq('carteira_id', normalizedCarteiraId)
+        .order('prioridade', { ascending: true })
         .order('atualizado_em', { ascending: false })
         .limit(1)
 
@@ -182,8 +209,9 @@ export async function getSmtpConfigStatus(carteiraId?: string | null): Promise<P
 
     const globalQuery = supabase
       .from('integracoes_smtp_config')
-      .select('auth_method,carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
+      .select('id,auth_method,carteira_id,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain,atualizado_em')
       .is('carteira_id', null)
+      .order('prioridade', { ascending: true })
       .order('atualizado_em', { ascending: false })
       .limit(1)
 
@@ -235,7 +263,7 @@ async function getConfig(options?: SmtpConfig | SmtpSendOptions): Promise<SmtpCo
   const normalizedOptions = normalizeSendOptions(options)
   if (normalizedOptions.overrideConfig) return normalizedOptions.overrideConfig
 
-  const databaseConfig = await getDatabaseConfig(normalizedOptions.carteiraId)
+  const databaseConfig = await getDatabaseConfig(normalizedOptions.carteiraId, normalizedOptions.smtpConfigId)
   if (databaseConfig) return databaseConfig
 
   return getEnvConfig()
@@ -480,7 +508,18 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
   }
   const rota = normalizedOptions.mensagemId && carteiraId && !normalizedOptions.overrideConfig
     ? await buscarRotaSmtpFlow(createAdminClient(), normalizedOptions.mensagemId, carteiraId) : null
-  const config = rota ? rowToConfig(rota.config) : await getConfig(options)
+  let config: SmtpConfig | null
+  if (rota) config = rowToConfig(rota.config)
+  else if (normalizedOptions.mensagemId && !normalizedOptions.overrideConfig) {
+    // A mesma reserva que controla a cota escolhe a credencial. O payload não escolhe contas.
+    const db = createAdminClient()
+    const { data: configId, error } = await db.rpc('email_smtp_config_envio', { p_mensagem: normalizedOptions.mensagemId })
+    if (error || !configId) throw new Error('Não foi possível validar a conta SMTP reservada para esta mensagem.')
+    const { data, error: configError } = await db.from('integracoes_smtp_config')
+      .select('id,auth_method,ativo,host,porta,usuario,senha,remetente,secure,starttls,ehlo_domain').eq('id', configId).single()
+    if (configError) throw new Error('Conta SMTP da reserva indisponível.')
+    config = rowToConfig(data)
+  } else config = await getConfig(options)
   if (!config) throw new Error('Configuração SMTP específica inválida.')
   if (rota && (smtpSender(config.from).address.toLowerCase() !== rota.remetente.toLowerCase()
     || (payload.from && smtpSender(payload.from).address.toLowerCase() !== rota.remetente.toLowerCase()))) {
