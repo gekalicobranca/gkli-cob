@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { lerContatoRapido } from "../features/acordos/contato-rapido";
+import { formatarVencimentoAcordo } from "../features/acordos/formatar-vencimento";
 
 function form(values: Record<string, string>) { const f = new FormData(); Object.entries(values).forEach(([k,v]) => f.set(k,v)); return f; }
 const valido = { registrar_contato: "on", contato_canal: "whatsapp", contato_data: "2026-10-27", contato_resumo: "  Proposta confirmada pelo responsável.  " };
+test("vencimento mantém o dia do calendário, independente do fuso", () => {
+  assert.equal(formatarVencimentoAcordo("2026-11-03"), "03/11/2026");
+  assert.equal(formatarVencimentoAcordo("2026-10-10"), "10/10/2026");
+  assert.equal(formatarVencimentoAcordo(null), "-");
+});
 test("contato é opcional e não registra campos residuais quando desmarcado", () => {
   assert.equal(lerContatoRapido(form({ ...valido, registrar_contato: "" })), null);
 });

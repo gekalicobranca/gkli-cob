@@ -7,7 +7,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/data/status-badge";
 import { formatCurrency } from "@/utils/formatters/currency";
-import { formatDateBR } from "@/utils/formatters/date";
+import { formatarVencimentoAcordo as formatDateBR } from "@/features/acordos/formatar-vencimento";
 
 export type CobrancaSelecao = { id: string; unidade: string; responsavel: string; vencimento: string; competencia: string; status: string; valor: number; bloqueada: boolean; selecionada: boolean };
 const normalizar = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();

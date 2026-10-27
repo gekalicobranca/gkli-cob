@@ -18,7 +18,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { formatCurrency } from "@/utils/formatters/currency";
-import { formatDateBR } from "@/utils/formatters/date";
+import { formatarVencimentoAcordo as formatDateBR } from "@/features/acordos/formatar-vencimento";
 import { calculateAgreementInsight } from "@/features/acordos/insights";
 
 import { calcularDespesasAcordo } from "@/features/acordos/calculo-despesas";
