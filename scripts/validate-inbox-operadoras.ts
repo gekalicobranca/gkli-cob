@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { condominioDoOperador, filtrarCobrancasInbox, lerTodasPaginas } from '../features/cockpit/inbox-data'
+import { carregarBaseInbox, condominioDoOperador, filtrarCobrancasInbox, lerTodasPaginas } from '../features/cockpit/inbox-data'
 
 const scope = {userId:'carol',perfil:'operador',isAdmin:false,carteiraIds:['compartilhada']}
 test('condomínio prevalece sobre carteira; autoria de cobrança não decide a fila', () => {
@@ -20,4 +20,9 @@ test('leitura completa ultrapassa limite de consulta sem repetir ou perder regis
   const result=await lerTodasPaginas({range:async(a:number,b:number)=>{calls.push([a,b]);return {data:rows.slice(a,b+1),error:null}}},'teste')
   assert.equal(result.length,1101);assert.equal(new Set(result.map(r=>r.id)).size,1101)
   assert.deepEqual(calls,[[0,499],[500,999],[1000,1499]])
+})
+test('sem condomínio autorizado não executa nenhuma leitura interna', async () => {
+  const query:any={select:()=>query,eq:()=>query,order:()=>query,in:()=>query,range:async()=>({data:[{id:'outro',operador_id:'danielle'}],error:null})}
+  const result=await carregarBaseInbox({from:()=>query},scope,{from:()=>{throw new Error('Leitura interna não autorizada')}})
+  assert.deepEqual(result,{acordos:[],cobrancas:[]})
 })
