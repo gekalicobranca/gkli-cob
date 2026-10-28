@@ -1,3 +1,5 @@
+import { ConducaoProcessoBadge } from '@/components/data/conducao-processo'
+import { CONDUCAO_PROCESSO } from '@/features/unidades/conducao-processo'
 import Link from 'next/link'
 import { ArrowUpRight, ChevronDown, Download, Edit3, Filter, Home, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
@@ -152,6 +154,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
     condominioId: getParam(params?.condominio_id),
     status: statusParam === undefined ? 'ativa' : statusParam,
     contato: getParam(params?.contato),
+    conducaoProcesso: getParam(params?.conducao_processo),
   })
 
   const ordenar = getParam(params?.ordenar) ?? 'condominio'
@@ -177,7 +180,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   const groups = groupUnidades(rows)
 
   const filtrosAtivos =
-    Boolean(filters.search || filters.carteiraId || filters.condominioId || filters.contato || filters.status !== 'ativa') ||
+    Boolean(filters.search || filters.carteiraId || filters.condominioId || filters.contato || filters.conducaoProcesso || filters.status !== 'ativa') ||
     ordenar !== 'condominio'
   const exportParams = new URLSearchParams()
 
@@ -186,6 +189,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
   if (filters.condominioId) exportParams.set('condominio_id', filters.condominioId)
   if (filters.status) exportParams.set('status', filters.status)
   if (filters.contato) exportParams.set('contato', filters.contato)
+  if (filters.conducaoProcesso) exportParams.set('conducao_processo', filters.conducaoProcesso)
   if (ordenar) exportParams.set('ordenar', ordenar)
 
   const exportUnidadesHref = `/api/unidades/exportacoes/unidades${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
@@ -195,6 +199,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
     condominio_id: filters.condominioId,
     status: filters.status ?? '',
     contato: filters.contato,
+    conducao_processo: filters.conducaoProcesso,
     ordenar,
   }
   const previousHref = page > 1 ? unidadesHref(paginationParams, page - 1) : undefined
@@ -266,6 +271,12 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                 <option value="ativa">Ativa</option>
                 <option value="inativa">Inativa</option>
                 <option value="suspensa">Suspensa</option>
+              </Select>
+            </ListFilterField>
+            <ListFilterField label="Condução do processo" className="xl:col-span-3">
+              <Select name="conducao_processo" defaultValue={filters.conducaoProcesso ?? ''}>
+                <option value="">Todas</option>
+                {Object.entries(CONDUCAO_PROCESSO).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </Select>
             </ListFilterField>
             <ListFilterField label="Contato" className="xl:col-span-2">
@@ -359,8 +370,7 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
                                 </ListItemMeta>
                               </Link>
 
-                              <StatusBadge status={row.status} />
-
+                              <div className="flex flex-wrap gap-1"><StatusBadge status={row.status} /><ConducaoProcessoBadge unidade={row} /></div>
                               <ListMetric label="Telefone" value={row.telefone ?? '-'} />
                               <ListMetric label="E-mail" value={row.email ?? '-'} valueClassName="truncate" />
 

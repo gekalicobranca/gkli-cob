@@ -45,6 +45,7 @@ export async function GET(request: Request) {
       condominioId: url.searchParams.get("condominio_id"),
       status: url.searchParams.get("status"),
       contato: url.searchParams.get("contato"),
+      conducaoProcesso: url.searchParams.get("conducao_processo"),
     });
     const ordenar = url.searchParams.get("ordenar")?.trim() || "condominio";
     const data = sortUnidades(await listUnidades(scope, filters), ordenar);

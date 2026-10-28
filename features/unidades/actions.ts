@@ -8,6 +8,7 @@ import { requireUser } from '@/utils/auth/require-user'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { registrarEventoOperacional } from '@/features/operacional/service'
 import { assertUnidadeMatchesMasks } from '@/features/unidades/mask'
+import { camposConducaoProcesso } from '@/features/unidades/conducao-processo'
 import { normalizarNumeroProcesso } from '@/features/unidades/numero-processo'
 
 function onlyDigits(value: string) {
@@ -40,7 +41,8 @@ export async function createUnidade(formData: FormData) {
   const telefone = onlyDigits(String(formData.get('telefone') ?? ''))
   const email = String(formData.get('email') ?? '').trim()
   const observacoes = String(formData.get('observacoes') ?? '').trim()
-  const acaoJudicial = formData.get('acao_judicial') === 'on'
+  const conducao = camposConducaoProcesso(formData)
+  const acaoJudicial = conducao.acao_judicial || formData.get('acao_judicial') === 'on'
   const numeroProcesso = normalizarNumeroProcesso(formData.get('numero_processo'))
 
   if (!carteiraId) throw new Error('Carteira obrigatória.')
@@ -82,12 +84,16 @@ export async function createUnidade(formData: FormData) {
     observacoes: observacoes || null,
     acao_judicial: acaoJudicial,
     numero_processo: numeroProcesso,
+    ...conducao,
   })
 
   if (error) {
     throw new Error(`Erro ao criar unidade: ${error.message}`)
   }
 
+  revalidatePath('/app/cobrancas')
+  revalidatePath('/app/inbox')
+  revalidatePath('/app/dashboard/tv')
   revalidatePath('/app/unidades')
   redirect('/app/unidades')
 }
@@ -105,7 +111,8 @@ export async function updateUnidade(formData: FormData) {
   const status = String(formData.get('status') ?? 'ativa').trim()
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const creditoAdministradora = money(formData.get('credito_administradora'))
-  const acaoJudicial = formData.get('acao_judicial') === 'on'
+  const conducao = camposConducaoProcesso(formData)
+  let acaoJudicial = conducao.acao_judicial || formData.get('acao_judicial') === 'on'
   const numeroProcesso = normalizarNumeroProcesso(formData.get('numero_processo'))
 
   if (!id) throw new Error('Unidade obrigatória.')
@@ -117,7 +124,7 @@ export async function updateUnidade(formData: FormData) {
 
   const { data: unidadeAtual, error: unidadeAtualError } = await supabase
     .from('unidades')
-    .select('id, carteira_id, condominio_id, credito_administradora, acao_judicial, numero_processo, condominios(mascara_unidade, mascara_bloco)')
+    .select('id, carteira_id, condominio_id, credito_administradora, acao_judicial, numero_processo, conducao_processo, advogado_externo_nome, advogado_externo_contato, condominios(mascara_unidade, mascara_bloco)')
     .eq('id', id)
     .maybeSingle()
 
@@ -130,6 +137,7 @@ export async function updateUnidade(formData: FormData) {
   }
 
   assertCarteiraPermitida(scope, (unidadeAtual as any).carteira_id)
+  if (!formData.has('conducao_processo') && unidadeAtual.conducao_processo !== 'nao_informado') acaoJudicial = true
 
   const carteiraForcada = String(formData.get('carteira_id') ?? '').trim()
   const condominioForcado = String(formData.get('condominio_id') ?? '').trim()
@@ -155,6 +163,7 @@ export async function updateUnidade(formData: FormData) {
       observacoes: observacoes || null,
       credito_administradora: creditoAdministradora,
       acao_judicial: acaoJudicial,
+      ...conducao,
       ...(formData.has('numero_processo') ? { numero_processo: numeroProcesso } : {}),
     })
     .eq('id', id)
@@ -176,6 +185,15 @@ export async function updateUnidade(formData: FormData) {
       origem: 'manual',
       auditavel: true,
       userId: user?.id ?? null,
+    })
+  }
+  if (Object.keys(conducao).some(key => key !== 'acao_judicial' && conducao[key] !== unidadeAtual[key])) {
+    const user = await requireUser()
+    await registrarEventoOperacional(supabase as any, {
+      carteiraId: unidadeAtual.carteira_id, entidadeTipo: 'unidade', entidadeId: id,
+      eventoCodigo: 'unidade.conducao_processo_alterada', titulo: 'Condução do processo atualizada',
+      antes: { conducao_processo: unidadeAtual.conducao_processo, advogado_externo_nome: unidadeAtual.advogado_externo_nome, advogado_externo_contato: unidadeAtual.advogado_externo_contato },
+      depois: conducao, origem: 'manual', auditavel: true, userId: user?.id ?? null,
     })
   }
 
@@ -223,6 +241,9 @@ export async function updateUnidade(formData: FormData) {
     })
   }
 
+  revalidatePath('/app/cobrancas')
+  revalidatePath('/app/inbox')
+  revalidatePath('/app/dashboard/tv')
   revalidatePath('/app/unidades')
   revalidatePath(`/app/unidades/${id}`)
   redirect(`/app/unidades/${id}`)
@@ -289,6 +310,9 @@ export async function updateUnidadesStatusEmLote(formData: FormData) {
     ),
   )
 
+  revalidatePath('/app/cobrancas')
+  revalidatePath('/app/inbox')
+  revalidatePath('/app/dashboard/tv')
   revalidatePath('/app/unidades')
   revalidatePath('/app')
   revalidatePath('/app/dashboard')

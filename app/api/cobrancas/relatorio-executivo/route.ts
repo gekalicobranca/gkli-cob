@@ -563,6 +563,7 @@ export async function GET(request: Request) {
     administradoraId: getParam(searchParams, "administradora_id"),
     condominioId: getParam(searchParams, "condominio_id"),
     unidadeId: getParam(searchParams, "unidade_id"),
+    conducaoProcesso: getParam(searchParams, "conducao_processo"),
     vencimentoDe: getParam(searchParams, "vencimento_de"),
     vencimentoAte: getParam(searchParams, "vencimento_ate"),
     judicializacaoUnidade: "nao",
