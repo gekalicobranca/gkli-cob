@@ -2,6 +2,7 @@
 
 import { CheckCircle2, ChevronDown, ChevronRight, FileSignature } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { valorCasoPre } from '@/features/pre-juridico/eligibilidade'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
 import { atualizarCertidaoPreJuridico, atualizarDistribuicaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, atualizarProcuracoesPreJuridicoEmMassa, confirmarJuridicoPreJuridico, confirmarJuridicoPreJuridicoEmMassa, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
@@ -11,14 +12,7 @@ import { formatDateBR } from '@/utils/formatters/date'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
-function valorCaso(caso: any) {
-  const acordo = relation(caso.acordo)
-  const cobranca = relation(caso.cobranca)
-  const cobrancasUnidade = Array.isArray(caso.cobrancas_unidade) ? caso.cobrancas_unidade : []
-  if (acordo?.valor_acordado != null) return Number(acordo.valor_acordado)
-  if (cobrancasUnidade.length) return cobrancasUnidade.reduce((sum: number, item: any) => sum + Number(item.valor_atualizado ?? item.valor_original ?? 0), 0)
-  return Number(cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0)
-}
+const valorCaso = valorCasoPre
 
 function groupCasos(casos: any[]) {
   const map = new Map<string, {
@@ -189,16 +183,12 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
   const acordo = relation(caso.acordo)
   const cobranca = relation(caso.cobranca)
   const responsavel = relation(caso.responsavel)
-  const valor = acordo?.valor_acordado != null
-    ? Number(acordo.valor_acordado)
-    : cobrancasUnidade.length
-      ? cobrancasUnidade.reduce((sum: number, item: any) => sum + Number(item.valor_atualizado ?? item.valor_original ?? 0), 0)
-      : Number(cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0)
+  const valor = valorCasoPre(caso)
 
   return <details className="group/caso">
     <summary className="list-none [&::-webkit-details-marker]:hidden"><ListRow className={`cursor-pointer bg-white ${selectable ? 'md:grid-cols-[28px_minmax(260px,1fr)_150px_150px_150px_24px]' : 'md:grid-cols-[minmax(260px,1fr)_150px_150px_150px_24px]'}`}>
       {selectable ? <input aria-label={selectionLabel} type="checkbox" checked={selected} onClick={(event) => event.stopPropagation()} onChange={onToggle} className="h-4 w-4 rounded border-slate-300" /> : null}
-      <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'} · {cobrancasUnidade.length || 1} cobrança(s) agrupada(s){caso.etapa === 'pronto_juridico' ? ` · ${caso.distribuicao_status === 'distribuido' ? 'Ação judicial registrada' : 'Aguardando CNJ'}` : ''}</p></div>
+      <div><p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p><p className="mt-1 text-xs text-slate-500">{unidade?.responsavel_nome || 'Responsável não informado'} · {cobrancasUnidade.length} cobrança(s) agrupada(s){caso.etapa === 'pronto_juridico' ? ` · ${caso.distribuicao_status === 'distribuido' ? 'Ação judicial registrada' : 'Aguardando CNJ'}` : ''}</p></div>
       <div><p className="text-xs text-slate-400">Valor</p><p className="mt-1 text-sm font-semibold">{formatCurrency(valor)}</p></div>
       <div><p className="text-xs text-slate-400">Responsável interno</p><p className="mt-1 text-sm">{responsavel?.nome || 'Não definido'}</p></div>
       <div><p className="text-xs text-slate-400">Atualização</p><p className="mt-1 text-sm">{formatDateBR(caso.updated_at)}</p></div>
@@ -242,7 +232,7 @@ function ConfirmarJuridicoInlineRow({ caso, condominio, unidade, cobrancasUnidad
     {selectable ? <input aria-label={selectionLabel} type="checkbox" checked={selected} onChange={onToggle} className="h-4 w-4 rounded border-slate-300" /> : null}
     <div>
       <p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p>
-      <p className="mt-1 text-xs text-slate-500">{cobrancasUnidade.length || 1} cobrança(s) agrupada(s)</p>
+      <p className="mt-1 text-xs text-slate-500">{cobrancasUnidade.length} cobrança(s) agrupada(s)</p>
     </div>
     <InlineCheckbox name="juridico_procuracao_assinada_confirmada" label="Procuração" defaultChecked={Boolean(caso.juridico_procuracao_assinada_confirmada || caso.procuracao_status === 'assinada')} />
     <InlineCheckbox name="juridico_registro_recebido" label="Registro" defaultChecked={Boolean(caso.juridico_registro_recebido)} />

@@ -1,3 +1,4 @@
+import { totalizarRecortePre } from '@/features/pre-juridico/eligibilidade'
 import { WalletCards } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
@@ -44,16 +45,17 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
     .filter((row: any) => !params.carteira_id || row.carteira_id === params.carteira_id)
     .map((row: any) => ({ id: row.id, nome: row.nome || 'Condomínio não informado', administradora: null }))
     .sort((a: any, b: any) => a.nome.localeCompare(b.nome, 'pt-BR'))
-  const rows = filteredScope.filter((row: any) => {
+  const recorte = filteredScope.filter((row: any) => {
     if (params.condominio_id && row.condominio_id !== params.condominio_id) return false
     if (params.etapa && row.situacao_pre_juridico !== params.etapa) return false
     if (!termo) return true
     return normalize([row.condominio?.nome, row.condominio?.nome_operacional, row.unidade?.identificacao, row.unidade?.responsavel_nome].filter(Boolean).join(' ')).includes(termo)
   })
-  const elegiveis = filteredScope.filter((row: any) => row.situacao_pre_juridico === 'elegivel')
-  const encaminhadas = filteredScope.filter((row: any) => row.situacao_pre_juridico === 'encaminhado')
+  const rows = totalizarRecortePre(recorte)
+  const elegiveis = rows.filter((row: any) => row.situacao_pre_juridico === 'elegivel')
+  const encaminhadas = rows.filter((row: any) => row.situacao_pre_juridico === 'encaminhado')
   const valorElegivel = elegiveis.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0)
-  const unidades = new Set(filteredScope.map((row: any) => row.unidade_id).filter(Boolean)).size
+  const unidades = new Set(rows.map((row: any) => row.unidade_id).filter(Boolean)).size
   const hasFilters = Boolean(params.q || params.carteira_id || params.condominio_id || params.vencimento_de || params.vencimento_ate || params.etapa)
 
   return (

@@ -73,3 +73,13 @@ Este arquivo é um resumo operacional. A especificação funcional completa est�
 - Flow é a execução monitorada de lote + régua.
 - O envio acontece pelo dispatcher automático, não por disparo direto fora do Flow.
 - O monitoramento operacional de envio fica na seção `Flows` da tela Flow.
+
+## Revisão de elegibilidade — 28/10/2026
+
+- Consulta paginada, sem truncar a fila nos primeiros 5.000 registros.
+- Exclui baixas financeiras e datas de pagamento, unidades judiciais, com CNJ ou condução jurídica informada.
+- Acordos cancelados e renegociados não bloqueiam pelo vínculo antigo. Acordos quitados, quebrados ou ainda em elaboração continuam exigindo revisão do vínculo; não se presume saldo disponível.
+- A restrição vale também para cobranças já encaminhadas. Os registros permanecem no banco, mas deixam o recorte operacional quando incompatíveis.
+- Totais, filtros e laudos usam apenas as cotas válidas do recorte. Não agregam todas as cotas históricas da unidade.
+- Gerar laudo não amplia o encaminhamento para outras cotas da unidade. Ações de mudança de status continuam dependendo de comando explícito no app.
+- Esta entrega não executa atualização de status, migração ou envio de mensagens.

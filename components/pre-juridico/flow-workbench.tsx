@@ -1,5 +1,7 @@
 'use client'
 
+import { valorCasoPre } from '@/features/pre-juridico/eligibilidade'
+
 import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
 import { CheckCircle2, ChevronRight, CirclePause, FileSignature, Play, XCircle } from 'lucide-react'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
@@ -96,12 +98,7 @@ function isFailureStatus(status: string) {
   return ['falha', 'erro'].includes(status)
 }
 
-function caseValue(caso: any) {
-  const cobrancas = Array.isArray(caso.cobrancas_unidade) ? caso.cobrancas_unidade : []
-  if (cobrancas.length) return cobrancas.reduce((sum: number, item: any) => sum + Number(item.valor_atualizado ?? item.valor_original ?? 0), 0)
-  const cobranca = relation(caso.cobranca)
-  return Number(cobranca?.valor_atualizado ?? cobranca?.valor_original ?? 0)
-}
+const caseValue = valorCasoPre
 
 function itemEntity(item: any) {
   const cobranca = relation(item.cobranca)

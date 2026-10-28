@@ -1,3 +1,4 @@
+import { acordoBloqueiaPre, cobrancaAbertaPre, unidadeBloqueiaPre, totalizarRecortePre } from './eligibilidade'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
@@ -37,35 +38,42 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
     .from('cobrancas')
     .select(`
       id, carteira_id, condominio_id, unidade_id, competencia, vencimento,
-      valor_original, valor_atualizado, status, status_operacional, status_financeiro,
+      valor_original, valor_atualizado, status, status_operacional, status_financeiro, data_pagamento,
       carteira:carteiras(nome,pre_juridico_habilitado),
       condominio:condominios(nome,nome_operacional,administradora,inicio_cobranca_dias,dias_cobranca_ativa,pre_juridico_habilitado),
-      unidade:unidades(identificacao,bloco,responsavel_nome)
+      unidade:unidades(identificacao,bloco,responsavel_nome,acao_judicial,numero_processo,conducao_processo)
     `))
     .in('status_operacional', STATUS_VISIVEIS)
-    .order('vencimento', { ascending: true })
-    .limit(5000)
+    .order('vencimento', { ascending: true }).order('id')
 
   query = applyCarteiraScope(query, scope.carteiraIds)
-  const { data, error } = await query
-  if (error) throw new Error(`Erro ao carregar cobranças do pré-jurídico: ${error.message}`)
+  const data: any[] = []
+  for (let offset = 0; ; offset += 500) {
+    const { data: page, error } = await query.range(offset, offset + 499)
+    if (error) throw new Error(`Erro ao carregar cobranças do pré-jurídico: ${error.message}`)
+    data.push(...(page ?? []))
+    if ((page ?? []).length < 500) break
+  }
 
   const cobrancaIds = (data ?? []).map((row: any) => row.id).filter(Boolean)
   const cobrancasEmAcordo = new Set<string>()
   for (let index = 0; index < cobrancaIds.length; index += 200) {
     const chunk = cobrancaIds.slice(index, index + 200)
     const [vinculosResult, acordosResult] = await Promise.all([
-      supabase.from('acordo_cobrancas').select('cobranca_id').in('cobranca_id', chunk),
+      supabase.from('acordo_cobrancas').select('cobranca_id,acordo:acordos!inner(status,carteira_id)').in('cobranca_id', chunk),
       (() => {
-        let acordosQuery = supabase.from('acordos').select('cobranca_id').in('cobranca_id', chunk)
+        let acordosQuery = supabase.from('acordos').select('cobranca_id,status').in('cobranca_id', chunk)
         acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
         return acordosQuery
       })(),
     ])
-    if (vinculosResult.error && vinculosResult.error.code !== '42P01') throw new Error(`Erro ao conferir cobranças vinculadas a acordos: ${vinculosResult.error.message}`)
+    if (vinculosResult.error) throw new Error(`Erro ao conferir cobranças vinculadas a acordos: ${vinculosResult.error.message}`)
     if (acordosResult.error) throw new Error(`Erro ao conferir cobranças principais dos acordos: ${acordosResult.error.message}`)
-    for (const row of (vinculosResult.data ?? []) as any[]) if (row.cobranca_id) cobrancasEmAcordo.add(row.cobranca_id)
-    for (const row of (acordosResult.data ?? []) as any[]) if (row.cobranca_id) cobrancasEmAcordo.add(row.cobranca_id)
+    for (const row of (vinculosResult.data ?? []) as any[]) {
+      const acordo = Array.isArray(row.acordo) ? row.acordo[0] : row.acordo
+      if (row.cobranca_id && acordoBloqueiaPre(acordo?.status)) cobrancasEmAcordo.add(row.cobranca_id)
+    }
+    for (const row of (acordosResult.data ?? []) as any[]) if (row.cobranca_id && acordoBloqueiaPre(row.status)) cobrancasEmAcordo.add(row.cobranca_id)
   }
 
   const today = todaySaoPaulo()
@@ -74,7 +82,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
     const condominio = Array.isArray(row.condominio) ? row.condominio[0] : row.condominio
     const unidade = Array.isArray(row.unidade) ? row.unidade[0] : row.unidade
     const operational = String(row.status_operacional ?? row.status ?? '').trim().toLowerCase()
-    const financial = String(row.status_financeiro ?? '').trim().toLowerCase()
+    if (!cobrancaAbertaPre(row) || unidadeBloqueiaPre(unidade) || cobrancasEmAcordo.has(row.id)) return []
     const due = dateOnly(row.vencimento)
     const prazoAtivo = Number(condominio?.dias_cobranca_ativa ?? 60)
     const prazoTotal = Number(condominio?.inicio_cobranca_dias ?? 0) + prazoAtivo
@@ -86,8 +94,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
       due &&
       diasAtraso >= prazoTotal &&
       STATUS_ELEGIVEIS.has(operational) &&
-      !cobrancasEmAcordo.has(row.id) &&
-      !['quitado', 'cancelado'].includes(financial),
+      !cobrancasEmAcordo.has(row.id),
     )
 
     if (!encaminhado && !elegivel) return []
@@ -102,49 +109,13 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
     }]
   })
 
-  const unidadeIds = Array.from(new Set(resultado.map((row: any) => row.unidade_id).filter(Boolean)))
-  if (!unidadeIds.length) return resultado
-  let todasQuery = somenteCobrancasCanonicas(supabase.from('cobrancas').select('unidade_id,valor_original,valor_atualizado')).in('unidade_id', unidadeIds)
-  todasQuery = applyCarteiraScope(todasQuery, scope.carteiraIds)
-  const { data: todas, error: todasError } = await todasQuery
-  if (todasError) throw new Error(`Erro ao totalizar cobranças por unidade: ${todasError.message}`)
-  const totais = new Map<string, { quantidade: number; valor: number }>()
-  for (const row of (todas ?? []) as any[]) {
-    const current = totais.get(row.unidade_id) ?? { quantidade: 0, valor: 0 }
-    current.quantidade += 1
-    current.valor += Number(row.valor_atualizado ?? row.valor_original ?? 0)
-    totais.set(row.unidade_id, current)
-  }
-  return resultado.map((row: any) => ({
-    ...row,
-    quantidade_cobrancas_unidade: totais.get(row.unidade_id)?.quantidade ?? 1,
-    valor_cobrancas_unidade: totais.get(row.unidade_id)?.valor ?? Number(row.valor_atualizado ?? row.valor_original ?? 0),
-  }))
+  return totalizarRecortePre(resultado)
 }
 
 export async function listCobrancasAgrupadasPreJuridico(scope: CarteiraScope, ids: string[]) {
   if (!ids.length) return []
-  const supabase = createAdminClient()
-  let query = somenteCobrancasCanonicas(supabase
-    .from('cobrancas')
-    .select(`
-      id, carteira_id, condominio_id, unidade_id, competencia, vencimento,
-      valor_original, valor_atualizado, status, status_operacional, status_financeiro,
-      carteira:carteiras(nome),
-      condominio:condominios(nome,nome_operacional,administradora),
-      unidade:unidades(identificacao,bloco,responsavel_nome)
-    `))
-    .in('id', ids)
-    .order('vencimento', { ascending: true })
-  query = applyCarteiraScope(query, scope.carteiraIds)
-  const { data, error } = await query
-  if (error) throw new Error(`Erro ao carregar cobranças agrupadas no laudo: ${error.message}`)
-  return (data ?? []).map((row: any) => ({
-    ...row,
-    carteira: Array.isArray(row.carteira) ? row.carteira[0] : row.carteira,
-    condominio: Array.isArray(row.condominio) ? row.condominio[0] : row.condominio,
-    unidade: Array.isArray(row.unidade) ? row.unidade[0] : row.unidade,
-  }))
+  const permitidos = new Set(ids)
+  return (await listPreJuridicoCobrancas(scope)).filter((row: any) => permitidos.has(row.id))
 }
 
 export async function listPreJuridicoCasos(scope: CarteiraScope) {
@@ -164,7 +135,7 @@ export async function listPreJuridicoCasos(scope: CarteiraScope) {
       judicializado_em, created_at, updated_at,
       carteira:carteiras(nome),
       condominio:condominios(nome,nome_operacional,administradora),
-      unidade:unidades(identificacao,bloco,responsavel_nome),
+      unidade:unidades(identificacao,bloco,responsavel_nome,acao_judicial,numero_processo,conducao_processo),
       acordo:acordos(valor_acordado,data_acordo,status,status_financeiro),
       cobranca:cobrancas(valor_original,valor_atualizado,vencimento,status_financeiro),
       responsavel:profiles(nome,email)
@@ -178,13 +149,8 @@ export async function listPreJuridicoCasos(scope: CarteiraScope) {
   const unidadeIds = Array.from(new Set(rows.map((row) => row.unidade_id).filter(Boolean))) as string[]
   if (!unidadeIds.length) return rows
 
-  let cobrancasQuery = somenteCobrancasCanonicas(supabase
-    .from('cobrancas')
-    .select('id,unidade_id,valor_original,valor_atualizado,vencimento,status,status_financeiro,status_operacional'))
-    .in('unidade_id', unidadeIds)
-  cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
-  const { data: cobrancas, error: cobrancasError } = await cobrancasQuery
-  if (cobrancasError) throw new Error(`Erro ao carregar cobranças agrupadas dos casos: ${cobrancasError.message}`)
+  const recorte = await listPreJuridicoCobrancas(scope)
+  const cobrancas = recorte.filter((row: any) => unidadeIds.includes(row.unidade_id))
   const porUnidade = new Map<string, any[]>()
   for (const cobranca of (cobrancas ?? []) as any[]) {
     const current = porUnidade.get(cobranca.unidade_id) ?? []
