@@ -1,3 +1,4 @@
+import { filtroConducaoProcesso } from './conducao-processo'
 import {acordoIdsDaUnidade} from "@/features/acordos/unidades-consulta";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
@@ -25,6 +26,9 @@ const UNIDADE_SELECT = `
   credito_administradora,
   acao_judicial,
   numero_processo,
+  conducao_processo,
+  advogado_externo_nome,
+  advogado_externo_contato,
   created_at,
   condominios(nome, cnpj, administradora),
   carteiras(nome)
@@ -35,6 +39,7 @@ export type UnidadeFilters = {
   carteiraId?: string
   condominioId?: string
   status?: string
+  conducaoProcesso?: string
   contato?: string
 }
 
@@ -103,12 +108,13 @@ export function normalizeUnidadeFilters(filters: UnidadeFilters = {}) {
     condominioId: cleanFilter(filters.condominioId),
     status: cleanFilter(filters.status),
     contato: cleanFilter(filters.contato),
+    conducaoProcesso: filtroConducaoProcesso(cleanFilter(filters.conducaoProcesso)),
   }
 }
 
 export function hasUnidadeFilters(filters: UnidadeFilters = {}) {
   const normalized = normalizeUnidadeFilters(filters)
-  return Boolean(normalized.search || normalized.carteiraId || normalized.condominioId || normalized.status || normalized.contato)
+  return Boolean(normalized.search || normalized.carteiraId || normalized.condominioId || normalized.status || normalized.contato || normalized.conducaoProcesso)
 }
 
 async function applyUnidadeFilters(
@@ -126,6 +132,7 @@ async function applyUnidadeFilters(
     scopedQuery = scopedQuery.eq('condominio_id', filters.condominioId)
   }
 
+  if (filters.conducaoProcesso) scopedQuery = scopedQuery.eq('conducao_processo', filters.conducaoProcesso)
   if (filters.status) {
     scopedQuery = scopedQuery.eq('status', filters.status)
   }

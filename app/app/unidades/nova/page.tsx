@@ -1,3 +1,4 @@
+import { ConducaoProcessoFields } from '@/components/data/conducao-processo'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -80,13 +81,14 @@ export default async function NovaUnidadePage() {
             <Input name="numero_processo" maxLength={30} placeholder="0000000-00.0000.0.00.0000" />
           </FormField>
 
+          <ConducaoProcessoFields />
           <FormField label="Observações">
             <Textarea name="observacoes" placeholder="Observações internas..." />
           </FormField>
 
           <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-950">
             <input name="acao_judicial" type="checkbox" className="mt-1 h-4 w-4 accent-red-700" />
-            <span><strong className="block">Unidade com ação judicial</strong><span className="mt-1 block text-red-800">Na importação, a cobrança mais recente dentro da régua entra como Novo, as anteriores como Judicializado e as cotas fora do prazo como Regular. O bloqueio depende da situação de cada cobrança.</span></span>
+            <span><strong className="block">Unidade com ação judicial</strong><span className="mt-1 block text-red-800">A unidade fica fora da fila extrajudicial automática. Informe acima quem conduz o processo; escolher um escritório mantém a marcação judicial.</span></span>
           </label>
 
           <div className="flex justify-end gap-2">

@@ -1,3 +1,4 @@
+import { ConducaoProcessoBadge } from '@/components/data/conducao-processo'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { cobrancaArquivada } from '@/lib/core/cobranca-arquivamento'
@@ -167,7 +168,7 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <p className="text-sm font-semibold text-slate-500">Status operacional</p>
-          <div className="mt-3"><StatusBadge status={statusOperacional} /></div>
+          <div className="mt-3 flex flex-wrap gap-2"><StatusBadge status={statusOperacional} /><ConducaoProcessoBadge unidade={cobranca.unidades} /></div>
         </Card>
         <Card>
           <p className="text-sm font-semibold text-slate-500">Status financeiro</p>

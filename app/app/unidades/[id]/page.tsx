@@ -1,3 +1,4 @@
+import { ConducaoProcessoBadge, ConducaoProcessoFields } from '@/components/data/conducao-processo'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowUpRight, FileSpreadsheet, FileText, History, Save } from 'lucide-react'
@@ -54,6 +55,7 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
         }
       />
 
+      <ConducaoProcessoBadge unidade={unidade} />
       {query.planilha === 'solicitada' || query.planilha === 'existente' ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
           {query.planilha === 'solicitada'
@@ -202,13 +204,14 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
             <Input name="numero_processo" maxLength={30} defaultValue={unidade.numero_processo ?? ''} placeholder="0000000-00.0000.0.00.0000" />
           </FormField>
 
+          <ConducaoProcessoFields unidade={unidade} />
           <FormField label="Observações">
             <Textarea name="observacoes" defaultValue={unidade.observacoes ?? ''} placeholder="Observações internas..." />
           </FormField>
 
           <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-950">
             <input name="acao_judicial" type="checkbox" defaultChecked={Boolean(unidade.acao_judicial)} className="mt-1 h-4 w-4 accent-red-700" />
-            <span><strong className="block">Unidade com ação judicial</strong><span className="mt-1 block text-red-800">Na importação, a cobrança mais recente dentro da régua entra como Novo, as anteriores como Judicializado e as cotas fora do prazo como Regular. O bloqueio depende da situação de cada cobrança.</span></span>
+            <span><strong className="block">Unidade com ação judicial</strong><span className="mt-1 block text-red-800">A unidade fica fora da fila extrajudicial automática. Informe acima quem conduz o processo; escolher um escritório mantém a marcação judicial.</span></span>
           </label>
 
           <div className="flex justify-end gap-2">

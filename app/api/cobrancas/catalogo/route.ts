@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const get = (key: string) => params.get(key)?.trim() || ''
   const rows = await listCobrancasCatalogo(scope, {
     search: get('q'), administradoraId: get('administradora_id'), condominioId: get('condominio_id'),
-    unidadeId: get('unidade_id'), vencimentoDe: get('vencimento_de'), vencimentoAte: get('vencimento_ate'),
+    unidadeId: get('unidade_id'), conducaoProcesso: get('conducao_processo'), vencimentoDe: get('vencimento_de'), vencimentoAte: get('vencimento_ate'),
     operadorId: get('operador_id'), criacaoDe: get('criacao_de'), criacaoAte: get('criacao_ate'),
   })
   const data = dataCatalogo()

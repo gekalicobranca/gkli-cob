@@ -1,3 +1,5 @@
+import { ConducaoProcessoBadge } from '@/components/data/conducao-processo';
+import { CONDUCAO_PROCESSO } from '@/features/unidades/conducao-processo';
 import Link from "next/link";
 import { ArrowUpRight, CalendarDays, ChevronDown, Download, FileText, Plus, WalletCards } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -63,6 +65,7 @@ type PageProps = {
     criacao_de?: string;
     criacao_ate?: string;
     operador_id?: string;
+    conducao_processo?: string;
     judicializacao_unidade?: string;
     ordenar?: string;
     page?: string;
@@ -115,7 +118,7 @@ function cobrancasHref(params: Record<string, string>, overrides: Record<string,
 function cobrancasRelatorioExecutivoHref(params: Record<string, string>) {
   const query = new URLSearchParams();
 
-  for (const key of ["q", "administradora_id", "condominio_id", "unidade_id", "vencimento_de", "vencimento_ate", "ordenar"]) {
+  for (const key of ["q", "administradora_id", "condominio_id", "unidade_id", "conducao_processo", "vencimento_de", "vencimento_ate", "ordenar"]) {
     const value = params[key];
     if (value) query.set(key, value);
   }
@@ -224,13 +227,14 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : {};
   const page = getPageParam(params.page);
   const statusParam = getParam(params.status);
-  const statusFilter = resolveFiltrosStatus(statusParam, getParam(params.judicializacao_unidade));
+  const statusFilter = resolveFiltrosStatus(statusParam, ["nosso_escritorio", "outro_advogado"].includes(getParam(params.conducao_processo) ?? "") ? "sim" : getParam(params.judicializacao_unidade));
   const filters = {
     search: getParam(params.q),
     operadorId: getParam(params.operador_id),
     administradoraId: getParam(params.administradora_id),
     condominioId: getParam(params.condominio_id),
     unidadeId: getParam(params.unidade_id),
+    conducaoProcesso: getParam(params.conducao_processo),
     status: statusFilter.status,
     statusList: statusFilter.statusList,
     vencimentoDe: getParam(params.vencimento_de),
@@ -246,6 +250,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     administradora_id: filters.administradoraId,
     condominio_id: filters.condominioId,
     unidade_id: filters.unidadeId,
+    conducao_processo: filters.conducaoProcesso,
     status: statusFilter.statusSelect === "operacionais" ? "" : statusFilter.statusSelect,
     vencimento_de: filters.vencimentoDe,
     vencimento_ate: filters.vencimentoAte,
@@ -260,6 +265,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     filters.administradoraId ||
     filters.condominioId ||
     filters.unidadeId ||
+    filters.conducaoProcesso ||
     statusFilter.statusSelect !== "operacionais" ||
     filters.vencimentoDe ||
     filters.vencimentoAte ||
@@ -271,6 +277,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
   const showingAll = statusFilter.showingAll && filters.judicializacaoUnidade === "todos";
   const filaOperacionalHref = cobrancasHref(queryParams, {
     status: null,
+    conducao_processo: null,
     judicializacao_unidade: "nao",
   });
   const exibirTodasHref = cobrancasHref(queryParams, { status: "todos", judicializacao_unidade: "todos" });
@@ -422,6 +429,12 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                     selectedValue={filters.administradoraId}
                     placeholder="Digite parte da administradora"
                   />
+                </ListFilterField>
+                <ListFilterField label="Condução do processo" className="xl:col-span-3">
+                  <Select name="conducao_processo" defaultValue={filters.conducaoProcesso ?? ""}>
+                    <option value="">Todas</option>
+                    {Object.entries(CONDUCAO_PROCESSO).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </Select>
                 </ListFilterField>
                 <ListFilterField label="Condomínio" className="xl:col-span-3">
                   <CondominioSearchSelect
@@ -586,7 +599,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
 
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <StatusBadge status={status} />
+                          <StatusBadge status={status} /><ConducaoProcessoBadge unidade={row.unidades} />
                           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${priority.className}`}>
                             Prioridade {priority.label.toLowerCase()}
                           </span>

@@ -1,3 +1,4 @@
+import { filtroConducaoProcesso } from '@/features/unidades/conducao-processo'
 import { somenteCobrancasCanonicas, arquivamentoDuplicidadesAtivo } from '../../lib/core/cobranca-arquivamento'
 import { resumirValoresCobrancas } from './subtotais'
 import { applyBloqueioStatusFilter } from './filtros-status'
@@ -26,6 +27,7 @@ export type CobrancaListFilters = {
   vencimentoAte?: string
   criacaoDe?: string
   criacaoAte?: string
+  conducaoProcesso?: string
   judicializacaoUnidade?: string
   limit?: number
 }
@@ -250,6 +252,21 @@ async function applyCobrancaFilters(
     scopedQuery = scopedQuery.eq('unidade_id', filters.unidadeId)
   }
 
+  const conducao = filtroConducaoProcesso(filters.conducaoProcesso)
+  if (conducao) {
+    const ids: string[] = []
+    for (let offset = 0; ; offset += 500) {
+      let unidadesQuery = supabase.from('unidades').select('id').order('id')
+      unidadesQuery = conducao === 'nao_informado' ? unidadesQuery.neq('conducao_processo', conducao) : unidadesQuery.eq('conducao_processo', conducao)
+      const { data, error } = await applyCarteiraScope(unidadesQuery, scope.carteiraIds).range(offset, offset + 499)
+      if (error) throw new Error(`Erro ao filtrar condução do processo: ${error.message}`)
+      ids.push(...(data ?? []).map(row => row.id))
+      if ((data ?? []).length < 500) break
+    }
+    if (conducao === 'nao_informado') {
+      if (ids.length) scopedQuery = scopedQuery.or(`unidade_id.is.null,unidade_id.not.in.(${ids.join(',')})`)
+    } else scopedQuery = scopedQuery.in('unidade_id', ids.length ? ids : [EMPTY_UUID])
+  }
   const judicializacaoUnidade = filters.judicializacaoUnidade || 'nao'
   scopedQuery = applyBloqueioStatusFilter(scopedQuery, judicializacaoUnidade)
   if (judicializacaoUnidade === 'nao' || judicializacaoUnidade === 'sim') {
@@ -358,7 +375,7 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
       ultima_interacao_at,
       carteiras(nome),
       condominios(nome, cnpj, administradora, vencimento_cota_dia, inicio_cobranca_dias, regua_cobranca_id),
-      unidades(identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email)
+      unidades(acao_judicial, conducao_processo, advogado_externo_nome, advogado_externo_contato, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email)
     `))
 
   query = applyCarteiraScope(query, scope.carteiraIds)
@@ -395,7 +412,7 @@ export async function listCobrancasCatalogo(scope: CarteiraScope, filters: Cobra
     id, competencia, vencimento, valor_original, valor_atualizado,
     status, status_operacional, status_financeiro, carteira_id, condominio_id, unidade_id,
     carteiras(nome), condominios(nome, inicio_cobranca_dias),
-    unidades(identificacao, bloco, responsavel_nome, telefone, email, acao_judicial)
+    unidades(acao_judicial, conducao_processo, advogado_externo_nome, advogado_externo_contato, identificacao, bloco, responsavel_nome, telefone, email)
   `))
   query = applyCarteiraScope(query, scope.carteiraIds)
   query = (await applyCobrancaFilters(query, supabase, scope, { ...filters, judicializacaoUnidade: 'todos', status: '', statusList: undefined })).query
@@ -475,7 +492,7 @@ export async function listCobrancasPage(
           ultima_interacao_at,
           carteiras(nome),
           condominios(nome),
-          unidades(identificacao, bloco, responsavel_nome)
+          unidades(acao_judicial, conducao_processo, advogado_externo_nome, advogado_externo_contato, identificacao, bloco, responsavel_nome)
         `))
 
       relatedQuery = applyCarteiraScope(relatedQuery, scope.carteiraIds)
@@ -531,7 +548,7 @@ export async function listCobrancasPage(
         ultima_interacao_at,
         carteiras(nome),
         condominios(nome),
-        unidades(identificacao, bloco, responsavel_nome)
+        unidades(acao_judicial, conducao_processo, advogado_externo_nome, advogado_externo_contato, identificacao, bloco, responsavel_nome)
       `, withCount ? { count: 'exact' } : undefined))
 
     query = applyCarteiraScope(query, scope.carteiraIds)
@@ -638,7 +655,7 @@ export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {
       created_at,
       updated_at,
       condominios(nome, cnpj, administradora, inicio_cobranca_dias, regua_cobranca_id, regua_acordo_id),
-      unidades(identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email)
+      unidades(acao_judicial, conducao_processo, advogado_externo_nome, advogado_externo_contato, identificacao, bloco, responsavel_nome, responsavel_documento, telefone, email)
     ` as string)
     .eq('id', id)
     .maybeSingle()
