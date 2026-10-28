@@ -5,7 +5,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock3,
-  Filter,
+  ChevronDown,
   Handshake,
   Landmark,
   MessageCircle,
@@ -25,7 +25,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { StatusBadge } from "@/components/data/status-badge";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { getCockpitInteligente } from "@/features/cockpit/queries";
-import { priorityClasses, scoreBarClass } from "@/features/cockpit/rules";
+import { agruparInbox } from "@/features/inbox/agrupamento";
+import { priorityClasses } from "@/features/cockpit/rules";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 
@@ -76,19 +77,21 @@ export default async function InboxOperacionalPage({
   const scope = await getPermittedCarteiras();
   const cockpit = await getCockpitInteligente(scope);
 
-  const semRetorno = cockpit.itens
-    .filter((item) => item.ultimaInteracaoAt)
-    .sort((a, b) =>
-      String(a.ultimaInteracaoAt).localeCompare(String(b.ultimaInteracaoAt)),
-    );
+  const grupos = agruparInbox(cockpit.itens);
+  const gruposDaFila = (items: typeof cockpit.itens) => {
+    const ids = new Set(items.map(i => `${i.tipo}:${i.id}`));
+    return grupos.filter(g => g.items.some(i => ids.has(`${i.tipo}:${i.id}`)));
+  };
+  const semRetorno = grupos.filter(g => g.ultimaInteracao)
+    .sort((a, b) => String(a.ultimaInteracao).localeCompare(String(b.ultimaInteracao)));
 
-  const filas = [
+  const filasBase = [
     {
       id: "cobrancas",
       label: "Cobranças",
-      description: "Todas as cotas em aberto dos seus condomínios",
+      description: "Responsáveis com cobranças em aberto nos seus condomínios",
       count: cockpit.itens.filter(item => item.tipo === 'cobranca').length,
-      items: cockpit.itens.filter(item => item.tipo === 'cobranca'),
+      items: grupos.filter(g => g.cobrancas.length > 0),
       icon: Landmark,
     },
     {
@@ -96,7 +99,7 @@ export default async function InboxOperacionalPage({
       label: "Hoje",
       description: "Melhor fila para começar o dia",
       count: cockpit.prioridadeHoje.length,
-      items: cockpit.prioridadeHoje,
+      items: grupos.slice(0, 16),
       icon: Target,
     },
     {
@@ -104,7 +107,7 @@ export default async function InboxOperacionalPage({
       label: "Críticos",
       description: "Risco alto e ação imediata",
       count: cockpit.criticos.length,
-      items: cockpit.criticos,
+      items: gruposDaFila(cockpit.criticos),
       icon: AlertTriangle,
     },
     {
@@ -112,7 +115,7 @@ export default async function InboxOperacionalPage({
       label: "Acordos em risco",
       description: "Parcelas e quebras para proteger",
       count: cockpit.acordosEmRisco.length,
-      items: cockpit.acordosEmRisco,
+      items: gruposDaFila(cockpit.acordosEmRisco),
       icon: Handshake,
     },
     {
@@ -120,7 +123,7 @@ export default async function InboxOperacionalPage({
       label: "Negociações",
       description: "Conversas com maior chance de acordo",
       count: cockpit.negociacoesQuentes.length,
-      items: cockpit.negociacoesQuentes,
+      items: gruposDaFila(cockpit.negociacoesQuentes),
       icon: MessageCircle,
     },
     {
@@ -133,6 +136,7 @@ export default async function InboxOperacionalPage({
     },
   ];
 
+  const filas = filasBase.map(f => ({ ...f, count: f.items.length }));
   const selected = filas.find((item) => item.id === fila) ?? filas.find(item => item.id === 'hoje')!;
   const pageSize = 30;
   const totalPages = Math.max(1, Math.ceil(selected.items.length / pageSize));
@@ -153,9 +157,7 @@ export default async function InboxOperacionalPage({
               Inbox operacional
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-5 text-slate-600">
-              A fila única organiza cobranças, acordos e pendências por
-              urgência. A funcionalidade completa continua existindo; aqui
-              aparece só o que precisa virar ação agora.
+              Atendimento por responsável e condomínio. Expanda para consultar as cotas e os acordos, com valores separados.
             </p>
           </div>
 
@@ -184,14 +186,14 @@ export default async function InboxOperacionalPage({
                 Fila do dia
               </p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">
-                {cockpit.metrics.totalPrioridades}
+                {Math.min(16, grupos.length)}
               </p>
             </div>
             <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#edf8fb] text-[#04799a]">
               <Target size={19} />
             </span>
           </div>
-          <p className="mt-2 text-sm text-slate-500">ações recomendadas</p>
+          <p className="mt-2 text-sm text-slate-500">responsáveis para priorizar</p>
         </Card>
 
         <Card className="p-4">
@@ -201,7 +203,7 @@ export default async function InboxOperacionalPage({
                 Críticos
               </p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">
-                {cockpit.metrics.criticos}
+                {filas.find(f => f.id === 'criticos')!.count}
               </p>
             </div>
             <span className="grid h-11 w-11 place-items-center rounded-2xl bg-red-50 text-red-700">
@@ -265,9 +267,7 @@ export default async function InboxOperacionalPage({
           </nav>
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-2">
             <div><h2 className="sr-only">{selected.label}</h2><p className="text-sm text-slate-500">{selected.description}</p></div>
-            <button className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 shadow-sm">
-              <Filter size={15} />Mais filtros
-            </button>
+            <span className="text-xs text-slate-500">30 responsáveis por página</span>
           </div>
 
           {selected.items.length === 0 ? (
@@ -282,69 +282,47 @@ export default async function InboxOperacionalPage({
             </div>
           ) : (
             <LiteScrollArea className="flex-1 divide-y divide-slate-100">
-              {pageItems.map((item, index) => (
-                <Link
-                  key={`${item.tipo}-${item.id}`}
-                  href={actionHref(item)}
-                  className="group grid gap-4 px-5 py-4 transition hover:bg-slate-50 xl:grid-cols-[44px_minmax(0,1fr)_150px_120px_34px] xl:items-center"
-                >
-                  <span className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-600">
-                    {(page - 1) * pageSize + index + 1}
-                  </span>
-
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityClasses(item.prioridade)}`}
-                      >
-                        {item.prioridade}
-                      </span>
-                      <StatusBadge status={item.status} />
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                        {item.origem}
-                      </span>
+              {pageItems.map((grupo, index) => (
+                <details key={grupo.id} className="group">
+                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 px-5 py-3 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-sky-700 [&::-webkit-details-marker]:hidden">
+                    <span className="w-7 shrink-0 text-sm text-slate-400">{(page - 1) * pageSize + index + 1}</span>
+                    <div className="min-w-0 flex-1 basis-60">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-semibold text-slate-950">{grupo.responsavel}</h3>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${priorityClasses(grupo.primeiro.prioridade)}`}>{grupo.primeiro.prioridade}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">{grupo.condominio}</p>
+                      <p className="mt-1 text-xs text-slate-500">Unidades: {grupo.unidades.join(', ') || 'Não informadas'}</p>
                     </div>
-                    <h3 className="mt-2 truncate text-sm font-semibold text-slate-950">
-                      {item.titulo}
-                    </h3>
-                    <p className="mt-1 truncate text-xs text-slate-500">
-                      {item.subtitulo}
-                    </p>
-                    <p className="mt-2 text-xs font-medium text-[#04799a]">
-                      Próxima ação: {item.acao}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-slate-400">Valor</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-950">
-                      {formatCurrency(item.valor)}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-slate-400">Referência</p>
-                    <p className="mt-1 text-sm font-medium text-slate-700">
-                      {daysText(item.dataReferencia)}
-                    </p>
-                    <div className="mt-2 h-1.5 rounded-full bg-slate-100">
-                      <div
-                        className={`h-1.5 rounded-full ${scoreBarClass(item.prioridade)}`}
-                        style={{ width: `${item.score}%` }}
-                      />
+                    <div className="min-w-36 text-right text-sm">
+                      {grupo.cobrancas.length > 0 && <><p className="font-semibold text-slate-950">{formatCurrency(grupo.valorCobrancas)}</p><p className="text-xs text-slate-500">{grupo.cobrancas.length} cota(s) em cobrança</p></>}
+                      {grupo.acordos.length > 0 && <p className="mt-1 text-xs text-slate-600">{grupo.acordos.length} acordo(s) · {formatCurrency(grupo.valorAcordos)}</p>}
                     </div>
+                    <ChevronDown size={18} className="shrink-0 text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
+                  </summary>
+                  <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-3 sm:pl-15">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+                      <div><p>{grupo.contatos.join(' · ') || 'Contato não informado'}</p><p className="mt-1">Último contato registrado: {daysText(grupo.ultimaInteracao)}</p></div>
+                      <ButtonLink href={actionHref(grupo.primeiro)} variant="secondary">Abrir atendimento <ArrowRight size={14} /></ButtonLink>
+                    </div>
+                    {(['cobranca', 'acordo'] as const).map(tipo => {
+                      const items = grupo.items.filter(i => i.tipo === tipo);
+                      if (!items.length) return null;
+                      return <section key={tipo} className="mt-3">
+                        <h4 className="mb-1 text-xs font-semibold text-slate-700">{tipo === 'cobranca' ? 'Cotas disponíveis para cobrança' : 'Acordos em acompanhamento · valor total negociado'}</h4>
+                        {items.map(item => <Link key={`${item.tipo}-${item.id}`} href={actionHref(item)} className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 py-2 text-sm hover:text-sky-700">
+                          <div className="min-w-0"><p className="font-medium">Unidade {item.unidadeLabel} · {daysText(item.dataReferencia)}</p><p className="mt-0.5 text-xs text-slate-500">{item.subtitulo} · {item.acao}</p></div>
+                          <div className="flex items-center gap-3"><StatusBadge status={item.status} /><span className="font-semibold">{formatCurrency(item.valor)}</span><ArrowRight size={14} aria-hidden="true" /></div>
+                        </Link>)}
+                      </section>;
+                    })}
                   </div>
-
-                  <ArrowRight
-                    className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-[#04799a]"
-                    size={18}
-                  />
-                </Link>
+                </details>
               ))}
             </LiteScrollArea>
           )}
           {selected.items.length > 0 && <nav aria-label="Paginação da fila" className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-3 text-sm text-slate-600">
-            <span>Exibindo {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, selected.items.length)} de {selected.items.length}</span>
+            <span>Exibindo {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, selected.items.length)} de {selected.items.length} responsáveis</span>
             <div className="flex items-center gap-3">
               {page > 1 && <Link className="rounded-lg border px-3 py-1.5 hover:bg-slate-50" href={'/app/inbox?fila=' + selected.id + '&page=' + (page - 1)}>Anterior</Link>}
               <span>{page} / {totalPages}</span>
