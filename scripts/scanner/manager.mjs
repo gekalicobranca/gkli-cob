@@ -1,7 +1,7 @@
-import { credenciais, navegadorScanner, frameVisivel, normalizarCodigo, selecionarUnidade, fichaManager } from './portais.mjs'
+import { credenciais, navegadorScanner, frameVisivel, normalizarCodigo, selecionarUnidade } from './portais.mjs'
 import {complementarComPagamentos} from './manager-pagamentos.mjs'
 import {abrirExtratoManager} from './manager-extrato.mjs'
-import {navegarDetalheScanner} from './navegacao.mjs'
+import {lerCadastroManager} from './manager-cadastro.mjs'
 
 const base='https://atentum-s9.webware.com.br'
 export async function abrirManager(config, receita, unidades, signal) {
@@ -26,6 +26,7 @@ export async function abrirManager(config, receita, unidades, signal) {
   if(new URL(detalhe.url()).origin!==base)throw Error('Sessão Manager expirada.')
   const opcoes=await detalhe.locator('tr').evaluateAll(xs=>xs.filter(x=>x.querySelector('a[href^="undProp.asp"]')&&!x.querySelector('tr')).map(x=>({label:x.cells[0]?.innerText.trim(),value:x.querySelector('a[href^="undProp.asp"]').getAttribute('href')})))
   if(!opcoes.length)throw Error('Cadastro Manager sem unidades reconhecidas.')
+  await detalhe.close()
   // O extrato é aberto somente se disponibilizado no menu. Nunca navega a Cotas Pendentes.
   let financeiro=null
   if(await menu.locator('select[name=Conteudo] option[value="/bin/aplic/display.asp?i=ARC"]').count()){
@@ -52,14 +53,7 @@ export async function abrirManager(config, receita, unidades, signal) {
     const url=new URL(opcao.value,base+'/bin/iproperty/')
     if(url.origin!==base||url.pathname!=='/bin/iproperty/undProp.asp'||url.searchParams.get('iUnd')!==opcao.label)throw Error('Destino do cadastro Manager inválido.')
     etapa('cadastro_manager');await page.waitForTimeout(2000);signal.throwIfAborted()
-    await navegarDetalheScanner(detalhe,url.href,{signal})
-    if(detalhe.url()!==url.href)throw Error('Cadastro Manager redirecionado.')
-    const exibir=detalhe.getByText('Clique aqui para exibir detalhes.',{exact:true})
-    if(await exibir.isVisible())await exibir.click()
-    if(config.diagnostico)console.log(JSON.stringify({diagnostico:'identidade_manager',esperada:opcao.label,obtida:await detalhe.locator('input[name=iUND]').inputValue().catch(()=>null),campos:await detalhe.locator('input').evaluateAll(xs=>xs.map(x=>x.name))}))
-    await detalhe.locator('input[name=ucNomeProp]').waitFor({state:'attached',timeout:10_000})
-    const fields=await detalhe.locator('input,textarea').evaluateAll(xs=>Object.fromEntries(xs.filter(x=>/^iUND$|^ucNomeProp$|^ucP(?:tel[RC](?:ddd)?|cel(?:ddd)?|email)$/.test(x.name)).map(x=>[x.name,x.value])))
-    const ficha=fichaManager(fields,id,opcao.label)
+    const ficha=await lerCadastroManager(context,url.href,{signal,referencia:opcao.label,unidade:id,onTentativa:n=>{if(n>1)etapa('cadastro_manager_retomada')}})
     const contatos={codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:url.href,fichas:[ficha]}
     const resultado=await complementarComPagamentos(contatos,()=>pagamentos(opcao.label),()=>{etapa('financeiro_indisponivel_manager')})
     resultado.pagamentos={...resultado.pagamentos,codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:base+'/bin/rt/gExtratoUnidade.asp'}
