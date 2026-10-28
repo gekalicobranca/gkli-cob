@@ -472,8 +472,8 @@ export async function gerarLaudosPreJuridico(formData: FormData) {
   const ids = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
   if (ids.length === 0) throw new Error('Selecione ao menos uma unidade para gerar o laudo.')
 
-  const encaminhadas = (await listPreJuridicoCobrancas(scope))
-    .filter((row: any) => row.situacao_pre_juridico === 'encaminhado' && ids.includes(row.id))
+  const recorte = await listPreJuridicoCobrancas(scope)
+  const encaminhadas = recorte.filter((row: any) => row.situacao_pre_juridico === 'encaminhado' && ids.includes(row.id))
   if (encaminhadas.length !== ids.length) throw new Error('Uma ou mais cobranças não estão encaminhadas ao pré-jurídico.')
 
   const unidadesSelecionadas = Array.from(new Set(encaminhadas.map((row: any) => row.unidade_id).filter(Boolean)))
@@ -488,16 +488,10 @@ export async function gerarLaudosPreJuridico(formData: FormData) {
   const unidadesNovas = unidadesSelecionadas.filter((unidadeId) => !unidadesExistentes.has(unidadeId))
   if (!unidadesNovas.length) throw new Error('As unidades selecionadas já possuem laudo gerado ou processamento iniciado.')
 
-  let cobrancasUnidadesQuery = somenteCobrancasCanonicas(supabase
-    .from('cobrancas')
-    .select('id,carteira_id,condominio_id,unidade_id,status_financeiro'))
-    .in('unidade_id', unidadesNovas)
-  cobrancasUnidadesQuery = applyCarteiraScope(cobrancasUnidadesQuery, scope.carteiraIds)
-  const { data: cobrancasUnidades, error: cobrancasError } = await cobrancasUnidadesQuery
-  if (cobrancasError) throw new Error(`Erro ao agrupar cobranças das unidades: ${cobrancasError.message}`)
-  const cobrancasAbertasIds = ((cobrancasUnidades ?? []) as any[])
-    .filter((row) => !['quitado', 'pago', 'cancelado'].includes(String(row.status_financeiro ?? '').toLowerCase()))
-    .map((row) => row.id)
+  // Apenas cotas já encaminhadas e ainda válidas; não amplia para toda a unidade.
+  const cobrancasUnidades = recorte.filter((row: any) =>
+    unidadesNovas.includes(row.unidade_id) && row.situacao_pre_juridico === 'encaminhado')
+  const cobrancasAbertasIds = cobrancasUnidades.map((row: any) => row.id)
   if (cobrancasAbertasIds.length) {
     const { error: statusError } = await supabase
       .from('cobrancas')
