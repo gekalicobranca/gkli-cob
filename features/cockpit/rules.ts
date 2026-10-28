@@ -7,6 +7,14 @@ import {
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 
 export type CockpitItem = {
+  condominioId?: string;
+  condominioNome?: string;
+  unidadeId?: string;
+  unidadeLabel?: string;
+  responsavelNome?: string;
+  responsavelDocumento?: string | null;
+  email?: string | null;
+  telefone?: string | null;
   id: string;
   tipo: "acordo" | "cobranca";
   origem: string;

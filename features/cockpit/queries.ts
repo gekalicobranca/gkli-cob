@@ -57,6 +57,14 @@ async function anexarEventosRecentes(supabase: any, itens: any[]) {
   }))
 }
 
+function identidadeInbox(row: any) {
+  const unidade = row.unidades
+  return { condominioId: row.condominio_id, condominioNome: row.condominios?.nome,
+    unidadeId: row.unidade_id, unidadeLabel: [unidade?.identificacao, unidade?.bloco].filter(Boolean).join(' / '),
+    responsavelNome: unidade?.responsavel_nome, responsavelDocumento: unidade?.responsavel_documento,
+    email: unidade?.email, telefone: unidade?.telefone }
+}
+
 export async function getCockpitInteligente(scope: CarteiraScope) {
   const supabase = await createClient()
 
@@ -75,8 +83,8 @@ export async function getCockpitInteligente(scope: CarteiraScope) {
   })
 
   const itensOrdenados = [
-    ...acordosNormalizados.map(buildAcordoItem),
-    ...cobrancasBase.map(buildCobrancaItem),
+    ...acordosNormalizados.map(a => ({ ...buildAcordoItem(a), ...identidadeInbox(a) })),
+    ...cobrancasBase.map(a => ({ ...buildCobrancaItem(a), ...identidadeInbox(a) })),
   ].sort((a, b) => b.score - a.score)
 
   const itensComEventos = await anexarEventosRecentes(supabase, itensOrdenados.slice(0, 80))
