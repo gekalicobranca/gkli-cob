@@ -1,3 +1,4 @@
+import { valorAcordadoRelatorio, excluidoDaSomaDivida } from "@/features/acordos/valor-relatorio";
 import {
   addStyledTableSheet,
   addSummarySheet,
@@ -187,6 +188,8 @@ const acordoColumns: ExcelColumn<any>[] = [
   { key: 'responsavel', label: 'Responsável', width: 34, value: (row) => text(row.unidades?.responsavel_nome, 'Responsável não informado') },
   { key: 'data_acordo', label: 'Data do acordo', width: 16, type: 'date' },
   { key: 'valor_acordado', label: 'Valor acordado', width: 18, type: 'currency' },
+  { key: 'valor_somado_divida', label: 'Valor incluído na soma da dívida', width: 22, type: 'currency', value: valorAcordadoRelatorio },
+  { key: 'criterio_soma', label: 'Conciliação da dívida', width: 48, value: (row) => excluidoDaSomaDivida(row) ? 'Histórico excluído da soma; pagamentos preservados' : 'Incluído' },
   { key: 'entrada', label: 'Entrada', width: 16, type: 'currency' },
   { key: 'quantidade_parcelas', label: 'Qtd. parcelas', width: 16, type: 'integer' },
   { key: 'status', label: 'Status', width: 20, value: (row) => statusLabel(row.status) },
@@ -225,7 +228,7 @@ export async function criarExcelRelatorioAcordos(
 ) {
   const sortedRows = sortByReportHierarchy(rows)
   const parcelasRows = buildParcelasRows(rows, parcelas)
-  const totalAcordado = rows.reduce((sum, row) => sum + money(row.valor_acordado), 0)
+  const totalAcordado = rows.reduce((sum, row) => sum + valorAcordadoRelatorio(row), 0)
   const totalEntrada = rows.reduce((sum, row) => sum + money(row.entrada), 0)
   const totalParcelas = parcelas.reduce((sum, parcela) => sum + money(parcela.valor), 0)
   const workbook = createExcelWorkbook('Relatório de acordos', generatedAt)
@@ -240,7 +243,8 @@ export async function criarExcelRelatorioAcordos(
     { label: 'Data fim', value: filters.data_ate || 'Sem filtro', type: filters.data_ate ? 'date' : 'text' },
     { label: 'Ordenação solicitada na tela', value: ordenacaoLabel(filters.ordenar) },
     { label: 'Ordenação do arquivo', value: 'Carteira / Condomínio / Unidade / Data do acordo' },
-    { label: 'Total de acordos', value: rows.length, type: 'integer' },
+    { label: 'Registros de acordos', value: rows.length, type: 'integer' },
+    { label: 'Históricos excluídos da soma da dívida', value: rows.filter(excluidoDaSomaDivida).length, type: 'integer' },
     { label: 'Total de parcelas', value: parcelas.length, type: 'integer' },
     { label: 'Valor acordado total', value: totalAcordado, type: 'currency' },
     { label: 'Entrada total', value: totalEntrada, type: 'currency' },

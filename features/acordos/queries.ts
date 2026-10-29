@@ -1,3 +1,4 @@
+import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
 import {acordoIdsDaUnidade} from './unidades-consulta';
 import { acordoTemParcelaNoPeriodo } from './filtro-vencimento'
 import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
@@ -936,7 +937,7 @@ function resumoAcordosPage(rows: any[]) {
   const rompidos = normalizados.filter((row) => [ACORDO_STATUS.QUEBRADO, "rompido"].includes(row.status)).length;
   const valorAtivo = normalizados
     .filter((row) => ACORDO_STATUS_VIGENTES.includes(row.status))
-    .reduce((sum, row) => sum + Number(row.valor_acordado ?? 0), 0);
+    .reduce((sum, row) => sum + valorAcordadoRelatorio(row), 0);
 
   return { ativos, atraso, rompidos, valorAtivo, emConferencia };
 }
@@ -1402,7 +1403,7 @@ async function getParcelasDosAcordos(acordoIds: string[]) {
 
 function calculateAgreementSummary(acordos: any[], parcelas: any[]): AgreementPerformanceSummary {
   const valorAcordado = acordos.reduce(
-    (sum, acordo) => sum + Number(acordo.valor_acordado ?? 0),
+    (sum, acordo) => sum + valorAcordadoRelatorio(acordo),
     0,
   );
   const valorRecuperado = parcelas
@@ -1508,7 +1509,7 @@ export async function listAgreementBreakReport(scope?: CarteiraScope) {
       acordos: [],
     };
     current.qtdRompimentos += 1;
-    current.valorRompido += Number(acordo.valor_acordado ?? 0);
+    current.valorRompido += valorAcordadoRelatorio(acordo);
     current.acordos.push(acordo);
     byCondominio.set(condominioId, current);
   }

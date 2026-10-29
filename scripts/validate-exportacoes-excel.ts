@@ -67,7 +67,7 @@ async function validateUnidades(outputDir: string) {
   assert.equal(sheet.getCell('L6').value, 125.5)
   assert.equal(sheet.getCell('L6').numFmt, '"R$" #,##0.00')
   assert.equal(sheet.getCell('M6').value, 'Sim')
-  assert.equal(sheet.autoFilter, 'A5:N6')
+  assert.equal(sheet.autoFilter, 'A5:R6')
   writeFileSync(`${outputDir}/unidades.xlsx`, bytes)
 }
 
@@ -291,8 +291,10 @@ async function validateRelatorioAcordos(outputDir: string) {
   const resumo = workbook.getWorksheet('RESUMO')!
   const acordos = workbook.getWorksheet('ACORDOS')!
   const parcelasSheet = workbook.getWorksheet('PARCELAS')!
-  assert.equal(resumo.getCell('B17').value, 1100)
-  assert.equal(resumo.getCell('B17').numFmt, '"R$" #,##0.00')
+  const totalRow = resumo.getRows(1, resumo.rowCount)!.find(row => row.getCell(1).value === 'Valor acordado total')!
+  assert.ok(totalRow, 'Resumo apresenta o total acordado')
+  assert.equal(totalRow.getCell(2).value, 1100)
+  assert.equal(totalRow.getCell(2).numFmt, '"R$" #,##0.00')
   assert.equal(acordos.getCell('A5').value, 'Carteira')
   assert.equal(acordos.getCell('F6').value, 1100)
   assert.equal(acordos.getCell('F6').numFmt, '"R$" #,##0.00')

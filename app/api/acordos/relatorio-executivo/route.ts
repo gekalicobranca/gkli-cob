@@ -1,3 +1,4 @@
+import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
 import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
@@ -320,7 +321,7 @@ function resumir(rows: any[], keyFor: (row: any) => string): AcordoResumo[] {
     current.criticos += resumo.saude === "critico" ? 1 : 0;
     current.parcelasAbertas += resumo.abertas;
     current.parcelasVencidas += resumo.vencidas;
-    current.valorAcordado += Number(row.valor_acordado ?? 0);
+    current.valorAcordado += valorAcordadoRelatorio(row);
     current.valorPago += resumo.valorPago;
     current.saldoAberto += resumo.saldoAberto;
     map.set(key, current);
@@ -635,7 +636,7 @@ function montarPdf(rows: any[]) {
     ativos: rows.filter((row) => !isAcordoRompido(row) && !isAcordoQuitado(row)).length,
     atraso: rows.filter(isAcordoEmAtraso).length,
     rompidos: rows.filter(isAcordoRompido).length,
-    valorAcordado: rows.reduce((sum, row) => sum + Number(row.valor_acordado ?? 0), 0),
+    valorAcordado: rows.reduce((sum, row) => sum + valorAcordadoRelatorio(row), 0),
     valorPago: rows.reduce((sum, row) => sum + Number(row.parcelas_resumo?.valorPago ?? 0), 0),
     saldoAberto: rows.reduce((sum, row) => sum + Number(row.parcelas_resumo?.saldoAberto ?? 0), 0),
   };
