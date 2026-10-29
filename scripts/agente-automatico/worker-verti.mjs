@@ -1,3 +1,4 @@
+import { createPeriodicTask, createPollingCadence } from '../worker-cadence.mjs'
 import { concluirExecucaoMaestro, caminhoDownloadMaestro } from './concluir-maestro.mjs'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
@@ -6,6 +7,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
+import { createWorkerFetch } from './worker-fetch.mjs'
 import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
@@ -15,7 +17,8 @@ import { captacaoGlobalAtiva } from './controle-global.mjs'
 
 const SCRIPT_KEY = 'verti_winker_inadimplencia'
 const BUCKET = 'agente-relatorios'
-const POLL_MS = 10_000
+const polling = createPollingCadence()
+const scheduleCaptacoes = createPeriodicTask({ intervalMs: 300_000 })
 const LOGIN_TIMEOUT_MS = 10 * 60_000
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -43,7 +46,7 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 if (!supabaseUrl || !serviceRoleKey) throw new Error('Configure NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.')
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
+  global: { fetch: createWorkerFetch() }, auth: { persistSession: false, autoRefreshToken: false },
 })
 
 function dataDownload() {
@@ -475,7 +478,12 @@ async function baixarRelatorio(target) {
     throw new Error('Aba Relatórios não encontrada no módulo financeiro.')
   }
   await page.waitForTimeout(1_000).catch(() => {})
-  const inadimplentesClick = await clicarLocatorEmFrames(context, 'button, ion-item, ion-label, [role="button"], div.item', /^Inadimplentes?$/i, 60_000) ||
+  // O relatório abre uma janela: o clique real no texto evita que o item
+  // Ionic receba apenas um clique no contêiner, sem acionar a abertura.
+  const listaRelatorios = await localizarFramePorTexto(context, /Selecione o relatório/, 10_000)
+  const cliqueDireto = listaRelatorios && await listaRelatorios.scope.getByText('Inadimplentes', { exact: true })
+    .click({ timeout: 5_000 }).then(() => listaRelatorios).catch(() => null)
+  const inadimplentesClick = cliqueDireto || await clicarLocatorEmFrames(context, 'button, ion-item, ion-label, [role="button"], div.item', /^Inadimplentes?$/i, 60_000) ||
     await clicarEmQualquerFramePorTexto(context, 'Inadimplentes', { exact: true, timeoutMs: 10_000 })
   if (inadimplentesClick) {
     scope = inadimplentesClick.scope
@@ -588,14 +596,16 @@ async function coletar(execucao) {
 console.log(`Worker ativo para ${SCRIPT_KEY}. Aguardando execuções...`)
 await startWorkerHeartbeat(supabase, SCRIPT_KEY)
 for (;;) {
+  let worked = false
   try {
     const captacaoAtiva = await captacaoGlobalAtiva(supabase)
-    if (captacaoAtiva && !process.env.AGENTE_EXECUCAO_ID) await agendarCaptacoesMensais()
+    if (captacaoAtiva && !process.env.AGENTE_EXECUCAO_ID) await scheduleCaptacoes('monthly', agendarCaptacoesMensais)
     const execucao = await reivindicarExecucao(captacaoAtiva)
+    worked = Boolean(execucao)
     if (execucao) await coletar(execucao)
   } catch (error) {
     console.error('Erro no worker Verti:', error instanceof Error ? error.message : error)
   }
   if (String(process.env.AGENTE_RUN_ONCE || 'false').toLowerCase() === 'true') break
-  await new Promise((resolve) => setTimeout(resolve, POLL_MS))
+  await new Promise((resolve) => setTimeout(resolve, polling.delay(worked)))
 }

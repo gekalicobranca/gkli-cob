@@ -33,9 +33,20 @@ test('pending command explains missing supervisor and elapsed time', () => {
   assert.match(state.command!, /sem sinal recente/)
 })
 test('old and implausibly future signals never confirm operation', () => {
-  for (const delta of [-120000, 60000]) {
+  for (const delta of [-300000, 60000]) {
     assert.equal(whatsappOperationStatus({ ...base, session: { ...base.session, atualizado_em: new Date(now + delta).toISOString() } }).tone, 'red')
   }
+})
+
+test('heartbeat de dois minutos permanece recente até o limite de cinco minutos', () => {
+  const last = new Date(now - 299999).toISOString()
+  const state = whatsappOperationStatus({ ...base,
+    session: { ...base.session, atualizado_em: last },
+    control: { ...base.control, supervisor_em: last },
+    monitor: { ...base.monitor, ultimo_sinal_em: last },
+  })
+  assert.equal(state.tone, 'green')
+  assert.equal(state.supervisorOnline, true)
 })
 test('command acknowledgement is not connection confirmation', () => {
   assert.equal(whatsappOperationStatus({ ...base, session: { ...base.session, status: 'iniciando' } }).title, 'Conectando · ainda não está pronto')

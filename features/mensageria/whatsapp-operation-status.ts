@@ -8,7 +8,7 @@ export function whatsappOperationStatus({ session, control, monitor, expectedPho
 }) {
   const fresh = (date?: string | null) => {
     const age = date ? now - Date.parse(date) : Infinity
-    return Number.isFinite(age) && age >= -30000 && age < 120000
+    return Number.isFinite(age) && age >= -30000 && age < 300000
   }
   const supervisorOnline = fresh(control?.supervisor_em)
   const pending = Boolean(control?.reiniciar_id && control.reiniciar_id !== control.aplicado_id)

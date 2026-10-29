@@ -1,3 +1,6 @@
+import { abrirPortalLello } from './lello-navegacao.mjs'
+import { aguardarCondominioSelecionado } from './lello-selecao.mjs'
+import { createPeriodicTask, createPollingCadence } from '../worker-cadence.mjs'
 import { concluirExecucaoMaestro, caminhoDownloadMaestro } from './concluir-maestro.mjs'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
@@ -6,6 +9,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
+import { createWorkerFetch } from './worker-fetch.mjs'
 import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
@@ -15,7 +19,8 @@ import { captacaoGlobalAtiva } from './controle-global.mjs'
 
 const SCRIPT_KEY = 'captacao_lello'
 const BUCKET = 'agente-relatorios'
-const POLL_MS = 10_000
+const polling = createPollingCadence()
+const scheduleCaptacoes = createPeriodicTask({ intervalMs: 300_000 })
 const LOGIN_TIMEOUT_MS = 10 * 60_000
 const PORTAL_URL = 'https://portal.lellocondominios.com.br/menuPortal2/'
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -56,7 +61,7 @@ if (!supabaseUrl || !serviceRoleKey) {
 }
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
+  global: { fetch: createWorkerFetch() }, auth: { persistSession: false, autoRefreshToken: false },
 })
 
 function agoraSaoPaulo() {
@@ -277,7 +282,7 @@ async function loginLello(page, execucao, config) {
 
   if (await aguardarMenuAutenticado(3_000)) return
 
-  await page.goto(PORTAL_URL, { waitUntil: 'domcontentloaded' })
+  await abrirPortalLello(page, PORTAL_URL, (mensagem) => registrarLog(execucao.id, 'navegador', mensagem, 'warning'))
   if (await aguardarMenuAutenticado()) return
 
   const credenciaisEnv = credenciaisAmbienteLello(config)
@@ -301,11 +306,13 @@ async function loginLello(page, execucao, config) {
   await senhaInput.fill(senha)
 
   const acessar = page.getByRole('button', { name: /acessar/i }).or(page.getByText(/^Acessar$/i)).first()
-  await acessar.click()
+  // O clique já envia o formulário. A navegação da Lello pode exceder o
+  // timeout padrão de ações; aguardar a autenticação abaixo, com prazo próprio.
+  await acessar.click({ noWaitAfter: true })
   await registrarLog(execucao.id, 'login', 'Credenciais COJUR preenchidas; aguardando portal Lello.', 'info', {
     credencial: cadastroPrioritario ? 'cadastro:TOPAZIO' : credenciaisEnv.origem,
   })
-  await page.waitForURL(/menuPortal2\/do\/Menu\/montaMenu/i, { timeout: LOGIN_TIMEOUT_MS }).catch(async (error) => {
+  await page.waitForURL(/menuPortal2\/do\/Menu\/montaMenu/i, { timeout: LOGIN_TIMEOUT_MS, waitUntil: 'commit' }).catch(async (error) => {
     if (await aguardarMenuAutenticado(15_000)) return
     throw error
   })
@@ -317,22 +324,9 @@ async function loginLello(page, execucao, config) {
 
 async function selecionarCondominio(page, execucao, codigo, nomePortal = '') {
   const termoNome = String(nomePortal || '').replace(/^\s*\d+\s*-\s*/, '').trim()
-  const selecaoExibida = await page.locator('body').innerText({ timeout: 5_000 }).then((text) =>
-    text.includes(`${codigo} -`) && (!termoNome || normalizarTexto(text).includes(normalizarTexto(termoNome))))
-    .catch(() => false)
-  if (selecaoExibida) {
-    await registrarLog(execucao.id, 'condominio', `Condomínio já exibido no cabeçalho do portal Lello pelo código ${codigo}.`)
-    return
-  }
-  const selecionado = await page.locator('body').evaluate(({ code, name }) => {
-    const pattern = new RegExp(`^${code}\\s*-`, 'i')
-    const visivel = (el) => Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
-    return [...document.querySelectorAll('button')].some((button) => {
-      const text = (button.innerText || button.textContent || '').trim()
-      return visivel(button) && (pattern.test(text) || (name && text.toUpperCase().includes(name.toUpperCase())))
-    })
-  }, { code: escapeRegExp(codigo), name: termoNome }).catch(() => false)
-  if (selecionado) {
+  // Contas exclusivas (como Safira) já abrem no condomínio e não habilitam
+  // o dropdown. O menu pode aparecer antes de o Angular preencher o cabeçalho.
+  if (await aguardarCondominioSelecionado(page, codigo)) {
     await registrarLog(execucao.id, 'condominio', `Condomínio já selecionado no portal Lello pelo código ${codigo}.`)
     return
   }
@@ -763,13 +757,16 @@ async function coletarLello(execucao) {
       headless: String(process.env.AGENTE_HEADLESS || 'false').toLowerCase() === 'true',
       chromiumSandbox: true,
       acceptDownloads: true,
-      viewport: null,
+      // O executor headless com viewport null abre em 762px e oculta o
+      // seletor de condomínio no layout móvel da Lello.
+      viewport: { width: 1366, height: 900 },
     })
     context = browserSession.context
     const page = context.pages()[0] || await context.newPage()
 
     await registrarLog(execucao.id, 'navegador', 'Abrindo o portal Lello COJUR.')
-    await page.goto(config.portal_url || execucao.administradora.url_portal || PORTAL_URL, { waitUntil: 'domcontentloaded' })
+    await abrirPortalLello(page, config.portal_url || execucao.administradora.url_portal || PORTAL_URL,
+      (mensagem) => registrarLog(execucao.id, 'navegador', mensagem, 'warning'))
     await loginLello(page, execucao, config)
     await selecionarCondominio(page, execucao, codigo, config.condominio_portal || config.codigo_portal_nome || config.condominio)
     const { relatorioPage, exportUrl } = await abrirRelatorioCojurAcob(page, execucao, codigo)
@@ -840,14 +837,16 @@ async function coletarLello(execucao) {
 console.log(`Worker ativo para ${SCRIPT_KEY}. Aguardando execuções...`)
 await startWorkerHeartbeat(supabase, SCRIPT_KEY)
 for (;;) {
+  let worked = false
   try {
     const captacaoAtiva = await captacaoGlobalAtiva(supabase)
-    if (captacaoAtiva && !process.env.AGENTE_EXECUCAO_ID) await agendarCaptacoesMensais()
+    if (captacaoAtiva && !process.env.AGENTE_EXECUCAO_ID) await scheduleCaptacoes('monthly', agendarCaptacoesMensais)
     const execucao = await reivindicarExecucao(captacaoAtiva)
+    worked = Boolean(execucao)
     if (execucao) await coletarLello(execucao)
   } catch (error) {
     console.error('Erro no worker Lello:', error instanceof Error ? error.message : error)
   }
   if (String(process.env.AGENTE_RUN_ONCE || 'false').toLowerCase() === 'true') break
-  await new Promise((resolve) => setTimeout(resolve, POLL_MS))
+  await new Promise((resolve) => setTimeout(resolve, polling.delay(worked)))
 }

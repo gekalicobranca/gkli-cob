@@ -1,7 +1,7 @@
 export type PairingView = { status: 'idle' | 'waiting' | 'available' | 'expired' | 'connected' | 'offline' | 'paused' | 'failed'; message: string; mode?: 'qr' | 'codigo'; payload?: string; expiresAt?: string; expiresInMs?: number }
 type Control = { habilitado: boolean; atualizado_em: string; reiniciar_id: string | null; aplicado_id: string | null; supervisor_em: string | null; vinculacao_pedido: string | null; vinculacao_modo: string | null; vinculacao_payload: string | null; vinculacao_expira_em: string | null }
 export function pairingView(control: Control | null, session: { status: string; atualizado_em: string } | null, now = Date.now()): PairingView {
-  const fresh = (date: string | null | undefined) => { const age = now - Date.parse(date || ''); return age >= -30000 && age < 120000 }
+  const fresh = (date: string | null | undefined) => { const age = now - Date.parse(date || ''); return age >= -30000 && age < 300000 }
   if (fresh(session?.atualizado_em) && session?.status === 'conectado') return { status: 'connected', message: 'WhatsApp conectado. Não é necessário vincular novamente.' }
   if (!control?.habilitado) return { status: 'paused', message: 'Retome o worker para solicitar a vinculação.' }
   if (!fresh(control.supervisor_em)) return { status: 'offline', message: 'Computador sem comunicação recente. Ligue o notebook e verifique a internet.' }

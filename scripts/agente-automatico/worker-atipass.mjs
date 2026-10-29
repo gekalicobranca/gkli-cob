@@ -1,3 +1,4 @@
+import { createPeriodicTask, createPollingCadence } from '../worker-cadence.mjs'
 import { concluirExecucaoMaestro, caminhoDownloadMaestro } from './concluir-maestro.mjs'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
@@ -6,6 +7,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
+import { createWorkerFetch } from './worker-fetch.mjs'
 import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
@@ -15,7 +17,8 @@ import { captacaoGlobalAtiva } from './controle-global.mjs'
 
 const SCRIPT_KEY = 'captacao_atipass'
 const BUCKET = 'agente-relatorios'
-const POLL_MS = 10_000
+const polling = createPollingCadence()
+const scheduleCaptacoes = createPeriodicTask({ intervalMs: 300_000 })
 const LOGIN_TIMEOUT_MS = 10 * 60_000
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const ATIPASS_PORTAL_PATTERN = /COTAS\s+PENDENTES|Hist[oó]rico\s+de\s+Pagamentos|ACORDO\s+ONLINE|Cotas Pendentes Online/i
@@ -57,7 +60,7 @@ if (!supabaseUrl || !serviceRoleKey) {
 }
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
+  global: { fetch: createWorkerFetch() }, auth: { persistSession: false, autoRefreshToken: false },
 })
 
 async function registrarLog(execucaoId, step, mensagem, nivel = 'info', metadata = {}) {
@@ -456,16 +459,18 @@ async function run() {
   await startWorkerHeartbeat(supabase, SCRIPT_KEY)
   const runOnce = String(process.env.AGENTE_RUN_ONCE || 'false').toLowerCase() === 'true'
   for (;;) {
+    let worked = false
     try {
       const captacaoAtiva = await captacaoGlobalAtiva(supabase)
-      if (captacaoAtiva && !process.env.AGENTE_EXECUCAO_ID) await agendarCaptacoesMensais()
+      if (captacaoAtiva && !process.env.AGENTE_EXECUCAO_ID) await scheduleCaptacoes('monthly', agendarCaptacoesMensais)
       const execucao = await reivindicarExecucao(captacaoAtiva)
+      worked = Boolean(execucao)
       if (execucao) await coletarAtipass(execucao)
     } catch (error) {
       console.error('Erro no worker:', error instanceof Error ? error.message : error)
     }
     if (runOnce) return
-    await new Promise((resolve) => setTimeout(resolve, POLL_MS))
+    await new Promise((resolve) => setTimeout(resolve, polling.delay(worked)))
   }
 }
 

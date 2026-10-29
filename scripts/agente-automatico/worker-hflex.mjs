@@ -1,3 +1,4 @@
+import { createPollingCadence } from '../worker-cadence.mjs'
 import { concluirExecucaoMaestro, caminhoDownloadMaestro } from './concluir-maestro.mjs'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
@@ -6,6 +7,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
+import { createWorkerFetch } from './worker-fetch.mjs'
 import { chromium } from 'playwright'
 import { criarContextoChromeIsolado, fecharContextoChromeIsolado } from './browser-session.mjs'
 import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
@@ -16,7 +18,7 @@ import { aguardarSaidaRelatorioHflex } from './hflex-saida-relatorio.mjs'
 
 const SCRIPT_KEY = 'captacao_hflex'
 const BUCKET = 'agente-relatorios'
-const POLL_MS = 10_000
+const polling = createPollingCadence()
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const REPORT_URL = 'https://sys.livefacilities.com.br/Operacional/Empreendimento/Emp_DevedoresRelatorio.aspx?menu=kBBnlhU1rzTUaiO%2BpAhtmQ%3D%3D'
 
@@ -40,7 +42,7 @@ async function carregarEnvLocal() {
 
 await carregarEnvLocal()
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
+  global: { fetch: createWorkerFetch() }, auth: { persistSession: false, autoRefreshToken: false },
 })
 
 function normalizar(value) {
@@ -147,12 +149,15 @@ async function confirmarEmpreendimentoPeloHome(page, execucao) {
 }
 
 async function baixarRelatorioDetalhado(page, execucao) {
+  // Preferências salvas podem ocultar cotas já vinculadas a propostas/acordos.
+  await page.locator('#body_ucFiltroRelatorioDevedores_ckAcordo').setChecked(false)
+  await page.locator('#body_ucFiltroRelatorioDevedores_ckSemAcordo').setChecked(false)
   // Não depender das preferências de exportação salvas pelo usuário no portal.
   await page.locator('#body_ucFiltroRelatorioDevedores_ckPDF').setChecked(false)
   await page.locator('#body_ucFiltroRelatorioDevedores_cbValorCorrigido').setChecked(true)
   await page.locator('#body_ucFiltroRelatorioDevedores_ckExcelCabecalho').setChecked(true)
   await page.locator('#body_ucFiltroRelatorioDevedores_ckExcel').setChecked(true)
-  await registrarLog(execucao.id, 'filtros_relatorio', 'Excel detalhado solicitado com valores corrigidos e cabeçalho; aceitando download direto ou visualizador.')
+  await registrarLog(execucao.id, 'filtros_relatorio', 'Excel detalhado com e sem acordo, valores corrigidos e cabeçalho; cotas negociadas exigem validação e não comprovam pagamento.')
   const saida = await aguardarSaidaRelatorioHflex(page, () => page.getByRole('button', { name: /^Relatório Detalhado$/i }).click())
   if (saida.download) {
     await registrarLog(execucao.id, 'relatorio_detalhado', 'Excel recebido diretamente, sem janela adicional.')
@@ -261,13 +266,15 @@ async function coletar(execucao) {
 console.log(`Worker ativo para ${SCRIPT_KEY}. Aguardando execuções...`)
 await startWorkerHeartbeat(supabase, SCRIPT_KEY)
 for (;;) {
+  let worked = false
   try {
     const captacaoAtiva = await captacaoGlobalAtiva(supabase)
     const execucao = await reivindicarExecucao(captacaoAtiva)
+    worked = Boolean(execucao)
     if (execucao) await coletar(execucao)
   } catch (error) {
     console.error('Erro no worker HFlex:', error instanceof Error ? error.message : error)
   }
   if (String(process.env.AGENTE_RUN_ONCE || 'false').toLowerCase() === 'true') break
-  await new Promise((resolve) => setTimeout(resolve, POLL_MS))
+  await new Promise((resolve) => setTimeout(resolve, polling.delay(worked)))
 }
