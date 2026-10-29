@@ -63,7 +63,7 @@ export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind) {
         id,
         operador_id,
         nome,
-        parcelas_acordo_sem_aprovacao_sindico,
+        custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico,
         dias_reemissao_parcela_acordo_atrasada
       ),
       unidades:unidade_id (
@@ -118,7 +118,7 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
         nome,
         cnpj,
         administradora_id,
-        parcelas_acordo_sem_aprovacao_sindico,
+        custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico,
         dias_reemissao_parcela_acordo_atrasada
       ),
       unidades:unidade_id (
@@ -340,7 +340,7 @@ export async function listCobrancasElegiveisParaAcordo(scope?: CarteiraScope) {
       condominios:condominio_id (
         id,
         nome,
-        parcelas_acordo_sem_aprovacao_sindico,
+        custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico,
         dias_reemissao_parcela_acordo_atrasada
       ),
       unidades:unidade_id (
@@ -522,7 +522,7 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
         id,
         nome,
         administradora_id,
-        inicio_cobranca_dias
+        inicio_cobranca_dias, custo_emissao_boleto
       ),
       unidades:unidade_id (
         id,
@@ -595,7 +595,7 @@ export async function listCobrancasSelecionadasParaAcordo(
         id,
         nome,
         inicio_cobranca_dias,
-        parcelas_acordo_sem_aprovacao_sindico,
+        custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico,
         dias_reemissao_parcela_acordo_atrasada
       ),
       unidades:unidade_id (
@@ -823,7 +823,7 @@ const ACORDOS_PAGE_SELECT = `
     id,
     operador_id,
     nome,
-    parcelas_acordo_sem_aprovacao_sindico,
+    custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico,
     dias_reemissao_parcela_acordo_atrasada
   ),
   unidades:unidade_id (

@@ -246,6 +246,7 @@ function montarResumoAcordo(params: {
   valorBase: number;
   despesa: number;
   jurosAdicional?: number;
+  custoBoletos?: number;
   valorAcordado: number;
   entrada: number;
   quantidadeParcelas: number;
@@ -277,6 +278,7 @@ function montarResumoAcordo(params: {
     `Valor das cobranças: ${formatBRL(params.valorBase)}`,
     `Despesa de cobrança: ${formatBRL(params.despesa)}`,
     params.jurosAdicional ? `Juros pela tabela Price (1% ao mês sobre o saldo devedor): ${formatBRL(params.jurosAdicional)}` : null,
+    `Emissão de boletos: ${formatBRL(params.custoBoletos ?? 0)}`,
     `Valor total do acordo: ${formatBRL(params.valorAcordado)}`,
     `Entrada: ${formatBRL(params.entrada)}`,
     `Quantidade de parcelas: ${params.quantidadeParcelas}`,
@@ -661,7 +663,7 @@ export async function createAcordo(formData: FormData) {
     formData.get("despesa_cobranca_percentual"),
   );
 
-  const entrada = toNumber(formData.get("entrada"));
+  let entrada = toNumber(formData.get("entrada"));
   const usarCreditoAdministradora = formData.get("usar_credito_administradora") === "on";
   const entradaVencimento = String(formData.get("entrada_vencimento") ?? "");
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
@@ -699,7 +701,7 @@ export async function createAcordo(formData: FormData) {
     .from("cobrancas")
     .select(
       `id, carteira_id, condominio_id, unidade_id, status, status_operacional, valor_atualizado, valor_original, juros, multa, correcao, desconto, vencimento, competencia,
-      condominios:condominio_id (id, nome, administradora_id, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada),
+      condominios:condominio_id (id, nome, administradora_id, custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada),
       unidades:unidade_id (id, identificacao, bloco, responsavel_nome, responsavel_documento, email, telefone, credito_administradora)`,
     ))
     .in("id", cobrancaIds);
@@ -821,11 +823,15 @@ export async function createAcordo(formData: FormData) {
     ? roundMoney(Math.min(creditoDisponivel, valorBaseCobranca))
     : 0;
   const valorBaseAposCredito = roundMoney(valorBaseCobranca - creditoAdministradoraUtilizado);
+  const condominioPrincipal = Array.isArray((cobrancaPrincipal as any).condominios)
+    ? (cobrancaPrincipal as any).condominios[0]
+    : (cobrancaPrincipal as any).condominios;
   const calculoDespesas = calcularDespesasAcordo(
     cobrancasComValores.map((item) => ({ id: item.id, valor: item.valor_base_acordo })),
     cotasSemDespesas, despesaCobrancaPercentual, creditoAdministradoraUtilizado,
-    { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on" },
+    { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on", custoEmissaoBoleto: Number(condominioPrincipal?.custo_emissao_boleto ?? 0) },
   );
+  entrada = calculoDespesas.entradaComBoleto;
   const despesaCobrancaValor = calculoDespesas.despesa;
   const valorAcordado = calculoDespesas.total;
 
@@ -838,9 +844,6 @@ export async function createAcordo(formData: FormData) {
   if (entrada > valorAcordado)
     throw new Error("Entrada não pode ser maior que o valor acordado.");
 
-  const condominioPrincipal = Array.isArray((cobrancaPrincipal as any).condominios)
-    ? (cobrancaPrincipal as any).condominios[0]
-    : (cobrancaPrincipal as any).condominios;
   const contatoResponsavel = assertContatoResponsavelAcordo(unidadePrincipal);
   const parcelasPermitidasSemSindico = Number(
     condominioPrincipal?.parcelas_acordo_sem_aprovacao_sindico ?? 0,
@@ -857,9 +860,9 @@ export async function createAcordo(formData: FormData) {
       cobranca_id: item.id,
       valor_original_no_acordo: Number(item.valor_original ?? 0),
       valor_atualizado_no_acordo: item.valor_base_acordo,
-      encargos_no_acordo: roundMoney(despesaRateada + calculoDespesas.itens[index].jurosAdicional),
+      encargos_no_acordo: roundMoney(despesaRateada + calculoDespesas.itens[index].jurosAdicional + calculoDespesas.itens[index].custoBoleto),
       valor_total_no_acordo: roundMoney(
-        item.valor_base_acordo - creditoRateado + despesaRateada + calculoDespesas.itens[index].jurosAdicional,
+        item.valor_base_acordo - creditoRateado + despesaRateada + calculoDespesas.itens[index].jurosAdicional + calculoDespesas.itens[index].custoBoleto,
       ),
     };
   });
@@ -905,7 +908,7 @@ export async function createAcordo(formData: FormData) {
       p_fluxo_status: fluxoStatusInicial,
       p_exige_aprovacao_sindico: false,
       p_documento_url: documentoUrl || null,
-      p_observacoes: [observacoes, calculoDespesas.jurosAdicional > 0
+      p_observacoes: [observacoes, calculoDespesas.custoBoletos > 0 ? `Emissão: ${calculoDespesas.quantidadeBoletos} boleto(s) × ${formatBRL(calculoDespesas.custoEmissaoBoleto)} = ${formatBRL(calculoDespesas.custoBoletos)}. Sem juros ou honorários sobre a emissão.` : "", calculoDespesas.jurosAdicional > 0
         ? `Juros pela tabela Price de 1% ao mês sobre o saldo devedor após a entrada: ${formatBRL(calculoDespesas.jurosAdicional)}.` : ""].filter(Boolean).join("\n") || null,
       p_itens: itensAcordo,
       p_parcelas: parcelas,
@@ -937,6 +940,7 @@ export async function createAcordo(formData: FormData) {
     responsavelTelefone: contatoResponsavel.telefone || null,
     valorBase: valorBaseCobranca,
     despesa: despesaCobrancaValor,
+    custoBoletos: calculoDespesas.custoBoletos,
     jurosAdicional: calculoDespesas.jurosAdicional,
     valorAcordado,
     entrada,
@@ -1019,6 +1023,9 @@ export async function createAcordo(formData: FormData) {
       valor_base_cobranca: valorBaseCobranca,
       credito_administradora_utilizado: creditoAdministradoraUtilizado,
       valor_base_apos_credito: valorBaseAposCredito,
+      custo_emissao_boleto: calculoDespesas.custoEmissaoBoleto,
+      quantidade_boletos: calculoDespesas.quantidadeBoletos,
+      custo_boletos: calculoDespesas.custoBoletos,
       juros_adicional_valor: calculoDespesas.jurosAdicional,
       juros_adicional_modalidade: "price",
       juros_adicional_taxa_mensal: 1,
@@ -1273,7 +1280,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
   const numeroProcesso = String(formData.get("numero_processo") ?? "").trim();
   const despesaCobrancaPercentual = toNumber(formData.get("despesa_cobranca_percentual"));
 
-  const entrada = toNumber(formData.get("entrada"));
+  let entrada = toNumber(formData.get("entrada"));
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
   const primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
@@ -1299,7 +1306,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
       condominios:condominio_id (
         id,
         nome,
-        administradora_id
+        administradora_id, custo_emissao_boleto
       ),
       unidades:unidade_id (
         id,
@@ -1349,7 +1356,8 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
       + Number(item.correcao ?? 0) - Number(item.desconto ?? 0)),
   })), cotasSemDespesas, despesaCobrancaPercentual,
     formData.get("usar_credito_administradora") === "on" ? Number(unidadeReferencia?.credito_administradora ?? 0) : 0,
-    { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on" });
+    { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on", custoEmissaoBoleto: Number(condominioReferencia?.custo_emissao_boleto ?? 0) });
+  entrada = calculo.entradaComBoleto;
   const despesaCobrancaValor = calculo.despesa;
   const valorAcordado = calculo.total;
 
@@ -1428,6 +1436,9 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
         unidade_id: unidadeId,
         tipo,
         numero_processo: tipo === "judicial" ? numeroProcesso : null,
+        custo_emissao_boleto: calculo.custoEmissaoBoleto,
+        custo_boletos: calculo.custoBoletos,
+        entrada_sem_emissao: Number(formData.get("entrada") ?? 0),
         juros_adicional_valor: calculo.jurosAdicional,
         juros_adicional_modalidade: "price",
         juros_adicional_taxa_mensal: 1,

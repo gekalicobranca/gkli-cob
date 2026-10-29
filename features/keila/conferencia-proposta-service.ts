@@ -31,7 +31,7 @@ export async function gerarConferenciaProposta(db: SupabaseClient, caso: {condom
  const sha256=createHash('sha256').update(buffer).digest('hex')
  if(arquivo.hash_arquivo && arquivo.hash_arquivo.toLowerCase()!==sha256)throw new Error('Hash do relatório diverge do arquivo coletado. Não liberar proposta.')
  const {data: cadastro,error: cobError}=await db.from('cobrancas').select('id,vencimento,valor_atualizado,status_operacional,status_financeiro,duplicada_de_id,observacoes').eq('unidade_id',unidade.id).eq('condominio_id',caso.condominio_id).eq('carteira_id',caso.carteira_id)
- const {data: condominio,error: condoError}=await db.from('condominios').select('nome,administradora,dias_apos_vencimento_regua,despesas_acordo_avista_percentual,despesas_acordo_parcelado_percentual,parcelas_acordo_sem_aprovacao_sindico').eq('id',caso.condominio_id).eq('carteira_id',caso.carteira_id).single()
+ const {data: condominio,error: condoError}=await db.from('condominios').select('nome,administradora,dias_apos_vencimento_regua,despesas_acordo_avista_percentual,despesas_acordo_parcelado_percentual, custo_emissao_boleto,parcelas_acordo_sem_aprovacao_sindico').eq('id',caso.condominio_id).eq('carteira_id',caso.carteira_id).single()
  if(cobError || condoError || !condominio) throw new Error('Não foi possível conciliar cadastro e regras atuais.')
  const manager=/MANAGER|ATENTUM/.test(normalizarManager(condominio.administradora))
  let cotas,fonteManager:ReturnType<typeof lerConferenciaManager>|undefined

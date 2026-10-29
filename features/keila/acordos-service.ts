@@ -14,7 +14,7 @@ export async function proporAcordoKeila(db: SupabaseClient, input: {
   const agenteId = input.agenteId ?? 'keila'
   const caso = await carregarCaso(db, input.casoId, input.carteiraIds, agenteId)
   if (!caso.payload.unidade_ids.includes(input.unidadeId)) throw new Error('Unidade fora do atendimento.')
-  const { data: condominio, error } = await db.from('condominios').select('inicio_cobranca_dias,dias_apos_vencimento_regua,bloqueio_garantidora_habilitado,bloqueio_garantidora_inicio,bloqueio_garantidora_fim,despesas_acordo_avista_percentual,despesas_acordo_parcelado_percentual,parcelas_acordo_sem_aprovacao_sindico')
+  const { data: condominio, error } = await db.from('condominios').select('inicio_cobranca_dias,dias_apos_vencimento_regua,bloqueio_garantidora_habilitado,bloqueio_garantidora_inicio,bloqueio_garantidora_fim,despesas_acordo_avista_percentual,despesas_acordo_parcelado_percentual, custo_emissao_boleto,parcelas_acordo_sem_aprovacao_sindico')
     .eq('id', caso.condominio_id).single()
   if (error) throw error
   const { data: cobrancas, error: erro } = await somenteCobrancasCanonicas(db.from('cobrancas')

@@ -74,6 +74,7 @@ export default async function NovoCondominioPage() {
             <FormField label="Despesas de cobrança à vista (%)"><Input name="despesas_acordo_avista_percentual" type="number" min="0" max="100" step="0.01" required defaultValue="10" /></FormField>
             <FormField label="Despesas de cobrança parcelada (%)"><Input name="despesas_acordo_parcelado_percentual" type="number" min="0" max="100" step="0.01" required defaultValue="20" /></FormField>
             <FormField label="Parcelas permitidas sem aprovação do síndico" hint="0 deixa sempre livre; acima deste número o acordo fica bloqueado até aprovação pública do síndico.">
+            <FormField label="Custo de emissão de boleto (R$)" hint="Zero ou vazio não acrescenta custo ao acordo."><Input name="custo_emissao_boleto" type="number" min="0" step="0.01" defaultValue="0" /></FormField>
               <Input name="parcelas_acordo_sem_aprovacao_sindico" type="number" min="0" defaultValue="0" />
             </FormField>
 

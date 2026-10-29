@@ -6,7 +6,7 @@ import { AGENTES_VIRTUAIS, condominioPilotoLidia, condominioCarteiraLidia, escop
 
 export type KeilaCaso = {
   id: string; carteira_id: string; titulo: string; status: string; updated_at: string; condominio_id: string; payload: KeilaCasoPayload
-  condominio: { nome: string; operacao_virtual_habilitada: boolean; despesas_acordo_avista_percentual: number | null; despesas_acordo_parcelado_percentual: number | null; parcelas_acordo_sem_aprovacao_sindico: number | null } | null
+  condominio: { custo_emissao_boleto?: number | null; nome: string; operacao_virtual_habilitada: boolean; despesas_acordo_avista_percentual: number | null; despesas_acordo_parcelado_percentual: number | null; parcelas_acordo_sem_aprovacao_sindico: number | null } | null
 }
 
 export async function getKeilaCasos(scope: CarteiraScope, casoId?: string, condominioId?: string, agenteId: AgenteVirtualId = 'keila') {
@@ -41,7 +41,7 @@ export async function getKeilaCasos(scope: CarteiraScope, casoId?: string, condo
     condominioId ? applyCarteiraScope(supabase.from('unidades').select('id,condominio_id,identificacao,bloco').eq('condominio_id', condominioId).order('identificacao'), scope.carteiraIds)
       : unidadeIds.length ? applyCarteiraScope(supabase.from('unidades').select('id,condominio_id,identificacao,bloco').in('id', unidadeIds), scope.carteiraIds) : { data: [], error: null },
     execucaoIds.length ? applyCarteiraScope(supabase.from('agente_execucoes').select('id,status,finalizado_em,erro_mensagem,arquivos:agente_arquivos(id,nome_arquivo,status_validacao)').in('id', execucaoIds), scope.carteiraIds) : { data: [], error: null },
-    applyCarteiraScope(supabase.from('condominios').select('id,carteira_id,nome,operacao_virtual_habilitada,despesas_acordo_avista_percentual,despesas_acordo_parcelado_percentual,parcelas_acordo_sem_aprovacao_sindico').eq('status', 'ativo').order('nome'), scope.carteiraIds),
+    applyCarteiraScope(supabase.from('condominios').select('id,carteira_id,nome,operacao_virtual_habilitada,despesas_acordo_avista_percentual,despesas_acordo_parcelado_percentual, custo_emissao_boleto,parcelas_acordo_sem_aprovacao_sindico').eq('status', 'ativo').order('nome'), scope.carteiraIds),
   ])
   for (const result of [unidadesResult, execucoesResult, condominiosResult]) if (result.error) throw new Error(result.error.message)
   const condominios = new Map((condominiosResult.data ?? []).map((c: any) => [c.id, c]))

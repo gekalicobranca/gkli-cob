@@ -216,6 +216,7 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
             <FormField label="Despesas de cobrança à vista (%)"><Input name="despesas_acordo_avista_percentual" type="number" min="0" max="100" step="0.01" required defaultValue={condominio.despesas_acordo_avista_percentual ?? ''} /></FormField>
             <FormField label="Despesas de cobrança parcelada (%)" hint="Use 10% aqui também se essa for a condição do condomínio."><Input name="despesas_acordo_parcelado_percentual" type="number" min="0" max="100" step="0.01" required defaultValue={condominio.despesas_acordo_parcelado_percentual ?? ''} /></FormField>
             <FormField label="Parcelas permitidas sem aprovação do síndico"><Input name="parcelas_acordo_sem_aprovacao_sindico" type="number" min="0" max="120" defaultValue={condominio.parcelas_acordo_sem_aprovacao_sindico ?? 0} /></FormField>
+            <FormField label="Custo de emissão de boleto (R$)" hint="Zero ou vazio não acrescenta custo ao acordo."><Input name="custo_emissao_boleto" type="number" min="0" step="0.01" defaultValue={condominio.custo_emissao_boleto ?? 0} /></FormField>
             <FormField label="Dias para reemissão de parcela de acordo em atraso"><Input name="dias_reemissao_parcela_acordo_atrasada" type="number" min="0" max="365" defaultValue={condominio.dias_reemissao_parcela_acordo_atrasada ?? 0} /></FormField>
           </div>
 
@@ -372,6 +373,7 @@ function HiddenCondominioFields({ condominio, activeTab }: { condominio: any; ac
       <HiddenInput name="dias_cobranca_ativa" value={condominio.dias_cobranca_ativa ?? 60} />
       <HiddenInput name="parcelas_acordo_sem_aprovacao_sindico" value={condominio.parcelas_acordo_sem_aprovacao_sindico ?? 0} />
       <HiddenInput name="dias_reemissao_parcela_acordo_atrasada" value={condominio.dias_reemissao_parcela_acordo_atrasada ?? 0} />
+      <HiddenInput name="custo_emissao_boleto" value={condominio.custo_emissao_boleto ?? 0} />
       <HiddenCheckbox name="pre_juridico_habilitado" checked={Boolean(condominio.pre_juridico_habilitado)} />
       <HiddenCheckbox name="operacao_virtual_habilitada" checked={Boolean(condominio.operacao_virtual_habilitada)} />
       <HiddenCheckbox name="captacao_automatica_habilitada" checked={Boolean(condominio.captacao_automatica_habilitada)} />

@@ -78,7 +78,7 @@ export function calcularDespesasAcordo(
   cotasSemDespesas: string[],
   percentual: number,
   credito: number,
-  pagamento: { quantidadeParcelas: number; entrada: number; jurosAdicional?: boolean },
+  pagamento: { quantidadeParcelas: number; entrada: number; jurosAdicional?: boolean; custoEmissaoBoleto?: number },
 ) {
   const comIsencao = calcularValores(itens, cotasSemDespesas, percentual, credito);
   const pagamentoAVista = (pagamento.quantidadeParcelas === 1 && pagamento.entrada === 0)
@@ -87,17 +87,25 @@ export function calcularDespesasAcordo(
   const valores = isencaoAplicada ? comIsencao : calcularValores(itens, [], percentual, credito);
   const parcelas = calcularParcelamentoAcordo(round(valores.total - pagamento.entrada),
     pagamento.quantidadeParcelas, Boolean(pagamento.jurosAdicional && !pagamentoAVista));
+  const custoEmissaoBoleto = round(Number(pagamento.custoEmissaoBoleto ?? 0));
+  if (!Number.isFinite(custoEmissaoBoleto) || custoEmissaoBoleto < 0) throw new Error("Custo de emissão de boleto inválido.");
+  const quantidadeBoletos = parcelas.length + (pagamento.entrada > 0 && valores.total > 0 ? 1 : 0);
+  const custoBoletos = round(custoEmissaoBoleto * quantidadeBoletos);
+  const entradaComBoleto = round(pagamento.entrada + (pagamento.entrada > 0 && valores.total > 0 ? custoEmissaoBoleto : 0));
+  const custosRateados = ratear(custoBoletos, valores.itens.map((item) => item.total));
   const jurosAdicional = round(parcelas.reduce((total, parcela) => total + parcela.juros, 0));
   const jurosRateados = ratear(jurosAdicional, valores.itens.map((item) => item.total));
   return {
     ...valores,
-    total: round(valores.total + jurosAdicional),
+    total: round(valores.total + jurosAdicional + custoBoletos),
+    custoEmissaoBoleto, quantidadeBoletos, custoBoletos, entradaComBoleto,
     jurosAdicional,
-    parcelas,
+    parcelas: parcelas.map((parcela) => ({ ...parcela, valor: round(parcela.valor + custoEmissaoBoleto) })),
     itens: valores.itens.map((item, index) => ({
       ...item,
       jurosAdicional: jurosRateados[index],
-      total: round(item.total + jurosRateados[index]),
+      custoBoleto: custosRateados[index],
+      total: round(item.total + jurosRateados[index] + custosRateados[index]),
     })),
     pagamentoAVista,
     isencaoAplicada,

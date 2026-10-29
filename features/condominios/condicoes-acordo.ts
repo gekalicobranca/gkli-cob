@@ -9,7 +9,18 @@ export function percentualDespesas(value: unknown): number {
 }
 
 export function condicoesAcordoPayload(formData: FormData) {
-  return Object.fromEntries(['despesas_acordo_avista_percentual', 'despesas_acordo_parcelado_percentual']
+  const percentuais = Object.fromEntries(['despesas_acordo_avista_percentual', 'despesas_acordo_parcelado_percentual']
     .filter(campo => formData.has(campo))
     .map(campo => [campo, percentualDespesas(formData.get(campo))]))
+  return { ...percentuais, ...(formData.has('custo_emissao_boleto')
+    ? { custo_emissao_boleto: custoEmissaoBoleto(formData.get('custo_emissao_boleto')) } : {}) }
+}
+
+export function custoEmissaoBoleto(value: unknown): number {
+  const texto = String(value ?? '').trim().replace(',', '.')
+  if (!texto) return 0
+  const valor = Number(texto)
+  if (!Number.isFinite(valor) || valor < 0 || valor > 999999999999.99 || Math.abs(valor * 100 - Math.round(valor * 100)) > 0.000001)
+    throw new Error('Informe o custo de emissão de boleto com até duas casas decimais e valor maior ou igual a zero.')
+  return Math.round(valor * 100) / 100
 }

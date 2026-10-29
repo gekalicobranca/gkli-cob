@@ -41,7 +41,7 @@ type CobrancaOption = {
   status: string;
   status_operacional?: string | null;
   status_financeiro?: string | null;
-  condominios?: { nome: string; parcelas_acordo_sem_aprovacao_sindico?: number | null; dias_reemissao_parcela_acordo_atrasada?: number | null } | null;
+  condominios?: { nome: string; custo_emissao_boleto?: number | null; parcelas_acordo_sem_aprovacao_sindico?: number | null; dias_reemissao_parcela_acordo_atrasada?: number | null } | null;
   unidades?: {
     id?: string | null;
     identificacao: string;
@@ -231,11 +231,11 @@ export function AcordoSimulatorForm({
     const calculo = calcularDespesasAcordo(
       cobrancasSelecionadas.map((item) => ({ id: item.id, valor: getValorAtualizado(item) })),
       cotasSemDespesas, percentualDespesa, creditoUtilizado,
-      { quantidadeParcelas: Math.max(1, Math.floor(Number(quantidadeParcelas)) || 1), entrada: parseMoney(entrada), jurosAdicional },
+      { quantidadeParcelas: Math.max(1, Math.floor(Number(quantidadeParcelas)) || 1), entrada: parseMoney(entrada), jurosAdicional, custoEmissaoBoleto: Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0) },
     );
     const despesaCobranca = calculo.despesa;
     const total = calculo.total;
-    const entradaNumber = parseMoney(entrada);
+    const entradaNumber = calculo.entradaComBoleto;
     const parcelasCount = Math.max(1, Math.floor(Number(quantidadeParcelas)) || 1);
     const saldo = Math.max(0, roundMoney(total - entradaNumber));
     const startDate = primeiroVencimento
@@ -268,6 +268,8 @@ export function AcordoSimulatorForm({
       valorAposCredito,
       percentualDespesa,
       despesaCobranca,
+      custoBoletos: calculo.custoBoletos,
+      quantidadeBoletos: calculo.quantidadeBoletos,
       total,
       entrada: entradaNumber,
       entradaVencimento,
@@ -285,6 +287,7 @@ export function AcordoSimulatorForm({
     usarCreditoAdministradora,
     jurosAdicional,
     cobrancaSelecionada?.unidades?.credito_administradora,
+    cobrancaSelecionada?.condominios?.custo_emissao_boleto,
   ]);
 
   const insight = calculateAgreementInsight({
@@ -306,12 +309,12 @@ export function AcordoSimulatorForm({
       valor: calcularDespesasAcordo(
         cobrancasSelecionadas.map((item) => ({ id: item.id, valor: getValorAtualizado(item) })),
         cotasSemDespesas, preview.percentualDespesa, preview.creditoUtilizado,
-        { quantidadeParcelas: parcelas, entrada: preview.entrada, jurosAdicional },
+        { quantidadeParcelas: parcelas, entrada: parseMoney(entrada), jurosAdicional, custoEmissaoBoleto: Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0) },
       ).parcelas[0]?.valor ?? 0,
       exigeSindico: limiteParcelasSemSindico > 0 && parcelas > limiteParcelasSemSindico,
     }));
   }, [cobrancasSelecionadas, cotasSemDespesas, preview.percentualDespesa, preview.creditoUtilizado,
-    preview.entrada, jurosAdicional, limiteParcelasSemSindico, parcelasInformadas]);
+    entrada, cobrancaSelecionada?.condominios?.custo_emissao_boleto, jurosAdicional, limiteParcelasSemSindico, parcelasInformadas]);
 
   function handleCobrancaChange(value: string) {
     setCobrancaId(value);
@@ -366,6 +369,7 @@ export function AcordoSimulatorForm({
       ...(cotasSemDespesas.length ? [preview.isencaoAplicada
         ? "Cota do mês à vista, sem despesas de cobrança, com autorização da administradora."
         : "Cota do mês incluída com despesas de cobrança: pagamento parcelado."] : []),
+      `Emissão de ${preview.quantidadeBoletos} boleto(s): ${formatCurrency(preview.custoBoletos)}`,
       `Despesa de cobrança (${preview.percentualDespesa.toLocaleString("pt-BR")}%): ${formatCurrency(preview.despesaCobranca)}`,
       ...(preview.jurosAdicional > 0 ? [`Juros adicionais (Tabela Price, 1% ao mês sobre o saldo devedor): ${formatCurrency(preview.jurosAdicional)}`] : []),
       `Valor total proposto: ${formatCurrency(preview.total)}`,
@@ -633,11 +637,11 @@ export function AcordoSimulatorForm({
           />
 
           <FormField
-            label="Entrada"
+            label="Entrada (sem custo do boleto)"
             hint="Quando preenchida, gera acompanhamento próprio da entrada."
           >
             <Input
-              aria-label="Entrada" name="entrada"
+              aria-label="Entrada (sem custo do boleto)" name="entrada"
               value={entrada}
               onChange={(
                 event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -764,6 +768,12 @@ export function AcordoSimulatorForm({
                 {formatCurrency(preview.despesaCobranca)}
               </strong>
             </div>
+            {preview.custoBoletos > 0 ? (
+              <div className="flex justify-between rounded-2xl bg-slate-50 p-4">
+                <span className="text-sm text-slate-500">Emissão de {preview.quantidadeBoletos} boleto(s){parseMoney(entrada) > 0 ? ", incluindo a entrada" : ""}</span>
+                <strong className="text-sm text-slate-950">{formatCurrency(preview.custoBoletos)}</strong>
+              </div>
+            ) : null}
             {preview.jurosAdicional > 0 ? (
               <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
                 <span className="text-sm text-slate-500">Juros Price (1% ao mês)</span>
