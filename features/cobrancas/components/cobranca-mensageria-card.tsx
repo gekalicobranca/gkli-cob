@@ -1,30 +1,15 @@
-import { Card } from '@/components/ui/card'
 import { ButtonLink } from '@/components/ui/button'
 import { StatusBadge } from '@/components/data/status-badge'
 import { formatDateBR } from '@/utils/formatters/date'
-import { primeiroCelularValido } from '@/lib/core/telefone'
 
-export function CobrancaMensageriaCard({ mensagens, telefone, responsavel }: { mensagens: any[]; telefone?: string | null; responsavel?: string | null }) {
+export function CobrancaMensageriaCard({ mensagens }: { mensagens: any[]; telefone?: string | null; responsavel?: string | null }) {
   const last = mensagens[0]
-  const whatsappDigits = primeiroCelularValido(telefone)
-  const whatsappHref = whatsappDigits
-    ? `https://wa.me/${whatsappDigits}`
-    : null
 
   return (
-    <Card>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-950">Mensageria</h2>
-          <p className="mt-1 text-sm text-slate-500">Últimos disparos e atalho de contato.</p>
-        </div>
-        {whatsappHref ? (
-          <ButtonLink href={whatsappHref} target="_blank" size="sm">WhatsApp</ButtonLink>
-        ) : null}
-      </div>
+    <details className="rounded-xl border border-slate-200 bg-white p-4">
+      <summary className="cursor-pointer text-sm font-semibold">Mensagens ({mensagens.length})</summary>
 
       <div className="mt-4 space-y-3">
-        <p className="text-sm text-slate-600">Contato: {responsavel ?? 'responsável'} · {telefone ?? 'telefone não informado'}</p>
         {last ? (
           <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -38,6 +23,6 @@ export function CobrancaMensageriaCard({ mensagens, telefone, responsavel }: { m
         )}
         <ButtonLink href="/app/mensageria" variant="secondary" size="sm">Abrir mensageria</ButtonLink>
       </div>
-    </Card>
+    </details>
   )
 }

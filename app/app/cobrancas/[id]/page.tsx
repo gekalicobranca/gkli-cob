@@ -38,7 +38,7 @@ import {
 
 type PageProps = {
   params: Promise<{ id: string }>
-  searchParams?: Promise<{ acao?: string; planilha?: string }>
+  searchParams?: Promise<{ acao?: string; planilha?: string; origem?: string }>
 }
 
 function asNumber(value: unknown) {
@@ -154,6 +154,7 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
         nextAction={nextAction}
         acordoVigenteId={acordoVigente?.id ?? null}
         canCreateAcordo={canCreateAcordo}
+        backHref={query.origem === 'inbox-lite' ? '/app/inbox' : '/app/cobrancas'}
       />
 
       {query.planilha === 'solicitada' || query.planilha === 'existente' ? (
@@ -208,20 +209,12 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
             <summary className="cursor-pointer text-sm font-semibold">Histórico de contatos e eventos ({eventosOperacionais.length + interacoes.length})</summary>
             <div className="mt-3"><CobrancaTimeline eventos={eventosOperacionais} interacoes={interacoes} /></div>
           </details>
-          <details className="rounded-xl border border-slate-200 bg-white p-4">
-            <summary className="cursor-pointer text-sm font-semibold">Mensagens ({mensagens.length})</summary>
-            <div className="mt-3">
           <CobrancaMensageriaCard
             mensagens={mensagens}
             telefone={cobranca.unidades?.telefone}
             responsavel={cobranca.unidades?.responsavel_nome}
           />
-            </div>
-          </details>
-          <details className="rounded-xl border border-slate-200 bg-white p-4">
-            <summary className="cursor-pointer text-sm font-semibold">Régua, condomínio e observações</summary>
-            <div className="mt-3"><CobrancaSideCards cobranca={cobranca} acordoVigente={acordoVigente} statusOperacional={statusOperacional} /></div>
-          </details>
+          <CobrancaSideCards cobranca={cobranca} acordoVigente={acordoVigente} statusOperacional={statusOperacional} />
       </section>
     </div>
   )

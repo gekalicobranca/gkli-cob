@@ -32,7 +32,6 @@ function buildWhatsappHref(params: {
 export function CobrancaQuickActions({
   cobranca,
   canCreateAcordo,
-  defaultAction,
   updateStatusAction,
   createInteracaoAction,
   agendarRetornoAction,
@@ -53,8 +52,9 @@ export function CobrancaQuickActions({
   });
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <details open className="rounded-xl border border-slate-200 bg-white p-4">
+      <summary className="cursor-pointer text-sm font-semibold text-slate-950">Responsável e contato</summary>
+      <div className="mt-3">
         <div>
           <h2 className="text-base font-semibold text-slate-950">
             {cobranca.unidades?.responsavel_nome || "Responsável não informado"}
@@ -65,11 +65,6 @@ export function CobrancaQuickActions({
             {cobranca.unidades?.responsavel_documento ? <span>Documento: {cobranca.unidades.responsavel_documento}</span> : null}
           </div>
         </div>
-        {defaultAction ? (
-          <span className="rounded-full bg-[var(--gkli-primary-light)] px-3 py-1.5 text-xs font-medium text-[var(--gkli-primary)]">
-            Foco: {defaultAction}
-          </span>
-        ) : null}
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -152,7 +147,7 @@ export function CobrancaQuickActions({
             name="carteira_id"
             value={cobranca.carteira_id}
           />
-          <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
+          <div className="space-y-2">
             <select
               name="tipo"
               aria-label="Tipo de contato"
@@ -194,7 +189,7 @@ export function CobrancaQuickActions({
             name="carteira_id"
             value={cobranca.carteira_id}
           />
-          <div className="grid gap-3 sm:grid-cols-[190px_1fr]">
+          <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">
               Retorno
               <input
@@ -221,6 +216,6 @@ export function CobrancaQuickActions({
         </form>
         </details>
       </div>
-    </section>
+    </details>
   );
 }

@@ -19,9 +19,9 @@ export function CobrancaStatusActions({
 }) {
   return (
     <div className={compact ? '' : 'grid gap-6 xl:grid-cols-2'}>
-      <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">Atualizar status</h2>
-        <form action={updateStatusAction} className="mt-4 flex flex-col gap-3">
+      <div className={compact ? '' : 'rounded-3xl border border-slate-100 bg-white p-5 shadow-sm'}>
+        {!compact ? <h2 className="text-lg font-semibold text-slate-950">Atualizar status</h2> : null}
+        <form action={updateStatusAction} className="flex flex-col gap-3">
           <input type="hidden" name="cobranca_id" value={cobranca.id} />
           <select name="status" defaultValue={statusOperacional} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none">
             {COBRANCA_STATUS_OPERACIONAL_LIST.map((status) => (

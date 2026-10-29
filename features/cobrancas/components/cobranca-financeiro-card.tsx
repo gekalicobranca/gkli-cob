@@ -1,4 +1,3 @@
-import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -9,7 +8,7 @@ function moneyInput(value: number) {
 
 function Field({ name, label, value }: { name: string; label: string; value: number }) {
   return (
-    <label className="space-y-1 text-xs font-medium text-slate-500">
+    <label className="block space-y-1 text-sm font-medium text-slate-600">
       {label}
       <input name={name} defaultValue={moneyInput(value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none" />
     </label>
@@ -49,12 +48,8 @@ export function CobrancaFinanceiroCard({
   updateAction: (formData: FormData) => Promise<void>
 }) {
   return (
-    <Card className="p-4">
-      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-950">Composição financeira</h2>
-        </div>
-      </div>
+    <details className="rounded-xl border border-slate-200 bg-white p-4">
+      <summary className="cursor-pointer text-sm font-semibold text-slate-950">Composição financeira</summary>
 
       <div className="mt-2">
         <ValueBox label="Principal" value={formatCurrency(principal)} />
@@ -63,8 +58,7 @@ export function CobrancaFinanceiroCard({
         <ValueBox label="Correção" value={formatCurrency(correcao)} />
         <ValueBox label="Total atualizado" value={formatCurrency(valorAtualizado)} />
         <ValueBox label="Desconto" value={formatCurrency(desconto)} />
-        <ValueBox label="Despesa cobrança sugerida" value="10%" />
-        <ValueBox label="Valor despesa" value={formatCurrency(despesaCobranca)} />
+        <ValueBox label="Despesa de cobrança sugerida (10%)" value={formatCurrency(despesaCobranca)} />
         <ValueBox label="Valor negociação" value={formatCurrency(valorNegociacao)} highlight />
       </div>
 
@@ -72,8 +66,7 @@ export function CobrancaFinanceiroCard({
         <summary className="cursor-pointer text-sm font-medium text-cyan-800">Editar valores</summary>
       <form action={updateAction} className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
         <input type="hidden" name="cobranca_id" value={cobranca.id} />
-        <h3 className="text-sm font-semibold text-slate-950">Editar valores da cobrança</h3>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="space-y-3">
           <Field name="valor_original" label="Principal" value={principal} />
           <Field name="juros" label="Juros" value={juros} />
           <Field name="multa" label="Multa" value={multa} />
@@ -86,6 +79,6 @@ export function CobrancaFinanceiroCard({
         <div className="mt-4 flex justify-end"><Button type="submit">Salvar valores</Button></div>
       </form>
       </details>
-    </Card>
+    </details>
   )
 }

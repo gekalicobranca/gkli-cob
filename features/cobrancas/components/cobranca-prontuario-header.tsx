@@ -17,6 +17,7 @@ export function CobrancaProntuarioHeader({
   cobranca,
   statusOperacional,
   acordoVigenteId,
+  backHref = '/app/cobrancas',
 }: {
   cobranca: any;
   statusOperacional: string;
@@ -25,6 +26,7 @@ export function CobrancaProntuarioHeader({
   nextAction: CobrancaNextAction;
   acordoVigenteId?: string | null;
   canCreateAcordo: boolean;
+  backHref?: string;
 }) {
   return (
     <div
@@ -63,7 +65,7 @@ export function CobrancaProntuarioHeader({
               Ver acordo
             </ButtonLink>
           ) : null}
-          <ButtonLink href="/app/cobrancas" variant="header">
+          <ButtonLink href={backHref} variant="header">
             Voltar
           </ButtonLink>
         </div>

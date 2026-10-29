@@ -1,5 +1,3 @@
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { ButtonLink } from '@/components/ui/button'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -15,18 +13,17 @@ function destinatarioLabel(value?: string | null) {
   return 'Proprietário'
 }
 
-export function CobrancaSideCards({ cobranca, acordoVigente, statusOperacional }: { cobranca: any; acordoVigente: any; statusOperacional: string }) {
+export function CobrancaSideCards({ cobranca, acordoVigente }: { cobranca: any; acordoVigente: any; statusOperacional: string }) {
   const regua = acordoVigente ? cobranca.regua_acordo : cobranca.regua_cobranca
   const tipoRegua = acordoVigente ? 'acordo' : 'cobrança'
   const reguaPadraoNome = acordoVigente ? 'Padrão interno de acordos' : 'Padrão interno de cobrança'
   const reguaTitulo = acordoVigente ? 'Régua de acordo' : 'Régua de cobrança'
-  const etapaAtual = acordoVigente ? 'Acompanhamento do acordo' : statusOperacional === 'novo' ? 'Entrada na régua' : statusOperacional
 
   return (
     <div className="space-y-4">
       {acordoVigente ? (
-        <Card className="border-emerald-100 bg-emerald-50/60">
-          <h2 className="text-lg font-semibold text-emerald-950">Acordo vigente</h2>
+        <details className="rounded-xl border border-slate-200 bg-white p-4">
+          <summary className="cursor-pointer text-sm font-semibold">Acordo vinculado</summary>
           <div className="mt-4 space-y-2 text-sm text-emerald-900">
             <p>Status: {acordoVigente.status}</p>
             <p>Valor acordado: {formatCurrency(asNumber(acordoVigente.valor_acordado))}</p>
@@ -35,21 +32,14 @@ export function CobrancaSideCards({ cobranca, acordoVigente, statusOperacional }
             <p>Saldo em aberto: {formatCurrency(asNumber(acordoVigente.saldo_aberto))}</p>
             <p>Próxima parcela: {acordoVigente.proxima_parcela ? `${formatCurrency(asNumber(acordoVigente.proxima_parcela.valor))} em ${formatDateBR(acordoVigente.proxima_parcela.vencimento)}` : '-'}</p>
           </div>
-          <div className="mt-4"><ButtonLink href={`/app/acordos/${acordoVigente.id}`} size="sm">Abrir acordo</ButtonLink></div>
-        </Card>
+        </details>
       ) : null}
 
-      <Card>
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-950">{reguaTitulo}</h2>
-          <Badge tone={regua ? 'green' : 'slate'}>{regua ? 'Condomínio' : 'Padrão'}</Badge>
-        </div>
+      <details className="rounded-xl border border-slate-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold">{reguaTitulo}</summary>
         <div className="mt-4 space-y-2 text-sm text-slate-600">
           <p>Régua aplicada: <span className="font-medium text-slate-900">{regua?.nome ?? reguaPadraoNome}</span></p>
-          <p>Origem: {regua ? 'vínculo do condomínio' : 'fallback operacional'}</p>
           <p>Destinatário: {destinatarioLabel(regua?.destinatario_preferencial)}</p>
-          <p>Etapa atual: {etapaAtual}</p>
-          <p>Próxima ação: {acordoVigente ? 'monitorar vencimento das parcelas' : 'revisar contato / disparo'}</p>
         </div>
         {regua?.id ? (
           <div className="mt-4">
@@ -58,20 +48,20 @@ export function CobrancaSideCards({ cobranca, acordoVigente, statusOperacional }
         ) : (
           <p className="mt-4 text-xs leading-5 text-slate-500">Sem régua de {tipoRegua} vinculada ao condomínio.</p>
         )}
-      </Card>
+      </details>
 
-      <Card>
-        <h2 className="text-lg font-semibold text-slate-950">Condomínio</h2>
+      <details className="rounded-xl border border-slate-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold">Dados do condomínio</summary>
         <div className="mt-4 space-y-2 text-sm text-slate-600">
           <p>CNPJ: {cobranca.condominios?.cnpj ?? '-'}</p>
           <p>Administradora: {cobranca.condominios?.administradora ?? '-'}</p>
         </div>
-      </Card>
+      </details>
 
-      <Card>
-        <h2 className="text-lg font-semibold text-slate-950">Observações</h2>
+      {cobranca.observacoes ? <details className="rounded-xl border border-slate-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold">Observações</summary>
         <p className="mt-2 text-sm leading-6 text-slate-600">{cobranca.observacoes ?? 'Nenhuma observação registrada.'}</p>
-      </Card>
+      </details> : null}
     </div>
   )
 }
