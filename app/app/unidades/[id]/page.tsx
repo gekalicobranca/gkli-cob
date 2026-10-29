@@ -113,6 +113,7 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2"><StatusBadge status={getCobrancaStatusOperacional(cobranca)} /><span className="text-xs text-slate-500">{formatDateBR(cobranca.vencimento)}</span></div>
                     <p className="mt-1 text-sm font-medium text-slate-950">{formatCurrency(Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0))}</p>
+                    {cobranca.duplicada_de_id ? <p className="mt-1 text-xs text-slate-500">Cópia arquivada por duplicidade · preservada no histórico</p> : null}
                   </div>
                   <ArrowUpRight size={15} className="shrink-0 text-slate-400 group-hover:text-[var(--gkli-primary)]" />
                 </Link>

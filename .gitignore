@@ -23,3 +23,7 @@ restore-work/
 .whatsapp-web/
 public/processos/
 .local/
+
+# Sessões privadas de operadores locais
+.keila-local/
+.lidia-local/

@@ -77,6 +77,7 @@ async function main() {
     observacoesComRecibo: () => '',
     conciliarCobrancaImportada: async () => ({ status: 'nova' }),
     statusOperacionalParaCobrancaImportada: async () => 'novo',
+    isImportacaoAcordoHflex: () => false, bloquearAutomacaoAcordoHflex: async () => {},
     criarContextoClassificacaoJudicial: () => ({ unidadesJudiciais: new Map() }),
     reclassificarCobrancaJudicialImportada: async () => false,
     statusComBloqueioGarantidora: (status: string) => status,

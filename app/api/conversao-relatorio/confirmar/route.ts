@@ -10,7 +10,7 @@ import {
 } from "@/features/importacoes/cobrancas-conciliacao"
 import { formatOrigemImportacao } from "@/features/importacoes/origem-importacao"
 import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
-import { statusOperacionalParaCobrancaImportada } from "@/features/importacoes/status-cobranca-importada"
+import { bloquearAutomacaoAcordoHflex, isImportacaoAcordoHflex, statusOperacionalParaCobrancaImportada } from "@/features/importacoes/status-cobranca-importada"
 import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "@/features/importacoes/regra-judicial-importacao"
 import { associarCobrancaConciliada } from "@/features/importacoes/reaproveitar-conversao"
 import { observacoesComComposicao, persistirComposicaoConciliada } from "@/features/importacoes/composicao-origem"
@@ -403,6 +403,7 @@ export async function POST(request: NextRequest) {
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao)
 
       if (conciliacao.status === "ja_existente") {
+        await bloquearAutomacaoAcordoHflex(supabase, conciliacao.cobrancaId, item)
         await persistirComposicaoConciliada(supabase, conciliacao.cobrancaId, {
           condominioId, carteiraId, recibo, vencimento: vencimentoMaisAntigo,
         }, item)
@@ -484,6 +485,7 @@ export async function POST(request: NextRequest) {
           status: statusOperacional,
           status_operacional: statusOperacional,
           status_financeiro: "em_aberto",
+          automacao_bloqueada: isImportacaoAcordoHflex(item),
           observacoes,
           origem_importacao: origemImportacao,
           conversao_relatorio_id: conversaoId,

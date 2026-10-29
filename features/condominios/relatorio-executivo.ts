@@ -199,9 +199,9 @@ function quantity(value: unknown, suffix: string) {
 function money(value: unknown) {
   return value === null || value === undefined || value === '' ? 'Não informado' : formatCurrency(Number(value));
 }
-function month(value: unknown) {
-  const match = String(value ?? '').match(/^(\d{4})-(\d{2})/);
-  return match ? `${match[2]}/${match[1]}` : 'Não informado';
+function dataBloqueio(value: unknown) {
+  const match = String(value ?? '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : 'Não informado';
 }
 
 // Wrap at measured font widths; split long tokens without dropping any text.
@@ -376,7 +376,7 @@ export function montarRelatorioCondominios(
     fields([
       ['Operação virtual habilitada', flag(row.operacao_virtual_habilitada)], ['Captação automática habilitada', flag(row.captacao_automatica_habilitada)],
       ['Agenda mensal da captação (São Paulo)', row.captacao_dia_mes || row.captacao_horario ? `Dia ${display(row.captacao_dia_mes)} - ${display(row.captacao_horario ? String(row.captacao_horario).slice(0, 5) : null)}` : 'Não informado'], ['Bloqueio garantidora habilitado', flag(row.bloqueio_garantidora_habilitado)],
-      ['Competências do bloqueio garantidora', row.bloqueio_garantidora_inicio || row.bloqueio_garantidora_fim ? `${month(row.bloqueio_garantidora_inicio)} a ${month(row.bloqueio_garantidora_fim)}` : 'Não informado'],
+      ['Vencimentos do bloqueio garantidora', row.bloqueio_garantidora_inicio || row.bloqueio_garantidora_fim ? `${dataBloqueio(row.bloqueio_garantidora_inicio)} a ${dataBloqueio(row.bloqueio_garantidora_fim)}` : 'Não informado'],
       ['Receita de agente remoto configurada', row.agente_remoto_status === 'configurado' ? 'Sim' : row.agente_remoto_status === 'nao_configurado' ? 'Não' : row.agente_remoto_status === 'indisponivel' ? 'Não foi possível verificar' : 'Não informado'],
     ]);
     if (row.observacoes) {

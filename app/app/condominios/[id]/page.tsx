@@ -252,11 +252,11 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <label className="flex items-start gap-3 text-sm text-slate-700">
               <input type="checkbox" name="bloqueio_garantidora_habilitado" defaultChecked={Boolean(condominio.bloqueio_garantidora_habilitado)} className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" />
-              <span><span className="block font-medium text-slate-950">Bloqueio Garantidora</span><span className="mt-1 block text-xs leading-5 text-slate-600">Cotas com competência dentro do período serão importadas como suspensas e não entrarão na régua de cobrança.</span></span>
+              <span><span className="block font-medium text-slate-950">Bloqueio Garantidora</span><span className="mt-1 block text-xs leading-5 text-slate-600">Cotas com vencimento entre as datas informadas, inclusive os limites, serão importadas como suspensas e não entrarão na régua de cobrança.</span></span>
             </label>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <FormField label="Mês inicial"><Input name="bloqueio_garantidora_inicio" type="month" defaultValue={String(condominio.bloqueio_garantidora_inicio ?? '').slice(0, 7)} /></FormField>
-              <FormField label="Mês final"><Input name="bloqueio_garantidora_fim" type="month" defaultValue={String(condominio.bloqueio_garantidora_fim ?? '').slice(0, 7)} /></FormField>
+              <FormField label="Data inicial"><Input name="bloqueio_garantidora_inicio" type="date" defaultValue={String(condominio.bloqueio_garantidora_inicio ?? '').slice(0, 10)} /></FormField>
+              <FormField label="Data final"><Input name="bloqueio_garantidora_fim" type="date" defaultValue={String(condominio.bloqueio_garantidora_fim ?? '').slice(0, 10)} /></FormField>
             </div>
           </div>
 
@@ -380,8 +380,8 @@ function HiddenCondominioFields({ condominio, activeTab }: { condominio: any; ac
       <HiddenInput name="captacao_dia_mes" value={condominio.captacao_dia_mes} />
       <HiddenInput name="captacao_horario" value={String(condominio.captacao_horario ?? '08:00').slice(0, 5)} />
       <HiddenCheckbox name="bloqueio_garantidora_habilitado" checked={Boolean(condominio.bloqueio_garantidora_habilitado)} />
-      <HiddenInput name="bloqueio_garantidora_inicio" value={String(condominio.bloqueio_garantidora_inicio ?? '').slice(0, 7)} />
-      <HiddenInput name="bloqueio_garantidora_fim" value={String(condominio.bloqueio_garantidora_fim ?? '').slice(0, 7)} />
+      <HiddenInput name="bloqueio_garantidora_inicio" value={String(condominio.bloqueio_garantidora_inicio ?? '').slice(0, 10)} />
+      <HiddenInput name="bloqueio_garantidora_fim" value={String(condominio.bloqueio_garantidora_fim ?? '').slice(0, 10)} />
     </> : null}
     {activeTab !== 'reguas' ? <>
       <HiddenInput name="regua_cobranca_id" value={condominio.regua_cobranca_id} />

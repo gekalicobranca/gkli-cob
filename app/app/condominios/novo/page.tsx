@@ -73,6 +73,7 @@ export default async function NovoCondominioPage() {
 
             <FormField label="Despesas de cobrança à vista (%)"><Input name="despesas_acordo_avista_percentual" type="number" min="0" max="100" step="0.01" required defaultValue="10" /></FormField>
             <FormField label="Despesas de cobrança parcelada (%)"><Input name="despesas_acordo_parcelado_percentual" type="number" min="0" max="100" step="0.01" required defaultValue="20" /></FormField>
+            <FormField label="Custo de emissão de boleto (R$)" hint="Zero ou vazio não acrescenta custo ao acordo."><Input name="custo_emissao_boleto" type="number" min="0" step="0.01" defaultValue="0" /></FormField>
             <FormField label="Parcelas permitidas sem aprovação do síndico" hint="0 deixa sempre livre; acima deste número o acordo fica bloqueado até aprovação pública do síndico.">
             <FormField label="Custo de emissão de boleto (R$)" hint="Zero ou vazio não acrescenta custo ao acordo."><Input name="custo_emissao_boleto" type="number" min="0" step="0.01" defaultValue="0" /></FormField>
               <Input name="parcelas_acordo_sem_aprovacao_sindico" type="number" min="0" defaultValue="0" />
@@ -153,11 +154,11 @@ export default async function NovoCondominioPage() {
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <label className="flex items-start gap-3 text-sm text-slate-700">
               <input type="checkbox" name="bloqueio_garantidora_habilitado" className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" />
-              <span><span className="block font-medium text-slate-950">Bloqueio Garantidora</span><span className="mt-1 block text-xs leading-5 text-slate-600">Cotas do período informado serão importadas como suspensas e ficarão fora da régua.</span></span>
+              <span><span className="block font-medium text-slate-950">Bloqueio Garantidora</span><span className="mt-1 block text-xs leading-5 text-slate-600">Cotas com vencimento entre as datas informadas, inclusive os limites, serão importadas como suspensas e ficarão fora da régua.</span></span>
             </label>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <FormField label="Mês inicial"><Input name="bloqueio_garantidora_inicio" type="month" /></FormField>
-              <FormField label="Mês final"><Input name="bloqueio_garantidora_fim" type="month" /></FormField>
+              <FormField label="Data inicial"><Input name="bloqueio_garantidora_inicio" type="date" /></FormField>
+              <FormField label="Data final"><Input name="bloqueio_garantidora_fim" type="date" /></FormField>
             </div>
           </div>
 

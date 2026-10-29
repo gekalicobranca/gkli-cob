@@ -6,18 +6,13 @@ export type ConfiguracaoBloqueioGarantidora = {
   bloqueio_garantidora_fim?: string | null
 }
 
-function mesReferencia(value: unknown) {
+export function normalizarDataBloqueio(value: unknown) {
   const text = String(value ?? '').trim()
-  let match = text.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/)
-  if (match) return Number(match[1]) * 100 + Number(match[2])
-
-  match = text.match(/^(\d{2})\/(\d{4})$/)
-  if (match) return Number(match[2]) * 100 + Number(match[1])
-
-  match = text.match(/^\d{2}\/(\d{2})\/(\d{4})$/)
-  if (match) return Number(match[2]) * 100 + Number(match[1])
-
-  return null
+  const br = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  const iso = br ? `${br[3]}-${br[2]}-${br[1]}` : text
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null
+  const data = new Date(`${iso}T00:00:00.000Z`)
+  return Number.isFinite(data.getTime()) && data.toISOString().slice(0, 10) === iso ? iso : null
 }
 
 export function avaliarBloqueioGarantidora(
@@ -26,10 +21,13 @@ export function avaliarBloqueioGarantidora(
 ) {
   if (!configuracao?.bloqueio_garantidora_habilitado) return { bloqueada: false, competencia: null as number | null }
 
-  const inicio = mesReferencia(configuracao.bloqueio_garantidora_inicio)
-  const fim = mesReferencia(configuracao.bloqueio_garantidora_fim)
-  const competencia = mesReferencia(cobranca.competencia) ?? mesReferencia(cobranca.vencimento)
-  const bloqueada = inicio !== null && fim !== null && competencia !== null && competencia >= inicio && competencia <= fim
+  const inicio = normalizarDataBloqueio(configuracao.bloqueio_garantidora_inicio)
+  const fim = normalizarDataBloqueio(configuracao.bloqueio_garantidora_fim)
+  const vencimento = normalizarDataBloqueio(cobranca.vencimento)
+  if (!inicio || !fim || inicio > fim) throw new Error('Período do Bloqueio Garantidora inválido. Informe datas completas.')
+  if (!vencimento) throw new Error('Vencimento inválido para conferir o Bloqueio Garantidora. A competência mensal não substitui a data.')
+  const competencia = Number(vencimento.slice(0, 7).replace('-', ''))
+  const bloqueada = vencimento >= inicio && vencimento <= fim
   return { bloqueada, competencia }
 }
 
@@ -40,6 +38,6 @@ export function statusComBloqueioGarantidora(statusAtual: string, bloqueada: boo
 export function observacaoComBloqueioGarantidora(observacoes: unknown, bloqueada: boolean) {
   const atual = String(observacoes ?? '').trim()
   if (!bloqueada) return atual || null
-  const marcador = 'Suspensa automaticamente: competência abrangida pelo Bloqueio Garantidora.'
+  const marcador = 'Suspensa automaticamente: vencimento abrangido pelo Bloqueio Garantidora.'
   return atual ? `${atual} | ${marcador}` : marcador
 }

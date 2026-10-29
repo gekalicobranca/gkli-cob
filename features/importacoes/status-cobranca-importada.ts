@@ -9,6 +9,19 @@ type SupabaseLike = {
   from: (table: string) => any;
 };
 
+/** O relatório informa o vínculo, mas não distingue proposta, acordo e pagamento. */
+export function isImportacaoAcordoHflex(payload: Record<string, any> | null | undefined) {
+  return /\bAcordo HFlex \d+\b/i.test(String(payload?.detalhesOrigem ?? '') + ' ' + String(payload?.observacoes ?? ''));
+}
+
+/** Um vínculo novo na origem exige revisão também para cobranças já conciliadas. */
+export async function bloquearAutomacaoAcordoHflex(supabase: SupabaseLike, cobrancaId: string, payload: Record<string, any>) {
+  if (!isImportacaoAcordoHflex(payload)) return;
+  const { error } = await supabase.from('cobrancas').update({ automacao_bloqueada: true })
+    .eq('id', cobrancaId).is('duplicada_de_id', null);
+  if (error) throw new Error('Erro ao bloquear automação da cota em acordo HFlex: ' + error.message);
+}
+
 function textFromParts(parts: unknown[]) {
   return parts
     .map((part) => String(part ?? ""))
@@ -87,6 +100,7 @@ export async function statusOperacionalParaCobrancaImportada(
       ? COBRANCA_STATUS_OPERACIONAL.NOVO
       : COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO;
   }
+  if (isImportacaoAcordoHflex(payload)) return COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO;
   if (!isImportacaoPossivelAcordo(payload)) return COBRANCA_STATUS_OPERACIONAL.NOVO;
 
   const temAcordo = await unidadeTemAcordoVigente(supabase, String(payload.unidade_id ?? ""));

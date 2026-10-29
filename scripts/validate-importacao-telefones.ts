@@ -9,6 +9,7 @@ import {
   TELEFONE_KEYS, SINDICO_CELULAR_KEYS, GERENTE_CELULAR_KEYS,
 } from '../features/importacoes/telefones'
 import * as previewRules from '../features/importacoes/preview-rules'
+import { resolverCorrespondenciasUnidade } from '../lib/core/identidade-unidade'
 
 test('valida DDD, máscara, tipo de linha e prefixos sem confundir DDD 55 com país', () => {
   for (const [raw, expected] of [
@@ -75,7 +76,7 @@ function actionContext() {
   assert.equal(functions.match(/(?:async )?function /g)?.length, names.length)
   const condominio = { id: 'condominio', carteira_id: 'carteira', cnpj: '12345678000199' }
   const context = vm.createContext({
-    ...previewRules,
+    ...previewRules, resolverCorrespondenciasUnidade,
     classificarContatos, normalizarContatosResponsavel, normalizarTelefonesImportacao, alertasTelefonesImportacao, telefonesParaAtualizacao, primeiroTelefoneValido,
     TELEFONE_KEYS, SINDICO_CELULAR_KEYS, GERENTE_CELULAR_KEYS, CONDOMINIO_CNPJ_KEYS: ['cnpj'],
     getDocumento: (payload: any) => payload.cnpj || '',

@@ -351,6 +351,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
       status,
       status_operacional,
       status_financeiro,
+      duplicada_de_id,
       created_at
     `)
     .eq('unidade_id', id)
@@ -413,12 +414,14 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
     }
   }
 
-  const valorEmAberto = cobrancas
+  // Cópias continuam visíveis no histórico, mas não representam uma segunda dívida.
+  const cobrancasCanonicas = cobrancas.filter((cobranca) => !cobranca.duplicada_de_id)
+  const valorEmAberto = cobrancasCanonicas
     .filter((cobranca) => !['acordo_efetivado', 'quitado', 'pago'].includes(getCobrancaStatusOperacional(cobranca)))
     .reduce((sum, cobranca) => sum + Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0), 0)
 
   const acordosRompidos = acordos.filter((acordo) => ['quebrado', 'rompido', 'cancelado'].includes(String(acordo.status))).length
-  const possuiJudicializacao = cobrancas.some((cobranca) =>
+  const possuiJudicializacao = cobrancasCanonicas.some((cobranca) =>
     (COBRANCA_STATUS_JUDICIALIZACAO as string[]).includes(getCobrancaStatusOperacional(cobranca)),
   )
 
@@ -427,7 +430,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
     acordos,
     eventos,
     resumo: {
-      totalCobrancas: cobrancas.length,
+      totalCobrancas: cobrancasCanonicas.length,
       valorEmAberto,
       acordosTotal: acordos.length,
       acordosRompidos,

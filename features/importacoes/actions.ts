@@ -1,5 +1,7 @@
 "use server";
 
+import { garantirUnidadeImportacao } from "@/features/unidades/importacao";
+
 import { revalidatePath } from "next/cache";
 import { resolverCorrespondenciasUnidade } from "@/lib/core/identidade-unidade";
 import { carregarApoiosParaCorrespondencia, carregarUnidadesParaCorrespondencia } from "@/features/responsaveis-unidades/correspondencia";
@@ -32,7 +34,7 @@ import { observacoesComRecibo } from "./identidade-recibo";
 import { carregarItensImportacao } from "./carregar-itens";
 import { explicarCobrancasPreservadas } from "./mensagens-preservacao";
 import { substituirCobrancasAnterioresDaImportacao } from "./substituir-anteriores";
-import { statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
+import { bloquearAutomacaoAcordoHflex, isImportacaoAcordoHflex, statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
 import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "./regra-judicial-importacao";
 import { associarCobrancaConciliada } from "./reaproveitar-conversao";
 import { reservarLoteImportacao, salvarLoteImportacao, TAMANHO_LOTE_IMPORTACAO, type ExecucaoImportacao } from "./execucao-lotes";
@@ -2585,99 +2587,22 @@ async function garantirUnidadeDaImportacao(
   payload: Record<string, any>,
   apoios?: ResponsavelUnidadeApoioRow[],
 ) {
-  if (payload.unidade_id) {
-    return { id: String(payload.unidade_id), criada: false, reutilizada: true };
-  }
-
   const identificacao = String(payload.identificacao || payload.unidade || "").trim();
-  if (!payload.condominio_id || !identificacao) {
-    throw new Error("Linha sem condomínio ou identificação de unidade.");
-  }
-
-  const { data: condominioMascara, error: mascaraError } = await supabase
-    .from("condominios")
-    .select("mascara_unidade, mascara_bloco")
-    .eq("id", payload.condominio_id)
-    .maybeSingle();
-  if (mascaraError) {
-    throw new Error(`Erro ao validar a máscara do condomínio: ${mascaraError.message}`);
-  }
-  assertUnidadeMatchesMasks({
-    identificacao,
-    bloco: payload.bloco,
-    mascaraUnidade: condominioMascara?.mascara_unidade,
-    mascaraBloco: condominioMascara?.mascara_bloco,
-  });
-
-  const existente = await buscarUnidadeExistente(supabase, {
-    condominioId: payload.condominio_id,
-    identificacao,
-    bloco: payload.bloco,
-  });
-
-  const responsavelApoio = await buscarResponsavelApoio(supabase, {
+  const apoio = await buscarResponsavelApoio(supabase, {
     condominioId: payload.condominio_id,
     identificacao,
     bloco: payload.bloco,
   }, apoios);
-  const dadosContato = dadosUnidadeComApoio(payload, responsavelApoio);
-
-  if (existente) {
-    const patch: Record<string, string> = {};
-    if (!existente.responsavel_nome && dadosContato.responsavel_nome) {
-      patch.responsavel_nome = dadosContato.responsavel_nome;
-    }
-    if (!existente.responsavel_documento && dadosContato.responsavel_documento) {
-      patch.responsavel_documento = dadosContato.responsavel_documento;
-    }
-    if (!existente.telefone && dadosContato.telefone) {
-      patch.telefone = dadosContato.telefone;
-    }
-    if (!existente.email && dadosContato.email) {
-      patch.email = dadosContato.email;
-    }
-
-    if (Object.keys(patch).length > 0) {
-      await supabase.from("unidades").update(patch).eq("id", existente.id);
-    }
-
-    return { id: existente.id, criada: false, reutilizada: true };
-  }
-
-  const { data: novaUnidade, error: unidadeError } = await supabase
-    .from("unidades")
-    .insert({
-      carteira_id: payload.carteira_id,
-      condominio_id: payload.condominio_id,
-      identificacao,
-      bloco: payload.bloco || null,
-      responsavel_nome: dadosContato.responsavel_nome,
-      responsavel_documento: dadosContato.responsavel_documento,
-      telefone: dadosContato.telefone,
-      email: dadosContato.email,
-      status: "ativa",
-      observacoes: "Criada por importação de cobranças.",
-    })
-    .select("id")
-    .single();
-
-  if (!unidadeError && novaUnidade?.id) {
-    return { id: novaUnidade.id as string, criada: true, reutilizada: false };
-  }
-
-  // Defesa final para corrida/preview desatualizado: se o banco recusou por duplicidade,
-  // busca novamente e reaproveita a unidade em vez de derrubar o lote inteiro.
-  const unidadeAposConflito = await buscarUnidadeExistente(supabase, {
-    condominioId: payload.condominio_id,
+  // Contatos só são aplicados a unidades realmente novas. IDs de prévia são revalidados.
+  return garantirUnidadeImportacao(supabase, {
+    carteira_id: payload.carteira_id,
+    condominio_id: payload.condominio_id,
+    unidade_id: payload.unidade_id || null,
     identificacao,
-    bloco: payload.bloco,
+    bloco: payload.bloco || null,
+    ...dadosUnidadeComApoio(payload, apoio),
+    observacoes_criacao: "Criada por importação de cobranças.",
   });
-
-  if (unidadeAposConflito) {
-    return { id: unidadeAposConflito.id, criada: false, reutilizada: true };
-  }
-
-  throw new Error(unidadeError?.message ?? "Erro desconhecido ao criar unidade.");
 }
 
 async function importarCobrancas(
@@ -2727,6 +2652,7 @@ async function importarCobrancas(
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao);
       const cobrancaExistenteId = conciliacao.cobrancaId;
       if (conciliacao.status === "ja_existente") {
+        await bloquearAutomacaoAcordoHflex(supabase, conciliacao.cobrancaId, payload);
         await associarCobrancaConciliada(supabase, conciliacao.cobrancaId, payload as any);
         const reclassificada = await reclassificarCobrancaJudicialImportada(supabase, cobrancaExistenteId, statusOperacional, payload, contextoJudicial);
         if (reclassificada) resultado.atualizados += 1;
@@ -2775,6 +2701,7 @@ async function importarCobrancas(
         status: statusOperacional,
         status_operacional: statusOperacional,
         status_financeiro: "em_aberto",
+        automacao_bloqueada: isImportacaoAcordoHflex(payload),
         observacoes: observacaoComBloqueioGarantidora(payload.observacoes, Boolean(payload.bloqueio_garantidora)),
         origem_importacao: origemImportacao,
         importacao_id: payload.importacao_id || null,

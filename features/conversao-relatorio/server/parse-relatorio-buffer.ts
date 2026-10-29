@@ -885,7 +885,7 @@ function parseHflexLiveFacilitiesCobrancasRows(rows: unknown[][]) {
       valorTotal,
       marcadorOrigem: acordo ? "A" : advogado ? "J" : undefined,
       situacaoOrigem,
-      detalhesOrigem: [cobranca ? `Cobrança ${cobranca}` : "", formatAdditionalContactsObservacao(contatosAtuais)].filter(Boolean).join(" | ") || undefined,
+      detalhesOrigem: [acordo ? `Acordo HFlex ${acordo}` : "", cobranca ? `Cobrança ${cobranca}` : "", formatAdditionalContactsObservacao(contatosAtuais)].filter(Boolean).join(" | ") || undefined,
     });
   }
 

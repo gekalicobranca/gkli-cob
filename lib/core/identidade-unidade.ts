@@ -1,13 +1,29 @@
 export type IdentidadeUnidade = { identificacao?: unknown; unidade?: unknown; bloco?: unknown; condominio_id?: unknown }
 const texto = (v: unknown) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase()
 const token = (v: unknown) => texto(v).replace(/[^A-Z0-9]/g, '').replace(/\d+/g, n => n.replace(/^0+(?=\d)/, ''))
+const AIRPORT_ID = '3d99c59b-5e23-497a-837d-ce5dc152708a'
+/** Prefixos H/S fazem parte da unidade apenas neste condomínio. */
+export function padronizarUnidadeAirport(v: IdentidadeUnidade) {
+  if (v.condominio_id !== AIRPORT_ID) return v
+  const unidade = token(v.identificacao ?? v.unidade)
+  const rawBloco = texto(v.bloco).replace(/^(?:TORRE|BLOCO|BL|EDIFICIO)\s+/, '')
+  const prefixoBloco = /^(?:H|HOTEL)$/.test(rawBloco) ? 'H' : /^(?:S|SUITE|SUITES)$/.test(rawBloco) ? 'S' : ''
+  const prefixoUnidade = unidade.match(/^([HS])\d{1,4}$/)?.[1]
+  const semBloco = !rawBloco || /^(?:0+|SEM\s*BLOCO|N\/?A)$/.test(rawBloco)
+  if ((!semBloco && !prefixoBloco) || (prefixoUnidade && prefixoBloco && prefixoUnidade !== prefixoBloco)) throw new Error('Prefixo e bloco incompatíveis no Airport.')
+  const prefixo = prefixoUnidade || prefixoBloco
+  const numero = prefixoUnidade ? unidade.slice(1) : unidade
+  if (!prefixo || !/^\d{1,4}$/.test(numero)) throw new Error('Informe H/HOTEL ou S/SUITES para a unidade do Airport.')
+  return { ...v, identificacao: prefixo + numero.padStart(4, '0'), bloco: null }
+}
 export function blocoComparavel(v: unknown) {
   const raw = texto(v)
   if (!raw || /^(?:0+|SEM\s*BLOCO|N\/?A)$/.test(raw)) return ''
   if (/^(?:GARAGEM|GARAGENS|VG)$/.test(raw)) return 'VG'
   return token(raw.replace(/^(?:TORRE|BLOCO|BL|EDIFICIO)\s+/, ''))
 }
-function identidade(v: IdentidadeUnidade) {
+export function identidade(v: IdentidadeUnidade) {
+  v = padronizarUnidadeAirport(v)
   const unidade = token(v.identificacao ?? v.unidade)
   const bloco = blocoComparavel(v.bloco)
   // Só retira o prefixo quando ele repete o bloco explicitamente informado.

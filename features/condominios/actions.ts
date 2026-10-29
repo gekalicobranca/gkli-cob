@@ -10,6 +10,7 @@ import { requireUser } from '@/utils/auth/require-user'
 import { requireRole } from '@/utils/auth/require-role'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeCondominioName } from '@/features/condominios/normalize-name'
+import { normalizarDataBloqueio } from '@/features/importacoes/bloqueio-garantidora'
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
@@ -68,9 +69,12 @@ function checkboxOn(value: FormDataEntryValue | null) {
   return String(value ?? '').toLowerCase() === 'on'
 }
 
-function monthStart(formData: FormData, field: string) {
+function dataBloqueio(formData: FormData, field: string) {
   const value = String(formData.get(field) ?? '').trim()
-  return /^\d{4}-\d{2}$/.test(value) ? `${value}-01` : null
+  if (!value) return null
+  const data = normalizarDataBloqueio(value)
+  if (!data) throw new Error('Informe uma data válida e completa para o Bloqueio Garantidora.')
+  return data
 }
 
 function normalizeComparable(value: unknown) {
@@ -151,8 +155,8 @@ export async function createCondominio(formData: FormData) {
   const captacaoDiaMes = toOptionalInteger(formData.get('captacao_dia_mes'))
   const captacaoHorario = String(formData.get('captacao_horario') ?? '08:00').trim() || '08:00'
   const bloqueioGarantidoraHabilitado = checkboxOn(formData.get('bloqueio_garantidora_habilitado'))
-  const bloqueioGarantidoraInicio = monthStart(formData, 'bloqueio_garantidora_inicio')
-  const bloqueioGarantidoraFim = monthStart(formData, 'bloqueio_garantidora_fim')
+  const bloqueioGarantidoraInicio = dataBloqueio(formData, 'bloqueio_garantidora_inicio')
+  const bloqueioGarantidoraFim = dataBloqueio(formData, 'bloqueio_garantidora_fim')
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
   const reguaAcordoId = String(formData.get('regua_acordo_id') ?? '').trim() || null
@@ -164,8 +168,8 @@ export async function createCondominio(formData: FormData) {
   if (diasCobrancaAtiva < 0 || diasCobrancaAtiva > 3650) throw new Error('Prazo de cobrança ativa deve ficar entre 0 e 3650 dias.')
 
   if (captacaoAutomaticaHabilitada && (!captacaoDiaMes || captacaoDiaMes < 1 || captacaoDiaMes > 28)) throw new Error('Informe um dia mensal entre 1 e 28 para a captação automática.')
-  if (bloqueioGarantidoraHabilitado && (!bloqueioGarantidoraInicio || !bloqueioGarantidoraFim)) throw new Error('Informe o mês inicial e o mês final do Bloqueio Garantidora.')
-  if (bloqueioGarantidoraInicio && bloqueioGarantidoraFim && bloqueioGarantidoraInicio > bloqueioGarantidoraFim) throw new Error('O mês inicial do Bloqueio Garantidora deve ser anterior ou igual ao mês final.')
+  if (bloqueioGarantidoraHabilitado && (!bloqueioGarantidoraInicio || !bloqueioGarantidoraFim)) throw new Error('Informe a data inicial e a data final do Bloqueio Garantidora.')
+  if (bloqueioGarantidoraInicio && bloqueioGarantidoraFim && bloqueioGarantidoraInicio > bloqueioGarantidoraFim) throw new Error('A data inicial do Bloqueio Garantidora deve ser anterior ou igual à data final.')
 
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()
@@ -271,8 +275,8 @@ export async function updateCondominioIntegral(formData: FormData) {
   const operacaoVirtualHabilitada = checkboxOn(formData.get('operacao_virtual_habilitada'))
   const captacao = captacaoPayload(formData, aba)
   const bloqueioGarantidoraHabilitado = checkboxOn(formData.get('bloqueio_garantidora_habilitado'))
-  const bloqueioGarantidoraInicio = monthStart(formData, 'bloqueio_garantidora_inicio')
-  const bloqueioGarantidoraFim = monthStart(formData, 'bloqueio_garantidora_fim')
+  const bloqueioGarantidoraInicio = dataBloqueio(formData, 'bloqueio_garantidora_inicio')
+  const bloqueioGarantidoraFim = dataBloqueio(formData, 'bloqueio_garantidora_fim')
   const status = String(formData.get('status') ?? 'ativo')
   const observacoes = String(formData.get('observacoes') ?? '').trim()
   const reguaCobrancaId = String(formData.get('regua_cobranca_id') ?? '').trim() || null
@@ -286,8 +290,8 @@ export async function updateCondominioIntegral(formData: FormData) {
   if (!Number.isFinite(vencimentoCotaDia) || vencimentoCotaDia < 1 || vencimentoCotaDia > 31) throw new Error('Dia de vencimento deve ficar entre 1 e 31.')
   if (!Number.isFinite(inicioCobrancaDias) || inicioCobrancaDias < 0 || inicioCobrancaDias > 365) throw new Error('Início da cobrança deve ficar entre 0 e 365 dias.')
   if (diasCobrancaAtiva < 0 || diasCobrancaAtiva > 3650) throw new Error('Prazo de cobrança ativa deve ficar entre 0 e 3650 dias.')
-  if (bloqueioGarantidoraHabilitado && (!bloqueioGarantidoraInicio || !bloqueioGarantidoraFim)) throw new Error('Informe o mês inicial e o mês final do Bloqueio Garantidora.')
-  if (bloqueioGarantidoraInicio && bloqueioGarantidoraFim && bloqueioGarantidoraInicio > bloqueioGarantidoraFim) throw new Error('O mês inicial do Bloqueio Garantidora deve ser anterior ou igual ao mês final.')
+  if (bloqueioGarantidoraHabilitado && (!bloqueioGarantidoraInicio || !bloqueioGarantidoraFim)) throw new Error('Informe a data inicial e a data final do Bloqueio Garantidora.')
+  if (bloqueioGarantidoraInicio && bloqueioGarantidoraFim && bloqueioGarantidoraInicio > bloqueioGarantidoraFim) throw new Error('A data inicial do Bloqueio Garantidora deve ser anterior ou igual à data final.')
 
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()

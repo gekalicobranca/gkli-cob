@@ -164,7 +164,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
     return {
       ...worker,
       ultimoSinalEm: status?.ultimo_sinal_em ?? null,
-      online: Boolean(status?.ultimo_sinal_em && Date.now() - new Date(status.ultimo_sinal_em).getTime() < 45_000),
+      online: Boolean(status?.ultimo_sinal_em && Date.now() - new Date(status.ultimo_sinal_em).getTime() < 300_000),
     }
   })
   const workersOnline = workers.filter((worker) => worker.online).length
@@ -260,6 +260,7 @@ export default async function AgenteAutomaticoPage({ searchParams }: Props) {
                 </div>
               </div>
             </details>
+            <ButtonLink href="/app/agente-automatico/scanner" variant="secondary">Scanner de enriquecimento</ButtonLink>
             <ButtonLink href="/app/configuracoes/lab/captacao-automatizada" variant="secondary">
               <Settings2 size={16} /> Agenda de captação
             </ButtonLink>

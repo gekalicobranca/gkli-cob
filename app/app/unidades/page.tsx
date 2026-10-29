@@ -213,6 +213,9 @@ export default async function UnidadesPage({ searchParams }: UnidadesPageProps) 
         description="Unidades, responsáveis, contatos e filtros operacionais para cobrança."
         actions={
           <>
+            <ButtonLink href="/app/unidades/duplicadas" variant="secondary">
+              Buscar duplicadas
+            </ButtonLink>
             <ButtonLink href={exportUnidadesHref} variant="secondary">
               <Download size={16} />
               Exportar

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { parseRelatorioBuffer } from "../features/conversao-relatorio/server/parse-relatorio-buffer";
+import { isImportacaoAcordoHflex, statusOperacionalParaCobrancaImportada, bloquearAutomacaoAcordoHflex } from '../features/importacoes/status-cobranca-importada';
 
 async function main() {
   const html = `
@@ -31,6 +32,19 @@ async function main() {
   assert.equal(result.preview.totalParcelas, 2);
   assert.equal(result.preview.cobrancas[0].email, "jose@example.com");
   assert.ok(result.preview.cobrancas[0].telefone);
+  assert.match(result.preview.cobrancas[0].detalhesOrigem ?? '', /Acordo HFlex 193334/);
+  assert.equal(isImportacaoAcordoHflex(result.preview.cobrancas[0]), true);
+  assert.equal(isImportacaoAcordoHflex(result.preview.cobrancas[1]), false);
+  const writes: unknown[] = [];
+  const db = { from() { const q = { select() { return q }, eq() { return q }, is() { return q },
+    update(value: unknown) { writes.push(value); return q },
+    maybeSingle: async () => ({ data: { inicio_cobranca_dias: 30 }, error: null }),
+    then(resolve: any) { return Promise.resolve({ error: null }).then(resolve) },
+  }; return q } };
+  assert.equal(await statusOperacionalParaCobrancaImportada(db, result.preview.cobrancas[0]), 'em_negociacao');
+  await bloquearAutomacaoAcordoHflex(db, 'existing', result.preview.cobrancas[0]);
+  await bloquearAutomacaoAcordoHflex(db, 'normal', result.preview.cobrancas[1]);
+  assert.deepEqual(writes, [{ automacao_bloqueada: true }]);
   assert.equal(result.preview.cobrancas[1].email, undefined);
   assert.equal(result.preview.valorTotal, 1357.46);
   assert.deepEqual(
