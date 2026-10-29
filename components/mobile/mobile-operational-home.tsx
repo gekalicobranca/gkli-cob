@@ -8,21 +8,21 @@ const items = [
     title: 'Promessa vence hoje',
     description: 'Unidade 1204 · Condomínio Jardim Norte',
     tag: 'Alta',
-    href: '/app/workspace/demo-1/mobile',
+    href: '/app/configuracoes/lab/workspace/demo-1/mobile',
   },
   {
     id: 'demo-2',
     title: 'Negociação quente',
     description: 'Proposta enviada ontem aguardando retorno',
     tag: 'Média',
-    href: '/app/workspace/demo-2/mobile',
+    href: '/app/configuracoes/lab/workspace/demo-2/mobile',
   },
   {
     id: 'demo-3',
     title: 'Sem resposta há 5 dias',
     description: 'Recomendado novo contato no fim do dia',
     tag: 'Atenção',
-    href: '/app/workspace/demo-3/mobile',
+    href: '/app/configuracoes/lab/workspace/demo-3/mobile',
   },
 ]
 

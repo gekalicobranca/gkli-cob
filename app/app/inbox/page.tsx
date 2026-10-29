@@ -57,7 +57,7 @@ function actionHref(item: {
   params.set("origem", "inbox-lite");
 
   if (item.tipo === "cobranca") {
-    return `/app/workspace/${item.id}?${params.toString()}`;
+    return `/app/cobrancas/${item.id}?${params.toString()}`;
   }
 
   return `${item.href}?${params.toString()}`;
