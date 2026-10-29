@@ -8,15 +8,17 @@ export function CobrancaStatusActions({
   statusFinanceiro,
   updateStatusAction,
   createInteracaoAction,
+  compact = false,
 }: {
   cobranca: any
   statusOperacional: string
   statusFinanceiro: string
   updateStatusAction: (formData: FormData) => Promise<void>
   createInteracaoAction: (formData: FormData) => Promise<void>
+  compact?: boolean
 }) {
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
+    <div className={compact ? '' : 'grid gap-6 xl:grid-cols-2'}>
       <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-950">Atualizar status</h2>
         <form action={updateStatusAction} className="mt-4 flex flex-col gap-3">
@@ -35,7 +37,7 @@ export function CobrancaStatusActions({
         </form>
       </div>
 
-      <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+      {!compact ? <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-950">Registrar interação</h2>
         <form action={createInteracaoAction} className="mt-4 space-y-4">
           <input type="hidden" name="cobranca_id" value={cobranca.id} />
@@ -51,7 +53,7 @@ export function CobrancaStatusActions({
           <Textarea name="conteudo" required placeholder="Descreva o contato, retorno do responsável, proposta ou próxima ação..." />
           <div className="flex justify-end"><Button type="submit">Salvar interação</Button></div>
         </form>
-      </div>
+      </div> : null}
     </div>
   )
 }

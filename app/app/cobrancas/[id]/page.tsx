@@ -22,7 +22,6 @@ import {
 import { CobrancaFinanceiroCard } from '@/features/cobrancas/components/cobranca-financeiro-card'
 import { calcularProximaAcaoCobranca } from '@/features/cobrancas/next-action'
 import { CobrancaMensageriaCard } from '@/features/cobrancas/components/cobranca-mensageria-card'
-import { CobrancaNextActionCard } from '@/features/cobrancas/components/cobranca-next-action-card'
 import { CobrancaQuickActions } from '@/features/cobrancas/components/cobranca-quick-actions'
 import { CobrancaProntuarioHeader } from '@/features/cobrancas/components/cobranca-prontuario-header'
 import { CobrancaSideCards } from '@/features/cobrancas/components/cobranca-side-cards'
@@ -72,7 +71,7 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
 
   if (cobrancaArquivada(cobranca)) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-3">
         <Card className="space-y-3 p-6">
           <h1 className="text-xl font-semibold">Cobrança arquivada por duplicidade</h1>
           <p>Este registro foi preservado para consulta do histórico. O débito é acompanhado no registro abaixo.</p>
@@ -146,7 +145,7 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
   })
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <CobrancaProntuarioHeader
         cobranca={cobranca}
         statusOperacional={statusOperacional}
@@ -165,28 +164,13 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
         </div>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Status operacional</p>
-          <div className="mt-3 flex flex-wrap gap-2"><StatusBadge status={statusOperacional} /><ConducaoProcessoBadge unidade={cobranca.unidades} /></div>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Status financeiro</p>
-          <div className="mt-3"><StatusBadge status={statusFinanceiro} /></div>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Dias em atraso</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-950">{atraso}</p>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">{labelKpi}</p>
-          <p className="mt-3 text-2xl font-semibold text-slate-950">{formatCurrency(valorKpi)}</p>
-          <p className="mt-1 text-xs text-slate-500">{descricaoKpi}</p>
-        </Card>
+      <section aria-label="Resumo da cobrança" className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-slate-200 bg-white px-5 py-3">
+        <div className="flex flex-wrap items-center gap-2"><StatusBadge status={statusOperacional} /><StatusBadge status={statusFinanceiro} /><ConducaoProcessoBadge unidade={cobranca.unidades} /></div>
+        <p className="text-sm text-slate-600">{atraso} dias em atraso</p>
+        <p className="text-sm text-slate-600">{labelKpi}: <strong className="text-lg text-slate-950">{formatCurrency(valorKpi)}</strong><span className="ml-2 text-xs">({descricaoKpi})</span></p>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_380px]">
-        <div className="space-y-6">
+      <section className="space-y-3">
           <CobrancaQuickActions
             cobranca={cobranca}
             canCreateAcordo={canCreateAcordo}
@@ -195,14 +179,19 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
             createInteracaoAction={createInteracaoCobranca}
             agendarRetornoAction={agendarRetornoCobranca}
           />
-          <CobrancaNextActionCard action={nextAction} />
+          <details className="rounded-xl border border-slate-200 bg-white p-4">
+            <summary className="cursor-pointer text-sm font-semibold">Alterar status</summary>
+            <div className="mt-3">
           <CobrancaStatusActions
+            compact
             cobranca={cobranca}
             statusOperacional={statusOperacional}
             statusFinanceiro={statusFinanceiro}
             updateStatusAction={updateCobrancaStatus}
             createInteracaoAction={createInteracaoCobranca}
           />
+            </div>
+          </details>
           <CobrancaFinanceiroCard
             cobranca={cobranca}
             principal={principal}
@@ -215,17 +204,24 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
             valorNegociacao={valorNegociacao}
             updateAction={updateCobrancaFinanceiro}
           />
-          <CobrancaTimeline eventos={eventosOperacionais} interacoes={interacoes} />
-        </div>
-
-        <div className="space-y-4">
+          <details className="rounded-xl border border-slate-200 bg-white p-4">
+            <summary className="cursor-pointer text-sm font-semibold">Histórico de contatos e eventos ({eventosOperacionais.length + interacoes.length})</summary>
+            <div className="mt-3"><CobrancaTimeline eventos={eventosOperacionais} interacoes={interacoes} /></div>
+          </details>
+          <details className="rounded-xl border border-slate-200 bg-white p-4">
+            <summary className="cursor-pointer text-sm font-semibold">Mensagens ({mensagens.length})</summary>
+            <div className="mt-3">
           <CobrancaMensageriaCard
             mensagens={mensagens}
             telefone={cobranca.unidades?.telefone}
             responsavel={cobranca.unidades?.responsavel_nome}
           />
-          <CobrancaSideCards cobranca={cobranca} acordoVigente={acordoVigente} statusOperacional={statusOperacional} />
-        </div>
+            </div>
+          </details>
+          <details className="rounded-xl border border-slate-200 bg-white p-4">
+            <summary className="cursor-pointer text-sm font-semibold">Régua, condomínio e observações</summary>
+            <div className="mt-3"><CobrancaSideCards cobranca={cobranca} acordoVigente={acordoVigente} statusOperacional={statusOperacional} /></div>
+          </details>
       </section>
     </div>
   )

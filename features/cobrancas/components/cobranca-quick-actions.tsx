@@ -53,19 +53,17 @@ export function CobrancaQuickActions({
   });
 
   return (
-    <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
-            Ações rápidas
-          </p>
-          <h2 className="mt-2 text-lg font-semibold text-slate-950">
-            Resolver sem sair do prontuário
+          <h2 className="text-base font-semibold text-slate-950">
+            {cobranca.unidades?.responsavel_nome || "Responsável não informado"}
           </h2>
-          <p className="mt-1 text-sm leading-6 text-slate-500">
-            Registre contato, avance status, agende retorno ou transforme a
-            cobranças da unidade em um acordo.
-          </p>
+          <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-600">
+            <span>Telefone: {cobranca.unidades?.telefone || "Não informado"}</span>
+            <span className="break-all">E-mail: {cobranca.unidades?.email || "Não informado"}</span>
+            {cobranca.unidades?.responsavel_documento ? <span>Documento: {cobranca.unidades.responsavel_documento}</span> : null}
+          </div>
         </div>
         {defaultAction ? (
           <span className="rounded-full bg-[var(--gkli-primary-light)] px-3 py-1.5 text-xs font-medium text-[var(--gkli-primary)]">
@@ -74,13 +72,13 @@ export function CobrancaQuickActions({
         ) : null}
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-3 flex flex-wrap gap-2">
         {whatsappHref ? (
           <ButtonLink
             href={whatsappHref}
             target="_blank"
             variant="secondary"
-            className="w-full"
+            className="justify-center"
           >
             <MessageCircle size={15} />
             Abrir WhatsApp
@@ -104,7 +102,7 @@ export function CobrancaQuickActions({
             name="conteudo"
             value="Tentativa de ligação registrada pelo cockpit/prontuário."
           />
-          <Button type="submit" variant="secondary" className="w-full">
+          <Button type="submit" variant="secondary" className="justify-center">
             <PhoneCall size={15} />
             Registrar ligação
           </Button>
@@ -117,7 +115,7 @@ export function CobrancaQuickActions({
             name="status"
             value={COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO}
           />
-          <Button type="submit" variant="secondary" className="w-full">
+          <Button type="submit" variant="secondary" className="justify-center">
             <Send size={15} />
             Em negociação
           </Button>
@@ -126,7 +124,7 @@ export function CobrancaQuickActions({
         {canCreateAcordo ? (
           <ButtonLink
             href={`/app/acordos/selecionar?cobrancaId=${cobranca.id}`}
-            className="w-full"
+            className="justify-center"
           >
             <Handshake size={15} />
             Agrupar cobranças
@@ -135,7 +133,7 @@ export function CobrancaQuickActions({
           <ButtonLink
             href="/app/acordos"
             variant="secondary"
-            className="w-full"
+            className="justify-center"
           >
             <Handshake size={15} />
             Ver acordos
@@ -143,10 +141,10 @@ export function CobrancaQuickActions({
         )}
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1fr]">
+      <div className="mt-3 space-y-3">
         <form
           action={createInteracaoAction}
-          className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+          className="space-y-2 border-t border-slate-100 pt-3"
         >
           <input type="hidden" name="cobranca_id" value={cobranca.id} />
           <input
@@ -157,6 +155,7 @@ export function CobrancaQuickActions({
           <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
             <select
               name="tipo"
+              aria-label="Tipo de contato"
               defaultValue="registro"
               className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none"
             >
@@ -165,9 +164,13 @@ export function CobrancaQuickActions({
               <option value="ligacao">ligação</option>
               <option value="email">e-mail</option>
               <option value="negociacao">negociação</option>
+              <option value="alerta">alerta</option>
             </select>
             <Textarea
               name="conteudo"
+              aria-label="Registro do contato"
+              rows={2}
+              className="min-h-16"
               required
               placeholder="Anote rapidamente o contato, proposta, objeção ou retorno do responsável..."
             />
@@ -179,9 +182,11 @@ export function CobrancaQuickActions({
           </div>
         </form>
 
+        <details className="border-t border-slate-100 pt-3">
+          <summary className="cursor-pointer text-sm font-medium text-slate-700">Agendar retorno</summary>
         <form
           action={agendarRetornoAction}
-          className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+          className="mt-3"
         >
           <input type="hidden" name="cobranca_id" value={cobranca.id} />
           <input
@@ -201,6 +206,9 @@ export function CobrancaQuickActions({
             </label>
             <Textarea
               name="observacao"
+              aria-label="Motivo do retorno"
+              rows={2}
+              className="min-h-16"
               placeholder="Motivo do retorno ou combinado com o responsável..."
             />
           </div>
@@ -211,6 +219,7 @@ export function CobrancaQuickActions({
             </Button>
           </div>
         </form>
+        </details>
       </div>
     </section>
   );

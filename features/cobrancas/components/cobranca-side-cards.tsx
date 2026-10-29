@@ -61,15 +61,6 @@ export function CobrancaSideCards({ cobranca, acordoVigente, statusOperacional }
       </Card>
 
       <Card>
-        <h2 className="text-lg font-semibold text-slate-950">Responsável</h2>
-        <div className="mt-4 space-y-2 text-sm text-slate-600">
-          <p>Documento: {cobranca.unidades?.responsavel_documento ?? '-'}</p>
-          <p>Telefone: {cobranca.unidades?.telefone ?? '-'}</p>
-          <p>E-mail: {cobranca.unidades?.email ?? '-'}</p>
-        </div>
-      </Card>
-
-      <Card>
         <h2 className="text-lg font-semibold text-slate-950">Condomínio</h2>
         <div className="mt-4 space-y-2 text-sm text-slate-600">
           <p>CNPJ: {cobranca.condominios?.cnpj ?? '-'}</p>

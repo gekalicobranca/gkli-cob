@@ -17,7 +17,6 @@ export function CobrancaProntuarioHeader({
   cobranca,
   statusOperacional,
   acordoVigenteId,
-  canCreateAcordo,
 }: {
   cobranca: any;
   statusOperacional: string;
@@ -29,19 +28,18 @@ export function CobrancaProntuarioHeader({
 }) {
   return (
     <div
-      className={`rounded-[28px] bg-gradient-to-br ${headerGradient(statusOperacional)} p-8 text-white shadow-xl shadow-slate-200`}
+      className={`rounded-xl bg-gradient-to-br ${headerGradient(statusOperacional)} px-5 py-4 text-white`}
     >
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.32em] text-white/70">
-            Prontuário operacional
+          <p className="text-xs font-medium text-white/70">
+            Cobrança
           </p>
-          <h1 className="mt-5 text-3xl font-semibold tracking-[-0.03em] text-white">
-            {cobranca.unidades?.responsavel_nome ?? "Responsável não informado"}{" "}
-            · Unidade {cobranca.unidades?.identificacao ?? "-"}
+          <h1 className="mt-1 text-xl font-semibold text-white">
+            {cobranca.condominios?.nome ?? "Condomínio não informado"}
           </h1>
-          <p className="mt-4 max-w-4xl text-sm text-white/85">
-            {cobranca.condominios?.nome ?? "-"} · competência{" "}
+          <p className="mt-1 text-sm text-white/85">
+            Unidade {cobranca.unidades?.identificacao ?? "-"} · Bloco {cobranca.unidades?.bloco || "-"} · Competência{" "}
             {cobranca.competencia ?? "-"} · vencimento{" "}
             {formatDateBR(cobranca.vencimento)}
           </p>
@@ -63,14 +61,6 @@ export function CobrancaProntuarioHeader({
               variant="header"
             >
               Ver acordo
-            </ButtonLink>
-          ) : null}
-          {canCreateAcordo ? (
-            <ButtonLink
-              href={`/app/acordos/selecionar?cobrancaId=${cobranca.id}`}
-              variant="header"
-            >
-              Agrupar cobranças
             </ButtonLink>
           ) : null}
           <ButtonLink href="/app/cobrancas" variant="header">
