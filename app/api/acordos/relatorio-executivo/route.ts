@@ -327,7 +327,7 @@ function card(ops: string[], x: number, y: number, w: number, h: number, label: 
   rect(ops, x, y, w, h, WHITE, LINE);
   rect(ops, x, y, 3, h, accent);
   drawText(ops, label.toUpperCase(), x + 10, y + h - 19, { size: 7.5, color: MUTED });
-  drawText(ops, value, x + w - 10, y + h - 24, { size: value.length > 13 ? 13 : 18, bold: true, color: INK, align: "right" });
+  drawText(ops, value, x + w - 10, y + h - 44, { size: value.length > 13 ? 13 : 18, bold: true, color: INK, align: "right" });
   drawText(ops, note, x + 10, y + 14, { size: 7.5, color: MUTED });
 }
 
@@ -470,55 +470,71 @@ function drawDetailRow(ops: string[], y: number, row: any) {
   const resumo = row.parcelas_resumo as ParcelaResumo;
   rect(ops, MARGIN_X, y - 32, CONTENT_WIDTH, 32, WHITE, LINE);
   drawText(ops, short(unidadeDisplay(row), 12), MARGIN_X + 4, y - 12, { size: 7.3, bold: true });
-  drawText(ops, short(unidade?.responsavel_nome ?? "Responsável não informado", 29), MARGIN_X + 56, y - 12, { size: 7.1 });
+  drawText(ops, short(unidade?.responsavel_nome ?? "Responsável não informado", 26), MARGIN_X + 56, y - 12, { size: 7.1 });
   const contato = unidade?.telefone || unidade?.email || "";
-  if (contato) drawText(ops, short(contato, 30), MARGIN_X + 56, y - 24, { size: 6.5, color: MUTED });
+  if (contato) drawText(ops, short(contato, 27), MARGIN_X + 56, y - 24, { size: 6.5, color: MUTED });
   drawText(ops, short(statusLabel(row.status), 15), MARGIN_X + 186, y - 12, { size: 7.1 });
-  drawText(ops, healthLabel(resumo.saude), MARGIN_X + 256, y - 12, { size: 7.1, color: resumo.saude === "critico" ? ROSE : resumo.saude === "atencao" ? AMBER : GREEN });
-  drawText(ops, `${numberText(resumo.pagas)}/${numberText(resumo.total)}`, MARGIN_X + 366, y - 12, { size: 7.1, align: "right" });
+  drawText(ops, resumo.total ? healthLabel(resumo.saude) : 'Conferir', MARGIN_X + 256, y - 12, { size: 7.1, color: !resumo.total ? AMBER : resumo.saude === "critico" ? ROSE : resumo.saude === "atencao" ? AMBER : GREEN });
+  drawText(ops, resumo.total ? `${numberText(resumo.pagas)}/${numberText(resumo.total)}` : 'Sem cadastro', MARGIN_X + 366, y - 12, { size: 7.1, align: "right" });
   drawText(ops, resumo.proximoVencimento ? formatDateBR(resumo.proximoVencimento) : "-", MARGIN_X + 374, y - 12, { size: 7.1 });
-  drawText(ops, formatCurrency(resumo.saldoAberto), MARGIN_X + CONTENT_WIDTH - 4, y - 12, { size: 7.1, align: "right" });
+  drawText(ops, resumo.total ? formatCurrency(resumo.saldoAberto) : '-', MARGIN_X + CONTENT_WIDTH - 4, y - 12, { size: 7.1, align: "right" });
 }
 
 function drawDetails(pages: PdfPage[], rows: any[], condominios: AcordoResumo[]) {
-  const resumoMap = new Map(condominios.map((item) => [`${item.carteira}|${item.condominio}`, item]));
+  const resumoMap = new Map(condominios.map(item => [`${item.carteira}|${item.condominio}`, item]));
+  const groups = new Map<string, { carteira: string; condominio: string; rows: any[] }>();
+  // Keep the selected order inside each group, without alternating portfolios.
+  for (const row of rows) {
+    const carteira = relation(row.carteiras)?.nome ?? 'Sem carteira';
+    const condominio = relation(row.condominios)?.nome ?? 'Sem condomínio';
+    const key = `${carteira}|${condominio}`;
+    if (!groups.has(key)) groups.set(key, { carteira, condominio, rows: [] });
+    groups.get(key)!.rows.push(row);
+  }
+  const ordered = [...groups.entries()].sort(([left], [right]) => left.localeCompare(right, 'pt-BR', { numeric: true }));
   let page = addPage(pages);
   let y = PAGE_HEIGHT - 72;
-  let currentCarteira = "";
-  let currentCondo = "";
-
-  for (const row of rows) {
-    const carteira = relation(row.carteiras)?.nome ?? "Sem carteira";
-    const condominio = relation(row.condominios)?.nome ?? "Sem condomínio";
-    const condoKey = `${carteira}|${condominio}`;
-    const condoResumo = resumoMap.get(condoKey);
-    const needsCondoHeader = condominio !== currentCondo || carteira !== currentCarteira;
-
-    if (needsCondoHeader) {
-      ({ page, y } = ensureSpace(pages, y, currentCarteira === carteira ? 84 : 110));
-      if (carteira !== currentCarteira) {
-        currentCarteira = carteira;
-        drawText(page.ops, `Carteira: ${carteira}`, MARGIN_X, y, { size: 17, bold: true });
+  let currentCarteira = '';
+  let hasRows = false;
+  for (const [key, group] of ordered) {
+    const resumo = resumoMap.get(key)!;
+    const drawGroupHeader = (showCarteira: boolean, continuation = false) => {
+      if (showCarteira) {
+        drawText(page.ops, `Carteira: ${group.carteira}`, MARGIN_X, y, { size: 15, bold: true });
         y -= 24;
       }
-      if (condoResumo) {
-        drawCondoHeader(page.ops, y, condoResumo);
-        y -= 56;
+      drawCondoHeader(page.ops, y, resumo);
+      y -= 56;
+      if (continuation) {
+        drawText(page.ops, 'Continuação', MARGIN_X, y, { size: 8, color: MUTED });
+        y -= 14;
       }
       drawDetailTableHeader(page.ops, y);
       y -= 18;
-      currentCondo = condominio;
+    };
+    const newCarteira = currentCarteira !== group.carteira;
+    const gap = hasRows ? 20 : 0;
+    // Title + condominium band + column header + first complete row.
+    const needed = gap + (newCarteira ? 24 : 0) + 56 + 18 + 32;
+    if (y - needed < 52) {
+      page = addPage(pages);
+      y = PAGE_HEIGHT - 72;
+      drawGroupHeader(true);
+    } else {
+      y -= gap;
+      drawGroupHeader(newCarteira);
     }
-
-    ({ page, y } = ensureSpace(pages, y, 32));
-    if (y === PAGE_HEIGHT - 70) {
-      drawText(page.ops, `${short(condominio, 48)} - continuação`, MARGIN_X, y, { size: 13, bold: true });
-      y -= 22;
-      drawDetailTableHeader(page.ops, y);
-      y -= 18;
+    currentCarteira = group.carteira;
+    for (const row of group.rows) {
+      if (y - 32 < 52) {
+        page = addPage(pages);
+        y = PAGE_HEIGHT - 72;
+        drawGroupHeader(true, true);
+      }
+      drawDetailRow(page.ops, y, row);
+      y -= 32;
+      hasRows = true;
     }
-    drawDetailRow(page.ops, y, row);
-    y -= 32;
   }
 }
 
@@ -588,7 +604,7 @@ function buildPdf(pages: PdfPage[]) {
   return Buffer.concat([header, ...objects, Buffer.from(xref, "latin1")]);
 }
 
-function montarPdf(rows: any[]) {
+function montarPdf(rows: any[], judicial: boolean) {
   const carteiras = resumoPorCarteira(rows);
   const condominios = resumoPorCondominio(rows);
   const totals = {
@@ -605,6 +621,9 @@ function montarPdf(rows: any[]) {
 
   const pages: PdfPage[] = [];
   drawCover(pages, totals);
+  drawText(pages[0].ops, judicial ? 'Categoria: acordos judiciais' : 'Categoria: acordos extrajudiciais', MARGIN_X, PAGE_HEIGHT - 186, { size: 10, bold: true, color: WHITE });
+  const semParcelas = rows.filter(row => !row.parcelas_resumo?.total).length;
+  if (semParcelas) drawText(pages[0].ops, `${semParcelas} acordo(s) sem parcelas cadastradas. Saldos incluem apenas parcelas informadas.`, MARGIN_X, 90, { size: 8, color: MUTED });
   const summaryStartY = drawCarteiraSummary(pages, carteiras);
   drawCondominioSummary(pages, summaryStartY, condominios);
   if (rows.length) drawDetails(pages, rows, condominios);
@@ -622,7 +641,7 @@ async function carregarAcordos(searchParams: URLSearchParams) {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rows = await carregarAcordos(searchParams);
-  const pdf = montarPdf(rows);
+  const pdf = montarPdf(rows, filtrosRelatorioAcordos(searchParams).tipo_acordo === 'judicial');
   const fileName = `gkli-relatorio-executivo-acordos-${new Date().toISOString().slice(0, 10)}.pdf`;
 
   return new Response(pdf, {
