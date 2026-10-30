@@ -101,16 +101,12 @@ export default async function CondominiosPage({ searchParams }: CondominiosPageP
   const filtrosAtivos =
     Boolean(filters.grupo || filters.search || filters.carteiraId || filters.administradora || (filters.status && filters.status !== 'ativo')) ||
     ordenar !== 'nome'
-  const exportParams = new URLSearchParams()
-
-  if (filters.carteiraId) exportParams.set('carteira_id', filters.carteiraId)
-
-  const exportCondominiosHref = `/api/condominios/exportacoes/condominios${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
   const reportParams = new URLSearchParams({ status: filters.status ?? '', ordenar })
   if (filters.grupo) reportParams.set('grupo', filters.grupo)
   if (filters.search) reportParams.set('q', filters.search)
   if (filters.carteiraId) reportParams.set('carteira_id', filters.carteiraId)
   if (filters.administradora) reportParams.set('administradora', filters.administradora)
+  const exportCondominiosHref = '/api/condominios/exportacoes/condominios?' + reportParams.toString()
   const reportHref = '/api/condominios/relatorio-executivo?' + reportParams.toString()
   const ativos = filteredRows.filter((row: any) => row.status === 'ativo').length
   const mediaRegua = filteredRows.length
