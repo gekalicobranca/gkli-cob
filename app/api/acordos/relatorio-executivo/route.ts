@@ -2,11 +2,16 @@ import { IDENTIDADE_GKLI, aplicarIdentidadePdf } from '@/features/exportacoes/id
 import { filtrosRelatorioAcordos } from '@/features/acordos/filtros-relatorio'
 import { listAcordosComSaudeFiltered } from '@/features/acordos/queries'
 import { carregarParcelasRelatorio } from '@/features/acordos/parcelas-relatorio'
+import { parcelasDoPeriodoExecutivo, pagamentoParcelaExecutivo, repasseParcelaExecutivo } from '@/features/acordos/parcelas-executivo'
 import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
 import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
+
+function formatDateRelatorio(value: string) {
+  return formatDateBR(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value);
+}
 
 export const runtime = "nodejs";
 
@@ -218,7 +223,7 @@ async function carregarParcelas(acordoIds: string[]) {
   const supabase = await createClient();
   const data = await carregarParcelasRelatorio(acordoIds, (ids, from, to) =>
     supabase.from('parcelas_acordo')
-      .select('id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento')
+      .select('id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento,valor_repasse_informado')
       .in('acordo_id', ids).order('id').range(from, to));
 
   const map = new Map<string, any[]>();
@@ -230,10 +235,10 @@ async function carregarParcelas(acordoIds: string[]) {
   return map;
 }
 
-function enriquecerAcordos(rows: any[], parcelasPorAcordo: Map<string, any[]>) {
+function enriquecerAcordos(rows: any[], parcelasPorAcordo: Map<string, any[]>, de: string, ate: string) {
   return rows.map((row) => {
     const parcelas = parcelasPorAcordo.get(String(row.id)) ?? [];
-    return { ...row, parcelas_resumo: parcelaResumo(parcelas), parcelas };
+    return { ...row, parcelas_resumo: parcelaResumo(parcelas), parcelas, parcelas_executivo: parcelasDoPeriodoExecutivo(parcelas, de, ate) };
   });
 }
 
@@ -463,7 +468,7 @@ function drawDetailRow(ops: string[], y: number, row: any) {
   drawText(ops, short(statusLabel(row.status), 15), MARGIN_X + 186, y - 12, { size: 7.1 });
   drawText(ops, resumo.total ? healthLabel(resumo.saude) : 'Conferir', MARGIN_X + 256, y - 12, { size: 7.1, color: !resumo.total ? AMBER : resumo.saude === "critico" ? ROSE : resumo.saude === "atencao" ? AMBER : GREEN });
   drawText(ops, resumo.total ? `${numberText(resumo.pagas)}/${numberText(resumo.total)}` : 'Sem cadastro', MARGIN_X + 366, y - 12, { size: 7.1, align: "right" });
-  drawText(ops, resumo.proximoVencimento ? formatDateBR(resumo.proximoVencimento) : "-", MARGIN_X + 374, y - 12, { size: 7.1 });
+  drawText(ops, resumo.proximoVencimento ? formatDateRelatorio(resumo.proximoVencimento) : "-", MARGIN_X + 374, y - 12, { size: 7.1 });
   drawText(ops, resumo.total ? formatCurrency(resumo.saldoAberto) : '-', MARGIN_X + CONTENT_WIDTH - 4, y - 12, { size: 7.1, align: "right" });
 }
 
@@ -502,7 +507,7 @@ function drawDetails(pages: PdfPage[], rows: any[], condominios: AcordoResumo[])
     const newCarteira = currentCarteira !== group.carteira;
     const gap = hasRows ? 20 : 0;
     // Title + condominium band + column header + first complete row.
-    const needed = gap + (newCarteira ? 24 : 0) + 56 + 18 + 32;
+    const needed = gap + (newCarteira ? 24 : 0) + 56 + 18 + 32 + 44;
     if (y - needed < 52) {
       page = addPage(pages);
       y = PAGE_HEIGHT - 72;
@@ -513,13 +518,47 @@ function drawDetails(pages: PdfPage[], rows: any[], condominios: AcordoResumo[])
     }
     currentCarteira = group.carteira;
     for (const row of group.rows) {
-      if (y - 32 < 52) {
+      if (y - 76 < 52) {
         page = addPage(pages);
         y = PAGE_HEIGHT - 72;
         drawGroupHeader(true, true);
       }
       drawDetailRow(page.ops, y, row);
       y -= 32;
+      const parcelas = row.parcelas_executivo as any[];
+      const drawParcelasHeader = () => {
+        rect(page.ops, MARGIN_X, y - 16, CONTENT_WIDTH, 16, SOFT);
+        for (const [label, x] of [['Parcela', 4], ['Vencimento', 58], ['Valor da parcela', 138], ['Pagamento', 236], ['Repasse previsto', 392]] as const) {
+          drawText(page.ops, label, MARGIN_X + x, y - 11, { size: 7, bold: true, color: MUTED });
+        }
+        y -= 16;
+      };
+      drawParcelasHeader();
+      if (!parcelas.length) {
+        drawText(page.ops, 'Nenhuma parcela cadastrada no intervalo selecionado.', MARGIN_X + 4, y - 12, { size: 7, color: MUTED });
+        y -= 22;
+      }
+      for (const parcela of parcelas) {
+        if (y - 28 < 52) {
+          page = addPage(pages);
+          y = PAGE_HEIGHT - 72;
+          drawGroupHeader(true, true);
+          drawDetailRow(page.ops, y, row);
+          y -= 32;
+          drawParcelasHeader();
+        }
+        rect(page.ops, MARGIN_X, y - 28, CONTENT_WIDTH, 28, WHITE, LINE);
+        const pagamento = pagamentoParcelaExecutivo(parcela);
+        const repasse = repasseParcelaExecutivo(parcela);
+        drawText(page.ops, parcela.tipo_parcela === 'entrada' ? 'Entrada' : `#${parcela.numero}`, MARGIN_X + 4, y - 12, { size: 7.5 });
+        drawText(page.ops, parcela.vencimento ? formatDateRelatorio(parcela.vencimento) : '-', MARGIN_X + 58, y - 12, { size: 7.5 });
+        drawText(page.ops, formatCurrency(Number(parcela.valor ?? 0)), MARGIN_X + 138, y - 12, { size: 7.5, bold: true });
+        drawText(page.ops, pagamento, MARGIN_X + 236, y - 12, { size: 7.5, color: pagamento === 'Paga' ? GREEN : MUTED });
+        if (parcela.data_pagamento) drawText(page.ops, formatDateRelatorio(parcela.data_pagamento), MARGIN_X + 236, y - 23, { size: 6.8, color: MUTED });
+        drawText(page.ops, repasse == null ? 'Não informado' : formatCurrency(repasse), MARGIN_X + 392, y - 12, { size: 7.5 });
+        y -= 28;
+      }
+      y -= 8;
       hasRows = true;
     }
   }
@@ -591,7 +630,7 @@ function buildPdf(pages: PdfPage[]) {
   return Buffer.concat([header, ...objects, Buffer.from(xref, "latin1")]);
 }
 
-function montarPdf(rows: any[], judicial: boolean) {
+function montarPdf(rows: any[], judicial: boolean, de = '', ate = '') {
   const carteiras = resumoPorCarteira(rows);
   const condominios = resumoPorCondominio(rows);
   const totals = {
@@ -609,6 +648,8 @@ function montarPdf(rows: any[], judicial: boolean) {
   const pages: PdfPage[] = [];
   drawCover(pages, totals);
   drawText(pages[0].ops, judicial ? 'Categoria: acordos judiciais' : 'Categoria: acordos extrajudiciais', MARGIN_X, PAGE_HEIGHT - 186, { size: 10, bold: true, color: WHITE });
+  drawText(pages[0].ops, `Parcelas por vencimento: ${de ? formatDateRelatorio(de) : 'sem início'} a ${ate ? formatDateRelatorio(ate) : 'sem fim'}`, MARGIN_X, 72, { size: 8, color: MUTED });
+  drawText(pages[0].ops, 'Saldos e saúde: cronograma completo. Repasse previsto não confirma recebimento.', MARGIN_X, 58, { size: 7.5, color: MUTED });
   const semParcelas = rows.filter(row => !row.parcelas_resumo?.total).length;
   if (semParcelas) drawText(pages[0].ops, `${semParcelas} acordo(s) sem parcelas cadastradas. Saldos incluem apenas parcelas informadas.`, MARGIN_X, 90, { size: 8, color: MUTED });
   const summaryStartY = drawCarteiraSummary(pages, carteiras);
@@ -622,13 +663,14 @@ async function carregarAcordos(searchParams: URLSearchParams) {
   const filters = filtrosRelatorioAcordos(searchParams);
   const rows = await listAcordosComSaudeFiltered(scope, filters);
   const parcelas = await carregarParcelas(rows.map(row => row.id));
-  return enriquecerAcordos(rows, parcelas);
+  return enriquecerAcordos(rows, parcelas, filters.data_de, filters.data_ate);
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rows = await carregarAcordos(searchParams);
-  const pdf = await aplicarIdentidadePdf(montarPdf(rows, filtrosRelatorioAcordos(searchParams).tipo_acordo === 'judicial'));
+  const filters = filtrosRelatorioAcordos(searchParams);
+  const pdf = await aplicarIdentidadePdf(montarPdf(rows, filters.tipo_acordo === 'judicial', filters.data_de, filters.data_ate));
   const fileName = `gkli-relatorio-executivo-acordos-${new Date().toISOString().slice(0, 10)}.pdf`;
 
   return new Response(pdf, {
