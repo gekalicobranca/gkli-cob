@@ -1,3 +1,4 @@
+import { IDENTIDADE_GKLI, aplicarIdentidadePdf } from '@/features/exportacoes/identidade-visual'
 import { filtrosRelatorioCobrancas } from '@/features/cobrancas/filtros-relatorio'
 import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
@@ -16,13 +17,13 @@ const PAGE_WIDTH = 595;
 const PAGE_HEIGHT = 842;
 const MARGIN_X = 42;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
-const NAVY = "064258";
-const NAVY_DARK = "043246";
-const TEAL = "007EA7";
-const SOFT = "F6F9FC";
-const LINE = "D9E3EF";
-const INK = "14213D";
-const MUTED = "5E718D";
+const NAVY = IDENTIDADE_GKLI.primary;
+const NAVY_DARK = IDENTIDADE_GKLI.dark;
+const TEAL = IDENTIDADE_GKLI.primary;
+const SOFT = IDENTIDADE_GKLI.background;
+const LINE = IDENTIDADE_GKLI.border;
+const INK = IDENTIDADE_GKLI.text;
+const MUTED = IDENTIDADE_GKLI.muted;
 const GREEN = "12A87A";
 const AMBER = "F59E0B";
 const WHITE = "FFFFFF";
@@ -79,18 +80,6 @@ function rect(ops: string[], x: number, y: number, w: number, h: number, color =
   ops.push(fill(color));
   if (strokeColor) ops.push(stroke(strokeColor));
   ops.push(`${x} ${y} ${w} ${h} re ${strokeColor ? "B" : "f"}`);
-  ops.push("Q");
-}
-
-function circle(ops: string[], cx: number, cy: number, r: number, color: string) {
-  const c = r * 0.5522847498;
-  ops.push("q");
-  ops.push(fill(color));
-  ops.push(`${cx + r} ${cy} m`);
-  ops.push(`${cx + r} ${cy + c} ${cx + c} ${cy + r} ${cx} ${cy + r} c`);
-  ops.push(`${cx - c} ${cy + r} ${cx - r} ${cy + c} ${cx - r} ${cy} c`);
-  ops.push(`${cx - r} ${cy - c} ${cx - c} ${cy - r} ${cx} ${cy - r} c`);
-  ops.push(`${cx + c} ${cy - r} ${cx + r} ${cy - c} ${cx + r} ${cy} c f`);
   ops.push("Q");
 }
 
@@ -252,8 +241,8 @@ function addPage(pages: PdfPage[], kind: PdfPage["kind"] = "main") {
 function drawMainChrome(page: PdfPage, pageNumber: number, totalPages: number) {
   const ops = page.ops;
   rect(ops, 0, PAGE_HEIGHT - 40, PAGE_WIDTH, 40, NAVY);
-  drawText(ops, "RELATÓRIO EXECUTIVO DE COBRANÇAS", MARGIN_X, PAGE_HEIGHT - 25, { size: 8, bold: true, color: "BFE8F4" });
-  drawText(ops, "Novas + ativas - sem judicialização", PAGE_WIDTH - MARGIN_X, PAGE_HEIGHT - 25, {
+  drawText(ops, "RELATÓRIO EXECUTIVO DE COBRANÇAS", MARGIN_X + 30, PAGE_HEIGHT - 25, { size: 8, bold: true, color: "BFE8F4" });
+  drawText(ops, IDENTIDADE_GKLI.tagline, PAGE_WIDTH - MARGIN_X, PAGE_HEIGHT - 25, {
     size: 7,
     color: "D6EDF5",
     align: "right",
@@ -267,7 +256,7 @@ function card(ops: string[], x: number, y: number, w: number, h: number, label: 
   rect(ops, x, y, w, h, WHITE, LINE);
   rect(ops, x, y, 3, h, accent);
   drawText(ops, label.toUpperCase(), x + 10, y + h - 19, { size: 7.5, color: MUTED });
-  drawText(ops, value, x + w - 10, y + h - 24, { size: value.length > 12 ? 14 : 18, bold: true, color: INK, align: "right" });
+  drawText(ops, value, x + w - 10, y + h - 44, { size: value.length > 12 ? 14 : 18, bold: true, color: INK, align: "right" });
   drawText(ops, note, x + 10, y + 14, { size: 7.5, color: MUTED });
 }
 
@@ -277,10 +266,8 @@ function drawCover(pages: PdfPage[], totals: { carteiras: number; condominios: n
   rect(ops, 0, 0, PAGE_WIDTH, PAGE_HEIGHT, SOFT);
   rect(ops, 0, PAGE_HEIGHT - 330, PAGE_WIDTH, 330, NAVY);
   rect(ops, 0, PAGE_HEIGHT - 330, PAGE_WIDTH, 45, NAVY_DARK);
-  circle(ops, PAGE_WIDTH - 132, PAGE_HEIGHT - 120, 72, "2D6173");
-  rect(ops, PAGE_WIDTH - 180, PAGE_HEIGHT - 188, 112, 136, "2C99B7");
 
-  drawText(ops, "GKLI COBRANÇA", MARGIN_X, PAGE_HEIGHT - 68, { size: 8, bold: true, color: "BFE8F4" });
+  drawText(ops, "GKLI COBRANÇA", MARGIN_X + 48, PAGE_HEIGHT - 68, { size: 8, bold: true, color: "BFE8F4" });
   drawText(ops, "Relatório executivo de cobranças", MARGIN_X, PAGE_HEIGHT - 120, { size: 27, bold: true, color: WHITE });
   drawText(ops, "Cobranças novas + cobranças em andamento, desconsiderando unidades com judicialização.", MARGIN_X, PAGE_HEIGHT - 146, {
     size: 11,
@@ -561,7 +548,7 @@ export async function GET(request: Request) {
   const rows = sortHierarchy(await listCobrancas(scope, filters));
   const reguas = await carregarReguas(rows);
   const condominios = resumirPorCondominio(rows, reguas);
-  const pdf = montarPdf(rows, condominios);
+  const pdf = await aplicarIdentidadePdf(montarPdf(rows, condominios));
   const fileName = `gkli-relatorio-executivo-cobrancas-${new Date().toISOString().slice(0, 10)}.pdf`;
 
   return new Response(pdf, {

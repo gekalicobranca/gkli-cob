@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     ].filter(Boolean)
     const agenteStatuses = await getCondominiosAgenteStatus(rows.map(row => row.id), scope.carteiraIds)
     const reportRows = rows.map(row => ({ ...row, agente_remoto_status: agenteStatuses.get(row.id) ?? 'indisponivel' }))
-    const pdf = montarRelatorioCondominios(reportRows, reguas, labels)
+    const pdf = await montarRelatorioCondominios(reportRows, reguas, labels)
     return new Response(new Uint8Array(pdf), {
       headers: {
         'Content-Type': 'application/pdf',

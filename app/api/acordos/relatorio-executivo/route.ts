@@ -1,3 +1,4 @@
+import { IDENTIDADE_GKLI, aplicarIdentidadePdf } from '@/features/exportacoes/identidade-visual'
 import { filtrosRelatorioAcordos } from '@/features/acordos/filtros-relatorio'
 import { listAcordosComSaudeFiltered } from '@/features/acordos/queries'
 import { carregarParcelasRelatorio } from '@/features/acordos/parcelas-relatorio'
@@ -13,13 +14,13 @@ const PAGE_WIDTH = 595;
 const PAGE_HEIGHT = 842;
 const MARGIN_X = 42;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
-const NAVY = "064258";
-const NAVY_DARK = "043246";
-const TEAL = "007EA7";
-const SOFT = "F6F9FC";
-const LINE = "D9E3EF";
-const INK = "14213D";
-const MUTED = "5E718D";
+const NAVY = IDENTIDADE_GKLI.primary;
+const NAVY_DARK = IDENTIDADE_GKLI.dark;
+const TEAL = IDENTIDADE_GKLI.primary;
+const SOFT = IDENTIDADE_GKLI.background;
+const LINE = IDENTIDADE_GKLI.border;
+const INK = IDENTIDADE_GKLI.text;
+const MUTED = IDENTIDADE_GKLI.muted;
 const GREEN = "12A87A";
 const AMBER = "F59E0B";
 const ROSE = "E11D48";
@@ -93,18 +94,6 @@ function rect(ops: string[], x: number, y: number, w: number, h: number, color =
   ops.push(fill(color));
   if (strokeColor) ops.push(stroke(strokeColor));
   ops.push(`${x} ${y} ${w} ${h} re ${strokeColor ? "B" : "f"}`);
-  ops.push("Q");
-}
-
-function circle(ops: string[], cx: number, cy: number, r: number, color: string) {
-  const c = r * 0.5522847498;
-  ops.push("q");
-  ops.push(fill(color));
-  ops.push(`${cx + r} ${cy} m`);
-  ops.push(`${cx + r} ${cy + c} ${cx + c} ${cy + r} ${cx} ${cy + r} c`);
-  ops.push(`${cx - c} ${cy + r} ${cx - r} ${cy + c} ${cx - r} ${cy} c`);
-  ops.push(`${cx - r} ${cy - c} ${cx - c} ${cy - r} ${cx} ${cy - r} c`);
-  ops.push(`${cx + c} ${cy - r} ${cx + r} ${cy - c} ${cx + r} ${cy} c f`);
   ops.push("Q");
 }
 
@@ -312,8 +301,8 @@ function addPage(pages: PdfPage[], kind: PdfPage["kind"] = "main") {
 function drawMainChrome(page: PdfPage, pageNumber: number, totalPages: number) {
   const ops = page.ops;
   rect(ops, 0, PAGE_HEIGHT - 40, PAGE_WIDTH, 40, NAVY);
-  drawText(ops, "RELATÓRIO EXECUTIVO DE ACORDOS", MARGIN_X, PAGE_HEIGHT - 25, { size: 8, bold: true, color: "BFE8F4" });
-  drawText(ops, "Acompanhamento de acordos, parcelas e risco de rompimento", PAGE_WIDTH - MARGIN_X, PAGE_HEIGHT - 25, {
+  drawText(ops, "RELATÓRIO EXECUTIVO DE ACORDOS", MARGIN_X + 30, PAGE_HEIGHT - 25, { size: 8, bold: true, color: "BFE8F4" });
+  drawText(ops, IDENTIDADE_GKLI.tagline, PAGE_WIDTH - MARGIN_X, PAGE_HEIGHT - 25, {
     size: 7,
     color: "D6EDF5",
     align: "right",
@@ -337,10 +326,8 @@ function drawCover(pages: PdfPage[], totals: { carteiras: number; condominios: n
   rect(ops, 0, 0, PAGE_WIDTH, PAGE_HEIGHT, SOFT);
   rect(ops, 0, PAGE_HEIGHT - 330, PAGE_WIDTH, 330, NAVY);
   rect(ops, 0, PAGE_HEIGHT - 330, PAGE_WIDTH, 45, NAVY_DARK);
-  circle(ops, PAGE_WIDTH - 132, PAGE_HEIGHT - 120, 72, "2D6173");
-  rect(ops, PAGE_WIDTH - 180, PAGE_HEIGHT - 188, 112, 136, "2C99B7");
 
-  drawText(ops, "GKLI COBRANÇA", MARGIN_X, PAGE_HEIGHT - 68, { size: 8, bold: true, color: "BFE8F4" });
+  drawText(ops, "GKLI COBRANÇA", MARGIN_X + 48, PAGE_HEIGHT - 68, { size: 8, bold: true, color: "BFE8F4" });
   drawText(ops, "Relatório executivo de acordos", MARGIN_X, PAGE_HEIGHT - 120, { size: 27, bold: true, color: WHITE });
   drawText(ops, "Acordos firmados, parcelas em aberto, recuperação confirmada e pontos de atenção.", MARGIN_X, PAGE_HEIGHT - 146, {
     size: 11,
@@ -641,7 +628,7 @@ async function carregarAcordos(searchParams: URLSearchParams) {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rows = await carregarAcordos(searchParams);
-  const pdf = montarPdf(rows, filtrosRelatorioAcordos(searchParams).tipo_acordo === 'judicial');
+  const pdf = await aplicarIdentidadePdf(montarPdf(rows, filtrosRelatorioAcordos(searchParams).tipo_acordo === 'judicial'));
   const fileName = `gkli-relatorio-executivo-acordos-${new Date().toISOString().slice(0, 10)}.pdf`;
 
   return new Response(pdf, {

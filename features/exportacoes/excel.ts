@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs'
+import { IDENTIDADE_GKLI, logoRelatoriosGkli } from './identidade-visual'
 
 export type ExcelValueType = 'text' | 'integer' | 'number' | 'currency' | 'date' | 'boolean'
 
@@ -28,10 +29,10 @@ export type SummaryRow = {
   type?: ExcelValueType
 }
 
-const navy = 'FF064258'
-const muted = 'FF5E718D'
-const body = 'FF14213D'
-const alternate = 'FFF0F5F8'
+const navy = `FF${IDENTIDADE_GKLI.primary}`
+const muted = `FF${IDENTIDADE_GKLI.muted}`
+const body = `FF${IDENTIDADE_GKLI.text}`
+const alternate = `FF${IDENTIDADE_GKLI.soft}`
 const fontName = 'Arial'
 
 function columnLetter(column: number) {
@@ -104,6 +105,13 @@ function resolveColumnType<Row>(column: ExcelColumn<Row>, row: Row): ExcelValueT
 }
 
 export async function exportExcelWorkbook(workbook: ExcelJS.Workbook) {
+  const image = workbook.addImage({ buffer: logoRelatoriosGkli() as any, extension: 'png' })
+  for (const sheet of workbook.worksheets) {
+    sheet.properties.tabColor = { argb: `FF${IDENTIDADE_GKLI.accent}` }
+    const lastColumn = Math.min(sheet.columnCount, 4)
+    const widthPx = (sheet.getColumn(lastColumn).width ?? 12) * 7 + 5
+    sheet.addImage(image, { tl: { col: lastColumn - 1 + Math.max(0, 1 - 40 / widthPx), row: 0.12 }, ext: { width: 32, height: 32 }, editAs: 'absolute' })
+  }
   return new Uint8Array(await workbook.xlsx.writeBuffer())
 }
 
@@ -133,8 +141,9 @@ export function addStyledTableSheet<Row>(workbook: ExcelJS.Workbook, options: St
   sheet.columns = options.columns.map(({ key, width }) => ({ key, width }))
   sheet.mergeCells(`A1:${titleSpanEnd}1`)
   sheet.getCell('A1').value = options.title
-  sheet.getCell('A1').font = { name: fontName, size: 20, bold: true, color: { argb: navy } }
-  sheet.getRow(1).height = 34
+  sheet.getCell('A1').font = { name: fontName, size: 16, bold: true, color: { argb: navy } }
+  sheet.getCell('A1').alignment = { vertical: 'middle', wrapText: true }
+  sheet.getRow(1).height = 38
   sheet.mergeCells(`A2:${titleSpanEnd}2`)
   sheet.getCell('A2').value = `GKLI Cobrança · ${options.rows.length.toLocaleString('pt-BR')} ${options.countLabel} · Gerado em ${formatGeneratedAt(generatedAt)} (São Paulo)`
   sheet.getCell('A2').font = { name: fontName, size: 10, color: { argb: muted } }

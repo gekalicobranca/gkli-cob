@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { montarRelatorioCondominios } from '../features/condominios/relatorio-executivo'
 import { sortCondominios } from '../features/condominios/sort'
 import type { CondominioRelatorio } from '../features/condominios/relatorio-executivo'
+import { clausulasBuscaCondominio } from '../features/condominios/busca'
 import parsePdf from 'pdf-parse/lib/pdf-parse.js'
 
 async function main() {
@@ -25,22 +26,22 @@ async function main() {
   const date = new Date('2026-09-06T15:00:00Z')
   const output = '.codex-tmp/condominios-report'
   mkdirSync(output, { recursive: true })
-  const sample = montarRelatorioCondominios([row, missing], reguas, ['Status: todos'], date)
+  const sample = await montarRelatorioCondominios([row, missing], reguas, ['Status: todos'], date)
   writeFileSync(`${output}/sample.pdf`, sample)
   const parsed = await parsePdf(sample)
   assert.ok(parsed.text.includes('Receita de agente remoto configurada\nSim'))
   for (const [status, label] of [['nao_configurado', 'Não'], ['indisponivel', 'Não foi possível verificar']] as const) {
-    const result = await parsePdf(montarRelatorioCondominios([{ ...row, agente_remoto_status: status }], reguas, [], date))
+    const result = await parsePdf(await montarRelatorioCondominios([{ ...row, agente_remoto_status: status }], reguas, [], date))
     assert.ok(result.text.includes(`Receita de agente remoto configurada\n${label}`))
   }
-  for (const expected of ['JARDINS DO IPIRANGA', 'Régua de cobrança extrajudicial', 'Não permitida (0 dias)', 'Não informado', '01/2026 a 03/2026', '850,25', '0,00', 'Status: todos']) assert.ok(parsed.text.replace(/\s+/g, ' ').includes(expected), expected)
-  const empty = montarRelatorioCondominios([], reguas, ['Status: suspenso'], date)
+  for (const expected of ['JARDINS DO IPIRANGA', 'Régua de cobrança extrajudicial', 'Não permitida (0 dias)', 'Não informado', '01/01/2026 a 01/03/2026', '850,25', '0,00', 'Status: todos']) assert.ok(parsed.text.replace(/\s+/g, ' ').includes(expected), expected)
+  const empty = await montarRelatorioCondominios([], reguas, ['Status: suspenso'], date)
   writeFileSync(`${output}/empty.pdf`, empty)
   const parsedEmpty = await parsePdf(empty)
   assert.equal(parsedEmpty.numpages, 2)
   assert.ok(parsedEmpty.text.includes('Nenhum condomínio encontrado'))
   const stressRows = Array.from({ length: 45 }, (_, i) => ({ ...row, id: `stress-${i}`, carteira_id: `carteira-${i}`, carteiras: { nome: `Carteira ${i} ${'Nome extenso '.repeat(8)}` }, nome_operacional: `Condomínio ${i} ${'Nome extenso '.repeat(8)}`, sindico_email: `${'emailmuitolongo'.repeat(35)}@example.com`, observacoes: 'Observações extensas com acentuação. '.repeat(100) + 'MARCADOR FINAL' }))
-  const stress = montarRelatorioCondominios(stressRows, reguas, ['Busca: ' + 'filtro longo '.repeat(100)], date)
+  const stress = await montarRelatorioCondominios(stressRows, reguas, ['Busca: ' + 'filtro longo '.repeat(100)], date)
   writeFileSync(`${output}/stress.pdf`, stress)
   const parsedStress = await parsePdf(stress)
   assert.equal((parsedStress.text.match(/MARCADOR FINAL/g) || []).length, 45)
@@ -85,6 +86,7 @@ async function validateScopeAndFilters() {
     return query
   } }
   const queries = loadWithMocks('features/condominios/queries.ts', {
+    './busca': { clausulasBuscaCondominio },
     '@/utils/supabase/server': { createClient: async () => client },
     '@/utils/auth/apply-carteira-scope': { applyCarteiraScope: applyCarteiraIdsScope },
     '@/utils/supabase/normalize-relation': { normalizeRelationsList },

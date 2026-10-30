@@ -1,3 +1,4 @@
+import { IDENTIDADE_GKLI, aplicarIdentidadePdf } from '@/features/exportacoes/identidade-visual'
 import { formatCurrency } from '@/utils/formatters/currency';
 import type { CondominioAgenteStatus } from '@/features/agente-automatico/queries';
 
@@ -5,13 +6,13 @@ const PAGE_WIDTH = 595;
 const PAGE_HEIGHT = 842;
 const MARGIN_X = 42;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
-const NAVY = "064258";
-const NAVY_DARK = "043246";
-const TEAL = "007EA7";
-const SOFT = "F6F9FC";
-const LINE = "D9E3EF";
-const INK = "14213D";
-const MUTED = "5E718D";
+const NAVY = IDENTIDADE_GKLI.primary;
+const NAVY_DARK = IDENTIDADE_GKLI.dark;
+const TEAL = IDENTIDADE_GKLI.primary;
+const SOFT = IDENTIDADE_GKLI.background;
+const LINE = IDENTIDADE_GKLI.border;
+const INK = IDENTIDADE_GKLI.text;
+const MUTED = IDENTIDADE_GKLI.muted;
 const GREEN = "12A87A";
 const WHITE = "FFFFFF";
 
@@ -57,18 +58,6 @@ function rect(ops: string[], x: number, y: number, w: number, h: number, color =
   ops.push("Q");
 }
 
-function circle(ops: string[], cx: number, cy: number, r: number, color: string) {
-  const c = r * 0.5522847498;
-  ops.push("q");
-  ops.push(fill(color));
-  ops.push(`${cx + r} ${cy} m`);
-  ops.push(`${cx + r} ${cy + c} ${cx + c} ${cy + r} ${cx} ${cy + r} c`);
-  ops.push(`${cx - c} ${cy + r} ${cx - r} ${cy + c} ${cx - r} ${cy} c`);
-  ops.push(`${cx - r} ${cy - c} ${cx - c} ${cy - r} ${cx} ${cy - r} c`);
-  ops.push(`${cx + c} ${cy - r} ${cx + r} ${cy - c} ${cx + r} ${cy} c f`);
-  ops.push("Q");
-}
-
 // Standard Type 1 font widths, indexed by WinAnsi character code minus 32.
 const HELVETICA_WIDTHS = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584,761,556,761,222,556,333,1000,556,556,333,1000,667,333,1000,761,611,761,761,222,222,333,333,350,556,1000,333,1000,500,333,944,761,500,667,278,333,556,556,556,556,260,556,333,737,370,556,584,333,737,333,400,584,333,333,333,556,537,278,333,333,365,556,834,834,834,611,667,667,667,667,667,667,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,500,556,556,556,556,278,278,278,278,556,556,556,556,556,556,556,584,611,556,556,556,556,500,556,500];
 const HELVETICA_BOLD_WIDTHS = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584,761,556,761,278,556,500,1000,556,556,333,1000,667,333,1000,761,611,761,761,278,278,500,500,350,556,1000,333,1000,556,333,944,761,500,667,278,333,556,556,556,556,280,556,333,737,370,556,584,333,737,333,400,584,333,333,333,611,556,278,333,333,365,556,834,834,834,611,722,722,722,722,722,722,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,556,556,556,556,556,278,278,278,278,611,611,611,611,611,611,611,584,611,611,611,611,611,556,611,556];
@@ -101,8 +90,8 @@ function addPage(pages: PdfPage[], kind: PdfPage["kind"] = "main") {
 function drawMainChrome(page: PdfPage, pageNumber: number, totalPages: number) {
   const ops = page.ops;
   rect(ops, 0, PAGE_HEIGHT - 40, PAGE_WIDTH, 40, NAVY);
-  drawText(ops, "CADASTRO DE CONDOMÍNIOS", MARGIN_X, PAGE_HEIGHT - 25, { size: 8, bold: true, color: "BFE8F4" });
-  drawText(ops, "Dados cadastrais e parâmetros de cobrança", PAGE_WIDTH - MARGIN_X, PAGE_HEIGHT - 25, {
+  drawText(ops, "CADASTRO DE CONDOMÍNIOS", MARGIN_X + 30, PAGE_HEIGHT - 25, { size: 8, bold: true, color: "BFE8F4" });
+  drawText(ops, IDENTIDADE_GKLI.tagline, PAGE_WIDTH - MARGIN_X, PAGE_HEIGHT - 25, {
     size: 7,
     color: "D6EDF5",
     align: "right",
@@ -227,7 +216,7 @@ function linesFor(value: unknown, width: number, size = 8) {
   return result.length ? result : [''];
 }
 
-export function montarRelatorioCondominios(
+export async function montarRelatorioCondominios(
   rows: CondominioRelatorio[],
   reguas: Map<string, string> = new Map(),
   filters: string[] = [],
@@ -238,8 +227,7 @@ export function montarRelatorioCondominios(
   rect(cover.ops, 0, 0, PAGE_WIDTH, PAGE_HEIGHT, SOFT);
   rect(cover.ops, 0, 512, PAGE_WIDTH, 330, NAVY);
   rect(cover.ops, 0, 512, PAGE_WIDTH, 40, NAVY_DARK);
-  circle(cover.ops, 510, 765, 42, '2D6173');
-  drawText(cover.ops, 'GKLI COBRANÇA', MARGIN_X, 774, { size: 9, bold: true, color: 'BFE8F4' });
+  drawText(cover.ops, 'GKLI COBRANÇA', MARGIN_X + 48, 774, { size: 9, bold: true, color: 'BFE8F4' });
   drawText(cover.ops, 'Relatório executivo', MARGIN_X, 711, { size: 28, bold: true, color: WHITE });
   drawText(cover.ops, 'Cadastro de condomínios', MARGIN_X, 674, { size: 25, bold: true, color: WHITE });
   drawText(cover.ops, 'Informações cadastrais e parâmetros de cobrança', MARGIN_X, 637, { size: 11, color: 'D6EDF5' });
@@ -284,7 +272,7 @@ export function montarRelatorioCondominios(
     }
     y -= 10;
   }
-  function paragraph(value: string, size = 9, color = MUTED) {
+  function paragraph(value: string, size = 9, color: string = MUTED) {
     const lineHeight = Math.max(14, size * 1.3);
     for (const line of linesFor(value, CONTENT_WIDTH, size)) {
       ensure(lineHeight);
@@ -384,5 +372,5 @@ export function montarRelatorioCondominios(
       paragraph(String(row.observacoes), 8, INK);
     }
   }
-  return buildPdf(pages);
+  return aplicarIdentidadePdf(buildPdf(pages));
 }
