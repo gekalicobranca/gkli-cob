@@ -1,3 +1,4 @@
+import { filtrosRelatorioCobrancas } from '@/features/cobrancas/filtros-relatorio'
 import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
@@ -7,7 +8,7 @@ import {
   COBRANCA_STATUS_LABEL,
   COBRANCA_STATUS_OPERACIONAL,
 } from "@/lib/constants/cobrancas";
-import { listCobrancas, type CobrancaListFilters } from "@/features/cobrancas/queries";
+import { listCobrancas } from "@/features/cobrancas/queries";
 
 export const runtime = "nodejs";
 
@@ -43,10 +44,6 @@ type CondominioResumo = {
   cobrancas: number;
   valor: number;
 };
-
-function getParam(searchParams: URLSearchParams, key: string) {
-  return String(searchParams.get(key) ?? "").trim();
-}
 
 function text(value: unknown) {
   return String(value ?? "")
@@ -558,20 +555,7 @@ function montarPdf(rows: any[], condominios: CondominioResumo[]) {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const filters: CobrancaListFilters = {
-    search: getParam(searchParams, "q"),
-    administradoraId: getParam(searchParams, "administradora_id"),
-    condominioId: getParam(searchParams, "condominio_id"),
-    unidadeId: getParam(searchParams, "unidade_id"),
-    conducaoProcesso: getParam(searchParams, "conducao_processo"),
-    vencimentoDe: getParam(searchParams, "vencimento_de"),
-    vencimentoAte: getParam(searchParams, "vencimento_ate"),
-    judicializacaoUnidade: "nao",
-    statusList: [
-      COBRANCA_STATUS_OPERACIONAL.NOVO,
-      COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
-    ],
-  };
+  const filters = filtrosRelatorioCobrancas(searchParams);
 
   const scope = await getPermittedCarteiras();
   const rows = sortHierarchy(await listCobrancas(scope, filters));

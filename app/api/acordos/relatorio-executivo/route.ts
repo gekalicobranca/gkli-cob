@@ -1,8 +1,9 @@
+import { filtrosRelatorioAcordos } from '@/features/acordos/filtros-relatorio'
+import { listAcordosComSaudeFiltered } from '@/features/acordos/queries'
+import { carregarParcelasRelatorio } from '@/features/acordos/parcelas-relatorio'
 import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
-import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
-import { applyCarteiraScope } from "@/utils/auth/carteira-scope";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
 
@@ -58,10 +59,6 @@ type AcordoResumo = {
   saldoAberto: number;
 };
 
-function getParam(searchParams: URLSearchParams, key: string) {
-  return String(searchParams.get(key) ?? "").trim();
-}
-
 function text(value: unknown) {
   return String(value ?? "")
     .normalize("NFC")
@@ -69,18 +66,6 @@ function text(value: unknown) {
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"')
     .replace(/[^\x09\x0A\x0D\x20-\xFF]/g, "");
-}
-
-function normalizeText(value: unknown) {
-  return text(value)
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-function validDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
 }
 
 function escapePdf(value: string) {
@@ -239,37 +224,14 @@ function parcelaResumo(parcelas: any[]): ParcelaResumo {
   };
 }
 
-function sortAcordos(rows: any[], ordenar: string) {
-  const sortable = [...rows];
-  const field = ordenar || "condominio";
-  return sortable.sort((a, b) => {
-    const aCondo = relation(a.condominios)?.nome ?? "Sem condomínio";
-    const bCondo = relation(b.condominios)?.nome ?? "Sem condomínio";
-    const values: Record<string, [unknown, unknown]> = {
-      condominio: [normalizeText(aCondo), normalizeText(bCondo)],
-      unidade: [normalizeText(unidadeDisplay(a)), normalizeText(unidadeDisplay(b))],
-      responsavel: [normalizeText(relation(a.unidades)?.responsavel_nome), normalizeText(relation(b.unidades)?.responsavel_nome)],
-      status: [normalizeText(a.status), normalizeText(b.status)],
-      data_asc: [new Date(a.data_acordo ?? 0).getTime(), new Date(b.data_acordo ?? 0).getTime()],
-      data_desc: [new Date(a.data_acordo ?? 0).getTime(), new Date(b.data_acordo ?? 0).getTime()],
-      valor_asc: [Number(a.valor_acordado ?? 0), Number(b.valor_acordado ?? 0)],
-      valor_desc: [Number(a.valor_acordado ?? 0), Number(b.valor_acordado ?? 0)],
-    };
-    const [av, bv] = values[field] ?? values.condominio;
-    if (typeof av === "number" && typeof bv === "number") return field.endsWith("_desc") ? bv - av : av - bv;
-    return String(av).localeCompare(String(bv), "pt-BR", { numeric: true, sensitivity: "base" });
-  });
-}
-
 async function carregarParcelas(acordoIds: string[]) {
   if (!acordoIds.length) return new Map<string, any[]>();
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("parcelas_acordo")
-    .select("id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento")
-    .in("acordo_id", acordoIds);
+  const data = await carregarParcelasRelatorio(acordoIds, (ids, from, to) =>
+    supabase.from('parcelas_acordo')
+      .select('id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento')
+      .in('acordo_id', ids).order('id').range(from, to));
 
-  if (error) return new Map<string, any[]>();
   const map = new Map<string, any[]>();
   for (const parcela of (data ?? []) as any[]) {
     const acordoId = String(parcela.acordo_id ?? "");
@@ -651,64 +613,10 @@ function montarPdf(rows: any[]) {
 
 async function carregarAcordos(searchParams: URLSearchParams) {
   const scope = await getPermittedCarteiras();
-  const supabase = await createClient();
-  let query = somenteAcordosCanonicos(supabase
-    .from("acordos")
-    .select(`
-      id,
-      condominio_id,
-      unidade_id,
-      carteira_id,
-      cobranca_id,
-      data_acordo,
-      valor_acordado,
-      entrada,
-      quantidade_parcelas,
-      status,
-      status_financeiro,
-      fluxo_status,
-      numero_processo,
-      created_at,
-      condominios:condominio_id (id, nome, cnpj),
-      unidades:unidade_id (id, identificacao, bloco, responsavel_nome, telefone, email),
-      carteiras:carteira_id (id, nome),
-      cobrancas:cobranca_id (id, valor_original, valor_atualizado, vencimento, competencia, status, status_operacional, status_financeiro)
-    `));
-
-  query = applyCarteiraScope(query, scope);
-
-  const condominioId = getParam(searchParams, "condominio_id");
-  const unidadeId = getParam(searchParams, "unidade_id");
-  const carteiraId = getParam(searchParams, "carteira_id");
-  const status = getParam(searchParams, "status");
-  const dataDe = validDate(getParam(searchParams, "data_de"));
-  const dataAte = validDate(getParam(searchParams, "data_ate"));
-
-  if (condominioId) query = query.eq("condominio_id", condominioId);
-  if (unidadeId) query = query.eq("unidade_id", unidadeId);
-  if (carteiraId) query = query.eq("carteira_id", carteiraId);
-  if (status) query = query.eq("status", status);
-  if (dataDe) query = query.gte("data_acordo", dataDe);
-  if (dataAte) query = query.lte("data_acordo", dataAte);
-
-  const { data, error } = await query.order("data_acordo", { ascending: false });
-  if (error) throw new Error(`Erro ao carregar acordos: ${error.message}`);
-
-  const termo = normalizeText(getParam(searchParams, "q"));
-  const filtered = termo
-    ? ((data ?? []) as any[]).filter((row) => normalizeText([
-      relation(row.condominios)?.nome,
-      relation(row.unidades)?.identificacao,
-      relation(row.unidades)?.bloco,
-      relation(row.unidades)?.responsavel_nome,
-      row.numero_processo,
-      row.status,
-      relation(row.carteiras)?.nome,
-    ].filter(Boolean).join(" ")).includes(termo))
-    : ((data ?? []) as any[]);
-
-  const parcelas = await carregarParcelas(filtered.map((row) => row.id).filter(Boolean));
-  return sortAcordos(enriquecerAcordos(filtered, parcelas), getParam(searchParams, "ordenar"));
+  const filters = filtrosRelatorioAcordos(searchParams);
+  const rows = await listAcordosComSaudeFiltered(scope, filters);
+  const parcelas = await carregarParcelas(rows.map(row => row.id));
+  return enriquecerAcordos(rows, parcelas);
 }
 
 export async function GET(request: Request) {

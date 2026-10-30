@@ -386,10 +386,15 @@ export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListF
     query = query.limit(limit)
   }
 
-  const { data, error } = await query
-
-  if (error) {
-    throw new Error(`Erro ao carregar cobranças: ${error.message}`)
+  const data: any[] = []
+  const pageSize = 500
+  query = query.order('id')
+  for (let offset = 0; ; offset += pageSize) {
+    const end = Number.isFinite(limit) && limit > 0 ? Math.min(offset + pageSize, limit) : offset + pageSize
+    const { data: page, error } = await query.range(offset, end - 1)
+    if (error) throw new Error(`Erro ao carregar cobranças: ${error.message}`)
+    data.push(...(page ?? []))
+    if ((page ?? []).length < end - offset || (limit > 0 && data.length >= limit)) break
   }
 
   const rowsBase = normalizeRelationsList((data ?? []) as any[], ['carteiras', 'condominios', 'unidades']) as any[]

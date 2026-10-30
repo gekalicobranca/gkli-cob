@@ -1,25 +1,11 @@
-import { resolveFiltrosStatus } from '@/features/cobrancas/filtros-status'
+import { filtrosRelatorioCobrancas } from '@/features/cobrancas/filtros-relatorio'
 import { criarExcelRelatorioCobrancas } from '@/features/cobrancas/exportacao-excel'
 import { listCobrancas } from '@/features/cobrancas/queries'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 
-function getParam(searchParams: URLSearchParams, key: string) {
-  return String(searchParams.get(key) ?? '').trim()
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const filters = {
-    search: getParam(searchParams, 'q'),
-    administradoraId: getParam(searchParams, 'administradora_id'),
-    condominioId: getParam(searchParams, 'condominio_id'),
-    unidadeId: getParam(searchParams, 'unidade_id'),
-    conducaoProcesso: getParam(searchParams, 'conducao_processo'),
-    ...resolveFiltrosStatus(getParam(searchParams, 'status'), ['nosso_escritorio','outro_advogado'].includes(getParam(searchParams, 'conducao_processo')) ? 'sim' : getParam(searchParams, 'judicializacao_unidade')),
-    vencimentoDe: getParam(searchParams, 'vencimento_de'),
-    vencimentoAte: getParam(searchParams, 'vencimento_ate'),
-    ordenar: getParam(searchParams, 'ordenar') || 'vencimento_asc',
-  }
+  const filters = filtrosRelatorioCobrancas(searchParams)
 
   const scope = await getPermittedCarteiras()
   const rows = await listCobrancas(scope, filters)

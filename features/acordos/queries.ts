@@ -64,6 +64,7 @@ export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind) {
         id,
         operador_id,
         nome,
+        cnpj,
         custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico,
         dias_reemissao_parcela_acordo_atrasada
       ),
@@ -71,7 +72,9 @@ export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind) {
         id,
         identificacao,
         bloco,
-        responsavel_nome
+        responsavel_nome,
+        telefone,
+        email
       ),
       cobrancas:cobranca_id (
         id,

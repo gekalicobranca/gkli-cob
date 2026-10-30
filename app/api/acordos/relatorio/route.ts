@@ -1,25 +1,13 @@
+import { filtrosRelatorioAcordos } from '@/features/acordos/filtros-relatorio'
 import { criarExcelRelatorioAcordos } from '@/features/acordos/exportacao-excel'
 import { carregarParcelasRelatorio } from '@/features/acordos/parcelas-relatorio'
 import { listAcordosComSaudeFiltered } from '@/features/acordos/queries'
 import { createClient } from '@/utils/supabase/server'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 
-function getParam(searchParams: URLSearchParams, key: string) {
-  return String(searchParams.get(key) ?? '').trim()
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const filters = {
-    q: getParam(searchParams, 'q'),
-    condominio_id: getParam(searchParams, 'condominio_id'),
-    unidade_id: getParam(searchParams, 'unidade_id'),
-    carteira_id: getParam(searchParams, 'carteira_id'),
-    status: getParam(searchParams, 'status'),
-    data_de: getParam(searchParams, 'data_de'),
-    data_ate: getParam(searchParams, 'data_ate'),
-    ordenar: getParam(searchParams, 'ordenar') || 'data_desc',
-  }
+  const filters = filtrosRelatorioAcordos(searchParams)
 
   const scope = await getPermittedCarteiras()
   const rows = await listAcordosComSaudeFiltered(scope, filters)

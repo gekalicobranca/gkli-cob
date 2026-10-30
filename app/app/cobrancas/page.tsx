@@ -118,7 +118,7 @@ function cobrancasHref(params: Record<string, string>, overrides: Record<string,
 function cobrancasRelatorioExecutivoHref(params: Record<string, string>) {
   const query = new URLSearchParams();
 
-  for (const key of ["q", "administradora_id", "condominio_id", "unidade_id", "conducao_processo", "vencimento_de", "vencimento_ate", "ordenar"]) {
+  for (const key of ["q", "operador_id", "administradora_id", "condominio_id", "unidade_id", "conducao_processo", "status", "judicializacao_unidade", "vencimento_de", "vencimento_ate", "criacao_de", "criacao_ate", "ordenar"]) {
     const value = params[key];
     if (value) query.set(key, value);
   }
@@ -335,14 +335,14 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
           description="Fila operacional de débitos, negociações e encaminhamentos. Priorize por risco, valor e última movimentação."
           actions={
             <>
-              <Button type="button" disabled variant="secondary" title="Relatórios temporariamente indisponíveis">
+              <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo', '/relatorio')} prefetch={false} variant="secondary">
                 <Download size={16} />
                 Exportar
-              </Button>
-              <Button type="button" disabled variant="secondary" title="Relatórios temporariamente indisponíveis">
+              </ButtonLink>
+              <ButtonLink href={relatorioExecutivoHref} prefetch={false} target="_blank" rel="noopener noreferrer" variant="secondary">
                 <FileText size={16} />
                 Executivo
-              </Button>
+              </ButtonLink>
               <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo', '/catalogo')} prefetch={false} variant="secondary" title="Cotas na regra de cobrança, incluindo jurídico e pré-jurídico">
                 <FileText size={16} />
                 Catálogo PDF

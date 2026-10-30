@@ -156,6 +156,12 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
   const rows = acordosPage.rows
   const groups = groupAcordos(rows)
   const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.carteira_id || params.status || params.data_de || params.data_ate || params.criacao_de || params.criacao_ate || params.operador_id || params.ordenar)
+  const reportParams = new URLSearchParams({ tipo_acordo: agreementKind })
+  for (const [key, value] of Object.entries(params)) {
+    if (key !== 'page' && value) reportParams.set(key, value)
+  }
+  reportParams.set('tipo_acordo', agreementKind)
+  const reportQuery = reportParams.toString()
 
   const { ativos, atraso, rompidos, valorAtivo, emConferencia } = acordosPage.resumo
 
@@ -167,8 +173,8 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
         description={judicial ? "Controle processos, parcelas, pagamentos e pendências dos acordos judiciais." : "Controle acordos extrajudiciais, parcelas, atrasos e quebras operacionais."}
         actions={
           <>
-            <Button type="button" disabled variant="secondary" title="Relatórios temporariamente indisponíveis"><Download size={16} />Exportar</Button>
-            <Button type="button" disabled variant="secondary" title="Relatórios temporariamente indisponíveis"><FileText size={16} />Relatório executivo</Button>
+            <ButtonLink href={`/api/acordos/relatorio?${reportQuery}`} prefetch={false} variant="secondary"><Download size={16} />Exportar</ButtonLink>
+            <ButtonLink href={`/api/acordos/relatorio-executivo?${reportQuery}`} prefetch={false} target="_blank" rel="noopener noreferrer" variant="secondary"><FileText size={16} />Relatório executivo</ButtonLink>
             <ButtonLink href={`${basePath}/fila`} variant="secondary">Parcelas e pagamentos</ButtonLink>
             <ButtonLink href={judicial ? `${basePath}/pendencias` : "/app/acordos/gestao"} variant="secondary"><AlertTriangle size={16} />{judicial ? "Pendências judiciais" : "Gestão de quebrados"}</ButtonLink>
           </>
