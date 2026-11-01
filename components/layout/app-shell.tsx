@@ -78,6 +78,7 @@ const sections: SidebarSection[] = [
       { label: 'Acordos extrajudiciais', href: '/app/acordos', icon: 'handshake' },
       { label: 'Acordos judiciais', href: '/app/acordos/judiciais', icon: 'handshake' },
       { label: 'Controle de parcelas', href: '/app/acordos/fila', icon: 'clipboard' },
+      { label: 'Consulta mobile', href: '/app/mobile', icon: 'mobile', exact: true },
     ],
   },
   {
@@ -379,7 +380,7 @@ export function AppShell({
     )
   }
 
-  if (pathname === '/app/dashboard/tv') return <>{children}</>
+  if (pathname === '/app/dashboard/tv' || pathname === '/app/mobile') return <>{children}</>
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--gkli-background)]">

@@ -29,7 +29,7 @@ export async function getTvClosingResults(periodId = '') {
   return { ...results, period, periods }
 }
 
-export async function getTvResults(start: string, end: string) {
+export async function getTvResults(start: string, end: string, selection?: { carteiraId?: string; condominioId?: string }) {
   const valid = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value
   if (!valid(start) || !valid(end) || start > end || Date.parse(end) - Date.parse(start) >= 366 * 86400000) throw new Error('Selecione um período válido de até 366 dias.')
   const scope = await getPermittedCarteiras()
@@ -83,6 +83,11 @@ export async function getTvResults(start: string, end: string) {
     ...row,
     acordos: Array.isArray(row.acordos) ? row.acordos.map(withPayment) : withPayment(row.acordos),
   }))
-  const slides = buildTvSlides(start, end, today, wallets, availableCharges, qualifiedAgreements, qualifiedInstallments, condominiums)
+  const selected = (row: { carteira_id?: string | null; condominio_id?: string | null }) =>
+    (!selection?.carteiraId || row.carteira_id === selection.carteiraId) && (!selection?.condominioId || row.condominio_id === selection.condominioId)
+  const slides = buildTvSlides(start, end, today, wallets, availableCharges.filter(selected), qualifiedAgreements.filter(selected), qualifiedInstallments.filter(row => {
+    const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
+    return agreement && selected(agreement)
+  }), condominiums)
   return { start, end, today, updatedAt: new Date().toISOString(), ...slides[0].metrics, slides }
 }
