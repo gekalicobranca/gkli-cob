@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Building2, CircleDollarSign, Handshake, Landmark, RefreshCw, SlidersHorizontal, Smartphone } from 'lucide-react'
 import { mobileQuery, periodoMobileValido, type MobileSelection, type MobileView } from './consulta'
 
@@ -24,6 +24,7 @@ const inputClass = 'min-h-12 w-full min-w-0 rounded-xl border border-slate-300 b
 export function MobileConsulta({ userId, carteiras, condominios, initialPeriod }: {
   userId: string; carteiras: Option[]; condominios: (Option & { carteiraId: string })[]; initialPeriod: { inicio: string; fim: string }
 }) {
+  const viewport = useRef<HTMLElement>(null)
   const defaults: MobileSelection = { modo: 'carteira', carteiraId: '', condominioId: '', ...initialPeriod }
   const [selection, setSelection] = useState<MobileSelection | null>(null)
   const [draft, setDraft] = useState(defaults)
@@ -72,7 +73,7 @@ export function MobileConsulta({ userId, carteiras, condominios, initialPeriod }
   function open(next: MobileView) { setView(next); setPage(1); setError('') }
   const selectedName = selection?.modo === 'condominio' ? condominios.find(c => c.id === selection.condominioId)?.nome : carteiras.find(c => c.id === selection?.carteiraId)?.nome || 'Todas as carteiras'
   const active = cards.find(c => c.id === view)
-  return <main className="min-h-dvh bg-slate-100 text-slate-900">
+  return <main ref={viewport} className="h-dvh overflow-y-auto bg-slate-100 text-slate-900">
     <header className="border-b border-slate-200 bg-white px-4 py-4">
       <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
         <div className="flex items-center gap-3"><Image src="/logo-gkli-menu-icon.png" width={44} height={44} alt="GKLI" /><div><p className="text-xl font-bold">GKLI Mobile</p><p className="text-xs text-slate-500">Consulta · versão preliminar</p></div></div>
@@ -105,7 +106,7 @@ export function MobileConsulta({ userId, carteiras, condominios, initialPeriod }
                 <p className="rounded-2xl bg-white p-4 font-semibold">{data.total} {view === 'cobrancas' ? 'cotas' : 'acordos'}{data.valor != null && <span className="mt-1 block text-xl">{money(data.valor)}</span>}</p>
                 {!data.items?.length && <p className="rounded-2xl bg-white p-5">Nenhum registro para esta seleção e período.</p>}
                 {data.items?.map(item => <article key={item.id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div><p className="text-xs text-slate-500">{item.carteira}</p><h2 className="mt-1 break-words text-lg font-bold">{item.condominio}</h2><p className="mt-2 font-semibold">Unidade {item.unidade || '—'}{item.bloco ? ` · Bloco ${item.bloco}` : ''}</p><p className="mt-1 break-words text-sm text-slate-600">{item.responsavel || 'Responsável não informado'}</p></div><div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-slate-100 px-3 py-1 text-sm capitalize">{label(item.status)}</span><p className="text-xl font-bold">{money(item.valor)}</p></div>{item.vencimento && <p className="text-sm">Vencimento: {date(item.vencimento)}</p>}{item.processo && <p className="break-all text-sm text-slate-600">Processo: {item.processo}</p>}{item.parcelas && <details open className="border-t border-slate-100 pt-3"><summary className="cursor-pointer py-2 font-semibold">Parcelas do período ({item.parcelas.length})</summary><div className="divide-y divide-slate-100">{item.parcelas.map(parcela => <div key={parcela.id} className="space-y-2 py-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><span>#{parcela.numero} · {date(parcela.vencimento)}</span><strong>{money(parcela.valor)}</strong></div><p className={parcela.pagamento === 'Paga' ? 'font-semibold text-emerald-700' : 'text-slate-600'}>{parcela.pagamento}{parcela.dataPagamento ? ` em ${date(parcela.dataPagamento)}` : ''}</p><p>Repasse previsto: <strong>{parcela.repasse == null ? 'Não informado' : money(parcela.repasse)}</strong></p></div>)}</div></details>}</article>)}
-                {!!data.total && <nav aria-label="Páginas da consulta" className="flex items-center justify-between gap-2"><button type="button" disabled={page <= 1} onClick={() => { setPage(n => n - 1); window.scrollTo({ top: 0 }) }} className="min-h-12 rounded-xl bg-white px-4 disabled:opacity-40">Anterior</button><span className="text-sm">{page} / {data.pages}</span><button type="button" disabled={page >= (data.pages || 1)} onClick={() => { setPage(n => n + 1); window.scrollTo({ top: 0 }) }} className="min-h-12 rounded-xl bg-white px-4 disabled:opacity-40">Próxima</button></nav>}
+                {!!data.total && <nav aria-label="Páginas da consulta" className="flex items-center justify-between gap-2"><button type="button" disabled={page <= 1} onClick={() => { setPage(n => n - 1); viewport.current?.scrollTo({ top: 0 }) }} className="min-h-12 rounded-xl bg-white px-4 disabled:opacity-40">Anterior</button><span className="text-sm">{page} / {data.pages}</span><button type="button" disabled={page >= (data.pages || 1)} onClick={() => { setPage(n => n + 1); viewport.current?.scrollTo({ top: 0 }) }} className="min-h-12 rounded-xl bg-white px-4 disabled:opacity-40">Próxima</button></nav>}
               </>}
             </>}
           </section>}
