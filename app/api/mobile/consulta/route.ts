@@ -1,7 +1,6 @@
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getCondominioIntegral } from '@/features/condominios/queries'
-import { listCobrancas } from '@/features/cobrancas/queries'
-import { resolveFiltrosStatus } from '@/features/cobrancas/filtros-status'
+import { carregarResumoCobrancasMobile } from '@/features/mobile/cobrancas-queries'
 import { listAcordosComSaudeFiltered } from '@/features/acordos/queries'
 import { carregarParcelasRelatorio } from '@/features/acordos/parcelas-relatorio'
 import { createClient } from '@/utils/supabase/server'
@@ -37,11 +36,7 @@ export async function GET(request: Request) {
       return respond({ metrics: data.result, acordos: data.agreements.period, updatedAt: data.updatedAt })
     }
     if (view === 'cobrancas') {
-      const rows = await listCobrancas(scope, { condominioId, vencimentoDe: inicio, vencimentoAte: fim, ...resolveFiltrosStatus('', 'nao') })
-      const items = rows.slice((page - 1) * size, page * size).map(r => ({ id: r.id, condominio: r.condominios?.nome, carteira: r.carteiras?.nome,
-        unidade: r.unidades?.identificacao, bloco: r.unidades?.bloco, responsavel: r.unidades?.responsavel_nome,
-        valor: Number(r.valor_atualizado ?? r.valor_original ?? 0), vencimento: r.vencimento, status: r.status_operacional || r.status }))
-      return respond({ items, total: rows.length, page, pages: Math.max(1, Math.ceil(rows.length / size)), valor: rows.reduce((s, r) => s + Number(r.valor_atualizado ?? r.valor_original ?? 0), 0) })
+      return respond({ cobrancasResumo: await carregarResumoCobrancasMobile(scope, condominioId, fim) })
     }
     const rows = await listAcordosComSaudeFiltered(scope, { tipo_acordo: view === 'judiciais' ? 'judicial' : 'extrajudicial', condominio_id: condominioId, data_de: inicio, data_ate: fim, ordenar: 'condominio' })
     const subset = rows.slice((page - 1) * size, page * size)

@@ -4,7 +4,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import * as consulta from '../features/mobile/consulta'
 import * as pagamentos from '../features/acordos/parcelas-executivo'
-import { resolveFiltrosStatus } from '../features/cobrancas/filtros-status'
+import { resumoCobrancasMobile } from '../features/mobile/cobrancas-resumo'
 
 async function main() {
   assert.equal(consulta.periodoMobileValido('2026-02-30', '2026-03-01'), false)
@@ -19,8 +19,7 @@ async function main() {
   const modules: Record<string, unknown> = {
     '@/utils/auth/get-permitted-carteiras': { getPermittedCarteiras: async () => ({ userId: 'u', carteiraIds: [wallet] }) },
     '@/features/condominios/queries': { getCondominioIntegral: async (id: string) => id === condo ? { id } : null },
-    '@/features/cobrancas/queries': { listCobrancas: async (scope: any, filters: any) => { calls.push({scope,filters}); return [] } },
-    '@/features/cobrancas/filtros-status': {resolveFiltrosStatus},
+    '@/features/mobile/cobrancas-queries': {carregarResumoCobrancasMobile: async (scope: any, condominioId: string, ate: string) => {calls.push({scope,condominioId,ate});return {total:10804,valor:100,porStatus:[],ate}}},
     '@/features/acordos/queries': {listAcordosComSaudeFiltered: async (scope: any, filters: any) => { calls.push({scope,filters}); return [] }},
     '@/features/acordos/parcelas-relatorio': {carregarParcelasRelatorio: async () => []},
     '@/utils/supabase/server': {createClient: async () => ({from: () => { let selected = ''; const query = {select: () => query, eq: (_: string, id: string) => {selected=id;return query}, neq: () => query, maybeSingle: async () => ({data: selected === periodoId ? {data_abertura:'2026-10-13',data_fechamento:'2026-11-11'} : null,error:null})};return query}})},
@@ -48,12 +47,20 @@ async function main() {
   await get('view=extrajudiciais&condominio_id='+condo)
   assert.equal(calls.at(-1).filters.tipo_acordo,'extrajudicial')
   assert.equal(calls.at(-1).filters.condominio_id,condo)
-  await get('view=cobrancas')
-  assert.equal(calls.at(-1).filters.vencimentoAte,'2026-11-11')
-  assert.equal(calls.at(-1).filters.judicializacaoUnidade,'nao')
+  const cobran = await (await get('view=cobrancas&condominio_id='+condo)).json()
+  assert.equal(calls.at(-1).ate,'2026-11-11')
+  assert.equal(calls.at(-1).condominioId,condo)
+  assert.equal(cobran.cobrancasResumo.total,10804)
+  assert.equal(cobran.items,undefined)
   await get('view=resultados&condominio_id='+condo)
   assert.equal(calls.at(-1).selection.condominioId,condo)
   assert.equal((await get('view=desconhecida')).status,400)
+  const resumo = resumoCobrancasMobile([{id:'1',status_operacional:'em_cobranca_ativa',valor_atualizado:10.10},{id:'2',status_operacional:'em_cobranca_ativa',valor_atualizado:20.20},{id:'2',valor_atualizado:99},{id:'3',status_operacional:'judicializado',valor_original:40},{id:'4',status_financeiro:'quitado',status_operacional:'novo',valor_atualizado:5},{id:'5',duplicada_de_id:'1',valor_atualizado:100}])
+  assert.equal(resumo.total,4)
+  assert.equal(resumo.valor,75.30)
+  assert.equal(resumo.porStatus.find(g=>g.status==='em_cobranca_ativa')?.valor,30.30)
+  assert.equal(resumo.porStatus.find(g=>g.status==='judicializado')?.quantidade,1)
+  assert.equal(resumo.porStatus.find(g=>g.status==='quitado')?.quantidade,1)
   console.log('Mobile validado: períodos, seleção exclusiva, permissões de carteira/condomínio, categorias, repasses e API somente GET.')
 }
 main().catch(e => {console.error(e);process.exitCode=1})
