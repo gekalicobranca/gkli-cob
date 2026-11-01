@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import * as consulta from '../features/mobile/consulta'
+import { resumirFlowMobile } from '../features/mobile/flows-resumo'
 import * as pagamentos from '../features/acordos/parcelas-executivo'
 import { resumoCobrancasMobile } from '../features/mobile/cobrancas-resumo'
 
@@ -48,7 +49,7 @@ async function main() {
   assert.equal(calls.at(-1).filters.tipo_acordo,'extrajudicial')
   assert.equal(calls.at(-1).filters.condominio_id,condo)
   const cobran = await (await get('view=cobrancas&condominio_id='+condo)).json()
-  assert.equal(calls.at(-1).ate,'2026-11-11')
+  assert.equal(calls.at(-1).ate,undefined)
   assert.equal(calls.at(-1).condominioId,condo)
   assert.equal(cobran.cobrancasResumo.total,10804)
   assert.equal(cobran.items,undefined)
@@ -56,11 +57,24 @@ async function main() {
   assert.equal(calls.at(-1).selection.condominioId,condo)
   assert.equal((await get('view=desconhecida')).status,400)
   const resumo = resumoCobrancasMobile([{id:'1',status_operacional:'em_cobranca_ativa',valor_atualizado:10.10},{id:'2',status_operacional:'em_cobranca_ativa',valor_atualizado:20.20},{id:'2',valor_atualizado:99},{id:'3',status_operacional:'judicializado',valor_original:40},{id:'4',status_financeiro:'quitado',status_operacional:'novo',valor_atualizado:5},{id:'5',duplicada_de_id:'1',valor_atualizado:100}])
-  assert.equal(resumo.total,4)
-  assert.equal(resumo.valor,75.30)
-  assert.equal(resumo.porStatus.find(g=>g.status==='em_cobranca_ativa')?.valor,30.30)
-  assert.equal(resumo.porStatus.find(g=>g.status==='judicializado')?.quantidade,1)
-  assert.equal(resumo.porStatus.find(g=>g.status==='quitado')?.quantidade,1)
+  assert.equal(resumo.total,2)
+  assert.equal(resumo.valor,30.30)
+  assert.equal(resumo.porStatus.find(g=>g.status==='ativas')?.valor,30.30)
+  assert.equal(resumo.porStatus.some(g=>g.status==='judicializado'),false)
+  assert.equal(resumo.porStatus.some(g=>g.status==='quitado'),false)
+  assert.equal(resumo.porStatus.find(g=>g.status==='novas')?.quantidade,0)
+  assert.equal(resumoCobrancasMobile([{id:'n',status_operacional:'novo',valor_original:50},{id:'e',status_operacional:'em_negociacao',valor_original:25}]).total,2)
+  const flows = resumirFlowMobile([{id:'a',valor_original:100},{id:'b',valor_original:200}], [
+    {id:'1',cobranca_id:'a',created_at:'2026-10-01',flow:{status:'concluido',canais:['email']}},
+    {id:'2',cobranca_id:'a',created_at:'2026-11-01',flow:{status:'pausado',canais:['email']}},
+    {id:'3',cobranca_id:'a',created_at:'2026-11-01',flow:{status:'em_execucao',canais:['whatsapp']}},
+    {id:'4',cobranca_id:'fora',created_at:'2026-11-01',flow:{status:'pronto',canais:['whatsapp']}}
+  ])
+  assert.equal(flows.email.find(g=>g.status==='pausado')?.quantidade,1)
+  assert.equal(flows.email.some(g=>g.status==='concluido'),false)
+  assert.equal(flows.email.find(g=>g.status==='sem_flow')?.valor,200)
+  assert.equal(flows.whatsapp.find(g=>g.status==='em_execucao')?.quantidade,1)
+  assert.equal(flows.whatsapp.reduce((s,g)=>s+g.quantidade,0),2)
   console.log('Mobile validado: períodos, seleção exclusiva, permissões de carteira/condomínio, categorias, repasses e API somente GET.')
 }
 main().catch(e => {console.error(e);process.exitCode=1})

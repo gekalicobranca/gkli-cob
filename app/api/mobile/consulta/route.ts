@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       return respond({ metrics: data.result, acordos: data.agreements.period, updatedAt: data.updatedAt })
     }
     if (view === 'cobrancas') {
-      return respond({ cobrancasResumo: await carregarResumoCobrancasMobile(scope, condominioId, fim) })
+      return respond({ cobrancasResumo: await carregarResumoCobrancasMobile(scope, condominioId) })
     }
     const rows = await listAcordosComSaudeFiltered(scope, { tipo_acordo: view === 'judiciais' ? 'judicial' : 'extrajudicial', condominio_id: condominioId, data_de: inicio, data_ate: fim, ordenar: 'condominio' })
     const subset = rows.slice((page - 1) * size, page * size)
