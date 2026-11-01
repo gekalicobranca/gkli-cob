@@ -4,7 +4,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Building2, CircleDollarSign, Handshake, Landmark, RefreshCw, SlidersHorizontal, Smartphone } from 'lucide-react'
-import { mobileQuery, periodoMobileValido, type MobileSelection, type MobileView } from './consulta'
+import { mobileQuery, periodoMobileValido, nomePeriodoMobile, type MobileSelection, type MobileView, type MobilePeriod } from './consulta'
+import { CondominioAutocomplete } from './condominio-autocomplete'
 
 type Option = { id: string; nome: string }
 type Parcela = { id: string; numero: number; valor: number; vencimento: string; pagamento: string; dataPagamento: string | null; repasse: number | null }
@@ -21,11 +22,12 @@ const date = (v: string) => v?.slice(0, 10).split('-').reverse().join('/') || '�
 const label = (v: string) => (v || 'Não informado').replaceAll('_', ' ')
 const inputClass = 'min-h-12 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900'
 
-export function MobileConsulta({ userId, carteiras, condominios, initialPeriod }: {
-  userId: string; carteiras: Option[]; condominios: (Option & { carteiraId: string })[]; initialPeriod: { inicio: string; fim: string }
+export function MobileConsulta({ userId, carteiras, condominios, periodos, initialPeriodId }: {
+  userId: string; carteiras: Option[]; condominios: (Option & { carteiraId: string })[]; periodos: MobilePeriod[]; initialPeriodId: string
 }) {
   const viewport = useRef<HTMLElement>(null)
-  const defaults: MobileSelection = { modo: 'carteira', carteiraId: '', condominioId: '', ...initialPeriod }
+  const initialPeriod = periodos.find(p => p.id === initialPeriodId)
+  const defaults: MobileSelection = { modo: 'carteira', carteiraId: '', condominioId: '', periodoId: initialPeriodId, inicio: initialPeriod?.inicio ?? '', fim: initialPeriod?.fim ?? '' }
   const [selection, setSelection] = useState<MobileSelection | null>(null)
   const [draft, setDraft] = useState(defaults)
   const [editing, setEditing] = useState(true)
@@ -36,19 +38,20 @@ export function MobileConsulta({ userId, carteiras, condominios, initialPeriod }
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
-  const [search, setSearch] = useState('')
   const [revision, setRevision] = useState(0)
   const storageKey = `gkli:mobile:consulta:v1:${userId}`
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || 'null') as MobileSelection | null
-      if (saved && ['carteira', 'condominio'].includes(saved.modo) && periodoMobileValido(saved.inicio, saved.fim) &&
+      const period = periodos.find(p => saved?.periodoId ? p.id === saved.periodoId : p.inicio === saved?.inicio && p.fim === saved?.fim)
+      if (saved && period && ['carteira', 'condominio'].includes(saved.modo) &&
         (saved.modo === 'carteira' ? (!saved.carteiraId || carteiras.some(c => c.id === saved.carteiraId)) : condominios.some(c => c.id === saved.condominioId))) {
-        setSelection(saved); setDraft(saved); setEditing(false)
+        const restored = { ...saved, periodoId: period.id, inicio: period.inicio, fim: period.fim }
+        setSelection(restored); setDraft(restored); setEditing(false)
       }
     } catch { /* Sem armazenamento disponível: seleção funciona durante a sessão. */ }
     setReady(true)
-  }, [storageKey, carteiras, condominios])
+  }, [storageKey, carteiras, condominios, periodos])
   useEffect(() => {
     if (!view || !selection) return
     const controller = new AbortController()
@@ -65,7 +68,7 @@ export function MobileConsulta({ userId, carteiras, condominios, initialPeriod }
   }, [selection, view, page, revision])
   function apply(event: React.FormEvent) {
     event.preventDefault()
-    if (!periodoMobileValido(draft.inicio, draft.fim)) { setFormError('Informe um período válido de até 366 dias.'); return }
+    if (!periodos.some(p => p.id === draft.periodoId) || !periodoMobileValido(draft.inicio, draft.fim)) { setFormError('Selecione um período de fechamento cadastrado.'); return }
     if (draft.modo === 'condominio' && !draft.condominioId) { setFormError('Selecione um condomínio.'); return }
     setSelection(draft); setEditing(false); setView(null); setPage(1); setFormError('')
     try { localStorage.setItem(storageKey, JSON.stringify(draft)) } catch { /* Preferência mantida em memória. */ }
@@ -83,13 +86,14 @@ export function MobileConsulta({ userId, carteiras, condominios, initialPeriod }
     <div className="mx-auto max-w-2xl space-y-5 px-4 pb-12 pt-5">
       {!ready ? <p role="status">Carregando suas preferências…</p> : <>
         {selection && <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Consultando</p><p className="mt-1 break-words text-lg font-bold">{selectedName}</p><p className="mt-1 text-sm text-slate-600">{date(selection.inicio)} a {date(selection.fim)}</p></div><button type="button" onClick={() => { setDraft(selection); setEditing(!editing) }} aria-expanded={editing} className="flex min-h-12 shrink-0 items-center gap-2 rounded-xl bg-slate-100 px-3 text-sm font-semibold"><SlidersHorizontal size={18} />Alterar</button></div>
+          <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Consultando</p><p className="mt-1 break-words text-lg font-bold">{selectedName}</p><p className="mt-1 text-sm text-slate-600">{periodos.find(p => p.id === selection.periodoId) ? nomePeriodoMobile(periodos.find(p => p.id === selection.periodoId)!) : 'Fechamento indisponível'}</p></div><button type="button" onClick={() => { setDraft(selection); setEditing(!editing) }} aria-expanded={editing} className="flex min-h-12 shrink-0 items-center gap-2 rounded-xl bg-slate-100 px-3 text-sm font-semibold"><SlidersHorizontal size={18} />Alterar</button></div>
         </section>}
         {editing && <form onSubmit={apply} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div><h1 className="text-2xl font-bold">O que vamos consultar?</h1><p className="mt-2 text-sm text-slate-600">Escolha a seleção e o período. Vamos lembrar deles neste aparelho.</p></div>
           <fieldset><legend className="mb-2 text-sm font-semibold">Consultar por</legend><div className="flex gap-2">{(['carteira', 'condominio'] as const).map(mode => <label key={mode} className={`flex min-h-14 flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3 font-semibold ${draft.modo === mode ? 'border-cyan-700 bg-cyan-50 text-cyan-900' : 'border-slate-200'}`}><input type="radio" name="modo" value={mode} checked={draft.modo === mode} onChange={() => setDraft({ ...draft, modo: mode })} />{mode === 'carteira' ? 'Carteira' : 'Condomínio'}</label>)}</div></fieldset>
-          {draft.modo === 'carteira' ? <label className="block space-y-2 text-sm font-semibold"><span>Carteira</span><select className={inputClass} value={draft.carteiraId} onChange={e => setDraft({ ...draft, carteiraId: e.target.value })}><option value="">Todas as carteiras</option>{carteiras.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></label> : <div className="space-y-2"><label htmlFor="mobile-busca" className="block text-sm font-semibold">Condomínio</label><input id="mobile-busca" className={inputClass} type="search" placeholder="Buscar condomínio…" value={search} onChange={e => setSearch(e.target.value)} /><select aria-label="Selecione o condomínio" required className={inputClass} value={draft.condominioId} onChange={e => setDraft({ ...draft, condominioId: e.target.value })}><option value="">Selecione</option>{condominios.filter(c => c.id === draft.condominioId || c.nome.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR'))).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>}
-          <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2"><label className="block space-y-2 text-sm font-semibold"><span>Vencimento de</span><input required type="date" className={inputClass} value={draft.inicio} onChange={e => setDraft({ ...draft, inicio: e.target.value })} /></label><label className="block space-y-2 text-sm font-semibold"><span>Até</span><input required type="date" className={inputClass} value={draft.fim} onChange={e => setDraft({ ...draft, fim: e.target.value })} /></label></div>
+          {draft.modo === 'carteira' ? <label className="block space-y-2 text-sm font-semibold"><span>Carteira</span><select className={inputClass} value={draft.carteiraId} onChange={e => setDraft({ ...draft, carteiraId: e.target.value })}><option value="">Todas as carteiras</option>{carteiras.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></label> : <CondominioAutocomplete options={condominios} value={draft.condominioId} onChange={condominioId => setDraft({ ...draft, condominioId })} />}
+          <label className="block space-y-2 text-sm font-semibold"><span>Período de fechamento</span><select required className={inputClass} value={draft.periodoId} onChange={event => { const period = periodos.find(p => p.id === event.target.value); if (period) setDraft({ ...draft, periodoId: period.id, inicio: period.inicio, fim: period.fim }) }}><option value="">Selecione o fechamento</option>{periodos.map(period => <option key={period.id} value={period.id}>{nomePeriodoMobile(period)}</option>)}</select>{draft.periodoId && <span className="block text-sm font-normal text-slate-600">{date(draft.inicio)} a {date(draft.fim)}</span>}</label>
+          {!periodos.length && <p role="alert" className="text-sm text-amber-800">Nenhum período de fechamento disponível.</p>}
           {formError && <p role="alert" className="text-sm text-red-700">{formError}</p>}
           <button className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-cyan-800 px-4 text-lg font-semibold text-white" type="submit">Continuar <ArrowRight size={20} /></button>
         </form>}

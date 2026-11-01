@@ -11,12 +11,19 @@ import { pagamentoParcelaExecutivo, repasseParcelaExecutivo } from '@/features/a
 
 export async function GET(request: Request) {
   const p = new URL(request.url).searchParams
-  const inicio = p.get('inicio') ?? '', fim = p.get('fim') ?? '', view = p.get('view') ?? ''
-  if (!periodoMobileValido(inicio, fim) || !MOBILE_VIEWS.some(v => v === view)) return Response.json({ error: 'Selecione uma consulta e um período válido de até 366 dias.' }, { status: 400 })
+  const view = p.get('view') ?? ''
+  if (!MOBILE_VIEWS.some(v => v === view)) return Response.json({ error: 'Selecione uma consulta válida.' }, { status: 400 })
   try {
     const permitted = await getPermittedCarteiras()
     const carteiraId = p.get('carteira_id') || '', condominioId = p.get('condominio_id') || ''
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const periodoId = p.get('periodo_id') ?? ''
+    if (!uuid.test(periodoId)) return Response.json({ error: 'Selecione um período de fechamento cadastrado.' }, { status: 400 })
+    const db = await createClient()
+    const { data: periodo, error: periodoError } = await db.from('fechamento_periodos').select('data_abertura,data_fechamento').eq('id', periodoId).neq('status', 'cancelado').maybeSingle()
+    if (periodoError) throw periodoError
+    if (!periodo || !periodoMobileValido(periodo.data_abertura, periodo.data_fechamento)) return Response.json({ error: 'Período de fechamento indisponível.' }, { status: 400 })
+    const inicio = periodo.data_abertura, fim = periodo.data_fechamento
     if ((carteiraId && !uuid.test(carteiraId)) || (condominioId && !uuid.test(condominioId))) return Response.json({ error: 'Seleção inválida.' }, { status: 400 })
     if (carteiraId && permitted.carteiraIds !== null && !permitted.carteiraIds.includes(carteiraId)) return Response.json({ error: 'Carteira indisponível para seu acesso.' }, { status: 403 })
     if (condominioId && !await getCondominioIntegral(condominioId, permitted)) return Response.json({ error: 'Condomínio indisponível para seu acesso.' }, { status: 403 })
@@ -38,7 +45,6 @@ export async function GET(request: Request) {
     }
     const rows = await listAcordosComSaudeFiltered(scope, { tipo_acordo: view === 'judiciais' ? 'judicial' : 'extrajudicial', condominio_id: condominioId, data_de: inicio, data_ate: fim, ordenar: 'condominio' })
     const subset = rows.slice((page - 1) * size, page * size)
-    const db = await createClient()
     const parcelas = await carregarParcelasRelatorio(subset.map(r => r.id), (ids, from, to) => db.from('parcelas_acordo')
       .select('id,acordo_id,numero,tipo_parcela,valor,vencimento,status,data_pagamento,valor_repasse_informado').in('acordo_id', ids)
       .gte('vencimento', inicio).lte('vencimento', fim).order('id').range(from, to))
