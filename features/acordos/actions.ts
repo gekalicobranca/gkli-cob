@@ -2628,7 +2628,9 @@ export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
     severidade: decisao === "aprovar" ? "sucesso" : "alerta",
     payload: { decisao, motivo, observacao },
     antes: { fluxo_status: (acordo as any).fluxo_status ?? null },
-    depois: update,
+    depois: decisao === "aprovar"
+      ? { fluxo_status: "aprovado_sindico_aguardando_aceite_devedor" }
+      : { fluxo_status: "reprovado_sindico", status: "cancelado" },
     origem: "manual",
     auditavel: true,
     userId: user.id,
