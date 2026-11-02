@@ -36,10 +36,14 @@ export async function abrirExtratoManager(context,href,signal,etapa=()=>{}){
   etapa('pagamentos_manager')
   await Promise.all([page.waitForNavigation({waitUntil:'domcontentloaded'}),page.locator('input[type=submit]').filter({visible:true}).first().click()])
   if(page.url()!==fonteManager)throw Error('Resposta financeira fora do destino homologado.')
-  await page.waitForFunction(()=>[...document.querySelectorAll('table')].some(t=>/Data Pagamento/i.test(t.rows[0]?.innerText??'')&&/Valor Pago/i.test(t.rows[0]?.innerText??'')),{},{timeout:12000})
+  const estado=await page.waitForFunction(()=>{
+   if(/relat[oó]rio indispon[ií]vel no momento/i.test(document.body.innerText))return 'relatorio_indisponivel'
+   return [...document.querySelectorAll('table')].some(t=>/Data Pagamento/i.test(t.rows[0]?.innerText??'')&&/Valor Pago/i.test(t.rows[0]?.innerText??''))?'tabela':false
+  },{},{timeout:12000}).then(h=>h.jsonValue())
   const texto=await page.locator('body').innerText()
-  const tabelas=await page.locator('table').evaluateAll(xs=>xs.map(t=>[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim()))))
   if(texto.match(/(?:^|\n)Unidade:\s*([A-Z0-9/]+)/)?.[1]!==ref)throw Error('Extrato Manager retornou outra unidade.')
+  if(estado==='relatorio_indisponivel')return {status:'inconclusivo',diagnostico:'sem_acesso',codigo_diagnostico:'manager_relatorio_indisponivel',motivo:'O portal Manager informa: relatório indisponível no momento; entrar em contato com a administradora.',referencia_financeira:ref}
+  const tabelas=await page.locator('table').evaluateAll(xs=>xs.map(t=>[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim()))))
   let resultado
   try{resultado=pagamentosManager(tabelas,ref,texto)}catch{resultado={status:'inconclusivo',motivo:'Formato financeiro exige interpretação assistida; nenhuma confirmação inferida.'}}
   return {...resultado,leitura_auxiliar:leituraFinanceira(tabelas),referencia_financeira:ref,periodo:{inicio:fmt(inicio),fim:fmt(fim)}}

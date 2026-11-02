@@ -125,7 +125,11 @@ export async function abrirLello(config, signal) {
      await visitar(linkUnidade(pagamentos, unidade, '/relatorios/HistoricoPagamentosUnidade.do'))
      if(await detalhe.locator('input[type="password"]').count())throw Error('Sessão do portal expirou durante a consulta.')
      const identificador=detalhe.locator('input[name="codigoUnidade"]')
-     if(await identificador.count()!==1)return inconclusivo('historico_sem_identificador','Histórico sem identificador de unidade; pagamento exige conferência.')
+     if(await identificador.count()!==1){
+      const texto=(await detalhe.locator('body').innerText()).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim()
+      if(/^Relatorios Nao ha recibos para esse condominio\/unidade\.?$/i.test(texto))return {contatos:contato,pagamentos:{codigo:config.codigo_portal,unidade,fonte:detalhe.url(),baixa_permitida:false,status:'consultado',diagnostico:'sem_pagamento_localizado',codigo_diagnostico:'lello_sem_recibos',motivo:'O portal informa que não há recibos para este condomínio/unidade; isso não confirma quitação nem ausência de débitos.',recebimentos:[]}}
+      return inconclusivo('historico_sem_identificador','Histórico sem identificador de unidade; pagamento exige conferência.')
+     }
      if (await identificador.inputValue() !== unidade) throw Error('Unidade do histórico diverge.')
      const links = [...new Set(await detalhe.locator('a[href*="/relatorios/Acordo.do"]').evaluateAll(els => els.map(e => e.href)))]
      if (!links.length) return { contatos: contato, pagamentos: { codigo: config.codigo_portal, unidade, fonte: detalhe.url(), baixa_permitida: false, status: 'inconclusivo', motivo: 'Histórico sem documentos de acordo. Não confirma pagamento nem ausência de débitos.' } }

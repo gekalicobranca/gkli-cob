@@ -272,3 +272,14 @@ O In Jardim Sul Gallery também passou pelo adaptador completo: inventário lega
 No Vivaz Estação Vila Prudente, o menu funciona, mas o relatório respondeu explicitamente “Relatorio indisponível no momento, por gentileza entrar em contato com a Administradora” nas unidades A/AP/000612 e A/AP/001416. Respostas HTTP 200 sem tabela não são prova de pagamento. O adaptador passa a reconhecer a mensagem, registrar diagnóstico específico e suspender novas consultas financeiras no lote; contatos e retomada continuam independentes. A restrição da origem permanece pendente.
 
 Mantidos: lotes noturnos de até 20, limites de navegação e tempo, nenhuma captação/importação de inadimplência e baixa somente após evidência objetiva. A validação não avançou cursores nem alterou pagamentos, contatos ou acordos no app.
+
+
+## Validação das demais administradoras — 02/11/2026
+
+Amostras Manager de leitura: Square Garden Campo Belo Studios 0/CJ/SU0316 (três registros de pagamento), Bem Moema – Setor Lojas 0/LJ/000001 (dois) e Caroline Mahal 0/AP/000151 (dois), entre 04/08 e 02/11/2026. Cadastros e identidades confirmados. Villa Lobos BUSS/0/000014: a primeira navegação ficou no painel intermediário; a segunda chegou ao extrato BUSS//000014, mas o próprio portal informou relatório indisponível. O scanner passa a reconhecer essa mensagem sem aguardar timeout e a distinguir as consultas seguintes, adiadas após a falha, de falta de menu. Nenhuma origem alternativa ou unidade aproximada foi aceita.
+
+Lello: Safira 200042 retomou após três documentos salvos e leu o último documento; Tour de Lion 000071 e Inspire Mauá Sonhos 100128 leram três documentos seguintes cada, preservando pendência de outros blocos; Bosque Marajoara 00084A retornou dois documentos. Safira 200035 retornou explicitamente a tela “Não há recibos para esse condomínio/unidade.” O scanner passa a registrar ausência de recibos informada pela origem, sem classificar essa tela específica como identidade ausente e sem inferir quitação. Outras telas sem identificação continuam para revisão. A revisão de identidade do acordo Safira 100054 permanece intacta.
+
+Graiche (Elo & Elo Duo, unidade 000501/A) não completou o fluxo de navegação reconhecido pelo adaptador; Sell (Parc Exclusif Perdizes, unidade 103) não disponibilizou a tela cadastral esperada. Ambos continuam inativos como integração pendente. As demais configurações pendentes de adaptador ou acesso não são participantes da rotina noturna; constar na lista de configurações não indica consulta executada. Nenhuma delas foi ativada com base apenas em login ou coincidência de unidade.
+
+A validação não gravou contatos, evidências de pagamento, baixas ou avanços de cursor. Somente os acessos Manager confirmados podem ter pausas/falhas técnicas zeradas; a indisponibilidade real do Villa Lobos permanece registrada. Lotes de até 20, janela noturna e critérios de baixa mantidos.

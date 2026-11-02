@@ -45,3 +45,17 @@ test('recibos sem data e com zero pago não descartam comprovante válido nem vi
  assert.equal(pagamentosManager([[cab,...pendente]],'0//CE0026','Unidade: 0//CE0026').status,'consultado')
  assert.equal(pagamentosManager([[cab,pendente[0],['','100,00','','','','','','100,00']]],'0//CE0026','Unidade: 0//CE0026').status,'inconclusivo')
 })
+
+test('Manager: relatório indisponível preserva identidade, não retorna pagamentos e não impede consulta futura',async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true})
+ try{
+  const context=await browser.newContext();let referencia='BUSS//000014'
+  await context.route('**/*',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:route.request().method()==='POST'?'<p>Unidade: '+referencia+'</p><p>Relatorio indisponível no momento, por gentileza entrar em contato com a Administradora.</p>':'<form method=post><select name=FormUnidade><option value="BUSS//000014">14</option></select><input name=dtd><input name=dta><input type=submit></form>'}))
+  const financeiro=await abrirExtratoManager(context,fonteManager,new AbortController().signal)
+  const r=await financeiro.consultar('BUSS/0/000014')
+  assert.equal(r.status,'inconclusivo');assert.equal(r.codigo_diagnostico,'manager_relatorio_indisponivel')
+  assert.equal(r.referencia_financeira,'BUSS//000014');assert.equal(r.pagamentos,undefined)
+  referencia='OUTRO//000014'
+  await assert.rejects(financeiro.consultar('BUSS/0/000014'),/outra unidade/)
+ }finally{await browser.close()}
+})

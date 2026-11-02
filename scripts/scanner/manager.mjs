@@ -28,7 +28,7 @@ export async function abrirManager(config, receita, unidades, signal) {
   if(!opcoes.length)throw Error('Cadastro Manager sem unidades reconhecidas.')
   await detalhe.close()
   // O extrato é aberto somente se disponibilizado no menu. Nunca navega a Cotas Pendentes.
-  let financeiro=null
+  let financeiro=null,financeiroInterrompido=false
   if(!config.financeiroSuspenso && await menu.locator('select[name=Conteudo] option[value="/bin/aplic/display.asp?i=ARC"]').count()){
    etapa('menu_pagamentos_manager')
    try{
@@ -41,8 +41,11 @@ export async function abrirManager(config, receita, unidades, signal) {
   }
   async function pagamentos(referencia){
    if(config.financeiroSuspenso)return {diagnostico:'acesso_adiado',status:'inconclusivo',motivo:'Consulta financeira adiada após indisponibilidade; cadastro preservado.'}
+   if(financeiroInterrompido)return {diagnostico:'acesso_adiado',status:'inconclusivo',motivo:'Consulta financeira suspensa neste lote após falha no extrato de uma unidade; cadastro preservado.'}
    if(!financeiro)return {status:'inconclusivo',motivo:'Extrato de pagamentos não disponível no menu deste acesso.'}
-   return financeiro.consultar(referencia)
+   const r=await financeiro.consultar(referencia)
+   if(r.codigo_diagnostico==='manager_relatorio_indisponivel'){financeiro=null;financeiroInterrompido=true}
+   return r
   }
   return {
    close:sessao.close,
@@ -56,7 +59,7 @@ export async function abrirManager(config, receita, unidades, signal) {
     etapa('cadastro_manager');await page.waitForTimeout(2000);signal.throwIfAborted()
     const ficha=await lerCadastroManager(context,url.href,{signal,referencia:opcao.label,unidade:id,onTentativa:n=>{if(n>1)etapa('cadastro_manager_retomada')}})
     const contatos={codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:url.href,fichas:[ficha]}
-    const resultado=await complementarComPagamentos(contatos,()=>pagamentos(opcao.label),()=>{financeiro=null;etapa('financeiro_indisponivel_manager')})
+    const resultado=await complementarComPagamentos(contatos,()=>pagamentos(opcao.label),()=>{financeiro=null;financeiroInterrompido=true;etapa('financeiro_indisponivel_manager')})
     resultado.pagamentos={...resultado.pagamentos,codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:base+'/bin/rt/gExtratoUnidade.asp'}
     return resultado
    }
