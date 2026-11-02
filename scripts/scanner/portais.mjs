@@ -1,4 +1,5 @@
 import { chromium } from 'playwright'
+import {credenciaisGraiche,credenciaisSell} from '../agente-automatico/webware-acesso.mjs'
 
 export const portaisImplementados = ['manager', 'bbz', 'graiche', 'sell']
 export const normalizarCodigo = value => String(value ?? '').trim().toUpperCase().replace(/^0+(?=\w)/, '')
@@ -15,6 +16,8 @@ export function selecionarUnidade(opcoes, unidade) {
 }
 
 export function credenciais(config, receita) {
+ if(config.portal==='graiche'){const {usuario,senha}=credenciaisGraiche(receita);return {usuario,senha}}
+ if(config.portal==='sell')return credenciaisSell(receita)
  const raw = String(receita.acesso_raw ?? '')
  const prefixo = receita.credencial_env_prefix || `AGENTE_${config.portal.toUpperCase()}`
  if(!/^[A-Z][A-Z0-9_]{0,60}$/.test(prefixo)) throw Error('Perfil de credencial inválido.')

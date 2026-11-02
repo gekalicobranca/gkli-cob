@@ -10,6 +10,7 @@ import { somenteExecucoesLiberadas } from './execucoes-agendadas.mjs'
 import { caminhoDownloadMaestro, concluirExecucaoMaestro } from './concluir-maestro.mjs'
 import { startWorkerHeartbeat } from './worker-heartbeat.mjs'
 import { validarIdentidadeSell, retornoSemInadimplenciaSell } from './sell-validacao.mjs'
+import {acessarSell,credenciaisSell} from './webware-acesso.mjs'
 
 // SELL é exclusivamente sob demanda; não possui modo consumidor contínuo.
 if (!process.env.AGENTE_EXECUCAO_ID || process.env.AGENTE_RUN_ONCE !== 'true') throw new Error('SELL requer um disparo manual específico.')
@@ -37,19 +38,12 @@ async function coletar(pedido) {
   try {
     await startWorkerHeartbeat(db, 'captacao_sell')
     const config = pedido.receita.config_json || {}
-    const raw = String(config.acesso_raw || '')
-    const usuario = (raw.match(/(?:login|usuário|usuario)\s*:\s*(.+?)(?=\s+senha\s*:|$)/i)?.[1] || raw.match(/^\s*(\S+)\s+senha\s*:/i)?.[1])?.trim().replace(/[;\s]+$/, '')
-    const senha = raw.match(/senha\s*:\s*(.+)$/i)?.[1]?.trim()
+    const {usuario,senha}=credenciaisSell(config)
     if (!usuario || !senha || !config.titulo_portal_validado) throw new Error('Acesso ou identificação SELL não configurados.')
     sessao = await criarContextoChromeIsolado(chromium, raiz, 'sell-manual', { channel: 'chrome', headless: true, acceptDownloads: true })
     const page = sessao.context.pages()[0] || await sessao.context.newPage()
     page.setDefaultTimeout(60_000)
-    await page.goto('https://selladm.com.br/', { waitUntil: 'domcontentloaded' })
-    await page.locator('input[type=text]').filter({ visible: true }).first().fill(usuario)
-    await page.locator('input[type=password]').filter({ visible: true }).first().fill(senha)
-    await page.getByRole('button', { name: /^entrar$/i }).click()
-    await page.waitForURL(u => u.origin === 'https://servc9.webware.com.br' && u.pathname === '/bin/skin/aInicioSkin.asp')
-    validarIdentidadeSell(await page.title(), config.titulo_portal_validado)
+    await acessarSell(page,{usuario,senha,titulo:config.titulo_portal_validado})
     await log(pedido, 'login', 'Acesso SELL e condomínio confirmados.')
     const cotas = page.getByRole('link', { name: /^Cotas\s+Pendentes$/i })
     const href = await cotas.getAttribute('href')

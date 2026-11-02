@@ -1,4 +1,4 @@
-import { navegarGraiche } from './graiche-navegacao.mjs'
+import {acessarGraiche,credenciaisGraiche} from './webware-acesso.mjs'
 import { createPollingCadence } from '../worker-cadence.mjs'
 import { concluirExecucaoMaestro, caminhoDownloadMaestro } from './concluir-maestro.mjs'
 import { createHash } from 'node:crypto'
@@ -79,16 +79,7 @@ async function reivindicarExecucao(captacaoAtiva) {
 }
 
 function credenciais(execucao) {
-  const config = execucao.receita?.config_json || {}
-  const raw = String(config.acesso_raw || '')
-  const usuarioCadastro = raw.match(/(?:login|usuário|usuario)\s*:\s*(.+?)(?=\s+senha\s*:|$)/i)?.[1]?.trim()
-  const senhaCadastro = raw.match(/senha\s*:\s*(.+)$/i)?.[1]?.trim()
-  const prefix = String(config.credencial_env_prefix || '')
-  return {
-    usuario: String((prefix && process.env[`${prefix}_USUARIO`]) || usuarioCadastro?.replace(/[;\s]+$/, '') || ''),
-    senha: String((prefix && process.env[`${prefix}_SENHA`]) || senhaCadastro || ''),
-    portal: String(config.portal_url || process.env.AGENTE_GRAICHE_PORTAL_URL || execucao.administradora?.url_portal || ''),
-  }
+  return credenciaisGraiche(execucao.receita?.config_json||{},{portalAdministradora:execucao.administradora?.url_portal})
 }
 
 async function coletar(execucao) {
@@ -110,14 +101,8 @@ async function coletar(execucao) {
     const context = browserSession.context
     const page = context.pages()[0] || await context.newPage()
     await log(execucao.id, 'navegador', 'Abrindo o portal Graiche/Webmínio.')
-    await page.goto(portal, { waitUntil: 'domcontentloaded' })
-
-    if (/SessaoEncerrada/i.test(page.url())) {
-      const retorno = page.locator('a[href*="administradora/default.asp"]').first()
-      if (await retorno.count()) await retorno.click()
-    }
     const esperado = execucao.receita?.config_json?.titulo_portal_validado
-    const cotas = await navegarGraiche(page, { usuario, senha, titulo: esperado, log: mensagem => log(execucao.id, 'navegacao', mensagem) })
+    const cotas = await acessarGraiche(page, {portal,usuario,senha,titulo:esperado,log:mensagem=>log(execucao.id,'navegacao',mensagem)})
     await log(execucao.id, 'login', `Acesso confirmado para ${condominioNome}.`)
     await cotas.click()
     await page.waitForURL(url => /rtPendentes\.asp$/i.test(url.pathname), { timeout: 60_000 })

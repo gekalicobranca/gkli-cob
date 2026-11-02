@@ -283,3 +283,11 @@ Lello: Safira 200042 retomou após três documentos salvos e leu o último docum
 Graiche (Elo & Elo Duo, unidade 000501/A) não completou o fluxo de navegação reconhecido pelo adaptador; Sell (Parc Exclusif Perdizes, unidade 103) não disponibilizou a tela cadastral esperada. Ambos continuam inativos como integração pendente. As demais configurações pendentes de adaptador ou acesso não são participantes da rotina noturna; constar na lista de configurações não indica consulta executada. Nenhuma delas foi ativada com base apenas em login ou coincidência de unidade.
 
 A validação não gravou contatos, evidências de pagamento, baixas ou avanços de cursor. Somente os acessos Manager confirmados podem ter pausas/falhas técnicas zeradas; a indisponibilidade real do Villa Lobos permanece registrada. Lotes de até 20, janela noturna e critérios de baixa mantidos.
+
+### Reaproveitamento dos acessos remotos Graiche e SELL — 02/11/2026
+
+`scripts/agente-automatico/webware-acesso.mjs` centraliza o acesso já usado pelos coletores: Graiche com retorno de sessão encerrada, identificação, senha e seleção pelo título exato; SELL com login e conferência do título do condomínio. Os workers remotos e o scanner importam o mesmo módulo, sem duplicar o fluxo. As credenciais seguem a receita e seu perfil explícito de ambiente; um acesso global de outro condomínio não substitui a receita. Nenhuma dessas funções abre Cotas Pendentes ou exporta relatórios.
+
+Validação real do scanner com esse módulo, somente leitura: Jerivás e Panamby Penthouses (Graiche) e Parc Exclusif Perdizes (SELL) autenticaram e confirmaram o condomínio. Nos três, o cadastro integrado respondeu `/Home/Error` com “Acesso restrito”. O diagnóstico agora distingue essa restrição da autenticação e não aguarda um seletor que a tela de erro nunca disponibilizará. A configuração Elo não é equivalente aos acessos Graiche homologados; permanece pendente, assim como Las Ventanas não foi revalidado nesta rodada.
+
+As configurações continuam inativas como integração pendente: acesso confirmado não comprova disponibilidade de cadastro ou homologação do histórico financeiro. O retorno de Cotas Pendentes ao início usado pelo coletor SELL não é reaproveitado como evidência de pagamento. Nenhum cadastro, pagamento, cursor, rotina de captação ou limite noturno foi alterado nesta validação.

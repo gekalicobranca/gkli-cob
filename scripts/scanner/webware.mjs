@@ -1,8 +1,9 @@
-import { credenciais, navegadorScanner, frameVisivel, selecionarUnidade, fichaWebware } from './portais.mjs'
+import { credenciais, navegadorScanner, selecionarUnidade, fichaWebware } from './portais.mjs'
+import {aguardarCadastroWebware} from './webware-cadastro.mjs'
 import {abrirDocumentosBBZ} from './bbz-documentos.mjs'
 import {abrirFinanceiroBBZ,fonteBBZ,complementarFinanceiroBBZ} from './bbz-pagamentos.mjs'
 import {complementarComPagamentos} from './manager-pagamentos.mjs'
-import { navegarGraiche } from '../agente-automatico/graiche-navegacao.mjs'
+import {acessarGraiche,acessarSell,credenciaisGraiche} from '../agente-automatico/webware-acesso.mjs'
 import {acessarCondominioBBZ} from './bbz-acesso.mjs'
 import {aguardarMenuFinanceiroBBZ} from './bbz-menu.mjs'
 import {legadoBBZValidado,inicializarLegadoBBZ,abrirCadastroLegadoBBZ} from './bbz-legado.mjs'
@@ -22,27 +23,18 @@ export async function abrirWebware(config,receita,unidades,signal){
  try{
   config.onStage?.('autenticacao_'+config.portal)
   if(config.portal==='graiche'){
-   const inicio=new URL(receita.portal_url||base+'/bin/skin/aInicioSkin.asp')
-   if(inicio.origin!==base)throw Error('Origem Graiche não validada.')
-   await page.goto(inicio.href,{waitUntil:'domcontentloaded'})
-   if(/SessaoEncerrada/i.test(page.url()))await page.goto(base+'/bin/administradora/default.asp',{waitUntil:'domcontentloaded'})
-   await navegarGraiche(page,{...acesso,titulo})
+   await acessarGraiche(page,{...credenciaisGraiche(receita),titulo,signal})
+  }else if(config.portal==='sell'){
+   await acessarSell(page,{...acesso,titulo,signal})
   }else{
-   await page.goto(config.portal==='bbz'?'https://bbz.com.br/area-do-cliente/':'https://selladm.com.br/',{waitUntil:'domcontentloaded'})
+   await page.goto('https://bbz.com.br/area-do-cliente/',{waitUntil:'domcontentloaded'})
    await page.locator('input[type=text]').filter({visible:true}).first().fill(acesso.usuario)
    await page.locator('input[type=password]').filter({visible:true}).first().fill(acesso.senha)
    const check=page.locator('input[type=checkbox]').first();if(await check.isVisible())await check.check()
    await page.getByRole('button',{name:/^Entrar$/i}).first().click()
-   if(config.portal==='bbz'){
-    if(legadoBBZValidado(config,receita))await inicializarLegadoBBZ(page,signal)
-    await acessarCondominioBBZ(page,{titulo,codigo:receita.codigo_vinculo_bbz,signal})
-   }
-   if(config.portal==='bbz'){
-    if(new URL(page.url()).origin!==base)throw Error('Condomínio BBZ diverge da origem configurada.')
-   }else{
-    await page.waitForURL(u=>u.origin===base&&u.pathname==='/bin/skin/aInicioSkin.asp',{timeout:45_000})
-    if((await page.title()).trim()!==titulo.trim())throw Error('Condomínio Webware não confirmado pelo título.')
-   }
+   if(legadoBBZValidado(config,receita))await inicializarLegadoBBZ(page,signal)
+   await acessarCondominioBBZ(page,{titulo,codigo:receita.codigo_vinculo_bbz,signal})
+   if(new URL(page.url()).origin!==base)throw Error('Condomínio BBZ diverge da origem configurada.')
   }
   const {historicoDisponivel,documentosDisponiveis}=config.portal==='bbz'
    ?await aguardarMenuFinanceiroBBZ(page,{titulo,signal})
@@ -60,7 +52,7 @@ export async function abrirWebware(config,receita,unidades,signal){
    }}
   }
   await page.goto(base+'/bin/aplic/cpOperacaoUnidadeInformacoes.asp',{waitUntil:'domcontentloaded'})
-  const cadastro=await frameVisivel(page,'select',signal)
+  const cadastro=await aguardarCadastroWebware(page,signal)
   const origemCadastro=new URL(cadastro.url()).origin
   if(config.diagnostico)console.log(JSON.stringify({diagnostico:'origem_cadastro',url:cadastro.url().split('?')[0],pai:cadastro.parentFrame()?.url().split('?')[0]}))
   const herdouOrigem=cadastro.url()==='about:blank' && await cadastro.evaluate(()=>window.parent.location.origin).catch(()=>null)===base
@@ -100,5 +92,5 @@ export async function abrirWebware(config,receita,unidades,signal){
    }
    return resultado
   }}
- }catch(error){await sessao.close();let motivo=String(error.message).split('\n')[0];for(const v of [acesso.usuario,acesso.senha])motivo=motivo.replaceAll(v,'[protegido]');throw Error(`Webware: ${motivo.slice(0,180)}`)}
+ }catch(error){await sessao.close();let motivo=String(error.message).split('\n')[0];for(const v of [acesso.usuario,acesso.senha])motivo=motivo.replaceAll(v,'[protegido]');throw Object.assign(Error(`Webware: ${motivo.slice(0,180)}`),{code:error.code})}
 }
