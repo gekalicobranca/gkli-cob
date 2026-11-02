@@ -7,8 +7,14 @@ export async function complementarComPagamentos(contatos,consultar,desabilitar){
  }
 }
 
+export function referenciaExtrato(texto){
+ const refs=String(texto).split(/\r?\n/).filter(l=>l.startsWith('Unidade:')).map(l=>l.slice('Unidade:'.length).trim())
+ // Lê o tipo completo (ex.: Apart), sem truncar no primeiro caractere minúsculo.
+ // Exige uma única identificação e preserva a comparação exata de bloco/tipo/unidade.
+ return refs.length===1&&/^[A-Za-z0-9]+\/[A-Za-z0-9]*\/[A-Za-z0-9]+$/.test(refs[0])?refs[0]:null
+}
 export function pagamentosManager(tabelas, referencia, texto) {
- if(texto.match(/(?:^|\n)Unidade:\s*([A-Z0-9/]+)/)?.[1]!==referencia)throw Error('Extrato Manager retornou outra unidade.')
+ if(referenciaExtrato(texto)!==referencia)throw Error('Extrato retornou outra unidade ou identificação ambígua.')
  const tabelasPagas=tabelas.filter(t=>t[0]?.some(c=>/Data Pagamento/i.test(c))&&t[0]?.some(c=>/Valor Pago/i.test(c)))
  if(tabelasPagas.length!==1)return {status:'inconclusivo',motivo:'Tabela de pagamentos não reconhecida.'}
  const dinheiro=v=>{

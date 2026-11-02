@@ -1,4 +1,4 @@
-import {pagamentosManager} from './manager-pagamentos.mjs'
+import {pagamentosManager,referenciaExtrato} from './manager-pagamentos.mjs'
 import {leituraFinanceira} from './leitura-auxiliar.mjs'
 export const fonteManager='https://atentum-s9.webware.com.br/bin/rt/gExtratoUnidade.asp'
 
@@ -41,7 +41,7 @@ export async function abrirExtratoManager(context,href,signal,etapa=()=>{}){
    return [...document.querySelectorAll('table')].some(t=>/Data Pagamento/i.test(t.rows[0]?.innerText??'')&&/Valor Pago/i.test(t.rows[0]?.innerText??''))?'tabela':false
   },{},{timeout:12000}).then(h=>h.jsonValue())
   const texto=await page.locator('body').innerText()
-  if(texto.match(/(?:^|\n)Unidade:\s*([A-Z0-9/]+)/)?.[1]!==ref)throw Error('Extrato Manager retornou outra unidade.')
+  if(referenciaExtrato(texto)!==ref)throw Error('Extrato retornou outra unidade ou identificação ambígua.')
   if(estado==='relatorio_indisponivel')return {status:'inconclusivo',diagnostico:'sem_acesso',codigo_diagnostico:'manager_relatorio_indisponivel',motivo:'O portal Manager informa: relatório indisponível no momento; entrar em contato com a administradora.',referencia_financeira:ref}
   const tabelas=await page.locator('table').evaluateAll(xs=>xs.map(t=>[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim()))))
   let resultado

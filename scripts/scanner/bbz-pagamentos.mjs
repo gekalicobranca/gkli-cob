@@ -1,4 +1,4 @@
-import {pagamentosManager,complementarComPagamentos} from './manager-pagamentos.mjs'
+import {pagamentosManager,complementarComPagamentos,referenciaExtrato} from './manager-pagamentos.mjs'
 import {leituraFinanceira} from './leitura-auxiliar.mjs'
 
 export const fonteBBZ='https://servc9.webware.com.br/bin/rt/gExtratoUnidade.asp'
@@ -38,7 +38,7 @@ export async function abrirFinanceiroBBZ(context,disponivel,etapa){
    return [...document.querySelectorAll('table')].some(t=>/Data Pagamento/i.test(t.rows[0]?.innerText??'')&&/Valor Pago/i.test(t.rows[0]?.innerText??''))?'tabela':false
   },{},{timeout:12_000}).then(h=>h.jsonValue())
   const texto=await page.locator('body').innerText()
-  if(texto.match(/(?:^|\n)Unidade:\s*([A-Z0-9/]+)/)?.[1]!==referencia)throw Error('Extrato Manager retornou outra unidade.')
+  if(referenciaExtrato(texto)!==referencia)throw Error('Extrato retornou outra unidade ou identificação ambígua.')
   if(estado==='relatorio_indisponivel'){
    habilitado=false
    return {status:'inconclusivo',diagnostico:'sem_acesso',codigo_diagnostico:'bbz_relatorio_indisponivel',motivo:'O portal BBZ informa: relatório indisponível no momento; entrar em contato com a administradora.'}
