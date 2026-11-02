@@ -1,3 +1,5 @@
+> Atualização de publicação: correções disponíveis em produção em 02/11/2026. Evidências em [registro da publicação](publicacao-autorizacao-itens-1-3-2026-11-02.md). O relato local abaixo registra a etapa anterior.
+
 # Auditoria de autorização e perfis - item 1
 
 Data: 02/11/2026. Branch: `codex/auditoria-autorizacao-perfis`.
@@ -31,7 +33,7 @@ falha de consulta. Páginas/actions redirecionam ao login sem conceder papel pad
 
 ## Banco e provisionamento
 
-Migração: `supabase/migrations/20261102163623_trusted_profile_authorization.sql`.
+Migração: `supabase/migrations/20261102174734_trusted_profile_authorization.sql`.
 
 RLS de profiles é explicitamente habilitada. Trigger impede usuário comum de inserir
 perfil ou alterar ID, e-mail e papel; edição de nome continua permitida conforme RLS.

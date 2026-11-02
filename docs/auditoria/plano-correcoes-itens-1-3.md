@@ -1,3 +1,5 @@
+> Atualização de publicação: correções disponíveis em produção em 02/11/2026. Evidências em [registro da publicação](publicacao-autorizacao-itens-1-3-2026-11-02.md). O relato local abaixo registra a etapa anterior.
+
 # Plano de correções - itens 1, 2 e 3
 
 Implementação local de 02/11/2026. Sem deploy e sem alteração de dados de produção.
@@ -28,7 +30,7 @@ autorização/perfis. Alterações paralelas existentes na pasta foram preservad
 - Aumento do número aprovado de parcelas exige nova proposta; a aprovação não pode
   ser removida por edição de campos. Nenhum percentual ou limite comercial foi alterado.
 
-Migração: `20261102171136_auditoria_aprovacao_sindico.sql`.
+Migração: `20261102174844_auditoria_aprovacao_sindico.sql`.
 A função financeira atual é preservada por alteração com âncoras verificadas, mantendo
 locks, proteção de duplicidade e suporte a múltiplas unidades.
 
@@ -65,7 +67,7 @@ Os caminhos genérico e específicos passam pelo mesmo trigger de validação.
 - Casos legados já em distribuição, sem os requisitos novos, não são aprovados por
   backfill. Administrador/gestor pode reabrir a conferência documental, com histórico.
 
-Migração: `20261102171137_auditoria_pre_juridico_estados.sql`.
+Migração: `20261102174848_auditoria_pre_juridico_estados.sql`.
 
 ## 3. Vencimentos e datas civis
 

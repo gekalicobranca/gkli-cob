@@ -8,7 +8,7 @@ const vm = require('node:vm')
 const ts = require('typescript')
 const { PGlite } = require('@electric-sql/pglite')
 const root = path.resolve(__dirname, '..')
-const migration = 'supabase/migrations/20261102163623_trusted_profile_authorization.sql'
+const migration = 'supabase/migrations/20261102174734_trusted_profile_authorization.sql'
 
 function harness() {
   const state = { user: { id: 'synthetic-user', email: 'test@example.invalid', user_metadata: {} }, profile: null, wallets: [], warnings: [], queries: [] }

@@ -73,7 +73,7 @@ before(async () => {
     grant select,insert,update on all tables in schema public to authenticated;
     insert into pre_juridico_casos(id,carteira_id,condominio_id,unidade_id,etapa) values('${id(900)}','${id(1)}','${id(3)}','${id(4)}','pronto_juridico');
   `)
-  for (const name of ['20261006185625_remover_aprovacao_acordo_fora_regua.sql','20261026124600_bloquear_cobranca_em_outro_acordo.sql','20261026201008_acordo_multiplas_unidades_titular.sql','20261102171136_auditoria_aprovacao_sindico.sql','20261102171137_auditoria_pre_juridico_estados.sql']) await db.exec(await sqlFile(name))
+  for (const name of ['20261006185625_remover_aprovacao_acordo_fora_regua.sql','20261026124600_bloquear_cobranca_em_outro_acordo.sql','20261026201008_acordo_multiplas_unidades_titular.sql','20261102174844_auditoria_aprovacao_sindico.sql','20261102174848_auditoria_pre_juridico_estados.sql']) await db.exec(await sqlFile(name))
   const sync = (await sqlFile('20261013151309_unidade_judicial_informativa_follow_60_dias.sql')).match(/create or replace function public\.sincronizar_judicializacao_pre_juridico\(\)[\s\S]*?\$\$;/)![0]
   await db.exec(sync)
   await db.exec('create trigger judicializar after update on pre_juridico_casos for each row execute function sincronizar_judicializacao_pre_juridico()')
