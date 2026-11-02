@@ -8,6 +8,7 @@ import {selecionarCobrancaTitular, rotuloUnidade} from "./unidade-titular";
 import { calcularDespesasAcordo, validarCotasSemDespesas } from "./calculo-despesas";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
+import { moneyFromForm, percentageFromForm } from '@/utils/formatters/parse-money'
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
@@ -33,26 +34,6 @@ import {
   PARCELA_ACORDO_STATUS,
 } from "@/lib/core/status";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
-
-function toNumber(value: FormDataEntryValue | null) {
-  const raw = String(value ?? "0")
-    .trim()
-    .replace(/\s/g, "")
-    .replace(/R\$/gi, "");
-
-  if (!raw) return 0;
-
-  const hasComma = raw.includes(",");
-  const hasDot = raw.includes(".");
-  const normalized = hasComma
-    ? raw.replace(/\./g, "").replace(",", ".")
-    : hasDot && /^\d+\.\d{1,2}$/.test(raw)
-      ? raw
-      : raw.replace(/\./g, "");
-
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
 
 function toISODate(date: Date) {
   return dataCivilSaoPaulo(date);
@@ -647,9 +628,9 @@ export async function createAcordo(formData: FormData) {
   const titularId = String(formData.get("unidade_titular_id") ?? "").trim();
   const tipo = String(formData.get("tipo") ?? "extrajudicial");
   const numeroProcesso = String(formData.get("numero_processo") ?? "").trim();
-  const despesaCobrancaPercentual = toNumber(formData.get("despesa_cobranca_percentual"));
+  const despesaCobrancaPercentual = percentageFromForm(formData.get("despesa_cobranca_percentual"), "Despesa de cobrança");
 
-  let entrada = toNumber(formData.get("entrada"));
+  let entrada = moneyFromForm(formData.get("entrada"), "Entrada", { format: "form", emptyValue: 0 });
   const usarCreditoAdministradora = formData.get("usar_credito_administradora") === "on";
   const entradaVencimento = String(formData.get("entrada_vencimento") ?? "");
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
@@ -1271,9 +1252,9 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
 
   const tipo = String(formData.get("tipo") ?? "extrajudicial");
   const numeroProcesso = String(formData.get("numero_processo") ?? "").trim();
-  const despesaCobrancaPercentual = toNumber(formData.get("despesa_cobranca_percentual"));
+  const despesaCobrancaPercentual = percentageFromForm(formData.get("despesa_cobranca_percentual"), "Despesa de cobrança");
 
-  let entrada = toNumber(formData.get("entrada"));
+  let entrada = moneyFromForm(formData.get("entrada"), "Entrada", { format: "form", emptyValue: 0 });
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
   const primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
@@ -1852,7 +1833,7 @@ export async function registrarAjusteReemissaoParcelaAcordo(formData: FormData) 
   const revisaoId = String(formData.get("revisao_id") ?? "").trim();
   const acordoId = String(formData.get("acordo_id") ?? "").trim();
   const parcelaId = String(formData.get("parcela_id") ?? "").trim();
-  const valorNovo = toNumber(formData.get("valor_novo"));
+  const valorNovo = moneyFromForm(formData.get("valor_novo"), "Valor da parcela", { format: "form" });
   const vencimentoNovo = String(formData.get("vencimento_novo") ?? "").trim();
   const motivo = String(formData.get("motivo") ?? "").trim();
 
@@ -3216,7 +3197,7 @@ export async function revisarParcelaAcordo(formData: FormData) {
   const user = await requireRole(["admin", "gestor"]);
   const acordoId = String(formData.get("acordo_id") ?? "").trim();
   const parcelaId = String(formData.get("parcela_id") ?? "").trim();
-  const valorNovo = roundMoney(toNumber(formData.get("valor_novo")));
+  const valorNovo = roundMoney(moneyFromForm(formData.get("valor_novo"), "Valor da parcela", { format: "decimal" }));
   const vencimentoNovo = String(formData.get("vencimento_novo") ?? "").trim();
   const motivo = String(formData.get("motivo") ?? "").trim();
 

@@ -2,6 +2,7 @@
 
 import { normalizeGrupo } from '@/features/condominios/organizacao'
 import { condicoesAcordoPayload } from './condicoes-acordo'
+import { moneyFromForm } from '@/utils/formatters/parse-money'
 import { revalidatePath } from 'next/cache'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { captacaoPayload } from '@/features/condominios/captacao-payload'
@@ -50,12 +51,6 @@ function toOptionalInteger(value: FormDataEntryValue | null) {
   if (!raw) return null
   const parsed = Number(raw)
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : null
-}
-
-function toNumber(value: FormDataEntryValue | null) {
-  const raw = String(value ?? '0').replace('.', '').replace(',', '.')
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) ? parsed : 0
 }
 
 const CLASSIFICACOES_CONDOMINIO = ['ouro', 'prata', 'bronze'] as const
@@ -143,7 +138,7 @@ export async function createCondominio(formData: FormData) {
   const gerenteEmail = optionalEmail(formData, 'gerente_email', 'E-mail do gerente')
   const gerenteCelular = optionalPhone(formData, 'gerente_celular')
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
-  const valorCota = toNumber(formData.get('valor_cota_condominial'))
+  const valorCota = moneyFromForm(formData.get('valor_cota_condominial'), 'Valor da cota', { emptyValue: 0 })
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
   const diasCobrancaAtiva = toInteger(formData.get('dias_cobranca_ativa'), 60)
   const preJuridicoHabilitado = checkboxOn(formData.get('pre_juridico_habilitado'))
@@ -265,7 +260,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const gerenteEmail = optionalEmail(formData, 'gerente_email', 'E-mail do gerente')
   const gerenteCelular = optionalPhone(formData, 'gerente_celular')
   const vencimentoCotaDia = Number(formData.get('vencimento_cota_dia') ?? 10)
-  const valorCota = toNumber(formData.get('valor_cota_condominial'))
+  const valorCota = moneyFromForm(formData.get('valor_cota_condominial'), 'Valor da cota', { emptyValue: 0 })
   const inicioCobrancaDias = Number(formData.get('inicio_cobranca_dias') ?? 30)
   const diasCobrancaAtiva = toInteger(formData.get('dias_cobranca_ativa'), 60)
   const preJuridicoHabilitado = checkboxOn(formData.get('pre_juridico_habilitado'))
@@ -386,5 +381,10 @@ export async function salvarCondominioFormulario(_state: { error: string } | nul
 }
 
 export async function criarCondominioFormulario(_state: { error: string } | null, formData: FormData) {
-  return await createCondominio(formData)
+  try {
+    return await createCondominio(formData)
+  } catch (error) {
+    unstable_rethrow(error)
+    return { error: error instanceof Error ? error.message : 'Não foi possível salvar o condomínio. Tente novamente.' }
+  }
 }

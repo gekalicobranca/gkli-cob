@@ -1,3 +1,4 @@
+import { MoneyForm } from '@/components/ui/money-form'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { formatCurrency } from '@/utils/formatters/currency'
@@ -10,7 +11,7 @@ function Field({ name, label, value }: { name: string; label: string; value: num
   return (
     <label className="block space-y-1 text-sm font-medium text-slate-600">
       {label}
-      <input name={name} defaultValue={moneyInput(value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none" />
+      <input required inputMode="decimal" name={name} defaultValue={moneyInput(value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none" />
     </label>
   )
 }
@@ -64,7 +65,11 @@ export function CobrancaFinanceiroCard({
 
       <details className="mt-3">
         <summary className="cursor-pointer text-sm font-medium text-cyan-800">Editar valores</summary>
-      <form action={updateAction} className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+      <MoneyForm fields={[
+        { name: 'valor_original', label: 'Principal' }, { name: 'juros', label: 'Juros' },
+        { name: 'multa', label: 'Multa' }, { name: 'correcao', label: 'Correção' },
+        { name: 'desconto', label: 'Desconto' },
+      ]} action={updateAction} className="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
         <input type="hidden" name="cobranca_id" value={cobranca.id} />
         <div className="space-y-3">
           <Field name="valor_original" label="Principal" value={principal} />
@@ -77,7 +82,7 @@ export function CobrancaFinanceiroCard({
           <Textarea name="observacao_financeira" defaultValue={cobranca.observacao_financeira ?? ''} placeholder="Observação financeira: origem dos valores, data do relatório da administradora, conferência manual..." />
         </div>
         <div className="mt-4 flex justify-end"><Button type="submit">Salvar valores</Button></div>
-      </form>
+      </MoneyForm>
       </details>
     </details>
   )

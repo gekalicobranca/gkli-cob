@@ -1,3 +1,4 @@
+import { MoneyForm } from '@/components/ui/money-form'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { Button, ButtonLink } from '@/components/ui/button'
@@ -31,7 +32,7 @@ export default async function NovaCobrancaPage() {
       />
 
       <Card>
-        <form action={createCobranca} className="space-y-5">
+        <MoneyForm fields={[{ name: 'valor_original', label: 'Valor original' }, { name: 'valor_atualizado', label: 'Valor atualizado', optional: true }]} action={createCobranca} className="space-y-5">
           <div className="grid gap-5 md:grid-cols-2">
             <FormField label="Carteira">
               <SearchableSelect
@@ -77,11 +78,11 @@ export default async function NovaCobrancaPage() {
             </FormField>
 
             <FormField label="Valor original">
-              <Input name="valor_original" defaultValue="0" />
+              <Input required inputMode="decimal" name="valor_original" defaultValue="0" />
             </FormField>
 
             <FormField label="Valor atualizado">
-              <Input name="valor_atualizado" defaultValue="0" />
+              <Input inputMode="decimal" name="valor_atualizado" defaultValue="0" />
             </FormField>
           </div>
 
@@ -93,7 +94,7 @@ export default async function NovaCobrancaPage() {
             <ButtonLink href="/app/cobrancas" variant="secondary">Cancelar</ButtonLink>
             <Button type="submit">Salvar cobrança</Button>
           </div>
-        </form>
+        </MoneyForm>
       </Card>
     </div>
   )

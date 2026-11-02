@@ -1,5 +1,7 @@
 "use client";
 
+import { MoneyForm } from '@/components/ui/money-form';
+import { moneyFromForm, percentageFromForm, validateMoneyFields } from '@/utils/formatters/parse-money';
 import { ContatoRapidoAcordo } from "@/components/acordos/contato-rapido";
 import { dataCivilValida, dataCivilSaoPaulo, somarDiasCivis, vencimentoMensal } from '@/lib/core/data-civil';
 
@@ -73,24 +75,8 @@ type AcordoSimulatorFormProps = {
 };
 
 function parseMoney(value: string) {
-  const raw = String(value ?? "0")
-    .trim()
-    .replace(/\s/g, "")
-    .replace(/R\$/gi, "");
-
-  if (!raw) return 0;
-
-  const hasComma = raw.includes(",");
-  const hasDot = raw.includes(".");
-
-  const normalized = hasComma
-    ? raw.replace(/\./g, "").replace(",", ".")
-    : hasDot && /^\d+\.\d{1,2}$/.test(raw)
-      ? raw
-      : raw.replace(/\./g, "");
-
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  try { return moneyFromForm(value, "Entrada", { format: "form", emptyValue: 0 }); }
+  catch { return 0; } // Prévia indisponível: o erro visível bloqueia a criação abaixo.
 }
 
 function formatMoneyInput(value: number) {
@@ -101,8 +87,8 @@ function formatMoneyInput(value: number) {
 }
 
 function parsePercent(value: string) {
-  const parsed = parseMoney(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+  try { return percentageFromForm(value, "Despesa de cobrança"); }
+  catch { return 0; }
 }
 
 function roundMoney(value: number) {
@@ -145,6 +131,11 @@ export function AcordoSimulatorForm({
     useState(formularioInicial.despesa_cobranca_percentual || "10,00");
   const [jurosAdicional, setJurosAdicional] = useState(formularioInicial.juros_adicional === "on");
   const [entrada, setEntrada] = useState(formularioInicial.entrada || "0,00");
+  const erroValores = validateMoneyFields({ get: name => name === 'entrada' ? entrada : despesaCobrancaPercentual }, [
+    { name: 'entrada', label: 'Entrada', format: 'form', optional: true },
+    { name: 'despesa_cobranca_percentual', label: 'Despesa de cobrança', percentage: true },
+  ]);
+
   const [usarCreditoAdministradora, setUsarCreditoAdministradora] = useState(formularioInicial.usar_credito_administradora === "on");
   const [entradaVencimento, setEntradaVencimento] = useState(() => formularioInicial.entrada_vencimento || dataCivilSaoPaulo());
   const [quantidadeParcelas, setQuantidadeParcelas] = useState(formularioInicial.quantidade_parcelas || "3");
@@ -405,7 +396,7 @@ export function AcordoSimulatorForm({
   }
 
   return (
-    <form action={createAcordoAction} className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px] [&_input:not([type=checkbox]):not([type=hidden])]:min-h-11 [&_input:not([type=checkbox])]:text-base [&_select]:min-h-11 [&_select]:text-base [&_textarea]:text-base [&_button]:min-h-11 [&_button]:h-auto [&_button]:py-2.5">
+    <MoneyForm fields={[{ name: 'entrada', label: 'Entrada', format: 'form', optional: true }, { name: 'despesa_cobranca_percentual', label: 'Despesa de cobrança', percentage: true }]} action={createAcordoAction} className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px] [&_input:not([type=checkbox]):not([type=hidden])]:min-h-11 [&_input:not([type=checkbox])]:text-base [&_select]:min-h-11 [&_select]:text-base [&_textarea]:text-base [&_button]:min-h-11 [&_button]:h-auto [&_button]:py-2.5">
       {cobrancasSelecionadas.map((cobranca) => (
         <input
           key={cobranca.id}
@@ -927,6 +918,7 @@ export function AcordoSimulatorForm({
           </div>
         ) : null}
 
+        {erroValores ? <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{erroValores.message} A simulação só será válida após a correção.</p> : null}
         {actionState.error ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
             <div className="flex gap-3">
@@ -960,14 +952,14 @@ export function AcordoSimulatorForm({
               variant="secondary"
               formAction={solicitarAprovacaoSindicoAcordo}
               onClick={handleOpenAprovacaoSindicoEmail}
-              disabled={isCreatingAcordo || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
+              disabled={Boolean(erroValores) || isCreatingAcordo || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
             >
               Pedir aprovação do síndico
             </Button>
           ) : null}
           <Button
             type="submit"
-            disabled={acordoJaCriado || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0 || !preview.datasValidas}
+            disabled={Boolean(erroValores) || acordoJaCriado || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0 || !preview.datasValidas}
             loading={isCreatingAcordo}
             loadingLabel="Criando acordo..."
             className="whitespace-normal"
@@ -977,6 +969,6 @@ export function AcordoSimulatorForm({
         </div>
 
       </Card>
-    </form>
+    </MoneyForm>
   );
 }

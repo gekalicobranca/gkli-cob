@@ -1,6 +1,7 @@
 'use server'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
+import { moneyFromForm } from '@/utils/formatters/parse-money'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
@@ -10,12 +11,6 @@ import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-perm
 import { registrarEventoOperacional } from '@/features/operacional/service'
 import { COBRANCA_STATUS } from '@/lib/core/status'
 import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
-
-function toNumber(value: FormDataEntryValue | null) {
-  const raw = String(value ?? '0').replace(/\./g, '').replace(',', '.')
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) ? parsed : 0
-}
 
 function assertCarteiraPermitida(scope: CarteiraScope, carteiraId: string | null | undefined) {
   if (!carteiraId) throw new Error('Carteira obrigatória.')
@@ -64,8 +59,8 @@ export async function createCobranca(formData: FormData) {
   const unidadeId = String(formData.get('unidade_id') ?? '')
   const competencia = String(formData.get('competencia') ?? '').trim()
   const vencimento = String(formData.get('vencimento') ?? '')
-  const valorOriginal = toNumber(formData.get('valor_original'))
-  const valorAtualizado = toNumber(formData.get('valor_atualizado')) || valorOriginal
+  const valorOriginal = moneyFromForm(formData.get('valor_original'), 'Valor original')
+  const valorAtualizado = moneyFromForm(formData.get('valor_atualizado'), 'Valor atualizado', { emptyValue: valorOriginal })
   const observacoes = String(formData.get('observacoes') ?? '').trim()
 
   if (!carteiraId) throw new Error('Carteira obrigatória.')
@@ -351,11 +346,11 @@ export async function updateCobrancaFinanceiro(formData: FormData) {
   await requireRole(['admin', 'gestor', 'operador'])
 
   const cobrancaId = String(formData.get('cobranca_id') ?? '')
-  const valorOriginal = toNumber(formData.get('valor_original'))
-  const juros = toNumber(formData.get('juros'))
-  const multa = toNumber(formData.get('multa'))
-  const correcao = toNumber(formData.get('correcao'))
-  const desconto = toNumber(formData.get('desconto'))
+  const valorOriginal = moneyFromForm(formData.get('valor_original'), 'Valor original')
+  const juros = moneyFromForm(formData.get('juros'), 'Juros')
+  const multa = moneyFromForm(formData.get('multa'), 'Multa')
+  const correcao = moneyFromForm(formData.get('correcao'), 'Correção')
+  const desconto = moneyFromForm(formData.get('desconto'), 'Desconto')
   const observacaoFinanceira = String(formData.get('observacao_financeira') ?? '').trim()
 
   if (!cobrancaId) throw new Error('Cobrança obrigatória.')
@@ -366,6 +361,7 @@ export async function updateCobrancaFinanceiro(formData: FormData) {
   if (desconto < 0) throw new Error('Desconto inválido.')
 
   const valorAtualizado = Math.max(0, Math.round((valorOriginal + juros + multa + correcao - desconto) * 100) / 100)
+  moneyFromForm(valorAtualizado.toFixed(2), 'Total atualizado', { format: 'decimal' })
 
   const supabase = await createClient()
 

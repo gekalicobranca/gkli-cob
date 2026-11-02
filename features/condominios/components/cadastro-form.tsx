@@ -5,14 +5,14 @@ import { criarCondominioFormulario, salvarCondominioFormulario } from '@/feature
 
 export function CondominioCadastroForm({ children, novo = false }: { children: ReactNode; novo?: boolean }) {
   const [state, action, pending] = useActionState(novo ? criarCondominioFormulario : salvarCondominioFormulario, null)
-  function enviarNovo(event: FormEvent<HTMLFormElement>) {
+  function enviar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (pending) return
     const formData = new FormData(event.currentTarget)
     // Dispatch manually so React does not reset uncontrolled fields on a returned validation error.
     startTransition(() => action(formData))
   }
-  return <form action={novo ? undefined : action} onSubmit={novo ? enviarNovo : undefined} className="space-y-4">
+  return <form action={action} onSubmit={enviar} className="space-y-4">
     {state?.error ? <p role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{state.error}</p> : null}
     <fieldset disabled={pending} className="min-w-0 space-y-4">
       {children}

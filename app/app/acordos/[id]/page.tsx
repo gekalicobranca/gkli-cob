@@ -1,3 +1,4 @@
+import { MoneyForm } from '@/components/ui/money-form'
 import { AgreementInstallmentsTable } from "@/features/acordos/components/agreement-installments-table";
 import { AgreementFinancialDetail } from "@/features/acordos/components/agreement-financial-detail";
 import Link from "next/link";
@@ -146,7 +147,7 @@ function ParcelaActions({
         <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-[#351b40]">
           Revisar parcela
         </summary>
-        <form action={revisarParcelaAcordo} className="space-y-3 border-t border-slate-200 p-3">
+        <MoneyForm fields={[{ name: "valor_novo", label: "Valor da parcela", format: "decimal" }]} action={revisarParcelaAcordo} className="space-y-3 border-t border-slate-200 p-3">
           <input type="hidden" name="parcela_id" value={parcela.id} />
           <input type="hidden" name="acordo_id" value={acordoId} />
           <div className="grid grid-cols-2 gap-2">
@@ -167,7 +168,7 @@ function ParcelaActions({
           <PendingSubmitButton size="sm" pendingLabel="Salvando revisão..." className="w-full">
             Salvar revisão
           </PendingSubmitButton>
-        </form>
+        </MoneyForm>
       </details> : null}
     </div>
   );

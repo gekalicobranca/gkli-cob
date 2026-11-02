@@ -1,3 +1,4 @@
+import { MoneyForm } from '@/components/ui/money-form'
 import Link from "next/link";
 import {
   ChevronDown,
@@ -452,7 +453,7 @@ function ReemissaoRow({ pendencia }: { pendencia: PendenciaOperacional }) {
         </div>
       </div>
 
-      <form action={registrarAjusteReemissaoParcelaAcordo} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+      <MoneyForm fields={[{ name: "valor_novo", label: "Valor da parcela", format: "form" }]} action={registrarAjusteReemissaoParcelaAcordo} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
         <input type="hidden" name="pendencia_id" value={pendencia.id} />
         <input type="hidden" name="revisao_id" value={revisaoId} />
         <input type="hidden" name="acordo_id" value={pendencia.acordo_id ?? ""} />
@@ -481,7 +482,7 @@ function ReemissaoRow({ pendencia }: { pendencia: PendenciaOperacional }) {
         <PendingSubmitButton disabled={!podeAjustar} size="sm" className="w-full" icon={<CheckCircle2 size={14} />} pendingLabel="Salvando ajuste...">
           Salvar ajuste e gerar resumo
         </PendingSubmitButton>
-      </form>
+      </MoneyForm>
 
       <div className="space-y-2">
         <form action={solicitarBoletoReemissaoAcordo}>
