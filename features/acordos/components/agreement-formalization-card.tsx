@@ -1,222 +1,78 @@
-import { CheckCircle2, ClipboardList, FileText, MailCheck, Send } from "lucide-react";
-
+import { CheckCircle2, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import { atualizarStatusBoletosAcordo } from "@/features/acordos/actions";
+import { formalizacaoState } from "@/features/acordos/formalizacao-state";
 
 function formatDateTime(value?: string | null) {
-  if (!value) return null;
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function labelFluxo(value?: string | null) {
-  const labels: Record<string, string> = {
-    aguardando_aprovacao_sindico: "Formalização pendente",
-    aprovado_sindico_aguardando_aceite_devedor: "Formalização pendente",
-    aguardando_aceite_devedor: "Formalização pendente",
-    aceito_aguardando_boletos: "Boletos pendentes",
-    boletos_solicitados: "Boletos solicitados",
-    boletos_recebidos: "Boletos recebidos",
-    boletos_enviados: "Boletos enviados",
-    reprovado_sindico: "Reprovado pelo síndico",
-  };
-
-  const key = String(value || "");
-  return labels[key] ?? (key ? key.replaceAll("_", " ") : "Rascunho");
-}
-
-function stepTone(done: boolean, blocked = false) {
-  if (blocked) return "border-rose-200 bg-rose-50 text-rose-800";
-  if (done) return "border-emerald-200 bg-emerald-50 text-emerald-800";
-  return "border-slate-200 bg-slate-50 text-slate-600";
-}
-
-function Step({
-  title,
-  description,
-  done,
-  blocked,
-}: {
-  title: string;
-  description: string;
-  done: boolean;
-  blocked?: boolean;
-}) {
-  return (
-    <div className={["rounded-xl border px-3 py-2.5", stepTone(done, blocked)].join(" ")}>
-      <div className="flex items-center gap-3">
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/70">
-          <CheckCircle2 className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">{title}</p>
-          <p className="mt-0.5 truncate text-xs opacity-80">{description}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function firstTerm(terms: any[], type: "devedor" | "sindico") {
-  return terms.find((term) => String(term.tipo_aceite) === type) ?? null;
+  if (!value) return "Data não informada";
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
 export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
-  const terms = Array.isArray(acordo?.termos) ? acordo.termos : [];
-  const termoDevedor = firstTerm(terms, "devedor");
-  const termoPrincipal = termoDevedor ?? terms[0] ?? null;
-  const formalizacaoDevedor = Boolean(termoDevedor);
-  const boletosSolicitados = Boolean(acordo?.boletos_solicitados_em) || ["boletos_solicitados", "boletos_recebidos", "boletos_enviados"].includes(String(acordo?.fluxo_status));
-  const boletosRecebidos = String(acordo?.fluxo_status) === "boletos_recebidos" || String(acordo?.fluxo_status) === "boletos_enviados";
-  const boletosEnviados = String(acordo?.fluxo_status) === "boletos_enviados";
-  const pagamentoInicial = ["parcial", "quitado"].includes(String(acordo?.status_financeiro ?? "")) || String(acordo?.status) === "quitado";
-
-  const carteiraNome = acordo?.carteiras?.nome ?? "GKLI Cobrança";
-  const contatoResponsavel = [
-    acordo?.unidades?.email ? `E-mail do responsável: ${acordo.unidades.email}` : null,
-    acordo?.unidades?.telefone ? `Celular do responsável: ${acordo.unidades.telefone}` : null,
-  ].filter(Boolean).join("\n");
-  const resumoSolicitacao = (() => {
-    const resumo = termoPrincipal?.corpo ?? "Resumo do acordo indisponível na base local.";
-    if (!contatoResponsavel) return resumo;
-    if (resumo.includes("E-mail do responsável") || resumo.includes("Celular do responsável")) return resumo;
-    return [resumo, "", "Contato do responsável:", contatoResponsavel].join("\n");
-  })();
-  const textoSolicitacao = [
-    "Prezados,",
-    "",
-    "Solicitamos a emissão dos boletos do acordo abaixo, conforme plano formalizado pela operação:",
-    "",
-    resumoSolicitacao,
-    "",
-    "Marco operacional:",
-    "O acordo será considerado firmado após a identificação do pagamento da entrada ou da primeira parcela.",
-    "",
-    "Atenciosamente,",
-    carteiraNome,
-  ].join("\n");
-
-  return (
-    <Card>
-      <CardContent className="space-y-4 p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              <ClipboardList className="h-4 w-4" />
-              Formalização
-            </div>
-            <h2 className="mt-1.5 text-base font-semibold text-slate-950">Checklist do acordo</h2>
-            <p className="mt-1 text-sm text-slate-500">Controle enxuto de formalização, boletos e primeiro pagamento.</p>
-          </div>
-          <span className="inline-flex w-fit rounded-full bg-[#351b40]/5 px-3 py-1 text-xs font-semibold text-[#351b40] ring-1 ring-[#351b40]/10">
-            {labelFluxo(acordo?.fluxo_status)}
-          </span>
-        </div>
-
-        <div className="grid gap-2 md:grid-cols-4">
-          <Step
-            title="Devedor"
-            description={formalizacaoDevedor ? "Formalização enviada" : "Pendente"}
-            done={formalizacaoDevedor}
-          />
-          <Step
-            title="Administradora"
-            description={boletosSolicitados ? `Solicitado ${formatDateTime(acordo?.boletos_solicitados_em) ?? ""}` : "Pendente"}
-            done={boletosSolicitados}
-          />
-          <Step
-            title="Primeiro pagamento"
-            description={pagamentoInicial ? "Acordo firmado" : "Aguardando entrada ou parcela"}
-            done={pagamentoInicial}
-          />
-          <Step
-            title="Boletos"
-            description={boletosEnviados ? "Enviados ao devedor" : boletosRecebidos ? "Recebidos" : "Pendente"}
-            done={boletosEnviados || boletosRecebidos}
-            blocked={!boletosSolicitados}
-          />
-        </div>
-
-        <div className="grid items-start gap-3 xl:grid-cols-[1fr_320px]">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-              <FileText className="h-4 w-4" />
-              Formalizações vinculadas
-            </div>
-            {terms.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">Nenhuma formalização gerada para este acordo.</p>
-            ) : (
-              <div className="mt-3 divide-y divide-slate-200 rounded-xl bg-white">
-                {terms.map((term: any) => (
-                  <div key={term.id} className="p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-950">
-                          {term.tipo_aceite === "sindico" ? "Formalização ao síndico" : "Formalização ao devedor"}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {term.visualizado_em ? `Acionada ${formatDateTime(term.visualizado_em) ?? ""}` : "Gerada"}
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                        {String(term.status || "pendente")}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3.5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-              <MailCheck className="h-4 w-4" />
-              Administração
-            </div>
-            <p className="text-xs leading-5 text-slate-500">Mensagem pronta para acompanhar a emissão dos boletos, sem adicionar link público.</p>
-            <textarea
-              readOnly
-              className="min-h-[104px] w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600 outline-none"
-              value={textoSolicitacao}
-            />
-            <div className="grid gap-2">
-              <form action={atualizarStatusBoletosAcordo}>
-                <input type="hidden" name="acordo_id" value={acordo.id} />
-                <input type="hidden" name="status_boletos" value="boletos_recebidos" />
-                <PendingSubmitButton
-                  variant="secondary"
-                  size="sm"
-                  className="w-full"
-                  disabled={!boletosSolicitados || boletosRecebidos}
-                  icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                  pendingLabel="Confirmando..."
-                >
-                  {boletosRecebidos ? "Recebimento confirmado" : "Confirmar recebimento"}
-                </PendingSubmitButton>
-              </form>
-              <form action={atualizarStatusBoletosAcordo}>
-                <input type="hidden" name="acordo_id" value={acordo.id} />
-                <input type="hidden" name="status_boletos" value="boletos_enviados" />
-                <PendingSubmitButton
-                  size="sm"
-                  className="w-full"
-                  disabled={!boletosRecebidos || boletosEnviados}
-                  icon={<Send className="h-3.5 w-3.5" />}
-                  pendingLabel="Confirmando..."
-                >
-                  {boletosEnviados ? "Envio confirmado" : "Confirmar envio"}
-                </PendingSubmitButton>
-              </form>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+  const state = formalizacaoState(acordo);
+  const termos: any[] = acordo.termos ?? [];
+  const pagamento = ["parcial", "quitado"].includes(acordo.status_financeiro) || acordo.status === "quitado";
+  const etapas = [
+    ["Documento", state.documento],
+    ["Comunicação ao devedor", state.comunicacao],
+    ["Solicitação à administradora", state.solicitacao],
+    ["Boletos", state.boletos],
+    ["Primeiro pagamento", pagamento ? "Pagamento registrado" : "Aguardando pagamento"],
+  ];
+  const acoes = [
+    { status: "boletos_solicitados", titulo: "Confirmar solicitação enviada por outro canal", permitido: state.podeConfirmarSolicitacao, ajuda: "Informe o protocolo ou a referência da solicitação efetivamente enviada à administradora." },
+    { status: "boletos_recebidos", titulo: "Confirmar recebimento dos boletos", permitido: state.podeConfirmarRecebimento, ajuda: "Informe o documento, arquivo ou protocolo que comprova o recebimento." },
+    { status: "boletos_enviados", titulo: "Confirmar envio dos boletos ao devedor", permitido: state.podeConfirmarEnvio, ajuda: "Informe a referência do e-mail, mensagem ou protocolo de envio ao devedor." },
+  ];
+  return <Card id="formalizacao"><CardContent className="space-y-4 p-4">
+    <h2 className="flex items-center gap-2 text-base font-semibold"><FileText className="h-4 w-4" />Formalização e boletos</h2>
+    <dl className="divide-y divide-slate-100">
+      {etapas.map(([titulo, descricao]) => <div key={titulo} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+        <dt className="text-slate-500">{titulo}</dt><dd className="font-medium text-slate-950">{descricao}</dd>
+      </div>)}
+    </dl>
+    {state.legadoSemEvidencia && <p role="status" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Existe um status histórico de boletos sem evidência nesta trilha. Confira o histórico e registre a confirmação com o protocolo correspondente; esse status não comprova envio ou recebimento.</p>}
+    <p className="text-xs text-slate-500">Gerar o termo ou preparar um e-mail não confirma envio, entrega ou aceite. O envio automático é registrado após confirmação do transporte.</p>
+    <details className="rounded-lg border border-slate-200 p-3">
+      <summary className="cursor-pointer text-sm font-semibold">Termos e mensagens preparadas</summary>
+      <div className="mt-3 space-y-3 text-sm">
+        {termos.length ? termos.map(t => <div key={t.id} className="border-b border-slate-100 pb-2">
+          <p className="font-medium">{t.tipo_aceite === "sindico" ? "Termo do síndico" : "Termo do devedor"}</p>
+          <p className="text-xs text-slate-500">{t.aceito_em && t.status === "aceito" ? `Aceite registrado: ${formatDateTime(t.aceito_em)}` : t.visualizado_em ? `Visualizado: ${formatDateTime(t.visualizado_em)}` : `Gerado: ${formatDateTime(t.created_at)}`}</p>
+        </div>) : <p className="text-slate-500">Nenhum termo gerado.</p>}
+        {(acordo.mensagens_formalizacao ?? []).filter((m: any) => m.origem_evento === "acordo_boletos_administradora").map((m: any) => <div key={m.id}>
+          <p className="mb-1 text-xs font-medium">Solicitação preparada · {m.email_assunto ?? "Emissão de boletos"}</p>
+          <textarea aria-label="Texto da solicitação preparada" readOnly rows={5} className="w-full rounded-lg border border-slate-200 p-2 text-xs" value={m.conteudo_renderizado ?? m.conteudo ?? "Conteúdo não informado"} />
+        </div>)}
+        <a href="/app/mensageria" className="inline-block font-medium text-cyan-800 underline">Consultar mensagens e aprovação de envio</a>
+      </div>
+    </details>
+    <details className="rounded-lg border border-slate-200 p-3">
+      <summary className="cursor-pointer text-sm font-semibold">Confirmações manuais com evidência</summary>
+      <p className="mt-2 text-xs text-slate-500">Use para eventos realizados fora do envio automático do app. As etapas são liberadas na ordem e ficam registradas com data e operadora.</p>
+      <div className="mt-3 space-y-3">
+        {acoes.map(acao => <form key={acao.status} action={atualizarStatusBoletosAcordo} className="space-y-2 rounded-lg bg-slate-50 p-3">
+          <input type="hidden" name="acordo_id" value={acordo.id} />
+          <input type="hidden" name="status_boletos" value={acao.status} />
+          <label htmlFor={`evidencia-${acao.status}`} className="block text-sm font-medium">{acao.titulo}</label>
+          <p id={`ajuda-${acao.status}`} className="text-xs text-slate-500">{acao.ajuda}</p>
+          <textarea id={`evidencia-${acao.status}`} name="evidencia" required minLength={10} maxLength={2000} disabled={!acao.permitido} aria-describedby={`ajuda-${acao.status}`} rows={2} className="w-full rounded-lg border border-slate-200 bg-white p-2 text-sm disabled:opacity-50" />
+          <PendingSubmitButton size="sm" disabled={!acao.permitido} pendingLabel="Confirmando..." icon={<CheckCircle2 className="h-4 w-4" />}>Registrar confirmação</PendingSubmitButton>
+          {!acao.permitido && <p className="text-xs text-slate-500">Etapa já concluída, anterior pendente ou acordo bloqueado/encerrado.</p>}
+        </form>)}
+      </div>
+    </details>
+    <details className="rounded-lg border border-slate-200 p-3">
+      <summary className="cursor-pointer text-sm font-semibold">Histórico de evidências ({state.eventos.length})</summary>
+      <ul className="mt-3 divide-y divide-slate-100">
+        {state.eventos.map(e => <li key={e.id} className="space-y-1 py-2 text-xs">
+          <p className="font-semibold">{e.evento.replaceAll("_", " ")} · {formatDateTime(e.ocorrido_em)}</p>
+          <p>{e.evidencia}</p>
+          <p className="text-slate-500">{e.profiles?.nome ?? (e.usuario_id ? `Operador ${e.usuario_id}` : "Integração automática")} · {e.origem.replaceAll("_", " ")}</p>
+        </li>)}
+        {!state.eventos.length && <li className="text-xs text-slate-500">Nenhum evento registrado nesta trilha. O histórico anterior foi preservado.</li>}
+      </ul>
+    </details>
+  </CardContent></Card>;
 }

@@ -427,10 +427,7 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
     });
   }
 
-  await supabase.from("acordos").update({
-    boletos_solicitados_em: new Date().toISOString(),
-    fluxo_status: "boletos_solicitados",
-  }).eq("id", params.acordoId);
+  // Preparação não comprova envio; eventos são registrados pelo banco.
 }
 
 function addDays(date: Date, days: number) {
@@ -850,7 +847,7 @@ export async function createAcordo(formData: FormData) {
   );
   const exigeAprovacaoSindico =
     parcelasPermitidasSemSindico > 0 && quantidadeParcelas > parcelasPermitidasSemSindico;
-  const fluxoStatusInicial = "boletos_solicitados";
+  const fluxoStatusInicial = "rascunho";
 
   const itensAcordo = cobrancasComValores.map((item, index) => {
     const despesaRateada = calculoDespesas.itens[index].despesa;
@@ -2582,147 +2579,20 @@ export async function registrarAceiteManualTermoAcordo(formData: FormData) {
 
 export async function registrarAcionamentoManualAcordo(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
-  const user = await requireUser();
-  const supabase = await createClient();
-
-  const termoId = String(formData.get("termo_id") ?? "").trim();
   const acordoId = String(formData.get("acordo_id") ?? "").trim();
-  const mensagemId = String(formData.get("mensagem_id") ?? "").trim();
-  const canal = String(formData.get("canal") ?? "email").trim() || "email";
-  const returnTo = String(formData.get("return_to") ?? "/app/gestao/acionamentos-acordos").trim();
-  const safeReturnTo = returnTo.startsWith("/app/gestao/acionamentos-acordos")
-    ? returnTo
-    : "/app/gestao/acionamentos-acordos";
-
-  if (!termoId) throw new Error("Termo obrigatório para registrar acionamento.");
-  if (!acordoId) throw new Error("Acordo obrigatório para registrar acionamento.");
-
-  const { data: termo, error: termoError } = await supabase
-    .from("acordos_termos")
-    .select("id, acordo_id, carteira_id, tipo_aceite, status, token, titulo, corpo, destinatario_nome, destinatario_email, visualizado_em")
-    .eq("id", termoId)
-    .eq("acordo_id", acordoId)
-    .maybeSingle();
-
-  if (termoError) throw new Error(`Erro ao carregar termo: ${termoError.message}`);
-  if (!termo) throw new Error("Termo não encontrado.");
-
-  const carteiraScope = await getPermittedCarteiras();
-  assertCarteiraPermitida(carteiraScope, (termo as any).carteira_id);
-
-  const now = new Date().toISOString();
-
-  let mensagemRegistradaId = mensagemId || null;
-
-  const { error: termoAcionadoError } = await supabase
-    .from("acordos_termos")
-    .update({
-      status: (termo as any).status === "aceito" ? "aceito" : "visualizado",
-      visualizado_em: (termo as any).status === "aceito" ? (termo as any).visualizado_em ?? now : now,
-      updated_at: now,
-    })
-    .eq("id", termoId)
-    .eq("acordo_id", acordoId)
-    .neq("status", "aceito");
-
-  if (termoAcionadoError) {
-    throw new Error(`Erro ao atualizar status do termo: ${termoAcionadoError.message}`);
+  const termoId = String(formData.get("termo_id") ?? "").trim();
+  const evidencia = String(formData.get("evidencia") ?? "").trim();
+  const canal = String(formData.get("canal") ?? "email").trim();
+  if (!acordoId || !termoId || evidencia.length < 10 || evidencia.length > 2000) {
+    throw new Error("Informe o acordo, termo e a evidência do envio realizado (10 a 2000 caracteres).");
   }
-
-  if (mensagemId) {
-    const { data: mensagemAtualizada, error: mensagemError } = await supabase
-      .from("mensagens")
-      .update({
-        status: "enviada",
-        status_operacional: "enviada",
-        enviada_manual: true,
-        enviada_manual_em: now,
-        enviada_manual_por: user?.id ?? null,
-        ultima_tentativa_em: now,
-      })
-      .eq("id", mensagemId)
-      .eq("acordo_id", acordoId)
-      .select("id")
-      .maybeSingle();
-
-    if (mensagemError) {
-      throw new Error(`Erro ao marcar mensagem como acionada: ${mensagemError.message}`);
-    }
-
-    if (!mensagemAtualizada) {
-      throw new Error("Mensagem de acionamento não encontrada para este acordo.");
-    }
-  } else {
-    const conteudo = [
-      "Prezado(a),",
-      "",
-      "Segue a formalizacao do acordo para conferencia.",
-      "",
-      (termo as any).corpo,
-      "",
-      "O acordo sera considerado firmado apos a identificacao do pagamento da entrada ou da primeira parcela.",
-      "",
-      "Atenciosamente,",
-      "GKLI Cobrança",
-    ].join("\n");
-
-    const { data: mensagemCriada, error: insertMensagemError } = await supabase
-      .from("mensagens")
-      .insert({
-        carteira_id: (termo as any).carteira_id,
-        contexto: "acordo",
-        acordo_id: acordoId,
-        canal: "email",
-        destinatario: (termo as any).destinatario_email ?? null,
-        email_destinatario: (termo as any).destinatario_email ?? null,
-        email_assunto: (termo as any).titulo ?? "Formalizacao do acordo",
-        conteudo,
-        conteudo_renderizado: conteudo,
-        status: "enviada",
-        status_operacional: "enviada",
-        origem_evento: "acordo_acionamento_manual",
-        enviada_manual: true,
-        enviada_manual_em: now,
-        enviada_manual_por: user?.id ?? null,
-        ultima_tentativa_em: now,
-        payload: { termo_id: termoId, tipo_aceite: (termo as any).tipo_aceite, regra_firmamento: "primeiro_pagamento" },
-      })
-      .select("id")
-      .maybeSingle();
-
-    if (insertMensagemError) {
-      throw new Error(`Erro ao criar mensagem de acionamento manual: ${insertMensagemError.message}`);
-    }
-
-    mensagemRegistradaId = (mensagemCriada as any)?.id ?? null;
-  }
-
-  const tipoAceiteLabel = (termo as any).tipo_aceite === "sindico" ? "Síndico" : "Devedor";
-
-  await registrarEventoOperacional(supabase as any, {
-    carteiraId: (termo as any).carteira_id,
-    entidadeTipo: "acordo",
-    entidadeId: acordoId,
-    eventoCodigo: (termo as any).tipo_aceite === "sindico"
-      ? "acordo.acionamento_manual_sindico"
-      : "acordo.acionamento_manual_devedor",
-    titulo: `${tipoAceiteLabel} acionado manualmente`,
-    descricao: `Acionamento manual registrado por ${canal}. A formalizacao segue aguardando o primeiro pagamento.`,
-    severidade: "info",
-    payload: {
-      termo_id: termoId,
-      mensagem_id: mensagemRegistradaId,
-      canal,
-      tipo_aceite: (termo as any).tipo_aceite,
-    },
-    userId: user?.id ?? null,
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("acordo_confirmar_envio_termo", {
+    p_acordo: acordoId, p_termo: termoId, p_canal: canal, p_evidencia: evidencia,
   });
-
+  if (error) throw new Error(`Erro ao confirmar envio do termo: ${error.message}`);
   revalidatePath("/app/gestao/acionamentos-acordos");
   revalidatePath(`/app/acordos/${acordoId}`);
-  revalidatePath("/app/acordos/gestao");
-  revalidatePath("/app/pre-juridico");
-  redirect(safeReturnTo);
 }
 
 export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
@@ -2779,7 +2649,7 @@ export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
 
 export async function atualizarStatusBoletosAcordo(formData: FormData) {
   await requireRole(["admin", "gestor", "operador"]);
-  const user = await requireUser();
+  await requireUser();
   const scope = await getPermittedCarteiras();
   const supabase = await createClient();
 
@@ -2787,7 +2657,7 @@ export async function atualizarStatusBoletosAcordo(formData: FormData) {
   const status = String(formData.get("status_boletos") ?? "").trim();
 
   if (!acordoId) throw new Error("Acordo obrigatório.");
-  if (!["boletos_recebidos", "boletos_enviados"].includes(status)) throw new Error("Status de boletos inválido.");
+  if (!["boletos_solicitados", "boletos_recebidos", "boletos_enviados"].includes(status)) throw new Error("Status de boletos inválido.");
 
   const { data: acordo, error } = await supabase
     .from("acordos")
@@ -2798,41 +2668,16 @@ export async function atualizarStatusBoletosAcordo(formData: FormData) {
   if (!acordo) throw new Error("Acordo não encontrado.");
   assertCarteiraPermitida(scope, (acordo as any).carteira_id);
 
-  const { error: updateError } = await supabase
-    .from("acordos")
-    .update({ fluxo_status: status })
-    .eq("id", acordoId);
-  if (updateError) throw new Error(`Erro ao atualizar boletos: ${updateError.message}`);
-
-  const now = new Date().toISOString();
-  const supabaseAdmin = createAdminClient();
-  const { error: pendenciaError } = await supabaseAdmin
-    .from("central_pendencias")
-    .update({
-      status: "resolvida",
-      resolvido_em: now,
-      updated_at: now,
-    })
-    .eq("acordo_id", acordoId)
-    .eq("carteira_id", (acordo as any).carteira_id)
-    .eq("tipo", "emissao_boletos_acordo")
-    .not("status", "in", "(resolvida,cancelada)");
-  if (pendenciaError) throw new Error(`Erro ao resolver pendência de boletos: ${pendenciaError.message}`);
-
-  await registrarEventoOperacional(supabase as any, {
-    carteiraId: (acordo as any).carteira_id,
-    entidadeTipo: "acordo",
-    entidadeId: acordoId,
-    eventoCodigo: status === "boletos_recebidos" ? "acordo.boletos_recebidos" : "acordo.boletos_enviados",
-    titulo: status === "boletos_recebidos" ? "Boletos recebidos" : "Boletos enviados ao devedor",
-    descricao: "Status de boletos atualizado no controle operacional do acordo.",
-    severidade: "info",
-    payload: { status_boletos: status },
-    depois: { fluxo_status: status },
-    origem: "manual",
-    auditavel: true,
-    userId: user.id,
+  const evidencia = String(formData.get("evidencia") ?? "").trim();
+  if (evidencia.length < 10 || evidencia.length > 2000) {
+    throw new Error("Informe a evidência: protocolo, documento ou referência do envio/recebimento (10 a 2000 caracteres).");
+  }
+  const { error: updateError } = await supabase.rpc("acordo_confirmar_etapa_boletos", {
+    p_acordo: acordoId,
+    p_evento: status === "boletos_solicitados" ? "solicitacao_enviada" : status,
+    p_evidencia: evidencia,
   });
+  if (updateError) throw new Error(`Erro ao confirmar boletos: ${updateError.message}`);
 
   revalidatePath("/app/acordos/boletos");
   revalidatePath("/app/gestao/acionamentos-acordos");

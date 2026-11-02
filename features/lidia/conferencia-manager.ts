@@ -1,8 +1,10 @@
 import * as XLSX from 'xlsx'
 import type { CotaFonte } from '../keila/conferencia-proposta'
 
-export const CADIZ_ID='47926d7c-030b-4469-8713-b23eda558a56'
-export const CADIZ_CARTEIRA='36b6c087-56d2-4297-be63-6dcbe02a9f00'
+import { LIDIA_CADIZ_PILOTO } from '../agentes-virtuais/perfis'
+
+export const CADIZ_ID = LIDIA_CADIZ_PILOTO.id
+export const CADIZ_CARTEIRA = LIDIA_CADIZ_PILOTO.carteira_id
 export const normalizarManager=(v:unknown)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'')
 const codigo=(v:string)=>/^\d+$/.test(v)?String(BigInt(v)):normalizarManager(v)
 function data(v:unknown){
