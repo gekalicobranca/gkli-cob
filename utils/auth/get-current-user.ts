@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { loadTrustedProfile, ProfileAuthorizationError } from './trusted-profile'
 
 export async function getCurrentUser() {
   const supabase = await createClient()
@@ -14,14 +15,12 @@ export async function getCurrentUser() {
 
   const metadata = user.user_metadata ?? {}
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, email, nome, role')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (profileError) {
-    throw new Error(`Erro ao carregar perfil do usuário: ${profileError.message}`)
+  let profile
+  try {
+    profile = await loadTrustedProfile(supabase, user.id)
+  } catch (error) {
+    if (error instanceof ProfileAuthorizationError) return null
+    throw error
   }
 
   return {
@@ -33,6 +32,6 @@ export async function getCurrentUser() {
       metadata.name ||
       user.email?.split('@')[0] ||
       'Usuário',
-    perfil: profile?.role || metadata.perfil || metadata.role || 'operador',
+    perfil: profile.role,
   }
 }

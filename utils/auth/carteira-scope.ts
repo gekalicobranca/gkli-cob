@@ -18,12 +18,13 @@ export function applyCarteiraIdsScope(query: any, carteiraIds: string[] | null, 
 }
 
 export function applyCarteiraScope(query: any, scope?: CarteiraScope, column = 'carteira_id'): any {
-  if (!scope) return query
+  if (!scope) return query.in(column, [EMPTY_UUID])
   return applyCarteiraIdsScope(query, scope.carteiraIds, column)
 }
 
 export function applyCarteiraScopeWithGlobal(query: any, scope?: CarteiraScope, column = 'carteira_id'): any {
-  if (!scope || scope.carteiraIds === null) return query
+  if (!scope) return query.in(column, [EMPTY_UUID])
+  if (scope.carteiraIds === null) return query
   if (scope.carteiraIds.length === 0) return query.is(column, null)
   return query.or(`${column}.is.null,${column}.in.(${scope.carteiraIds.join(',')})`)
 }

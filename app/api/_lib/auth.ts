@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { loadTrustedProfile, ProfileAuthorizationError } from '@/utils/auth/trusted-profile'
 
 export async function requireAuthenticatedApiUser() {
   const supabase = await createClient()
@@ -18,7 +19,16 @@ export async function requireAuthenticatedApiUser() {
     }
   }
 
-  return { user, response: null }
+  try {
+    const profile = await loadTrustedProfile(supabase, user.id)
+    return { user, profile, response: null }
+  } catch (error) {
+    if (!(error instanceof ProfileAuthorizationError)) throw error
+    return {
+      user: null,
+      response: NextResponse.json({ ok: false, error: error.message }, { status: error.status }),
+    }
+  }
 }
 
 export function requireCronSecret(request: Request) {

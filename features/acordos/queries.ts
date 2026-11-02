@@ -285,6 +285,24 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
     atualizado_em: parcela.atualizado_em ?? parcela.updated_at,
   }));
 
+  async function carregarFormalizacao(tabela: string, campos: string, ordem: string) {
+    const rows: any[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await supabase.from(tabela).select(campos)
+        .eq("acordo_id", id).eq("carteira_id", (acordo as any).carteira_id)
+        .order(ordem, { ascending: false }).order("id", { ascending: false }).range(offset, offset + 499);
+      if (error) throw new Error(`Erro ao carregar formalização: ${error.message}`);
+      rows.push(...(data ?? []));
+      if ((data ?? []).length < 500) return rows;
+    }
+  }
+  const [evidencias, mensagensFormalizacao] = await Promise.all([
+    carregarFormalizacao("acordo_formalizacao_eventos", "id,evento,evidencia,origem,referencia,ocorrido_em,usuario_id,profiles:usuario_id(nome)", "ocorrido_em"),
+    carregarFormalizacao("mensagens", "id,status,origem_evento,payload,email_assunto,conteudo_renderizado,conteudo", "created_at"),
+  ]);
+  (acordo as any).formalizacao_eventos = evidencias;
+  (acordo as any).mensagens_formalizacao = mensagensFormalizacao;
+
   return {
     acordo,
     responsavelApoio,
@@ -1562,7 +1580,7 @@ export async function listAgreementApprovalInbox(scope?: CarteiraScope) {
   return (acordos as any[])
     .filter((acordo) => {
       const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();
-      return Boolean(acordo.exige_aprovacao_sindico) && !acordo.sindico_aprovado_em && !["rompido", "cancelado", "quitado"].includes(String(acordo.status ?? "")) || fluxo.includes("sindico");
+      return Boolean(acordo.exige_aprovacao_sindico) && !acordo.sindico_aprovado_em && fluxo === 'aguardando_aprovacao_sindico' && !["rompido", "cancelado", "quitado", "quebrado", "renegociado"].includes(String(acordo.status ?? ""));
     })
     .map((acordo) => ({
       ...acordo,
@@ -1641,12 +1659,13 @@ export async function listAgreementManualActivationInbox(
   }
 
   const acordoIds = uniqueStrings((termos ?? []).map((termo: any) => termo.acordo_id));
-  const mensagensPorAcordo = new Map<string, any>();
+  const mensagensPorTermo = new Map<string, any>();
+  const enviosComprovados = new Map<string, any>();
 
   if (acordoIds.length > 0) {
     let mensagensQuery = supabase
       .from("mensagens")
-      .select("id, acordo_id, carteira_id, status, status_operacional, destinatario, email_destinatario, email_assunto, conteudo, conteudo_renderizado, enviada_manual, enviada_manual_em, ultima_tentativa_em, created_at")
+      .select("id, acordo_id, carteira_id, status, status_operacional, destinatario, email_destinatario, email_assunto, conteudo, conteudo_renderizado, payload, enviada_manual, enviada_manual_em, ultima_tentativa_em, created_at")
       .in("acordo_id", acordoIds)
       .eq("contexto", "acordo")
       .eq("canal", "email")
@@ -1660,11 +1679,19 @@ export async function listAgreementManualActivationInbox(
       throw new Error(`Erro ao carregar mensagens de acordo: ${mensagensError.message}`);
     }
 
+    for (let offset = 0; ; offset += 500) {
+      let evidenciasQuery = supabase.from("acordo_formalizacao_eventos")
+        .select("referencia,ocorrido_em,origem").in("acordo_id", acordoIds).eq("evento", "termo_enviado")
+        .order("ocorrido_em", { ascending: false }).order("id", { ascending: false }).range(offset, offset + 499);
+      evidenciasQuery = applyCarteiraScope(evidenciasQuery, scope.carteiraIds, "carteira_id");
+      const { data: evidencias, error: evidenciasError } = await evidenciasQuery;
+      if (evidenciasError) throw new Error(`Erro ao carregar envios confirmados: ${evidenciasError.message}`);
+      for (const evento of evidencias ?? []) if (!enviosComprovados.has(evento.referencia)) enviosComprovados.set(evento.referencia, evento);
+      if ((evidencias ?? []).length < 500) break;
+    }
     for (const mensagem of mensagens ?? []) {
-      const acordoId = (mensagem as any).acordo_id;
-      if (acordoId && !mensagensPorAcordo.has(acordoId)) {
-        mensagensPorAcordo.set(acordoId, mensagem);
-      }
+      const termoId = (mensagem as any).payload?.termo_id;
+      if (termoId && !mensagensPorTermo.has(termoId)) mensagensPorTermo.set(termoId, mensagem);
     }
   }
 
@@ -1673,7 +1700,8 @@ export async function listAgreementManualActivationInbox(
     const carteira = Array.isArray(acordo?.carteiras) ? acordo?.carteiras[0] : acordo?.carteiras;
     const condominio = Array.isArray(acordo?.condominios) ? acordo?.condominios[0] : acordo?.condominios;
     const unidade = Array.isArray(acordo?.unidades) ? acordo?.unidades[0] : acordo?.unidades;
-    const mensagem = mensagensPorAcordo.get(termo.acordo_id) ?? null;
+    const mensagem = mensagensPorTermo.get(termo.id) ?? null;
+    const envio = enviosComprovados.get(termo.id) ?? enviosComprovados.get(mensagem?.id);
     const unidadeLabel = [
       unidade?.bloco ? `Bloco ${unidade.bloco}` : null,
       unidade?.identificacao ? `Unidade ${unidade.identificacao}` : null,
@@ -1695,11 +1723,9 @@ export async function listAgreementManualActivationInbox(
       valorAcordado: Number(acordo?.valor_acordado ?? 0),
       dataAcordo: acordo?.data_acordo ?? null,
       termoCriadoEm: termo.created_at ?? null,
-      mensagemStatus: mensagem?.status_operacional ?? mensagem?.status ?? null,
-      mensagemAcionadaManual: Boolean(mensagem?.enviada_manual)
-        || ["visualizado"].includes(String(termo.status ?? ""))
-        || ["enviada"].includes(String(mensagem?.status_operacional ?? mensagem?.status ?? "")),
-      mensagemAcionadaEm: termo.visualizado_em ?? mensagem?.enviada_manual_em ?? mensagem?.ultima_tentativa_em ?? null,
+      mensagemStatus: envio ? "enviada" : ["enviada", "entregue"].includes(mensagem?.status) ? "envio_sem_evidencia" : mensagem?.status ?? null,
+      mensagemAcionadaManual: Boolean(envio),
+      mensagemAcionadaEm: envio?.ocorrido_em ?? null,
       mensagemAssunto: mensagem?.email_assunto ?? "Formalização do acordo",
       mensagemConteudo: mensagem?.conteudo_renderizado ?? mensagem?.conteudo ?? null,
       carteiraNome: carteira?.nome ?? null,
@@ -1714,6 +1740,7 @@ export async function listAgreementBoletoInbox(scope?: CarteiraScope) {
       const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();
       return [
         "aceito_aguardando_boletos",
+        "solicitacao_boletos_preparada",
         "boletos_solicitados",
         "boletos_recebidos",
       ].includes(fluxo);
@@ -1721,7 +1748,8 @@ export async function listAgreementBoletoInbox(scope?: CarteiraScope) {
     .map((acordo) => {
       const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();
       let etapa_boleto = "Aguardando boletos";
-      if (fluxo.includes("boletos_enviados")) etapa_boleto = "Boletos enviados";
+      if (fluxo === "solicitacao_boletos_preparada") etapa_boleto = "Solicitação preparada";
+      else if (fluxo.includes("boletos_enviados")) etapa_boleto = "Boletos enviados";
       else if (fluxo.includes("boletos_recebidos")) etapa_boleto = "Boletos recebidos";
       else if (fluxo.includes("boleto")) etapa_boleto = "Aguardando boletos";
       return { ...acordo, etapa_boleto };

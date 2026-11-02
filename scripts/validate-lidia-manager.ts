@@ -27,7 +27,8 @@ test('Manager HTML/XLS e XLSX preservam centavos, datas brasileiras, acentos e t
   assert.ok(cotas[0].planilha);assert.equal(cotas[0].recibo,'123')
  }
 })
-test('serviço revalida fonte/cadastro antes da aprovação e só persiste rascunho',async()=>{
+test('serviço revalida fonte/cadastro antes da aprovação e só persiste rascunho',async(t)=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-22T12:00:00Z')})
  const buffer=fixture(),exec='exec',arquivo='arq',writes:string[]=[],rule={nome:name,administradora:'Manager',dias_apos_vencimento_regua:45,despesas_acordo_avista_percentual:10,despesas_acordo_parcelado_percentual:20,parcelas_acordo_sem_aprovacao_sindico:3}
  const c:any={id:'caso',tipo:'lidia_atendimento',condominio_id:CADIZ_ID,carteira_id:CADIZ_CARTEIRA,updated_at:'version',payload:{versao:1,estado:'em_analise',intencao:'parcelamento',unidade_ids:['unit'],execucao_id:exec,emails:[{chave:'retorno-real',nome:'Márcio',remetente:'teste@example.com',assunto:'Cádiz',recebido_em:'2026-10-22T12:00:00Z'}],atividades:[],modo:'supervisionado',envio_permitido:false}}
  const tables:any={agente_execucoes:{id:exec,status:'sucesso',created_at:'2026-10-22T12:00:00Z'},agente_arquivos:{id:arquivo,nome_arquivo:'manager.xls',storage_path:'exec/manager.xls',hash_arquivo:createHash('sha256').update(buffer).digest('hex')},unidades:{id:'unit',...unit,email:'teste@example.com',acao_judicial:false},condominios:rule,acordos:[],cobrancas:[{id:'aug',vencimento:'2026-08-05',valor_atualizado:102,status_operacional:'em_cobranca_ativa',status_financeiro:'em_aberto'},{id:'oct',vencimento:'2026-10-05',valor_atualizado:102,status_operacional:'novo',status_financeiro:'em_aberto'}]}

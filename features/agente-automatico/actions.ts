@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+import { requireRole } from '@/utils/auth/require-role'
+import { requireGestor } from '@/utils/auth/require-gestor'
 import { getAgenteWorkerByScriptKey } from './workers'
 import { enfileirarColetaReceita } from './execucoes-service'
 import { startLocalWorker, stopLocalWorker } from './local-workers'
@@ -47,6 +49,7 @@ function getScriptKey(formData: FormData) {
 }
 
 export async function criarAgenteAdministradora(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = await createClient()
 
   const carteiraId = getString(formData, 'carteira_id')
@@ -76,6 +79,7 @@ export async function criarAgenteAdministradora(formData: FormData) {
 }
 
 export async function criarAgenteReceita(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = await createClient()
 
   const administradoraId = getString(formData, 'administradora_id')
@@ -126,6 +130,7 @@ async function criarExecucaoAgenteReceita(formData: FormData, sobDemanda = false
 }
 
 export async function executarAgenteReceita(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
   await criarExecucaoAgenteReceita(formData)
 }
 
@@ -133,6 +138,7 @@ export async function executarAgenteReceitaComAcompanhamento(formData: FormData)
   { ok: true; execucaoId: string; condominioId: string | null; executorUrl: string } |
   { ok: false; error: string }
 > {
+  await requireRole(['admin', 'gestor', 'operador'])
   try {
     const supabase = await createClient()
     const { data: receita, error } = await supabase.from('agente_receitas').select('script_key').eq('id', getString(formData, 'receita_id')).single()
@@ -149,6 +155,7 @@ export async function executarAgenteReceitaComAcompanhamento(formData: FormData)
 }
 
 export async function prepararExecutorMaestro(execucaoId: string) {
+  await requireRole(['admin', 'gestor', 'operador'])
   try {
     const supabase = await createClient()
     const scope = await getPermittedCarteiras()
@@ -166,6 +173,7 @@ export async function prepararExecutorMaestro(execucaoId: string) {
 }
 
 export async function agendarExecucaoAgenteReceita(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = await createClient()
   if (getString(formData, 'origem') === 'maestro') await assertCaptacaoGlobalAtiva(supabase)
 
@@ -263,6 +271,7 @@ export async function agendarExecucaoAgenteReceita(formData: FormData) {
 }
 
 export async function executarAgenteAdministradoraAgora(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()
 
@@ -355,6 +364,7 @@ export async function executarAgenteAdministradoraAgora(formData: FormData) {
 }
 
 export async function executarAgenteScriptAgora(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()
   const worker = getScriptKey(formData)
@@ -451,6 +461,7 @@ export async function executarAgenteScriptAgora(formData: FormData) {
 }
 
 export async function alternarCaptacaoGlobal(formData: FormData) {
+  await requireGestor()
   const supabase = await createClient()
   const ativo = getString(formData, 'ativo') === 'true'
   const { data: { user } } = await supabase.auth.getUser()
@@ -487,6 +498,7 @@ export async function alternarCaptacaoGlobal(formData: FormData) {
 }
 
 export async function iniciarAgenteWorkerLocal(formData: FormData) {
+  await requireGestor()
   const worker = getScriptKey(formData)
   await startLocalWorker(worker)
   revalidatePath('/app/agente-automatico')
@@ -494,6 +506,7 @@ export async function iniciarAgenteWorkerLocal(formData: FormData) {
 }
 
 export async function pararAgenteWorkerLocal(formData: FormData) {
+  await requireGestor()
   const worker = getScriptKey(formData)
   await stopLocalWorker(worker)
   revalidatePath('/app/agente-automatico')
@@ -501,6 +514,7 @@ export async function pararAgenteWorkerLocal(formData: FormData) {
 }
 
 export async function marcarExecucaoComoSucessoManual(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = await createClient()
 
   const execucaoId = getString(formData, 'execucao_id')
@@ -531,6 +545,7 @@ export async function marcarExecucaoComoSucessoManual(formData: FormData) {
 }
 
 export async function validarArquivoAgente(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()
 
@@ -603,6 +618,7 @@ export async function validarArquivoAgente(formData: FormData) {
 }
 
 export async function limparAgenteExecucoes() {
+  await requireGestor()
   const scope = await getPermittedCarteiras()
   const admin = createAdminClient()
   let query = admin.from('agente_execucoes').update({ oculto_em: new Date().toISOString() }).is('oculto_em', null)

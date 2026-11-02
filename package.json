@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:audit-1-3": "tsx --test scripts/validate-audit-items-1-3.ts",
+    "test:auth": "node --test scripts/validate-auth-authorization.cjs",
     "test:whatsapp-consolidacao": "tsx --test scripts/validate-whatsapp-consolidacao.ts",
     "dev": "next dev -p 3000",
     "build": "next build",

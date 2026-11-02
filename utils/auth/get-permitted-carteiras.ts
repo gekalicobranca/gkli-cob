@@ -30,7 +30,8 @@ export async function getPermittedCarteiras(): Promise<CarteiraScope> {
     .eq('user_id', user.id)
 
   if (error) {
-    throw new Error(`Erro ao carregar carteiras permitidas: ${error.message}`)
+    console.warn('[authorization]', { event: 'wallet_lookup_failed', userId: user.id })
+    throw new Error('Não foi possível validar o acesso às carteiras.')
   }
 
   return {

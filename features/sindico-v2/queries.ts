@@ -1,18 +1,12 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/utils/supabase/server'
+import { getCurrentUser } from '@/utils/auth/get-current-user'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { condominiosPermitidos, selecionarCondominio, type VinculoSindico } from './acesso'
 
 export async function carregarAcessoSindicoV2(solicitado?: string) {
-  const session = await createClient()
-  const { data: { user }, error: authError } = await session.auth.getUser()
-  if (authError || !user) redirect('/sindico/login')
-
-  // O papel deve vir do perfil persistido, não dos metadados editáveis do login.
-  const { data: profile, error: profileError } = await session.from('profiles')
-    .select('role').eq('id', user.id).maybeSingle()
-  if (profileError) throw new Error('Não foi possível verificar o perfil de acesso.')
-  if (profile?.role !== 'sindico') redirect('/app')
+  const user = await getCurrentUser()
+  if (!user) redirect('/sindico/login')
+  if (user.perfil !== 'sindico') redirect('/app')
 
   const admin = createAdminClient()
   const { data: portal, error: portalError } = await admin.from('portal_sindico_usuarios')

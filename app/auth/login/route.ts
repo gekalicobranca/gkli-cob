@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { loadTrustedProfile, ProfileAuthorizationError } from '@/utils/auth/trusted-profile'
 
 function getRedirectUrl(request: NextRequest, path: string) {
   return new URL(path, request.url)
@@ -29,17 +30,15 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (profile?.role === 'sindico') {
-      return NextResponse.redirect(getRedirectUrl(request, '/sindico'), { status: 303 })
-    }
+  try {
+    if (!user) throw new ProfileAuthorizationError(403, 'session_missing')
+    const profile = await loadTrustedProfile(supabase, user.id)
+    return NextResponse.redirect(getRedirectUrl(request, profile.role === 'sindico' ? '/sindico' : '/app'), { status: 303 })
+  } catch (error) {
+    if (!(error instanceof ProfileAuthorizationError)) throw error
+    await supabase.auth.signOut()
+    const url = getRedirectUrl(request, '/login')
+    url.searchParams.set('erro', error.message)
+    return NextResponse.redirect(url, { status: 303 })
   }
-
-  return NextResponse.redirect(getRedirectUrl(request, '/app'), { status: 303 })
 }

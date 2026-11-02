@@ -6,17 +6,17 @@ import { createAdminClient } from '@/utils/supabase/admin'
 export const runtime = 'nodejs'
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { user, response } = await requireAuthenticatedApiUser()
+  const { user, profile, response } = await requireAuthenticatedApiUser()
   if (response) return response
   const { id } = await params
   const supabase = createAdminClient()
-  const { data, error } = await supabase.from('conversoes_relatorio').select('nome_arquivo, preview_json').eq('id', id).like('origem', 'captacao_automatizada:%').maybeSingle()
+  const { data, error } = await supabase.from('conversoes_relatorio').select('nome_arquivo, preview_json, carteira_id').eq('id', id).like('origem', 'captacao_automatizada:%').maybeSingle()
   if (error || !data) return NextResponse.json({ ok: false, error: error?.message || 'Conversão não encontrada.' }, { status: 404 })
   const preview: any = data.preview_json ?? {}
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user!.id).maybeSingle()
   if (profile?.role !== 'admin') {
-    const { data: acesso } = await supabase.from('usuarios_carteiras').select('carteira_id').eq('user_id', user!.id).eq('carteira_id', preview.carteiraId).maybeSingle()
-    if (!acesso) return NextResponse.json({ ok: false, error: 'Você não tem acesso a esta carteira.' }, { status: 403 })
+    if (!data.carteira_id) return NextResponse.json({ ok: false, error: 'Carteira da conversão não identificada.' }, { status: 403 })
+    const { data: acesso, error: acessoError } = await supabase.from('usuarios_carteiras').select('carteira_id').eq('user_id', user!.id).eq('carteira_id', data.carteira_id).maybeSingle()
+    if (acessoError || !acesso) return NextResponse.json({ ok: false, error: 'Você não tem acesso a esta carteira.' }, { status: 403 })
   }
   const rows = (preview.cobrancas ?? []).map((item: any) => ({
     Condomínio: preview.condominio || '', Bloco: item.bloco || '', Unidade: item.unidade || '',

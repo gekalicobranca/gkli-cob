@@ -5,9 +5,14 @@ export const AGENTES_VIRTUAIS = {
 } as const
 
 // Autorizações por par condomínio/carteira: não libera outros condomínios dessas carteiras.
+export const LIDIA_CADIZ_PILOTO = {
+  id: '47926d7c-030b-4469-8713-b23eda558a56',
+  carteira_id: '36b6c087-56d2-4297-be63-6dcbe02a9f00',
+} as const
+
 export const LIDIA_PILOTOS = [
   { id: AGENTES_VIRTUAIS.lidia.pilotoCondominioId, carteira_id: AGENTES_VIRTUAIS.lidia.carteiraId },
-  { id: '47926d7c-030b-4469-8713-b23eda558a56', carteira_id: '36b6c087-56d2-4297-be63-6dcbe02a9f00' },
+  LIDIA_CADIZ_PILOTO,
 ] as const
 
 export function escopoLidia(carteiraIds: string[] | null): string[] {

@@ -12,21 +12,14 @@ import {
 import type { IaChatRequest } from '@/features/ia/types'
 
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+import { requireAuthenticatedApiUser } from '@/app/api/_lib/auth'
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Usuário não autenticado.' },
-        { status: 401 },
-      )
-    }
+    const { response: authResponse } = await requireAuthenticatedApiUser()
+    if (authResponse) return authResponse
 
     const body = (await request.json()) as IaChatRequest
     const pergunta = body.message?.trim()

@@ -20,7 +20,6 @@ import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  atualizarStatusBoletosAcordo,
   cancelarFormalizacaoAcordo,
   decidirAprovacaoSindicoAcordo,
   marcarBoletoReemissaoEnviado,
@@ -220,14 +219,17 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
           Acionado
         </span>
       ) : (
-        <form action={registrarAcionamentoManualAcordo}>
+        <form action={registrarAcionamentoManualAcordo} className="space-y-2">
           <input type="hidden" name="termo_id" value={row.termoId} />
           <input type="hidden" name="acordo_id" value={row.acordoId} />
           <input type="hidden" name="mensagem_id" value={row.mensagemId ?? ""} />
           <input type="hidden" name="canal" value={canal} />
           <input type="hidden" name="return_to" value={returnTo} />
+          <label className="block text-xs">Evidência do envio realizado
+            <textarea name="evidencia" required minLength={10} maxLength={2000} rows={2} placeholder="Protocolo ou referência do envio" className="mt-1 w-full rounded border border-slate-200 p-2" />
+          </label>
           <PendingSubmitButton size="sm" icon={<Send size={14} />} pendingLabel="Marcando...">
-            Marcar acionado
+            Confirmar envio realizado
           </PendingSubmitButton>
         </form>
       )}
@@ -262,7 +264,7 @@ function ActivationRow({ row, canal, returnTo }: { row: AgreementManualActivatio
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={acionado ? "green" : "yellow"}>
-            {acionado ? "Acionado manualmente" : "Aguardando acionamento"}
+            {acionado ? "Envio confirmado" : "Envio não confirmado"}
           </Badge>
           <Badge tone="slate">{row.termoStatus ?? "pendente"}</Badge>
         </div>
@@ -384,8 +386,6 @@ function SindicoDecisionRow({ row, term, returnTo }: { row: any; term?: Agreemen
 }
 
 function BoletoRow({ row }: { row: any }) {
-  const boletosRecebidos = row.etapa_boleto === "Boletos recebidos" || row.etapa_boleto === "Boletos enviados";
-  const boletosEnviados = row.etapa_boleto === "Boletos enviados";
 
   return (
     <div className="grid gap-4 px-5 py-4 xl:grid-cols-[minmax(300px,1fr)_150px_240px] xl:items-center">
@@ -404,32 +404,7 @@ function BoletoRow({ row }: { row: any }) {
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordo</p>
         <p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado ?? 0))}</p>
       </div>
-      <form action={atualizarStatusBoletosAcordo} className="flex flex-wrap justify-end gap-2">
-        <input type="hidden" name="acordo_id" value={row.id} />
-        <PendingSubmitButton
-          name="status_boletos"
-          value="boletos_recebidos"
-          variant="secondary"
-          size="sm"
-          className="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100"
-          icon={<CheckCircle2 size={14} />}
-          disabled={boletosRecebidos}
-          pendingLabel="Confirmando..."
-        >
-          {boletosRecebidos ? "Recebimento confirmado" : "Confirmar recebimento"}
-        </PendingSubmitButton>
-        <PendingSubmitButton
-          name="status_boletos"
-          value="boletos_enviados"
-          size="sm"
-          className="bg-emerald-600 hover:bg-emerald-700"
-          icon={<Mail size={14} />}
-          disabled={boletosEnviados}
-          pendingLabel="Confirmando..."
-        >
-          {boletosEnviados ? "Envio confirmado" : "Confirmar envio"}
-        </PendingSubmitButton>
-      </form>
+      <Link href={`/app/acordos/${row.id}#formalizacao`} className="text-sm font-medium text-cyan-800 underline">Conferir evidências e confirmar boletos</Link>
     </div>
   );
 }

@@ -123,7 +123,7 @@ export async function listPreJuridicoCasos(scope: CarteiraScope) {
   let query = supabase
     .from('pre_juridico_casos')
     .select(`
-      id, carteira_id, acordo_id, condominio_id, unidade_id, cobranca_id,
+      id, versao, carteira_id, acordo_id, condominio_id, unidade_id, cobranca_id,
       responsavel_id, etapa, escritorio_juridico, prazo_etapa, protocolo_envio,
       certidao_status, certidao_solicitada_em, certidao_recebida_em,
       procuracao_status, procuracao_gerada_em, procuracao_assinada_em,
@@ -131,6 +131,7 @@ export async function listPreJuridicoCasos(scope: CarteiraScope) {
       juridico_procuracao_assinada_confirmada, juridico_registro_recebido,
       juridico_laudo_enviado, distribuicao_status, distribuicao_solicitada_em,
       distribuido_em, distribuicao_cnj,
+      juridico_revisado_em, ajuizamento_autorizado_em,
       numero_processo, tribunal, foro, observacoes, enviado_juridico_em,
       judicializado_em, created_at, updated_at,
       carteira:carteiras(nome),

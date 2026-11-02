@@ -26,22 +26,9 @@ function safeFileName(name: string) {
 }
 
 export async function GET() {
-  const { user, response } = await requireAuthenticatedApiUser()
+  const { user, profile, response } = await requireAuthenticatedApiUser()
   if (response || !user) return response
 
-  const admin = createAdminClient()
-  const { data: profile, error: profileError } = await admin
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (profileError) {
-    return NextResponse.json(
-      { ok: false, error: `Não foi possível validar o perfil: ${profileError.message}` },
-      { status: 500 },
-    )
-  }
   if (profile?.role !== 'admin') {
     return NextResponse.json(
       { ok: false, error: 'Somente administradores podem exportar o backup.' },
@@ -49,6 +36,7 @@ export async function GET() {
     )
   }
 
+  const admin = createAdminClient()
   const { data, error } = await admin.rpc('listar_tabelas_backup')
   if (error) {
     return NextResponse.json(

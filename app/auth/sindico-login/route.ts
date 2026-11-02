@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createClient } from "@/utils/supabase/server";
+import { loadTrustedProfile, ProfileAuthorizationError } from "@/utils/auth/trusted-profile";
 
 function redirectWithError(request: NextRequest, message: string) {
   const url = new URL("/sindico/login", request.url);
@@ -24,13 +25,11 @@ export async function POST(request: NextRequest) {
     return redirectWithError(request, "E-mail ou senha invalidos.");
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", data.user.id)
-    .maybeSingle();
-
-  if (profileError || profile?.role !== "sindico") {
+  try {
+    const profile = await loadTrustedProfile(supabase, data.user.id);
+    if (profile.role !== "sindico") throw new ProfileAuthorizationError(403, "portal_role_denied");
+  } catch (error) {
+    if (!(error instanceof ProfileAuthorizationError)) throw error;
     await supabase.auth.signOut();
     return redirectWithError(request, "Este acesso e exclusivo para sindicos.");
   }

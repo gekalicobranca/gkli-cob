@@ -1,4 +1,5 @@
 import { calcularDespesasAcordo } from '../acordos/calculo-despesas'
+import { validarDataCivil, dataCivilSaoPaulo, vencimentoMensal } from '@/lib/core/data-civil'
 import { simularPropostaKeila } from './casos'
 import { formatarEmailAgente, type AgenteVirtualId } from '../agentes-virtuais/perfis'
 import { percentualDespesas } from '../condominios/condicoes-acordo'
@@ -21,9 +22,8 @@ export function montarPropostaKeila(cobrancas: Parameters<typeof simularProposta
   }) {
   if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 120) throw new Error('Informe entre 1 e 120 parcelas.')
   const percentual = percentualDespesas(quantidade === 1 ? condicoes?.despesas_acordo_avista_percentual ?? 10 : condicoes?.despesas_acordo_parcelado_percentual ?? 20)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(vencimento) || new Date(`${vencimento}T12:00:00Z`).toISOString().slice(0, 10) !== vencimento)
-    throw new Error('Vencimento inválido.')
-  const hojeCivil = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(hoje)
+  validarDataCivil(vencimento, 'Vencimento')
+  const hojeCivil = dataCivilSaoPaulo(hoje)
   if (vencimento < hojeCivil) throw new Error('O vencimento não pode estar no passado.')
   const simulacao = simularPropostaKeila(cobrancas, dias, hoje)
   if (!simulacao) throw new Error('Não há cobranças elegíveis dentro da régua.')
@@ -31,12 +31,9 @@ export function montarPropostaKeila(cobrancas: Parameters<typeof simularProposta
   const calculo = calcularDespesasAcordo(selecionadas.map(c => ({ id: c.id, valor: Number(c.valor_atualizado) })), [], percentual, 0,
     { quantidadeParcelas: quantidade, entrada: 0, custoEmissaoBoleto: Number(condicoes?.custo_emissao_boleto ?? 0) })
   const centavos = Math.round(calculo.total * 100)
-  const [ano, mes, dia] = vencimento.split('-').map(Number)
   const parcelas = Array.from({ length: quantidade }, (_, i) => {
-    const ultimoDia = new Date(Date.UTC(ano, mes + i, 0)).getUTCDate()
-    const data = new Date(Date.UTC(ano, mes - 1 + i, Math.min(dia, ultimoDia)))
     return { numero: i + 1, valor: (Math.floor(centavos / quantidade) + (i < centavos % quantidade ? 1 : 0)) / 100,
-      vencimento: data.toISOString().slice(0, 10), tipo_parcela: 'parcela', status: 'aberta' }
+      vencimento: vencimentoMensal(vencimento, i), tipo_parcela: 'parcela', status: 'aberta' }
   })
   const limite = condicoes?.parcelas_acordo_sem_aprovacao_sindico ?? 0
   return { custoBoletos: calculo.custoBoletos, custoEmissaoBoleto: calculo.custoEmissaoBoleto, base: calculo.baseDespesa, despesas: calculo.despesa, total: calculo.total, percentual, parcelas,
