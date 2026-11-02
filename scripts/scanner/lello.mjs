@@ -2,6 +2,7 @@ import { chromium } from 'playwright'
 import { interpretarDocumentoScanner } from './pagamentos.mjs'
 import { validarLink } from './core.mjs'
 import { autenticarLello } from './lello-auth.mjs'
+import {loteDocumentos} from './eficiencia.mjs'
 import {leituraFinanceira} from './leitura-auxiliar.mjs'
 
 const origem = 'https://portal.lellocondominios.com.br'
@@ -66,9 +67,14 @@ export async function abrirLello(config, signal) {
  etapa('menu_cadastro')
  const cadastro = await tela('/relatorios/CadastroUnidades.do')
  const contatos = await cadastro.locator('a[name="CadastroUnidadesForm"]').evaluateAll(els => els.map(e => e.href))
- etapa('menu_pagamentos')
- const historico = await tela('/relatorios/HistoricoPagamentos.do')
- const pagamentos = await historico.locator('a[href*="HistoricoPagamentosUnidade.do"]').evaluateAll(els => els.map(e => e.href))
+ let pagamentos=[],historicoIndisponivel=!!config.financeiroSuspenso
+ if(!config.financeiroSuspenso){
+  etapa('menu_pagamentos')
+  try{
+   const historico = await tela('/relatorios/HistoricoPagamentos.do')
+   pagamentos = await historico.locator('a[href*="HistoricoPagamentosUnidade.do"]').evaluateAll(els => els.map(e => e.href))
+  }catch{signal.throwIfAborted();historicoIndisponivel=true}
+ }
  const detalhe = await context.newPage(); detalhe.setDefaultTimeout(20_000)
  async function visitar(href) {
    if(limite)throw Object.assign(Error('Orçamento de navegações do lote atingido.'),{code:'SCANNER_LIMITE'})
@@ -112,6 +118,8 @@ export async function abrirLello(config, signal) {
      // Preserva todos os responsáveis exibidos, sem presumir titularidade.
      const contato = { codigo: config.codigo_portal, unidade, fichas: dados.filter(d => Object.hasOwn(d, 'Nome')), fonte: detalhe.url() }
      const inconclusivo=(codigo,motivo,fonte=detalhe.url())=>({contatos:contato,pagamentos:{codigo:config.codigo_portal,unidade,fonte,baixa_permitida:false,status:'inconclusivo',codigo_diagnostico:codigo,motivo}})
+     try{
+     if(historicoIndisponivel){const r=inconclusivo('historico_indisponivel','Histórico financeiro indisponível; cadastro preservado.');r.pagamentos.diagnostico=config.financeiroSuspenso?'acesso_adiado':'sem_acesso';return r}
      etapa('historico_unidade')
      if(!pagamentos.some(href=>new URL(href).searchParams.get('codUnidade')===unidade))return inconclusivo('sem_link_historico','Unidade ausente na lista de históricos; ausência não confirma pagamento.')
      await visitar(linkUnidade(pagamentos, unidade, '/relatorios/HistoricoPagamentosUnidade.do'))
@@ -120,21 +128,30 @@ export async function abrirLello(config, signal) {
      if(await identificador.count()!==1)return inconclusivo('historico_sem_identificador','Histórico sem identificador de unidade; pagamento exige conferência.')
      if (await identificador.inputValue() !== unidade) throw Error('Unidade do histórico diverge.')
      const links = [...new Set(await detalhe.locator('a[href*="/relatorios/Acordo.do"]').evaluateAll(els => els.map(e => e.href)))]
-     if (links.length > 10) return { contatos: contato, pagamentos: { codigo: config.codigo_portal, unidade, fonte: detalhe.url(), baixa_permitida: false, status: 'inconclusivo', motivo: 'Histórico acima do limite de 10 documentos por unidade; conferir separadamente.', quantidade_documentos: links.length } }
      if (!links.length) return { contatos: contato, pagamentos: { codigo: config.codigo_portal, unidade, fonte: detalhe.url(), baixa_permitida: false, status: 'inconclusivo', motivo: 'Histórico sem documentos de acordo. Não confirma pagamento nem ausência de débitos.' } }
-     const recebimentos = []
-     for (const href of links) {
+     const lote=loteDocumentos(links,{codigo:config.codigo_portal,unidade,visitados:config.historicos?.[unidade]??[],...(config.alvosFinanceiros?.[unidade]??{})})
+     const recebimentos = [],revisoes=[],visitados=[...lote.visitados]
+     let interrompido=false
+     for (const href of lote.links) {
        const url = new URL(validarLink(href, config.codigo_portal, unidade, '/relatorios/Acordo.do'))
        const acordo = url.searchParams.get('codAcordo'), recibo = url.searchParams.get('numrecibo')
        if (!/^\d+$/.test(acordo || '') || (recibo && !/^\d+$/.test(recibo))) throw Error('Identificador de recebimento inválido.')
-       await visitar(url.href)
+       try{await visitar(url.href)}catch(error){if(!signal.aborted&&!/Timeout|ERR_|limite|interrompido|indisponibilidade/.test(String(error.message)))throw error;interrompido=true;break}
        const tabelas = await detalhe.locator('table').evaluateAll(ts => ts.map(t => [...t.rows].map(r => [...r.cells].map(c => c.innerText.trim()))))
        etapa('interpretar_pagamentos')
        const interpretado=interpretarDocumentoScanner(tabelas,{acordo,unidade,recibo})
-       if(!interpretado.ok){const r=inconclusivo('pagamento_nao_conciliado',interpretado.motivo,url.href);r.pagamentos.leitura_auxiliar=leituraFinanceira(tabelas);return r}
+       visitados.push(url.href)
+       if(!interpretado.ok){revisoes.push({fonte:url.href,motivo:interpretado.motivo,leitura_auxiliar:leituraFinanceira(tabelas)});continue}
        recebimentos.push({fonte:url.href,...interpretado.resultado})
      }
-     return { contatos: contato, pagamentos: { codigo: config.codigo_portal, unidade, baixa_permitida: false, recebimentos } }
+     return { contatos: contato, pagamentos: { codigo: config.codigo_portal, unidade, baixa_permitida: false, status:lote.restantes||interrompido?'parcial':recebimentos.length?'consultado':'inconclusivo', recebimentos, revisoes, leitura_auxiliar:revisoes[0]?.leitura_auxiliar, historico_progresso:{pendente:lote.restantes>0||interrompido,visitados,total:lote.total,restantes:lote.total-visitados.length} } }
+     }catch(error){
+      const transitorio=signal.aborted||/Timeout|ERR_|limite|interrompido|indisponibilidade/.test(String(error.message))
+      if(transitorio)historicoIndisponivel=true
+      const r=inconclusivo('consulta_financeira_interrompida',transitorio?'Consulta financeira indisponível; cadastro preservado.':'Identidade ou formato financeiro exige revisão; cadastro preservado.')
+      r.pagamentos.diagnostico=transitorio?'sem_acesso':'revisao_identidade'
+      return r
+     }
    },
    async close() { signal.removeEventListener('abort', abort); await browser.close() },
  }

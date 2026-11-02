@@ -11,20 +11,27 @@ type ItemConciliacao = {tipo:string;id:string;acordo_id:string|null;resultado:st
 type VinculoBBZ = {recibo:string;parcela_id:string|null;acordo_id:string|null;resultado:string;motivo:string}
 type Sugestao = {candidato_id:string;tipo:string;documento_id:string;origem:string;motivo:string;classificacao:string;campos_iguais:string[];campos_divergentes:string[];impedimentos:string[]}
 type ResultadoInterpretacao = {resumo:string;ia_status:string;sugestoes:Sugestao[];colunas:unknown[]}
-export default async function ScannerPage() {
+export default async function ScannerPage({searchParams}:{searchParams:Promise<{dia?:string}>}) {
  const user = await requireUser()
  if (user.perfil !== 'admin') return <p>O scanner está disponível para administradores.</p>
  const db = await createClient()
- const [configs, condos, evidencias, conferencias, vinculosBBZ, baixas, analises] = await Promise.all([
+ const diaParam=(await searchParams).dia
+ const hoje=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())
+ const dia=diaParam&&/^\d{4}-\d{2}-\d{2}$/.test(diaParam)&&!Number.isNaN(Date.parse(diaParam))?diaParam:hoje
+ const relatorio=await db.rpc('scanner_resumo_dia',{p_dia:dia})
+ const resumo=relatorio.data as Record<string,number|string|null>|null
+ const possuiClassificacao=!!resumo?.medicao_lotes_desde&&dia>=String(resumo.medicao_lotes_desde).slice(0,10)
+ const [configs, condos, evidencias, conferencias, vinculosBBZ, baixas, analises, rechecagens] = await Promise.all([
    db.from('scanner_configuracoes').select('*').order('proxima_execucao').limit(1000),
    db.from('condominios').select('id,nome,administradora').eq('status', 'ativo').order('nome').limit(1000),
-   db.from('scanner_evidencias').select('id,configuracao_id,unidade_portal,tipo,dados,coletado_em,observado_em,cadastro_status,conciliacao_status,cadastro:scanner_cadastro_auditoria(resultado,antes,depois)').order('observado_em', { ascending: false }).limit(50),
+   db.from('scanner_evidencias').select('id,configuracao_id,unidade_portal,tipo,dados,coletado_em,observado_em,cadastro_status,conciliacao_status,cadastro:scanner_cadastro_auditoria(resultado,antes,depois,atualizado_em)').order('observado_em', { ascending: false }).limit(50),
    db.from('scanner_conciliacao_auditoria').select('id,evidencia_id,unidade_id,resultado,resumo,itens,baixa,observado_em,conferido_em').order('conferido_em',{ascending:false}).limit(30),
    db.from('scanner_bbz_vinculacoes').select('id,condominio_id,unidade_id,observado_em,itens').order('criado_em',{ascending:false}).limit(20),
    db.from('scanner_baixas').select('id,tipo,item_id,acordo_id,unidade_id,portal,recibo,confirmado_por,operador_portal,confirmado_em,observado_em,data_pagamento,valor_pago_centavos,execucao_id,antes,depois').order('confirmado_em',{ascending:false}).limit(30),
    db.from('scanner_analises').select('id,condominio_id,unidade_id,observado_em,estado,modelo,resultado,concluido_em,evidencia:scanner_evidencias(observado_em)').order('criado_em',{ascending:false}).limit(30),
+   db.from('scanner_rechecagens_pagos').select('id,unidade_id,conferido_em,itens').order('conferido_em',{ascending:false}).limit(10),
  ])
- const erro = configs.error || condos.error || evidencias.error || conferencias.error || vinculosBBZ.error || baixas.error || analises.error
+ const erro = configs.error || condos.error || evidencias.error || conferencias.error || vinculosBBZ.error || baixas.error || analises.error || rechecagens.error
  const nomes = new Map((condos.data ?? []).map(c => [c.id, c.nome]))
  const administradoras = new Map((condos.data ?? []).map(c => [c.id, c.administradora]))
  const situacoes: Record<string,string> = {validado:'Acesso validado',aguardando_primeira_coleta:'Aguardando primeira coleta noturna',pendente_acesso:'Pendente de acesso',pendente_adaptador:'Pendente de integração cadastral',sem_unidades:'Sem unidades cadastradas'}
@@ -37,11 +44,24 @@ export default async function ScannerPage() {
      <p>Dados cadastrais confirmados no portal substituem divergências nas unidades vinculadas, com histórico do antes e depois. Vínculos ambíguos ficam para revisão. Dados vazios não apagam informações existentes.</p>
      <p>Pagamentos integrais confirmados no portal e conciliados com vínculo único são baixados automaticamente, com a data efetiva do recebimento. Pagamentos inconsistentes ficam para revisão, sem impedir a coleta de contatos. Não há captação de inadimplência.</p>
      <p>A conciliação confere recibo, vínculo externo, vencimento, valor e data. Pagamentos parciais, divergências, vínculos duplicados, bloqueios humanos e casos judiciais exigem revisão. Cada baixa registra o scanner como responsável, a evidência e o antes/depois. Registros manuais anteriores são preservados.</p>
+     <p>A rotina diária prioriza itens em aberto. Pagos são reconferidos separadamente a cada sete dias. Históricos Lello são lidos em blocos de até três documentos; extratos indisponíveis têm pausa própria, preservando os contatos. A IA recebe somente fontes financeiras que tenham conteúdo para comparar.</p>
      <p className="text-sm text-slate-600">O executor local precisa estar ligado. Falhas interrompem o lote, aumentam a pausa e desativam o condomínio após três tentativas consecutivas.</p>
      <p>As outras administradoras foram incluídas usando os acessos já cadastrados. Cada consulta confere o condomínio, o bloco e a unidade. Portais sem acesso ou integração cadastral ficam pendentes, sem executar captação. O histórico de pagamento depende de validação específica do portal.</p>
      <p>{configs.data?.filter(c=>c.ativo).length ?? 0} na fila noturna · {configs.data?.filter(c=>!c.ativo).length ?? 0} pausados ou pendentes. Os lotes são compartilhados entre todos os condomínios; a passagem completa pode levar várias noites.</p>
    </section>
    {erro ? <p role="alert" className="rounded-xl bg-amber-50 p-4">Scanner indisponível. Confira a conexão e a aplicação da migração antes de configurar.</p> : <>
+   <section className="rounded-2xl border bg-white p-5 space-y-3">
+     <h2 className="font-semibold">Resultado por data · {dia.split('-').reverse().join('/')}</h2>
+     <form className="flex flex-wrap gap-3 items-end"><label>Data da execução<Input name="dia" type="date" defaultValue={dia}/></label><Button type="submit" variant="secondary">Consultar</Button></form>
+     {relatorio.error||!resumo?<p>Resumo temporariamente indisponível.</p>:<>
+      <p>{resumo.cadastros_atualizados} cadastros alterados nesta data: {resumo.campos_preenchidos} campos preenchidos, {resumo.campos_corrigidos} corrigidos e {resumo.campos_formatados} apenas formatados. {resumo.baixas} baixas efetuadas.</p>
+      <p>{resumo.itens_abertos_verificados} cobranças e parcelas comparadas.</p>
+      {possuiClassificacao?<p>{resumo.itens_validados} pagamentos validados, {resumo.itens_sem_acesso} sem acesso financeiro, {resumo.itens_sem_correspondencia} sem recebimento correspondente e {resumo.itens_para_revisao} para revisão.</p>:<p>A separação entre falta de acesso, falta de correspondência e revisão começa com esta versão. Para datas anteriores, consulte o diagnóstico nas evidências.</p>}
+      <p>{resumo.rechecagens_pagos} itens já pagos reconferidos na rotina semanal, sem novas baixas. {resumo.ia_concluidas} análises de IA concluídas.</p>
+      {possuiClassificacao&&<p>{resumo.lotes} lotes e {resumo.unidades_consultadas} consultas de unidades, incluindo {resumo.historicos_parciais} leituras parciais com retomada salva.</p>}
+      <p className="text-sm text-slate-600">Alterações cadastrais são contadas pela data da auditoria, mesmo quando a mesma ficha é consultada novamente. A medição de lotes começa com esta atualização; datas anteriores podem não ter esse total.</p>
+     </>}
+    </section>
    <form action={salvarScanner} className="rounded-2xl border bg-white p-5 grid gap-4 md:grid-cols-2">
      <h2 className="font-semibold md:col-span-2">Adicionar condomínio</h2>
      <label>Adicionar acesso Lello validado<select required name="condominio_id" className="block w-full rounded border p-2">{(condos.data ?? []).filter(c=>c.administradora?.toLowerCase()==='lello'||c.id==='13290a44-ec8d-4232-81e7-711196547f91').map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></label>
@@ -57,6 +77,7 @@ export default async function ScannerPage() {
        <p>{administradoras.get(c.condominio_id) ?? 'Administradora não informada'} · {situacoes[c.situacao] ?? c.situacao}</p>
        <p>{c.unidades.length} unidades · cursor {c.cursor} · próxima elegibilidade {data(c.proxima_execucao)} (dentro da janela noturna)</p>
        <p>{c.ultimo_resultado ?? 'Aguardando a primeira coleta.'}</p>
+       {c.financeiro_proxima_tentativa&&<p>Próxima tentativa do extrato: {data(c.financeiro_proxima_tentativa)}. Coleta cadastral segue a fila normal.</p>}
        {['validado','aguardando_primeira_coleta'].includes(c.situacao)&&<form action={alternarScanner}><input type="hidden" name="id" value={c.id} /><input type="hidden" name="ativo" value={String(!c.ativo)} /><Button type="submit" variant="secondary">{c.ativo ? 'Pausar' : 'Reativar'}</Button></form>}
      </article>)}
    </section>
@@ -124,15 +145,25 @@ export default async function ScannerPage() {
        </article>)}
      </details>)}
    </section>
+   <section className="space-y-3"><h2 className="font-semibold">Rechecagem semanal dos itens já pagos</h2>
+    <p>Conferência separada, sem alterar pagamentos anteriores. Divergências e falta de prova permanecem para revisão.</p>
+    {(rechecagens.data??[]).map(r=><details key={r.id} className="rounded-xl border bg-white p-4">
+     <summary>{data(r.conferido_em)} · {Array.isArray(r.itens)?r.itens.length:0} itens</summary>
+     <ButtonLink href={'/app/unidades/'+r.unidade_id} variant="secondary">Abrir unidade</ButtonLink>
+     {(Array.isArray(r.itens)?r.itens as ItemConciliacao[]:[]).map(i=><p key={i.id}>{i.tipo==='parcela'?'Parcela':'Cobrança'} · {i.app.vencimento} · {i.resultado}: {i.motivo}</p>)}
+    </details>)}
+   </section>
    <section className="space-y-3"><h2 className="font-semibold">Últimas 50 evidências</h2>
      {!evidencias.data?.length && <p>Nenhuma evidência coletada.</p>}
-     {(evidencias.data ?? []).map(e => <details key={e.id} className="rounded-xl border bg-white p-4">
+     {(evidencias.data ?? []).map(e => {
+      const auditoria=Array.isArray(e.cadastro)?e.cadastro[0]:e.cadastro
+      return <details key={e.id} className="rounded-xl border bg-white p-4">
        <summary className="cursor-pointer">{nomesConfiguracoes.get(e.configuracao_id) ?? 'Condomínio'} · unidade {e.unidade_portal} · {e.tipo} · {data(e.observado_em)}</summary>
-       {e.tipo==='contatos'&&<p className="mt-2 text-sm">Cadastro: {e.cadastro_status.replaceAll('_',' ')}</p>}
+       {e.tipo==='contatos'&&<p className="mt-2 text-sm">Cadastro: {e.cadastro_status.replaceAll('_',' ')} · auditoria {auditoria?.atualizado_em?data(auditoria.atualizado_em):'pendente'}. A data da consulta não representa uma nova alteração cadastral.</p>}
        {e.tipo==='pagamentos'&&<p className="mt-2 text-sm">Conciliação: {e.conciliacao_status.replaceAll('_',' ')}</p>}
        <pre className="mt-3 overflow-auto whitespace-pre-wrap text-sm">{JSON.stringify(e.dados, null, 2)}</pre>
        {e.cadastro&&<pre className="mt-3 overflow-auto whitespace-pre-wrap text-sm">{JSON.stringify(e.cadastro,null,2)}</pre>}
-     </details>)}
+     </details>})}
    </section></>}
  </main>
 }

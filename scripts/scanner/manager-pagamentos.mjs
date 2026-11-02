@@ -34,5 +34,5 @@ export function pagamentosManager(tabelas, referencia, texto) {
   }else if(recibo&&row[4])historicos.push(row[4])
  }
  if(recibo)return {status:'inconclusivo',motivo:'Recibo com detalhe de pagamento incompleto.'}
- return pagamentos.length?{status:'consultado',pagamentos,recibos_sem_confirmacao:semConfirmacao}:{status:'inconclusivo',motivo:'Nenhum pagamento reconhecido no período; não equivale a inadimplência.',recibos_sem_confirmacao:semConfirmacao}
+ return {status:'consultado',pagamentos,recibos_sem_confirmacao:semConfirmacao,diagnostico:pagamentos.length?'documentos_disponiveis':'sem_pagamento_localizado'}
 }

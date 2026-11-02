@@ -42,6 +42,6 @@ test('recibos sem data e com zero pago não descartam comprovante válido nem vi
  const pendente=[['87654321','15/10/2026','','','Cota condominial'],['','100,00','','','','','','0,00']]
  const r=pagamentosManager([[cab,...valida,...pendente]],'0//CE0026','Unidade: 0//CE0026')
  assert.equal(r.pagamentos.length,1);assert.equal(r.recibos_sem_confirmacao,1)
- assert.equal(pagamentosManager([[cab,...pendente]],'0//CE0026','Unidade: 0//CE0026').status,'inconclusivo')
+ assert.equal(pagamentosManager([[cab,...pendente]],'0//CE0026','Unidade: 0//CE0026').status,'consultado')
  assert.equal(pagamentosManager([[cab,pendente[0],['','100,00','','','','','','100,00']]],'0//CE0026','Unidade: 0//CE0026').status,'inconclusivo')
 })

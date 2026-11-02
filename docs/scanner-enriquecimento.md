@@ -1,5 +1,9 @@
 # Scanner de enriquecimento noturno
 
+## Retirada da conferência acima de R$ 10 mil — 30/10/2026
+
+Por solicitação do usuário, a conferência de saldos acima de R$ 10 mil foi retirada da execução automática: `scanner_controle.saldos_ativo=false` e fila pendente própria removida. Não reativar essa rotina sem nova orientação. Os históricos e evidências anteriores permanecem preservados. O scanner de contatos/cadastros e a conciliação de pagamentos de cobranças e parcelas continuam com seus limites e regras de evidência; nenhuma cobrança, parcela, acordo ou baixa foi apagada por esta retirada.
+
 Tela: `/app/agente-automatico/scanner`, acessível pelo botão Scanner de enriquecimento em Agentes de coleta. Administração restrita ao perfil admin, também por RLS. Sem captação de inadimplência. As baixas comprovadas cancelam lembretes pendentes do item pago.
 
 ## Escopo implementado
@@ -12,11 +16,11 @@ O scanner grava evidências estruturadas no app, com origem, identificação ext
 
 - Janela de São Paulo: 00h30–05h30; novos lotes/unidades só começam antes de 05h25, reservando tempo para encerrar.
 - Um lote global do scanner, até 20 unidades, em sequência. Duas evidências por unidade concluída.
-- Intervalo de pelo menos dois segundos entre navegações de detalhe; até 10 documentos de pagamento por unidade, 100 navegações e quatro minutos por lote.
+- Intervalo de pelo menos dois segundos entre navegações de detalhe; até três documentos de pagamento por unidade em cada lote, com retomada persistida, 100 navegações e quatro minutos por lote.
 - Reserva persistida por cinco minutos com token. Reserva expirada impõe pausa de 30 minutos. Nenhum executor antigo pode finalizar o lote de outro.
 - Pausa global de pelo menos 15 minutos após cada lote. Falhas mantêm backoff por condomínio e portal de 30/60/120 minutos, permitindo que outras administradoras continuem após a pausa global. Três falhas consecutivas pausam o condomínio até revisão e reativação na tela.
 - Rodízio persistido entre portais pela última tentativa, inclusive falhas. Dentro de cada portal, prioriza condomínios ainda não atendidos; entre estes, começa pelos acessos já validados. A pausa de um portal não monopoliza toda a janela.
-- Cursor persiste somente unidades completas; evidências iguais são deduplicadas. Ao terminar uma passagem, aguarda 24 horas antes de reiniciar.
+- Cursor avança somente após concluir o histórico da unidade; blocos parciais salvam contatos, evidências financeiras e documentos visitados na mesma transação; evidências iguais são deduplicadas. Ao terminar uma passagem, aguarda 24 horas antes de reiniciar.
 - Pausar na tela impede o início da próxima unidade; a unidade já iniciada pode terminar. Sessão expirada, redirecionamento, unidade ambígua ou mudança de layout interrompem a coleta. HTTP 429/503 fecha o navegador.
 - Trava local compartilhada com os coletores de PDFs/recebimentos Lello. Antes de reservar um lote e antes de cada unidade, consulta as filas existentes e cede a vez se há captação ou coleta de PDFs Lello em execução. Os coletores antigos não participam da trava do scanner, portanto uma coleta antiga pode começar durante a unidade atual; o scanner não garante exclusividade sobre todo acesso externo ao portal.
 
@@ -243,3 +247,15 @@ A ficha Manager passa a usar uma aba nova por tentativa. Aguarda a resposta HTTP
 Validação real somente de leitura: Palácio Q01/AP/Q1L022 e Q01/AP/Q1L023 tiveram cadastro e extrato consultados; Cyrela 0/AP/000072 e 0/AP/000074 tiveram fichas confirmadas, com financeiro indisponível mantido inconclusivo; Oasis A/AP/A00016 teve ficha e extrato confirmados. As primeiras consultas de Palácio e Cyrela exigiram recuperação; as seguintes completaram normalmente. Não houve gravação de contatos, conciliação ou baixa nos testes, nem avanço de cursor.
 
 Os três acessos receberam prioridade temporária para 29/10 às 00h30 de São Paulo, expirando às 05h30, usando a coluna já existente. Cursores preservados: 15, 18 e 0; falhas zeradas somente após validação. Não houve nova migração nem alteração de regras financeiras. Vínculos duvidosos, dados de outra unidade e pagamentos sem evidência continuam para revisão; os relatórios de inadimplência permanecem bloqueados.
+
+
+## Eficiência e relatório — 02/11/2026
+
+- A fila diária compara somente cobranças e parcelas em aberto. Pagos são reconferidos separadamente a cada sete dias por item, até 50 por lote; os demais continuam nas próximas passagens, sem passar pelo aplicador de baixas. Identidades duplicadas continuam sendo verificadas contra todos os registros, inclusive os pagos.
+- Extratos indisponíveis têm pausa independente de 6, 24 e 96 horas nas falhas sucessivas. As fichas cadastrais e os documentos de acordos BBZ continuam disponíveis. A primeira consulta financeira bem-sucedida encerra essa pausa.
+- Lello: até três documentos por unidade/lote, priorizando referências de itens abertos já homologadas no app. Históricos acima de dez documentos continuam do ponto salvo; o lote seguinte mantém a unidade corrente. Um documento de formato desconhecido vai para revisão e não descarta os documentos válidos do bloco. Todos os limites globais permanecem.
+- IA: o banco só reserva uma análise quando há documento financeiro ou tabela com linhas e pelo menos um item pendente de comparação. Evidência vazia não consome a cota diária de 20; lotes extras autorizados mantêm seus próprios limites.
+- Painel: resumo por data usa o horário da auditoria para contar alterações e baixas. Separa campos preenchidos, corrigidos e apenas formatados, falta de acesso, falta de correspondência e revisão. Nova tabela append-only registra lotes e leituras parciais; contagens de lotes de datas anteriores à implantação não são reconstruídas a partir da última observação. Uma consulta repetida não reapresenta uma alteração antiga como nova.
+- Mantidos: lotes noturnos de até 20, pausa mínima de 15 minutos, nenhuma importação de novas cobranças, conferência acima de R$ 10 mil desativada e baixa somente com evidência objetiva e vínculo único.
+
+Migração: 20261102030843_scanner_foco_abertos_retomada_relatorio.sql. O executor deve receber o novo código depois da migração.
