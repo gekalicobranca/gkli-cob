@@ -10,6 +10,8 @@ export async function executarDisparosEmail(limit = 50, cobrancaFlowId?: string,
   const db = createAdminClient()
   // Somente mensagens que entraram explicitamente na nova agenda podem ser disparadas.
   let query = db.from('mensagens').select('*,carteira:carteiras!inner(email_transporte),reserva:email_agenda!inner(mensagem_id)').neq('carteira.email_transporte', 'thunderbird').eq('canal', 'email').eq('status', 'agendada')
+    // O executor do scanner usa a credencial local e controla a retomada deste relatório.
+    .or('origem_evento.is.null,origem_evento.neq.scanner.relatorio_inconsistencias')
     .is('pre_juridico_flow_id', null).lte('agendada_para', new Date().toISOString())
     .order('agendada_para').limit(Math.max(1, Math.min(limit || 50, 100)))
   // O banco reconfere destinatários, carteira e vínculo real antes do disparo.

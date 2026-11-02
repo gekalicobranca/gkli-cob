@@ -5,6 +5,7 @@ import net from 'node:net'
 import { test } from 'node:test'
 import ts from 'typescript'
 import { normalizarEmailControle } from '../features/carteiras/email-controle'
+import { normalizarContaEnvio } from '../features/mensageria/email-conta'
 
 const require = createRequire(import.meta.url)
 
@@ -81,11 +82,12 @@ test('SMTP envia CCO conforme carteira, preserva anexos e evita duplicação', a
     if (id === './validar-arquivamento') return { validarMensagemSemCobrancaArquivada: async () => {} }
     if (id === './google-oauth') return {}
     if (id === './smtp-rota-condominio') return {}
+    if (id === './email-conta') return { normalizarContaEnvio }
     return require(id)
   }, exports)
   const options = {
     carteiraId: 'carteira-a', copiarControleFlow: true,
-    overrideConfig: { host: '127.0.0.1', port: (server.address() as net.AddressInfo).port, from: 'sender@example.com', secure: false, starttls: false, ehloDomain: 'test.local' },
+    overrideConfig: { host: '127.0.0.1', port: (server.address() as net.AddressInfo).port, user: 'sender@example.com', from: 'sender@example.com', secure: false, starttls: false, ehloDomain: 'test.local' },
   }
   const payload = { to: 'destino@example.com', subject: 'Controle', text: 'Mensagem original', attachments: [{ filename: 'teste.pdf', content: Buffer.from('anexo original') }] }
   try {

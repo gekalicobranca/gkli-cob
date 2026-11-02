@@ -87,7 +87,7 @@ async function main(){
  }finally{await db.close()}
 
  let noite=false;const filtros:string[]=[]
- const q={select(){return q},neq(){return q},eq(){return q},is(){return q},lte(){return q},order(){return q},limit(){return q},in(c:string){filtros.push(c);return q},then(resolve:(r:unknown)=>unknown){return Promise.resolve({data:[]}).then(resolve)}}
+ const q={select(){return q},or(c:string){assert.equal(c,'origem_evento.is.null,origem_evento.neq.scanner.relatorio_inconsistencias');return q},neq(){return q},eq(){return q},is(){return q},lte(){return q},order(){return q},limit(){return q},in(c:string){filtros.push(c);return q},then(resolve:(r:unknown)=>unknown){return Promise.resolve({data:[]}).then(resolve)}}
  const compiled=ts.transpileModule(readFileSync('features/mensageria/email-dispatcher.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
  const exp:Record<string,(...args:unknown[])=>Promise<unknown>>={}
  new Function('require','exports',compiled)((name:string)=>name.includes('supabase/admin')?{createAdminClient:()=>({from:()=>q})}:name.includes('email-janela')?{emailHorarioPermitido:()=>noite}:{},exp)

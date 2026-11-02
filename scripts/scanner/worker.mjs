@@ -14,6 +14,7 @@ import { abrirWebware } from './webware.mjs'
 import { conciliarPendentes } from './conciliacao.mjs'
 import { analisarPendentes } from './interpretacao-worker.mjs'
 import {concluirComRetomada,checkpointLote} from './finalizacao.mjs'
+import {executarRelatoriosScanner} from './relatorio-executor.mjs'
 
 // O processo só abre navegador após obter uma reserva persistida no banco.
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw Error('Configure o acesso administrativo do scanner ao Supabase.')
@@ -24,7 +25,7 @@ async function tick() {
  const manualToken=process.argv.find(a=>a.startsWith('--manual-token='))?.slice('--manual-token='.length)
  if(manualToken&&!/^[0-9a-f-]{36}$/i.test(manualToken))throw Error('Token manual inválido.')
  if(manualToken&&!process.argv.includes('--once'))throw Error('Execução manual exige --once.')
- if (!janelaNoturna()&&!manualToken) return
+ if (!janelaNoturna()&&!manualToken) {await executarRelatoriosScanner();return}
  if(!manualToken){
  const cadastros=await enriquecerPendentes(db,20)
  if(cadastros.analisados||cadastros.pendentes)console.log(JSON.stringify({cadastros}))
@@ -33,6 +34,7 @@ async function tick() {
  catch(error){console.error(JSON.stringify({conciliacao_status:'retomada_pendente',motivo:error.message}))}
  try{const analise=await analisarPendentes();if(analise.analisadas)console.log(JSON.stringify({interpretacao:analise}))}
  catch(error){console.error(JSON.stringify({interpretacao_status:'adiada',codigo:error.code??'SCANNER_IA_CONEXAO',http:error.http??null,motivo:'Análise assistida indisponível; coleta preservada.'}))}
+ await executarRelatoriosScanner()
  }
  if (await portalOcupado(db)) {console.log(JSON.stringify({scanner_status:'adiado',motivo:'coletor_operacional_em_execucao'}));return}
  const token = manualToken??randomUUID()
@@ -153,6 +155,7 @@ async function tick() {
    if(fe)throw Error('Não foi possível encerrar o lote manual; autorização expira automaticamente.')
   }
  }
+ await executarRelatoriosScanner()
 }
 do {
  try { await tick() } catch (error) {
