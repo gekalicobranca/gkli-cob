@@ -6,7 +6,7 @@ import { valorCasoPre } from '@/features/pre-juridico/eligibilidade'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ListEmptyState, ListPanel, ListPanelHeader, ListRow, ListRows, ListTitle } from '@/components/layout/list-page'
 import { atualizarCertidaoPreJuridico, atualizarDistribuicaoPreJuridico, atualizarEtapaPreJuridico, atualizarProcuracaoPreJuridico, atualizarProcuracoesPreJuridicoEmMassa, confirmarJuridicoPreJuridico, confirmarJuridicoPreJuridicoEmMassa, gerarProcuracoesPreJuridico } from '@/features/pre-juridico/actions'
-import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
+import { PRE_JURIDICO_ETAPAS, etapaPreJuridicoLabel, transicoesPreJuridico, type PreJuridicoEtapa } from '@/features/pre-juridico/etapas'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 
@@ -97,13 +97,13 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
                   Selecionar todas
                 </label>
                 <form action={gerarProcuracoesPreJuridico} target="_blank" onSubmit={(event) => { if (!window.confirm(`Gerar ${selectedNaEtapa.length} procuração(ões)?`)) event.preventDefault() }}>
-                  {selectedNaEtapa.map((caso) => <input key={caso.id} type="hidden" name="caso_id" value={caso.id} />)}
+                  {selectedNaEtapa.map((caso) => <span key={caso.id}><input type="hidden" name="caso_id" value={caso.id} /><input type="hidden" name={`versao_${caso.id}`} value={caso.versao} /></span>)}
                   <PendingSubmitButton disabled={!selectedNaEtapa.length} pendingLabel="Gerando procurações..."><FileSignature size={16} />Gerar procuração {selectedNaEtapa.length ? `(${selectedNaEtapa.length})` : ''}</PendingSubmitButton>
                 </form>
               </div>
             </div>
             {selectedNaEtapa.length ? <form action={atualizarProcuracoesPreJuridicoEmMassa} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-3 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm(`Atualizar o andamento de ${selectedNaEtapa.length} procuração(ões)?`)) event.preventDefault() }}>
-              {selectedNaEtapa.map((caso) => <input key={caso.id} type="hidden" name="caso_id" value={caso.id} />)}
+              {selectedNaEtapa.map((caso) => <span key={caso.id}><input type="hidden" name="caso_id" value={caso.id} /><input type="hidden" name={`versao_${caso.id}`} value={caso.versao} /></span>)}
               <Field label="Alterar selecionadas para"><select name="procuracao_status" defaultValue="gerada" className={controlClass}><option value="pendente">Pendente</option><option value="gerada">Gerada</option><option value="enviada">Enviada</option><option value="assinada">Assinada</option></select></Field>
               <Field label="Observação em massa"><input name="observacoes" className={controlClass} /></Field>
               <PendingSubmitButton pendingLabel="Atualizando..."><CheckCircle2 size={16} />Salvar em massa ({selectedNaEtapa.length})</PendingSubmitButton>
@@ -119,7 +119,7 @@ export function ProcessamentoEtapas({ casos, etapas }: { casos: any[]; etapas: r
               </label>
             </div>
             {selectedConfirmacoesNaEtapa.length ? <form action={confirmarJuridicoPreJuridicoEmMassa} className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-3 xl:flex-row xl:items-center xl:justify-between" onSubmit={(event) => { if (!window.confirm(`Salvar confirmações em ${selectedConfirmacoesNaEtapa.length} caso(s)?`)) event.preventDefault() }}>
-              {selectedConfirmacoesNaEtapa.map((caso) => <input key={caso.id} type="hidden" name="caso_id" value={caso.id} />)}
+              {selectedConfirmacoesNaEtapa.map((caso) => <span key={caso.id}><input type="hidden" name="caso_id" value={caso.id} /><input type="hidden" name={`versao_${caso.id}`} value={caso.versao} /></span>)}
               <div className="flex flex-wrap gap-2">
                 <InlineCheckbox name="juridico_procuracao_assinada_confirmada" label="Procuração" defaultChecked />
                 <InlineCheckbox name="juridico_registro_recebido" label="Registro" defaultChecked />
@@ -180,8 +180,6 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
 
   if (caso.etapa === 'confirmar_juridico') return <ConfirmarJuridicoInlineRow caso={caso} condominio={condominio} unidade={unidade} cobrancasUnidade={cobrancasUnidade} selectable={selectable} selectionLabel={selectionLabel} selected={selected} onToggle={onToggle} />
 
-  const acordo = relation(caso.acordo)
-  const cobranca = relation(caso.cobranca)
   const responsavel = relation(caso.responsavel)
   const valor = valorCasoPre(caso)
 
@@ -195,25 +193,29 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
       <ChevronRight size={17} className="text-slate-400 transition group-open/caso:rotate-90" />
     </ListRow></summary>
     {caso.etapa === 'aguardando_documentos' ? <form action={atualizarCertidaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar o andamento da certidão?')) event.preventDefault() }}>
-      <input type="hidden" name="caso_id" value={caso.id} />
+      <input type="hidden" name="caso_id" value={caso.id} /><input type="hidden" name="versao" value={caso.versao} />
       <Field label="Andamento da certidão"><select name="certidao_status" defaultValue={caso.certidao_status ?? 'pendente'} className={controlClass}><option value="pendente">Pendente</option><option value="solicitada">Solicitada</option><option value="recebida">Recebida</option></select></Field>
       <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
       <PendingSubmitButton pendingLabel="Atualizando...">Salvar andamento</PendingSubmitButton>
       <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Recebida, o caso avançará automaticamente para Procuração.</p>
     </form> : caso.etapa === 'aguardando_sindico' ? <form action={atualizarProcuracaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar o andamento da procuração?')) event.preventDefault() }}>
-      <input type="hidden" name="caso_id" value={caso.id} />
+      <input type="hidden" name="caso_id" value={caso.id} /><input type="hidden" name="versao" value={caso.versao} />
       <Field label="Andamento da procuração"><select name="procuracao_status" defaultValue={caso.procuracao_status ?? 'pendente'} className={controlClass}><option value="pendente">Pendente</option><option value="gerada">Gerada</option><option value="enviada">Enviada</option><option value="assinada">Assinada</option></select></Field>
       <Field label="Observação"><input name="observacoes" defaultValue={caso.observacoes ?? ''} className={controlClass} /></Field>
       <PendingSubmitButton pendingLabel="Atualizando...">Salvar andamento</PendingSubmitButton>
       <p className="text-xs text-slate-500 md:col-span-3">Ao marcar como Assinada, o caso avançará automaticamente para Confirmar jurídico.</p>
-    </form> : caso.etapa === 'pronto_juridico' ? <form action={atualizarDistribuicaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[minmax(260px,1fr)_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar a distribuição e marcar ação judicial para a unidade?')) event.preventDefault() }}>
-      <input type="hidden" name="caso_id" value={caso.id} />
+    </form> : caso.etapa === 'pronto_juridico' ? <div><form action={atualizarDistribuicaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[minmax(260px,1fr)_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar a distribuição e marcar ação judicial para a unidade?')) event.preventDefault() }}>
+      <input type="hidden" name="caso_id" value={caso.id} /><input type="hidden" name="versao" value={caso.versao} />
       <Field label="Número CNJ"><input name="distribuicao_cnj" defaultValue={formatCnj(caso.distribuicao_cnj)} disabled={caso.distribuicao_status === 'distribuido'} placeholder="0000000-00.0000.0.00.0000" className={controlClass} /></Field>
       <PendingSubmitButton disabled={caso.distribuicao_status === 'distribuido'} pendingLabel="Confirmando...">{caso.distribuicao_status === 'distribuido' ? 'Ação judicial registrada' : 'Confirmar ação judicial'}</PendingSubmitButton>
-      <p className="text-xs text-slate-500 md:col-span-2">Ao confirmar o CNJ, a unidade receberá o flag de ação judicial e as cobranças abertas serão judicializadas.</p>
-    </form> : <form action={atualizarEtapaPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={(event) => { if (!window.confirm('Confirmar a atualização deste caso?')) event.preventDefault() }}>
-      <input type="hidden" name="caso_id" value={caso.id} />
-      <Field label="Nova etapa"><select name="etapa" defaultValue={caso.etapa} className={controlClass}>{PRE_JURIDICO_ETAPAS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></Field>
+      <p className="text-xs text-slate-500 md:col-span-2">Distribuição exige revisão e autorização jurídica e CNJ com dígito verificador válido. Somente as cobranças vinculadas ao pré-jurídico serão judicializadas.</p>
+    </form><form action={atualizarEtapaPreJuridico} className="px-5 pb-4">
+      <input type="hidden" name="caso_id" value={caso.id} /><input type="hidden" name="versao" value={caso.versao} /><input type="hidden" name="etapa" value="aguardando_documentos" />
+      <input type="hidden" name="observacoes" value="Reabertura para revisão jurídica antes da distribuição." />
+      <PendingSubmitButton variant="secondary" pendingLabel="Reabrindo...">Reabrir conferência documental</PendingSubmitButton>
+    </form></div> : caso.etapa === 'judicializado' ? <p className="p-4 text-sm text-slate-500">Distribuição concluída. Histórico preservado.</p> : <form action={atualizarEtapaPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={(event) => { if (!window.confirm('Confirmar a atualização deste caso?')) event.preventDefault() }}>
+      <input type="hidden" name="caso_id" value={caso.id} /><input type="hidden" name="versao" value={caso.versao} />
+      <Field label="Nova etapa"><select name="etapa" defaultValue={caso.etapa} className={controlClass}>{PRE_JURIDICO_ETAPAS.filter(option => option.id === caso.etapa || (option.id !== 'judicializado' && transicoesPreJuridico(caso.etapa).includes(option.id))).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></Field>
       <Field label="Escritório jurídico"><input name="escritorio_juridico" defaultValue={caso.escritorio_juridico ?? ''} className={controlClass} /></Field>
       <Field label="Prazo da etapa"><input name="prazo_etapa" type="date" defaultValue={caso.prazo_etapa ?? ''} className={controlClass} /></Field>
       <Field label="Protocolo de envio"><input name="protocolo_envio" defaultValue={caso.protocolo_envio ?? ''} className={controlClass} /></Field>
@@ -228,7 +230,7 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
 
 function ConfirmarJuridicoInlineRow({ caso, condominio, unidade, cobrancasUnidade, selectable = false, selectionLabel = 'Selecionar caso', selected = false, onToggle }: { caso: any; condominio: any; unidade: any; cobrancasUnidade: any[]; selectable?: boolean; selectionLabel?: string; selected?: boolean; onToggle?: () => void }) {
   return <form action={confirmarJuridicoPreJuridico} className={`grid gap-3 bg-white px-4 py-3 transition hover:bg-slate-50 md:items-center ${selectable ? 'md:grid-cols-[28px_minmax(320px,1fr)_130px_110px_100px_auto]' : 'md:grid-cols-[minmax(320px,1fr)_130px_110px_100px_auto]'}`}>
-    <input type="hidden" name="caso_id" value={caso.id} />
+    <input type="hidden" name="caso_id" value={caso.id} /><input type="hidden" name="versao" value={caso.versao} />
     {selectable ? <input aria-label={selectionLabel} type="checkbox" checked={selected} onChange={onToggle} className="h-4 w-4 rounded border-slate-300" /> : null}
     <div>
       <p className="text-sm font-semibold text-slate-950">{condominio?.nome_operacional || condominio?.nome || 'Condomínio'} · Unidade {unidade?.identificacao || '-'}</p>

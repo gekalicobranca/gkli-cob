@@ -70,7 +70,6 @@ export async function createSindicoAccess(formData: FormData) {
     email_confirm: true,
     user_metadata: {
       nome,
-      role: "sindico",
     },
   });
 

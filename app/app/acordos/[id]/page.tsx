@@ -12,6 +12,7 @@ import { AppErrorState } from "@/components/feedback/app-error-state";
 import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import {
   cancelarFormalizacaoAcordo,
+  retomarFormalizacaoAcordo,
   marcarParcelaComoPaga,
   revisarParcelaAcordo,
   romperAcordoAssistido,
@@ -312,6 +313,11 @@ export default async function AcordoDetalhePage({ params }: Props) {
 
       <AgreementInstallmentsTable acordo={acordo} parcelas={parcelas} renderActions={(parcela) => <ParcelaActions parcela={parcela} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />} />
 
+      {acordo.exige_aprovacao_sindico && acordo.sindico_aprovado_em && acordo.fluxo_status === 'aprovado_sindico_aguardando_aceite_devedor' ? <form action={retomarFormalizacaoAcordo} className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+        <input type="hidden" name="acordo_id" value={acordo.id} />
+        <p className="mb-2 text-sm">Aprovação registrada. Prepare o termo e a solicitação de boletos com o plano aprovado.</p>
+        <PendingSubmitButton pendingLabel="Preparando...">Preparar formalização aprovada</PendingSubmitButton>
+      </form> : null}
       <details open={possuiFormalizacaoPendente} className="rounded-lg border border-slate-200 bg-white p-3"><summary className="cursor-pointer font-semibold text-slate-900">Formalização e boletos</summary><div className="mt-3"><AgreementFormalizationCard acordo={acordo} /></div></details>
 
       {Array.isArray(revisoes) && revisoes.length > 0 ? (

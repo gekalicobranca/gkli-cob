@@ -1,13 +1,15 @@
 import { redirect } from 'next/navigation'
 import { requireUser } from './require-user'
+import { logAuthorizationDenied } from './trusted-profile'
 
-const GESTOR_ROLES = new Set(['admin', 'gestor', 'manager', 'owner'])
+const GESTOR_ROLES = new Set(['admin', 'gestor'])
 
 export async function requireGestor() {
   const user = await requireUser()
-  const perfil = String(user.perfil ?? '').toLowerCase()
+  const perfil = user.perfil
 
   if (!GESTOR_ROLES.has(perfil)) {
+    logAuthorizationDenied(user.id, 'requireGestor')
     redirect('/app')
   }
 
@@ -15,5 +17,5 @@ export async function requireGestor() {
 }
 
 export function isGestorPerfil(perfil?: string | null) {
-  return GESTOR_ROLES.has(String(perfil ?? '').toLowerCase())
+  return GESTOR_ROLES.has(perfil ?? '')
 }

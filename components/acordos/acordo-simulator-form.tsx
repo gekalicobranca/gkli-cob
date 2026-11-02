@@ -1,6 +1,7 @@
 "use client";
 
 import { ContatoRapidoAcordo } from "@/components/acordos/contato-rapido";
+import { dataCivilValida, dataCivilSaoPaulo, somarDiasCivis, vencimentoMensal } from '@/lib/core/data-civil';
 
 import {rotuloUnidade} from "@/features/acordos/unidade-titular";
 
@@ -108,16 +109,6 @@ function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
-function addMonths(date: Date, months: number) {
-  const copy = new Date(date);
-  copy.setMonth(copy.getMonth() + months);
-  return copy;
-}
-
-function toISODate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
 function safeMailtoPart(value: string) {
   return encodeURIComponent(value).replace(/%20/g, "+");
 }
@@ -155,13 +146,11 @@ export function AcordoSimulatorForm({
   const [jurosAdicional, setJurosAdicional] = useState(formularioInicial.juros_adicional === "on");
   const [entrada, setEntrada] = useState(formularioInicial.entrada || "0,00");
   const [usarCreditoAdministradora, setUsarCreditoAdministradora] = useState(formularioInicial.usar_credito_administradora === "on");
-  const [entradaVencimento, setEntradaVencimento] = useState(() => formularioInicial.entrada_vencimento || toISODate(new Date()));
+  const [entradaVencimento, setEntradaVencimento] = useState(() => formularioInicial.entrada_vencimento || dataCivilSaoPaulo());
   const [quantidadeParcelas, setQuantidadeParcelas] = useState(formularioInicial.quantidade_parcelas || "3");
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => {
     if (formularioInicial.primeiro_vencimento) return formularioInicial.primeiro_vencimento;
-    const date = new Date();
-    date.setDate(date.getDate() + 7);
-    return toISODate(date);
+    return somarDiasCivis(dataCivilSaoPaulo(), 7);
   });
   const [documentoUrl, setDocumentoUrl] = useState(formularioInicial.documento_url || "");
   const [observacoes, setObservacoes] = useState(formularioInicial.observacoes || "");
@@ -238,9 +227,7 @@ export function AcordoSimulatorForm({
     const entradaNumber = calculo.entradaComBoleto;
     const parcelasCount = Math.max(1, Math.floor(Number(quantidadeParcelas)) || 1);
     const saldo = Math.max(0, roundMoney(total - entradaNumber));
-    const startDate = primeiroVencimento
-      ? new Date(`${primeiroVencimento}T00:00:00`)
-      : new Date();
+    const datasValidas = dataCivilValida(primeiroVencimento) && (entradaNumber <= 0 || dataCivilValida(entradaVencimento));
 
     const parcelas: Array<{
       numero: number;
@@ -251,14 +238,15 @@ export function AcordoSimulatorForm({
       saldoDevedor: number;
     }> = [];
 
-    for (let index = 1; index <= parcelasCount && saldo > 0; index++) {
+    for (let index = 1; index <= parcelasCount && saldo > 0 && datasValidas; index++) {
       parcelas.push({
         ...calculo.parcelas[index - 1],
-        vencimento: toISODate(addMonths(startDate, index - 1)),
+        vencimento: vencimentoMensal(primeiroVencimento, index - 1),
       });
     }
 
     return {
+      datasValidas,
       isencaoAplicada: calculo.isencaoAplicada,
       pagamentoAVista: calculo.pagamentoAVista,
       jurosAdicional: calculo.jurosAdicional,
@@ -901,7 +889,7 @@ export function AcordoSimulatorForm({
               Aprovação do síndico obrigatória
             </p>
             <p className="mt-1 text-sm leading-6 text-amber-900">
-              Este condomínio permite até {limiteParcelasSemSindico} parcela(s) sem aprovação. Como a simulação tem {parcelasInformadas} parcela(s), o sistema criará o acordo em fluxo de aprovação e só enviará o termo ao devedor depois do aceite do síndico.
+              Este condomínio permite até {limiteParcelasSemSindico} parcela(s) sem aprovação. Como a simulação tem {parcelasInformadas} parcela(s), a proposta ficará aguardando aprovação. Termo e solicitação de boletos só poderão ser preparados após o registro da decisão do síndico.
             </p>
           </div>
         ) : null}
@@ -954,6 +942,7 @@ export function AcordoSimulatorForm({
             </div>
           </div>
         ) : null}
+        {!preview.datasValidas && <p role="alert" className="text-sm text-rose-700">Informe datas de vencimento existentes para simular e criar o acordo.</p>}
 
         {usarCreditoAdministradora && preview.total <= 0 ? (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
@@ -978,12 +967,12 @@ export function AcordoSimulatorForm({
           ) : null}
           <Button
             type="submit"
-            disabled={acordoJaCriado || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
+            disabled={acordoJaCriado || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0 || !preview.datasValidas}
             loading={isCreatingAcordo}
             loadingLabel="Criando acordo..."
             className="whitespace-normal"
           >
-            <CheckCircle2 className="size-5" aria-hidden="true" />Criar acordo e iniciar fluxo
+            <CheckCircle2 className="size-5" aria-hidden="true" />{exigeAprovacaoSindico ? 'Criar proposta para aprovação' : 'Criar acordo e iniciar fluxo'}
           </Button>
         </div>
 

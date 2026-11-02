@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { requireAuthenticatedApiUser } from '@/app/api/_lib/auth'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function GET(_request: NextRequest, context: RouteContext) {
   const { id } = await context.params
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: 'Usuário não autenticado.' }, { status: 401 })
-  }
+  const { response } = await requireAuthenticatedApiUser()
+  if (response) return response
 
   // A RLS valida o acesso do usuário à carteira da execução antes do download.
   const { data: arquivo, error } = await supabase

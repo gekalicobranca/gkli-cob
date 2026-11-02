@@ -17,9 +17,7 @@ async function carregar(id: string) {
   const { data: row, error } = await db.from('conversoes_relatorio').select('id, carteira_id, condominio_id, nome_arquivo, preview_json, atualizado_em').eq('id', id).like('origem', 'captacao_automatizada:%').maybeSingle()
   if (error || !row) return { response: NextResponse.json({ error: 'Ranking não encontrado.' }, { status: 404 }) }
   // Autorizar pelas colunas persistidas, nunca pelo carteiraId editável no preview.
-  const { data: profile, error: profileError } = await db.from('profiles').select('role').eq('id', auth.user!.id).maybeSingle()
-  if (profileError) return { response: NextResponse.json({ error: 'Não foi possível validar seu acesso.' }, { status: 403 }) }
-  if (profile?.role !== 'admin') {
+  if (auth.profile?.role !== 'admin') {
     const { data: acesso, error: acessoError } = await db.from('usuarios_carteiras').select('carteira_id').eq('user_id', auth.user!.id).eq('carteira_id', row.carteira_id).maybeSingle()
     if (acessoError || !acesso) return { response: NextResponse.json({ error: 'Você não tem acesso a esta carteira.' }, { status: 403 }) }
   }

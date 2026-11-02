@@ -1,6 +1,7 @@
 "use server";
 
 import { lerContatoRapido } from "@/features/acordos/contato-rapido";
+import { validarDataCivil, vencimentoMensal, dataCivilSaoPaulo, somarDiasCivis, diasEntreDatasCivis } from '@/lib/core/data-civil';
 
 import {selecionarCobrancaTitular, rotuloUnidade} from "./unidade-titular";
 
@@ -53,14 +54,8 @@ function toNumber(value: FormDataEntryValue | null) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function addMonths(date: Date, months: number) {
-  const copy = new Date(date);
-  copy.setMonth(copy.getMonth() + months);
-  return copy;
-}
-
 function toISODate(date: Date) {
-  return date.toISOString().slice(0, 10);
+  return dataCivilSaoPaulo(date);
 }
 
 function roundMoney(value: number) {
@@ -427,13 +422,9 @@ async function gerarSolicitacaoBoletosAdministradora(supabase: any, params: {
     });
   }
 
-  // Preparação não comprova envio; eventos são registrados pelo banco.
-}
+  // O trigger registra apenas preparação. Envio exige confirmação do transporte
+  // ou confirmação humana com evidência pelo RPC de formalização.
 
-function addDays(date: Date, days: number) {
-  const copy = new Date(date);
-  copy.setDate(copy.getDate() + days);
-  return copy;
 }
 
 function normalizeUuidList(values: FormDataEntryValue[]) {
@@ -656,9 +647,7 @@ export async function createAcordo(formData: FormData) {
   const titularId = String(formData.get("unidade_titular_id") ?? "").trim();
   const tipo = String(formData.get("tipo") ?? "extrajudicial");
   const numeroProcesso = String(formData.get("numero_processo") ?? "").trim();
-  const despesaCobrancaPercentual = toNumber(
-    formData.get("despesa_cobranca_percentual"),
-  );
+  const despesaCobrancaPercentual = toNumber(formData.get("despesa_cobranca_percentual"));
 
   let entrada = toNumber(formData.get("entrada"));
   const usarCreditoAdministradora = formData.get("usar_credito_administradora") === "on";
@@ -691,6 +680,8 @@ export async function createAcordo(formData: FormData) {
     throw new Error("Quantidade de parcelas deve ficar entre 1 e 60.");
   }
   if (!primeiroVencimento) throw new Error("Primeiro vencimento obrigatório.");
+  validarDataCivil(primeiroVencimento, 'Primeiro vencimento');
+  if (entrada > 0) validarDataCivil(entradaVencimento, 'Vencimento da entrada');
 
   const supabase = await createClient();
 
@@ -847,7 +838,7 @@ export async function createAcordo(formData: FormData) {
   );
   const exigeAprovacaoSindico =
     parcelasPermitidasSemSindico > 0 && quantidadeParcelas > parcelasPermitidasSemSindico;
-  const fluxoStatusInicial = "rascunho";
+  let fluxoStatusInicial = exigeAprovacaoSindico ? 'aguardando_aprovacao_sindico' : 'rascunho';
 
   const itensAcordo = cobrancasComValores.map((item, index) => {
     const despesaRateada = calculoDespesas.itens[index].despesa;
@@ -882,9 +873,7 @@ export async function createAcordo(formData: FormData) {
     parcelas.push({
       tipo_parcela: "parcela",
       ...parcelaCalculada,
-      vencimento: toISODate(
-        addMonths(new Date(`${primeiroVencimento}T00:00:00`), index - 1),
-      ),
+      vencimento: vencimentoMensal(primeiroVencimento, index - 1),
       status: PARCELA_ACORDO_STATUS.PENDENTE,
     });
   }
@@ -903,7 +892,7 @@ export async function createAcordo(formData: FormData) {
       p_data_acordo: toISODate(new Date()),
       p_status: ACORDO_STATUS.ATIVO,
       p_fluxo_status: fluxoStatusInicial,
-      p_exige_aprovacao_sindico: false,
+      p_exige_aprovacao_sindico: exigeAprovacaoSindico,
       p_documento_url: documentoUrl || null,
       p_observacoes: [observacoes, calculoDespesas.custoBoletos > 0 ? `Emissão: ${calculoDespesas.quantidadeBoletos} boleto(s) × ${formatBRL(calculoDespesas.custoEmissaoBoleto)} = ${formatBRL(calculoDespesas.custoBoletos)}. Sem juros ou honorários sobre a emissão.` : "", calculoDespesas.jurosAdicional > 0
         ? `Juros pela tabela Price de 1% ao mês sobre o saldo devedor após a entrada: ${formatBRL(calculoDespesas.jurosAdicional)}.` : ""].filter(Boolean).join("\n") || null,
@@ -922,6 +911,11 @@ export async function createAcordo(formData: FormData) {
   }
 
   const acordo = { id: String(acordoIdData) };
+  const { data: estadoCriado, error: estadoError } = await supabase.from('acordos')
+    .select('exige_aprovacao_sindico, fluxo_status').eq('id', acordo.id).single();
+  if (estadoError) throw new Error('Acordo criado, mas não foi possível consultar o estado. Atualize a página antes de continuar.');
+  fluxoStatusInicial = estadoCriado.fluxo_status;
+  const aguardaAprovacao = Boolean(estadoCriado.exige_aprovacao_sindico);
 
   const unidadeLabel = [
     unidadePrincipal?.bloco ? `Bloco ${unidadePrincipal.bloco}` : null,
@@ -949,6 +943,7 @@ export async function createAcordo(formData: FormData) {
   });
 
   try {
+    if (!aguardaAprovacao) {
     await gerarTermoDevedorEEmail(supabase as any, {
       acordoId: acordo.id,
       carteiraId: cobrancaPrincipal.carteira_id,
@@ -967,6 +962,7 @@ export async function createAcordo(formData: FormData) {
       administradoraId: condominioPrincipal?.administradora_id ?? null,
       resumo: resumoAcordo,
     });
+    }
   } catch (error) {
     await cleanupAcordoParcial(supabase as any, acordo.id, cobrancas);
     throw error;
@@ -1216,7 +1212,7 @@ export async function solicitarPlanilhaDebitosAdministradora(formData: FormData)
       cobranca_id: cobrancaReferencia.id,
       acordo_id: null,
       administradora_id: administradoraId,
-      prazo_limite: toISODate(addDays(new Date(), 2)),
+      prazo_limite: somarDiasCivis(dataCivilSaoPaulo(), 2),
     });
 
     if (insertError) {
@@ -1411,7 +1407,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
       cobranca_id: cobrancaReferencia.id,
       acordo_id: null,
       administradora_id: administradoraId,
-      prazo_limite: toISODate(addDays(new Date(), 2)),
+      prazo_limite: somarDiasCivis(dataCivilSaoPaulo(), 2),
     });
 
     if (insertError) {
@@ -1716,10 +1712,8 @@ export async function solicitarReemissaoParcelaAcordo(formData: FormData) {
     throw new Error("Este condomínio não permite reemissão de parcela de acordo em atraso.");
   }
 
-  const vencimento = (parcela as any).vencimento ? new Date(`${(parcela as any).vencimento}T00:00:00`) : null;
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const diasAtraso = vencimento ? Math.floor((hoje.getTime() - vencimento.getTime()) / 86400000) : 0;
+  const vencimento = (parcela as any).vencimento;
+  const diasAtraso = vencimento ? diasEntreDatasCivis(vencimento, dataCivilSaoPaulo()) : 0;
   if (!vencimento || diasAtraso < 0 || diasAtraso > diasReemissao) {
     throw new Error("A parcela está fora da janela de reemissão permitida para este condomínio.");
   }
@@ -1867,6 +1861,7 @@ export async function registrarAjusteReemissaoParcelaAcordo(formData: FormData) 
   }
   if (valorNovo <= 0) throw new Error("Informe o novo valor da parcela.");
   if (!vencimentoNovo) throw new Error("Informe o novo vencimento da parcela.");
+  validarDataCivil(vencimentoNovo, 'Novo vencimento');
 
   const supabase = await createClient();
   const scope = await getPermittedCarteiras();
@@ -2117,10 +2112,9 @@ export async function marcarBoletoReemissaoEnviado(formData: FormData) {
     .eq("id", pendenciaId)
     .maybeSingle();
 
-  const vencimentoNovo = (revisao as any).vencimento_novo ? new Date(`${(revisao as any).vencimento_novo}T00:00:00`) : null;
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const statusParcela = vencimentoNovo && vencimentoNovo.getTime() < hoje.getTime()
+  const vencimentoNovo = (revisao as any).vencimento_novo;
+  if (vencimentoNovo) validarDataCivil(vencimentoNovo, 'Novo vencimento');
+  const statusParcela = vencimentoNovo && vencimentoNovo < dataCivilSaoPaulo()
     ? PARCELA_ACORDO_STATUS.VENCIDA
     : PARCELA_ACORDO_STATUS.PENDENTE;
   const now = new Date().toISOString();
@@ -2596,7 +2590,7 @@ export async function registrarAcionamentoManualAcordo(formData: FormData) {
 }
 
 export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
-  await requireRole(["admin", "gestor", "operador"]);
+  await requireRole(["admin", "gestor"]);
   const user = await requireUser();
   const scope = await getPermittedCarteiras();
   const supabase = await createClient();
@@ -2619,12 +2613,9 @@ export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
   if (!acordo) throw new Error("Acordo não encontrado.");
   assertCarteiraPermitida(scope, (acordo as any).carteira_id);
 
-  const now = new Date().toISOString();
-  const update = decisao === "aprovar"
-    ? { sindico_aprovado_em: now, fluxo_status: "aprovado_sindico_aguardando_aceite_devedor" }
-    : { fluxo_status: "reprovado_sindico", status: "cancelado", status_financeiro: "cancelado" };
-
-  const { error: updateError } = await supabase.from("acordos").update(update).eq("id", acordoId);
+  const { error: updateError } = await supabase.rpc('decidir_aprovacao_sindico', {
+    p_acordo_id: acordoId, p_decisao: decisao, p_evidencia: [motivo, observacao].filter(Boolean).join(' · '),
+  });
   if (updateError) throw new Error(`Erro ao atualizar aprovação: ${updateError.message}`);
 
   await registrarEventoOperacional(supabase as any, {
@@ -2644,6 +2635,39 @@ export async function decidirAprovacaoSindicoAcordo(formData: FormData) {
   });
 
   revalidatePath("/app/acordos/aprovacoes");
+  revalidatePath(`/app/acordos/${acordoId}`);
+}
+
+/** Retriable preparation after an approval; the decision itself is never repeated. */
+export async function retomarFormalizacaoAcordo(formData: FormData) {
+  await requireRole(['admin', 'gestor', 'operador']);
+  const scope = await getPermittedCarteiras();
+  const supabase = await createClient();
+  const acordoId = String(formData.get('acordo_id') ?? '').trim();
+  const { data: acordo, error } = await supabase.from('acordos')
+    .select('*, condominios:condominio_id(nome,administradora_id), unidades:unidade_id(identificacao,bloco,responsavel_nome,email,telefone)')
+    .eq('id', acordoId).single();
+  if (error || !acordo) throw new Error('Acordo não encontrado.');
+  assertCarteiraPermitida(scope, acordo.carteira_id);
+  if (['cancelado','quitado','rompido','quebrado','renegociado'].includes(acordo.status)
+    || (acordo.exige_aprovacao_sindico && !acordo.sindico_aprovado_em)) throw new Error('Acordo não autorizado para formalização.');
+  const { data: parcelas, error: parcelasError } = await supabase.from('parcelas_acordo')
+    .select('numero,valor,vencimento,tipo_parcela').eq('acordo_id', acordoId).order('numero');
+  if (parcelasError || !parcelas?.length) throw new Error('Não foi possível consultar o plano de pagamento.');
+  const unidade = Array.isArray(acordo.unidades) ? acordo.unidades[0] : acordo.unidades;
+  const condominio = Array.isArray(acordo.condominios) ? acordo.condominios[0] : acordo.condominios;
+  const contato = assertContatoResponsavelAcordo(unidade);
+  const resumo = [
+    `Condomínio: ${condominio?.nome ?? ''}`, `Unidade: ${unidade?.identificacao ?? ''} · Bloco ${unidade?.bloco ?? ''}`,
+    `Responsável: ${contato.nome}`, `Valor total do acordo: ${formatBRL(Number(acordo.valor_acordado))}`,
+    ...parcelas.map(p => `${p.tipo_parcela === 'entrada' ? 'Entrada' : `Parcela ${p.numero}`}: ${formatBRL(Number(p.valor))}, vencimento ${formatDate(p.vencimento)}.`),
+    `Referência interna do acordo: ${acordoId}`,
+  ].join('\n');
+  await gerarTermoDevedorEEmail(supabase, { acordoId, carteiraId: acordo.carteira_id, cobrancaId: acordo.cobranca_id,
+    destinatarioNome: contato.nome, destinatarioEmail: contato.email || null, resumo });
+  await gerarSolicitacaoBoletosAdministradora(supabase, { acordoId, carteiraId: acordo.carteira_id,
+    cobrancaId: acordo.cobranca_id, condominioId: acordo.condominio_id, unidadeId: acordo.unidade_id,
+    administradoraId: condominio?.administradora_id, resumo });
   revalidatePath(`/app/acordos/${acordoId}`);
 }
 
@@ -3196,7 +3220,7 @@ export async function revisarParcelaAcordo(formData: FormData) {
 
   if (!acordoId || !parcelaId) throw new Error("Acordo e parcela são obrigatórios.");
   if (valorNovo <= 0) throw new Error("Informe um valor maior que zero.");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(vencimentoNovo)) throw new Error("Informe um vencimento válido.");
+  validarDataCivil(vencimentoNovo, 'Novo vencimento');
   if (motivo.length < 10) throw new Error("Informe uma justificativa com pelo menos 10 caracteres.");
 
   const supabase = await createClient();

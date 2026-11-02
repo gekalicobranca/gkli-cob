@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { requireAuthenticatedApiUser } from '@/app/api/_lib/auth'
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   if (!/^[\da-f-]{36}$/i.test(id)) return new NextResponse('Documento inválido.', { status: 400 })
   const db = await createClient()
-  const { data: { user } } = await db.auth.getUser()
-  if (!user) return new NextResponse('Entre para acessar o documento.', { status: 401 })
+  const { response } = await requireAuthenticatedApiUser()
+  if (response) return response
   // A leitura usa o usuário e a RLS da carteira antes de acessar o bucket privado.
   const { data: registro, error } = await db.from('agente_acordos_execucoes').select('storage_path,nome_pdf').eq('id', id).eq('status', 'sucesso').single()
   if (error || !registro?.storage_path) return new NextResponse('Documento não encontrado.', { status: 404 })

@@ -79,7 +79,7 @@ export default async function AprovacoesAcordosPage() {
                 </div>
                 <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordo</p><p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado ?? 0))}</p></div>
                 <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Parcelas</p><p className="mt-1 text-sm text-slate-700">{row.quantidade_parcelas ?? '-'}</p></div>
-                <form action={decidirAprovacaoSindicoAcordo} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                {['admin','gestor'].includes(scope.perfil) ? <form action={decidirAprovacaoSindicoAcordo} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                   <input type="hidden" name="acordo_id" value={row.id} />
                   <Select name="motivo" defaultValue="">
                     <option value="">Motivo, se rejeitar</option>
@@ -89,7 +89,7 @@ export default async function AprovacoesAcordosPage() {
                     <option value="Unidade judicializada">Unidade judicializada</option>
                     <option value="Outro">Outro</option>
                   </Select>
-                  <Textarea name="observacao" placeholder="Observação opcional" className="min-h-[72px]" />
+                  <Textarea name="observacao" required minLength={3} placeholder="Evidência da decisão recebida do síndico" className="min-h-[72px]" />
                   <div className="grid gap-2 sm:grid-cols-2">
                     <PendingSubmitButton name="decisao" value="aprovar" size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700" icon={<CheckCircle2 size={14} />} pendingLabel="Aprovando...">
                       Aprovar
@@ -98,7 +98,7 @@ export default async function AprovacoesAcordosPage() {
                       Rejeitar
                     </PendingSubmitButton>
                   </div>
-                </form>
+                </form> : <p className="text-sm text-slate-500">Aguardando registro da decisão por administrador ou gestor.</p>}
               </div>
             ))}
           </div>

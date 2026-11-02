@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { isCronSecretAuthorized, requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
+import type { ProfileRole } from "@/utils/auth/trusted-profile"
 import {
   conciliarCobrancaImportada,
   encontrarCobrancasAbertasAusentes,
@@ -102,18 +103,8 @@ async function isCarteiraPermitida(
   supabase: ReturnType<typeof createAdminClient>,
   userId: string,
   carteiraId: string,
+  perfil: ProfileRole,
 ) {
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle()
-
-  if (profileError) {
-    throw new Error(`Erro ao verificar perfil do usuário: ${profileError.message}`)
-  }
-
-  const perfil = String((profile as any)?.role ?? "")
   if (perfil === "admin") return true
 
   const { data, error } = await supabase
@@ -166,7 +157,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient()
 
-    const carteiraPermitida = chamadaMaestro || Boolean(user && await isCarteiraPermitida(supabase, user.id, carteiraId))
+    const carteiraPermitida = chamadaMaestro || Boolean(user && autenticacao?.profile && await isCarteiraPermitida(supabase, user.id, carteiraId, autenticacao.profile.role))
     if (!carteiraPermitida) {
       return NextResponse.json(
         { ok: false, error: "Você não tem permissão para importar nesta carteira." },

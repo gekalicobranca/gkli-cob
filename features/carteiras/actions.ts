@@ -270,7 +270,6 @@ export async function createUsuario(formData: FormData) {
       email_confirm: true,
       user_metadata: {
         nome,
-        role,
       },
     });
 
@@ -514,7 +513,6 @@ export async function updateUsuarioCompleto(formData: FormData) {
     await admin.auth.admin.updateUserById(userId, {
       user_metadata: {
         nome,
-        role,
       },
     });
   } catch {

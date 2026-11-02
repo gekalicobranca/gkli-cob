@@ -1580,7 +1580,7 @@ export async function listAgreementApprovalInbox(scope?: CarteiraScope) {
   return (acordos as any[])
     .filter((acordo) => {
       const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();
-      return Boolean(acordo.exige_aprovacao_sindico) && !acordo.sindico_aprovado_em && !["rompido", "cancelado", "quitado"].includes(String(acordo.status ?? "")) || fluxo.includes("sindico");
+      return Boolean(acordo.exige_aprovacao_sindico) && !acordo.sindico_aprovado_em && fluxo === 'aguardando_aprovacao_sindico' && !["rompido", "cancelado", "quitado", "quebrado", "renegociado"].includes(String(acordo.status ?? ""));
     })
     .map((acordo) => ({
       ...acordo,

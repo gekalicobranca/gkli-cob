@@ -11,7 +11,7 @@ import { listPreJuridicoCasos, listPreJuridicoCobrancas } from '@/features/pre-j
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 
 type Params = Promise<{ q?: string; carteira_id?: string; condominio_id?: string; etapa?: string }>
-const PREPARACAO = ['aguardando_documentos', 'aguardando_sindico', 'confirmar_juridico', 'pronto_juridico'] as const
+const PREPARACAO = ['aguardando_documentos', 'aguardando_sindico', 'confirmar_juridico', 'enviado_juridico', 'analise_juridica', 'pendencia_juridica', 'autorizado_ajuizamento', 'pronto_juridico'] as const
 const norm = (value: unknown) => String(value ?? '').trim().toLocaleLowerCase('pt-BR')
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 const option = (id: unknown, nome: unknown): [string, string] => [String(id ?? ''), String(nome ?? '')]
