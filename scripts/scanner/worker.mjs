@@ -1,3 +1,4 @@
+import {diagnosticoFinanceiro} from './eficiencia.mjs'
 import { randomUUID } from 'node:crypto'
 import { createWorkerFetch } from '../agente-automatico/worker-fetch.mjs'
 import { createClient } from '@supabase/supabase-js'
@@ -59,7 +60,12 @@ async function tick() {
    await mkdir(path.dirname(lockPath), { recursive: true })
    lock = await open(lockPath, 'wx')
    await lock.writeFile(JSON.stringify({ pid: process.pid, iniciado_em: new Date().toISOString(), scanner: true }))
-   const options={...config,onStage:value=>{etapa=value}}
+   const options={...config,financeiroSuspenso:Date.parse(config.financeiro_proxima_tentativa??'')>Date.now(),onStage:value=>{etapa=value}}
+   if(config.portal==='lello'){
+    const [h,a]=await Promise.all([db.from('scanner_historicos').select('unidade_portal,visitados').eq('configuracao_id',config.id).in('unidade_portal',unidades),db.rpc('scanner_alvos_lello',{p_configuracao:config.id})])
+    if(h.error||a.error)throw Error('Não foi possível recuperar o progresso financeiro do scanner.')
+    options.historicos=Object.fromEntries(h.data.map(x=>[x.unidade_portal,x.visitados]));options.alvosFinanceiros=a.data??{}
+   }
    if(config.portal==='lello')portal = await abrirLello(options, controller.signal)
    else {
      const {data:receita,error:re}=await db.from('agente_receitas').select('config_json,script_key,carteira_id').eq('id',config.receita_id).single()
@@ -83,7 +89,9 @@ async function tick() {
      if (atualErro) throw Error('Não foi possível conferir a pausa do scanner.')
      if (!atual.ativo) break
      const resultado = await portal.coletar(unidade)
+     resultado.pagamentos.diagnostico=diagnosticoFinanceiro(resultado.pagamentos)
      for (const tipo of ['contatos', 'pagamentos']) evidencias.push(evidencia(unidade, tipo, resultado[tipo]))
+     if(resultado.pagamentos.historico_progresso?.pendente){etapa='historico_parcial_salvo';break}
      cursor++
    }
  } catch (error) {
@@ -125,10 +133,12 @@ async function tick() {
    const {error:ve}=await db.from('scanner_configuracoes').update({situacao:'validado'}).eq('id',config.id)
    if(ve)console.error('Não foi possível registrar a validação do acesso.')
  }
- if(cursor>config.cursor && !diagnostico){
+ if(evidencias.length && !diagnostico){
+   const consultadas=evidencias.filter(e=>e.tipo==='contatos').length
    const contatos=contatosConfirmados
-   const inconclusivos=evidencias.filter(e=>e.tipo==='pagamentos'&&e.dados.status==='inconclusivo').length
-   const {error:resumoErro}=await db.from('scanner_configuracoes').update({ultimo_resultado:`${cursor-config.cursor} unidades consultadas; ${contatos} fichas de responsáveis, ${cursor-config.cursor-contatos} vínculos para revisão e ${inconclusivos} históricos financeiros inconclusivos. Cadastros seguem para aplicação automática auditada.`}).eq('id',config.id)
+   const parcial=evidencias.some(e=>e.dados.historico_progresso?.pendente)
+   const semAcesso=evidencias.filter(e=>e.tipo==='pagamentos'&&['sem_acesso','acesso_adiado'].includes(e.dados.diagnostico)).length
+   const {error:resumoErro}=await db.from('scanner_configuracoes').update({ultimo_resultado:`${consultadas} unidades consultadas; ${contatos} fichas de responsáveis, ${consultadas-contatos} vínculos para revisão e ${semAcesso} consultas financeiras sem acesso ou adiadas. ${parcial?'Histórico parcial salvo; próximo lote retoma a mesma unidade.':'Cadastros seguem para aplicação automática auditada.'}`}).eq('id',config.id)
    if(resumoErro)console.error('Não foi possível registrar o resumo cadastral do lote.')
  }
  if(diagnostico){

@@ -65,7 +65,7 @@ export async function abrirWebware(config,receita,unidades,signal){
   const select=cadastro.locator('select').first()
   const opcoes=await select.locator('option').evaluateAll(xs=>xs.map(x=>({label:x.textContent.trim(),value:x.value})))
   if(config.diagnostico)console.log(JSON.stringify({diagnostico:'controle_cadastro',opcoes:opcoes.length,select:await select.evaluate(e=>({id:e.id,name:e.name,onchange:e.getAttribute('onchange')})),abas:await cadastro.locator('a').evaluateAll(xs=>xs.filter(x=>/Proprietário/.test(x.innerText)).map(x=>({texto:x.innerText,href:x.getAttribute('href'),onclick:x.getAttribute('onclick')})))}))
-  const financeiro=config.portal==='bbz'?await abrirFinanceiroBBZ(sessao.context,historicoDisponivel,config.onStage):null
+  const financeiro=config.portal==='bbz'?await abrirFinanceiroBBZ(sessao.context,historicoDisponivel&&!config.financeiroSuspenso,config.onStage):null
   const documentos=await abrirDocumentosBBZ(sessao.context,documentosDisponiveis)
   return {close:sessao.close,async coletar(id){
    const unidade=unidades.find(u=>u.id===id);if(!unidade)throw Error('Unidade fora do condomínio do lote.')
@@ -87,7 +87,7 @@ export async function abrirWebware(config,receita,unidades,signal){
    if(await select.inputValue()!==opcao.value)throw Error('Seleção da unidade mudou durante a consulta.')
    const texto=await painel.innerText()
    const contatos={codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:cadastro.url(),fichas:[fichaWebware(texto,id)]}
-   const resultado=await complementarComPagamentos(contatos,()=>financeiro?financeiro.consultar(opcao.label):{status:'inconclusivo',motivo:'Histórico financeiro ainda não validado para este portal; nenhuma confirmação inferida.'},()=>financeiro?.desabilitar())
+   const resultado=await complementarComPagamentos(contatos,()=>config.financeiroSuspenso?{diagnostico:'acesso_adiado',status:'inconclusivo',motivo:'Consulta financeira adiada após indisponibilidade; cadastro preservado.'}:financeiro?financeiro.consultar(opcao.label):{status:'inconclusivo',motivo:'Histórico financeiro ainda não validado para este portal; nenhuma confirmação inferida.'},()=>financeiro?.desabilitar())
    resultado.pagamentos={...resultado.pagamentos,codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:config.portal==='bbz'?fonteBBZ:cadastro.url()}
    if(documentos&&config.unidadesComAcordo?.includes(id)){
     config.onStage?.('vinculos_acordos_bbz')

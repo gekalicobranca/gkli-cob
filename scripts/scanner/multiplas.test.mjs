@@ -28,7 +28,8 @@ test('pagamentos são evidências explícitas, nunca conclusão pela ausência d
  const tabela=[['Recibo','Data Pagamento','Valor Pago'],['123456','10/10/2026'],['','100,00','11/10/2026','0,00','0,00','0,00','0,00','100,00']]
  assert.equal(pagamentosManager([tabela],'A/AP/1','Unidade: A/AP/1').pagamentos[0].valor_pago,100)
  assert.throws(()=>pagamentosManager([tabela],'A/AP/2','Unidade: A/AP/1'))
- assert.equal(pagamentosManager([tabela.slice(0,1)],'A/AP/1','Unidade: A/AP/1').status,'inconclusivo')
+ assert.equal(pagamentosManager([tabela.slice(0,1)],'A/AP/1','Unidade: A/AP/1').status,'consultado')
+ assert.deepEqual(pagamentosManager([tabela.slice(0,1)],'A/AP/1','Unidade: A/AP/1').pagamentos,[])
  assert.equal(pagamentosManager([tabela.slice(0,2)],'A/AP/1','Unidade: A/AP/1').status,'inconclusivo')
 })
 

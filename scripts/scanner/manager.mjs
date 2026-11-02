@@ -29,7 +29,7 @@ export async function abrirManager(config, receita, unidades, signal) {
   await detalhe.close()
   // O extrato é aberto somente se disponibilizado no menu. Nunca navega a Cotas Pendentes.
   let financeiro=null
-  if(await menu.locator('select[name=Conteudo] option[value="/bin/aplic/display.asp?i=ARC"]').count()){
+  if(!config.financeiroSuspenso && await menu.locator('select[name=Conteudo] option[value="/bin/aplic/display.asp?i=ARC"]').count()){
    etapa('menu_pagamentos_manager')
    try{
     await menu.locator('select[name=Conteudo]').selectOption('/bin/aplic/display.asp?i=ARC',{timeout:10_000})
@@ -40,6 +40,7 @@ export async function abrirManager(config, receita, unidades, signal) {
    }catch{if(signal.aborted)signal.throwIfAborted();financeiro=null;etapa('financeiro_indisponivel_manager')}
   }
   async function pagamentos(referencia){
+   if(config.financeiroSuspenso)return {diagnostico:'acesso_adiado',status:'inconclusivo',motivo:'Consulta financeira adiada após indisponibilidade; cadastro preservado.'}
    if(!financeiro)return {status:'inconclusivo',motivo:'Extrato de pagamentos não disponível no menu deste acesso.'}
    return financeiro.consultar(referencia)
   }
@@ -55,7 +56,7 @@ export async function abrirManager(config, receita, unidades, signal) {
     etapa('cadastro_manager');await page.waitForTimeout(2000);signal.throwIfAborted()
     const ficha=await lerCadastroManager(context,url.href,{signal,referencia:opcao.label,unidade:id,onTentativa:n=>{if(n>1)etapa('cadastro_manager_retomada')}})
     const contatos={codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:url.href,fichas:[ficha]}
-    const resultado=await complementarComPagamentos(contatos,()=>pagamentos(opcao.label),()=>{etapa('financeiro_indisponivel_manager')})
+    const resultado=await complementarComPagamentos(contatos,()=>pagamentos(opcao.label),()=>{financeiro=null;etapa('financeiro_indisponivel_manager')})
     resultado.pagamentos={...resultado.pagamentos,codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:base+'/bin/rt/gExtratoUnidade.asp'}
     return resultado
    }
