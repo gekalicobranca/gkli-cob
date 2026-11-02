@@ -23,7 +23,7 @@ test('BBZ: espera cartões assíncronos e reconhece cabeçalho principal sem bem
    await page.route('https://bbz.com.br/**',r=>r.fulfill({contentType:'text/html; charset=utf-8',body:`<h1>Relação de Condomínios</h1><div id=lista></div><script>setTimeout(()=>{document.getElementById('lista').innerHTML=\`<div class=card><p class=txt-titulo>CONDOMINIO IN JARDIM SUL GALLERY</p><a onclick="void 0;/*AcessarVinculo('00364','WM')*/" href="https://${invalida?'outro.example':'servc9.webware.com.br'}/bin/skin/aInicioSkin.asp">Acessar</a></div>\`},150)</script>`}))
    await page.route(/https:\/\/(servc9.webware.com.br|outro.example)\/.*/,r=>r.fulfill({contentType:'text/html; charset=utf-8',body:'<title>CONDOMINIO IN JARDIM SUL GALLERY</title><h1>Início</h1>'}))
    await page.goto('https://bbz.com.br/relacao')
-   const call=()=>acessarCondominioBBZ(page,{titulo:'IN JARDIM SUL GALLERY',codigo:'364',signal:new AbortController().signal,timeoutMs:500})
+   const call=()=>acessarCondominioBBZ(page,{titulo:'IN JARDIM SUL GALLERY',codigo:'364',signal:new AbortController().signal,timeoutMs:invalida?500:5000})
    if(invalida)await assert.rejects(call(),/Timeout/)
    else assert.equal((await call()).codigo,'00364')
    await page.close()

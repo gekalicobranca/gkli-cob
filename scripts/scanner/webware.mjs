@@ -1,9 +1,10 @@
 import { credenciais, navegadorScanner, frameVisivel, selecionarUnidade, fichaWebware } from './portais.mjs'
 import {abrirDocumentosBBZ} from './bbz-documentos.mjs'
-import {abrirFinanceiroBBZ,fonteBBZ} from './bbz-pagamentos.mjs'
+import {abrirFinanceiroBBZ,fonteBBZ,complementarFinanceiroBBZ} from './bbz-pagamentos.mjs'
 import {complementarComPagamentos} from './manager-pagamentos.mjs'
 import { navegarGraiche } from '../agente-automatico/graiche-navegacao.mjs'
 import {acessarCondominioBBZ} from './bbz-acesso.mjs'
+import {aguardarMenuFinanceiroBBZ} from './bbz-menu.mjs'
 import {legadoBBZValidado,inicializarLegadoBBZ,abrirCadastroLegadoBBZ} from './bbz-legado.mjs'
 
 const origens={bbz:'https://servc9.webware.com.br',graiche:'https://servc9-1.webware.com.br',sell:'https://servc9.webware.com.br'}
@@ -43,16 +44,19 @@ export async function abrirWebware(config,receita,unidades,signal){
     if((await page.title()).trim()!==titulo.trim())throw Error('Condomínio Webware não confirmado pelo título.')
    }
   }
-  const historicoDisponivel=config.portal==='bbz' && (await page.locator('a[href="/bin/rt/gExtratoUnidade.asp"]').count())>0
-  const documentosDisponiveis=config.portal==='bbz'&&(await page.locator('a[href="/bin/rt/gAcordo.asp"]').count())>0&&(await page.locator('a[href="/bin/aplic/u_2via.asp"]').count())>0
+  const {historicoDisponivel,documentosDisponiveis}=config.portal==='bbz'
+   ?await aguardarMenuFinanceiroBBZ(page,{titulo,signal})
+   :{historicoDisponivel:false,documentosDisponiveis:false}
   config.onStage?.('inventario_'+config.portal)
   if(legadoBBZValidado(config,receita)){
    const cadastro=await abrirCadastroLegadoBBZ(page,unidades,signal,config.unidades.length)
-   // O vínculo principal não disponibiliza o mesmo menu financeiro. Mantém a evidência inconclusiva.
+   // O menu do vínculo principal também é assíncrono; o extrato mantém o filtro e a identidade exatos.
+   const financeiro=await abrirFinanceiroBBZ(sessao.context,historicoDisponivel&&!config.financeiroSuspenso,config.onStage)
    return {close:sessao.close,async coletar(id){
     config.onStage?.('cadastro_bbz_legado')
     const r=await cadastro.coletar(id)
-    return {contatos:{codigo:config.codigo_portal,unidade:id,referencia_portal:r.referencia,fonte:r.fonte,fichas:[r.ficha]},pagamentos:{codigo:config.codigo_portal,unidade:id,referencia_portal:r.referencia,status:'inconclusivo',motivo:'Histórico financeiro do vínculo principal ainda exige homologação; nenhuma confirmação inferida.'}}
+    const contatos={codigo:config.codigo_portal,unidade:id,referencia_portal:r.referencia,fonte:r.fonte,fichas:[r.ficha]}
+    return complementarFinanceiroBBZ(contatos,financeiro,config,r.referencia)
    }}
   }
   await page.goto(base+'/bin/aplic/cpOperacaoUnidadeInformacoes.asp',{waitUntil:'domcontentloaded'})

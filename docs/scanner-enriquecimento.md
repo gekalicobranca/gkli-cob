@@ -259,3 +259,16 @@ Os três acessos receberam prioridade temporária para 29/10 às 00h30 de São P
 - Mantidos: lotes noturnos de até 20, pausa mínima de 15 minutos, nenhuma importação de novas cobranças, conferência acima de R$ 10 mil desativada e baixa somente com evidência objetiva e vínculo único.
 
 Migração: 20261102030843_scanner_foco_abertos_retomada_relatorio.sql. O executor deve receber o novo código depois da migração.
+
+
+## Validação dos extratos BBZ — 02/11/2026
+
+O scanner conferia os links do menu imediatamente após a mudança de título do condomínio, antes do carregamento assíncrono. Nos cinco acessos da madrugada, a primeira checagem encontrou zero links; após esperar, os links do histórico e dos documentos ficaram disponíveis. A detecção agora espera até 12 segundos e reconfirma origem, título do condomínio e ausência de formulário de senha. Interrupções e erros de navegação não são tratados como ausência de menu.
+
+Validação real de leitura, uma unidade por condomínio: Plano & Estação Piqueri I A/AP/000912 (extrato consultado, zero recebimentos no período); Estação Gabriele A/AP/000083 (três registros); Panorama Vila Romana 0/AP/000124 (três registros); In Jardim Sul Gallery 0/AP/00074B (extrato consultado, zero registros). Período: 04/08–02/11/2026. Consulta sem registro não confirma regularidade nem ausência de débito. Nenhuma evidência foi importada para conciliação ou baixa durante os testes.
+
+O In Jardim Sul Gallery também passou pelo adaptador completo: inventário legado, identidade e cadastro confirmados antes do extrato. O bloqueio fixo do financeiro desse vínculo foi substituído pela consulta exata do filtro, usando os mesmos controles de origem, recibo, unidade e conciliação das outras BBZ. Nenhum vínculo de acordo é presumido.
+
+No Vivaz Estação Vila Prudente, o menu funciona, mas o relatório respondeu explicitamente “Relatorio indisponível no momento, por gentileza entrar em contato com a Administradora” nas unidades A/AP/000612 e A/AP/001416. Respostas HTTP 200 sem tabela não são prova de pagamento. O adaptador passa a reconhecer a mensagem, registrar diagnóstico específico e suspender novas consultas financeiras no lote; contatos e retomada continuam independentes. A restrição da origem permanece pendente.
+
+Mantidos: lotes noturnos de até 20, limites de navegação e tempo, nenhuma captação/importação de inadimplência e baixa somente após evidência objetiva. A validação não avançou cursores nem alterou pagamentos, contatos ou acordos no app.
