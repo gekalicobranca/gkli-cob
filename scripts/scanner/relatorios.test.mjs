@@ -95,17 +95,25 @@ test('SQL: relatório selado, carteira de origem/envio, destinatários, judicial
    alter table acordos add unidade_id uuid,add status text default 'ativo';
    alter table scanner_lotes add iniciado_em timestamptz default now()-interval '1 minute';
    create table scanner_evidencias(id uuid primary key,configuracao_id uuid,unidade_portal text,tipo text,observado_em timestamptz,dados jsonb);
-   grant select,insert,update on scanner_evidencias to service_role;`)
+   create table unidades(id uuid primary key,condominio_id uuid,carteira_id uuid);
+   grant select,insert,update on scanner_evidencias,unidades to service_role;`)
   const unidade=randomUUID(),evidencia=randomUUID()
   await db.query('update acordos set unidade_id=$1',[unidade])
+  await db.query('insert into unidades values($1,$2,$3)',[unidade,condo,origem])
   const prova={codigo:'0',unidade,status:'inconclusivo',conferencia_acordos:{versao:1,situacao:'unidade_nao_disponivel',fonte:'https://servc9-1.webware.com.br/bin/rt/gAcordo.asp'}}
   await db.query("insert into scanner_evidencias values($1,$2,$3,'pagamentos',now(),$4)",[evidencia,config,unidade,JSON.stringify(prova)])
   await db.exec(await readFile(new URL('../../supabase/migrations/20261103033946_scanner_graiche_revisao_judicial.sql',import.meta.url),'utf8'))
+  await db.exec(await readFile(new URL('../../supabase/migrations/20261103035153_scanner_graiche_escopo_unidade_judicial.sql',import.meta.url),'utf8'))
   await db.exec('set role service_role')
   const item={acordo_id:judicial,evidencia_id:evidencia,tipo_revisao:'judicial',baixa_permitida:false,revisao_humana_obrigatoria:true}
   const registrarJudicial=(chave,j=item,token=null)=>db.query('select scanner_registrar_relatorio_email($1,$2,$3,$4,$5,$6,$7,$8) id',[chave,config,token,op,'Revisão judicial','Revisão obrigatória; nenhuma baixa.',JSON.stringify([j]),'{}'])
   await assert.rejects(registrarJudicial('jud:sem-optin'),/fora do escopo/)
   await db.query('update scanner_configuracoes set relatorio_judicial=true where id=$1',[config])
+  await db.query('update unidades set carteira_id=$1',[envio])
+  await assert.rejects(registrarJudicial('jud:unidade-outra-carteira'),/fora do escopo/)
+  await db.query('update unidades set carteira_id=$1,condominio_id=$2',[origem,randomUUID()])
+  await assert.rejects(registrarJudicial('jud:unidade-outro-condominio'),/fora do escopo/)
+  await db.query('update unidades set condominio_id=$1',[condo])
   await assert.rejects(registrarJudicial('jud:sem-prova',{...item,evidencia_id:randomUUID()}),/fora do escopo/)
   await assert.rejects(registrarJudicial('jud:sem-revisao',{...item,revisao_humana_obrigatoria:false}),/fora do escopo/)
   await assert.rejects(registrarJudicial('jud:com-baixa',{...item,baixa_permitida:true}),/fora do escopo/)

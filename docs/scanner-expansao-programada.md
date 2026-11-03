@@ -15,3 +15,11 @@ O usuário reincluiu o Jerivás em 02/11/2026, revogando a exclusão anterior da
 Exclusões confirmadas: K360 Humberto I Comercial, K360 Residencial e O Parque Torre do Cipó não constam na relação do acesso BBZ: seus portais foram corrigidos para BBZ e ficaram inativos, com `pendente_acesso`. Moema Flat Service tem portal `SEM ACESSO`. Demais cadastros sem acesso/receita ou sem unidades também ficam fora.
 
 O trabalho de implantação usa um checkout isolado e preserva as alterações locais existentes. A raiz `C:\Users\Gekali\gkli-cob` contém modificações de outros trabalhos; não limpar, restaurar, sobrescrever ou incluir essas alterações nos commits. Só copiar ao executor os arquivos próprios já verificados. Não encerrar ou alterar processos de outros agentes.
+
+## Progresso de 03/11/2026 — Graiche
+
+Jerivás integrado: código publicado e executor atualizado; amostra real da unidade 111/B3 validada às 00h47, com reserva global e trava compartilhada. O filtro oferece a unidade, o que não homologa a identidade do contrato. Configuração ativa para a unidade do acordo vigente, com relatório judicial habilitado, revisão humana obrigatória e baixa automática bloqueada. O relatório de uma revisão foi enviado à Camila, com cópia para Edi; servidor confirmou o envio uma única vez. Nenhum pagamento, cadastro ou cobrança foi alterado pela validação.
+
+A conferência judicial no servidor também verifica a carteira e o condomínio atuais da unidade, protegendo os relatórios contra dados de vinculação desatualizados. As funções financeiras anteriores permaneceram preservadas. Suíte do scanner: 85 testes aprovados; testes específicos de escopo judicial e TypeScript aprovados.
+
+Las Ventanas: corrigida a carteira desatualizada da receita, mediante identificação exata do mesmo condomínio e confirmação de ausência de execuções abertas. Credenciais e dados financeiros não foram alterados. Ainda exige validação real antes de qualquer ativação. Elo também permanece aguardando validação individual.

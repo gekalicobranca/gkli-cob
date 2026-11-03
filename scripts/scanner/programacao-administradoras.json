@@ -3,7 +3,7 @@
   "autorizado_em": "2026-11-02",
   "fuso": "America/Sao_Paulo",
   "tipo": "implantacao_gradual_das_integracoes",
-  "estado": "programado",
+  "estado": "em_implantacao",
   "ativar_somente_apos_validacao": true,
   "limites": {
     "unidades_por_lote": 20,
@@ -20,11 +20,30 @@
       "condominio": "CAMINHOS DA LAPA CONDOMÍNIO JERIVÁS",
       "portal": "graiche",
       "fonte_acesso": "receita_cadastrada",
-      "estado": "programado",
+      "estado": "integrado",
       "escopo": "conferencia_e_relatorio_inclusive_acordos_judiciais",
       "baixa_automatica": false,
       "revisao_judicial_obrigatoria": true,
-      "reinclusao_autorizada_em": "2026-11-02"
+      "reinclusao_autorizada_em": "2026-11-02",
+      "integracao": {
+        "validado_em": "2026-11-03T03:48:02.206Z",
+        "unidade": "000111",
+        "bloco": "B3",
+        "unidades_validadas": 1,
+        "codigo_publicado": "6105f88e3934386f60e48f60fdc8280606bda1ac",
+        "executor_atualizado": true,
+        "consulta": "unidade_disponivel_no_filtro",
+        "revisoes_judiciais": 1,
+        "relatorio_id": "b38fa57f-26c8-4ae1-a713-67b9488f75b9",
+        "relatorio_estado": "enviado",
+        "baixas": 0,
+        "importacoes": 0,
+        "limitacoes": [
+          "Cadastro restrito; nenhuma ficha aplicada.",
+          "Consulta limitada ao filtro de acordos; contrato e cronograma exigem revisão.",
+          "Caso judicial sem baixa automática."
+        ]
+      }
     },
     {
       "configuracao_id": "2ee233cd-b84d-4373-9b40-169352e59106",
