@@ -1,6 +1,7 @@
 import {selecionarUnidade} from './portais.mjs'
 import {abrirFinanceiroBBZ,fonteBBZ} from './bbz-pagamentos.mjs'
 import {complementarComPagamentos} from './manager-pagamentos.mjs'
+import {lerFiltroAcordosGraiche} from './graiche-acordos.mjs'
 
 const bases={sell:'https://servc9.webware.com.br',graiche:'https://servc9-1.webware.com.br'}
 export const fonteAcordosGraiche=bases.graiche+'/bin/rt/gAcordo.asp'
@@ -55,13 +56,8 @@ export async function abrirWebwareLimitado(sessao,config,receita,unidades,signal
   if(atual.origin+atual.pathname!==fonteAcordosGraiche)throw Error('Consulta de acordos fora da origem Graiche.')
   // A primeira página serve somente como inventário das opções do filtro.
   // Não interpreta o retorno de Todas unidades como pagamentos ou ausência.
-  await page.locator('select').first().waitFor()
-  const seletores=await page.locator('select').evaluateAll(xs=>xs.map(s=>[...s.options].map(o=>({label:o.value,value:o.value}))))
-  const candidatos=seletores.filter(xs=>xs.some(x=>x.value==='>'))
-  if(candidatos.length!==1)throw Error('Filtro de unidades dos acordos não reconhecido; revisão necessária.')
-  opcoes=candidatos[0].filter(o=>/^[a-z0-9]+\/[a-z0-9]+\/[a-z0-9]+$/i.test(o.value))
-  if(opcoes.length>1000)throw Error('Filtro de acordos excedeu o limite seguro.')
-  fonte=page.url()
+  const filtro=await lerFiltroAcordosGraiche(page,{signal})
+  opcoes=filtro.opcoes;fonte=filtro.fonte
  }
  return {close:sessao.close,async coletar(id){
   signal.throwIfAborted()

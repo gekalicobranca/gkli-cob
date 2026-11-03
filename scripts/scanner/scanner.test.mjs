@@ -4,6 +4,29 @@ import { readFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { PGlite } from '@electric-sql/pglite'
 import { janelaNoturna, validarConfiguracao, validarLink, evidencia } from './core.mjs'
+import {fixture} from './conciliacao-fixture.mjs'
+
+test('interrupção após 15 unidades preserva cursor 85 e retoma a primeira não concluída',async()=>{
+ const {db,ids}=await fixture()
+ try{
+  const token=randomUUID(),unidades=Array.from({length:100},(_,i)=>String(i+1).padStart(6,'0'))
+  await db.exec('reset role')
+  await db.query('update scanner_configuracoes set unidades=$1,cursor=70 where id=$2',[unidades,ids.config])
+  await db.exec('set role service_role')
+  assert.equal((await db.query('select * from scanner_reivindicar($1)',[token])).rows[0].cursor,70)
+  const provas=unidades.slice(70,85).flatMap(u=>[evidencia(u,'contatos',{fichas:[]}),evidencia(u,'pagamentos',{status:'inconclusivo',baixa_permitida:false})])
+  await db.query('select scanner_concluir($1,85,$2,false)',[token,JSON.stringify(provas)])
+  assert.equal((await db.query('select count(*)::int n from scanner_evidencias')).rows[0].n,30)
+  assert.equal((await db.query('select count(*)::int n from scanner_evidencias where unidade_portal=$1',[unidades[85]])).rows[0].n,0)
+  await db.exec("reset role;update test_clock set value=value+interval '16 minutes';set role service_role")
+  const next=randomUUID(),r=(await db.query('select * from scanner_reivindicar($1)',[next])).rows[0]
+  assert.equal(r.cursor,85);assert.equal(r.unidades[r.cursor],unidades[85])
+  // Indisponibilidade real na unidade seguinte também não avança nem apaga provas.
+  await db.query("select scanner_concluir($1,85,'[]',true)",[next])
+  assert.equal((await db.query('select cursor from scanner_configuracoes')).rows[0].cursor,85)
+  assert.equal((await db.query('select count(*)::int n from scanner_evidencias')).rows[0].n,30)
+ }finally{await db.close()}
+})
 
 test('janela usa São Paulo, incluindo virada UTC e limites', () => {
  for (const [hora, esperado] of [['03:29',false],['03:30',true],['08:24',true],['08:25',false],['23:00',false]]) assert.equal(janelaNoturna(new Date(`2026-10-20T${hora}:00Z`)), esperado)

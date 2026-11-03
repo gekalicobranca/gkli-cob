@@ -38,9 +38,14 @@ export function documentoScannerPermitido(url,{acordosBBZ=false,acordosGraiche=f
 }
 
 export async function navegadorScanner(signal, origens, {acordosBBZ=false,acordosGraiche=false}={}) {
+ signal.throwIfAborted()
  const browser = await chromium.launch({channel:'chrome',headless:true})
- const abort = () => {void browser.close().catch(()=>{})}
+ let falha=null,fechando=false
+ const encerrar=()=>{void browser.close().catch(()=>{})}
+ const abort = () => {falha??=Object.assign(Error('Orçamento de navegação encerrado; retomar a unidade não concluída.'),{code:'SCANNER_LIMITE'});encerrar()}
  signal.addEventListener('abort',abort,{once:true})
+ browser.on('disconnected',()=>{if(!fechando)falha??=Object.assign(Error('Sessão do navegador interrompida; retomar a unidade não concluída.'),{code:'SCANNER_SESSAO_INTERROMPIDA'})})
+ const assertDisponivel=()=>{if(falha)throw falha;signal.throwIfAborted()}
  try {
   const context = await browser.newContext({viewport:{width:1920,height:1080},acceptDownloads:false})
   let documentos=0, bloqueado=false
@@ -49,12 +54,13 @@ export async function navegadorScanner(signal, origens, {acordosBBZ=false,acordo
    // Bloqueio adicional: nenhum relatório de inadimplência pode ser navegado pelo scanner.
    if(signal.aborted || bloqueado || !documentoScannerPermitido(u.href,{acordosBBZ,acordosGraiche}))return route.abort()
    if(['image','font','media'].includes(r.resourceType())) return route.abort()
-   if(r.isNavigationRequest() && ++documentos>100) return route.abort()
+   if(r.isNavigationRequest() && ++documentos>100){falha??=Object.assign(Error('Limite de documentos atingido; retomar a unidade não concluída.'),{code:'SCANNER_LIMITE'});encerrar();return route.abort()}
    return route.continue()
   })
-  context.on('response',r=>{if(origens.includes(new URL(r.url()).origin)&&[429,503].includes(r.status())){bloqueado=true;abort()}})
+  context.on('response',r=>{if(origens.includes(new URL(r.url()).origin)&&[429,503].includes(r.status())){bloqueado=true;falha??=Object.assign(Error(`Portal respondeu HTTP ${r.status()}; aguardar sem repetir a unidade neste lote.`),{code:'SCANNER_PORTAL_INDISPONIVEL'});encerrar()}})
   const page=await context.newPage();page.setDefaultTimeout(20_000);page.setDefaultNavigationTimeout(30_000)
-  return {context,page,close:async()=>{signal.removeEventListener('abort',abort);await browser.close()}}
+  assertDisponivel()
+  return {context,page,assertDisponivel,podeIniciarUnidade:()=>!falha&&documentos<=92,close:async()=>{fechando=true;signal.removeEventListener('abort',abort);await browser.close()}}
  } catch(error){signal.removeEventListener('abort',abort);await browser.close();throw error}
 }
 

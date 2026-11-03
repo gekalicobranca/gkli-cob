@@ -67,6 +67,14 @@
       "portal": "graiche",
       "fonte_acesso": "receita_cadastrada",
       "estado": "integracao_pendente",
+      "retomada": {
+        "prioridade": "proxima_janela_noturna_graiche",
+        "ajuste_em": "2026-11-03",
+        "leitor": "Filtro assíncrono em página ou quadro da mesma origem; vazio, restrição ou formato desconhecido não comprovam ausência de acordo.",
+        "validacao_real_pendente": true,
+        "ativacao_automatica": false,
+        "criterio_ativacao": "Reavaliar alvos atuais do app e validar identidade exata antes de qualquer ativação. Não ativar automaticamente após autenticação ou filtro vazio."
+      },
       "validacao": {
         "em": "2026-11-03T04:18:49.93Z",
         "autenticacao": "confirmada",

@@ -46,7 +46,7 @@ export async function abrirWebware(config,receita,unidades,signal){
    const cadastro=await abrirCadastroLegadoBBZ(page,unidades,signal,config.unidades.length)
    // O menu do vínculo principal também é assíncrono; o extrato mantém o filtro e a identidade exatos.
    const financeiro=await abrirFinanceiroBBZ(sessao.context,historicoDisponivel&&!config.financeiroSuspenso,config.onStage)
-   return {close:sessao.close,async coletar(id){
+   return {close:sessao.close,podeIniciarUnidade:sessao.podeIniciarUnidade,async coletar(id){
     config.onStage?.('cadastro_bbz_legado')
     const r=await cadastro.coletar(id)
     const contatos={codigo:config.codigo_portal,unidade:id,referencia_portal:r.referencia,fonte:r.fonte,fichas:[r.ficha]}
@@ -65,7 +65,9 @@ export async function abrirWebware(config,receita,unidades,signal){
   if(config.diagnostico)console.log(JSON.stringify({diagnostico:'controle_cadastro',opcoes:opcoes.length,select:await select.evaluate(e=>({id:e.id,name:e.name,onchange:e.getAttribute('onchange')})),abas:await cadastro.locator('a').evaluateAll(xs=>xs.filter(x=>/Proprietário/.test(x.innerText)).map(x=>({texto:x.innerText,href:x.getAttribute('href'),onclick:x.getAttribute('onclick')})))}))
   const financeiro=config.portal==='bbz'?await abrirFinanceiroBBZ(sessao.context,historicoDisponivel&&!config.financeiroSuspenso,config.onStage):null
   const documentos=await abrirDocumentosBBZ(sessao.context,documentosDisponiveis)
-  return {close:sessao.close,async coletar(id){
+  return {close:sessao.close,podeIniciarUnidade:sessao.podeIniciarUnidade,async coletar(id){
+   sessao.assertDisponivel()
+   try{
    const unidade=unidades.find(u=>u.id===id);if(!unidade)throw Error('Unidade fora do condomínio do lote.')
    let opcao
    try{opcao=selecionarUnidade(opcoes,unidade)}catch(e){if(e.code!=='SCANNER_VINCULO')throw e;return {contatos:{codigo:config.codigo_portal,unidade:id,fichas:[],status:'revisao_vinculo'},pagamentos:{status:'inconclusivo',motivo:'Unidade sem vínculo inequívoco no portal.'}}}
@@ -92,7 +94,9 @@ export async function abrirWebware(config,receita,unidades,signal){
     try{resultado.pagamentos.vinculos_bbz=await documentos.coletar(opcao.label)}
     catch{documentos.desabilitar();resultado.pagamentos.vinculos_status='inconclusivo';resultado.pagamentos.vinculos_motivo='Documentos ou identidade incompletos; vínculos e pagamentos não inferidos.'}
    }
+   sessao.assertDisponivel()
    return resultado
+   }catch(error){sessao.assertDisponivel();throw error}
   }}
- }catch(error){await sessao.close();let motivo=String(error.message).split('\n')[0];for(const v of [acesso.usuario,acesso.senha])motivo=motivo.replaceAll(v,'[protegido]');throw Object.assign(Error(`Webware: ${motivo.slice(0,180)}`),{code:error.code})}
+ }catch(error){try{sessao.assertDisponivel()}catch(e){error=e}await sessao.close();let motivo=String(error.message).split('\n')[0];for(const v of [acesso.usuario,acesso.senha])motivo=motivo.replaceAll(v,'[protegido]');throw Object.assign(Error(`Webware: ${motivo.slice(0,180)}`),{code:error.code,diagnostico:error.diagnostico})}
 }

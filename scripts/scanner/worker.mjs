@@ -15,6 +15,7 @@ import { conciliarPendentes } from './conciliacao.mjs'
 import { analisarPendentes } from './interpretacao-worker.mjs'
 import {concluirComRetomada,checkpointLote} from './finalizacao.mjs'
 import {executarRelatoriosScanner} from './relatorio-executor.mjs'
+import {orcamentoLote} from './orcamento.mjs'
 
 // O processo só abre navegador após obter uma reserva persistida no banco.
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw Error('Configure o acesso administrativo do scanner ao Supabase.')
@@ -55,6 +56,7 @@ async function tick() {
    ? path.join(os.homedir(),'Downloads','manager-acordos','.manager-acordos.lock')
    : path.join(os.homedir(),'Downloads','acordos-portais',`.${config.portal}-acordos.lock`)
  const evidencias = [], controller = new AbortController()
+ const orcamento=orcamentoLote()
  const timeout = setTimeout(() => controller.abort(), 240_000)
  try {
    const unidades = validarConfiguracao(config)
@@ -86,6 +88,7 @@ async function tick() {
    for (const unidade of unidades) {
      unidadeAtual=unidade
      if ((!manual&&!janelaNoturna()) || (manual&&Date.now()>=Date.parse(manual.expira_em)) || controller.signal.aborted) break
+     if(!orcamento.podeIniciarUnidade()||portal.podeIniciarUnidade?.()===false){etapa='retomada_por_orcamento';console.log(JSON.stringify({scanner:config.id,evento:etapa,cursor,unidade}));break}
      if (await portalOcupado(db)) break
      const { data: atual, error: atualErro } = await db.from('scanner_configuracoes').select('ativo').eq('id',config.id).single()
      if (atualErro) throw Error('Não foi possível conferir a pausa do scanner.')
@@ -101,7 +104,7 @@ async function tick() {
    falhou = error.code !== 'EEXIST' && !limiteComProgresso
    let motivo=String(error.message).split('\n')[0]
    for(const [key,value]of Object.entries(process.env))if(/^(SCANNER|AGENTE)_.*_(USUARIO|SENHA)$/.test(key)&&value)motivo=motivo.replaceAll(value,'[protegido]')
-   diagnostico={etapa,unidade:unidadeAtual,motivo:motivo.slice(0,300),falhou}
+   diagnostico={etapa,unidade:unidadeAtual,motivo:motivo.slice(0,300),codigo:error.code??null,leitura:error.diagnostico??null,falhou}
    console.error(JSON.stringify({scanner:config.id,portal:config.portal,...diagnostico}))
  }
  finally {
