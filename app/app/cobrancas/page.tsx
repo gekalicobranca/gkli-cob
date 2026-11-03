@@ -330,23 +330,27 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
     <LitePageShell>
       <LitePageHeader>
         <PageHeader
-          eyebrow="Base Operacional"
           title="Cobranças"
-          description="Fila operacional de débitos, negociações e encaminhamentos. Priorize por risco, valor e última movimentação."
+          description="Consulte e organize as cotas em cobrança."
           actions={
             <>
-              <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo', '/relatorio')} prefetch={false} variant="secondary">
-                <Download size={16} />
-                Exportar
-              </ButtonLink>
-              <ButtonLink href={relatorioExecutivoHref} prefetch={false} target="_blank" rel="noopener noreferrer" variant="secondary">
-                <FileText size={16} />
-                Executivo
-              </ButtonLink>
-              <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo', '/catalogo')} prefetch={false} variant="secondary" title="Cotas na regra de cobrança, incluindo jurídico e pré-jurídico">
-                <FileText size={16} />
-                Catálogo PDF
-              </ButtonLink>
+              <details className="relative">
+                <summary className="cursor-pointer rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">Exportar</summary>
+                <div className="absolute right-0 z-30 mt-2 flex min-w-52 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+                  <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo','/relatorio')} prefetch={false} variant="secondary">
+                    <Download size={16} />
+                    Planilha
+                  </ButtonLink>
+                  <ButtonLink href={relatorioExecutivoHref} prefetch={false} target="_blank" rel="noopener noreferrer" variant="secondary">
+                    <FileText size={16} />
+                    Executivo
+                  </ButtonLink>
+                  <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo','/catalogo')} prefetch={false} variant="secondary" title="Cotas na regra de cobrança, incluindo jurídico e pré-jurídico">
+                    <FileText size={16} />
+                    Catálogo PDF
+                  </ButtonLink>
+                </div>
+              </details>
               <ButtonLink href="/app/cobrancas/nova">
                 <Plus size={16} />
                 Nova cobrança
@@ -384,7 +388,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
             key={title}
             label={String(title)}
             value={value}
-            badge={<span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span>}
+            badge={title === "Negociação" ? <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span> : undefined}
           />
         ))}
       </LiteKpiStrip>
@@ -395,8 +399,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
             <div className="flex flex-col gap-3">
               <ListTitleBar className="xl:items-center">
                 <ListTitle
-                  title="Fila operacional"
-                  description="Filtre, selecione cobranças e aplique mudanças operacionais em lote."
+                  title="Resultados"
                 />
                 <div className="flex flex-wrap gap-2">
                   {showingAll ? (
@@ -413,116 +416,116 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
               </ListTitleBar>
 
               <ListFiltersForm className="mt-0 grid-cols-1">
-                <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
-                <ListSearchField
-                  defaultValue={filters.search}
-                  placeholder="Buscar responsável, unidade, bloco..."
-                  className="xl:col-span-3"
-                />
-                <ListFilterField label="Administradora" className="xl:col-span-3">
-                  <SearchableSelect
-                    name="administradora_id"
-                    options={administradoras.map((administradora) => ({
-                      value: administradora.id,
-                      label: administradora.nome,
-                    }))}
-                    selectedValue={filters.administradoraId}
-                    placeholder="Digite parte da administradora"
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
+                  <ListSearchField
+                    defaultValue={filters.search}
+                    placeholder="Buscar responsável, unidade, bloco..."
+                    className="xl:col-span-3"
                   />
-                </ListFilterField>
-                <ListFilterField label="Condução do processo" className="xl:col-span-3">
-                  <Select name="conducao_processo" defaultValue={filters.conducaoProcesso ?? ""}>
-                    <option value="">Todas</option>
-                    {Object.entries(CONDUCAO_PROCESSO).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </Select>
-                </ListFilterField>
-                <ListFilterField label="Condomínio" className="xl:col-span-3">
-                  <CondominioSearchSelect
-                    name="condominio_id"
-                    options={condominios.map((condominio: any) => ({
-                      id: condominio.id,
-                      nome: condominio.nome,
-                      administradora: null,
-                    }))}
-                    selectedId={filters.condominioId}
-                    defaultToFirst={false}
-                    inputClassName=""
-                  />
-                </ListFilterField>
-                <ListFilterField label="Unidade" className="xl:col-span-3">
-                  <SearchableSelect
-                    name="unidade_id"
-                    options={unidades.map((unidade: any) => ({
-                      value: unidade.id,
-                      label: [
-                        unidade.bloco ? `Bloco ${unidade.bloco}` : null,
-                        unidade.identificacao ? `Unidade ${unidade.identificacao}` : null,
-                        unidade.responsavel_nome,
-                      ].filter(Boolean).join(" - "),
-                    }))}
-                    selectedValue={filters.unidadeId}
-                    placeholder={filters.condominioId ? "Digite unidade ou responsável" : "Selecione um condomínio primeiro"}
-                  />
-                </ListFilterField>
-                </div>
-
-                <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
-                <ListFilterField label="Status" className="xl:col-span-2">
-                  <Select name="status" defaultValue={statusFilter.statusSelect}>
-                    <option value="operacionais">Fila operacional</option>
-                    <option value="todos">Todos os status</option>
-                    {STATUS_FILTERS.map((status) => (
-                      <option key={status} value={status}>
-                        {COBRANCA_STATUS_LABEL[status]}
-                      </option>
-                    ))}
-                  </Select>
-                </ListFilterField>
-                <ListFilterField label="Vencimento de" className="xl:col-span-2">
-                  <Input name="vencimento_de" type="date" defaultValue={filters.vencimentoDe} />
-                </ListFilterField>
-                <ListFilterField label="Vencimento até" className="xl:col-span-2">
-                  <Input name="vencimento_ate" type="date" defaultValue={filters.vencimentoAte} />
-                </ListFilterField>
-                <ListFilterField label="Operador responsável" className="xl:col-span-3">
-                  <Select name="operador_id" defaultValue={filters.operadorId}>
-                    <option value="">Todos</option>
-                    {operadores.map(operador => <option key={operador.id} value={operador.id}>{operador.nome}</option>)}
-                  </Select>
-                </ListFilterField>
-                <ListFilterField label="Criação de" className="xl:col-span-2">
-                  <Input name="criacao_de" type="date" defaultValue={filters.criacaoDe} />
-                </ListFilterField>
-                <ListFilterField label="Criação até" className="xl:col-span-2">
-                  <Input name="criacao_ate" type="date" defaultValue={filters.criacaoAte} />
-                </ListFilterField>
-                <ListFilterField label="Bloqueios" className="xl:col-span-2">
-                  <Select name="judicializacao_unidade" defaultValue={filters.judicializacaoUnidade}>
-                    <option value="nao">Sem bloqueios</option>
-                    <option value="todos">Incluir bloqueios</option>
-                    <option value="bloqueados">Somente bloqueadas</option>
-                    {STATUS_BLOQUEIOS.map((status) => (
-                      <option key={status} value={status}>{COBRANCA_STATUS_LABEL[status]}</option>
-                    ))}
-                    {filters.judicializacaoUnidade === "sim" ? <option value="sim">Unidades com judicialização</option> : null}
-                  </Select>
-                </ListFilterField>
-                <ListFilterField label="Ordenar por" className="xl:col-span-3">
-                  <Select name="ordenar" defaultValue={filters.ordenar}>
-                    <option value="vencimento_asc">Vencimento antigo</option>
-                    <option value="vencimento_desc">Vencimento recente</option>
-                    <option value="valor_desc">Maior valor</option>
-                    <option value="valor_asc">Menor valor</option>
-                    <option value="condominio">Condomínio</option>
-                    <option value="unidade">Unidade</option>
-                    <option value="responsavel">Responsável</option>
-                    <option value="status">Status</option>
-                  </Select>
-                </ListFilterField>
-                <Button type="submit" className="w-full xl:col-span-1">
-                  Filtrar
-                </Button>
-                </div>
+                  <ListFilterField label="Condomínio" className="xl:col-span-3">
+                    <CondominioSearchSelect
+                      name="condominio_id"
+                      options={condominios.map((condominio: any) => ({
+                        id: condominio.id,
+                        nome: condominio.nome,
+                        administradora: null,
+                      }))}
+                      selectedId={filters.condominioId}
+                      defaultToFirst={false}
+                      inputClassName=""
+                    />
+                  </ListFilterField>
+                  <ListFilterField label="Status" className="xl:col-span-2">
+                    <Select name="status" defaultValue={statusFilter.statusSelect}>
+                      <option value="operacionais">Fila operacional</option>
+                      <option value="todos">Todos os status</option>
+                      {STATUS_FILTERS.map((status) => (
+                        <option key={status} value={status}>
+                          {COBRANCA_STATUS_LABEL[status]}
+                        </option>
+                      ))}
+                    </Select>
+                  </ListFilterField>
+                  <Button type="submit" className="w-full xl:col-span-1">
+                    Filtrar
+                  </Button></div>
+                <details open={Boolean(filters.administradoraId||filters.conducaoProcesso||filters.unidadeId||filters.vencimentoDe||filters.vencimentoAte||filters.operadorId||filters.criacaoDe||filters.criacaoAte||filters.judicializacaoUnidade!=='nao'||filters.ordenar!=='vencimento_asc')} className="rounded-lg border border-slate-200 px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium text-slate-600">Mais filtros</summary>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-12">
+                    <ListFilterField label="Administradora" className="xl:col-span-3">
+                      <SearchableSelect
+                        name="administradora_id"
+                        options={administradoras.map((administradora) => ({
+                          value: administradora.id,
+                          label: administradora.nome,
+                        }))}
+                        selectedValue={filters.administradoraId}
+                        placeholder="Digite parte da administradora"
+                      />
+                    </ListFilterField>
+                    <ListFilterField label="Condução do processo" className="xl:col-span-3">
+                      <Select name="conducao_processo" defaultValue={filters.conducaoProcesso??""}>
+                        <option value="">Todas</option>
+                        {Object.entries(CONDUCAO_PROCESSO).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+                      </Select>
+                    </ListFilterField>
+                    <ListFilterField label="Unidade" className="xl:col-span-3">
+                      <SearchableSelect
+                        name="unidade_id"
+                        options={unidades.map((unidade: any) => ({
+                          value: unidade.id,
+                          label: [
+                            unidade.bloco? `Bloco ${unidade.bloco}`:null,
+                            unidade.identificacao? `Unidade ${unidade.identificacao}`:null,
+                            unidade.responsavel_nome,
+                          ].filter(Boolean).join(" - "),
+                        }))}
+                        selectedValue={filters.unidadeId}
+                        placeholder={filters.condominioId? "Digite unidade ou responsável":"Selecione um condomínio primeiro"}
+                      />
+                    </ListFilterField>
+                    <ListFilterField label="Vencimento de" className="xl:col-span-2">
+                      <Input name="vencimento_de" type="date" defaultValue={filters.vencimentoDe} />
+                    </ListFilterField>
+                    <ListFilterField label="Vencimento até" className="xl:col-span-2">
+                      <Input name="vencimento_ate" type="date" defaultValue={filters.vencimentoAte} />
+                    </ListFilterField>
+                    <ListFilterField label="Operador responsável" className="xl:col-span-3">
+                      <Select name="operador_id" defaultValue={filters.operadorId}>
+                        <option value="">Todos</option>
+                        {operadores.map(operador => <option key={operador.id} value={operador.id}>{operador.nome}</option>)}
+                      </Select>
+                    </ListFilterField>
+                    <ListFilterField label="Criação de" className="xl:col-span-2">
+                      <Input name="criacao_de" type="date" defaultValue={filters.criacaoDe} />
+                    </ListFilterField>
+                    <ListFilterField label="Criação até" className="xl:col-span-2">
+                      <Input name="criacao_ate" type="date" defaultValue={filters.criacaoAte} />
+                    </ListFilterField>
+                    <ListFilterField label="Bloqueios" className="xl:col-span-2">
+                      <Select name="judicializacao_unidade" defaultValue={filters.judicializacaoUnidade}>
+                        <option value="nao">Sem bloqueios</option>
+                        <option value="todos">Incluir bloqueios</option>
+                        <option value="bloqueados">Somente bloqueadas</option>
+                        {STATUS_BLOQUEIOS.map((status) => (
+                          <option key={status} value={status}>{COBRANCA_STATUS_LABEL[status]}</option>
+                        ))}
+                        {filters.judicializacaoUnidade==="sim"? <option value="sim">Unidades com judicialização</option>:null}
+                      </Select>
+                    </ListFilterField>
+                    <ListFilterField label="Ordenar por" className="xl:col-span-3">
+                      <Select name="ordenar" defaultValue={filters.ordenar}>
+                        <option value="vencimento_asc">Vencimento antigo</option>
+                        <option value="vencimento_desc">Vencimento recente</option>
+                        <option value="valor_desc">Maior valor</option>
+                        <option value="valor_asc">Menor valor</option>
+                        <option value="condominio">Condomínio</option>
+                        <option value="unidade">Unidade</option>
+                        <option value="responsavel">Responsável</option>
+                        <option value="status">Status</option>
+                      </Select>
+                    </ListFilterField>
+                  </div></details>
               </ListFiltersForm>
             </div>
           </ListPanelHeader>
@@ -572,7 +575,8 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
 
                           <div className="divide-y divide-slate-100">
                             {group.cobrancas.length === 0 ? <p className="px-7 py-3 text-sm text-slate-500">As cobranças deste condomínio estão em outras páginas.</p> : null}
-                            {group.cobrancas.map((row: any) => {
+                            <div className="hidden gap-3 border-b border-slate-100 bg-white px-4 py-2 text-xs font-medium text-slate-500 xl:grid xl:grid-cols-[40px_minmax(320px,1.4fr)_140px_150px_170px_90px]" aria-hidden="true"><span /><span>Unidade / responsável</span><span>Valor</span><span>Vencimento</span><span>Última interação</span><span /></div>
+                          {group.cobrancas.map((row: any) => {
                         const status = getCobrancaStatusOperacional(row);
                         const priority = getPriority(status, row.vencimento);
                         const unidadeLabel = [
@@ -614,25 +618,26 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
                           {row.unidades?.responsavel_nome ?? "Responsável não informado"} · Competência {row.competencia ?? "-"}
                         </ListItemMeta>
                         {row.unidade_bloqueada_por_judicializacao ? (
-                          <p className="mt-1 text-xs font-medium text-red-700">
-                            Informativo: há cobrança em pré-jurídico ou judicializada nesta unidade. O bloqueio é individual por cobrança.
-                          </p>
+                          <details className="mt-1 text-xs text-red-700">
+                            <summary className="cursor-pointer">Entender o alerta jurídico</summary>
+                            <p className="mt-1">Há cota em pré-jurídico ou judicializada nesta unidade. O bloqueio é individual por cobrança.</p>
+                          </details>
                         ) : null}
                       </div>
 
-                      <ListMetric
+                      <ListMetric labelOnDesktop={false}
                         label="Valor"
                         value={formatCurrency(Number(row.valor_atualizado))}
                         valueClassName="font-semibold text-slate-950"
                       />
 
-                      <ListMetric
+                      <ListMetric labelOnDesktop={false}
                         label="Vencimento"
                         value={formatDateBR(row.vencimento)}
                         icon={<CalendarDays size={14} />}
                       />
 
-                      <ListMetric label="Última interação" value={formatDateBR(row.ultima_interacao_at)} />
+                      <ListMetric labelOnDesktop={false} label="Última interação" value={formatDateBR(row.ultima_interacao_at)} />
 
                       <div className="flex justify-end">
                         <Link

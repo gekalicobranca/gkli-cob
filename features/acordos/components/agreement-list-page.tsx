@@ -201,96 +201,101 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
       <ListPanel>
         <ListPanelHeader className="bg-white/80">
           <ListTitleBar className="xl:items-center">
-            <ListTitle title="Fila de acordos" />
+            <ListTitle title="Resultados" />
             <ClearFiltersLink href={basePath} show={hasFilters} />
           </ListTitleBar>
 
-          <ListFiltersForm className="grid-cols-1 md:grid-cols-2 xl:grid-cols-12">
-            <ListSearchField
-              defaultValue={clean(params.q)}
-              placeholder="Condomínio, unidade, responsável..."
-              className="xl:col-span-3"
-            />
-            <ListFilterField label="Condomínio" className="xl:col-span-5">
-              <CondominioSearchSelect
-                name="condominio_id"
-                options={condominios.map((condominio: any) => ({
-                  id: condominio.id,
-                  nome: condominio.nome,
-                  administradora: null,
-                }))}
-                selectedId={clean(params.condominio_id)}
-                defaultToFirst={false}
-                inputClassName=""
+          <ListFiltersForm className="mt-0 grid-cols-1">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
+              <ListSearchField
+                defaultValue={clean(params.q)}
+                placeholder="Condomínio, unidade, responsável..."
+                className="xl:col-span-3"
               />
-            </ListFilterField>
-            <ListFilterField label="Unidade" className="xl:col-span-4">
-              <SearchableSelect
-                name="unidade_id"
-                options={unidades.map((unidade: any) => ({
-                  value: unidade.id,
-                  label: [
-                    unidade.bloco ? `Bloco ${unidade.bloco}` : null,
-                    unidade.identificacao ? `Unidade ${unidade.identificacao}` : null,
-                    unidade.responsavel_nome,
-                  ].filter(Boolean).join(" - "),
-                }))}
-                selectedValue={clean(params.unidade_id)}
-                placeholder={clean(params.condominio_id) ? "Digite unidade ou responsável" : "Selecione um condomínio primeiro"}
-              />
-            </ListFilterField>
-            <ListFilterField label="Status" className="xl:col-span-2">
-              <Select name="status" defaultValue={clean(params.status)}>
-                <option value="">Todos</option>
-                <option value="ativo">Ativo</option>
-                <option value="em atraso">Em atraso</option>
-                <option value="quebrado">Quebrado</option>
-                <option value="rompido">Rompido</option>
-                <option value="quitado">Quitado</option>
-                <option value="cancelado">Cancelado</option>
-              </Select>
-            </ListFilterField>
-            <ListFilterField label="Carteira" className="xl:col-span-2">
-              <Select name="carteira_id" defaultValue={clean(params.carteira_id)}>
-                <option value="">Todas</option>
-                {carteiras.map((carteira: any) => (
-                  <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
-                ))}
-              </Select>
-            </ListFilterField>
-            <ListFilterField label="Vencimento das parcelas de" className="xl:col-span-2">
-              <Input name="data_de" type="date" defaultValue={dateFilter(params.data_de)} />
-            </ListFilterField>
-            <ListFilterField label="Vencimento das parcelas até" className="xl:col-span-2">
-              <Input name="data_ate" type="date" defaultValue={dateFilter(params.data_ate)} />
-            </ListFilterField>
-            <ListFilterField label="Operador responsável" className="xl:col-span-3">
-              <Select name="operador_id" defaultValue={clean(params.operador_id)}>
-                <option value="">Todos</option>
-                {operadores.map(operador => <option key={operador.id} value={operador.id}>{operador.nome}</option>)}
-              </Select>
-            </ListFilterField>
-            <ListFilterField label="Criação de" className="xl:col-span-2">
-              <Input name="criacao_de" type="date" defaultValue={dateFilter(params.criacao_de)} />
-            </ListFilterField>
-            <ListFilterField label="Criação até" className="xl:col-span-2">
-              <Input name="criacao_ate" type="date" defaultValue={dateFilter(params.criacao_ate)} />
-            </ListFilterField>
-            <ListFilterField label="Ordenar por" className="xl:col-span-3">
-              <Select name="ordenar" defaultValue={clean(params.ordenar) || 'data_desc'}>
-                <option value="condominio">Condomínio</option>
-                <option value="unidade">Unidade</option>
-                <option value="responsavel">Responsável</option>
-                <option value="status">Status</option>
-                <option value="data_desc">Data mais recente</option>
-                <option value="data_asc">Data mais antiga</option>
-                <option value="valor_desc">Maior valor</option>
-                <option value="valor_asc">Menor valor</option>
-              </Select>
-            </ListFilterField>
-            <Button type="submit" className="w-full xl:col-span-1">
-              Filtrar
-            </Button>
+              <ListFilterField label="Condomínio" className="xl:col-span-5">
+                <CondominioSearchSelect
+                  name="condominio_id"
+                  options={condominios.map((condominio: any) => ({
+                    id: condominio.id,
+                    nome: condominio.nome,
+                    administradora: null,
+                  }))}
+                  selectedId={clean(params.condominio_id)}
+                  defaultToFirst={false}
+                  inputClassName=""
+                />
+              </ListFilterField>
+              <ListFilterField label="Status" className="xl:col-span-2">
+                <Select name="status" defaultValue={clean(params.status)}>
+                  <option value="">Todos</option>
+                  <option value="ativo">Ativo</option>
+                  <option value="em atraso">Em atraso</option>
+                  <option value="quebrado">Quebrado</option>
+                  <option value="rompido">Rompido</option>
+                  <option value="quitado">Quitado</option>
+                  <option value="cancelado">Cancelado</option>
+                </Select>
+              </ListFilterField>
+              <Button type="submit" className="w-full xl:col-span-1">
+                Filtrar
+              </Button></div>
+            <details open={Boolean(params.unidade_id||params.carteira_id||params.data_de||params.data_ate||params.operador_id||params.criacao_de||params.criacao_ate||params.ordenar)} className="rounded-lg border border-slate-200 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium text-slate-600">Mais filtros</summary>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-12">
+                <ListFilterField label="Unidade" className="xl:col-span-4">
+                  <SearchableSelect
+                    name="unidade_id"
+                    options={unidades.map((unidade: any) => ({
+                      value: unidade.id,
+                      label: [
+                        unidade.bloco? `Bloco ${unidade.bloco}`:null,
+                        unidade.identificacao? `Unidade ${unidade.identificacao}`:null,
+                        unidade.responsavel_nome,
+                      ].filter(Boolean).join(" - "),
+                    }))}
+                    selectedValue={clean(params.unidade_id)}
+                    placeholder={clean(params.condominio_id)? "Digite unidade ou responsável":"Selecione um condomínio primeiro"}
+                  />
+                </ListFilterField>
+                <ListFilterField label="Carteira" className="xl:col-span-2">
+                  <Select name="carteira_id" defaultValue={clean(params.carteira_id)}>
+                    <option value="">Todas</option>
+                    {carteiras.map((carteira: any) => (
+                      <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
+                    ))}
+                  </Select>
+                </ListFilterField>
+                <ListFilterField label="Vencimento das parcelas de" className="xl:col-span-2">
+                  <Input name="data_de" type="date" defaultValue={dateFilter(params.data_de)} />
+                </ListFilterField>
+                <ListFilterField label="Vencimento das parcelas até" className="xl:col-span-2">
+                  <Input name="data_ate" type="date" defaultValue={dateFilter(params.data_ate)} />
+                </ListFilterField>
+                <ListFilterField label="Operador responsável" className="xl:col-span-3">
+                  <Select name="operador_id" defaultValue={clean(params.operador_id)}>
+                    <option value="">Todos</option>
+                    {operadores.map(operador => <option key={operador.id} value={operador.id}>{operador.nome}</option>)}
+                  </Select>
+                </ListFilterField>
+                <ListFilterField label="Criação de" className="xl:col-span-2">
+                  <Input name="criacao_de" type="date" defaultValue={dateFilter(params.criacao_de)} />
+                </ListFilterField>
+                <ListFilterField label="Criação até" className="xl:col-span-2">
+                  <Input name="criacao_ate" type="date" defaultValue={dateFilter(params.criacao_ate)} />
+                </ListFilterField>
+                <ListFilterField label="Ordenar por" className="xl:col-span-3">
+                  <Select name="ordenar" defaultValue={clean(params.ordenar)||'data_desc'}>
+                    <option value="condominio">Condomínio</option>
+                    <option value="unidade">Unidade</option>
+                    <option value="responsavel">Responsável</option>
+                    <option value="status">Status</option>
+                    <option value="data_desc">Data mais recente</option>
+                    <option value="data_asc">Data mais antiga</option>
+                    <option value="valor_desc">Maior valor</option>
+                    <option value="valor_asc">Menor valor</option>
+                  </Select>
+                </ListFilterField>
+              </div></details>
           </ListFiltersForm>
         </ListPanelHeader>
 
@@ -326,6 +331,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                         <p className="shrink-0 text-sm font-semibold text-slate-800">{formatCurrency(group.valor)}</p>
                       </summary>
                       <div className="divide-y divide-slate-100 border-t border-slate-100">
+                        <div className="hidden gap-3 border-b border-slate-100 bg-white px-4 py-2 text-xs font-medium text-slate-500 xl:grid xl:grid-cols-[minmax(320px,1.4fr)_120px_140px_150px_90px]" aria-hidden="true"><span>Unidade / responsável</span><span>Valor</span><span>Avaliação</span><span>Data do acordo</span><span /></div>
                         {group.acordos.map((row: any) => (
                           <Link
                             key={row.id}
@@ -335,23 +341,22 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 {isJudicialUnderReview(row) ? <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Em conferência</span> : <StatusBadge status={row.status} />}
-                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.carteiras?.nome ?? 'Carteira não informada'}</span>
                               </div>
                               <ListItemTitle className="mt-2">{getUnitLabel(row.unidades)}</ListItemTitle>
                               <ListItemMeta>
                                 {row.unidades?.responsavel_nome ?? 'Responsável não informado'} {row.numero_processo ? `· proc. ${row.numero_processo}` : ''}
                               </ListItemMeta>
                             </div>
-                            <ListMetric
+                            <ListMetric labelOnDesktop={false}
                               label="Valor"
                               value={formatCurrency(Number(row.valor_acordado))}
                               valueClassName="font-semibold text-slate-950"
                             />
                             <div>
-                              <p className="text-xs font-medium uppercase tracking-normal text-slate-400">Saúde</p>
+                              <p className="text-xs font-medium uppercase tracking-normal text-slate-400 xl:sr-only">Avaliação</p>
                               <div className="mt-1"><AgreementHealthBadge health={row.saude_acordo} /></div>
                             </div>
-                            <ListMetric label="Data" value={formatDateBR(row.data_acordo)} />
+                            <ListMetric labelOnDesktop={false} label="Data" value={formatDateBR(row.data_acordo)} />
                             <div className="flex justify-end"><ArrowUpRight size={16} className="text-slate-400 group-hover:text-[var(--gkli-primary)]" /></div>
                           </Link>
                         ))}

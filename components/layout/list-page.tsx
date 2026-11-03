@@ -31,6 +31,7 @@ type ListEmptyStateProps = {
 }
 
 type ListMetricProps = {
+  labelOnDesktop?: boolean
   label: string
   value: ReactNode
   icon?: ReactNode
@@ -225,10 +226,10 @@ export function ListItemMeta({ className, children, ...props }: HTMLAttributes<H
   )
 }
 
-export function ListMetric({ label, value, icon, className, valueClassName }: ListMetricProps) {
+export function ListMetric({ label, value, icon, className, valueClassName, labelOnDesktop = true }: ListMetricProps) {
   return (
     <div className={className}>
-      <p className="text-xs font-medium uppercase tracking-normal text-slate-400">{label}</p>
+      <p className={cn("text-xs font-medium uppercase tracking-normal text-slate-400", !labelOnDesktop && "xl:sr-only")}>{label}</p>
       <p className={cn('mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-700', valueClassName)}>
         {icon}
         {value}

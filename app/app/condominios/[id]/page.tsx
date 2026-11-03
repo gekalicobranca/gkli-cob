@@ -76,7 +76,6 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
     condominio.gerente_celular,
   ].filter((value) => String(value ?? '').trim()).length
   const contatosReguaCompletos = contatosReguaPreenchidos === 4
-  const ultimaImportacao = importacoes[0]
   const nomeExibicao = condominio.nome_operacional || condominio.nome || 'Condomínio'
   const agenteLabel = agenteStatus === 'configurado'
     ? 'Acesso remoto/agente configurado'
@@ -118,13 +117,11 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
 
       <p className="text-sm text-slate-600">Grupo: {condominio.grupo || 'Sem grupo'} · Operador responsável: {operadores.find(item => item.id === operadorEfetivoId(condominio))?.nome ?? (operadorEfetivoId(condominio) ? 'Indisponível' : 'Não definido')} ({condominio.operador_id ? 'condomínio' : 'herdado da carteira'})</p>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={<Home size={18} />} label="Unidades" value={String(unidades.length)} detail={`${unidadesAtivas} ativas`} />
         <Kpi icon={<Users size={18} />} label="Responsáveis" value={String(responsaveis.length)} detail={`${responsaveisAtivos} ativos`} />
         <Kpi icon={<Users size={18} />} label="Cobertura contatos" value={`${coberturaContato}%`} detail={`${contatosComTelefone} telefones · ${contatosComEmail} e-mails`} />
         <Kpi icon={<Users size={18} />} label="Contatos da régua" value={`${contatosReguaPreenchidos}/4`} detail={contatosReguaCompletos ? 'síndico e gerente completos' : 'complete síndico e gerente'} />
-        <Kpi icon={<ClipboardList size={18} />} label="Importações" value={String(importacoes.length)} detail={ultimaImportacao ? `última em ${formatDateTime(ultimaImportacao.created_at)}` : 'sem importações'} />
-        <Kpi icon={<Activity size={18} />} label="Eventos" value={String(eventos.length)} detail="auditoria operacional" />
       </section>
 
       <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
@@ -292,7 +289,7 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
 
       {abaAtiva === 'historico' ? <section id="historico" className="scroll-mt-24">
         <Card className="overflow-hidden p-0">
-          <div className="border-b border-slate-100 p-5"><Badge tone="primary">Histórico</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Histórico operacional</h2><p className="mt-1 text-sm text-slate-500">Eventos do Condomínio Integral e importações recentes ficam concentrados aqui.</p></div>
+          <div className="border-b border-slate-100 p-5"><Badge tone="primary">Histórico</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Histórico operacional</h2><p className="mt-1 text-sm text-slate-500">{importacoes.length} importações · {eventos.length} eventos</p><p className="mt-1 text-sm text-slate-500">Eventos do Condomínio Integral e importações recentes ficam concentrados aqui.</p></div>
           {eventos.length === 0 && importacoes.length === 0 ? <div className="p-5 text-sm text-slate-500">Nenhum histórico encontrado para este condomínio.</div> : (
             <div className="grid gap-5 p-5 xl:grid-cols-[1fr_.9fr]">
               <div className="space-y-3"><div className="flex items-center gap-2 text-sm text-slate-700"><FileClock size={16} className="text-[var(--gkli-primary)]" />Timeline de alterações</div>{eventos.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Rode a migration da Fase 2 para começar a registrar eventos de auditoria.</div> : <div className="space-y-3">{eventos.map((evento: any) => <TimelineItem key={evento.id} evento={evento} />)}</div>}</div>
@@ -304,8 +301,8 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
 
       {abaAtiva === 'auditoria' ? <section id="auditoria" className="scroll-mt-24">
         <Card className="space-y-4">
-          <div><Badge tone="primary">Auditoria</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Alterações rastreadas</h2><p className="mt-1 text-sm text-slate-500">Na Fase 2, toda edição salva no Condomínio Integral registra usuário, data e campos alterados.</p></div>
-          <div className="grid gap-3 md:grid-cols-3"><AuditInfo title="Quem alterou" text="Nome e e-mail do usuário autenticado." /><AuditInfo title="O que mudou" text="Campos antes/depois em JSON estruturado." /><AuditInfo title="Quando mudou" text="Linha do tempo ordenada por data." /></div>
+          <div><Badge tone="primary">Auditoria</Badge><h2 className="mt-3 text-lg font-medium text-slate-950">Alterações rastreadas</h2><p className="mt-1 text-sm text-slate-500">Consulte quem alterou o cadastro, quando e quais campos foram modificados.</p></div>
+          <div className="grid gap-3 md:grid-cols-3"><AuditInfo title="Quem alterou" text="Nome e e-mail do usuário autenticado." /><AuditInfo title="O que mudou" text="Valores anteriores e atuais dos campos alterados." /><AuditInfo title="Quando mudou" text="Linha do tempo ordenada por data." /></div>
         </Card>
       </section> : null}
 
