@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { COBRANCA_STATUS_FINANCEIRO_LIST, COBRANCA_STATUS_LABEL, COBRANCA_STATUS_OPERACIONAL_LIST } from '@/lib/core/status'
+import { COBRANCA_STATUS_LABEL, COBRANCA_STATUS_OPERACIONAL_LIST } from '@/lib/core/status'
 
 export function CobrancaStatusActions({
   cobranca,
@@ -23,16 +23,12 @@ export function CobrancaStatusActions({
         {!compact ? <h2 className="text-lg font-semibold text-slate-950">Atualizar status</h2> : null}
         <form action={updateStatusAction} className="flex flex-col gap-3">
           <input type="hidden" name="cobranca_id" value={cobranca.id} />
-          <select name="status" defaultValue={statusOperacional} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none">
+          <select aria-label="Status operacional" name="status" defaultValue={statusOperacional} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none">
             {COBRANCA_STATUS_OPERACIONAL_LIST.map((status) => (
               <option key={status} value={status}>{COBRANCA_STATUS_LABEL[status] ?? status}</option>
             ))}
           </select>
-          <select name="status_financeiro" defaultValue={statusFinanceiro} disabled className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-500 outline-none">
-            {COBRANCA_STATUS_FINANCEIRO_LIST.map((status) => (
-              <option key={status} value={status}>{COBRANCA_STATUS_LABEL[status] ?? status}</option>
-            ))}
-          </select>
+          <p className="text-sm text-slate-600">Situação financeira: <strong>{COBRANCA_STATUS_LABEL[statusFinanceiro] ?? statusFinanceiro}</strong></p>
           <div className="flex justify-end"><Button type="submit">Salvar status</Button></div>
         </form>
       </div>

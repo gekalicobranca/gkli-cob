@@ -55,7 +55,6 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
         }
       />
 
-      <ConducaoProcessoBadge unidade={unidade} />
       {query.planilha === 'solicitada' || query.planilha === 'existente' ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
           {query.planilha === 'solicitada'
@@ -89,8 +88,10 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
           <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{historico.resumo.acordosTotal}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Alerta</p>
-          <p className={`mt-2 text-sm font-semibold ${historico.resumo.possuiJudicializacao ? 'text-red-700' : 'text-emerald-700'}`}>{historico.resumo.possuiJudicializacao ? 'Judicialização na unidade' : 'Sem bloqueio judicial'}</p>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Situação jurídica</p>
+          <div className="mt-2"><ConducaoProcessoBadge unidade={unidade} /></div>
+          {unidade.numero_processo ? <p className="mt-2 break-all text-xs text-slate-600">Processo: {unidade.numero_processo}</p> : null}
+          <p className={`mt-2 text-sm font-semibold ${historico.resumo.possuiJudicializacao || unidade.acao_judicial ? 'text-red-700' : 'text-emerald-700'}`}>{historico.resumo.possuiJudicializacao ? 'Há cotas com encaminhamento jurídico' : unidade.acao_judicial ? 'Ação judicial cadastrada na unidade' : 'Sem indicação judicial cadastrada'}</p>
         </Card>
       </section>
 

@@ -60,7 +60,7 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="Pré-Jurídico" title="Painel pré-jurídico" description="Revise cobranças que atingiram a regra de vencimento e encaminhe cada uma individualmente ao pré-jurídico." />
+      <PageHeader title="Pré-jurídico" description="Revise cobranças que atingiram a regra de vencimento e encaminhe cada uma individualmente ao pré-jurídico." />
       <ListKpiGrid>
         <Card className="relative overflow-hidden p-3">
           <div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><WalletCards size={18} /></div>
@@ -68,15 +68,14 @@ export default async function PreJuridicoPage({ searchParams }: { searchParams: 
           <p className="mt-1.5 text-2xl font-semibold text-slate-950">{formatCurrency(valorElegivel)}</p>
         </Card>
         {[
-          ['Elegíveis', elegiveis.length, 'aguardando', 'bg-emerald-50 text-emerald-700'],
-          ['Encaminhadas', encaminhadas.length, 'pré-jurídico', 'bg-violet-50 text-violet-700'],
-          ['Unidades', unidades, 'no recorte', 'bg-blue-50 text-blue-700'],
-        ].map(([title, value, tag, tagClass]) => (
+          ['Elegíveis', elegiveis.length],
+          ['Encaminhadas', encaminhadas.length],
+          ['Unidades', unidades],
+        ].map(([title, value]) => (
           <Card key={title} className="p-3">
             <p className="text-xs font-medium uppercase text-slate-400">{title}</p>
             <div className="mt-1.5 flex items-end justify-between gap-3">
               <p className="text-2xl font-semibold text-slate-950">{value}</p>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span>
             </div>
           </Card>
         ))}

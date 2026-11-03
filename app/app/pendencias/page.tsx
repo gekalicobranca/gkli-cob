@@ -369,15 +369,13 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaOperacional }) {
               Atrasada
             </span>
           ) : null}
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-            {origemIcon(pendencia.origem)}
-            {origemLabel[pendencia.origem] ?? pendencia.origem}
-          </span>
+
         </div>
         <ListItemTitle className="mt-2">{title}</ListItemTitle>
         {description ? <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{description}</p> : null}
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">{tipo}</span>
+          <span>{origemIcon(pendencia.origem)} {origemLabel[pendencia.origem] ?? pendencia.origem}</span>
           {pendencia.cobranca_id ? <Link href={`/app/cobrancas/${pendencia.cobranca_id}`} className="font-medium text-[var(--gkli-primary)] hover:underline">Ver cobrança</Link> : null}
           {pendencia.acordo_id ? <Link href={`/app/acordos/${pendencia.acordo_id}`} className="font-medium text-[var(--gkli-primary)] hover:underline">Ver acordo</Link> : null}
         </div>

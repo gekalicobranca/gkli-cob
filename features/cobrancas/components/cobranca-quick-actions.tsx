@@ -126,12 +126,12 @@ export function CobrancaQuickActions({
           </ButtonLink>
         ) : (
           <ButtonLink
-            href="/app/acordos"
+            href={`/app/acordos?condominio_id=${encodeURIComponent(cobranca.condominio_id ?? cobranca.condominios?.id ?? '')}&unidade_id=${encodeURIComponent(cobranca.unidade_id ?? cobranca.unidades?.id ?? '')}`}
             variant="secondary"
             className="justify-center"
           >
             <Handshake size={15} />
-            Ver acordos
+            Acordos desta unidade
           </ButtonLink>
         )}
       </div>

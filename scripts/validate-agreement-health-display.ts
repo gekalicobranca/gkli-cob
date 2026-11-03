@@ -8,10 +8,10 @@ for (const health of [undefined, null, '', 'desconhecido']) {
   test(`avaliação ausente/inválida (${String(health)}) não indica acordo saudável`, () => {
     const html = renderToStaticMarkup(createElement(AgreementHealthBadge, { health }))
     assert.match(html, /Não avaliado/)
-    assert.doesNotMatch(html, /Saudável|emerald/)
+    assert.doesNotMatch(html, /Em dia|Saudável|emerald/)
   })
 }
-for (const [health, label] of [['saudavel', 'Saudável'], ['atencao', 'Atenção'], ['critico', 'Crítico']]) {
+for (const [health, label] of [['saudavel', 'Em dia'], ['atencao', 'Atenção'], ['critico', 'Crítico']]) {
   test(`preserva a avaliação confirmada: ${health}`, () => {
     assert.match(renderToStaticMarkup(createElement(AgreementHealthBadge, { health })), new RegExp(label))
   })

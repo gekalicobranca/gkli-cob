@@ -299,10 +299,10 @@ export default async function MaestroPage({ searchParams }: Props) {
 
     {aba === 'pipeline' ? <>
       <section className="grid gap-3 md:grid-cols-4">
-        <Kpi icon={<Building2 size={18} />} label="Condomínios" value={linhas.length} helper="no Maestro" />
-        <Kpi icon={<Route size={18} />} label="Em fluxo" value={emFluxo} helper="aguardando ou executando" />
-        <Kpi icon={<Check size={18} />} label="Ciclos concluídos" value={concluidos} helper="chegaram à régua" />
-        <Kpi icon={<TriangleAlert size={18} />} label="Atenção" value={atencao} helper="erro ou configuração" tone="amber" />
+        <Kpi icon={<Building2 size={18} />} label="Condomínios (geral)" value={linhas.length} helper="no Maestro" />
+        <Kpi icon={<Route size={18} />} label="Em fluxo (geral)" value={emFluxo} helper="aguardando ou executando" />
+        <Kpi icon={<Check size={18} />} label="Ciclos concluídos (geral)" value={concluidos} helper="chegaram à régua" />
+        <Kpi icon={<TriangleAlert size={18} />} label="Atenção (geral)" value={atencao} helper="erro ou configuração" tone="amber" />
       </section>
       <Card className="p-4"><form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_220px_240px_190px_auto]">
         <input type="hidden" name="aba" value="pipeline" />

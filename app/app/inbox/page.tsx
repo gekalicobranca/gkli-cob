@@ -9,7 +9,6 @@ import {
   Handshake,
   Landmark,
   MessageCircle,
-  Sparkles,
   Target,
   WalletCards,
 } from "lucide-react";
@@ -149,10 +148,6 @@ export default async function InboxOperacionalPage({
         <div className="pointer-events-none absolute right-8 top-4 h-32 w-32 rounded-full bg-[#d7eef5] blur-3xl" />
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#d7eef5] bg-[#edf8fb] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[#04799a]">
-              <Sparkles size={14} />
-              Experiência Lite
-            </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">
               Inbox operacional
             </h1>
@@ -183,7 +178,7 @@ export default async function InboxOperacionalPage({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
-                Fila do dia
+                Prioritários do dia
               </p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">
                 {Math.min(16, grupos.length)}
@@ -193,7 +188,7 @@ export default async function InboxOperacionalPage({
               <Target size={19} />
             </span>
           </div>
-          <p className="mt-2 text-sm text-slate-500">responsáveis para priorizar</p>
+          <p className="mt-2 text-sm text-slate-500">de {grupos.length} responsáveis na fila</p>
         </Card>
 
         <Card className="p-4">
@@ -210,7 +205,7 @@ export default async function InboxOperacionalPage({
               <AlertTriangle size={19} />
             </span>
           </div>
-          <p className="mt-2 text-sm text-slate-500">prioridade alta real</p>
+          <p className="mt-2 text-sm text-slate-500">exigem atenção prioritária</p>
         </Card>
 
         <Card className="p-4">
@@ -244,7 +239,7 @@ export default async function InboxOperacionalPage({
               <Handshake size={19} />
             </span>
           </div>
-          <p className="mt-2 text-sm text-slate-500">negociações quentes</p>
+          <p className="mt-2 text-sm text-slate-500">potencial em negociação</p>
         </Card>
       </LiteKpiStrip>
 

@@ -1,3 +1,6 @@
+import { calculateAgreementHealth } from './health';
+export { calculateAgreementHealth } from './health';
+export type { AgreementHealth } from './health';
 import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
 import {acordoIdsDaUnidade} from './unidades-consulta';
 import { acordoTemParcelaNoPeriodo } from './filtro-vencimento'
@@ -729,7 +732,7 @@ export async function getPendenciaAprovacaoSindicoAberta(params: {
 
 
 
-export type AgreementHealth = "saudavel" | "atencao" | "critico";
+
 
 function normalizeDateOnly(value?: string | null) {
   if (!value) return null;
@@ -755,31 +758,6 @@ function isParcelaEncerrada(parcela: any) {
   return ["paga", "pago", "quitada", "quitado", "cancelada", "cancelado"].includes(
     String(parcela.status ?? "").toLowerCase(),
   ) || Boolean(parcela.data_pagamento);
-}
-
-export function calculateAgreementHealth(parcelas: any[]): {
-  saude: AgreementHealth;
-  vencidas: number;
-  venceHoje: number;
-  proximos7Dias: number;
-} {
-  const abertas = (parcelas ?? []).filter((parcela) => !isParcelaEncerrada(parcela));
-  const vencidas = abertas.filter((parcela) => {
-    const diff = diffDaysFromToday(parcela.vencimento);
-    return diff !== null && diff < 0;
-  }).length;
-  const venceHoje = abertas.filter((parcela) => diffDaysFromToday(parcela.vencimento) === 0).length;
-  const proximos7Dias = abertas.filter((parcela) => {
-    const diff = diffDaysFromToday(parcela.vencimento);
-    return diff !== null && diff >= 1 && diff <= 7;
-  }).length;
-
-  return {
-    saude: vencidas >= 2 ? "critico" : vencidas === 1 ? "atencao" : "saudavel",
-    vencidas,
-    venceHoje,
-    proximos7Dias,
-  };
 }
 
 function attachAgreementHealth(acordos: any[], parcelas: any[]) {
@@ -1098,7 +1076,7 @@ export async function listFilaParcelasOperadorAcordos(scope?: CarteiraScope) {
         acordo,
         diff_dias: diff,
         janela_operacional,
-        saude_acordo: acordo?.saude_acordo ?? "saudavel",
+        saude_acordo: acordo?.saude_acordo ?? "nao_avaliado",
       };
     })
     .filter((row) => ["Em atraso", "Hoje", "Próximos 7 dias"].includes(row.janela_operacional))
@@ -1129,7 +1107,7 @@ export async function listParcelasAcordosOperacionais(scope?: CarteiraScope, tip
         acordo,
         diff_dias: diff,
         janela_operacional,
-        saude_acordo: acordo?.saude_acordo ?? "saudavel",
+        saude_acordo: acordo?.saude_acordo ?? "nao_avaliado",
       };
     })
     .sort((a, b) => {

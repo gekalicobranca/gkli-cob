@@ -9,7 +9,7 @@ function formatDateTime(value?: string | null) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
-export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
+export function AgreementFormalizationCard({ acordo, hideTitle = false }: { acordo: any; hideTitle?: boolean }) {
   const state = formalizacaoState(acordo);
   const termos: any[] = acordo.termos ?? [];
   const pagamento = ["parcial", "quitado"].includes(acordo.status_financeiro) || acordo.status === "quitado";
@@ -26,7 +26,7 @@ export function AgreementFormalizationCard({ acordo }: { acordo: any }) {
     { status: "boletos_enviados", titulo: "Confirmar envio dos boletos ao devedor", permitido: state.podeConfirmarEnvio, ajuda: "Informe a referência do e-mail, mensagem ou protocolo de envio ao devedor." },
   ];
   return <Card id="formalizacao"><CardContent className="space-y-4 p-4">
-    <h2 className="flex items-center gap-2 text-base font-semibold"><FileText className="h-4 w-4" />Formalização e boletos</h2>
+    {!hideTitle && <h2 className="flex items-center gap-2 text-base font-semibold"><FileText className="h-4 w-4" />Formalização e boletos</h2>}
     <dl className="divide-y divide-slate-100">
       {etapas.map(([titulo, descricao]) => <div key={titulo} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
         <dt className="text-slate-500">{titulo}</dt><dd className="font-medium text-slate-950">{descricao}</dd>

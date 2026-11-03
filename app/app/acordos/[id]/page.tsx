@@ -319,50 +319,12 @@ export default async function AcordoDetalhePage({ params }: Props) {
         <p className="mb-2 text-sm">Aprovação registrada. Prepare o termo e a solicitação de boletos com o plano aprovado.</p>
         <PendingSubmitButton pendingLabel="Preparando...">Preparar formalização aprovada</PendingSubmitButton>
       </form> : null}
-      <details open={possuiFormalizacaoPendente} className="rounded-lg border border-slate-200 bg-white p-3"><summary className="cursor-pointer font-semibold text-slate-900">Formalização e boletos</summary><div className="mt-3"><AgreementFormalizationCard acordo={acordo} /></div></details>
-
-      {Array.isArray(revisoes) && revisoes.length > 0 ? (
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="space-y-4 p-5">
-            <SectionTitle
-              title="Revisões do acordo"
-              description="Histórico de alterações de valor, vencimento e reemissões."
-              count={revisoes.length}
-            />
-            <div className="space-y-3">
-              {revisoes.map((revisao: any) => (
-                <div key={revisao.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Badge value={revisao.status} />
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                      {formatDate(revisao.created_at)}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Valor</p>
-                      <p className="mt-1 font-semibold text-slate-950">{formatCurrency(revisao.valor_anterior)} {"->"} {formatCurrency(revisao.valor_novo ?? revisao.valor_anterior)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Vencimento</p>
-                      <p className="mt-1 font-semibold text-slate-950">{formatDate(revisao.vencimento_anterior)} {"->"} {formatDate(revisao.vencimento_novo)}</p>
-                    </div>
-                  </div>
-                  {revisao.motivo ? <p className="mt-3 text-sm text-slate-500">{revisao.motivo}</p> : null}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+      <details open={possuiFormalizacaoPendente} className="rounded-lg border border-slate-200 bg-white p-3"><summary className="cursor-pointer font-semibold text-slate-900">Formalização e boletos</summary><div className="mt-3"><AgreementFormalizationCard acordo={acordo} hideTitle /></div></details>
 
       <details className="rounded-lg border border-slate-200 bg-white p-3"><summary className="cursor-pointer font-semibold text-slate-900">Ações operacionais e exceções</summary>
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="space-y-4 p-5">
-          <SectionTitle
-            title="Ações operacionais"
-            description="Comandos de exceção para corrigir o fluxo do acordo."
-          />
+
 
           <div className={["grid gap-3", "grid-cols-1"].join(" ")}>
             {podeCancelarFormalizacao ? (
@@ -458,7 +420,42 @@ export default async function AcordoDetalhePage({ params }: Props) {
       </details>
 
       <details id="historico-acordo" className="scroll-mt-20 rounded-lg border border-slate-200 bg-white p-3" open={timeline.length > 0}>
-        <summary className="cursor-pointer font-semibold text-slate-900">Histórico de atividades · {timeline.length}</summary>
+        <summary className="cursor-pointer font-semibold text-slate-900">Histórico · {timeline.length} atividades · {revisoes?.length ?? 0} revisões</summary>
+        {Array.isArray(revisoes) && revisoes.length > 0 ? (
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="space-y-4 p-5">
+              <SectionTitle
+                title="Revisões do acordo"
+                description="Histórico de alterações de valor, vencimento e reemissões."
+                count={revisoes.length}
+              />
+              <div className="space-y-3">
+                {revisoes.map((revisao: any) => (
+                  <div key={revisao.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <Badge value={revisao.status} />
+                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        {formatDate(revisao.created_at)}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Valor</p>
+                        <p className="mt-1 font-semibold text-slate-950">{formatCurrency(revisao.valor_anterior)} {"->"} {formatCurrency(revisao.valor_novo ?? revisao.valor_anterior)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Vencimento</p>
+                        <p className="mt-1 font-semibold text-slate-950">{formatDate(revisao.vencimento_anterior)} {"->"} {formatDate(revisao.vencimento_novo)}</p>
+                      </div>
+                    </div>
+                    {revisao.motivo ? <p className="mt-3 text-sm text-slate-500">{revisao.motivo}</p> : null}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
         {timeline.length === 0 ? <p className="mt-3 text-sm text-slate-500">Nenhum evento registrado.</p> : <ol className="mt-3 divide-y divide-slate-100">{timeline.map((evento: any) => <li key={evento.id} className="py-3"><time className="text-xs tabular-nums text-slate-500">{formatDate(evento.criado_em)}</time><p className="mt-1 whitespace-pre-line text-sm text-slate-800">{evento.descricao}</p></li>)}</ol>}
       </details>
     </div>
