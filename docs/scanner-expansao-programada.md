@@ -16,6 +16,8 @@ Exclusões confirmadas: K360 Humberto I Comercial, K360 Residencial e O Parque T
 
 O trabalho de implantação usa um checkout isolado e preserva as alterações locais existentes. A raiz `C:\Users\Gekali\gkli-cob` contém modificações de outros trabalhos; não limpar, restaurar, sobrescrever ou incluir essas alterações nos commits. Só copiar ao executor os arquivos próprios já verificados. Não encerrar ou alterar processos de outros agentes.
 
+Frente especial autorizada em 03/11: seguir `docs/scanner-acordos-quebrados.md` na conferência dos acordos marcados quebrados ou rompidos. Atraso não confirma quebra. Piqueri está excluído e não pode ser recriado. Conferências parciais dos portais não autorizam recompor saldo, liberar cotas ou alterar status; falta de adaptador ou documentos deve aparecer no relatório como pendência. A implantação gradual não representa conciliação desses acordos. O levantamento somente leitura `scripts/scanner/revisao-quebrados.mjs` gera a relação atualizada por acordo sem enviar mensagens nem executar flows.
+
 ## Progresso de 03/11/2026 — Graiche
 
 Jerivás integrado: código publicado e executor atualizado; amostra real da unidade 111/B3 validada às 00h47, com reserva global e trava compartilhada. O filtro oferece a unidade, o que não homologa a identidade do contrato. Configuração ativa para a unidade do acordo vigente, com relatório judicial habilitado, revisão humana obrigatória e baixa automática bloqueada. O relatório de uma revisão foi enviado à Camila, com cópia para Edi; servidor confirmou o envio uma única vez. Nenhum pagamento, cadastro ou cobrança foi alterado pela validação.

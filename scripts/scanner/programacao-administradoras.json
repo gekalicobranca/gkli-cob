@@ -5,6 +5,19 @@
   "tipo": "implantacao_gradual_das_integracoes",
   "estado": "em_implantacao",
   "ativar_somente_apos_validacao": true,
+  "revisao_acordos_quebrados": {
+    "instrucoes": "docs/scanner-acordos-quebrados.md",
+    "autorizado_em": "2026-11-03",
+    "estado": "levantamento_app_conferencia_portais_pendente",
+    "condominios_excluidos": ["29f34694-09fb-4cfa-8fb6-c613a30c4813"],
+    "recriar_piqueri": false,
+    "quebra_por_atraso": false,
+    "saldo_por_rateio": false,
+    "liberar_cotas_sem_aprovacao": false,
+    "mensagens_durante_conferencia": false,
+    "levantamento_inicial": {"acordos": 127, "com_vinculo": 47, "sem_vinculo": 80, "consulta": "2026-11-03T20:27:00Z"},
+    "gerador_somente_leitura": "scripts/scanner/revisao-quebrados.mjs"
+  },
   "limites": {
     "unidades_por_lote": 20,
     "janela_portais_inicio": "00:30",
