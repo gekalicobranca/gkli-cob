@@ -87,5 +87,40 @@ test('SQL: relatório selado, carteira de origem/envio, destinatários, judicial
   await db.query("select set_config('test.uid',$1,false)",[op])
   assert.equal((await db.query('select count(*)::int n from scanner_relatorios_email')).rows[0].n,2)
   await assert.rejects(db.query('update scanner_relatorios_email set texto=$1 where id=$2',['alterado',id]),/permission denied/)
+
+  // Revisão judicial exige opt-in, evidência nova e escopo exato; nenhuma rotina
+  // financeira é chamada pela migração ou pelo registro deste relatório.
+  await db.exec(`reset role;
+   alter table scanner_configuracoes add portal text default 'graiche',add ativo boolean default true,add codigo_portal text default '0';
+   alter table acordos add unidade_id uuid,add status text default 'ativo';
+   alter table scanner_lotes add iniciado_em timestamptz default now()-interval '1 minute';
+   create table scanner_evidencias(id uuid primary key,configuracao_id uuid,unidade_portal text,tipo text,observado_em timestamptz,dados jsonb);
+   grant select,insert,update on scanner_evidencias to service_role;`)
+  const unidade=randomUUID(),evidencia=randomUUID()
+  await db.query('update acordos set unidade_id=$1',[unidade])
+  const prova={codigo:'0',unidade,status:'inconclusivo',conferencia_acordos:{versao:1,situacao:'unidade_nao_disponivel',fonte:'https://servc9-1.webware.com.br/bin/rt/gAcordo.asp'}}
+  await db.query("insert into scanner_evidencias values($1,$2,$3,'pagamentos',now(),$4)",[evidencia,config,unidade,JSON.stringify(prova)])
+  await db.exec(await readFile(new URL('../../supabase/migrations/20261103033946_scanner_graiche_revisao_judicial.sql',import.meta.url),'utf8'))
+  await db.exec('set role service_role')
+  const item={acordo_id:judicial,evidencia_id:evidencia,tipo_revisao:'judicial',baixa_permitida:false,revisao_humana_obrigatoria:true}
+  const registrarJudicial=(chave,j=item,token=null)=>db.query('select scanner_registrar_relatorio_email($1,$2,$3,$4,$5,$6,$7,$8) id',[chave,config,token,op,'Revisão judicial','Revisão obrigatória; nenhuma baixa.',JSON.stringify([j]),'{}'])
+  await assert.rejects(registrarJudicial('jud:sem-optin'),/fora do escopo/)
+  await db.query('update scanner_configuracoes set relatorio_judicial=true where id=$1',[config])
+  await assert.rejects(registrarJudicial('jud:sem-prova',{...item,evidencia_id:randomUUID()}),/fora do escopo/)
+  await assert.rejects(registrarJudicial('jud:sem-revisao',{...item,revisao_humana_obrigatoria:false}),/fora do escopo/)
+  await assert.rejects(registrarJudicial('jud:com-baixa',{...item,baixa_permitida:true}),/fora do escopo/)
+  await db.query("update scanner_evidencias set observado_em=now()-interval '2 days'")
+  await assert.rejects(registrarJudicial('jud:antigo'),/fora do escopo/)
+  await db.query("update scanner_evidencias set observado_em=now(),dados=jsonb_set(dados,'{conferencia_acordos,fonte}','\"https://outro.example\"')")
+  await assert.rejects(registrarJudicial('jud:outra-fonte'),/fora do escopo/)
+  await db.query('update scanner_evidencias set dados=$1,unidade_portal=$2',[JSON.stringify(prova),randomUUID()])
+  await assert.rejects(registrarJudicial('jud:outra-unidade'),/fora do escopo/)
+  await db.query('update scanner_evidencias set unidade_portal=$1',[unidade])
+  const idJudicial=(await registrarJudicial('jud:autorizado')).rows[0].id
+  assert.equal((await registrarJudicial('jud:autorizado')).rows[0].id,idJudicial)
+  await db.query("update scanner_lotes set iniciado_em=now()-interval '2 days',concluido_em=now()-interval '1 day'")
+  await assert.rejects(registrarJudicial('jud:fora-lote',item,lote),/fora do escopo/)
+  await db.exec('reset role;set role authenticated')
+  assert.equal((await db.query("select has_function_privilege('authenticated','scanner_relatorio_judicial_permitido(uuid,uuid,uuid,uuid)','execute') pode")).rows[0].pode,false)
  }finally{await db.close()}
 })

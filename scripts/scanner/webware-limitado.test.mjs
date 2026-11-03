@@ -28,6 +28,17 @@ test('Graiche: ausência e ambiguidade ficam para revisão, sem incluir judiciai
  assert.match(texto,/não comprova inexistência/);assert.match(texto,/Exigir recibo, valor e data/)
 })
 
+test('Graiche: opt-in judicial produz revisão explícita e jamais autorização de baixa',()=>{
+ const a={id:'j',unidade_id:'u',tipo:'judicial',status:'ativo'}
+ const e={id:'e',unidade_portal:'u',dados:{conferencia_acordos:{versao:1,situacao:'unidade_disponivel',fonte:fonteAcordosGraiche}}}
+ assert.equal(ocorrenciasAcordosGraiche([e],[a]).length,0)
+ const [i]=ocorrenciasAcordosGraiche([e],[a],{incluirJudiciais:true})
+ assert.equal(i.tipo_revisao,'judicial');assert.equal(i.baixa_permitida,false);assert.equal(i.revisao_humana_obrigatoria,true)
+ assert.match(i.app,/baixa automática bloqueada/);assert.match(i.acao,/revisão judicial/)
+ assert.equal(ocorrenciasAcordosGraiche([e],[{...a,status:'quitado'}],{incluirJudiciais:true}).length,0)
+ assert.equal(ocorrenciasAcordosGraiche([e],[{...a,unidade_id:'outra'}],{incluirJudiciais:true}).length,0)
+})
+
 test('SELL: extrato independente do cadastro restrito, duas unidades e recibo sem pagamento preservado',async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true})
  try{

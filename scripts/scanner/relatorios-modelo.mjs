@@ -5,20 +5,22 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const data=v=>v?String(v).slice(0,10).split('-').reverse().join('/'):'não informada'
 export const dataHora=v=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date(v))
 
-export function ocorrenciasAcordosGraiche(evidencias,acordos){
+export function ocorrenciasAcordosGraiche(evidencias,acordos,{incluirJudiciais=false}={}){
  const achados=[]
  for(const e of evidencias){
   const c=e.dados?.conferencia_acordos
   if(c?.versao!==1||!['unidade_nao_disponivel','unidade_disponivel','identidade_ambigua'].includes(c.situacao))continue
   if(String(c.fonte??'').split('?')[0]!=='https://servc9-1.webware.com.br/bin/rt/gAcordo.asp')continue
-  for(const a of acordos.filter(a=>a.unidade_id===e.unidade_portal&&a.tipo==='extrajudicial'&&['ativo','em_dia','em_atraso','vencido'].includes(a.status))){
+  for(const a of acordos.filter(a=>a.unidade_id===e.unidade_portal&&(a.tipo==='extrajudicial'||incluirJudiciais&&a.tipo==='judicial')&&['ativo','em_dia','em_atraso','vencido'].includes(a.status))){
    const ausente=c.situacao==='unidade_nao_disponivel'
+   const judicial=a.tipo==='judicial'
    achados.push({acordo_id:a.id,unidade_id:a.unidade_id,evidencia_id:e.id,
-    categoria:ausente?'Acordo não localizado na consulta disponível':'Correspondência de acordo para revisão',
+    ...(judicial?{tipo_revisao:'judicial',baixa_permitida:false,revisao_humana_obrigatoria:true}:{}),
+    categoria:judicial?'Conferência de acordo judicial — revisão obrigatória':ausente?'Acordo não localizado na consulta disponível':'Correspondência de acordo para revisão',
     motivo:ausente?'A unidade do acordo vigente no app não está disponível no filtro de acordos deste acesso.':'A consulta não estabelece correspondência inequívoca entre o acordo do app e um contrato do portal.',
-    app:'Acordo extrajudicial vigente no app.',
+    app:judicial?'Acordo judicial vigente no app; revisão humana obrigatória e baixa automática bloqueada.':'Acordo extrajudicial vigente no app.',
     portal:ausente?'Unidade ausente no seletor consultado. O filtro não comprova inexistência do acordo, quitação ou pagamento.':'Unidade disponível ou identidade ambígua no filtro; número do contrato e cronograma ainda precisam de conferência.',
-    acao:'Conferir emissão, registro do contrato, número externo e cronograma com a administradora. Exigir recibo, valor e data efetiva antes de qualquer baixa.'})
+    acao:judicial?'Encaminhar ao responsável pela revisão judicial; conferir identidade do acordo, documentos e cronograma. O scanner não autoriza baixa automática deste caso.':'Conferir emissão, registro do contrato, número externo e cronograma com a administradora. Exigir recibo, valor e data efetiva antes de qualquer baixa.'})
   }
  }
  return achados

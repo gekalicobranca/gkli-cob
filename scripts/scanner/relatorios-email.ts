@@ -12,7 +12,7 @@ const dados=async(q:any)=>{const r=await q;if(r.error)throw Error('Consulta do r
 const detalheErro=(e:any)=>String(e.message??e).slice(0,250).replaceAll(process.env.COBRANCA_OUTLOOK_PASSWORD||'\u0000','[protegido]')
 
 async function contexto(configuracao:string){
- const client=db(),config=await dados(client.from('scanner_configuracoes').select('id,portal,condominio_id').eq('id',configuracao).single())
+ const client=db(),config=await dados(client.from('scanner_configuracoes').select('id,portal,condominio_id,relatorio_judicial').eq('id',configuracao).single())
  const condo=await dados(client.from('condominios').select('id,nome,carteira_id,operador_id').eq('id',config.condominio_id).single())
  const carteira=await dados(client.from('carteiras').select('operador_id').eq('id',condo.carteira_id).single())
  return {config,condo,operadorPadrao:condo.operador_id??carteira.operador_id??null}
@@ -29,7 +29,7 @@ async function agrupar(ctx:any,itens:any[],resumo:any,consultadoEm:string){
  const grupos=new Map<string,any>(),vistos=new Set<string>()
  for(const i of itens){
   const acordo:any=mapaA.get(i.acordo_id),cobranca:any=mapaC.get(i.cobranca_id)
-  if(acordo?.tipo==='judicial')continue
+  if(acordo?.tipo==='judicial'&&!(ctx.config.portal==='graiche'&&ctx.config.relatorio_judicial&&i.tipo_revisao==='judicial'&&i.baixa_permitida===false&&i.revisao_humana_obrigatoria===true))continue
   if(i.acordo_id&&!acordo||i.cobranca_id&&!cobranca)throw Error('Item fora do condomínio do relatório.')
   const uid=acordo?.unidade_id??cobranca?.unidade_id??i.unidade_id,unidade:any=mapaU.get(uid)
   if(uid&&!unidade)throw Error('Unidade fora da carteira do relatório.')
@@ -83,10 +83,10 @@ export async function prepararLotes({simular=false,desde=process.env.SCANNER_REL
   const resumo:any={unidades:unidades.length,sem_acesso:obs.filter((x:any)=>['sem_acesso','acesso_adiado'].includes(x.diagnostico)).length,parciais:obs.filter((x:any)=>x.parcial).length,conciliacoes_pendentes:pendentes,coleta_falhou:lote.falhou}
   resumo.cadastros_restritos=ev.filter((e:any)=>e.dados?.cadastro_status==='acesso_restrito').length
   const provas=[...auditorias,...rechecagens].map(a=>({...a,documentos_disponiveis:ev.some((e:any)=>e.id===a.evidencia_id&&(e.dados.recebimentos?.length||e.dados.pagamentos?.length))}))
-  const acordosGraiche=ctx.config.portal==='graiche'&&unidades.length?await dados(client.from('acordos').select('id,unidade_id,tipo,status').eq('condominio_id',ctx.condo.id).eq('carteira_id',ctx.condo.carteira_id).eq('tipo','extrajudicial').in('unidade_id',unidades).in('status',['ativo','em_dia','em_atraso','vencido']).limit(101)):[]
+  const acordosGraiche=ctx.config.portal==='graiche'&&unidades.length?await dados(client.from('acordos').select('id,unidade_id,tipo,status').eq('condominio_id',ctx.condo.id).eq('carteira_id',ctx.condo.carteira_id).in('tipo',ctx.config.relatorio_judicial?['extrajudicial','judicial']:['extrajudicial']).in('unidade_id',unidades).in('status',['ativo','em_dia','em_atraso','vencido']).limit(101)):[]
   if(acordosGraiche.length>100)throw Error('Acordos acima do limite de relatório; revisão necessária.')
   if(ctx.config.portal==='graiche')resumo['origem']='Conferência do filtro de acordos disponível neste acesso, sem extrato financeiro e sem inferência de pagamento.'
-  const grupos=await agrupar(ctx,[...ocorrenciasFinanceiras(provas),...ocorrenciasAcordosGraiche(ev,acordosGraiche)],resumo,lote.concluido_em)
+  const grupos=await agrupar(ctx,[...ocorrenciasFinanceiras(provas),...ocorrenciasAcordosGraiche(ev,acordosGraiche,{incluirJudiciais:ctx.config.relatorio_judicial===true})],resumo,lote.concluido_em)
   if(simular)resultado.simulacoes.push({lote:lote.token,relatorios:grupos.map(g=>({responsavel:g.resumo.responsavel,ocorrencias:g.itens.length,resumo:g.resumo}))})
   else await dados(client.rpc('scanner_registrar_relatorios_lote',{p_lote:lote.token,p_grupos:grupos.map(({html,...g})=>g)}))
   resultado.preparados++
