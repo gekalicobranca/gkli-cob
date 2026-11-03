@@ -17,13 +17,14 @@ export default async function WhatsappWebPage() {
   await requireAdmin()
   const db = createAdminClient()
   const consultedAt = new Date()
-  const [carteiras, sessoes, pendencias, controles, monitores, daily] = await Promise.all([
+  const [carteiras, sessoes, pendencias, controles, monitores, daily, rotas] = await Promise.all([
     db.from('carteiras').select('id,nome,whatsapp_habilitado,whatsapp_transporte,whatsapp_web_sessao,whatsapp_web_numero,whatsapp_remetente_modo,whatsapp_phone_number_id').order('nome'),
     db.from('whatsapp_web_sessoes').select('*'),
     db.from('whatsapp_web_envios').select('token,mensagem_id,sessao,numero,estado,iniciado_em,erro,mensagem:mensagens(lote_id)').in('estado',['reservado','incerto']).order('iniciado_em'),
     db.from('whatsapp_worker_controles').select('sessao,habilitado,reiniciar_id,aplicado_id,atualizado_em,supervisor_em,supervisor_status'),
     db.from('agente_workers').select('script_key,ultimo_sinal_em,metadata_json').like('script_key', 'mensageria:web:%'),
     loadWhatsappDailySummary(consultedAt).catch(error => { console.error('Resumo diário WhatsApp indisponível:', error); return null }),
+    db.from('whatsapp_web_rotas_grupo').select('carteira_id,grupo,sessao,numero').eq('ativo', true).order('grupo'),
   ])
   if (carteiras.error || sessoes.error || pendencias.error) {
     return <Card><p>WhatsApp Web indisponível. Verifique a aplicação da migração 20260917120000_whatsapp_web_flows e a conexão com o banco.</p></Card>
@@ -31,6 +32,12 @@ export default async function WhatsappWebPage() {
   const labels: Record<string,string> = { conectado:'Conectado', aguardando_qr:'Aguardando QR Code', numero_incorreto:'Número incorreto', desconectado:'Desconectado', falha_autenticacao:'Autenticação necessária', conferencia_necessaria:'Reconectando após envio incerto', parado:'Desconectado', erro:'Falha de conexão', iniciando:'Conectando…' }
   const formatPhone = (value: string | null) => value?.replace(/^55(\d{2})(\d{4,5})(\d{4})$/, '+55 ($1) $2-$3') || 'Número não configurado'
   const formatSignal = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Sem sinal registrado'
+  const connections = (carteiras.data ?? []).map(c => ({ ...c, grupo_rota: null as string | null }))
+  for (const r of rotas.data ?? []) {
+    const wallet = carteiras.data?.find(c => c.id === r.carteira_id && c.whatsapp_transporte === 'web')
+    if (wallet) connections.push({ ...wallet, nome: wallet.nome + ' · ' + r.grupo,
+      grupo_rota: r.grupo, whatsapp_web_sessao: r.sessao, whatsapp_web_numero: r.numero })
+  }
   return <div className="space-y-5">
     <PageHeader eyebrow="Configurações" title="Conexões do WhatsApp" description="Confira a conexão de cada carteira e acompanhe a recuperação dos envios." />
     <WorkerAutoRefresh updatedAt={consultedAt.toISOString()} />
@@ -52,12 +59,13 @@ export default async function WhatsappWebPage() {
       </div>
       <details className="mt-3 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-sm text-slate-500">Como funcionam os envios e a recuperação</summary>
       <p className="mt-2 text-sm text-slate-600">O computador dos workers precisa permanecer ligado e conectado. Uma sessão em conexão ainda não está pronta para enviar.</p>
-      <p className="mt-2 text-sm text-slate-600">Somente Flows ativos com agenda vencida são processados. Limite diário: 50 por número, das 9h às 18h (Brasília), com intervalo mínimo de 60 segundos. Envios confirmados, em andamento, parciais e incertos ocupam a cota; falhas antes da transmissão não.</p>
+      <p className="mt-2 text-sm text-slate-600">Somente Flows ativos com agenda vencida são processados. Limite de 20 mensagens por número em qualquer período de 24 horas, das 9h às 18h (Brasília), com intervalo mínimo de 60 segundos. Envios confirmados, em andamento, parciais e incertos ocupam a cota; falhas antes da transmissão não.</p>
       <p className="mt-2 text-sm text-slate-600">Ao salvar WhatsApp Web, mensagens agendadas elegíveis passam a ser processadas pelo worker conectado. Pausar o Flow impede novas reservas; um envio já iniciado pode terminar.</p>
       <p className="mt-2 text-sm text-slate-600">O supervisor recupera falhas de conexão com novas tentativas após 15, 30 e até 60 segundos. Mensagens sem confirmação ficam pendentes individualmente; as demais continuam. Uma autenticação expirada ainda exige leitura do QR Code.</p>
       </details>
     </Card>
-    <div className="space-y-4">{(carteiras.data ?? []).map(c => {
+    {rotas.error ? <Card><p role="alert">Não foi possível consultar as linhas por grupo. Atualize a página para conferir todas as conexões.</p></Card> : null}
+    <div className="space-y-4">{connections.map(c => {
       const session = sessoes.data?.find(s => s.id === c.whatsapp_web_sessao)
       const signalAge = session ? Date.now()-Date.parse(session.atualizado_em) : Infinity
       const stale = !Number.isFinite(signalAge) || signalAge < -30000 || signalAge >= 120000
@@ -68,10 +76,11 @@ export default async function WhatsappWebPage() {
       const statusText = web ? state.title : 'API oficial · Meta'
       const tones = { green: 'border-emerald-200 bg-emerald-50 text-emerald-800', amber: 'border-amber-200 bg-amber-50 text-amber-900', red: 'border-rose-200 bg-rose-50 text-rose-800', gray: 'border-slate-200 bg-slate-50 text-slate-600' }
       const tone = tones[web ? state.tone : 'gray']
-      return <Card key={c.id} className="overflow-hidden p-0">
+      return <Card key={c.id + ':' + (c.grupo_rota ?? 'padrao')} className="overflow-hidden p-0">
         <div className="flex flex-col gap-4 px-5 py-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0 space-y-2">
             <h2 className="text-lg font-semibold text-slate-950">{c.nome}</h2>
+            {c.grupo_rota ? <p className="text-sm text-slate-600">Linha exclusiva dos condomínios deste grupo. Usa as réguas e os templates da carteira.</p> : null}
             <div className="flex flex-wrap items-center gap-3">
               <span role="status" className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${tone}`}><span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full bg-current" />{statusText}</span>
               {web ? <span className="text-sm text-slate-600">{formatPhone(c.whatsapp_web_numero)}</span> : null}
@@ -89,7 +98,7 @@ export default async function WhatsappWebPage() {
         </div> : null}
         </div>
         {!web ? <WhatsappCloudMonitor walletId={c.id} enabled={c.whatsapp_habilitado !== false} ownPhone={c.whatsapp_remetente_modo !== 'proprio' || Boolean(c.whatsapp_phone_number_id?.trim())} now={consultedAt} /> : null}
-        {web && daily?.byWallet[c.id] ? <div className="grid gap-3 border-t border-slate-100 px-5 py-4 sm:grid-cols-2 xl:grid-cols-4">
+        {web && !c.grupo_rota && daily?.byWallet[c.id] ? <div className="grid gap-3 border-t border-slate-100 px-5 py-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Enviadas hoje" value={daily.byWallet[c.id].sent} />
           <MetricCard label="Aguardando envio" value={daily.byWallet[c.id].queued} />
           <MetricCard label="Falhas hoje" value={daily.byWallet[c.id].failed} />
@@ -107,7 +116,7 @@ export default async function WhatsappWebPage() {
           </div>
         </div> : null}
         {web && c.whatsapp_web_sessao ? <WhatsappPairing session={c.whatsapp_web_sessao} /> : null}
-        <details className="border-t border-slate-100 px-5 py-3">
+        {!c.grupo_rota ? <details className="border-t border-slate-100 px-5 py-3">
           <summary className="cursor-pointer text-sm font-medium text-slate-600">Configurar canal, sessão e número</summary>
         <form action={configurarWhatsappWeb} className="mt-4 grid gap-4 md:grid-cols-3">
           <input type="hidden" name="carteira_id" value={c.id} />
@@ -116,7 +125,7 @@ export default async function WhatsappWebPage() {
           <label className="text-sm">Número esperado (com DDI e DDD)<input name="numero" defaultValue={c.whatsapp_web_numero ?? ''} placeholder="5511999999999" className="mt-1 w-full rounded-xl border p-2" /></label>
           <div className="flex justify-end md:col-span-3"><button className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white">Salvar configuração</button></div>
         </form>
-        </details>
+        </details> : null}
       </Card>
     })}</div>
     <Card id="pendencias-whatsapp">

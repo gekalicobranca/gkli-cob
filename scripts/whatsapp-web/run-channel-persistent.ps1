@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('escritorio', 'painel')]
+    [ValidateSet('escritorio', 'riseup', 'painel')]
     [string]$Channel
 )
 $ErrorActionPreference = 'Stop'
@@ -18,16 +18,16 @@ try {
         try {
             # Adopt an existing process without stopping its authenticated browsers.
             $existing = $null
-            if ($Channel -eq 'escritorio') {
-                $lockPath = Join-Path $logRoot 'supervisor-escritorio.lock'
+            if ($Channel -ne 'painel') {
+                $lockPath = Join-Path $logRoot "supervisor-$Channel.lock"
                 if (Test-Path -LiteralPath $lockPath) {
                     $ownerId = 0
                     if ([int]::TryParse((Get-Content -LiteralPath $lockPath -Raw).Trim(), [ref]$ownerId) -and $ownerId -gt 0) {
                         $candidate = Get-CimInstance Win32_Process -Filter "ProcessId=$ownerId"
-                        if ($candidate.Name -eq 'node.exe' -and $candidate.CommandLine -match 'supervisor\.mjs' -and $candidate.CommandLine -match '\.env\.whatsapp-escritorio') { $existing = $candidate }
+                        if ($candidate.Name -eq 'node.exe' -and $candidate.CommandLine -match 'supervisor\.mjs' -and $candidate.CommandLine -match [regex]::Escape(".env.whatsapp-$Channel")) { $existing = $candidate }
                     }
                 }
-                $nodeArguments = '--env-file=../../.env.local --env-file=../../.env.whatsapp-escritorio supervisor.mjs'
+                $nodeArguments = "--env-file=../../.env.local --env-file=../../.env.whatsapp-$Channel supervisor.mjs"
             } else {
                 $listener = Get-NetTCPConnection -LocalPort 3877 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
                 if ($listener) {

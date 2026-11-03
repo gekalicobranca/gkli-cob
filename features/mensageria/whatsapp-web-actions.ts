@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/utils/auth/require-admin'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { assertWhatsappSessionConfigured } from './whatsapp-session-config'
 
 export async function controlarWhatsappWorker(form: FormData) {
   const user = await requireAdmin()
@@ -10,8 +11,7 @@ export async function controlarWhatsappWorker(form: FormData) {
   const acao = String(form.get('acao') ?? '')
   if (!/^[a-zA-Z0-9_-]{1,60}$/.test(sessao) || !['iniciar', 'pausar', 'reiniciar'].includes(acao)) throw new Error('Comando inválido.')
   const db = createAdminClient()
-  const { data, error: lookupError } = await db.from('carteiras').select('id').eq('whatsapp_web_sessao', sessao).limit(1)
-  if (lookupError || !data?.length) throw new Error('Sessão não configurada.')
+  await assertWhatsappSessionConfigured(db, sessao)
   const { error } = await db.from('whatsapp_worker_controles').upsert({
     sessao, habilitado: acao !== 'pausar', reiniciar_id: crypto.randomUUID(),
     solicitado_por: user.id, atualizado_em: new Date().toISOString(),

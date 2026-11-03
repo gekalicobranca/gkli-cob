@@ -16,6 +16,7 @@ import { reservationRecovery } from './reservation-recovery.mjs'
 import { shutdownBrowser } from './browser-shutdown.mjs'
 import { createPeriodicTask } from '../worker-cadence.mjs'
 import { createServerClock } from './server-clock.mjs'
+import { assertMessageRoute } from './route.mjs'
 const serverClock = createServerClock()
 
 const { Client, LocalAuth, MessageMedia } = whatsapp
@@ -165,8 +166,8 @@ async function confirm(message) {
   if (!ready || stopping || normalizePhone(client.info?.wid?.user) !== expectedPhone) throw new Error('Sessão indisponível ou número incorreto.')
   const current = check(await db.from('mensagens').select('status,agendada_para,carteira_id,cobranca_flow_id,acordo_flow_id,pre_juridico_flow_id').eq('id', message.id).single())
   if (current.status !== 'agendada' || new Date(current.agendada_para) > new Date()) throw new Error('Mensagem cancelada ou reagendada.')
-  const carteira = check(await db.from('carteiras').select('whatsapp_transporte,whatsapp_web_sessao,whatsapp_web_numero').eq('id',current.carteira_id).single())
-  if (carteira.whatsapp_transporte !== 'web' || carteira.whatsapp_web_sessao !== session || carteira.whatsapp_web_numero !== expectedPhone) throw new Error('Configuração da carteira mudou.')
+  const route = check(await db.rpc('whatsapp_web_rota_mensagem', { p_mensagem: message.id }))
+  assertMessageRoute(route, session, expectedPhone, current.carteira_id)
   for (const [field, table] of [['cobranca_flow_id','cobranca_flows'],['acordo_flow_id','acordo_flows'],['pre_juridico_flow_id','pre_juridico_flows']]) {
     if (!current[field]) continue
     const flow = check(await db.from(table).select('status').eq('id',current[field]).single())
