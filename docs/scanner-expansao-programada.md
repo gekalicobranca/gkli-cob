@@ -22,4 +22,8 @@ Jerivás integrado: código publicado e executor atualizado; amostra real da uni
 
 A conferência judicial no servidor também verifica a carteira e o condomínio atuais da unidade, protegendo os relatórios contra dados de vinculação desatualizados. As funções financeiras anteriores permaneceram preservadas. Suíte do scanner: 85 testes aprovados; testes específicos de escopo judicial e TypeScript aprovados.
 
-Las Ventanas: corrigida a carteira desatualizada da receita, mediante identificação exata do mesmo condomínio e confirmação de ausência de execuções abertas. Credenciais e dados financeiros não foram alterados. Ainda exige validação real antes de qualquer ativação. Elo também permanece aguardando validação individual.
+Elo: tentativa única de autenticação às 01h03 foi recusada pela Graiche. Configuração inativa e `pendente_acesso`; alvo registrado como `sem_acesso` e excluído de novas tentativas até atualização/liberação das credenciais. Nenhuma consulta de inadimplência, cadastro ou baixa executada.
+
+Las Ventanas: corrigida a carteira desatualizada da receita, mediante identificação exata do mesmo condomínio e confirmação de ausência de execuções abertas. Credenciais e dados financeiros não foram alterados. Validação às 01h18 confirmou autenticação e condomínio; a tela de Acordos Online não disponibilizou o seletor de unidades em vinte segundos. Continua `integracao_pendente`, inativo, para diagnóstico do formato/retorno; não classificar como acesso recusado nem como scanner integrado.
+
+As três validações foram sequenciais, com reserva global e trava Graiche, uma unidade de amostra por condomínio e pausa global de pelo menos quinze minutos entre elas. A pausa e a reserva foram liberadas para a rotina normal, sem alterar seus horários, limites ou cursores.

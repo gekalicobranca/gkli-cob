@@ -50,14 +50,34 @@
       "condominio": "CONDOMÍNIO ELO & ELO DUO CAMINHOS DA LAPA SETOR 2 RESIDENCIAL TORRE A",
       "portal": "graiche",
       "fonte_acesso": "receita_cadastrada",
-      "estado": "programado"
+      "estado": "sem_acesso",
+      "resultado_final": true,
+      "validacao": {
+        "em": "2026-11-03T04:03:15.723Z",
+        "tentativas_autenticacao": 1,
+        "resultado": "Login recusado pela Graiche",
+        "retomar_somente_apos_nova_liberacao": true,
+        "baixas": 0,
+        "importacoes": 0
+      }
     },
     {
       "configuracao_id": "dc1f0005-a30a-4c12-a6bc-3c73f9e7b722",
       "condominio": "CONDOMÍNIO LAS VENTANAS",
       "portal": "graiche",
       "fonte_acesso": "receita_cadastrada",
-      "estado": "programado"
+      "estado": "integracao_pendente",
+      "validacao": {
+        "em": "2026-11-03T04:18:49.93Z",
+        "autenticacao": "confirmada",
+        "leitura": "Seletor de unidades não disponibilizado em 20 segundos",
+        "carteira_receita": "sincronizada_com_o_mesmo_condominio",
+        "unidade_amostra": "114",
+        "bloco": "1",
+        "ativado": false,
+        "baixas": 0,
+        "importacoes": 0
+      }
     },
     {
       "configuracao_id": "744394c6-bfdc-4232-b653-04baaa5cb49b",
@@ -178,7 +198,8 @@
       "7ee29b5d-9a95-4b0c-b07c-793c95a8a570",
       "bb648e7d-e675-4971-9e5c-90fe031d65dd",
       "425d6b58-719e-40cd-a5ae-34e2844adee7",
-      "e4d18a82-d911-4ded-b15e-240d7e60cb59"
+      "e4d18a82-d911-4ded-b15e-240d7e60cb59",
+      "2ee233cd-b84d-4373-9b40-169352e59106"
     ],
     "judicial": [],
     "demais": "Configurações sem receita/acesso ou sem unidades não fazem parte desta programação."
