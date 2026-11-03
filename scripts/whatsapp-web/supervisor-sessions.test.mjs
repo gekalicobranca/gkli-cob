@@ -15,3 +15,10 @@ test('rejects configurations that could overlap supervisors or escape file paths
     assert.throws(() => supervisorConfiguration(value), /Grupo de sessões inválido/)
   }
 })
+
+test('isolates Rise Up without adding it to the existing supervisors', () => {
+  assert.deepEqual(supervisorConfiguration('riseup'), { sessions: ['riseup'], lock: 'supervisor-riseup.lock' })
+  assert.ok(!supervisorConfiguration().sessions.includes('riseup'))
+  assert.ok(!supervisorConfiguration('escritorio').sessions.includes('riseup'))
+  assert.throws(() => supervisorConfiguration('riseup,gekali'))
+})
