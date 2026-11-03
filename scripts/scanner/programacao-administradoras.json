@@ -16,6 +16,17 @@
   },
   "alvos": [
     {
+      "configuracao_id": "894d83f7-db5a-4f93-bbef-9a74bc26a78e",
+      "condominio": "CAMINHOS DA LAPA CONDOMÍNIO JERIVÁS",
+      "portal": "graiche",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado",
+      "escopo": "conferencia_e_relatorio_inclusive_acordos_judiciais",
+      "baixa_automatica": false,
+      "revisao_judicial_obrigatoria": true,
+      "reinclusao_autorizada_em": "2026-11-02"
+    },
+    {
       "configuracao_id": "2ee233cd-b84d-4373-9b40-169352e59106",
       "condominio": "CONDOMÍNIO ELO & ELO DUO CAMINHOS DA LAPA SETOR 2 RESIDENCIAL TORRE A",
       "portal": "graiche",
@@ -150,9 +161,7 @@
       "425d6b58-719e-40cd-a5ae-34e2844adee7",
       "e4d18a82-d911-4ded-b15e-240d7e60cb59"
     ],
-    "judicial": [
-      "894d83f7-db5a-4f93-bbef-9a74bc26a78e"
-    ],
+    "judicial": [],
     "demais": "Configurações sem receita/acesso ou sem unidades não fazem parte desta programação."
   }
 }
