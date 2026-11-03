@@ -13,10 +13,10 @@ test('filtro é aplicado no banco quando ativo e mantém compatibilidade antes d
   try {
     const calls:any[]=[];const query={is:(...args:any[])=>{calls.push(args);return query}}
     process.env.COBRANCAS_ARQUIVAMENTO_ATIVO='false'
-    assert.equal(somenteCobrancasCanonicas(query),query);assert.equal(calls.length,0)
+    assert.equal(somenteCobrancasCanonicas(query),query);assert.deepEqual(calls,[['arquivada_em',null]]);calls.length=0
     delete process.env.COBRANCAS_ARQUIVAMENTO_ATIVO
     somenteCobrancasCanonicas(query)
-    assert.deepEqual(calls,[['duplicada_de_id',null]])
+    assert.deepEqual(calls,[['arquivada_em',null],['duplicada_de_id',null]])
   } finally {if(before===undefined)delete process.env.COBRANCAS_ARQUIVAMENTO_ATIVO;else process.env.COBRANCAS_ARQUIVAMENTO_ATIVO=before}
 })
 test('cópia arquivada não entra em totais/subtotais nem elegibilidade do Maestro',()=>{

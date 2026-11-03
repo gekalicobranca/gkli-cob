@@ -73,9 +73,9 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
     return (
       <div className="space-y-3">
         <Card className="space-y-3 p-6">
-          <h1 className="text-xl font-semibold">Cobrança arquivada por duplicidade</h1>
-          <p>Este registro foi preservado para consulta do histórico. O débito é acompanhado no registro abaixo.</p>
-          <Link className="font-medium text-cyan-800 underline" href={`/app/cobrancas/${cobranca.duplicada_de_id}`}>Abrir cobrança preservada</Link>
+          <h1 className="text-xl font-semibold">{cobranca.arquivada_em ? 'Cobrança retirada da operação' : 'Cobrança arquivada por duplicidade'}</h1>
+          <p>{cobranca.arquivada_em ? cobranca.arquivamento_motivo : 'Este registro foi preservado para consulta do histórico. O débito é acompanhado no registro abaixo.'}</p>
+          {cobranca.duplicada_de_id ? <Link className="font-medium text-cyan-800 underline" href={`/app/cobrancas/${cobranca.duplicada_de_id}`}>Abrir cobrança preservada</Link> : null}
           <p className="text-sm text-slate-500">Valor registrado no histórico: {formatCurrency(cobranca.valor_atualizado ?? cobranca.valor_original)}</p>
         </Card>
         <CobrancaTimeline eventos={eventosOperacionais} interacoes={interacoes} />

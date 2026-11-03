@@ -112,7 +112,7 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
               {historico.cobrancas.slice(0, 6).map((cobranca: any) => (
                 <Link key={cobranca.id} href={`/app/cobrancas/${cobranca.id}`} className="group flex items-center justify-between gap-3 rounded-2xl border border-slate-100 px-4 py-3 transition hover:bg-slate-50">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2"><StatusBadge status={getCobrancaStatusOperacional(cobranca)} /><span className="text-xs text-slate-500">{formatDateBR(cobranca.vencimento)}</span></div>
+                    <div className="flex flex-wrap items-center gap-2">{cobranca.arquivada_em ? <span className="text-xs text-slate-500">Retirada da operação</span> : <StatusBadge status={getCobrancaStatusOperacional(cobranca)} />}<span className="text-xs text-slate-500">{formatDateBR(cobranca.vencimento)}</span></div>
                     <p className="mt-1 text-sm font-medium text-slate-950">{formatCurrency(Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0))}</p>
                     {cobranca.duplicada_de_id ? <p className="mt-1 text-xs text-slate-500">Cópia arquivada por duplicidade · preservada no histórico</p> : null}
                   </div>

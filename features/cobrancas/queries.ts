@@ -638,6 +638,8 @@ export async function getCobrancaDetalhe(id: string, scope: CarteiraScope) {
     .from('cobrancas')
     .select(`
       id,
+      arquivada_em,
+      arquivamento_motivo,
       ${arquivamentoDuplicidadesAtivo() ? 'duplicada_de_id,duplicidade_arquivada_em,duplicidade_lote_id,' : ''}
       carteira_id,
       condominio_id,

@@ -1,7 +1,7 @@
 import { cobrancaArquivada } from '@/lib/core/cobranca-arquivamento'
 
 type Row = {
-  duplicada_de_id?: string | null
+  duplicada_de_id?: string | null; arquivada_em?: string | null
   carteira_id?: string | null; condominio_id?: string | null
   valor_atualizado?: number | string | null; valor_original?: number | string | null
   status?: string | null; status_operacional?: string | null

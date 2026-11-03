@@ -1,7 +1,7 @@
 type Cobranca = {
   status?: string | null; status_operacional?: string | null; status_financeiro?: string | null
   data_pagamento?: string | null; valor_pago?: number | string | null
-  duplicada_de_id?: string | null
+  duplicada_de_id?: string | null; arquivada_em?: string | null
 }
 const normalizar = (v: unknown) => String(v ?? '').trim().toLowerCase()
 
@@ -12,7 +12,7 @@ export function acordoBloqueiaPre(status: unknown) {
 }
 
 export function cobrancaAbertaPre(cobranca: Cobranca) {
-  return !cobranca.duplicada_de_id && !cobranca.data_pagamento &&
+  return !cobranca.arquivada_em && !cobranca.duplicada_de_id && !cobranca.data_pagamento &&
     !['quitado', 'pago', 'cancelado', 'renegociado'].includes(normalizar(cobranca.status_financeiro)) &&
     !['judicializado', 'acordo_firmado', 'acordo_efetivado'].includes(normalizar(cobranca.status_operacional ?? cobranca.status))
 }

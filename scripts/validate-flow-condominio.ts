@@ -89,7 +89,7 @@ test('ações do servidor rejeitam mistura de condomínios antes de gravar ou pr
     '@/utils/auth/apply-carteira-scope': { applyCarteiraScope: (query: any) => query },
     '@/utils/supabase/admin': { createAdminClient: () => ({ from: (table: string) => {
       assert.equal(table, 'cobrancas')
-      const query = { is: (column: string, value: null) => { assert.equal(column, 'duplicada_de_id'); assert.equal(value, null); return query }, in: async () => ({ data: rows }) }
+      const query = { is: (column: string, value: null) => { assert.ok(['duplicada_de_id','arquivada_em'].includes(column)); assert.equal(value, null); return query }, in: async () => ({ data: rows }) }
       return { select: () => query, update: unexpected, insert: unexpected }
     } }) },
     './eligibilidade': { unicoCondominio, hasResponsavelVinculado },
