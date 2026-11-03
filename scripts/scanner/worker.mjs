@@ -138,9 +138,10 @@ async function tick() {
  if(evidencias.length && !diagnostico){
    const consultadas=evidencias.filter(e=>e.tipo==='contatos').length
    const contatos=contatosConfirmados
+   const restritos=evidencias.filter(e=>e.tipo==='contatos'&&e.dados.status==='acesso_restrito').length
    const parcial=evidencias.some(e=>e.dados.historico_progresso?.pendente)
    const semAcesso=evidencias.filter(e=>e.tipo==='pagamentos'&&['sem_acesso','acesso_adiado'].includes(e.dados.diagnostico)).length
-   const {error:resumoErro}=await db.from('scanner_configuracoes').update({ultimo_resultado:`${consultadas} unidades consultadas; ${contatos} fichas de responsáveis, ${consultadas-contatos} vínculos para revisão e ${semAcesso} consultas financeiras sem acesso ou adiadas. ${parcial?'Histórico parcial salvo; próximo lote retoma a mesma unidade.':'Cadastros seguem para aplicação automática auditada.'}`}).eq('id',config.id)
+   const {error:resumoErro}=await db.from('scanner_configuracoes').update({ultimo_resultado:`${consultadas} unidades consultadas; ${contatos} fichas de responsáveis, ${restritos} cadastros restritos, ${consultadas-contatos-restritos} vínculos para revisão e ${semAcesso} consultas financeiras sem acesso ou adiadas. ${config.portal==='graiche'?'Filtro de acordos conferido; sem extrato e sem inferência de pagamento.':parcial?'Histórico parcial salvo; próximo lote retoma a mesma unidade.':'Cadastros disponíveis seguem para aplicação automática auditada.'}`}).eq('id',config.id)
    if(resumoErro)console.error('Não foi possível registrar o resumo cadastral do lote.')
  }
  if(diagnostico){

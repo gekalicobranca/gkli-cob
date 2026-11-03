@@ -7,6 +7,7 @@ import {acessarGraiche,acessarSell,credenciaisGraiche} from '../agente-automatic
 import {acessarCondominioBBZ} from './bbz-acesso.mjs'
 import {aguardarMenuFinanceiroBBZ} from './bbz-menu.mjs'
 import {legadoBBZValidado,inicializarLegadoBBZ,abrirCadastroLegadoBBZ} from './bbz-legado.mjs'
+import {abrirWebwareLimitado} from './webware-limitado.mjs'
 
 const origens={bbz:'https://servc9.webware.com.br',graiche:'https://servc9-1.webware.com.br',sell:'https://servc9.webware.com.br'}
 export function requisicaoDaUnidade(request,valor){
@@ -17,7 +18,7 @@ export function requisicaoDaUnidade(request,valor){
  return valores.some(([chave,v])=>v===valor && (/unidade|unit|unid|iund/i.test(chave)||valor.split('/').length===3))
 }
 export async function abrirWebware(config,receita,unidades,signal){
- const base=origens[config.portal],acesso=credenciais(config,receita),sessao=await navegadorScanner(signal,config.portal==='bbz'?[base,'https://portalwm.webware.com.br']:[base],{acordosBBZ:config.portal==='bbz'}),{page}=sessao
+ const base=origens[config.portal],acesso=credenciais(config,receita),sessao=await navegadorScanner(signal,config.portal==='bbz'?[base,'https://portalwm.webware.com.br']:[base],{acordosBBZ:config.portal==='bbz',acordosGraiche:config.portal==='graiche'}),{page}=sessao
  const titulo=receita.titulo_portal_validado||receita.condominio_portal
  if(!base||!titulo){await sessao.close();throw Error('Identificação Webware não configurada.')}
  try{
@@ -36,6 +37,7 @@ export async function abrirWebware(config,receita,unidades,signal){
    await acessarCondominioBBZ(page,{titulo,codigo:receita.codigo_vinculo_bbz,signal})
    if(new URL(page.url()).origin!==base)throw Error('Condomínio BBZ diverge da origem configurada.')
   }
+  if(['graiche','sell'].includes(config.portal))return await abrirWebwareLimitado(sessao,config,receita,unidades,signal)
   const {historicoDisponivel,documentosDisponiveis}=config.portal==='bbz'
    ?await aguardarMenuFinanceiroBBZ(page,{titulo,signal})
    :{historicoDisponivel:false,documentosDisponiveis:false}

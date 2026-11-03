@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises'
 import {randomUUID} from 'node:crypto'
 import {fixture} from './conciliacao-fixture.mjs'
 
-async function banco({manual=false}={}){
+async function banco({manual=false,sell=false}={}){
  const f=await fixture({bbzVinculos:true}),{db,ids}=f
  await db.exec(`reset role;
  alter table unidades add acao_judicial boolean default false;
@@ -23,17 +23,64 @@ async function banco({manual=false}={}){
  grant all on all tables in schema public to service_role;`)
  await db.exec((await readFile(new URL('../../supabase/migrations/20261025132645_scanner_baixa_auditada_pagamentos.sql',import.meta.url),'utf8')).replaceAll('now()','public.test_now()'))
  await db.exec(await readFile(new URL('../../supabase/migrations/20261025132800_scanner_baixas_historico_append.sql',import.meta.url),'utf8'))
+ if(sell)await db.exec(await readFile(new URL('../../supabase/migrations/20261103004731_scanner_sell_conciliacao_extrato.sql',import.meta.url),'utf8'))
  if(manual)await db.exec((await readFile(new URL('../../supabase/migrations/20261025200042_scanner_lote_manual_limitado.sql',import.meta.url),'utf8')).replaceAll('now()','public.test_now()'))
  await db.query("update acordos set quantidade_parcelas=1,valor_acordado=100,observacoes='[BBZ:01380:12345678]'")
- await db.query("update scanner_configuracoes set portal='manager',codigo_portal='567',unidades=array[$1]",[ids.unit])
+ await db.query("update scanner_configuracoes set portal=$2,codigo_portal='567',unidades=array[$1]",[ids.unit,sell?'sell':'manager'])
  await db.exec('set role service_role')
- const fonte=pagamentos=>({codigo:'567',unidade:ids.unit,referencia_portal:'0/AP/000001',fonte:'https://atentum-s9.webware.com.br/bin/rt/gExtratoUnidade.asp',status:'consultado',pagamentos})
+ const fonte=pagamentos=>({codigo:'567',unidade:ids.unit,referencia_portal:'0/AP/000001',fonte:sell?'https://servc9.webware.com.br/bin/rt/gExtratoUnidade.asp':'https://atentum-s9.webware.com.br/bin/rt/gExtratoUnidade.asp',status:'consultado',pagamentos})
  const prova=async pagamentos=>f.prova(fonte(pagamentos),ids.unit)
  const execucao=randomUUID()
  const processar=async id=>(await db.query('select scanner_processar_pagamentos($1,$2) r',[id,execucao])).rows[0].r
  return {...f,prova,provaBruta:f.prova,processar,execucao}
 }
 const pago=(overrides={})=>({recibo:'999999',natureza:'cobranca',vencimento:'10/10/2026',data_pagamento:'12/10/2026',valor_original_centavos:10000,valor_pago:100,componentes_conferidos:true,...overrides})
+
+test('SELL: recibo exclusivo e identidade exata permitem baixa auditada e repetição idempotente',async()=>{
+ const {db,ids,prova,processar}=await banco({sell:true})
+ try{
+  const e=await prova([pago()]),r=await processar(e)
+  assert.equal(r.resumo.validado,1);assert.equal(r.baixa.aplicadas,1)
+  assert.equal((await db.query('select portal,confirmado_por from scanner_baixas')).rows[0].portal,'sell')
+  assert.equal((await db.query('select status_financeiro from cobrancas')).rows[0].status_financeiro,'quitado')
+  await processar(e);await processar(await prova([pago()]))
+  assert.equal((await db.query('select count(*)::int n from scanner_baixas')).rows[0].n,1)
+  assert.equal((await db.query('select count(*)::int n from auditoria_eventos')).rows[0].n,1)
+  assert.equal((await db.query("select has_function_privilege('authenticated','scanner_conciliar_pagamentos(uuid)','execute') permitido")).rows[0].permitido,false)
+ }finally{await db.close()}
+})
+
+test('SELL: vínculo de parcela é obrigatório; outra unidade, fonte, pagamento parcial ou duplicado não baixam',async()=>{
+ const {db,ids,prova,provaBruta,processar}=await banco({sell:true})
+ try{
+  const payload={codigo:'567',unidade:ids.unit,referencia_portal:'0/AP/000002',fonte:'https://servc9.webware.com.br/bin/rt/gExtratoUnidade.asp',status:'consultado',pagamentos:[pago()]}
+  assert.equal((await processar(await provaBruta(payload,ids.unit))).baixa.aplicadas,0)
+  payload.referencia_portal='A/AP/000001'
+  assert.equal((await processar(await provaBruta(payload,ids.unit))).baixa.aplicadas,0)
+  payload.referencia_portal='0/AP/000001';payload.fonte='https://outro.example/bin/rt/gExtratoUnidade.asp'
+  assert.equal((await processar(await provaBruta(payload,ids.unit))).baixa.aplicadas,0)
+  for(const pagamentos of [[pago({valor_pago:50})],[pago(),pago()],[pago({componentes_conferidos:false})],[pago({data_pagamento:'2040-10-12'})]]){
+   assert.equal((await processar(await prova(pagamentos))).baixa.aplicadas,0)
+  }
+  const parcela=pago({recibo:'888888',natureza:'parcela_acordo',numero_parcela:1})
+  assert.equal((await processar(await prova([parcela]))).baixa.aplicadas,0)
+  await db.exec("update parcelas_acordo set observacoes='Recibo 888888'")
+  assert.equal((await processar(await prova([parcela]))).baixa.aplicadas,1)
+  assert.equal((await db.query('select status from parcelas_acordo')).rows[0].status,'paga')
+  assert.equal((await db.query('select status_financeiro from cobrancas')).rows[0].status_financeiro,'em_aberto')
+ }finally{await db.close()}
+})
+
+test('Graiche: conferência de acordos e ausência de unidade nunca produzem baixa',async()=>{
+ const {db,ids,provaBruta,processar}=await banco({sell:true})
+ try{
+  await db.exec("update scanner_configuracoes set portal='graiche'")
+  const e=await provaBruta({codigo:'567',unidade:ids.unit,fonte:'https://servc9-1.webware.com.br/bin/rt/gAcordo.asp',status:'inconclusivo',conferencia_acordos:{situacao:'unidade_nao_disponivel'},pagamentos:[pago()]},ids.unit)
+  assert.equal((await processar(e)).baixa.aplicadas,0)
+  assert.equal((await db.query('select count(*)::int n from scanner_baixas')).rows[0].n,0)
+  assert.equal((await db.query('select status_financeiro from cobrancas')).rows[0].status_financeiro,'em_aberto')
+ }finally{await db.close()}
+})
 
 test('lote manual diurno exige autorização única, coleta nova e encerramento',async()=>{
  const {db,ids,prova,execucao,processar}=await banco({manual:true})

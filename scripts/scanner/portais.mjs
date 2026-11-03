@@ -27,14 +27,17 @@ export function credenciais(config, receita) {
  return {usuario,senha}
 }
 
-export function documentoScannerPermitido(url,{acordosBBZ=false}={}){
+export function documentoScannerPermitido(url,{acordosBBZ=false,acordosGraiche=false}={}){
  const u=new URL(url)
  if(/rtPendentes|DevedoresRelatorio|rtInadimpl|rtAcordo/i.test(u.pathname))return false
- if(/gAcordo\.asp/i.test(u.pathname))return acordosBBZ&&u.origin==='https://servc9.webware.com.br'&&u.pathname==='/bin/rt/gAcordo.asp'&&/^[a-z0-9]+\/[a-z0-9]+\/[a-z0-9]+$/i.test(u.searchParams.get('u')??'')
+ if(/gAcordo\.asp/i.test(u.pathname)){
+  if(acordosGraiche&&u.origin==='https://servc9-1.webware.com.br'&&u.pathname==='/bin/rt/gAcordo.asp')return [...u.searchParams.keys()].every(k=>k==='u')&&['','>'].includes(u.searchParams.get('u')??'')
+  return acordosBBZ&&u.origin==='https://servc9.webware.com.br'&&u.pathname==='/bin/rt/gAcordo.asp'&&/^[a-z0-9]+\/[a-z0-9]+\/[a-z0-9]+$/i.test(u.searchParams.get('u')??'')
+ }
  return true
 }
 
-export async function navegadorScanner(signal, origens, {acordosBBZ=false}={}) {
+export async function navegadorScanner(signal, origens, {acordosBBZ=false,acordosGraiche=false}={}) {
  const browser = await chromium.launch({channel:'chrome',headless:true})
  const abort = () => {void browser.close().catch(()=>{})}
  signal.addEventListener('abort',abort,{once:true})
@@ -44,7 +47,7 @@ export async function navegadorScanner(signal, origens, {acordosBBZ=false}={}) {
   await context.route('**/*', async route => {
    const r=route.request(),u=new URL(r.url())
    // Bloqueio adicional: nenhum relatório de inadimplência pode ser navegado pelo scanner.
-   if(signal.aborted || bloqueado || !documentoScannerPermitido(u.href,{acordosBBZ}))return route.abort()
+   if(signal.aborted || bloqueado || !documentoScannerPermitido(u.href,{acordosBBZ,acordosGraiche}))return route.abort()
    if(['image','font','media'].includes(r.resourceType())) return route.abort()
    if(r.isNavigationRequest() && ++documentos>100) return route.abort()
    return route.continue()

@@ -5,6 +5,25 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const data=v=>v?String(v).slice(0,10).split('-').reverse().join('/'):'não informada'
 export const dataHora=v=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'}).format(new Date(v))
 
+export function ocorrenciasAcordosGraiche(evidencias,acordos){
+ const achados=[]
+ for(const e of evidencias){
+  const c=e.dados?.conferencia_acordos
+  if(c?.versao!==1||!['unidade_nao_disponivel','unidade_disponivel','identidade_ambigua'].includes(c.situacao))continue
+  if(String(c.fonte??'').split('?')[0]!=='https://servc9-1.webware.com.br/bin/rt/gAcordo.asp')continue
+  for(const a of acordos.filter(a=>a.unidade_id===e.unidade_portal&&a.tipo==='extrajudicial'&&['ativo','em_dia','em_atraso','vencido'].includes(a.status))){
+   const ausente=c.situacao==='unidade_nao_disponivel'
+   achados.push({acordo_id:a.id,unidade_id:a.unidade_id,evidencia_id:e.id,
+    categoria:ausente?'Acordo não localizado na consulta disponível':'Correspondência de acordo para revisão',
+    motivo:ausente?'A unidade do acordo vigente no app não está disponível no filtro de acordos deste acesso.':'A consulta não estabelece correspondência inequívoca entre o acordo do app e um contrato do portal.',
+    app:'Acordo extrajudicial vigente no app.',
+    portal:ausente?'Unidade ausente no seletor consultado. O filtro não comprova inexistência do acordo, quitação ou pagamento.':'Unidade disponível ou identidade ambígua no filtro; número do contrato e cronograma ainda precisam de conferência.',
+    acao:'Conferir emissão, registro do contrato, número externo e cronograma com a administradora. Exigir recibo, valor e data efetiva antes de qualquer baixa.'})
+  }
+ }
+ return achados
+}
+
 export function ocorrenciasFinanceiras(auditorias){
  const achados=[]
  for(const a of auditorias)for(const i of a.itens??[]){
@@ -32,7 +51,7 @@ export function montarRelatorio({condominio,portal,consultadoEm,responsavel,iten
  const linhas=[`RELATÓRIO DE CONFERÊNCIA — ${condominio}`,`Administradora/portal: ${portal}`,`Consulta: ${quando} (Brasília)`,`Responsável: ${responsavel}`,
   `Remetente: ${REMETENTE_RELATORIO}`,`Cópia: ${COPIA_RELATORIO}`,'',
   `Unidades abrangidas pela conferência: ${resumo.unidades??'conferência dirigida'}. Ocorrências para revisão: ${itens.length}.`,
-  `Consultas financeiras sem acesso/adiadas: ${resumo.sem_acesso??0}. Históricos parciais: ${resumo.parciais??0}. Conciliações ainda pendentes: ${resumo.conciliacoes_pendentes??0}.`,
+  `Consultas financeiras sem acesso/adiadas: ${resumo.sem_acesso??0}. Históricos parciais: ${resumo.parciais??0}. Conciliações ainda pendentes: ${resumo.conciliacoes_pendentes??0}. Cadastros restritos, sem atualização: ${resumo.cadastros_restritos??0}.`,
   resumo.origem??(resumo.coleta_falhou?'A coleta foi interrompida; este relatório contém apenas as evidências preservadas.':'Conferência limitada às evidências disponíveis.'),
   'Falhas de acesso e ausência de recibos limitam a conferência; não comprovam divergência nem pagamento.','']
  for(const [n,i]of itens.entries())linhas.push(`${n+1}. Unidade ${i.unidade??'não identificada'}${i.bloco&&i.bloco!=='0'?' / bloco '+i.bloco:''} — ${i.categoria}`,

@@ -12,15 +12,21 @@ export async function complementarFinanceiroBBZ(contatos,financeiro,config,refer
 }
 
 // A origem/condomínio já foram autenticados; só abre o link disponibilizado no menu.
-export async function abrirFinanceiroBBZ(context,disponivel,etapa){
+export async function abrirFinanceiroBBZ(context,disponivel,etapa,{portal='bbz'}={}){
+ const administradora=portal==='sell'?'SELL':'BBZ'
  if(!disponivel)return {consultar:async()=>({status:'inconclusivo',motivo:'Histórico de pagamento não disponibilizado neste acesso.'})}
  const page=await context.newPage();page.setDefaultTimeout(12_000);page.setDefaultNavigationTimeout(15_000)
  let habilitado=true
- return {desabilitar(){habilitado=false},async consultar(referencia){
-  if(!habilitado)return {status:'inconclusivo',motivo:'Consulta financeira suspensa neste lote após indisponibilidade.'}
-  etapa?.('pagamentos_bbz')
+ return {desabilitar(){habilitado=false},async listarUnidades(){
   await page.goto(fonteBBZ,{waitUntil:'domcontentloaded'})
-  if(page.url()!==fonteBBZ)throw Error('Histórico BBZ redirecionado; sessão não confirmada.')
+  if(page.url()!==fonteBBZ)throw Error('Filtro financeiro redirecionado; sessão não confirmada.')
+  const select=page.locator('select[name=FormUnidade]');await select.waitFor()
+  return select.locator('option').evaluateAll(xs=>xs.map(x=>({label:x.value,value:x.value})))
+ },async consultar(referencia){
+  if(!habilitado)return {status:'inconclusivo',motivo:'Consulta financeira suspensa neste lote após indisponibilidade.'}
+  etapa?.('pagamentos_'+portal)
+  await page.goto(fonteBBZ,{waitUntil:'domcontentloaded'})
+  if(page.url()!==fonteBBZ)throw Error('Histórico '+administradora+' redirecionado; sessão não confirmada.')
   const select=page.locator('select[name=FormUnidade]')
   await select.waitFor()
   const opcoes=await select.locator('option').evaluateAll((xs,v)=>xs.filter(x=>x.value===v).length,referencia)
@@ -41,7 +47,7 @@ export async function abrirFinanceiroBBZ(context,disponivel,etapa){
   if(referenciaExtrato(texto)!==referencia)throw Error('Extrato retornou outra unidade ou identificação ambígua.')
   if(estado==='relatorio_indisponivel'){
    habilitado=false
-   return {status:'inconclusivo',diagnostico:'sem_acesso',codigo_diagnostico:'bbz_relatorio_indisponivel',motivo:'O portal BBZ informa: relatório indisponível no momento; entrar em contato com a administradora.'}
+   return {status:'inconclusivo',diagnostico:'sem_acesso',codigo_diagnostico:portal+'_relatorio_indisponivel',motivo:'O portal '+administradora+' informa: relatório indisponível no momento; entrar em contato com a administradora.'}
   }
   const tabelas=await page.locator('table').evaluateAll(xs=>xs.map(t=>[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim()))))
   let resultado

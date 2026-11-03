@@ -4,7 +4,7 @@ import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {sendSmtpEmail} from '../../features/mensageria/email-provider'
 import {EmailAdiadoError} from '../../features/mensageria/email-agenda'
-import {ocorrenciasFinanceiras,montarRelatorio,REMETENTE_RELATORIO,COPIA_RELATORIO} from './relatorios-modelo.mjs'
+import {ocorrenciasFinanceiras,ocorrenciasAcordosGraiche,montarRelatorio,REMETENTE_RELATORIO,COPIA_RELATORIO} from './relatorios-modelo.mjs'
 
 const db=()=>createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{
  global:{fetch:(input,init)=>fetch(input,{...init,signal:AbortSignal.timeout(15000)})},auth:{persistSession:false,autoRefreshToken:false}})
@@ -71,7 +71,7 @@ export async function prepararLotes({simular=false,desde=process.env.SCANNER_REL
  for(const lote of lotes){
   try{
   const obs=lote.observacoes??[],unidades=obs.map((x:any)=>x.unidade),ctx=await contexto(lote.configuracao_id)
-  const ev=unidades.length?await dados(client.from('scanner_evidencias').select('id,conciliacao_status,observado_em,dados').eq('configuracao_id',lote.configuracao_id).eq('tipo','pagamentos').in('unidade_portal',unidades).gte('observado_em',lote.iniciado_em).lte('observado_em',new Date(Date.parse(lote.concluido_em)+1000).toISOString()).limit(20)):[]
+  const ev=unidades.length?await dados(client.from('scanner_evidencias').select('id,unidade_portal,conciliacao_status,observado_em,dados').eq('configuracao_id',lote.configuracao_id).eq('tipo','pagamentos').in('unidade_portal',unidades).gte('observado_em',lote.iniciado_em).lte('observado_em',new Date(Date.parse(lote.concluido_em)+1000).toISOString()).limit(20)):[]
   const pendentes=ev.filter((e:any)=>e.conciliacao_status==='pendente').length+Math.max(0,unidades.length-ev.length)
   // Dá ao conciliador o próximo tick. Depois de 10min relata a limitação explicitamente.
   if(pendentes&&Date.now()-Date.parse(lote.concluido_em)<10*60000){resultado.aguardando++;continue}
@@ -80,9 +80,13 @@ export async function prepararLotes({simular=false,desde=process.env.SCANNER_REL
    dados(client.from('scanner_conciliacao_auditoria').select('evidencia_id,observado_em,unidade_id,itens').in('evidencia_id',evIds).gte('observado_em',lote.iniciado_em).lte('observado_em',new Date(Date.parse(lote.concluido_em)+1000).toISOString()).limit(20)),
    dados(client.from('scanner_rechecagens_pagos').select('evidencia_id,unidade_id,itens').in('evidencia_id',evIds).gte('conferido_em',lote.iniciado_em).lte('conferido_em',new Date(Date.parse(lote.concluido_em)+15*60000).toISOString()).limit(20)),
   ]):[[],[]]
-  const resumo={unidades:unidades.length,sem_acesso:obs.filter((x:any)=>['sem_acesso','acesso_adiado'].includes(x.diagnostico)).length,parciais:obs.filter((x:any)=>x.parcial).length,conciliacoes_pendentes:pendentes,coleta_falhou:lote.falhou}
+  const resumo:any={unidades:unidades.length,sem_acesso:obs.filter((x:any)=>['sem_acesso','acesso_adiado'].includes(x.diagnostico)).length,parciais:obs.filter((x:any)=>x.parcial).length,conciliacoes_pendentes:pendentes,coleta_falhou:lote.falhou}
+  resumo.cadastros_restritos=ev.filter((e:any)=>e.dados?.cadastro_status==='acesso_restrito').length
   const provas=[...auditorias,...rechecagens].map(a=>({...a,documentos_disponiveis:ev.some((e:any)=>e.id===a.evidencia_id&&(e.dados.recebimentos?.length||e.dados.pagamentos?.length))}))
-  const grupos=await agrupar(ctx,ocorrenciasFinanceiras(provas),resumo,lote.concluido_em)
+  const acordosGraiche=ctx.config.portal==='graiche'&&unidades.length?await dados(client.from('acordos').select('id,unidade_id,tipo,status').eq('condominio_id',ctx.condo.id).eq('carteira_id',ctx.condo.carteira_id).eq('tipo','extrajudicial').in('unidade_id',unidades).in('status',['ativo','em_dia','em_atraso','vencido']).limit(101)):[]
+  if(acordosGraiche.length>100)throw Error('Acordos acima do limite de relatório; revisão necessária.')
+  if(ctx.config.portal==='graiche')resumo['origem']='Conferência do filtro de acordos disponível neste acesso, sem extrato financeiro e sem inferência de pagamento.'
+  const grupos=await agrupar(ctx,[...ocorrenciasFinanceiras(provas),...ocorrenciasAcordosGraiche(ev,acordosGraiche)],resumo,lote.concluido_em)
   if(simular)resultado.simulacoes.push({lote:lote.token,relatorios:grupos.map(g=>({responsavel:g.resumo.responsavel,ocorrencias:g.itens.length,resumo:g.resumo}))})
   else await dados(client.rpc('scanner_registrar_relatorios_lote',{p_lote:lote.token,p_grupos:grupos.map(({html,...g})=>g)}))
   resultado.preparados++

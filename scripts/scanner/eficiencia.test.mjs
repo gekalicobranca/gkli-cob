@@ -13,13 +13,26 @@ async function fixture(){
  alter table scanner_configuracoes add retomada_prioritaria_ate timestamptz;
  create table scanner_cadastro_auditoria(evidencia_id uuid primary key,unidade_id uuid,resultado text,antes jsonb,depois jsonb,atualizado_em timestamptz default test_now());
  grant select,insert on scanner_cadastro_auditoria to service_role;`)
- for(const file of ['20261026030745_scanner_interpretacao_sugestoes.sql','20261026120743_scanner_ia_lote_extra_auditado.sql','20261102030843_scanner_foco_abertos_retomada_relatorio.sql'])
+ for(const file of ['20261026030745_scanner_interpretacao_sugestoes.sql','20261026120743_scanner_ia_lote_extra_auditado.sql','20261102030843_scanner_foco_abertos_retomada_relatorio.sql','20261103004731_scanner_sell_conciliacao_extrato.sql'])
   await db.exec((await readFile(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8')).replaceAll('now()','public.test_now()'))
  await db.exec('set role service_role')
  return f
 }
 const pago=(extra={})=>({recibo:'999999',natureza:'cobranca',vencimento:'10/10/2026',data_pagamento:'12/10/2026',valor_original_centavos:10000,valor_pago:100,componentes_conferidos:true,...extra})
 const href=(n,codigo='63004',unidade='000001')=>'https://portal.lellocondominios.com.br/relatorios/Acordo.do?codCondo='+codigo+'&codUnidade='+unidade+'&codAcordo='+n
+
+test('SQL SELL: rechecagem semanal preservada e recibo de item já pago bloqueia duplicidade',async()=>{
+ const {db,ids,provaBruta,processar}=await fixture()
+ try{
+  await db.exec("update scanner_configuracoes set portal='sell'")
+  await db.query("insert into cobrancas(id,condominio_id,carteira_id,unidade_id,valor_original,valor_atualizado,vencimento,status,status_financeiro,observacoes,data_pagamento) values($1,$2,$3,$4,100,100,'2026-10-10','em_aberto','quitado','Recibo 999999','2026-10-12')",[randomUUID(),ids.condo,ids.car,ids.unit])
+  const prova=()=>provaBruta({codigo:'567',unidade:ids.unit,referencia_portal:'0/AP/000001',fonte:'https://servc9.webware.com.br/bin/rt/gExtratoUnidade.asp',status:'consultado',pagamentos:[pago()]},ids.unit)
+  const r=await processar(await prova());assert.equal(r.baixa.aplicadas,0);assert.equal(r.resumo.ambiguo,1);assert.equal(r.rechecagens_pagos,1)
+  assert.equal((await processar(await prova())).rechecagens_pagos,0)
+  assert.equal((await db.query('select * from scanner_baixas')).rows.length,0)
+  assert.equal((await db.query("select count(*)::int n from cobrancas where status_financeiro='em_aberto'")).rows[0].n,1)
+ }finally{await db.close()}
+})
 
 test('Lello: mais de dez documentos são divididos e retomados sem repetir ou aceitar outro escopo',()=>{
  const links=Array.from({length:14},(_,i)=>href(i+1)),op={codigo:'63004',unidade:'000001',acordos:['12']}
