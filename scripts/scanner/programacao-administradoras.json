@@ -1,0 +1,158 @@
+{
+  "versao": 1,
+  "autorizado_em": "2026-11-02",
+  "fuso": "America/Sao_Paulo",
+  "tipo": "implantacao_gradual_das_integracoes",
+  "estado": "programado",
+  "ativar_somente_apos_validacao": true,
+  "limites": {
+    "unidades_por_lote": 20,
+    "janela_portais_inicio": "00:30",
+    "janela_portais_fim": "05:25",
+    "intervalo_global_minutos": 15,
+    "capta_inadimplencia": false,
+    "importa_cobrancas": false,
+    "baixa_por_ausencia": false
+  },
+  "alvos": [
+    {
+      "configuracao_id": "2ee233cd-b84d-4373-9b40-169352e59106",
+      "condominio": "CONDOMÍNIO ELO & ELO DUO CAMINHOS DA LAPA SETOR 2 RESIDENCIAL TORRE A",
+      "portal": "graiche",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "dc1f0005-a30a-4c12-a6bc-3c73f9e7b722",
+      "condominio": "CONDOMÍNIO LAS VENTANAS",
+      "portal": "graiche",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "744394c6-bfdc-4232-b653-04baaa5cb49b",
+      "condominio": "CONDOMÍNIO LIVING WELLNESS ACLIMAÇÃO",
+      "portal": "bbz",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "f7c29085-04c3-4270-a893-5e0915faacbe",
+      "condominio": "RESIDENCIAL DAS ILHAS",
+      "portal": "atipass",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "467609d8-2f6e-4f8d-91f5-427287bdc02e",
+      "condominio": "CONDOMÍNIO SQUARE GUARULHOS",
+      "portal": "villagua",
+      "fonte_acesso": "ambiente_local",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "39802f9a-e16f-4b90-8338-d82cb9ebdb0e",
+      "condominio": "CONDOMÍNIO ESCRITÓRIO RIO NEGRO",
+      "portal": "hflex",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "221cad77-c602-4b21-b24b-14e9725a340f",
+      "condominio": "SUBCONDOMÍNIO EDIFÍCIO OFFICE TAMBORÉ",
+      "portal": "hflex",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "7c5ec245-7e05-4ac7-84be-81012353d39f",
+      "condominio": "CONDOMÍNIO VISO MOEMA",
+      "portal": "oma",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "9547384d-21f5-4423-9bb8-60eac3dc0ce8",
+      "condominio": "CYRELA ATMOSFERA 360 SUBCONDOMÍNIO 2",
+      "portal": "oma",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "3120996c-7373-40b0-9af3-2bb6ae730661",
+      "condominio": "CYRELA ATMOSFERA 360 SUBCONDOMÍNIO RESIDENCIAL 1",
+      "portal": "oma",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "3663b560-a468-4312-914c-a4add2068bbe",
+      "condominio": "HAUS MITRE RESERVA VILA MARIANA SETOR RESIDENCIAL",
+      "portal": "oma",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "8329ab48-0c31-4cbe-84a0-b8facf17d14e",
+      "condominio": "HAUS MITRE RESERVA VILA MARIANA SETOR STUDIOS",
+      "portal": "oma",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "5a4e31c5-bea5-43ff-924c-6fcdfc5c2a8f",
+      "condominio": "VERDANA JARDIM PRUDENCIA SETOR RESIDENCIAL",
+      "portal": "verti",
+      "fonte_acesso": "ambiente_local",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "dd31e0d7-cd9f-4b02-8b91-6102a2c63848",
+      "condominio": "VERDANA SUITES JARDIM PRUDENCIA SETOR MORADIA TORRE 3",
+      "portal": "verti",
+      "fonte_acesso": "ambiente_local",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "daa5b156-2996-47c3-89e1-d79ef5e02c10",
+      "condominio": "ALIVE HOME CLUB BELEM",
+      "portal": "habitacional",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "1c6b096a-f934-4e29-ba87-2ed2d2dbca87",
+      "condominio": "CONDOMÍNIO IL FARO",
+      "portal": "habitacional",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "34fa7152-4c58-47f0-8627-7db64c03be29",
+      "condominio": "CONDOMÍNIO RESIDENCIAL MAIS ESTILO & DESIGN MORUMBI",
+      "portal": "habitacional",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    },
+    {
+      "configuracao_id": "b913383f-4b18-43f2-9eec-509bfdfe2fbf",
+      "condominio": "CONDOMÍNIO VILLA NATURA",
+      "portal": "lello",
+      "fonte_acesso": "receita_cadastrada",
+      "estado": "programado"
+    }
+  ],
+  "exclusoes": {
+    "sem_acesso": "Não incluir nem tentar login nos acessos ausentes/não liberados; reabrir somente após nova informação de acesso.",
+    "ids_sem_acesso": [
+      "7ee29b5d-9a95-4b0c-b07c-793c95a8a570",
+      "bb648e7d-e675-4971-9e5c-90fe031d65dd",
+      "425d6b58-719e-40cd-a5ae-34e2844adee7",
+      "e4d18a82-d911-4ded-b15e-240d7e60cb59"
+    ],
+    "judicial": [
+      "894d83f7-db5a-4f93-bbef-9a74bc26a78e"
+    ],
+    "demais": "Configurações sem receita/acesso ou sem unidades não fazem parte desta programação."
+  }
+}
