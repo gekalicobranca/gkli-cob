@@ -3086,14 +3086,16 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
 export async function romperAcordoAssistido(_previousState: { message: string } | null, formData: FormData): Promise<{ message: string } | null> {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();
-  let confirmacaoQuebra;
-  try {
-    confirmacaoQuebra = lerConfirmacaoQuebra(formData, user.id);
-  } catch (error) {
-    if (error instanceof Error && error.message === QUEBRA_EXIGE_CONFIRMACAO) {
-      return { message: QUEBRA_EXIGE_CONFIRMACAO };
+  let confirmacaoQuebra = null;
+  if (formData.has("quebra_referencia")) {
+    try {
+      confirmacaoQuebra = lerConfirmacaoQuebra(formData, user.id);
+    } catch (error) {
+      if (error instanceof Error && error.message === QUEBRA_EXIGE_CONFIRMACAO) {
+        return { message: QUEBRA_EXIGE_CONFIRMACAO };
+      }
+      throw error;
     }
-    throw error;
   }
   const scope = await getPermittedCarteiras();
   const supabase = await createClient();
@@ -3136,7 +3138,7 @@ export async function romperAcordoAssistido(_previousState: { message: string } 
 
   const { error: updateError } = await supabase
     .from("acordos")
-    .update({ status: ACORDO_STATUS.QUEBRADO, status_financeiro: "vencido", fluxo_status: `rompido_${destino}`, quebra_confirmacao: confirmacaoQuebra, data_quebra: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()) } as any)
+    .update({ status: ACORDO_STATUS.QUEBRADO, status_financeiro: "vencido", fluxo_status: `rompido_${destino}`, quebra_confirmacao: confirmacaoQuebra ?? { origem: "rompimento_assistido", confirmado_por: user.id }, data_quebra: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()) } as any)
     .eq("id", acordoId);
   if (updateError) {
     if (updateError.code === "P0001" && updateError.message.startsWith("Quebra exige confirmacao")) {

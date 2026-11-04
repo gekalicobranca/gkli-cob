@@ -253,6 +253,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
   const possuiPagamentoRegistrado = parcelas.some((parcela: any) =>
     parcela.data_pagamento || ["paga", "pago", "quitada", "quitado"].includes(String(parcela.status ?? "").toLowerCase()),
   );
+  const exigeConfirmacaoQuebra = acordo.acordo_homologado === true && possuiPagamentoRegistrado;
   const statusFechado = ["cancelado", "quitado", "rompido", "quebrado"].includes(String(acordo.status ?? ""));
   const possuiFormalizacaoPendente = termos.some((termo: any) =>
     ["pendente", "visualizado"].includes(String(termo.status ?? "")),
@@ -372,7 +373,9 @@ export default async function AcordoDetalhePage({ params }: Props) {
                 <div className="min-w-0">
                   <h3 className="text-base font-semibold text-slate-950">Rompimento assistido</h3>
                   <p className="mt-1 text-sm leading-5 text-slate-500">
-                    Atraso mantém a parcela vencida. Registre a quebra somente após a administradora confirmar e conciliar pagamentos, saldo residual e cotas.
+                    {exigeConfirmacaoQuebra
+                      ? "Registre a quebra após a administradora confirmar e conciliar pagamentos, saldo residual e cotas."
+                      : "Registre o rompimento e selecione o destino das cobranças."}
                   </p>
                 </div>
                 <XCircle className="h-5 w-5 shrink-0 text-slate-400" />
@@ -380,18 +383,20 @@ export default async function AcordoDetalhePage({ params }: Props) {
 
               <RompimentoAssistidoForm className="mt-4 grid gap-3 lg:grid-cols-[minmax(160px,0.8fr)_minmax(180px,0.9fr)_minmax(160px,0.8fr)_auto] lg:items-end">
                 <input type="hidden" name="acordo_id" value={acordo.id} />
-                <label className="block space-y-1.5 lg:col-span-full">
-                  <span className="text-sm font-semibold">Confirmação da administradora</span>
-                  <textarea name="quebra_referencia" required minLength={10} className={actionTextareaClass} placeholder="Administradora, data e referência do e-mail ou documento que confirma a quebra" />
-                </label>
-                <label className="block space-y-1.5 lg:col-span-full">
-                  <span className="text-sm font-semibold">Ajuste financeiro confirmado</span>
-                  <textarea name="quebra_ajuste_referencia" required minLength={10} className={actionTextareaClass} placeholder="Referência da conciliação: pagamentos aproveitados, saldo residual e cotas ajustadas pela administradora" />
-                </label>
-                <label className="flex items-start gap-2 text-sm lg:col-span-full">
-                  <input type="checkbox" name="quebra_conciliada" required />
-                  Pagamentos, saldo residual e cotas já foram conferidos e ajustados conforme confirmação da administradora.
-                </label>
+                {exigeConfirmacaoQuebra && <>
+                  <label className="block space-y-1.5 lg:col-span-full">
+                    <span className="text-sm font-semibold">Confirmação da administradora</span>
+                    <textarea name="quebra_referencia" required minLength={10} className={actionTextareaClass} placeholder="Administradora, data e referência do e-mail ou documento que confirma a quebra" />
+                  </label>
+                  <label className="block space-y-1.5 lg:col-span-full">
+                    <span className="text-sm font-semibold">Ajuste financeiro confirmado</span>
+                    <textarea name="quebra_ajuste_referencia" required minLength={10} className={actionTextareaClass} placeholder="Referência da conciliação: pagamentos aproveitados, saldo residual e cotas ajustadas pela administradora" />
+                  </label>
+                  <label className="flex items-start gap-2 text-sm lg:col-span-full">
+                    <input type="checkbox" name="quebra_conciliada" required />
+                    Pagamentos, saldo residual e cotas já foram conferidos e ajustados conforme confirmação da administradora.
+                  </label>
+                </>}
                 <label className="block space-y-1.5">
                   <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Motivo</span>
                   <select name="motivo" className={actionFieldClass} defaultValue="">
