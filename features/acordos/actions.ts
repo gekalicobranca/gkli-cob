@@ -1,5 +1,7 @@
 "use server";
 
+import { lerConfirmacaoQuebra, QUEBRA_EXIGE_CONFIRMACAO } from "./quebra-confirmacao";
+
 import { lerContatoRapido } from "@/features/acordos/contato-rapido";
 import { validarDataCivil, vencimentoMensal, dataCivilSaoPaulo, somarDiasCivis, diasEntreDatasCivis } from '@/lib/core/data-civil';
 
@@ -3081,15 +3083,24 @@ export async function alterarStatusAcordosPreJuridico(formData: FormData) {
   }
 }
 
-export async function romperAcordoAssistido(formData: FormData) {
+export async function romperAcordoAssistido(_previousState: { message: string } | null, formData: FormData): Promise<{ message: string } | null> {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();
+  let confirmacaoQuebra;
+  try {
+    confirmacaoQuebra = lerConfirmacaoQuebra(formData, user.id);
+  } catch (error) {
+    if (error instanceof Error && error.message === QUEBRA_EXIGE_CONFIRMACAO) {
+      return { message: QUEBRA_EXIGE_CONFIRMACAO };
+    }
+    throw error;
+  }
   const scope = await getPermittedCarteiras();
   const supabase = await createClient();
 
   const acordoId = String(formData.get("acordo_id") ?? "").trim();
   const motivo = String(formData.get("motivo") ?? "").trim();
-  const destino = String(formData.get("destino") ?? "retomar_cobranca").trim();
+  const destino = String(formData.get("destino") ?? "suspender").trim();
   const observacao = String(formData.get("observacao") ?? "").trim();
 
   if (!acordoId) throw new Error("Acordo obrigatório.");
@@ -3125,9 +3136,15 @@ export async function romperAcordoAssistido(formData: FormData) {
 
   const { error: updateError } = await supabase
     .from("acordos")
-    .update({ status: ACORDO_STATUS.QUEBRADO, status_financeiro: "vencido", fluxo_status: `rompido_${destino}` })
+    .update({ status: ACORDO_STATUS.QUEBRADO, status_financeiro: "vencido", fluxo_status: `rompido_${destino}`, quebra_confirmacao: confirmacaoQuebra, data_quebra: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()) } as any)
     .eq("id", acordoId);
-  if (updateError) throw new Error(`Erro ao romper acordo: ${updateError.message}`);
+  if (updateError) {
+    if (updateError.code === "P0001" && updateError.message.startsWith("Quebra exige confirmacao")) {
+      return { message: QUEBRA_EXIGE_CONFIRMACAO };
+    }
+    console.error("Erro ao registrar rompimento assistido", { acordoId, code: updateError.code, message: updateError.message });
+    return { message: "Não foi possível registrar o rompimento. Tente novamente." };
+  }
 
   if (cobrancaIds.length > 0) {
     const { error: cobrancasError } = await supabase
@@ -3145,7 +3162,7 @@ export async function romperAcordoAssistido(formData: FormData) {
     titulo: "Acordo rompido",
     descricao: [motivo || "Motivo não informado", `Destino: ${destino.replace(/_/g, " ")}`, observacao || null].filter(Boolean).join(" · "),
     severidade: "alerta",
-    payload: { motivo, destino, observacao, cobranca_ids: cobrancaIds, condominio_id: (acordo as any).condominio_id, unidade_id: (acordo as any).unidade_id },
+    payload: { confirmacao_administradora: confirmacaoQuebra, motivo, destino, observacao, cobranca_ids: cobrancaIds, condominio_id: (acordo as any).condominio_id, unidade_id: (acordo as any).unidade_id },
     antes: { status: (acordo as any).status ?? null, status_financeiro: (acordo as any).status_financeiro ?? null },
     depois: { status: ACORDO_STATUS.QUEBRADO, status_financeiro: "vencido", fluxo_status: `rompido_${destino}`, status_cobranca: statusCobranca },
     origem: "manual",
@@ -3176,6 +3193,7 @@ export async function romperAcordoAssistido(formData: FormData) {
   revalidatePath("/app/acordos/gestao");
   revalidatePath("/app/acordos/gestao");
   revalidatePath(`/app/acordos/${acordoId}`);
+  return null;
 }
 
 export async function atualizarAtrasosERompimentosAcordos() {

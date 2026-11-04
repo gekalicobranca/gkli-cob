@@ -10,13 +10,13 @@ import { notFound } from "next/navigation";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { AppErrorState } from "@/components/feedback/app-error-state";
+import { RompimentoAssistidoForm } from "@/features/acordos/components/rompimento-assistido-form";
 import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import {
   cancelarFormalizacaoAcordo,
   retomarFormalizacaoAcordo,
   marcarParcelaComoPaga,
   revisarParcelaAcordo,
-  romperAcordoAssistido,
   solicitarReemissaoParcelaAcordo,
 } from "@/features/acordos/actions";
 import { calculateAgreementHealth, getAcordoDetalhe } from "@/features/acordos/queries";
@@ -359,9 +359,9 @@ export default async function AcordoDetalhePage({ params }: Props) {
                     variant="secondary"
                     className="h-10 whitespace-nowrap border-rose-200 bg-white text-rose-700 hover:bg-rose-50"
                     icon={<XCircle size={16} />}
-                    pendingLabel="Cancelando..."
+                    pendingLabel="Salvando..."
                   >
-                    Cancelar
+                    Salvar
                   </PendingSubmitButton>
                 </form>
               </div>
@@ -372,14 +372,26 @@ export default async function AcordoDetalhePage({ params }: Props) {
                 <div className="min-w-0">
                   <h3 className="text-base font-semibold text-slate-950">Rompimento assistido</h3>
                   <p className="mt-1 text-sm leading-5 text-slate-500">
-                    Registre apenas quando o acordo saiu do fluxo normal e precisa de destino operacional.
+                    Atraso mantém a parcela vencida. Registre a quebra somente após a administradora confirmar e conciliar pagamentos, saldo residual e cotas.
                   </p>
                 </div>
                 <XCircle className="h-5 w-5 shrink-0 text-slate-400" />
               </div>
 
-              <form action={romperAcordoAssistido} className="mt-4 grid gap-3 lg:grid-cols-[minmax(160px,0.8fr)_minmax(180px,0.9fr)_minmax(160px,0.8fr)_auto] lg:items-end">
+              <RompimentoAssistidoForm className="mt-4 grid gap-3 lg:grid-cols-[minmax(160px,0.8fr)_minmax(180px,0.9fr)_minmax(160px,0.8fr)_auto] lg:items-end">
                 <input type="hidden" name="acordo_id" value={acordo.id} />
+                <label className="block space-y-1.5 lg:col-span-full">
+                  <span className="text-sm font-semibold">Confirmação da administradora</span>
+                  <textarea name="quebra_referencia" required minLength={10} className={actionTextareaClass} placeholder="Administradora, data e referência do e-mail ou documento que confirma a quebra" />
+                </label>
+                <label className="block space-y-1.5 lg:col-span-full">
+                  <span className="text-sm font-semibold">Ajuste financeiro confirmado</span>
+                  <textarea name="quebra_ajuste_referencia" required minLength={10} className={actionTextareaClass} placeholder="Referência da conciliação: pagamentos aproveitados, saldo residual e cotas ajustadas pela administradora" />
+                </label>
+                <label className="flex items-start gap-2 text-sm lg:col-span-full">
+                  <input type="checkbox" name="quebra_conciliada" required />
+                  Pagamentos, saldo residual e cotas já foram conferidos e ajustados conforme confirmação da administradora.
+                </label>
                 <label className="block space-y-1.5">
                   <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Motivo</span>
                   <select name="motivo" className={actionFieldClass} defaultValue="">
@@ -393,7 +405,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
                 </label>
                 <label className="block space-y-1.5">
                   <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Destino</span>
-                  <select name="destino" className={actionFieldClass} defaultValue="retomar_cobranca">
+                  <select name="destino" className={actionFieldClass} defaultValue="suspender">
                     <option value="retomar_cobranca">Retomar cobrança</option>
                     <option value="suspender">Suspender cobranças</option>
                     <option value="pre_juridico">Preparar documentação pré-jurídica</option>
@@ -412,7 +424,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
                 >
                   Registrar
                 </PendingSubmitButton>
-              </form>
+              </RompimentoAssistidoForm>
             </div>
           </div>
         </CardContent>
