@@ -16,7 +16,6 @@ export function AgreementHomologationForm({ id, revisao }: { id: string; revisao
       <label className="block">Registro baixado da ADM (PDF, até 3 MB)
         <input name="registro_adm" type="file" required accept="application/pdf,.pdf" className="mt-1 block w-full" />
       </label>
-      <label className="block"><input name="boletos_emitidos" type="checkbox" required /> Recebi os boletos emitidos pela administradora.</label>
       <fieldset className="space-y-1">
         <legend className="font-medium">O registro da ADM confere com o cadastro do app?</legend>
         <label className="block"><input name="identificacao" type="checkbox" /> Condomínio, unidade, bloco e cotas negociadas.</label>

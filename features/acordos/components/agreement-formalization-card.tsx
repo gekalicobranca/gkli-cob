@@ -18,7 +18,7 @@ export function AgreementFormalizationCard({ acordo, hideTitle = false }: { acor
   const homologacao = acordo.acordo_homologado ? "Homologado"
     : homologacoes[0]?.conferido === false ? "Divergência pendente"
     : homologacoes[0]?.conferido ? "Cadastro alterado · conferir novamente"
-    : state.recebido ? "Aguardando homologação" : "Aguardando boletos";
+    : "Aguardando registro da ADM e conferência";
   const termos: any[] = acordo.termos ?? [];
   const pagamento = ["parcial", "quitado"].includes(acordo.status_financeiro) || acordo.status === "quitado";
   const etapas = [
@@ -44,7 +44,7 @@ export function AgreementFormalizationCard({ acordo, hideTitle = false }: { acor
     {acordo.tipo === "extrajudicial" && <details open={state.recebido && !acordo.acordo_homologado} className="rounded-lg border border-slate-200 p-3">
       <summary className="cursor-pointer text-sm font-semibold">Homologação da administradora</summary>
       <div className="mt-3 space-y-3">
-        <p className="text-sm text-slate-700">Baixe o registro da administradora junto com os boletos. Compare o PDF com as cotas vinculadas, os valores e a tabela de parcelas deste acordo.</p>
+        <p className="text-sm text-slate-700">Anexe o registro da administradora e compare o PDF com as cotas vinculadas, os valores e a tabela de parcelas deste acordo.</p>
         {!["cancelado", "quebrado", "rompido", "renegociado"].includes(acordo.status)
             && !(acordo.exige_aprovacao_sindico && !acordo.sindico_aprovado_em)
             && <AgreementHomologationForm id={acordo.id} revisao={acordo.acordo_revisao_adm} />}

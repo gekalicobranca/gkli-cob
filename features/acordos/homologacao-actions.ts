@@ -15,8 +15,8 @@ export async function registrarHomologacaoAdm(
   if (!(pdf instanceof File) || pdf.size < 5 || pdf.size > 3 * 1024 * 1024) {
     return { erro: "Anexe o PDF da administradora com até 3 MB." };
   }
-  if (!referencia || referencia.length > 150 || form.get("boletos_emitidos") !== "on") {
-    return { erro: "Informe o número do acordo na ADM e confirme o recebimento dos boletos emitidos." };
+  if (!referencia || referencia.length > 150) {
+    return { erro: "Informe o número ou protocolo do acordo na administradora." };
   }
   const decisao = form.get("decisao");
   if (decisao !== "homologar" && decisao !== "divergencia") return { erro: "Selecione uma decisão." };
