@@ -36,7 +36,7 @@ export async function getTvResults(start: string, end: string, selection?: { car
   const db = await createClient()
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const nextDay = new Date(Date.parse(end) + 86400000).toISOString().slice(0, 10)
-  const agreementFields = 'id,tipo,cobranca_id,carteira_id,condominio_id,data_acordo,valor_acordado,observacoes,status,status_financeiro,fluxo_status,boletos_solicitados_em,despesa_cobranca_valor,despesa_cobranca_percentual'
+  const agreementFields = 'id,tipo,cobranca_id,carteira_id,condominio_id,data_acordo,valor_acordado,observacoes,status,status_financeiro,fluxo_status,boletos_solicitados_em,despesa_cobranca_valor,despesa_cobranca_percentual,acordo_homologado'
   async function pages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>, label: string) {
     const rows: T[] = []
     for (let offset = 0; ; offset += 1000) {

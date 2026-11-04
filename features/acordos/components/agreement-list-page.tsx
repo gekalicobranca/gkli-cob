@@ -341,6 +341,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 {isJudicialUnderReview(row) ? <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Em conferência</span> : <StatusBadge status={row.status} />}
+                                {row.tipo === "extrajudicial" && <span className="block text-xs text-slate-600">{row.acordo_homologado ? "Homologado pela ADM" : "Homologação pendente"}</span>}
                               </div>
                               <ListItemTitle className="mt-2">{getUnitLabel(row.unidades)}</ListItemTitle>
                               <ListItemMeta>

@@ -63,6 +63,7 @@ export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind) {
     .select(
       `
       *,
+      acordo_homologado,
       condominios:condominio_id (
         id,
         operador_id,
@@ -120,6 +121,9 @@ export async function getAcordoDetalhe(id: string, scope: CarteiraScope) {
     .select(
       `
       *,
+      acordo_homologado,
+      acordo_revisao_adm,
+      homologacoes_adm:acordo_homologacoes_adm(id,operador_nome,criado_em,referencia,nome_pdf,conferido,divergencia),
       condominios:condominio_id (
         id,
         nome,
@@ -818,6 +822,7 @@ const ACORDOS_PAGE_SELECT = `
   status,
   status_financeiro,
   fluxo_status,
+  acordo_homologado,
   numero_processo,
   condominios:condominio_id (
     id,
@@ -1721,19 +1726,21 @@ export async function listAgreementBoletoInbox(scope?: CarteiraScope) {
         "solicitacao_boletos_preparada",
         "boletos_solicitados",
         "boletos_recebidos",
+        "boletos_enviados",
       ].includes(fluxo);
     })
     .map((acordo) => {
       const fluxo = String(acordo.fluxo_status ?? "").toLowerCase();
       let etapa_boleto = "Aguardando boletos";
-      if (fluxo === "solicitacao_boletos_preparada") etapa_boleto = "Solicitação preparada";
+      if (acordo.tipo === "extrajudicial" && !acordo.acordo_homologado && ["boletos_recebidos", "boletos_enviados"].includes(fluxo)) etapa_boleto = "Homologação pendente";
+      else if (fluxo === "solicitacao_boletos_preparada") etapa_boleto = "Solicitação preparada";
       else if (fluxo.includes("boletos_enviados")) etapa_boleto = "Boletos enviados";
       else if (fluxo.includes("boletos_recebidos")) etapa_boleto = "Boletos recebidos";
       else if (fluxo.includes("boleto")) etapa_boleto = "Aguardando boletos";
       return { ...acordo, etapa_boleto };
     })
     .sort((a, b) => {
-      const ordem: Record<string, number> = { "Aguardando boletos": 0, "Boletos recebidos": 1, "Boletos enviados": 2 };
+      const ordem: Record<string, number> = { "Homologação pendente": 0, "Aguardando boletos": 1, "Boletos recebidos": 2, "Boletos enviados": 3 };
       return (ordem[a.etapa_boleto] ?? 9) - (ordem[b.etapa_boleto] ?? 9);
     });
 }

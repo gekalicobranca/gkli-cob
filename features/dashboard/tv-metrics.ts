@@ -4,6 +4,7 @@ import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from '@/lib/constants/cobrancas'
 import { getCobrancaStatusFinanceiro, getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 export type TvAgreement = {
+  acordo_homologado?: boolean
   tipo?: string | null
   fluxo_status?: string | null
   boletos_solicitados_em?: string | null
@@ -40,6 +41,7 @@ export const TV_PAID_INSTALLMENT_STATUSES = [...paidStatuses]
 // Pagamento de qualquer data efetiva o acordo, mesmo fora do fechamento selecionado.
 export function tvAgreementStage(agreement: TvAgreement) {
   if (agreement.tem_parcela_paga) return 'efetivado'
+  if (agreement.acordo_homologado === true) return 'firmado'
   if (agreement.boletos_solicitados_em || ['boletos_solicitados', 'boletos_recebidos', 'boletos_enviados'].includes(normalize(agreement.fluxo_status ?? null))) return 'firmado'
   return null
 }
@@ -62,7 +64,7 @@ export function tvExpectedTransfer(agreement: TvAgreement, installment: TvInstal
 
 export function buildTvMetrics(start: string, end: string, today: string, charges: TvCharge[], agreements: TvAgreement[], installments: TvInstallment[]) {
   const inPeriod = (date: string | null) => Boolean(date && date.slice(0, 10) >= start && date.slice(0, 10) <= end)
-  const eligible = agreements.filter(eligibleTvAgreement)
+  const eligible = agreements.filter(row => row.acordo_homologado === true && eligibleTvAgreement(row))
   const dayAgreements = eligible.filter(row => row.data_acordo?.slice(0, 10) === today)
   const current = eligible.filter(row => (ACORDO_STATUS_VIGENTES as readonly string[]).includes(normalize(row.status)) && !['quitado', 'pago'].includes(normalize(row.status_financeiro)))
   const cutoff = today < end ? today : end
@@ -78,7 +80,7 @@ export function buildTvMetrics(start: string, end: string, today: string, charge
   })
   const expected = installments.filter(row => {
     const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos
-    return agreement && inPeriod(row.vencimento) && !cancelledStatuses.has(normalize(row.status))
+    return agreement && agreement.acordo_homologado === true && inPeriod(row.vencimento) && !cancelledStatuses.has(normalize(row.status))
       && eligibleTvAgreement(agreement)
   })
   // O acordo conta uma única vez, mesmo com várias parcelas no fechamento.

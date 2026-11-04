@@ -5,7 +5,7 @@ import { valorAcordadoRelatorio } from '../features/acordos/valor-relatorio'
 import { buildTvMetrics, type TvAgreement, type TvInstallment } from '../features/dashboard/tv-metrics'
 
 test('duplicidade usa cadastro principal sem somar novamente dívida e recebimento histórico', () => {
-  const principal: TvAgreement = { id: 'principal', data_acordo: '2026-09-22', valor_acordado: 442.74, status: 'em_dia', status_financeiro: 'parcial', observacoes: null, despesa_cobranca_valor: 0, despesa_cobranca_percentual: 0 }
+  const principal: TvAgreement = { id: 'principal', data_acordo: '2026-09-22', valor_acordado: 442.74, status: 'em_dia', status_financeiro: 'parcial', observacoes: null, despesa_cobranca_valor: 0, despesa_cobranca_percentual: 0, acordo_homologado: true, tem_parcela_paga: true }
   const historico: TvAgreement = { ...principal, id: 'historico', status: 'cancelado', observacoes: MARCADOR_DUPLICIDADE_CONCILIADA }
   const parcelas: TvInstallment[] = [
     { id: 'p1', valor: 147.58, vencimento: '2026-09-25', status: 'paga', data_pagamento: '2026-09-25', valor_repasse_informado: 24.59, acordos: principal },

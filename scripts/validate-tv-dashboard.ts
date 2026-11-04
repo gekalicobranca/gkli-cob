@@ -4,7 +4,7 @@ import { buildTvMetrics, tvAgreementStage, tvExpectedTransfer, type TvAgreement,
 import { buildTvSlides, tvWalletTheme } from '../features/dashboard/tv-slides'
 import { prepareTvCollectionCharges } from '../features/dashboard/tv-collection'
 
-const agreement = (changes: Partial<TvAgreement> = {}): TvAgreement => ({ id: 'a', data_acordo: '2026-10-20', valor_acordado: 1000, status: 'ativo', status_financeiro: 'em_aberto', fluxo_status: 'boletos_solicitados', observacoes: null, despesa_cobranca_valor: 100, despesa_cobranca_percentual: 20, ...changes })
+const agreement = (changes: Partial<TvAgreement> = {}): TvAgreement => ({ id: 'a', data_acordo: '2026-10-20', valor_acordado: 1000, status: 'ativo', status_financeiro: 'em_aberto', fluxo_status: 'boletos_solicitados', observacoes: null, despesa_cobranca_valor: 100, despesa_cobranca_percentual: 20, acordo_homologado: true, ...changes })
 const charge = (changes: Partial<TvCharge> = {}): TvCharge => ({ unidade_id: 'u', vencimento: '2026-09-01', valor_atualizado: 100, status: 'novo', status_operacional: 'novo', status_financeiro: 'em_aberto', ...changes })
 const installment = (changes: Partial<TvInstallment> = {}): TvInstallment => ({ id: 'p', valor: 200, vencimento: '2026-10-25', data_pagamento: null, status: 'aberta', valor_repasse_informado: null, acordos: agreement(), ...changes })
 const calculate = (charges: TvCharge[] = [], agreements: TvAgreement[] = [], installments: TvInstallment[] = []) => buildTvMetrics('2026-10-13', '2026-11-12', '2026-10-20', charges, agreements, installments)
@@ -25,22 +25,22 @@ test('quebrados, encerrados e duplicidades conciliadas saem de todos os totais d
   assert.deepEqual(metrics.result, { expected: 2, expectedValue: 400, paid: 2, paidValue: 400, transferToday: 200, transfer: 40 })
 })
 
-test('somente pagamentos reais ou solicitação de boletos qualificam acordos e suas parcelas', () => {
-  const pending = agreement({ id: 'pending', fluxo_status: 'aguardando_aceite_devedor' })
-  const misleading = agreement({ id: 'misleading', fluxo_status: 'acordo_efetivado', status_financeiro: 'parcial' })
+test('somente acordos homologados entram nos válidos e nas parcelas previstas', () => {
+  const pending = agreement({ id: 'pending', fluxo_status: 'aguardando_aceite_devedor', acordo_homologado: false })
+  const misleading = agreement({ id: 'misleading', fluxo_status: 'acordo_efetivado', status_financeiro: 'parcial', acordo_homologado: false })
   const funded = agreement({ id: 'funded', fluxo_status: 'aguardando_aceite_devedor', tem_parcela_paga: true })
-  const requested = agreement({ id: 'requested' })
+  const requested = agreement({ id: 'requested', acordo_homologado: false })
   const later = agreement({ id: 'later', fluxo_status: 'boletos_enviados' })
-  const reissued = agreement({ id: 'reissued', fluxo_status: 'reaberto_reemissao', boletos_solicitados_em: '2026-09-01T10:00:00Z' })
+  const reissued = agreement({ id: 'reissued', fluxo_status: 'reaberto_reemissao', boletos_solicitados_em: '2026-09-01T10:00:00Z', acordo_homologado: false })
   assert.equal(tvAgreementStage(pending), null)
   assert.equal(tvAgreementStage(misleading), null)
   assert.equal(tvAgreementStage(funded), 'efetivado')
   assert.equal(tvAgreementStage(requested), 'firmado')
   const rows = [pending, misleading, funded, requested, later, reissued]
   const metrics = calculate([], rows, rows.map((row, index) => installment({ id: `p${index}`, acordos: row })))
-  assert.equal(metrics.agreements.period, 4)
-  assert.equal(metrics.result.expected, 4)
-  assert.equal(metrics.result.expectedValue, 800)
+  assert.equal(metrics.agreements.period, 2)
+  assert.equal(metrics.result.expected, 2)
+  assert.equal(metrics.result.expectedValue, 400)
 })
 
 test('pagamento fora do fechamento efetiva parcelas futuras sem substituir a data do vencimento', () => {

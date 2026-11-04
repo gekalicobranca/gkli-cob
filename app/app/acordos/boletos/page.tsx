@@ -31,7 +31,7 @@ export default async function BoletosAcordosPage() {
       <PageHeader
         eyebrow="Base Operacional"
         title="Controle de boletos"
-        description="Acompanhamento simples: aguardando, recebidos e enviados ao devedor."
+        description="Acompanhe o recebimento dos boletos e a homologação do registro da administradora."
         actions={
           <>
             <ButtonLink href="/app/acordos/gestao" variant="secondary">Voltar</ButtonLink>
@@ -40,8 +40,8 @@ export default async function BoletosAcordosPage() {
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-3">
-        {['Aguardando boletos', 'Boletos recebidos', 'Boletos enviados'].map((etapa) => (
+      <section className="grid gap-3 md:grid-cols-4">
+        {['Aguardando boletos', 'Homologação pendente', 'Boletos recebidos', 'Boletos enviados'].map((etapa) => (
           <Card key={etapa} className="p-4">
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">{etapa}</p>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{rows.filter((row: any) => row.etapa_boleto === etapa).length}</p>
@@ -79,7 +79,7 @@ export default async function BoletosAcordosPage() {
                 </div>
                 <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Acordo</p><p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor_acordado ?? 0))}</p></div>
                 <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Data</p><p className="mt-1 text-sm text-slate-700">{formatDateBR(row.data_acordo)}</p></div>
-                <Link href={`/app/acordos/${row.id}#formalizacao`} className="text-sm font-medium text-cyan-800 underline">Conferir evidências e confirmar boletos</Link>
+                <Link href={`/app/acordos/${row.id}#formalizacao`} className="text-sm font-medium text-cyan-800 underline">Conferir boletos e registro da ADM</Link>
               </div>
             ))}
           </div>
