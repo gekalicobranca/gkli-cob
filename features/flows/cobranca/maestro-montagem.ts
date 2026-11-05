@@ -2,7 +2,6 @@ import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamen
 import { carregarCanaisOcupados } from './vinculos-canais'
 import { conflitoDeCanais } from './canais'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { ACORDO_STATUS_VIGENTES } from '@/lib/core/status'
 import { processarReguaCobranca } from '@/features/regua/services/processar-regua-cobranca'
 import { escolherContatoRegua } from '@/features/regua/services/regua-shared'
 import { dividirCriacaoFlows } from './dividir-criacao'
@@ -48,11 +47,12 @@ async function planejar(db: ReturnType<typeof createAdminClient>, job: any) {
   for (let offset = 0; offset < rows.length; offset += 100) {
     const ids = rows.slice(offset, offset + 100).map(r => r.id)
     const [a, v] = await Promise.all([
-      db.from('acordos').select('cobranca_id').in('cobranca_id', ids).in('status', ACORDO_STATUS_VIGENTES),
+      db.rpc('flow_cobrancas_bloqueadas_por_acordo', { p_ids: ids }),
       carregarCanaisOcupados(db, ids),
     ])
     if (a.error) throw new Error('Não foi possível conferir acordos e flows anteriores.')
-    a.data.forEach(r => acordos.add(r.cobranca_id)); v.forEach((canais, id) => { if (conflitoDeCanais(canais, ['email'])) vinculadas.add(id) })
+    for (const id of (a.data ?? []) as string[]) acordos.add(id)
+    v.forEach((canais, id) => { if (conflitoDeCanais(canais, ['email'])) vinculadas.add(id) })
   }
   const elegiveis: any[] = [], pendencias: any[] = []
   for (const row of rows) {

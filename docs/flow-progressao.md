@@ -10,6 +10,8 @@ Flows encerrados podem ter continuação pendente. Flows pausados impedem a cont
 
 `flow_progressao` mantém a data original, prazo, etapa, lote, lease e erros. A tela de flows mostra as próximas etapas e pendências. Falhas de preparação ficam em `atencao` para revisão; uma interrupção de execução retoma o mesmo lote e fingerprint. O encerramento do job e a ativação da agenda ocorrem na mesma transação.
 
+Acordos com status `ativo`, `em_dia` ou `em_atraso` cancelam automaticamente as mensagens de cobrança pendentes e suas continuações no ciclo de progressão. A conferência abrange a unidade, o vínculo direto e a composição do acordo. Mensagens consolidadas são canceladas por inteiro, com o motivo e o estado anterior em auditoria. A montagem manual e o Maestro usam a mesma conferência. A rotina preserva mensagens enviadas, tentativas em andamento ou incertas e mensagens próprias do acompanhamento de acordos.
+
 Implantação: aplicar `20260929010000_flow_progressao_primeiro_envio.sql`, publicar a rota `/api/jobs/flows/progredir`, conferir `flow_progressao_enfileirar()` e então habilitar o cron. A migração deixa o cron desativado até essa conferência. O segredo permanece no Vault (`gkli_email_agenda_token`) e deve corresponder a `EMAIL_AGENDA_CRON_SECRET` da aplicação.
 
 Validação: `node node_modules/tsx/dist/cli.mjs --test scripts/validate-flow-progressao.ts` cobre início, prazo, confirmação, deduplicação, consolidação, lease, retomada, pausa, acordo e cancelamento.

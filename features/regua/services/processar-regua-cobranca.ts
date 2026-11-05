@@ -5,7 +5,6 @@ import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamen
 import { createAdminClient } from "@/utils/supabase/admin";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import {
-  ACORDO_STATUS_VIGENTES,
   COBRANCA_STATUS,
   COBRANCA_STATUS_FINANCEIRO,
   COBRANCA_STATUS_OPERACIONAIS_ATIVOS,
@@ -464,21 +463,19 @@ async function getAcordosAtivosPorCobranca(
 ) {
   if (cobrancaIds.length === 0) return new Set<string>();
 
-  const rows: any[] = [];
+  const idsComAcordo = new Set<string>();
   for (let index = 0; index < cobrancaIds.length; index += 200) {
-    const { data, error } = await supabase
-      .from("acordos")
-      .select("cobranca_id")
-      .in("cobranca_id", cobrancaIds.slice(index, index + 200))
-      .in("status", ACORDO_STATUS_VIGENTES as string[]);
+    const { data, error } = await supabase.rpc("flow_cobrancas_bloqueadas_por_acordo", {
+      p_ids: cobrancaIds.slice(index, index + 200),
+    });
 
     if (error) {
       throw new Error(`Erro ao verificar acordos ativos: ${error.message}`);
     }
-    rows.push(...(data ?? []));
+    for (const id of (data ?? []) as string[]) idsComAcordo.add(id);
   }
 
-  return new Set<string>(rows.map((row: any) => String(row.cobranca_id)).filter(Boolean));
+  return idsComAcordo;
 }
 
 async function getUltimasMensagensPorCobranca(
