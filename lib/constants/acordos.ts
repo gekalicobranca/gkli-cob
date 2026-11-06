@@ -7,6 +7,7 @@ export const ACORDO_STATUS = {
   QUITADO: 'quitado',
   CANCELADO: 'cancelado',
   RENEGOCIADO: 'renegociado',
+  SUSPENSO: 'suspenso',
 } as const
 
 export type AcordoStatus = (typeof ACORDO_STATUS)[keyof typeof ACORDO_STATUS]
@@ -64,6 +65,7 @@ export const ACORDO_STATUS_LABEL: Record<string, string> = {
   quitado: 'Quitado',
   cancelado: 'Cancelado',
   renegociado: 'Renegociado',
+  suspenso: 'Suspenso',
   em_aberto: 'Em aberto',
   parcial: 'Parcial',
   baixo: 'Baixo',

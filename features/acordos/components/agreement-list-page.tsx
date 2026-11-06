@@ -234,6 +234,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                   <option value="rompido">Rompido</option>
                   <option value="quitado">Quitado</option>
                   <option value="cancelado">Cancelado</option>
+                  <option value="suspenso">Suspenso</option>
                 </Select>
               </ListFilterField>
               <Button type="submit" className="w-full xl:col-span-1">

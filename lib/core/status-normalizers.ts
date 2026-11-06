@@ -81,6 +81,7 @@ export function normalizeAcordoStatus(value: unknown) {
     cancelado: ACORDO_STATUS.CANCELADO,
     cancelada: ACORDO_STATUS.CANCELADO,
     renegociado: ACORDO_STATUS.RENEGOCIADO,
+    suspenso: ACORDO_STATUS.SUSPENSO,
   }
 
   return aliases[status] ?? ACORDO_STATUS.ATIVO

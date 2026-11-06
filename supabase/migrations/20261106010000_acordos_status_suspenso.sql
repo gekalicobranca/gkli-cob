@@ -1,0 +1,1 @@
+alter table public.acordos drop constraint acordos_status_check, add constraint acordos_status_check check (status in ('ativo','em_dia','em_atraso','vencido','quebrado','quitado','cancelado','renegociado','suspenso'));
