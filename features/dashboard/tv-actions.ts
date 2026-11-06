@@ -49,6 +49,7 @@ export async function getTvResults(start: string, end: string, selection?: { car
   const [charges, agreements, installments, wallets, judicialRows, agreementLinks, condominiums, paidReferences] = await Promise.all([
     pages<TvCharge>((from, to) => applyCarteiraIdsScope(somenteCobrancasCanonicas(db.from('cobrancas')
       .select('id,carteira_id,condominio_id,unidade_id,valor_atualizado,vencimento,status,status_operacional,status_financeiro,unidades(acao_judicial)'))
+      .eq('excluida_por_cessao_espaco', false)
       .lte('vencimento', today < end ? today : end)
       .or('status_operacional.in.(novo,em_cobranca_ativa,em_negociacao,possivel_acordo),status_operacional.is.null'), scope.carteiraIds).order('id').range(from, to), 'a captação'),
     pages<TvAgreement>((from, to) => applyCarteiraIdsScope(db.from('acordos').select(agreementFields).eq('tipo', 'extrajudicial')
@@ -62,6 +63,7 @@ export async function getTvResults(start: string, end: string, selection?: { car
       .order('id').range(from, to), 'as carteiras'),
     pages<{ unidade_id: string | null }>((from, to) => applyCarteiraIdsScope(somenteCobrancasCanonicas(db.from('cobrancas')
       .select('id,unidade_id'))
+      .eq('excluida_por_cessao_espaco', false)
       .or('status_operacional.in.(pre_distribuicao,pre_juridico,judicializado),status.in.(pre_distribuicao,pre_juridico,judicializado)'), scope.carteiraIds)
       .order('id').range(from, to), 'os bloqueios jurídicos'),
     pages<TvAgreementLink>((from, to) => applyCarteiraIdsScope(db.from('acordo_cobrancas')

@@ -11,6 +11,7 @@ export async function carregarResumoCobrancasMobile(scope: CarteiraScope, condom
   const ate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   let query = applyCarteiraScope(somenteCobrancasCanonicas(db.from('cobrancas')
     .select('id,status,status_operacional,status_financeiro,valor_atualizado,valor_original,duplicada_de_id'))
+    .eq('excluida_por_cessao_espaco', false)
     .lte('vencimento', ate), scope.carteiraIds).order('id')
   if (condominioId) query = query.eq('condominio_id', condominioId)
   const rows: Parameters<typeof resumoCobrancasMobile>[0] = []
