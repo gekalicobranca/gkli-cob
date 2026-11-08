@@ -18,6 +18,7 @@ import {
   WalletCards,
   Handshake,
   FileUp,
+  Workflow,
 } from 'lucide-react'
 
 type ConfigCard = {
@@ -35,10 +36,11 @@ const groups: Array<{
 }> = [
   {
     title:'Easy Cob',
-    description:'Operações guiadas para acordos e captação de inadimplência.',
+    description:'Operações guiadas para acordos, captação de inadimplência e flows.',
     cards:[
       {title:'Acordos',description:'Consulte, crie, cancele e efetive acordos em poucos passos.',href:'/app/configuracoes/easy/acordos',icon:Handshake,tag:'Easy Cob'},
       {title:'Captação de inadimplência',description:'Envie o arquivo da administradora, confira o resumo e atualize as cobranças dos condomínios sem agente remoto.',href:'/app/configuracoes/easy/captacao',icon:FileUp,tag:'Easy Cob'},
+      {title:'Easy Flow',description:'Monte os flows, escolha a conta SMTP da carteira e libere para a agenda.',href:'/app/configuracoes/easy/flow',icon:Workflow,tag:'Easy Cob'},
     ],
   },
   {

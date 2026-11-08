@@ -5,16 +5,18 @@ import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-perm
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope';
 import { getCondominioAgenteStatus, getCondominiosAgenteStatus } from '@/features/agente-automatico/queries';
 
-export async function listarCondominiosEasy(scope: CarteiraScope) {
+export async function listarCondominiosEasy(scope: CarteiraScope, exigirCnpj = true) {
   const db=await createClient(); const rows: {id:string; nome:string; cnpj:string; carteira_id:string}[]=[];
   for(let offset=0;;offset+=500) {
-    const {data,error}=await applyCarteiraScope(db.from('condominios').select('id,nome,cnpj,carteira_id').eq('status','ativo').not('cnpj','is',null),scope.carteiraIds).order('nome').order('id').range(offset,offset+499);
+    let query=db.from('condominios').select('id,nome,cnpj,carteira_id').eq('status','ativo');
+    if(exigirCnpj)query=query.not('cnpj','is',null);
+    const {data,error}=await applyCarteiraScope(query,scope.carteiraIds).order('nome').order('id').range(offset,offset+499);
     if(error) throw new Error('Não foi possível consultar os condomínios.');
     rows.push(...data); if(data.length<500) break;
   }
   const agents=await getCondominiosAgenteStatus(rows.map(row=>row.id),scope.carteiraIds);
   if([...agents.values()].includes('indisponivel')) throw new Error('Não foi possível conferir os agentes remotos. Tente novamente.');
-  return rows.filter(row=>agents.get(row.id)==='nao_configurado' && row.cnpj?.replace(/\D/g,'').length===14);
+  return rows.filter(row=>agents.get(row.id)==='nao_configurado' && (!exigirCnpj || row.cnpj?.replace(/\D/g,'').length===14));
 }
 export async function carregarCondominioEasy(id:string) {
   const scope=await getPermittedCarteiras();
