@@ -8,6 +8,7 @@ import { validarDataCivil, vencimentoMensal, dataCivilSaoPaulo, somarDiasCivis, 
 import {selecionarCobrancaTitular, rotuloUnidade} from "./unidade-titular";
 
 import { calcularDespesasAcordo, validarCotasSemDespesas } from "./calculo-despesas";
+import { valorCotaParaAcordo } from "./valor-cota";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
 import { moneyFromForm, percentageFromForm } from '@/utils/formatters/parse-money'
@@ -764,15 +765,7 @@ export async function createAcordo(formData: FormData) {
   }
 
   const cobrancasComValores = cobrancas.map((item) => {
-    const valorCalculado = Math.max(
-      0,
-      Number(item.valor_original ?? 0) +
-        Number(item.juros ?? 0) +
-        Number(item.multa ?? 0) +
-        Number(item.correcao ?? 0) -
-        Number(item.desconto ?? 0),
-    );
-    const valorBase = Number(item.valor_atualizado ?? 0) || valorCalculado;
+    const valorBase = valorCotaParaAcordo(item);
 
     return {
       ...item,
@@ -1327,9 +1320,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
   if (despesaCobrancaPercentual < 0) throw new Error("Despesa de cobrança inválida.");
   const calculo = calcularDespesasAcordo(cobrancas.map((item) => ({
     id: item.id,
-    valor: Number(item.valor_atualizado ?? 0) || Math.max(0,
-      Number(item.valor_original ?? 0) + Number(item.juros ?? 0) + Number(item.multa ?? 0)
-      + Number(item.correcao ?? 0) - Number(item.desconto ?? 0)),
+    valor: valorCotaParaAcordo(item),
   })), cotasSemDespesas, despesaCobrancaPercentual,
     formData.get("usar_credito_administradora") === "on" ? Number(unidadeReferencia?.credito_administradora ?? 0) : 0,
     { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on", custoEmissaoBoleto: Number(condominioReferencia?.custo_emissao_boleto ?? 0) });
@@ -2760,7 +2751,6 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
     .from("acordos")
     .update({
       status: ACORDO_STATUS.CANCELADO,
-      status_financeiro: "cancelado",
       fluxo_status: "cancelado",
     })
     .eq("id", acordoId);
@@ -2802,7 +2792,7 @@ export async function cancelarFormalizacaoAcordo(formData: FormData) {
     },
     depois: {
       status: ACORDO_STATUS.CANCELADO,
-      status_financeiro: "cancelado",
+      status_financeiro: (acordo as any).status_financeiro,
       fluxo_status: "cancelado",
       status_cobranca: statusCobranca,
     },

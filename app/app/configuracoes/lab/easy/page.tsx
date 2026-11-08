@@ -5,6 +5,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { applyCarteiraScope } from "@/utils/auth/apply-carteira-scope";
 import { somenteAcordosCanonicos } from "@/lib/core/acordo-arquivamento";
+import { somenteCobrancasCanonicas } from "@/lib/core/cobranca-arquivamento";
 import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from "@/lib/constants/cobrancas";
 import { getCobrancaStatusFinanceiro, getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
 import { listCobrancasDaUnidadeParaAcordo, getAcordoDetalhe } from "@/features/acordos/queries";
@@ -15,6 +16,7 @@ import { EasyFilters, EasyAgreementSelect } from "./filters";
 import { EasyCancellation } from "./cancellation";
 import { EasyCharges } from "./charges";
 import { EasyPdfAgreement } from "./pdf-agreement";
+import { valorCotaParaAcordo } from "@/features/acordos/valor-cota";
 
 const operations = [
   { key: "consultar", title: "Consultar", description: "Veja o acordo da unidade.", color: "border-blue-200 bg-blue-50 text-blue-900", icon: "⌕" },
@@ -23,7 +25,10 @@ const operations = [
   { key: "efetivar", title: "Efetivar", description: "Confira o retorno da administradora.", color: "border-violet-200 bg-violet-50 text-violet-900", icon: "✓" },
 ];
 type Search = { operacao?: string; condominio?: string; unidade?: string; acordo?: string };
-type Row = { id: string; nome?: string; identificacao?: string; bloco?: string; status?: string; data_acordo?: string; valor_acordado?: number };
+type Row = { id: string; nome?: string; identificacao?: string; bloco?: string; unidade_id?: string; status?: string; status_operacional?: string; status_financeiro?: string; data_acordo?: string; valor_acordado?: number };
+const cobrancaAtiva = (charge: Row) =>
+  (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as readonly string[]).includes(getCobrancaStatusOperacional(charge)) &&
+  !["quitado", "renegociado"].includes(getCobrancaStatusFinanceiro(charge));
 const panelClass = "space-y-4 rounded-2xl border border-slate-200 bg-white p-5";
 
 export default async function EasyPage({ searchParams }: { searchParams: Promise<Search> }) {
@@ -51,6 +56,7 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
     let request = applyCarteiraScope(db.from(table).select(columns), scope.carteiraIds).order(order).order("id");
     for (const [column, value] of Object.entries(filters)) request = request.eq(column, value);
     if (table === "acordos") request = somenteAcordosCanonicos(request);
+    if (table === "cobrancas") request = somenteCobrancasCanonicas(request);
     const result: Row[] = [];
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await request.range(offset, offset + 499);
@@ -63,11 +69,20 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
   const condominiums = await rows("condominios", "id,nome", "nome");
   const condominium = condominiums.find(item => item.id === query.condominio);
   if (query.condominio && !condominium) notFound();
-  const units = condominium
+  const allUnits = condominium
     ? await rows("unidades", "id,identificacao,bloco", "identificacao", { condominio_id: condominium.id })
     : [];
+  const unitsWithAgreements = condominium && operation.key === "consultar"
+    ? new Set((await rows("acordos", "id,unidade_id", "id", { condominio_id: condominium.id })).map(item => item.unidade_id))
+    : null;
+  const unitsWithCharges = condominium && operation.key === "criar"
+    ? new Set((await rows("cobrancas", "id,unidade_id,status,status_operacional,status_financeiro", "id", { condominio_id: condominium.id }))
+      .filter(cobrancaAtiva).map(item => item.unidade_id))
+    : null;
+  const eligibleUnits = unitsWithAgreements ?? unitsWithCharges;
+  const units = eligibleUnits ? allUnits.filter(item => eligibleUnits.has(item.id)) : allUnits;
   const unit = units.find(item => item.id === query.unidade);
-  if (query.unidade && !unit) notFound();
+  if (query.unidade && !allUnits.some(item => item.id === query.unidade)) notFound();
   const agreements = unit && operation.key !== "criar"
     ? await rows("acordos", "id,status,data_acordo,valor_acordado", "data_acordo", { condominio_id: condominium!.id, unidade_id: unit.id })
     : [];
@@ -78,9 +93,7 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
   if (query.acordo && !agreements.some(item => item.id === query.acordo)) notFound();
   const detail = selectedAgreement ? await getAcordoDetalhe(selectedAgreement.id, scope) : null;
   const charges = unit && operation.key === "criar"
-    ? (await listCobrancasDaUnidadeParaAcordo({ scope, unidadeId: unit.id })).cobrancas.filter(charge =>
-      (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as readonly string[]).includes(getCobrancaStatusOperacional(charge)) &&
-      !["quitado", "renegociado"].includes(getCobrancaStatusFinanceiro(charge)))
+    ? (await listCobrancasDaUnidadeParaAcordo({ scope, unidadeId: unit.id })).cobrancas.filter(cobrancaAtiva)
     : [];
   const canWrite = ["admin", "gestor", "operador"].includes(scope.perfil);
   const closed = ["cancelado", "quitado", "rompido", "quebrado", "renegociado"].includes(detail?.acordo.status ?? "");
@@ -117,7 +130,7 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
         <EasyCharges key={unit.id} canWrite={canWrite} charges={charges.map(charge => ({
           id: charge.id,
           label: `${charge.competencia || "Cobrança"} · ${formatarVencimentoAcordo(charge.vencimento)}`,
-          value: Number(charge.valor_atualizado ?? charge.valor_original),
+          value: valorCotaParaAcordo(charge),
         }))} />}
     </section>}
     {unit && operation.key !== "criar" && !detail && <p className={panelClass}>Nenhum acordo encontrado para esta unidade.</p>}

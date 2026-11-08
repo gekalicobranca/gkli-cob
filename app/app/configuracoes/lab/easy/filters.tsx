@@ -30,12 +30,16 @@ export function EasyFilters({ operation, condominium, unit, condominiums, units 
         placeholder="Busque pelo nome do condomínio" inputClassName={fieldClass}
         onValueChange={value => navigate(value)} />
     </fieldset>
-    <label className="text-sm font-semibold">Qual unidade?
-      <select className={fieldClass} value={unit} disabled={!condominium || pending} onChange={e => navigate(condominium, e.target.value)}>
-        <option value="">{condominium && !units.length ? "Nenhuma unidade encontrada" : "Selecione a unidade"}</option>
-        {units.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-      </select>
-    </label>
+    <fieldset disabled={!condominium || pending || !units.length} className="min-w-0">
+      <label htmlFor="easy-unit" className="text-sm font-semibold">Qual unidade?</label>
+      <SearchableSelect key={condominium} id="easy-unit" name="unidade" selectedValue={unit}
+        options={units.map(option => ({ value: option.id, label: option.label }))}
+        placeholder={condominium && !units.length
+          ? operation === "consultar" ? "Nenhuma unidade com acordo"
+            : operation === "criar" ? "Nenhuma unidade com cobrança ativa" : "Nenhuma unidade encontrada"
+          : "Digite a unidade ou o bloco"}
+        inputClassName={fieldClass} onValueChange={value => navigate(condominium, value)} />
+    </fieldset>
     {pending && <p role="status" className="text-sm text-slate-600">Carregando…</p>}
   </div>;
 }

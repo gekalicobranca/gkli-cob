@@ -25,6 +25,7 @@ import { formatarVencimentoAcordo as formatDateBR } from "@/features/acordos/for
 import { calculateAgreementInsight } from "@/features/acordos/insights";
 
 import { calcularDespesasAcordo } from "@/features/acordos/calculo-despesas";
+import { valorCotaParaAcordo } from "@/features/acordos/valor-cota";
 
 import type { FormularioPropostaForaRegua } from "@/features/acordos/aprovacao-fora-regua";
 
@@ -132,7 +133,7 @@ export function AcordoSimulatorForm({
   const [numeroProcesso, setNumeroProcesso] = useState(formularioInicial.numero_processo || "");
   const [despesaCobrancaPercentual, setDespesaCobrancaPercentual] =
     useState(formularioInicial.despesa_cobranca_percentual || "10,00");
-  const [jurosAdicional, setJurosAdicional] = useState(formularioInicial.juros_adicional === "on");
+  const [aplicarJurosAdicional, setJurosAdicional] = useState(formularioInicial.juros_adicional === "on");
   const [entrada, setEntrada] = useState(formularioInicial.entrada || "0,00");
   const erroValores = validateMoneyFields({ get: name => name === 'entrada' ? entrada : despesaCobrancaPercentual }, [
     { name: 'entrada', label: 'Entrada', format: 'form', optional: true },
@@ -142,6 +143,7 @@ export function AcordoSimulatorForm({
   const [usarCreditoAdministradora, setUsarCreditoAdministradora] = useState(formularioInicial.usar_credito_administradora === "on");
   const [entradaVencimento, setEntradaVencimento] = useState(() => formularioInicial.entrada_vencimento || dataCivilSaoPaulo());
   const [quantidadeParcelas, setQuantidadeParcelas] = useState(formularioInicial.quantidade_parcelas || (simplified ? "1" : "3"));
+  const jurosAdicional = simplified ? Number(quantidadeParcelas) > 1 : aplicarJurosAdicional;
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => {
     if (formularioInicial.primeiro_vencimento) return formularioInicial.primeiro_vencimento;
     return somarDiasCivis(dataCivilSaoPaulo(), 7);
@@ -182,16 +184,7 @@ export function AcordoSimulatorForm({
   const ultimoVencimentoSelecionado = vencimentosSelecionados[vencimentosSelecionados.length - 1] ?? null;
 
   function getValorAtualizado(cobranca?: CobrancaOption) {
-    if (!cobranca) return 0;
-    const calculado = Math.max(
-      0,
-      Number(cobranca.valor_original ?? 0) +
-        Number(cobranca.juros ?? 0) +
-        Number(cobranca.multa ?? 0) +
-        Number(cobranca.correcao ?? 0) -
-        Number(cobranca.desconto ?? 0),
-    );
-    return Number(cobranca.valor_atualizado ?? 0) || calculado;
+    return cobranca ? valorCotaParaAcordo(cobranca) : 0;
   }
 
   const preview = useMemo(() => {
@@ -413,6 +406,7 @@ export function AcordoSimulatorForm({
       `Subtotal das cobranças: ${formatCurrency(preview.valorOriginal)}`,
       `Despesas de cobrança: ${formatCurrency(preview.despesaCobranca)}`,
       `Emissão de boletos: ${formatCurrency(preview.custoBoletos)}`,
+      ...(preview.jurosAdicional > 0 ? [`Juros do parcelamento (Price, 1% ao mês): ${formatCurrency(preview.jurosAdicional)}`] : []),
       `Total: ${formatCurrency(preview.total)}`,
       "",
       ...paymentLines,
@@ -453,8 +447,10 @@ export function AcordoSimulatorForm({
         <input type="hidden" name="unidade_titular_id" value={cobrancaSelecionada?.unidade_id ?? ""} />
         <input type="hidden" name="tipo" value="extrajudicial" />
         <input type="hidden" name="entrada" value="0,00" />
+        <input type="hidden" name="juros_adicional" value={jurosAdicional ? "on" : "off"} />
         <section hidden={easyReview} className="space-y-4 rounded-2xl border bg-white p-5">
           <h2 className="text-xl font-semibold">Como será o pagamento?</h2>
+          <p className="text-sm text-slate-600">Cotas com juros e multa registrados. No parcelamento, aplica-se Price de 1% ao mês. Boleto: {formatCurrency(Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0))} por emissão, conforme o condomínio.</p>
           <FormField label="O acordo será à vista ou parcelado?">
             <Select aria-label="O acordo será à vista ou parcelado?" value={Number(quantidadeParcelas) === 1 ? "avista" : "parcelado"}
               onChange={event => setQuantidadeParcelas(event.target.value === "avista" ? "1" : "2")}>
