@@ -9,6 +9,7 @@ import {selecionarCobrancaTitular, rotuloUnidade} from "./unidade-titular";
 
 import { calcularDespesasAcordo, validarCotasSemDespesas } from "./calculo-despesas";
 import { valorCotaParaAcordo } from "./valor-cota";
+import { lerPlanoManual, ratearTotalManual } from "./plano-manual";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
 import { moneyFromForm, percentageFromForm } from '@/utils/formatters/parse-money'
@@ -225,6 +226,7 @@ function montarResumoAcordo(params: {
   valorBase: number;
   despesa: number;
   jurosAdicional?: number;
+  ajusteManual?: number;
   custoBoletos?: number;
   valorAcordado: number;
   entrada: number;
@@ -258,6 +260,7 @@ function montarResumoAcordo(params: {
     `Despesa de cobrança: ${formatBRL(params.despesa)}`,
     params.jurosAdicional ? `Juros pela tabela Price (1% ao mês sobre o saldo devedor): ${formatBRL(params.jurosAdicional)}` : null,
     `Emissão de boletos: ${formatBRL(params.custoBoletos ?? 0)}`,
+    params.ajusteManual !== undefined ? `Ajuste manual sobre a simulação: ${formatBRL(params.ajusteManual)}` : null,
     `Valor total do acordo: ${formatBRL(params.valorAcordado)}`,
     `Entrada: ${formatBRL(params.entrada)}`,
     `Quantidade de parcelas: ${params.quantidadeParcelas}`,
@@ -637,7 +640,7 @@ export async function createAcordo(formData: FormData) {
   const usarCreditoAdministradora = formData.get("usar_credito_administradora") === "on";
   const entradaVencimento = String(formData.get("entrada_vencimento") ?? "");
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
-  const primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
+  let primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
   const cotasSemDespesas = normalizeUuidList(formData.getAll("cotas_sem_despesas"));
   validarCotasSemDespesas(cotasSemDespesas, cobrancaIds, formData.get("cota_mes_autorizada") === "on");
@@ -797,7 +800,11 @@ export async function createAcordo(formData: FormData) {
   );
   entrada = calculoDespesas.entradaComBoleto;
   const despesaCobrancaValor = calculoDespesas.despesa;
-  const valorAcordado = calculoDespesas.total;
+  const planoManual = lerPlanoManual(formData.get("plano_manual"), quantidadeParcelas);
+  if (planoManual && (entrada > 0 || tipo !== 'extrajudicial')) throw new Error('A edição manual está disponível para acordos extrajudiciais sem entrada.');
+  const valorAcordado = planoManual?.total ?? calculoDespesas.total;
+  const ajusteManual = roundMoney(valorAcordado - calculoDespesas.total);
+  if (planoManual) primeiroVencimento = planoManual.parcelas[0].vencimento;
 
   if (valorBaseCobranca <= 0)
     throw new Error("Valor das cobranças deve ser maior que zero.");
@@ -832,6 +839,13 @@ export async function createAcordo(formData: FormData) {
   });
 
   const saldoParcelado = roundMoney(valorAcordado - entrada);
+  if (planoManual) {
+    const totais = ratearTotalManual(valorAcordado, itensAcordo.map(item => item.valor_total_no_acordo));
+    itensAcordo.forEach((item, index) => {
+      item.valor_total_no_acordo = totais[index];
+      item.encargos_no_acordo = roundMoney(Math.max(0, totais[index] - cobrancasComValores[index].valor_base_acordo + calculoDespesas.itens[index].credito));
+    });
+  }
   const parcelas = [];
 
   if (entrada > 0) {
@@ -845,11 +859,11 @@ export async function createAcordo(formData: FormData) {
   }
 
   for (let index = 1; index <= quantidadeParcelas && saldoParcelado > 0; index++) {
-    const parcelaCalculada = calculoDespesas.parcelas[index - 1];
+    const parcelaCalculada = planoManual?.parcelas[index - 1] ?? calculoDespesas.parcelas[index - 1];
     parcelas.push({
       tipo_parcela: "parcela",
       ...parcelaCalculada,
-      vencimento: vencimentoMensal(primeiroVencimento, index - 1),
+      vencimento: planoManual?.parcelas[index - 1].vencimento ?? vencimentoMensal(primeiroVencimento, index - 1),
       status: PARCELA_ACORDO_STATUS.PENDENTE,
     });
   }
@@ -870,7 +884,7 @@ export async function createAcordo(formData: FormData) {
       p_fluxo_status: fluxoStatusInicial,
       p_exige_aprovacao_sindico: exigeAprovacaoSindico,
       p_documento_url: documentoUrl || null,
-      p_observacoes: [observacoes, calculoDespesas.custoBoletos > 0 ? `Emissão: ${calculoDespesas.quantidadeBoletos} boleto(s) × ${formatBRL(calculoDespesas.custoEmissaoBoleto)} = ${formatBRL(calculoDespesas.custoBoletos)}. Sem juros ou honorários sobre a emissão.` : "", calculoDespesas.jurosAdicional > 0
+      p_observacoes: [observacoes, planoManual ? `Plano editado manualmente pelo operador. Total calculado: ${formatBRL(calculoDespesas.total)}. Ajuste manual: ${formatBRL(ajusteManual)}. Total negociado: ${formatBRL(valorAcordado)}.` : "", calculoDespesas.custoBoletos > 0 ? `Emissão: ${calculoDespesas.quantidadeBoletos} boleto(s) × ${formatBRL(calculoDespesas.custoEmissaoBoleto)} = ${formatBRL(calculoDespesas.custoBoletos)}. Sem juros ou honorários sobre a emissão.` : "", calculoDespesas.jurosAdicional > 0
         ? `Juros pela tabela Price de 1% ao mês sobre o saldo devedor após a entrada: ${formatBRL(calculoDespesas.jurosAdicional)}.` : ""].filter(Boolean).join("\n") || null,
       p_itens: itensAcordo,
       p_parcelas: parcelas,
@@ -909,6 +923,7 @@ export async function createAcordo(formData: FormData) {
     despesa: despesaCobrancaValor,
     custoBoletos: calculoDespesas.custoBoletos,
     jurosAdicional: calculoDespesas.jurosAdicional,
+    ajusteManual: planoManual ? ajusteManual : undefined,
     valorAcordado,
     entrada,
     quantidadeParcelas,
@@ -1003,6 +1018,9 @@ export async function createAcordo(formData: FormData) {
       entrada,
       quantidade_parcelas: quantidadeParcelas,
       despesa_cobranca_valor: despesaCobrancaValor,
+      plano_manual: planoManual?.parcelas ?? null,
+      ajuste_manual: ajusteManual,
+      total_simulado: calculoDespesas.total,
       ultrapassa_limite_aprovacao_sindico: exigeAprovacaoSindico,
       regra_firmamento: "primeiro_pagamento",
       fluxo_status: fluxoStatusInicial,

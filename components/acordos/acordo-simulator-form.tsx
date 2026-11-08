@@ -26,6 +26,7 @@ import { calculateAgreementInsight } from "@/features/acordos/insights";
 
 import { calcularDespesasAcordo } from "@/features/acordos/calculo-despesas";
 import { valorCotaParaAcordo } from "@/features/acordos/valor-cota";
+import { lerPlanoManual, type ParcelaManual } from "@/features/acordos/plano-manual";
 
 import type { FormularioPropostaForaRegua } from "@/features/acordos/aprovacao-fora-regua";
 
@@ -117,6 +118,9 @@ export function AcordoSimulatorForm({
   inteligenciaOperacional = { reincidencia: 0, rompimentos: 0 },
 }: AcordoSimulatorFormProps) {
   const [easyReview, setEasyReview] = useState(false);
+  const [easyCopyStatus, setEasyCopyStatus] = useState("");
+  const [easyManualPlan, setEasyManualPlan] = useState<ParcelaManual[] | null>(null);
+  const [easyEditing, setEasyEditing] = useState(false);
   const [actionState, createAcordoAction, isCreatingAcordo] = useActionState(
     createAcordoComEstado,
     { error: null },
@@ -393,12 +397,19 @@ export function AcordoSimulatorForm({
 
 
   if (simplified) {
-    const paymentLines = preview.parcelas.map(parcela =>
+    let manual: ReturnType<typeof lerPlanoManual> = null;
+    let manualError = "";
+    try { manual = lerPlanoManual(easyManualPlan ? JSON.stringify(easyManualPlan) : null, preview.parcelas.length); }
+    catch (error) { manualError = error instanceof Error ? error.message : "Confira as parcelas."; }
+    const reviewParcels = manual?.parcelas ?? preview.parcelas;
+    const reviewTotal = manual?.total ?? preview.total;
+    const ajusteManual = roundMoney(reviewTotal - preview.total);
+    const paymentLines = reviewParcels.map(parcela =>
       `Parcela ${parcela.numero} · ${formatDateBR(parcela.vencimento)} · ${formatCurrency(parcela.valor)}`,
     );
     const simulationText = [
       `Condomínio: ${cobrancaSelecionada?.condominios?.nome}`,
-      `Unidade: ${rotuloUnidade(cobrancaSelecionada?.unidades)}`,
+      rotuloUnidade(cobrancaSelecionada?.unidades),
       "",
       "Cobranças selecionadas:",
       ...cobrancasSelecionadas.map(item => `${item.competencia || "Cobrança"} · ${formatDateBR(item.vencimento)} · ${formatCurrency(getValorAtualizado(item))}`),
@@ -407,12 +418,22 @@ export function AcordoSimulatorForm({
       `Despesas de cobrança: ${formatCurrency(preview.despesaCobranca)}`,
       `Emissão de boletos: ${formatCurrency(preview.custoBoletos)}`,
       ...(preview.jurosAdicional > 0 ? [`Juros do parcelamento (Price, 1% ao mês): ${formatCurrency(preview.jurosAdicional)}`] : []),
-      `Total: ${formatCurrency(preview.total)}`,
+      ...(easyManualPlan ? [`Ajuste manual sobre a simulação: ${formatCurrency(ajusteManual)}`] : []),
+      `Total: ${formatCurrency(reviewTotal)}`,
       "",
       ...paymentLines,
     ].join("\n");
-    const blocked = Boolean(erroValores) || !preview.datasValidas || preview.total <= 0;
-    const creationBlocked = blocked || acordoJaCriado || bloqueadoPorPendenciaPlanilha ||
+    const blocked = Boolean(erroValores) || Boolean(manualError) || !preview.datasValidas || reviewTotal <= 0;
+    const administratorText = `Prezados, segue a simulação do acordo para conferência.\n\n${simulationText}`;
+    async function copyAdministratorText() {
+      try {
+        await navigator.clipboard.writeText(administratorText);
+        setEasyCopyStatus("Texto copiado.");
+      } catch {
+        setEasyCopyStatus("Abra o texto abaixo para copiar manualmente.");
+      }
+    }
+    const creationBlocked = blocked || easyEditing || acordoJaCriado || bloqueadoPorPendenciaPlanilha ||
       bloqueadoPorPendenciaAprovacaoSindico || !contatoAcionavel;
     function downloadTerm() {
       const content = ["TERMO DE ACORDO", "Minuta da simulação", "", simulationText, "",
@@ -427,13 +448,15 @@ export function AcordoSimulatorForm({
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     return <div className="mx-auto max-w-3xl space-y-4">
-      <aside className="sticky top-2 z-10 rounded-xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm" aria-label="Resumo da operação">
-        <p className="font-semibold">{cobrancaSelecionada?.condominios?.nome} · {rotuloUnidade(cobrancaSelecionada?.unidades)}</p>
-        <p className="text-sm">{cobrancasSelecionadas.length} cobrança(s) · {formatCurrency(preview.valorOriginal)}</p>
+      <aside className="rounded-xl border border-cyan-100 bg-cyan-50/70 px-5 py-4" aria-label="Resumo da operação">
+        <p className="text-xs font-medium tracking-wide text-slate-600">{cobrancaSelecionada?.condominios?.nome}</p>
+        <p className="mt-1 font-semibold text-slate-950">{rotuloUnidade(cobrancaSelecionada?.unidades)}</p>
+        <p className="mt-1 text-sm text-slate-600">{cobrancasSelecionadas.length} cobrança(s) selecionada(s)</p>
       </aside>
       <MoneyForm fields={[{ name: "despesa_cobranca_percentual", label: "Despesas de cobrança", percentage: true }]}
         action={createAcordoAction} className="space-y-4"
         onSubmitCapture={event => {
+          if (easyReview && (blocked || easyEditing)) { event.preventDefault(); return; }
           if (!easyReview) {
             event.preventDefault();
             if (event.currentTarget.reportValidity() && !erroValores && preview.total > 0) {
@@ -448,6 +471,7 @@ export function AcordoSimulatorForm({
         <input type="hidden" name="tipo" value="extrajudicial" />
         <input type="hidden" name="entrada" value="0,00" />
         <input type="hidden" name="juros_adicional" value={jurosAdicional ? "on" : "off"} />
+        {easyManualPlan && <input type="hidden" name="plano_manual" value={JSON.stringify(easyManualPlan)} />}
         <section hidden={easyReview} className="space-y-4 rounded-2xl border bg-white p-5">
           <h2 className="text-xl font-semibold">Como será o pagamento?</h2>
           <p className="text-sm text-slate-600">Cotas com juros e multa registrados. No parcelamento, aplica-se Price de 1% ao mês. Boleto: {formatCurrency(Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0))} por emissão, conforme o condomínio.</p>
@@ -475,23 +499,78 @@ export function AcordoSimulatorForm({
         </section>
         {erroValores && <p role="alert" className="text-sm text-rose-700">{erroValores.message}</p>}
         {!preview.datasValidas && <p role="alert" className="text-sm text-rose-700">Informe um vencimento válido.</p>}
-        {easyReview && <section className="space-y-4 rounded-2xl border bg-white p-5">
-          <h2 className="text-xl font-semibold">Confira a simulação</h2>
-          <p className="text-lg font-semibold">Total de {formatCurrency(preview.total)}</p>
-          <ul className="divide-y">{paymentLines.map(line => <li key={line} className="py-2 text-sm">{line}</li>)}</ul>
-          <label className="block text-sm font-semibold">Texto para a administradora
-            <textarea readOnly value={`Prezados, segue a simulação do acordo para conferência.\n\n${simulationText}`}
-              rows={12} className="mt-2 w-full rounded-lg border p-3 font-normal" />
-          </label>
-          <Button type="button" variant="secondary" onClick={downloadTerm}>Gerar termo de acordo</Button>
+        {easyReview && <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="space-y-5 p-5 sm:p-6">
+            <header>
+              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-800">Etapa 2 de 2 · Conferência</p>
+              <h2 className="mt-1 text-xl font-semibold text-slate-950">Confira a simulação</h2>
+            </header>
+            <div className="grid gap-5 sm:grid-cols-2 sm:items-center">
+              <div className="rounded-xl bg-cyan-50 p-4">
+                <p className="text-sm text-cyan-900">Total do acordo</p>
+                <p className="mt-1 text-3xl font-bold tracking-tight text-cyan-950 tabular-nums">{formatCurrency(reviewTotal)}</p>
+                <p className="mt-2 text-sm text-cyan-900">{preview.parcelas.length === 1 ? "Pagamento à vista" : `${preview.parcelas.length} parcelas${easyManualPlan ? "" : " mensais"}`}</p>
+              </div>
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between gap-3"><dt className="text-slate-600">Cotas atualizadas</dt><dd className="font-medium tabular-nums">{formatCurrency(preview.valorOriginal)}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-600">Despesas de cobrança</dt><dd className="font-medium tabular-nums">{formatCurrency(preview.despesaCobranca)}</dd></div>
+                {preview.jurosAdicional > 0 && <div className="flex justify-between gap-3"><dt className="text-slate-600">Juros Price · 1% ao mês</dt><dd className="font-medium tabular-nums">{formatCurrency(preview.jurosAdicional)}</dd></div>}
+                <div className="flex justify-between gap-3"><dt className="text-slate-600">Emissão de boletos</dt><dd className="font-medium tabular-nums">{formatCurrency(preview.custoBoletos)}</dd></div>
+                {easyManualPlan && <div className="flex justify-between gap-3"><dt className="text-slate-600">Ajuste manual</dt><dd className="font-medium tabular-nums">{formatCurrency(ajusteManual)}</dd></div>}
+              </dl>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">Plano de pagamento{easyManualPlan ? " · editado manualmente" : ""}</h3>
+              <div className="flex flex-wrap gap-2">
+                {easyManualPlan && <Button type="button" variant="ghost" disabled={isCreatingAcordo} onClick={() => { setEasyManualPlan(null); setEasyEditing(false); setEasyCopyStatus(""); }}>Restaurar cálculo</Button>}
+                <Button type="button" variant="secondary" disabled={isCreatingAcordo || (easyEditing && Boolean(manualError))} onClick={() => {
+                  if (!easyManualPlan) setEasyManualPlan(preview.parcelas.map(p => ({ numero: p.numero, valor: p.valor.toFixed(2).replace('.', ','), vencimento: p.vencimento })));
+                  setEasyEditing(!easyEditing); setEasyCopyStatus("");
+                }}>{easyEditing ? "Concluir edição" : "Editar manualmente"}</Button>
+              </div>
+            </div>
+            {easyEditing && <p className="text-sm text-slate-600">Altere valores e vencimentos abaixo. O total será a soma das parcelas informadas.</p>}
+            {manualError && <p role="alert" className="text-sm text-rose-700">{manualError}</p>}
+            <div className="max-h-64 overflow-auto rounded-xl border border-slate-200">
+              <table className="w-full text-left text-sm">
+                <caption className="sr-only">Parcelas da simulação</caption>
+                <thead className="sticky top-0 bg-slate-50 text-slate-600"><tr>
+                  <th scope="col" className="px-4 py-3 font-medium">Parcela</th><th scope="col" className="px-4 py-3 font-medium">Vencimento</th><th scope="col" className="px-4 py-3 text-right font-medium">Valor</th>
+                </tr></thead>
+                <tbody className="divide-y divide-slate-100">{reviewParcels.map((parcela, index) => <tr key={parcela.numero}>
+                  <td className="px-4 py-3">{preview.parcelas.length === 1 ? "Única" : `${parcela.numero} de ${preview.parcelas.length}`}</td>
+                  <td className="px-4 py-3 tabular-nums">{easyEditing ? <Input aria-label={`Vencimento da parcela ${parcela.numero}`} type="date" disabled={isCreatingAcordo} required value={easyManualPlan?.[index]?.vencimento ?? ''}
+                    onInput={event => { const vencimento = event.currentTarget.value; setEasyManualPlan(plan => plan?.map((p, i) => i === index ? { ...p, vencimento } : p) ?? null); setEasyCopyStatus(""); }} /> : formatDateBR(parcela.vencimento)}</td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{easyEditing ? <Input aria-label={`Valor da parcela ${parcela.numero}`} inputMode="decimal" disabled={isCreatingAcordo} required className="min-w-24 text-right" value={easyManualPlan?.[index]?.valor ?? ''}
+                    onChange={event => { setEasyManualPlan(plan => plan?.map((p, i) => i === index ? { ...p, valor: event.target.value } : p) ?? null); setEasyCopyStatus(""); }} /> : formatCurrency(parcela.valor)}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-slate-900">Documentos e comunicação</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" disabled={blocked} onClick={copyAdministratorText}>Copiar texto da administradora</Button>
+                  <Button type="button" variant="ghost" disabled={blocked} onClick={downloadTerm}>Gerar termo de acordo</Button>
+                </div>
+              </div>
+              {easyCopyStatus && <p role="status" className="mt-2 text-sm text-cyan-800">{easyCopyStatus}</p>}
+              <details className="mt-3 text-sm">
+                <summary className="cursor-pointer font-medium text-slate-600">Ver texto para a administradora</summary>
+                <label className="sr-only" htmlFor="easy-administrator-text">Texto para a administradora</label>
+                <textarea id="easy-administrator-text" readOnly value={administratorText} rows={8}
+                  className="mt-3 w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-normal leading-relaxed" />
+              </details>
+            </div>
           {exigeAprovacaoSindico && <p className="rounded-lg bg-amber-50 p-3 text-sm">Estas condições exigem aprovação do síndico. A proposta será registrada para aprovação.</p>}
           {(bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico) &&
             <p role="status" className="text-sm text-amber-800">Resolva a pendência de planilha ou aprovação desta unidade para criar o acordo.</p>}
           {!contatoAcionavel && <p className="text-sm text-amber-800">Complete o nome e o e-mail ou telefone do responsável em <a className="underline" href={`/app/unidades/${responsavelAcionado.unidadeId}`}>cadastro da unidade</a>.</p>}
           {actionState.error && <p role="alert" className="text-sm text-rose-700">{actionState.error}</p>}
-          <div className="flex flex-wrap gap-3">
-            <Button type="button" variant="secondary" disabled={isCreatingAcordo} onClick={() => setEasyReview(false)}>Ajustar simulação</Button>
-            <Button type="submit" disabled={creationBlocked} loading={isCreatingAcordo} loadingLabel="Criando…">
+          </div>
+          <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <Button type="button" variant="ghost" disabled={isCreatingAcordo} onClick={() => { setEasyReview(false); setEasyCopyStatus(""); setEasyManualPlan(null); setEasyEditing(false); }}>← Ajustar simulação</Button>
+            <Button type="submit" className="h-11 px-6" disabled={creationBlocked} loading={isCreatingAcordo} loadingLabel="Criando…">
               {exigeAprovacaoSindico ? "Criar proposta para aprovação" : "Criar acordo"}
             </Button>
           </div>
