@@ -13,6 +13,7 @@ import {
   listCobrancasSelecionadasParaAcordo,
 } from "@/features/acordos/queries";
 import { AcordoSimulatorForm } from "@/components/acordos/acordo-simulator-form";
+import { EasyHeader } from "@/components/easy/easy-ui";
 
 type PageProps = {
   searchParams: Promise<{
@@ -126,7 +127,8 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      {query.easy === "1" ? <div className="mx-auto max-w-3xl"><EasyHeader title="Criar acordo" description="Defina as condições e confira sua simulação."
+        backLabel="Alterar seleção" backHref={`/app/configuracoes/lab/easy?operacao=criar&condominio=${cobrancaReferencia?.condominio_id}&unidade=${cobrancaReferencia?.unidade_id}`} /></div> : <PageHeader
         eyebrow="Base Operacional"
         title={query.easy === "1" ? "Simular acordo" : "Novo acordo"}
         description={query.easy === "1" ? "Preencha as condições e confira a simulação antes de criar." : "Simule o acordo com as cobranças selecionadas e escolha a unidade titular."}
@@ -140,7 +142,7 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
             Alterar seleção
           </ButtonLink>
         }
-      />
+      />}
 
       <AcordoSimulatorForm
         simplified={query.easy === "1" && !aprovacao}

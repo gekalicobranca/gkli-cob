@@ -27,6 +27,8 @@ import { calculateAgreementInsight } from "@/features/acordos/insights";
 import { calcularDespesasAcordo } from "@/features/acordos/calculo-despesas";
 import { valorCotaParaAcordo } from "@/features/acordos/valor-cota";
 import { lerPlanoManual, type ParcelaManual } from "@/features/acordos/plano-manual";
+import { EasySteps } from "@/components/easy/easy-ui";
+import easyStyles from "@/components/easy/easy.module.css";
 
 import type { FormularioPropostaForaRegua } from "@/features/acordos/aprovacao-fora-regua";
 
@@ -447,8 +449,9 @@ export function AcordoSimulatorForm({
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
-    return <div className="mx-auto max-w-3xl space-y-4">
-      <aside className="rounded-xl border border-cyan-100 bg-cyan-50/70 px-5 py-4" aria-label="Resumo da operação">
+    return <div className={`${easyStyles.workspace} mx-auto max-w-3xl space-y-5`}>
+      <EasySteps labels={["Cobranças", "Condições", "Conferência"]} current={easyReview ? 2 : 1} />
+      <aside className={`${easyStyles.context} !block`} aria-label="Resumo da operação">
         <p className="text-xs font-medium tracking-wide text-slate-600">{cobrancaSelecionada?.condominios?.nome}</p>
         <p className="mt-1 font-semibold text-slate-950">{rotuloUnidade(cobrancaSelecionada?.unidades)}</p>
         <p className="mt-1 text-sm text-slate-600">{cobrancasSelecionadas.length} cobrança(s) selecionada(s)</p>
@@ -472,9 +475,9 @@ export function AcordoSimulatorForm({
         <input type="hidden" name="entrada" value="0,00" />
         <input type="hidden" name="juros_adicional" value={jurosAdicional ? "on" : "off"} />
         {easyManualPlan && <input type="hidden" name="plano_manual" value={JSON.stringify(easyManualPlan)} />}
-        <section hidden={easyReview} className="space-y-4 rounded-2xl border bg-white p-5">
+        <section hidden={easyReview} className={`${easyStyles.panel} space-y-5`}>
           <h2 className="text-xl font-semibold">Como será o pagamento?</h2>
-          <p className="text-sm text-slate-600">Cotas com juros e multa registrados. No parcelamento, aplica-se Price de 1% ao mês. Boleto: {formatCurrency(Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0))} por emissão, conforme o condomínio.</p>
+          <div className="grid gap-5 sm:grid-cols-2">
           <FormField label="O acordo será à vista ou parcelado?">
             <Select aria-label="O acordo será à vista ou parcelado?" value={Number(quantidadeParcelas) === 1 ? "avista" : "parcelado"}
               onChange={event => setQuantidadeParcelas(event.target.value === "avista" ? "1" : "2")}>
@@ -495,21 +498,23 @@ export function AcordoSimulatorForm({
             <Input aria-label="Primeiro vencimento" name="primeiro_vencimento" type="date" required value={primeiroVencimento}
               onChange={event => setPrimeiroVencimento(event.target.value)} />
           </FormField>
-          <Button type="submit" disabled={blocked}>Simular acordo</Button>
+          </div>
+          <p className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">Cotas com juros e multa registrados. Parcelamento com Price de 1% ao mês. Boleto: {formatCurrency(Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0))} por emissão.</p>
+          <div className="flex justify-end border-t border-slate-100 pt-4"><Button type="submit" className="h-11 rounded-xl px-6" disabled={blocked}>Simular acordo →</Button></div>
         </section>
         {erroValores && <p role="alert" className="text-sm text-rose-700">{erroValores.message}</p>}
         {!preview.datasValidas && <p role="alert" className="text-sm text-rose-700">Informe um vencimento válido.</p>}
         {easyReview && <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="space-y-5 p-5 sm:p-6">
             <header>
-              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-800">Etapa 2 de 2 · Conferência</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-cyan-700">Sua proposta</p>
               <h2 className="mt-1 text-xl font-semibold text-slate-950">Confira a simulação</h2>
             </header>
             <div className="grid gap-5 sm:grid-cols-2 sm:items-center">
-              <div className="rounded-xl bg-cyan-50 p-4">
-                <p className="text-sm text-cyan-900">Total do acordo</p>
-                <p className="mt-1 text-3xl font-bold tracking-tight text-cyan-950 tabular-nums">{formatCurrency(reviewTotal)}</p>
-                <p className="mt-2 text-sm text-cyan-900">{preview.parcelas.length === 1 ? "Pagamento à vista" : `${preview.parcelas.length} parcelas${easyManualPlan ? "" : " mensais"}`}</p>
+              <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-cyan-950 p-5 text-white">
+                <p className="text-xs text-cyan-100">Total do acordo</p>
+                <p className="mt-1 text-3xl font-bold tracking-tight tabular-nums">{formatCurrency(reviewTotal)}</p>
+                <p className="mt-3 text-xs text-cyan-100">{preview.parcelas.length === 1 ? "Pagamento à vista" : `${preview.parcelas.length} parcelas${easyManualPlan ? "" : " mensais"}`}</p>
               </div>
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between gap-3"><dt className="text-slate-600">Cotas atualizadas</dt><dd className="font-medium tabular-nums">{formatCurrency(preview.valorOriginal)}</dd></div>

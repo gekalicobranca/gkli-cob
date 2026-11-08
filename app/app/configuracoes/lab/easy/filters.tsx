@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Building2, DoorOpen, LoaderCircle } from "lucide-react";
+import styles from "@/components/easy/easy.module.css";
 
 type Option = { id: string; label: string };
 
@@ -21,17 +23,17 @@ export function EasyFilters({ operation, condominium, unit, condominiums, units 
     if (unidade) params.set("unidade", unidade);
     startTransition(() => router.push(`/app/configuracoes/lab/easy?${params}`));
   }
-  const fieldClass = "mt-2 w-full rounded-lg border border-slate-300 bg-white p-3";
-  return <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-2" aria-busy={pending}>
+  const fieldClass = "mt-3 w-full border bg-slate-50/60 p-3 text-sm disabled:opacity-60";
+  return <div className={`${styles.panel} grid gap-5 sm:grid-cols-2`} aria-busy={pending}>
     <fieldset disabled={pending} className="min-w-0">
-      <label htmlFor="easy-condominium" className="text-sm font-semibold">Qual condomínio?</label>
+      <label htmlFor="easy-condominium" className="flex items-center gap-2 text-sm font-semibold"><Building2 size={16} className="text-slate-400" aria-hidden="true" />Qual condomínio?</label>
       <SearchableSelect id="easy-condominium" name="condominio" selectedValue={condominium}
         options={condominiums.map(option => ({ value: option.id, label: option.label }))}
         placeholder="Busque pelo nome do condomínio" inputClassName={fieldClass}
         onValueChange={value => navigate(value)} />
     </fieldset>
     <fieldset disabled={!condominium || pending || !units.length} className="min-w-0">
-      <label htmlFor="easy-unit" className="text-sm font-semibold">Qual unidade?</label>
+      <label htmlFor="easy-unit" className="flex items-center gap-2 text-sm font-semibold"><DoorOpen size={16} className="text-slate-400" aria-hidden="true" />Qual unidade?</label>
       <SearchableSelect key={condominium} id="easy-unit" name="unidade" selectedValue={unit}
         options={units.map(option => ({ value: option.id, label: option.label }))}
         placeholder={condominium && !units.length
@@ -42,7 +44,7 @@ export function EasyFilters({ operation, condominium, unit, condominiums, units 
           : "Digite a unidade ou o bloco"}
         inputClassName={fieldClass} onValueChange={value => navigate(condominium, value)} />
     </fieldset>
-    {pending && <p role="status" className="text-sm text-slate-600">Carregando…</p>}
+    {pending && <p role="status" className="flex items-center gap-2 text-xs text-cyan-700 sm:col-span-2"><LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Buscando opções disponíveis…</p>}
   </div>;
 }
 

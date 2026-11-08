@@ -18,19 +18,22 @@ import { EasyCharges } from "./charges";
 import { EasyPdfAgreement } from "./pdf-agreement";
 import { valorCotaParaAcordo } from "@/features/acordos/valor-cota";
 import { acordoDisponivelEasy, type AcordoEasy } from "@/features/acordos/easy-disponibilidade";
+import { ArrowRight, Search as SearchIcon, Plus, CircleX, FileCheck2, Sparkles, Building2, CalendarDays, ExternalLink } from "lucide-react";
+import { EasyHeader, EasySteps, EasyEmpty } from "@/components/easy/easy-ui";
+import styles from "@/components/easy/easy.module.css";
 
 const operations = [
-  { key: "consultar", title: "Consultar", description: "Veja o acordo da unidade.", color: "border-blue-200 bg-blue-50 text-blue-900", icon: "⌕" },
-  { key: "criar", title: "Criar", description: "Selecione cobranças e simule um acordo.", color: "border-emerald-200 bg-emerald-50 text-emerald-900", icon: "+" },
-  { key: "cancelar", title: "Cancelar", description: "Localize e cancele um acordo.", color: "border-rose-200 bg-rose-50 text-rose-900", icon: "×" },
-  { key: "efetivar", title: "Efetivar", description: "Confira o retorno da administradora.", color: "border-violet-200 bg-violet-50 text-violet-900", icon: "✓" },
+  { key: "consultar", title: "Consultar", description: "Encontre o acordo e acompanhe suas parcelas.", color: styles.blue, icon: SearchIcon, trail: "Localizar e acompanhar" },
+  { key: "criar", title: "Criar", description: "Escolha as cobranças e monte as condições do acordo.", color: styles.green, icon: Plus, trail: "Simular e criar" },
+  { key: "cancelar", title: "Cancelar", description: "Revise o acordo e registre o cancelamento.", color: styles.rose, icon: CircleX, trail: "Revisar e cancelar" },
+  { key: "efetivar", title: "Efetivar", description: "Anexe o PDF da administradora e confira as parcelas.", color: styles.violet, icon: FileCheck2, trail: "Conferir e efetivar" },
 ];
 type Search = { operacao?: string; condominio?: string; unidade?: string; acordo?: string };
 type Row = AcordoEasy & { id: string; nome?: string; identificacao?: string; bloco?: string; unidade_id?: string; status_operacional?: string; status_financeiro?: string; data_acordo?: string; valor_acordado?: number };
 const cobrancaAtiva = (charge: Row) =>
   (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as readonly string[]).includes(getCobrancaStatusOperacional(charge)) &&
   !["quitado", "renegociado"].includes(getCobrancaStatusFinanceiro(charge));
-const panelClass = "space-y-4 rounded-2xl border border-slate-200 bg-white p-5";
+const panelClass = `${styles.panel} space-y-4`;
 
 export default async function EasyPage({ searchParams }: { searchParams: Promise<Search> }) {
   const query = await searchParams;
@@ -38,15 +41,17 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
   const operation = operations.find(item => item.key === query.operacao);
   if (query.operacao && !operation) notFound();
 
-  if (!operation) return <div className="space-y-6">
-    <p className="text-sm font-semibold text-slate-500">Operação simplificada</p>
-    <h1 className="text-3xl font-bold tracking-tight">O que vc quer fazer?</h1>
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {operations.map(item => <Link key={item.key} href={`/app/configuracoes/lab/easy?operacao=${item.key}`} className={`flex min-h-52 flex-col gap-3 rounded-2xl border p-6 ${item.color}`}>
-        <span aria-hidden="true" className="text-3xl">{item.icon}</span>
-        <h2 className="text-2xl font-semibold">{item.title}</h2>
-        <p className="text-sm">{item.description}</p>
-        <span className="mt-auto text-sm font-semibold">Começar →</span>
+  if (!operation) return <div className={styles.container}>
+    <header className={styles.hero}>
+      <span className={styles.eyebrow}><Sparkles size={15} aria-hidden="true" />Easy Cob <span className="ml-2 rounded-full border border-white/20 px-2 py-0.5 text-[9px] tracking-widest">Lab</span></span>
+      <h1>O que você quer fazer?</h1>
+      <p>Escolha uma ação. A gente guia você até o próximo passo.</p>
+    </header>
+    <div className={styles.grid}>
+      {operations.map(item => <Link key={item.key} href={`/app/configuracoes/lab/easy?operacao=${item.key}`} className={`${styles.card} ${item.color}`}>
+        <span className={styles.icon}><item.icon size={23} strokeWidth={1.8} aria-hidden="true" /></span>
+        <div><h2>{item.title}</h2><p className="mt-2">{item.description}</p></div>
+        <span className={styles.cardFooter}>{item.trail}<ArrowRight size={18} aria-hidden="true" /></span>
       </Link>)}
     </div>
   </div>;
@@ -116,16 +121,22 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
     }
   }
 
-  return <div className="mx-auto max-w-4xl space-y-5">
-    <Link className="text-sm font-semibold text-cyan-800" href="/app/configuracoes/lab/easy">← Voltar ao painel</Link>
-    <h1 className="text-3xl font-bold">{operation.title}{operation.key === "cancelar" ? " acordo" : ""}</h1>
+  return <div className={`${styles.container} ${operation.color} space-y-5`}>
+    <div><EasyHeader title={`${operation.title}${operation.key === "cancelar" ? " acordo" : ""}`} description={operation.description} />
+      <EasySteps labels={operation.key === "criar" ? ["Localizar unidade", "Escolher cobranças", "Simular acordo"]
+        : operation.key === "consultar" ? ["Localizar unidade", "Acompanhar acordo"]
+          : ["Localizar acordo", operation.key === "efetivar" ? "Conferir PDF" : "Revisar cancelamento"]} current={unit ? 1 : 0} />
+    </div>
     <EasyFilters operation={operation.key} condominium={condominium?.id ?? ""} unit={unit?.id ?? ""}
       condominiums={condominiums.map(item => ({ id: item.id, label: item.nome ?? item.id }))}
       units={units.map(item => ({ id: item.id, label: [item.bloco && `Bloco ${item.bloco}`, item.identificacao].filter(Boolean).join(" · ") }))} />
-    {!unit && <p className="text-sm text-slate-600">Selecione o condomínio e a unidade para continuar.</p>}
-    {unit && <aside aria-label="Resumo da operação" className="sticky top-2 z-10 rounded-xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm">
-      <p className="font-semibold">{condominium!.nome} · {[unit.bloco && `Bloco ${unit.bloco}`, `Unidade ${unit.identificacao}`].filter(Boolean).join(" · ")}</p>
-      {detail && <p className="text-sm">Acordo de {formatarVencimentoAcordo(detail.acordo.data_acordo)} · {detail.acordo.status.replaceAll("_", " ")} · {formatCurrency(detail.acordo.valor_acordado)}</p>}
+    {!unit && <EasyEmpty title={condominium && !units.length ? "Nenhuma unidade disponível para esta ação" : "Vamos localizar a unidade"}
+      description={condominium && !units.length ? "Escolha outro condomínio ou consulte os acordos para acompanhar a situação das unidades." : "Busque o condomínio e digite a unidade ou o bloco. As opções já estão filtradas para esta ação."} />}
+    {unit && <aside aria-label="Resumo da operação" className={styles.context}>
+      <div className="flex items-center gap-3"><span className={styles.icon}><Building2 size={20} aria-hidden="true" /></span><div>
+        <p>{condominium!.nome}</p><strong>{[unit.bloco && `Bloco ${unit.bloco}`, `Unidade ${unit.identificacao}`].filter(Boolean).join(" · ")}</strong>
+      </div></div>
+      {detail && <span className={closed ? "rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-500" : styles.badge}>{detail.acordo.status.replaceAll("_", " ")}</span>}
     </aside>}
     {unit && operation.key === "criar" && <section className={panelClass}>
       <h2 className="text-xl font-semibold">Cobranças ativas</h2>
@@ -137,6 +148,7 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
         }))} />}
     </section>}
     {unit && operation.key !== "criar" && !detail && <p className={panelClass}>Nenhum acordo encontrado para esta unidade.</p>}
+    <div className={detail && ["cancelar", "efetivar"].includes(operation.key) ? "grid items-start gap-5 lg:grid-cols-2" : "space-y-5"}>
     {detail && <section className={panelClass}>
       <h2 className="text-xl font-semibold">Acordo da unidade</h2>
       {agreements.length > 1 && <EasyAgreementSelect selected={selectedAgreement!.id}
@@ -144,13 +156,17 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
           id: item.id,
           label: `${formatarVencimentoAcordo(item.data_acordo)} · ${formatCurrency(item.valor_acordado)} · ${item.status?.replaceAll("_", " ")}`,
         }))} />}
-      <p className="text-sm text-slate-600">{detail.acordo.status} · {formatCurrency(detail.acordo.valor_acordado)}</p>
-      <ul className="divide-y divide-slate-100">
-        {detail.parcelas.map(parcel => <li key={parcel.id} className="py-2 text-sm">
-          Parcela {parcel.numero} · {formatarVencimentoAcordo(parcel.vencimento)} · {formatCurrency(parcel.valor)} · {parcel.status}
-        </li>)}
-      </ul>
-      <Link className="text-sm font-semibold text-cyan-800 underline" href={`/app/acordos/${detail.acordo.id}`}>Abrir detalhes do acordo</Link>
+      <div className={styles.totalBand}><div><p>Valor do acordo</p><strong>{formatCurrency(detail.acordo.valor_acordado)}</strong></div>
+        <div className="text-right"><p className="flex items-center gap-2"><CalendarDays size={14} aria-hidden="true" />{formatarVencimentoAcordo(detail.acordo.data_acordo)}</p>
+          <span className="mt-2 block text-sm">{detail.parcelas.length} parcela(s)</span></div></div>
+      <div className="max-h-80 overflow-auto rounded-xl border border-slate-100"><table className="w-full text-left text-sm">
+        <caption className="sr-only">Parcelas do acordo</caption><thead className="sticky top-0 bg-slate-50 text-xs text-slate-500"><tr>
+          <th scope="col" className="p-3 font-medium">Parcela</th><th scope="col" className="p-3 font-medium">Vencimento</th><th scope="col" className="p-3 text-right font-medium">Valor</th><th scope="col" className="p-3 font-medium">Situação</th>
+        </tr></thead><tbody className="divide-y divide-slate-100">{detail.parcelas.map(parcel => <tr key={parcel.id} className="hover:bg-slate-50/80">
+          <td className="p-3">{parcel.numero === 0 ? "Entrada" : String(parcel.numero).padStart(2, '0')}</td><td className="whitespace-nowrap p-3 text-slate-600">{formatarVencimentoAcordo(parcel.vencimento)}</td>
+          <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums">{formatCurrency(parcel.valor)}</td><td className="p-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-600">{parcel.status}</span></td>
+        </tr>)}</tbody></table></div>
+      <Link className="inline-flex items-center gap-2 text-xs font-semibold text-cyan-800" href={`/app/acordos/${detail.acordo.id}`}>Abrir detalhes do acordo<ExternalLink size={13} aria-hidden="true" /></Link>
     </section>}
     {detail && operation.key === "efetivar" && <section className={panelClass}>
       <h2 className="text-xl font-semibold">Anexar acordo da administradora</h2>
@@ -166,5 +182,6 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
       </div> : canWrite && !closed && !paid ? <EasyCancellation key={detail.acordo.id} id={detail.acordo.id} />
         : <p>Este acordo não permite cancelamento por este fluxo. Consulte os detalhes do acordo.</p>}
     </section>}
+    </div>
   </div>;
 }
