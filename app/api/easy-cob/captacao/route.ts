@@ -8,6 +8,7 @@ import { parseRelatorioBuffer } from '@/features/conversao-relatorio/server/pars
 import { decodeConversionUpload } from '@/features/conversao-relatorio/server/decode-upload';
 import { MAX_SERVER_UPLOAD_BYTES } from '@/features/conversao-relatorio/upload-limits';
 import { autoMatchCondominio } from '@/features/conversao-relatorio/condominio-match';
+import { lerPlanilhaManualEasy } from '@/features/easy-cob/planilha-manual';
 export const runtime='nodejs';
 export async function POST(request:NextRequest) {
   const auth=await requireAuthenticatedApiUser(); if(auth.response) return auth.response;
@@ -20,7 +21,9 @@ export async function POST(request:NextRequest) {
     if(!/\.(pdf|xlsx?|csv|html?)$/i.test(file.name)) throw new Error('Envie PDF pesquisável, XLS, XLSX, CSV ou HTML.');
     const encoding=String(form.get('file_encoding')??'');
     const bytes=decodeConversionUpload(Buffer.from(await file.arrayBuffer()),encoding);
-    const parsed=await parseRelatorioBuffer({buffer:bytes,filename:file.name,mimeType:encoding?String(form.get('original_mime_type')??''):file.type,condominioCnpj:condominio.cnpj,tipoConversao:'cobrancas',somenteAnoCorrente:false});
+    const parsed=form.get('modelo')==='easy_flow_v1'
+      ? {ok:true as const,preview:lerPlanilhaManualEasy(bytes,file.name,condominio)}
+      : await parseRelatorioBuffer({buffer:bytes,filename:file.name,mimeType:encoding?String(form.get('original_mime_type')??''):file.type,condominioCnpj:condominio.cnpj,tipoConversao:'cobrancas',somenteAnoCorrente:false});
     if(parsed.ok === false) throw new Error(parsed.error);
     const stats=validarPreviaCaptacao(parsed.preview);
     const detected=parsed.preview.padraoDetectado?.condominioDetectado;
