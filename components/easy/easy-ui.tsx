@@ -3,7 +3,7 @@ import Link from 'next/link';
 import styles from './easy.module.css';
 
 export function EasyHeader({ title, description, backHref, backLabel = 'Voltar ao painel' }: { title: string; description: string; backHref?: string; backLabel?: string }) {
-  return <><Link className={styles.back} href={backHref ?? '/app/configuracoes/lab/easy'}><ArrowLeft size={14} aria-hidden="true" />{backLabel}</Link>
+  return <><Link className={styles.back} href={backHref ?? '/app/configuracoes/easy'}><ArrowLeft size={14} aria-hidden="true" />{backLabel}</Link>
     <header className={styles.header}><span className={styles.icon}><Sparkles size={22} aria-hidden="true" /></span><div>
       <p className="!mt-0 text-[10px] font-bold uppercase tracking-[.2em] !text-cyan-700">Easy Cob</p>
       <h1>{title}</h1><p>{description}</p>

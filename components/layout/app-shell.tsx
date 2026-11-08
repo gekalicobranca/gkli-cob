@@ -154,6 +154,7 @@ const settingsGroups: SidebarSection[] = [
     title: 'Administração',
     items: [
       { label: 'Central de configurações', href: '/app/configuracoes', icon: 'gear' },
+      { label: 'Easy Cob', href: '/app/configuracoes/easy', icon: 'spark' },
       { label: 'Carteiras x Usuários', href: '/app/carteiras-usuarios', icon: 'users' },
       { label: 'Acessos síndicos', href: '/app/configuracoes/acessos-sindicos', icon: 'home' },
       { label: 'Solicitações ADM', href: '/app/administradoras/solicitacoes', icon: 'clipboard' },
@@ -187,7 +188,6 @@ const settingsGroups: SidebarSection[] = [
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
       { label: 'Lab experimental', href: '/app/configuracoes/lab', icon: 'beaker', exact: true },
-      { label: 'Easy Cob', href: '/app/configuracoes/lab/easy', icon: 'spark' },
       { label: 'Visão síndico antiga', href: '/app/configuracoes/lab/visao-sindico-antiga', icon: 'home' },
       { label: 'Agenda do Maestro', href: '/app/agente-automatico/maestro?aba=agenda', icon: 'bot' },
       { label: 'Lite legado', href: '/app/configuracoes/lab/lite', icon: 'spark' },

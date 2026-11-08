@@ -16,6 +16,8 @@ import {
   SlidersHorizontal,
   UsersRound,
   WalletCards,
+  Handshake,
+  FileUp,
 } from 'lucide-react'
 
 type ConfigCard = {
@@ -31,6 +33,14 @@ const groups: Array<{
   description: string
   cards: ConfigCard[]
 }> = [
+  {
+    title:'Easy Cob',
+    description:'Operações guiadas para acordos e captação de inadimplência.',
+    cards:[
+      {title:'Acordos',description:'Consulte, crie, cancele e efetive acordos em poucos passos.',href:'/app/configuracoes/easy/acordos',icon:Handshake,tag:'Easy Cob'},
+      {title:'Captação de inadimplência',description:'Envie o arquivo da administradora, confira o resumo e atualize as cobranças dos condomínios sem agente remoto.',href:'/app/configuracoes/easy/captacao',icon:FileUp,tag:'Easy Cob'},
+    ],
+  },
   {
     title: 'Automação',
     description: 'Réguas, lotes, gatilhos e rotinas automáticas ficam fora da operação diária.',

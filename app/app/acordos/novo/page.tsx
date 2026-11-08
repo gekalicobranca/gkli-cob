@@ -128,14 +128,14 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
   return (
     <div className="space-y-6">
       {query.easy === "1" ? <div className="mx-auto max-w-3xl"><EasyHeader title="Criar acordo" description="Defina as condições e confira sua simulação."
-        backLabel="Alterar seleção" backHref={`/app/configuracoes/lab/easy?operacao=criar&condominio=${cobrancaReferencia?.condominio_id}&unidade=${cobrancaReferencia?.unidade_id}`} /></div> : <PageHeader
+        backLabel="Alterar seleção" backHref={`/app/configuracoes/easy/acordos?operacao=criar&condominio=${cobrancaReferencia?.condominio_id}&unidade=${cobrancaReferencia?.unidade_id}`} /></div> : <PageHeader
         eyebrow="Base Operacional"
         title={query.easy === "1" ? "Simular acordo" : "Novo acordo"}
         description={query.easy === "1" ? "Preencha as condições e confira a simulação antes de criar." : "Simule o acordo com as cobranças selecionadas e escolha a unidade titular."}
         actions={
           <ButtonLink
             href={query.easy === "1"
-              ? `/app/configuracoes/lab/easy?operacao=criar&condominio=${cobrancaReferencia?.condominio_id}&unidade=${cobrancaReferencia?.unidade_id}`
+              ? `/app/configuracoes/easy/acordos?operacao=criar&condominio=${cobrancaReferencia?.condominio_id}&unidade=${cobrancaReferencia?.unidade_id}`
               : `/app/acordos/selecionar?cobrancaId=${selectedIds[0]}`}
             variant="header"
           >

@@ -97,7 +97,7 @@ export async function efetivarParcelasPdfAdm(
       console.error("Falha ao aplicar parcelas do PDF", { id, code: error.code, message: error.message });
       return { erro: error.code === "P0001" ? error.message : "Não foi possível efetivar as parcelas. Confira as pendências do acordo." };
     }
-    for (const path of ["/app/configuracoes/lab/easy", `/app/acordos/${id}`, "/app/acordos", "/app/acordos/boletos", "/app/acordos/fila"]) {
+    for (const path of ["/app/configuracoes/easy/acordos", `/app/acordos/${id}`, "/app/acordos", "/app/acordos/boletos", "/app/acordos/fila"]) {
       revalidatePath(path);
     }
     return { mensagem: "Parcelas efetivadas conforme o PDF." };

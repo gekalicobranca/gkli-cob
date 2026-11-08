@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import { carregarCondominioEasy, conferirAssinaturaCaptacao } from "@/features/easy-cob/captacao-server"
+import { validarPreviaCaptacao } from "@/features/easy-cob/captacao-preview"
 import { revalidatePath } from "next/cache"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { isCronSecretAuthorized, requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
@@ -122,6 +124,7 @@ async function isCarteiraPermitida(
 }
 
 export async function POST(request: NextRequest) {
+  let easyImportId: string | undefined
   try {
     const chamadaMaestro = isCronSecretAuthorized(request)
     const autenticacao = chamadaMaestro ? null : await requireAuthenticatedApiUser()
@@ -167,7 +170,7 @@ export async function POST(request: NextRequest) {
 
     const { data: conversao, error: conversaoError } = await supabase
       .from("conversoes_relatorio")
-      .select("id, status, preview_json, condominio_id, carteira_id")
+      .select("id, status, origem, preview_json, condominio_id, carteira_id")
       .eq("id", conversaoId)
       .single()
 
@@ -185,6 +188,22 @@ export async function POST(request: NextRequest) {
       || (conversao.condominio_id && conversao.condominio_id !== condominioId)
       || (conversao.carteira_id && conversao.carteira_id !== carteiraId)) {
       return NextResponse.json({ ok: false, error: "Conversão não corresponde ao condomínio e carteira informados." }, { status: 403 })
+    }
+
+    const preview = conversao.preview_json as any
+    const captacaoEasy = Boolean(preview?.easyCaptacao)
+    if (body?.easy && !captacaoEasy) return NextResponse.json({ok:false,error:"Prévia Easy não encontrada."},{status:400})
+    if (captacaoEasy) {
+      if (chamadaMaestro || !user || !autenticacao?.profile || !['admin','gestor','operador'].includes(autenticacao.profile.role)
+        || conversao.origem !== 'easy_captacao' || preview.easyCaptacao.operadorId !== user.id) {
+        return NextResponse.json({ok:false,error:"Sem permissão para confirmar esta captação Easy."},{status:403})
+      }
+      if(body.confirmacao !== true) return NextResponse.json({ok:false,error:"Confira o resumo e confirme a substituição."},{status:400})
+      await carregarCondominioEasy(condominioId)
+      if (!["concluido","concluido_com_alertas"].includes(conversao.status)) {
+        conferirAssinaturaCaptacao(conversaoId,condominioId,carteiraId,preview,user.id)
+        validarPreviaCaptacao(preview)
+      }
     }
 
     if (["concluido", "concluido_com_alertas"].includes(String((conversao as any).status ?? ""))) {
@@ -211,7 +230,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const preview = conversao.preview_json as any
     const captacaoPdf = conversaoPdfDeCobrancas(preview)
     const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
     const { data: condominioConfiguracao, error: condominioError } = await supabase
@@ -238,7 +256,14 @@ export async function POST(request: NextRequest) {
     const anoCorrente = anoCorrenteImportacao()
 
     // No PDF, substitui apenas os ausentes depois de conferir a captação inteira.
-    if (limparCobrancasAnteriores && !captacaoPdf) {
+    if (captacaoEasy) {
+      const {data:limpeza,error:limpezaError}=await supabase.rpc('easy_preparar_captacao', {
+        p_conversao:conversaoId,p_versao:preview.easyCaptacao.substituicao.versao,
+      })
+      if(limpezaError) throw new Error(limpezaError.message)
+      easyImportId=conversaoId
+      cobrancasAnterioresRemovidas=Number(limpeza?.removidas ?? 0)
+    } else if (limparCobrancasAnteriores && !captacaoPdf) {
       if (chamadaMaestro) {
         const { data: limpeza, error: limpezaError } = await supabase.rpc('maestro_substituir_cobrancas_conversao', { p_conversao: conversaoId })
         if (limpezaError) throw new Error(`Erro ao substituir cobranças do Maestro: ${limpezaError.message}`)
@@ -543,7 +568,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (captacaoPdf && limparCobrancasAnteriores) {
+    if (captacaoEasy) {
+      // A substituição foi confirmada e auditada pela mesma rotina do Maestro.
+    } else if (captacaoPdf && limparCobrancasAnteriores) {
       const limpeza = await removerAusentesDaConversaoPdf(supabase, {
         conversaoId, condominioId, carteiraId, preview, importadas: importadasParaAusencia,
         falhas: falhasImportacao + cobrancasDivergentes,
@@ -602,7 +629,7 @@ export async function POST(request: NextRequest) {
     await supabase
       .from("conversoes_relatorio")
       .update({
-        status: inconsistencias.length ? "concluido_com_alertas" : "concluido",
+        status: captacaoEasy && falhasImportacao ? 'falha' : inconsistencias.length ? "concluido_com_alertas" : "concluido",
         inconsistencias_json: inconsistencias,
         preview_json: { ...previewSemBaseRanking, ...(rankingMensal ? { rankingMensal } : {}),
           ...(limpezaAusentesPdf ? { limpezaAusentesPdf } : {}) },
@@ -612,10 +639,12 @@ export async function POST(request: NextRequest) {
 
     revalidatePath("/app/pendencias")
     revalidatePath("/app/cobrancas")
+    revalidatePath("/app/configuracoes/easy/captacao")
     revalidatePath("/app")
 
     return NextResponse.json({
-      ok: true,
+      ok: !captacaoEasy || falhasImportacao === 0,
+      ...(captacaoEasy && falhasImportacao ? { error: 'A captação teve falhas após a substituição. Consulte as inconsistências e o histórico antes de realizar uma nova captação.' } : {}),
       resumo: {
         cobrancasCriadas,
         cobrancasIgnoradas,
@@ -625,10 +654,12 @@ export async function POST(request: NextRequest) {
         captacaoHistoricaCriada: historicoCaptacao.inseridas,
         captacaoHistoricaRetida: historicoCaptacao.retidas,
         parcelasCriadas,
+        falhasImportacao,
         inconsistencias,
       },
     })
   } catch (error) {
+    if(easyImportId) await createAdminClient().from('conversoes_relatorio').update({status:'falha',atualizado_em:new Date().toISOString()}).eq('id',easyImportId).eq('status','processando')
     console.error("Erro ao confirmar conversão:", error)
 
     return NextResponse.json(

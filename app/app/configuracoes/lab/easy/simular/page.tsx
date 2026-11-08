@@ -1,10 +1,5 @@
-import NovoAcordoPage from "@/app/app/acordos/novo/page";
-
-export default async function EasySimulationPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ cobrancaIds?: string | string[] }>;
-}) {
-  const query = await searchParams;
-  return <NovoAcordoPage searchParams={Promise.resolve({ cobrancaIds: query.cobrancaIds, easy: "1" })} />;
+import { redirect } from 'next/navigation';
+import { easyLegacyUrl } from '@/features/easy-cob/legacy';
+export default async function LegacyEasy({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  redirect(easyLegacyUrl(await searchParams, true));
 }
