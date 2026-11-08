@@ -17,6 +17,7 @@ import { EasyCancellation } from "./cancellation";
 import { EasyCharges } from "./charges";
 import { EasyPdfAgreement } from "./pdf-agreement";
 import { valorCotaParaAcordo } from "@/features/acordos/valor-cota";
+import { acordoDisponivelEasy, type AcordoEasy } from "@/features/acordos/easy-disponibilidade";
 
 const operations = [
   { key: "consultar", title: "Consultar", description: "Veja o acordo da unidade.", color: "border-blue-200 bg-blue-50 text-blue-900", icon: "⌕" },
@@ -25,7 +26,7 @@ const operations = [
   { key: "efetivar", title: "Efetivar", description: "Confira o retorno da administradora.", color: "border-violet-200 bg-violet-50 text-violet-900", icon: "✓" },
 ];
 type Search = { operacao?: string; condominio?: string; unidade?: string; acordo?: string };
-type Row = { id: string; nome?: string; identificacao?: string; bloco?: string; unidade_id?: string; status?: string; status_operacional?: string; status_financeiro?: string; data_acordo?: string; valor_acordado?: number };
+type Row = AcordoEasy & { id: string; nome?: string; identificacao?: string; bloco?: string; unidade_id?: string; status_operacional?: string; status_financeiro?: string; data_acordo?: string; valor_acordado?: number };
 const cobrancaAtiva = (charge: Row) =>
   (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as readonly string[]).includes(getCobrancaStatusOperacional(charge)) &&
   !["quitado", "renegociado"].includes(getCobrancaStatusFinanceiro(charge));
@@ -72,9 +73,13 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
   const allUnits = condominium
     ? await rows("unidades", "id,identificacao,bloco", "identificacao", { condominio_id: condominium.id })
     : [];
-  const unitsWithAgreements = condominium && operation.key === "consultar"
-    ? new Set((await rows("acordos", "id,unidade_id", "id", { condominio_id: condominium.id })).map(item => item.unidade_id))
-    : null;
+  const condominiumAgreements = condominium && operation.key !== "criar"
+    ? (await rows("acordos", `id,unidade_id,status,tipo,data_acordo,valor_acordado,acordo_homologado,
+      exige_aprovacao_sindico,sindico_aprovado_em${operation.key === "cancelar" ? ",parcelas:parcelas_acordo(status,data_pagamento)" : ""}`,
+      "data_acordo", { condominio_id: condominium.id })).filter(item => acordoDisponivelEasy(item, operation.key))
+    : [];
+  const unitsWithAgreements = operation.key !== "criar"
+    ? new Set(condominiumAgreements.map(item => item.unidade_id)) : null;
   const unitsWithCharges = condominium && operation.key === "criar"
     ? new Set((await rows("cobrancas", "id,unidade_id,status,status_operacional,status_financeiro", "id", { condominio_id: condominium.id }))
       .filter(cobrancaAtiva).map(item => item.unidade_id))
@@ -83,9 +88,7 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
   const units = eligibleUnits ? allUnits.filter(item => eligibleUnits.has(item.id)) : allUnits;
   const unit = units.find(item => item.id === query.unidade);
   if (query.unidade && !allUnits.some(item => item.id === query.unidade)) notFound();
-  const agreements = unit && operation.key !== "criar"
-    ? await rows("acordos", "id,status,data_acordo,valor_acordado", "data_acordo", { condominio_id: condominium!.id, unidade_id: unit.id })
-    : [];
+  const agreements = unit ? condominiumAgreements.filter(item => item.unidade_id === unit.id) : [];
   const recentAgreements = [...agreements].reverse();
   const selectedAgreement = agreements.find(item => item.id === query.acordo)
     ?? recentAgreements.find(item => (ACORDO_STATUS_VIGENTES as readonly string[]).includes(item.status ?? ""))

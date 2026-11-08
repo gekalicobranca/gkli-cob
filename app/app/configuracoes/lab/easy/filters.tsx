@@ -36,7 +36,9 @@ export function EasyFilters({ operation, condominium, unit, condominiums, units 
         options={units.map(option => ({ value: option.id, label: option.label }))}
         placeholder={condominium && !units.length
           ? operation === "consultar" ? "Nenhuma unidade com acordo"
-            : operation === "criar" ? "Nenhuma unidade com cobrança ativa" : "Nenhuma unidade encontrada"
+            : operation === "criar" ? "Nenhuma unidade com cobrança ativa"
+              : operation === "cancelar" ? "Nenhuma unidade com acordo para cancelar"
+                : "Nenhuma unidade com acordo para efetivar"
           : "Digite a unidade ou o bloco"}
         inputClassName={fieldClass} onValueChange={value => navigate(condominium, value)} />
     </fieldset>
