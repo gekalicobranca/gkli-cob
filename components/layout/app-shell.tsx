@@ -78,7 +78,6 @@ const sections: SidebarSection[] = [
       { label: 'Acordos extrajudiciais', href: '/app/acordos', icon: 'handshake' },
       { label: 'Acordos judiciais', href: '/app/acordos/judiciais', icon: 'handshake' },
       { label: 'Controle de parcelas', href: '/app/acordos/fila', icon: 'clipboard' },
-      { label: 'Consulta mobile', href: '/app/mobile', icon: 'mobile', exact: true },
     ],
   },
   {
@@ -176,6 +175,7 @@ const settingsGroups: SidebarSection[] = [
     id: 'gestao-avancada',
     title: 'Gestão avançada',
     items: [
+      { label: 'Consulta mobile', href: '/app/mobile', icon: 'mobile', exact: true },
       { label: 'Painel TV', href: '/app/dashboard/tv', icon: 'dashboard' },
       { label: 'Saúde sistema', href: '/app/gestao/saude-sistema', icon: 'alert' },
       { label: 'Saneamento cobranças', href: '/app/gestao/saneamento-cobrancas', icon: 'shield' },
@@ -187,6 +187,7 @@ const settingsGroups: SidebarSection[] = [
     items: [
       { label: 'Dashboard', href: '/app/dashboard', icon: 'dashboard' },
       { label: 'Lab experimental', href: '/app/configuracoes/lab', icon: 'beaker', exact: true },
+      { label: 'Easy Cob', href: '/app/configuracoes/lab/easy', icon: 'spark' },
       { label: 'Visão síndico antiga', href: '/app/configuracoes/lab/visao-sindico-antiga', icon: 'home' },
       { label: 'Agenda do Maestro', href: '/app/agente-automatico/maestro?aba=agenda', icon: 'bot' },
       { label: 'Lite legado', href: '/app/configuracoes/lab/lite', icon: 'spark' },
