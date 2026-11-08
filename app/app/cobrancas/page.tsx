@@ -3,7 +3,7 @@ import { CONDUCAO_PROCESSO } from '@/features/unidades/conducao-processo';
 import Link from "next/link";
 import { ArrowUpRight, CalendarDays, ChevronDown, Download, FileText, Plus, WalletCards } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
-import { KpiCard } from "@/components/ui/kpi-card";
+import { Card } from "@/components/ui/card";
 import {
   LiteKpiStrip,
   LitePageHeader,
@@ -361,7 +361,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
       </LitePageHeader>
 
       <LiteKpiStrip className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label="Em aberto" value={formatCurrency(resumo.totalEmAberto)} hint="Total das cobranças filtradas, incluindo todas as páginas" icon={<WalletCards size={18} />} />
+        <Card className="relative overflow-hidden p-3"><div className="absolute right-4 top-3 rounded-lg bg-[var(--gkli-primary-soft)] p-2 text-[var(--gkli-primary)]"><WalletCards size={18} /></div><p className="pr-12 text-xs font-medium uppercase text-slate-400">Em aberto</p><p className="mt-1.5 text-2xl font-semibold text-slate-950">{formatCurrency(resumo.totalEmAberto)}</p></Card>
 
         {[
           [
@@ -384,14 +384,16 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
             "bg-amber-50 text-amber-700",
           ],
         ].map(([title, value, tag, tagClass]) => (
-          <KpiCard
-            key={title}
-            label={String(title)}
-            value={value}
-            badge={title === "Negociação" ? <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span> : undefined}
-          />
+          <Card key={title} className="overflow-hidden p-3">
+            <p className="text-xs font-medium uppercase text-slate-400">{title}</p>
+            <div className="mt-1.5 flex flex-wrap items-end justify-between gap-3">
+              <p className="text-2xl font-semibold text-slate-950">{value}</p>
+              {title === "Negociação" && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span>}
+            </div>
+          </Card>
         ))}
       </LiteKpiStrip>
+      <p className="text-xs text-slate-500">Indicadores das cobranças filtradas, incluindo todas as páginas.</p>
 
       <LiteWorkArea>
         <ListPanel className="flex h-full min-h-0 flex-col">

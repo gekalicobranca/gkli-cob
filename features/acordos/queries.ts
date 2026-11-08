@@ -778,6 +778,7 @@ function attachAgreementHealth(acordos: any[], parcelas: any[]) {
     const health = calculateAgreementHealth(parcelasDoAcordo);
     return {
       ...acordo,
+      parcelas_lista: parcelasDoAcordo,
       parcelas_periodo: parcelasDoAcordo.map(parcela => ({ vencimento: parcela.vencimento })),
       parcelas_alertas: health,
       saude_acordo: health.saude,

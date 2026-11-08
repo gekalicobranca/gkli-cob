@@ -266,23 +266,11 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                     ))}
                   </Select>
                 </ListFilterField>
-                <ListFilterField label="Vencimento das parcelas de" className="xl:col-span-2">
-                  <Input name="data_de" type="date" defaultValue={dateFilter(params.data_de)} />
-                </ListFilterField>
-                <ListFilterField label="Vencimento das parcelas até" className="xl:col-span-2">
-                  <Input name="data_ate" type="date" defaultValue={dateFilter(params.data_ate)} />
-                </ListFilterField>
                 <ListFilterField label="Operador responsável" className="xl:col-span-3">
                   <Select name="operador_id" defaultValue={clean(params.operador_id)}>
                     <option value="">Todos</option>
                     {operadores.map(operador => <option key={operador.id} value={operador.id}>{operador.nome}</option>)}
                   </Select>
-                </ListFilterField>
-                <ListFilterField label="Criação de" className="xl:col-span-2">
-                  <Input name="criacao_de" type="date" defaultValue={dateFilter(params.criacao_de)} />
-                </ListFilterField>
-                <ListFilterField label="Criação até" className="xl:col-span-2">
-                  <Input name="criacao_ate" type="date" defaultValue={dateFilter(params.criacao_ate)} />
                 </ListFilterField>
                 <ListFilterField label="Ordenar por" className="xl:col-span-3">
                   <Select name="ordenar" defaultValue={clean(params.ordenar)||'data_desc'}>
@@ -295,6 +283,18 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                     <option value="valor_desc">Maior valor</option>
                     <option value="valor_asc">Menor valor</option>
                   </Select>
+                </ListFilterField>
+                <ListFilterField label="Vencimento das parcelas de" className="xl:col-span-3">
+                  <Input name="data_de" type="date" defaultValue={dateFilter(params.data_de)} />
+                </ListFilterField>
+                <ListFilterField label="Vencimento das parcelas até" className="xl:col-span-3">
+                  <Input name="data_ate" type="date" defaultValue={dateFilter(params.data_ate)} />
+                </ListFilterField>
+                <ListFilterField label="Criação de" className="xl:col-span-3">
+                  <Input name="criacao_de" type="date" defaultValue={dateFilter(params.criacao_de)} />
+                </ListFilterField>
+                <ListFilterField label="Criação até" className="xl:col-span-3">
+                  <Input name="criacao_ate" type="date" defaultValue={dateFilter(params.criacao_ate)} />
                 </ListFilterField>
               </div></details>
           </ListFiltersForm>
@@ -334,10 +334,8 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                       <div className="divide-y divide-slate-100 border-t border-slate-100">
                         <div className="hidden gap-3 border-b border-slate-100 bg-white px-4 py-2 text-xs font-medium text-slate-500 xl:grid xl:grid-cols-[minmax(320px,1.4fr)_120px_140px_150px_90px]" aria-hidden="true"><span>Unidade / responsável</span><span>Valor</span><span>Avaliação</span><span>Data do acordo</span><span /></div>
                         {group.acordos.map((row: any) => (
-                          <Link
-                            key={row.id}
-                            href={`/app/acordos/${row.id}`}
-                            className="group grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.4fr)_120px_140px_150px_90px] xl:items-center"
+                          <details key={row.id} className="group/acordo">
+                            <summary className="grid cursor-pointer list-none gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.4fr)_120px_140px_150px_90px] xl:items-center"
                           >
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
@@ -359,8 +357,23 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                               <div className="mt-1"><AgreementHealthBadge health={row.saude_acordo} /></div>
                             </div>
                             <ListMetric labelOnDesktop={false} label="Data" value={formatDateBR(row.data_acordo)} />
-                            <div className="flex justify-end"><ArrowUpRight size={16} className="text-slate-400 group-hover:text-[var(--gkli-primary)]" /></div>
-                          </Link>
+                            <div className="flex justify-end"><ChevronDown size={16} className="text-slate-400 transition-transform group-open/acordo:rotate-180" /></div>
+                            </summary>
+                            <div className="space-y-3 border-t border-slate-100 bg-slate-50/50 px-4 py-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm font-medium text-slate-700">Parcelas</p>
+                                <Link href={`/app/acordos/${row.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-[var(--gkli-primary)]">Ver acordo <ArrowUpRight size={15} /></Link>
+                              </div>
+                              {row.parcelas_lista?.length ? (
+                                <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+                                  <thead className="text-xs uppercase text-slate-500"><tr><th className="p-2">Parcela</th><th className="p-2">Vencimento</th><th className="p-2">Valor</th><th className="p-2">Pagamento</th><th className="p-2">Status</th></tr></thead>
+                                  <tbody>{[...row.parcelas_lista].sort((a: any, b: any) => Number(a.numero) - Number(b.numero)).map((parcela: any) => (
+                                    <tr key={parcela.id} className="border-t border-slate-200"><td className="p-2">{parcela.tipo_parcela === 'entrada' ? 'Entrada' : parcela.numero}</td><td className="p-2">{formatDateBR(parcela.vencimento)}</td><td className="p-2">{formatCurrency(Number(parcela.valor))}</td><td className="p-2">{parcela.data_pagamento ? formatDateBR(parcela.data_pagamento) : '—'}</td><td className="p-2"><StatusBadge status={parcela.status} /></td></tr>
+                                  ))}</tbody>
+                                </table></div>
+                              ) : <p className="text-sm text-slate-500">Nenhuma parcela cadastrada.</p>}
+                            </div>
+                          </details>
                         ))}
                       </div>
                     </details>
