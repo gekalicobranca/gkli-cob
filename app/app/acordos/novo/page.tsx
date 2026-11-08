@@ -25,6 +25,7 @@ type PageProps = {
     unidade_titular_id?: string;
     sindico?: string;
     aprovacao_fora_regua?: string;
+    easy?: string;
   }>;
 };
 
@@ -116,6 +117,7 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
       })
     : { reincidencia: 0, rompimentos: 0 };
   const returnParams = new URLSearchParams();
+  if (query.easy === "1") returnParams.set("easy", "1");
   if (selectedIds.length > 0) returnParams.set("cobrancaIds", selectedIds.join(","));
   if (cotasSemDespesas.length) returnParams.set("cotasSemDespesas", cotasSemDespesas.join(","));
   if (query.sindico) returnParams.set("sindico", query.sindico);
@@ -126,11 +128,13 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Base Operacional"
-        title="Novo acordo"
-        description="Simule o acordo com as cobranças selecionadas e escolha a unidade titular."
+        title={query.easy === "1" ? "Simular acordo" : "Novo acordo"}
+        description={query.easy === "1" ? "Preencha as condições e confira a simulação antes de criar." : "Simule o acordo com as cobranças selecionadas e escolha a unidade titular."}
         actions={
           <ButtonLink
-            href={`/app/acordos/selecionar?cobrancaId=${selectedIds[0]}`}
+            href={query.easy === "1"
+              ? `/app/configuracoes/lab/easy?operacao=criar&condominio=${cobrancaReferencia?.condominio_id}&unidade=${cobrancaReferencia?.unidade_id}`
+              : `/app/acordos/selecionar?cobrancaId=${selectedIds[0]}`}
             variant="header"
           >
             Alterar seleção
@@ -139,6 +143,7 @@ export default async function NovoAcordoPage({ searchParams }: PageProps) {
       />
 
       <AcordoSimulatorForm
+        simplified={query.easy === "1" && !aprovacao}
         key={aprovacao ? `${aprovacao.id}:${aprovacao.status}` : selectedIds.join(",")}
         formularioInicial={aprovacao?.formulario ?? {unidade_titular_id: query.unidade_titular_id ?? cobrancaReferencia?.unidade_id ?? ""}}
         acordoJaCriado={Boolean(aprovacao?.acordo_id)}

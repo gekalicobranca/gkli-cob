@@ -4,6 +4,12 @@ import { Card } from '@/components/ui/card'
 
 const experiments = [
   {
+    title: 'Easy Cob',
+    description: 'Operação simplificada de consulta, criação, cancelamento e efetivação de acordos.',
+    href: '/app/configuracoes/lab/easy',
+    icon: Sparkles,
+  },
+  {
     title: 'Agenda do Maestro',
     description: 'Agenda mensal, coleta de relatórios e validações do ciclo de captação automatizada, agora centralizadas no Maestro.',
     href: '/app/agente-automatico/maestro?aba=agenda',

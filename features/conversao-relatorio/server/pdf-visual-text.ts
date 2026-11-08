@@ -1,5 +1,5 @@
 /** Rebuild reading order and spaces from PDF glyph positions, not stream order. */
-export async function extractPdfVisualText(buffer: Buffer, lineTolerance = 1): Promise<string> {
+export async function extractPdfVisualText(buffer: Buffer, lineTolerance = 1, maxPages = Infinity): Promise<string> {
   type Item = { str: string; transform: number[]; width: number };
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const pdfjs = require("pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js") as {
@@ -12,6 +12,7 @@ export async function extractPdfVisualText(buffer: Buffer, lineTolerance = 1): P
   const document = await pdfjs.getDocument(new Uint8Array(buffer)).promise;
   const output: string[] = [];
   try {
+    if (document.numPages > maxPages) throw new Error(`O PDF excede o limite de ${maxPages} páginas. Envie o demonstrativo individual do acordo.`);
     for (let page = 1; page <= document.numPages; page++) {
       const { items } = await (await document.getPage(page)).getTextContent();
       const lines: Item[][] = [];

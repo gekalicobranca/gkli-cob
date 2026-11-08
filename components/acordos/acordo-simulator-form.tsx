@@ -57,6 +57,7 @@ type CobrancaOption = {
 };
 
 type AcordoSimulatorFormProps = {
+  simplified?: boolean;
   cobrancas: CobrancaOption[];
   initialCobrancaId?: string;
   selectedCobrancaIds?: string[];
@@ -100,6 +101,7 @@ function safeMailtoPart(value: string) {
 }
 
 export function AcordoSimulatorForm({
+  simplified = false,
   cobrancas,
   initialCobrancaId,
   selectedCobrancaIds = [],
@@ -113,6 +115,7 @@ export function AcordoSimulatorForm({
   returnTo = "/app/acordos/novo",
   inteligenciaOperacional = { reincidencia: 0, rompimentos: 0 },
 }: AcordoSimulatorFormProps) {
+  const [easyReview, setEasyReview] = useState(false);
   const [actionState, createAcordoAction, isCreatingAcordo] = useActionState(
     createAcordoComEstado,
     { error: null },
@@ -138,7 +141,7 @@ export function AcordoSimulatorForm({
 
   const [usarCreditoAdministradora, setUsarCreditoAdministradora] = useState(formularioInicial.usar_credito_administradora === "on");
   const [entradaVencimento, setEntradaVencimento] = useState(() => formularioInicial.entrada_vencimento || dataCivilSaoPaulo());
-  const [quantidadeParcelas, setQuantidadeParcelas] = useState(formularioInicial.quantidade_parcelas || "3");
+  const [quantidadeParcelas, setQuantidadeParcelas] = useState(formularioInicial.quantidade_parcelas || (simplified ? "1" : "3"));
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => {
     if (formularioInicial.primeiro_vencimento) return formularioInicial.primeiro_vencimento;
     return somarDiasCivis(dataCivilSaoPaulo(), 7);
@@ -393,6 +396,112 @@ export function AcordoSimulatorForm({
         </p>
       </Card>
     );
+  }
+
+
+  if (simplified) {
+    const paymentLines = preview.parcelas.map(parcela =>
+      `Parcela ${parcela.numero} · ${formatDateBR(parcela.vencimento)} · ${formatCurrency(parcela.valor)}`,
+    );
+    const simulationText = [
+      `Condomínio: ${cobrancaSelecionada?.condominios?.nome}`,
+      `Unidade: ${rotuloUnidade(cobrancaSelecionada?.unidades)}`,
+      "",
+      "Cobranças selecionadas:",
+      ...cobrancasSelecionadas.map(item => `${item.competencia || "Cobrança"} · ${formatDateBR(item.vencimento)} · ${formatCurrency(getValorAtualizado(item))}`),
+      "",
+      `Subtotal das cobranças: ${formatCurrency(preview.valorOriginal)}`,
+      `Despesas de cobrança: ${formatCurrency(preview.despesaCobranca)}`,
+      `Emissão de boletos: ${formatCurrency(preview.custoBoletos)}`,
+      `Total: ${formatCurrency(preview.total)}`,
+      "",
+      ...paymentLines,
+    ].join("\n");
+    const blocked = Boolean(erroValores) || !preview.datasValidas || preview.total <= 0;
+    const creationBlocked = blocked || acordoJaCriado || bloqueadoPorPendenciaPlanilha ||
+      bloqueadoPorPendenciaAprovacaoSindico || !contatoAcionavel;
+    function downloadTerm() {
+      const content = ["TERMO DE ACORDO", "Minuta da simulação", "", simulationText, "",
+        "Representante do condomínio: ______________________________",
+        "Responsável pela unidade: _________________________________",
+        "Data: ____/____/________"].join("\n");
+      const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "termo-de-acordo.txt";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    return <div className="mx-auto max-w-3xl space-y-4">
+      <aside className="sticky top-2 z-10 rounded-xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm" aria-label="Resumo da operação">
+        <p className="font-semibold">{cobrancaSelecionada?.condominios?.nome} · {rotuloUnidade(cobrancaSelecionada?.unidades)}</p>
+        <p className="text-sm">{cobrancasSelecionadas.length} cobrança(s) · {formatCurrency(preview.valorOriginal)}</p>
+      </aside>
+      <MoneyForm fields={[{ name: "despesa_cobranca_percentual", label: "Despesas de cobrança", percentage: true }]}
+        action={createAcordoAction} className="space-y-4"
+        onSubmitCapture={event => {
+          if (!easyReview) {
+            event.preventDefault();
+            if (event.currentTarget.reportValidity() && !erroValores && preview.total > 0) {
+              const submitted = new FormData(event.currentTarget);
+              setPrimeiroVencimento(String(submitted.get("primeiro_vencimento") ?? ""));
+              setEasyReview(true);
+            }
+          }
+        }}>
+        {cobrancasSelecionadas.map(item => <input key={item.id} type="hidden" name="cobranca_ids" value={item.id} />)}
+        <input type="hidden" name="unidade_titular_id" value={cobrancaSelecionada?.unidade_id ?? ""} />
+        <input type="hidden" name="tipo" value="extrajudicial" />
+        <input type="hidden" name="entrada" value="0,00" />
+        <section hidden={easyReview} className="space-y-4 rounded-2xl border bg-white p-5">
+          <h2 className="text-xl font-semibold">Como será o pagamento?</h2>
+          <FormField label="O acordo será à vista ou parcelado?">
+            <Select aria-label="O acordo será à vista ou parcelado?" value={Number(quantidadeParcelas) === 1 ? "avista" : "parcelado"}
+              onChange={event => setQuantidadeParcelas(event.target.value === "avista" ? "1" : "2")}>
+              <option value="avista">À vista</option><option value="parcelado">Parcelado</option>
+            </Select>
+          </FormField>
+          <FormField label="Despesas de cobrança (%)" hint={`Valor calculado: ${formatCurrency(preview.despesaCobranca)}`}>
+            <Input aria-label="Despesas de cobrança (%)" name="despesa_cobranca_percentual" required
+              value={despesaCobrancaPercentual} onChange={event => setDespesaCobrancaPercentual(event.target.value)} />
+          </FormField>
+          {Number(quantidadeParcelas) === 1 ? <input type="hidden" name="quantidade_parcelas" value="1" /> :
+          <FormField label="Quantidade de parcelas">
+            <Input aria-label="Quantidade de parcelas" name="quantidade_parcelas" type="number" min="2" max="60" step="1"
+              required value={quantidadeParcelas} onChange={event => setQuantidadeParcelas(event.target.value)} />
+          </FormField>}
+          <FormField label={Number(quantidadeParcelas) === 1 ? "Quando vence o pagamento?" : "Quando vence a primeira parcela?"}
+            hint={Number(quantidadeParcelas) > 1 ? "As demais vencem mensalmente no mesmo dia ou no último dia do mês." : undefined}>
+            <Input aria-label="Primeiro vencimento" name="primeiro_vencimento" type="date" required value={primeiroVencimento}
+              onChange={event => setPrimeiroVencimento(event.target.value)} />
+          </FormField>
+          <Button type="submit" disabled={blocked}>Simular acordo</Button>
+        </section>
+        {erroValores && <p role="alert" className="text-sm text-rose-700">{erroValores.message}</p>}
+        {!preview.datasValidas && <p role="alert" className="text-sm text-rose-700">Informe um vencimento válido.</p>}
+        {easyReview && <section className="space-y-4 rounded-2xl border bg-white p-5">
+          <h2 className="text-xl font-semibold">Confira a simulação</h2>
+          <p className="text-lg font-semibold">Total de {formatCurrency(preview.total)}</p>
+          <ul className="divide-y">{paymentLines.map(line => <li key={line} className="py-2 text-sm">{line}</li>)}</ul>
+          <label className="block text-sm font-semibold">Texto para a administradora
+            <textarea readOnly value={`Prezados, segue a simulação do acordo para conferência.\n\n${simulationText}`}
+              rows={12} className="mt-2 w-full rounded-lg border p-3 font-normal" />
+          </label>
+          <Button type="button" variant="secondary" onClick={downloadTerm}>Gerar termo de acordo</Button>
+          {exigeAprovacaoSindico && <p className="rounded-lg bg-amber-50 p-3 text-sm">Estas condições exigem aprovação do síndico. A proposta será registrada para aprovação.</p>}
+          {(bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico) &&
+            <p role="status" className="text-sm text-amber-800">Resolva a pendência de planilha ou aprovação desta unidade para criar o acordo.</p>}
+          {!contatoAcionavel && <p className="text-sm text-amber-800">Complete o nome e o e-mail ou telefone do responsável em <a className="underline" href={`/app/unidades/${responsavelAcionado.unidadeId}`}>cadastro da unidade</a>.</p>}
+          {actionState.error && <p role="alert" className="text-sm text-rose-700">{actionState.error}</p>}
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" variant="secondary" disabled={isCreatingAcordo} onClick={() => setEasyReview(false)}>Ajustar simulação</Button>
+            <Button type="submit" disabled={creationBlocked} loading={isCreatingAcordo} loadingLabel="Criando…">
+              {exigeAprovacaoSindico ? "Criar proposta para aprovação" : "Criar acordo"}
+            </Button>
+          </div>
+        </section>}
+      </MoneyForm>
+    </div>;
   }
 
   return (
