@@ -17,13 +17,6 @@ export default async function EasyFlowPage(){
         </div>
         <Link href="/app/configuracoes/easy/flow/maestro" className={styles.primary}>Abrir Easy Maestro</Link>
       </section>
-      <section className={`${styles.panel} mb-5 flex flex-wrap items-center justify-between gap-3`}>
-        <div>
-          <h2 className="font-semibold">Easy Pague</h2>
-          <p className="mt-1 text-sm text-slate-600">Confirmação de pagamentos de acordos por administradora.</p>
-        </div>
-        <Link href="/app/configuracoes/easy/flow/pague" className={styles.primary}>Abrir Easy Pague</Link>
-      </section>
       <EasyFlow condominios={condominios.map(c => ({ id: c.id, nome: c.nome, cnpj: c.cnpj }))} canWrite={['admin', 'gestor', 'operador'].includes(scope.perfil)} />
     </div>
   );
