@@ -47,7 +47,7 @@ export async function abrirWebwareLimitado(sessao,config,receita,unidades,signal
  let financeiro,opcoes,fonte=href
  if(portal==='sell'){
   if(href!==fonteBBZ)throw Error('Origem financeira SELL não homologada.')
-  financeiro=await abrirFinanceiroBBZ(context,true,config.onStage,{portal:'sell'})
+  financeiro=await abrirFinanceiroBBZ(context,true,config.onStage,{portal:'sell',dataLimite:config.dataLimite})
   opcoes=await financeiro.listarUnidades()
  }else{
   config.onStage?.('acordos_graiche')

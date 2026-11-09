@@ -16,7 +16,7 @@ export function selecionarReferenciaFinanceira(opcoes,referencia){
  return candidatos[0].value
 }
 
-export async function abrirExtratoManager(context,href,signal,etapa=()=>{}){
+export async function abrirExtratoManager(context,href,signal,etapa=()=>{},dataLimite){
  if(new URL(href).href!==fonteManager)throw Error('Destino financeiro Manager não homologado.')
  const page=await context.newPage();page.setDefaultTimeout(12000);page.setDefaultNavigationTimeout(15000)
  return {async consultar(referencia){
@@ -29,7 +29,7 @@ export async function abrirExtratoManager(context,href,signal,etapa=()=>{}){
   const opcoes=await select.locator('option').evaluateAll(xs=>xs.map(x=>({value:x.value})))
   const ref=selecionarReferenciaFinanceira(opcoes,referencia)
   if(!ref)return {status:'inconclusivo',motivo:'Unidade ausente ou ambígua no filtro financeiro.'}
-  const fim=new Date(),inicio=new Date(fim.getTime()-90*86400000),fmt=d=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo'}).format(d)
+  const fim=dataLimite?new Date(dataLimite+'T12:00:00Z'):new Date(),inicio=new Date(fim.getTime()-90*86400000),fmt=d=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo'}).format(d)
   await select.selectOption(ref)
   await page.locator('input[name=dtd]').fill(fmt(inicio));await page.locator('input[name=dta]').fill(fmt(fim))
   if(await select.inputValue()!==ref)throw Error('Filtro financeiro mudou de unidade.')

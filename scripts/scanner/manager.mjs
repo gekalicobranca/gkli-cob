@@ -36,7 +36,7 @@ export async function abrirManager(config, receita, unidades, signal) {
     etapa('lista_relatorios_manager')
     const relatorios=await frameVisivel(page,'a[href="/bin/rt/gExtratoUnidade.asp"]',signal,10_000,false)
     const href=await relatorios.locator('a[href="/bin/rt/gExtratoUnidade.asp"]').first().getAttribute('href')
-    financeiro=await abrirExtratoManager(context,new URL(href,base).href,signal,etapa)
+    financeiro=await abrirExtratoManager(context,new URL(href,base).href,signal,etapa,config.dataLimite)
    }catch{if(signal.aborted)signal.throwIfAborted();financeiro=null;etapa('financeiro_indisponivel_manager')}
   }
   async function pagamentos(referencia){

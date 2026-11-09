@@ -12,7 +12,7 @@ export async function complementarFinanceiroBBZ(contatos,financeiro,config,refer
 }
 
 // A origem/condomínio já foram autenticados; só abre o link disponibilizado no menu.
-export async function abrirFinanceiroBBZ(context,disponivel,etapa,{portal='bbz'}={}){
+export async function abrirFinanceiroBBZ(context,disponivel,etapa,{portal='bbz',dataLimite}={}){
  const administradora=portal==='sell'?'SELL':'BBZ'
  if(!disponivel)return {consultar:async()=>({status:'inconclusivo',motivo:'Histórico de pagamento não disponibilizado neste acesso.'})}
  const page=await context.newPage();page.setDefaultTimeout(12_000);page.setDefaultNavigationTimeout(15_000)
@@ -31,7 +31,7 @@ export async function abrirFinanceiroBBZ(context,disponivel,etapa,{portal='bbz'}
   await select.waitFor()
   const opcoes=await select.locator('option').evaluateAll((xs,v)=>xs.filter(x=>x.value===v).length,referencia)
   if(opcoes!==1)return {status:'inconclusivo',motivo:'Unidade ausente ou duplicada no filtro financeiro.'}
-  const fim=new Date(),inicio=new Date(fim.getTime()-90*86400_000)
+  const fim=dataLimite?new Date(dataLimite+'T12:00:00Z'):new Date(),inicio=new Date(fim.getTime()-90*86400_000)
   const fmt=d=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo'}).format(d)
   await select.selectOption(referencia)
   await page.locator('input[name=dtd]').fill(fmt(inicio));await page.locator('input[name=dta]').fill(fmt(fim))
