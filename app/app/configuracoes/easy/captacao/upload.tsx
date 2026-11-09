@@ -1,6 +1,6 @@
 'use client';
 import { useRef, useState } from 'react';
-import { FileUp, ArrowRight, CheckCircle2, LoaderCircle, RefreshCw } from 'lucide-react';
+import { Download, FileUp, ArrowRight, CheckCircle2, LoaderCircle, RefreshCw } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { EasySteps, EasyEmpty } from '@/components/easy/easy-ui';
 import { createConversionFormData } from '@/features/conversao-relatorio/prepare-upload';
@@ -19,15 +19,16 @@ export function CaptacaoEasy({condominios,canWrite,manualCondominio,onWorking,on
   const [error,setError]=useState('');
   const [uploadKey,setUploadKey]=useState(0);
   const version=useRef(0);
+  const planilhaInput=useRef<HTMLInputElement>(null);
   const condominio=condominios.find(c=>c.id===selected);
   function reset() {version.current++;setResumo(null);setResult(null);setError('');setReading(false);setUploadKey(k=>k+1);}
-  async function read(file:File|null) {
+  async function read(file:File|null, usarModelo=Boolean(manualCondominio)) {
     reset(); if(!file||!condominio) return;
     const requestVersion=version.current; setReading(true);onWorking?.(true);
     try {
       const form=await createConversionFormData(file,'cobrancas',condominio.cnpj);
       form.set('condominio_id',condominio.id);
-      if(manualCondominio)form.set('modelo','easy_flow_v1');
+      if(usarModelo)form.set('modelo','easy_flow_v1');
       const response=await fetch('/api/easy-cob/captacao',{method:'POST',body:form});
       const payload=await response.json();
       if(requestVersion!==version.current) return;
@@ -62,7 +63,19 @@ export function CaptacaoEasy({condominios,canWrite,manualCondominio,onWorking,on
       <span className="mb-4 flex items-center gap-3"><span className={styles.icon}><FileUp size={22} aria-hidden="true" /></span><span>{manualCondominio?'Carregar planilha preenchida':'Relatório de inadimplência'}<span className="mt-1 block text-xs font-normal text-slate-500">{manualCondominio?'Use o modelo do Easy Flow com todas as cobranças do condomínio.':'Envie o arquivo completo da administradora.'}</span></span></span>
       <input key={`${selected}-${uploadKey}`} type="file" name="file" accept={manualCondominio?'.xlsx':'.pdf,.xls,.xlsx,.csv,.html,.htm'} disabled={!canWrite||reading} onChange={event=>read(event.target.files?.[0]??null)} className="block w-full min-w-0 font-normal" />
       <span className="mt-3 block text-xs font-normal text-slate-500">{manualCondominio?'Planilha XLSX do modelo · até 32 MB. Erros serão indicados por linha.':'PDF pesquisável, XLS, XLSX, CSV ou HTML · até 32 MB. Leitura automática ao escolher.'}</span>
-    </label>{reading&&<p role="status" className="mt-4 flex items-center gap-2 text-sm text-cyan-800"><LoaderCircle size={17} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Lendo o arquivo e preparando o resumo…</p>}</section>}
+    </label>
+      {!manualCondominio&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4">
+        <div>
+          <h2 className="text-sm font-semibold">Planilha de carga de inadimplência</h2>
+          <p className="mt-1 text-xs text-slate-600">Preencha todas as cobranças no modelo. Use o CNPJ <strong>{condominio.cnpj}</strong> na célula B3.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a href="/modelos/easy-flow-importacao.xlsx" download className={styles.primary}><Download size={16} aria-hidden="true" />Baixar planilha modelo</a>
+          <button type="button" disabled={!canWrite||reading} onClick={()=>planilhaInput.current?.click()} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold disabled:opacity-50">Enviar planilha preenchida</button>
+          <input key={`planilha-${selected}-${uploadKey}`} ref={planilhaInput} type="file" accept=".xlsx" hidden onChange={event=>read(event.target.files?.[0]??null,true)} />
+        </div>
+      </div>}
+      {reading&&<p role="status" className="mt-4 flex items-center gap-2 text-sm text-cyan-800"><LoaderCircle size={17} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Lendo o arquivo e preparando o resumo…</p>}</section>}
     {error&&<p role="alert" className="whitespace-pre-line rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">{error}</p>}
     {resumo&&!result&&<section className={`${styles.panel} space-y-5`}>
       <header><h2>Confira a captação</h2><p className="mt-1 break-words text-xs text-slate-500">{resumo.condominio} · {resumo.arquivo}</p></header>

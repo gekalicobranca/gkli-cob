@@ -53,5 +53,6 @@
 .primary:hover:not(:disabled) { background:#0e7490; box-shadow:0 6px 18px #0891b233; }
 .primary:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
 @media(min-width:1400px) { .grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(min-width:1024px) { .moduleGrid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media(max-width:640px) { .hero { padding:24px; border-radius:20px; } .grid { grid-template-columns:1fr; gap:12px; } .card { min-height:185px; padding:22px; } .panel { padding:18px; } .header h1 { font-size:26px; } .steps { gap:12px; } }
 @media(prefers-reduced-motion:reduce) { .workspace *, .workspace *::after { transition:none!important; animation:none!important; } .card:hover { transform:none; } }
