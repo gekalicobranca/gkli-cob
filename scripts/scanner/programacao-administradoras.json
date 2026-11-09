@@ -81,7 +81,7 @@
       "fonte_acesso": "receita_cadastrada",
       "estado": "integracao_pendente",
       "retomada": {
-        "prioridade": "proxima_janela_noturna_graiche",
+        "prioridade": "reavaliar_quando_houver_alvo_util_na_janela_graiche",
         "ajuste_em": "2026-11-03",
         "leitor": "Filtro assíncrono em página ou quadro da mesma origem; vazio, restrição ou formato desconhecido não comprovam ausência de acordo.",
         "validacao_real_pendente": true,
@@ -98,6 +98,25 @@
         "ativado": false,
         "baixas": 0,
         "importacoes": 0
+      },
+      "reavaliacao": {
+        "em": "2026-11-05T10:56:09Z",
+        "janela_portais": "encerrada",
+        "portais_consultados": 0,
+        "acordos_totais_app": 6,
+        "acordos_nao_encerrados_app": 0,
+        "unidades_app": 10,
+        "configuracao_ativa": false,
+        "situacao_configuracao": "pendente_adaptador",
+        "testes_locais": {
+          "comando": "node --test scripts/scanner/graiche-acordos.test.mjs scripts/scanner/webware-limitado.test.mjs scripts/scanner/orcamento.test.mjs",
+          "aprovados": 9,
+          "falhas": 0,
+          "consultas_reais": 0
+        },
+        "resultado": "Leitor local verificado; validação real pendente. Sem acordo não encerrado para amostra útil, manter inativo.",
+        "proxima_administradora": "bbz",
+        "retomar": "Reavaliar alvos do app antes de consultar a Graiche. Não repetir Elo sem nova liberação."
       }
     },
     {

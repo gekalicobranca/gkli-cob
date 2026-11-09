@@ -41,3 +41,11 @@ Comodità (BBZ, configuração `03060617-95f3-4735-b4ba-a622960bb89b`): o lote d
 Testes locais cobrem filtro assíncrono em quadro, quadros externos, vazio, ambiguidade, restrição, indisponibilidade HTTP, fechamento externo e retomada SQL após quinze unidades no cursor 85. A validação nos portais fica restrita à próxima janela 00h30–05h25 de São Paulo. Relatórios ao responsável e à Edi, confirmações objetivas e bloqueios judiciais/humanos permanecem preservados.
 
 Verificação da correção: 90 testes do scanner aprovados e TypeScript sem erros. Publicar apenas os arquivos desta correção no checkout isolado, copiar ao executor mediante comparação com a versão anterior e priorizar a retomada do Comodità na rodada BBZ seguinte, sem alterar o cursor 85, sem zerar o histórico de falhas e sem alterar a ordem entre administradoras. A validação real do Las Ventanas permanece pendente; não anunciar a integração como concluída.
+
+## Reavaliação Graiche — 05/11/2026
+
+O acompanhamento foi recebido às 07h56 de São Paulo, após o encerramento da janela. Nenhum portal foi aberto. A consulta do cadastro confirmou Las Ventanas inativo, com situação `pendente_adaptador`, dez unidades, seis acordos cadastrados e nenhum acordo não encerrado. A existência dessas unidades não autoriza ativar o scanner sem uma amostra útil e uma validação real do adaptador.
+
+No checkout isolado, os nove testes de Graiche, Webware limitado e orçamento de sessão passaram. Cobrem filtro assíncrono, identidade, restrição de documentos, revisão judicial, interrupções e prazo. São testes locais com respostas simuladas. O resultado não substitui a leitura real do Las Ventanas. A configuração continua pendente, e o Elo permanece excluído até nova liberação.
+
+Na próxima execução, seguir para a administradora BBZ. A retomada de Graiche deve primeiro reavaliar se há acordo útil no Las Ventanas e ocorrer dentro da janela autorizada. Não houve publicação de adaptador novo, ativação de condomínio, alteração financeira ou envio de relatório nesta reavaliação.
