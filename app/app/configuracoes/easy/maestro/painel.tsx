@@ -28,7 +28,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   const administradoras = new Map(inicial.receitas.map(r => [r.administradora, r.administradoraNome]))
   const receitas = painel.receitas.filter(r => r.administradora === administradora)
   const condominios = new Set(receitas.map(r => r.condominioId)).size
-  const disponivelParaCaptar = receitas.some(r => r.liberada && !emAndamento(r))
+  const disponiveis = new Set(receitas.filter(r => r.liberada && !emAndamento(r)).map(r => r.condominioId)).size
   const atualizando = receitas.some(emAndamento)
   const loteEmAndamento = receitas.some(r => r.easy && emAndamento(r))
 
@@ -98,11 +98,17 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
             <option value="">Selecione a administradora</option>
             {[...administradoras].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
           </select>
-          <button type="button" className={styles.primary} disabled={!podeCaptar || !painel.ativo || !disponivelParaCaptar || enviando || loteEmAndamento} onClick={captar}>
+          <button type="button" className={styles.primary} disabled={!podeCaptar || !painel.ativo || disponiveis === 0 || enviando || loteEmAndamento} onClick={captar}>
             <Play size={16} aria-hidden="true" /> {enviando ? 'Registrando pedido…' : 'Captar agora'}
           </button>
         </div>
         <p className="mt-3 text-sm text-slate-600">A captação fica disponível quando a cota do ciclo completa o prazo da régua do condomínio.</p>
+        {administradora && (
+          <p aria-live="polite" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
+            <strong className="text-lg font-bold tabular-nums">{disponiveis}</strong>
+            {disponiveis === 1 ? 'condomínio disponível para captar' : 'condomínios disponíveis para captar'}
+          </p>
+        )}
         {!inicial.receitas.length && <p className="mt-2 text-sm text-slate-600">Nenhuma captação automática está disponível nas suas carteiras.</p>}
         {!painel.ativo && <p className="mt-2 text-sm font-semibold text-amber-800">A captação está desligada no Maestro.</p>}
         {mensagem && <p role="status" className="mt-3 text-sm font-semibold text-cyan-900">{mensagem}</p>}
