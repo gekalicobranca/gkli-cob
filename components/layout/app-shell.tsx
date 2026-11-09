@@ -61,6 +61,7 @@ type AppShellUser = {
 
 const SIDEBAR_STORAGE_KEY = 'gkli:cobranca:sidebar:v14-lite'
 const GROUPS_STORAGE_KEY = 'gkli:cobranca:sidebar-groups:v3-lite'
+const EASY_COB_PATH = '/app/configuracoes/easy'
 
 const featuredItem: SidebarItem = {
   label: 'Inbox operacional',
@@ -154,7 +155,7 @@ const settingsGroups: SidebarSection[] = [
     title: 'Administração',
     items: [
       { label: 'Central de configurações', href: '/app/configuracoes', icon: 'gear' },
-      { label: 'Easy Cob', href: '/app/configuracoes/easy', icon: 'spark' },
+      { label: 'Easy Cob', href: EASY_COB_PATH, icon: 'spark' },
       { label: 'Carteiras x Usuários', href: '/app/carteiras-usuarios', icon: 'users' },
       { label: 'Acessos síndicos', href: '/app/configuracoes/acessos-sindicos', icon: 'home' },
       { label: 'Solicitações ADM', href: '/app/administradoras/solicitacoes', icon: 'clipboard' },
@@ -381,7 +382,9 @@ export function AppShell({
     )
   }
 
-  if (pathname === '/app/dashboard/tv' || pathname === '/app/mobile') return <>{children}</>
+  if (pathname === '/app/dashboard/tv' || pathname === '/app/mobile' || isItemActive(pathname, EASY_COB_PATH)) {
+    return <>{children}</>
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--gkli-background)]">
@@ -527,9 +530,15 @@ export function AppShell({
             <div className="grid items-center gap-3 lg:grid-cols-[minmax(110px,150px)_minmax(320px,1fr)_auto]">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-[#d7eef5] bg-[#edf8fb] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#04799a]">
-                    GKLI Cob
-                  </span>
+                  <Link
+                    href={EASY_COB_PATH}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Easy Cob (abre em nova aba)"
+                    className="rounded-full border border-[#d7eef5] bg-[#edf8fb] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#04799a] transition hover:bg-cyan-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-700"
+                  >
+                    Easy Cob
+                  </Link>
                 </div>
               </div>
 
