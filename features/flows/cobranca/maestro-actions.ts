@@ -10,11 +10,12 @@ export async function retomarMontagemMaestro(id: string) {
   await requireRole(['admin', 'gestor', 'operador'])
   const scope = await getPermittedCarteiras()
   const db = createAdminClient()
-  const { data: job, error } = await applyCarteiraScope(db.from('maestro_flow_montagens').select('id,status,lote_id').eq('id', id), scope.carteiraIds).maybeSingle()
+  const { data: job, error } = await applyCarteiraScope(db.from('maestro_flow_montagens').select('id,status,lote_id').eq('id', id).is('arquivado_em', null), scope.carteiraIds).maybeSingle()
   if (error || !job || !['atencao', 'concluido'].includes(job.status)) throw new Error('Montagem indisponÃ­vel para retomada.')
-  const { error: updateError } = await db.from('maestro_flow_montagens').update({ status: 'pendente', arquivado_em: null, erro: null, tentativas: 0, updated_at: new Date().toISOString(),
-    ...(job.lote_id ? {} : { plano: null, parte: 0, pendencias: [] }) }).eq('id', id).eq('status', job.status)
+  const { data: retomada, error: updateError } = await db.from('maestro_flow_montagens').update({ status: 'pendente', erro: null, tentativas: 0, updated_at: new Date().toISOString(),
+    ...(job.lote_id ? {} : { plano: null, parte: 0, pendencias: [] }) }).eq('id', id).eq('status', job.status).is('arquivado_em', null).select('id').maybeSingle()
   if (updateError) throw new Error(updateError.message)
+  if (!retomada) throw new Error('Montagem indisponível para retomada.')
   revalidatePath('/app/agente-automatico/maestro')
   revalidatePath('/app/flows/cobranca/email')
   revalidatePath('/app/flows/cobranca/whatsapp')

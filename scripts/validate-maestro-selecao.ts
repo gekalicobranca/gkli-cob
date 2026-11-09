@@ -26,9 +26,13 @@ test('ações em massa isolam seleção e carteira, preservam histórico e recus
       insert into maestro_flow_montagens(id,carteira_id,status,flow_ids) values
         ('${id(30)}','${id(10)}','pendente',array['${id(90)}'::uuid]),
         ('${id(31)}','${id(10)}','processando',null),
-        ('${id(32)}','${id(11)}','pendente',null);
+        ('${id(32)}','${id(11)}','pendente',null),
+        ('${id(33)}','${id(10)}','concluido',array['${id(91)}'::uuid]),
+        ('${id(34)}','${id(10)}','concluido',array['${id(92)}'::uuid]),
+        ('${id(35)}','${id(11)}','concluido',null);
     `)
     await db.exec(readFileSync('supabase/migrations/20261011160304_maestro_pausar_agendas_selecionadas.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261109220214_maestro_arquivar_montagens_concluidas.sql', 'utf8'))
     await assert.rejects(db.query('select maestro_pausar_agendas($1::uuid[])', [[id(2)]]), /Sem permissão/)
     await db.query("select set_config('test.uid',$1,false)", [id(1)])
     await assert.rejects(db.query('select maestro_pausar_agendas($1::uuid[])', [[]]), /Selecione/)
@@ -48,5 +52,20 @@ test('ações em massa isolam seleção e carteira, preservam histórico e recus
     assert.ok(job.arquivado_em)
     assert.deepEqual(job.flow_ids,[id(90)])
     assert.equal((await db.query<any>("select has_function_privilege('anon','maestro_limpar_montagens(uuid[])','execute') as permitido")).rows[0].permitido,false)
+
+    const archive = (ids: string[]) => db.query<{ n: number }>(
+      'select maestro_arquivar_montagens_concluidas($1::uuid[]) as n', [ids])
+    await assert.rejects(archive([id(33), id(31)]), /não está concluída/)
+    await assert.rejects(archive([id(33), id(35)]), /sem permissão/)
+    await assert.rejects(db.query('select maestro_limpar_montagens($1::uuid[])', [[id(33)]]), /não está mais pendente/)
+    const before = (await db.query<{ arquivado_em: string | null }>('select * from maestro_flow_montagens where id=$1', [id(33)])).rows[0]
+    assert.equal(before.arquivado_em, null)
+    assert.equal((await archive([id(33), id(33)])).rows[0].n, 1)
+    const { arquivado_em, ...archived } = (await db.query<{ arquivado_em: string | null }>('select * from maestro_flow_montagens where id=$1', [id(33)])).rows[0]
+    assert.ok(arquivado_em)
+    assert.deepEqual({ ...archived, arquivado_em: null }, before)
+    assert.equal((await db.query<{ arquivado_em: string | null }>('select arquivado_em from maestro_flow_montagens where id=$1', [id(34)])).rows[0].arquivado_em, null)
+    await assert.rejects(archive([id(33)]), /indisponível/)
+    assert.equal((await db.query<{ permitido: boolean }>("select has_function_privilege('anon','maestro_arquivar_montagens_concluidas(uuid[])','execute') as permitido")).rows[0].permitido, false)
   } finally { await db.close() }
 })
