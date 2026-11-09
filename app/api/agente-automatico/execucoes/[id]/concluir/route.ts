@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const db = createAdminClient()
   try {
     const { data: execucao, error } = await db.from('agente_execucoes')
-      .select('id, origem, condominio_id, carteira_id, status, easy_maestro_lote_id').eq('id', id).single()
+      .select('id, origem, condominio_id, carteira_id, status, easy_maestro_lote_id, easy_maestro_montar_flow').eq('id', id).single()
     if (error || !execucao) throw new Error(error?.message || 'Execução não encontrada.')
     if (!['maestro', 'maestro_agendada', 'agenda_mensal'].includes(execucao.origem ?? '')) {
       return NextResponse.json({ ok: false, error: 'Execução não foi disparada pelo Maestro.' }, { status: 403 })
@@ -50,7 +50,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }))
     const result = await response.json()
     if (!response.ok || !result.ok) throw new Error(result.error || 'Falha na importação.')
-    if (!execucao.easy_maestro_lote_id) await enfileirarMontagemMaestro(id, arquivo.id)
+    const montarFlow = !execucao.easy_maestro_lote_id || execucao.easy_maestro_montar_flow
+    if (montarFlow) await enfileirarMontagemMaestro(id, arquivo.id)
     const { error: updateError } = await db.from('agente_arquivos').update({ status_validacao: 'validado' }).eq('id', arquivo.id)
     if (updateError) throw new Error(updateError.message)
     const { error: logError } = await db.from('agente_logs').insert({
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       const { error: retomadaError } = await db.from('agente_execucoes').update({ status: 'sucesso', erro_mensagem: null, finalizado_em: new Date().toISOString() }).eq('id', id).eq('status', 'falha')
       if (retomadaError) throw new Error(retomadaError.message)
     }
-    return NextResponse.json({ ok: true, conversaoId: arquivo.id, montagemFlows: execucao.easy_maestro_lote_id ? 'dispensada' : 'enfileirada' })
+    return NextResponse.json({ ok: true, conversaoId: arquivo.id, montagemFlows: montarFlow ? 'enfileirada' : 'dispensada' })
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Falha ao concluir execução.' }, { status: 500 })
   }

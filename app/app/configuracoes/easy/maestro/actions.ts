@@ -18,6 +18,9 @@ export type ReceitaEasyMaestro = {
   easy: boolean
   liberada: boolean
   liberacaoEm: string | null
+  montarFlow?: boolean
+  montagemStatus?: 'pendente' | 'processando' | 'atencao' | 'concluido' | null
+  flowsMontados?: number | null
 }
 
 export type PainelEasyMaestro = { ativo: boolean; receitas: ReceitaEasyMaestro[] }
@@ -32,7 +35,7 @@ export async function consultarEasyMaestro(administradora: string | null = null)
   return data as PainelEasyMaestro
 }
 
-export async function captarEasyMaestro(administradora: string, lote: string) {
+export async function captarEasyMaestro(administradora: string, lote: string, montarFlow = false) {
   const scope = await getPermittedCarteiras()
   if (!['admin', 'gestor', 'operador'].includes(scope.perfil)) {
     return { error: 'Seu perfil não pode iniciar captações.' }
@@ -45,6 +48,7 @@ export async function captarEasyMaestro(administradora: string, lote: string) {
     p_administradora: administradora,
     p_usuario: scope.userId,
     p_lote: lote,
+    p_montar_flow: montarFlow === true,
   })
   if (error) {
     return { error: error.code === 'P0001' ? error.message : 'Não foi possível registrar o pedido. Tente novamente.' }

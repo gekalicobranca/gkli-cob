@@ -17,10 +17,13 @@ const estados: Record<ReceitaEasyMaestro['estado'], string> = {
   revisar: 'Revisar',
 }
 const emAndamento = (receita: ReceitaEasyMaestro) => ['fila', 'captando', 'importando'].includes(receita.estado)
+const montandoFlow = (receita: ReceitaEasyMaestro) => receita.estado === 'importado' && receita.montarFlow
+  && !['concluido', 'atencao'].includes(receita.montagemStatus ?? '')
 
 export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestro; podeCaptar: boolean }) {
   const [painel, setPainel] = useState(inicial)
   const [administradora, setAdministradora] = useState('')
+  const [montarFlow, setMontarFlow] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
@@ -29,8 +32,8 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   const receitas = painel.receitas.filter(r => r.administradora === administradora)
   const condominios = new Set(receitas.map(r => r.condominioId)).size
   const disponiveis = new Set(receitas.filter(r => r.liberada && !emAndamento(r)).map(r => r.condominioId)).size
-  const atualizando = receitas.some(emAndamento)
-  const loteEmAndamento = receitas.some(r => r.easy && emAndamento(r))
+  const atualizando = receitas.some(r => emAndamento(r) || montandoFlow(r))
+  const loteEmAndamento = receitas.some(r => r.easy && (emAndamento(r) || montandoFlow(r)))
 
   useEffect(() => {
     if (!administradora || !atualizando || enviando) return
@@ -62,8 +65,9 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
     setMensagem('')
     pedido.current ??= crypto.randomUUID()
     try {
-      const resultado = await captarEasyMaestro(administradora, pedido.current)
+      const resultado = await captarEasyMaestro(administradora, pedido.current, montarFlow)
       if (resultado.error) {
+        pedido.current = null
         setErro(resultado.error)
         return
       }
@@ -102,6 +106,15 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
             <Play size={16} aria-hidden="true" /> {enviando ? 'Registrando pedido…' : 'Captar agora'}
           </button>
         </div>
+        <label className="mt-4 flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5 h-4 w-4 accent-cyan-700" checked={montarFlow}
+            disabled={!podeCaptar || enviando || loteEmAndamento}
+            onChange={event => setMontarFlow(event.target.checked)} />
+          <span>
+            <span className="block font-semibold">Montar flow após a captação</span>
+            <span className="text-xs text-slate-600">Deixa o flow pronto para revisão e liberação em Flows.</span>
+          </span>
+        </label>
         <p className="mt-3 text-sm text-slate-600">A captação fica disponível quando a cota do ciclo completa o prazo da régua do condomínio.</p>
         {administradora && (
           <p aria-live="polite" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
@@ -130,6 +143,13 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
                     </p>
                   )}
                   {receita.detalhe && <p className="mt-1 text-xs text-slate-600">{receita.detalhe}</p>}
+                  {montandoFlow(receita) && <p className="mt-1 text-xs text-slate-600">Montando flow para revisão.</p>}
+                  {receita.montagemStatus === 'atencao' && <p className="mt-1 text-xs text-amber-800">A montagem precisa de revisão no Maestro.</p>}
+                  {receita.montagemStatus === 'concluido' && (
+                    receita.flowsMontados
+                      ? <Link className="mt-1 block text-xs font-semibold text-cyan-800 underline" href="/app/flows/cobranca/email">Revisar flows montados ({receita.flowsMontados})</Link>
+                      : <p className="mt-1 text-xs text-slate-600">Nenhuma cobrança elegível para um novo flow.</p>
+                  )}
                   {receita.conversaoId && <Link className="mt-1 inline-block text-xs font-semibold text-cyan-800 underline" href={`/app/configuracoes/lab/captacao-automatizada/${receita.conversaoId}`}>Ver validação</Link>}
                 </div>
                 <div className="text-right">
