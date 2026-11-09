@@ -16,6 +16,8 @@ export type ReceitaEasyMaestro = {
   cobrancas: number | null
   solicitadaEm: string | null
   easy: boolean
+  liberada: boolean
+  liberacaoEm: string | null
 }
 
 export type PainelEasyMaestro = { ativo: boolean; receitas: ReceitaEasyMaestro[] }
