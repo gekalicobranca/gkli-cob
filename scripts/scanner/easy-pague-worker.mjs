@@ -32,7 +32,7 @@ async function consultar() {
     : path.join(os.homedir(), 'Downloads', 'acordos-portais', `.${configuracao.portal}-acordos.lock`)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 220_000)
-  let lock, portal
+  let lock, portal, etapa = 'trava_portal'
   const pendentes = new Set(pedidos.map(pedido => pedido.id))
   async function finalizar(pedido, estado, resultados = []) {
     const { error: erro } = await db.from('easy_pague_consultas')
@@ -46,7 +46,12 @@ async function consultar() {
     await mkdir(path.dirname(lockPath), { recursive: true })
     lock = await open(lockPath, 'wx')
     await lock.writeFile(JSON.stringify({ pid: process.pid, iniciado_em: new Date().toISOString(), easy_pague: true }))
-    const options = { ...configuracao, dataLimite: pedidos[0].data_limite }
+    etapa = 'abrir_portal'
+    const options = {
+      ...configuracao,
+      dataLimite: pedidos[0].data_limite,
+      onStage: valor => { etapa = valor },
+    }
     if (configuracao.portal === 'lello') {
       options.alvosFinanceiros = Object.fromEntries(pedidos.map(p => [p.unidade_portal, {
         acordos: [...new Set(p.alvos.map(a => a.acordo_externo).filter(Boolean))], recibos: [],
@@ -68,11 +73,26 @@ async function consultar() {
     }
     for (const pedido of pedidos) {
       if (controller.signal.aborted || portal.podeIniciarUnidade?.() === false) break
-      const { pagamentos } = await portal.coletar(pedido.unidade_portal)
-      await finalizar(pedido, 'concluido', resultadosEasyPague(pedido.alvos, pagamentos, configuracao.portal, pedido.data_limite))
+      let pagamentos
+      try {
+        ({ pagamentos } = await portal.coletar(pedido.unidade_portal))
+      } catch (erro) {
+        console.warn(JSON.stringify({ easy_pague: 'unidade_interrompida', portal: configuracao.portal, etapa, codigo: erro.code ?? erro.name }))
+        if (controller.signal.aborted) break
+        continue
+      }
+      const resultados = resultadosEasyPague(pedido.alvos, pagamentos, configuracao.portal, pedido.data_limite)
+      await finalizar(pedido, 'concluido', resultados)
+      console.log(JSON.stringify({
+        easy_pague: 'consulta_registrada', portal: configuracao.portal, data_limite: pedido.data_limite,
+        estado_portal: pagamentos.status, periodo_fim: pagamentos.periodo?.fim,
+        diagnostico: pagamentos.codigo_diagnostico,
+        documentos: (pagamentos.recebimentos ?? pagamentos.pagamentos ?? []).length,
+        confirmadas: resultados.filter(resultado => resultado.estado === 'confirmado').length,
+      }))
     }
   } catch (erro) {
-    console.error(JSON.stringify({ easy_pague: 'consulta_interrompida', portal: configuracao.portal, codigo: erro.code ?? 'PORTAL' }))
+    console.error(JSON.stringify({ easy_pague: 'consulta_interrompida', portal: configuracao.portal, etapa, codigo: erro.code ?? erro.name }))
   } finally {
     clearTimeout(timeout)
     await portal?.close().catch(() => {})
