@@ -54,5 +54,10 @@
 .primary:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
 @media(min-width:1400px) { .grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
 @media(min-width:1024px) { .moduleGrid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (min-width:1024px) and (max-height:800px) {
+  .hero:has(+ .moduleGrid) { padding:22px 26px; }
+  .moduleGrid { gap:14px; margin-top:16px; }
+  .moduleGrid .card { min-height:185px; padding:18px; gap:10px; }
+}
 @media(max-width:640px) { .hero { padding:24px; border-radius:20px; } .grid { grid-template-columns:1fr; gap:12px; } .card { min-height:185px; padding:22px; } .panel { padding:18px; } .header h1 { font-size:26px; } .steps { gap:12px; } }
 @media(prefers-reduced-motion:reduce) { .workspace *, .workspace *::after { transition:none!important; animation:none!important; } .card:hover { transform:none; } }

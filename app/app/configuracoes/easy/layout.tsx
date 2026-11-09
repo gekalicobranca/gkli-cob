@@ -7,7 +7,7 @@ import styles from '@/components/easy/easy.module.css';
 export const metadata: Metadata = { title: 'Easy Cob' };
 
 export default function EasyModuleLayout({ children }: { children: ReactNode }) {
-  return <main className={`${styles.workspace} min-h-screen px-4 pt-5 sm:px-6`}><nav aria-label="Módulo Easy Cob" className="mx-auto mb-6 flex max-w-6xl flex-wrap items-center gap-2 border-b border-slate-200 pb-4">
+  return <main className={`${styles.workspace} h-dvh overflow-y-auto px-4 pt-5 sm:px-6`}><nav aria-label="Módulo Easy Cob" className="mx-auto mb-6 flex max-w-6xl flex-wrap items-center gap-2 border-b border-slate-200 pb-4">
     <Link href="/app/configuracoes/easy" className="mr-auto inline-flex items-center gap-2 pr-5 text-sm font-bold text-slate-900"><Sparkles size={17} className="text-cyan-700" aria-hidden="true" />Easy Cob</Link>
     <Link href="/app/configuracoes/easy/acordos" className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-cyan-50"><Handshake size={15} aria-hidden="true" />Acordos</Link>
     <Link href="/app/configuracoes/easy/captacao" className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-cyan-50"><FileUp size={15} aria-hidden="true" />Easy Cap</Link>
