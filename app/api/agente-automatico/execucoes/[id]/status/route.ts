@@ -15,7 +15,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const scope = await getPermittedCarteiras()
     const supabase = await createClient()
     const query = supabase.from('agente_execucoes').select(
-      'id, carteira_id, receita_id, condominio_id, origem, status, tentativas, created_at, iniciado_em, finalizado_em, erro_mensagem, arquivos:agente_arquivos(id,nome_arquivo,status_validacao,created_at)'
+      'id, carteira_id, receita_id, condominio_id, origem, status, tentativas, created_at, iniciado_em, finalizado_em, erro_mensagem, easy_maestro_lote_id, arquivos:agente_arquivos(id,nome_arquivo,status_validacao,created_at)'
     ).eq('id', id)
     const { data: execucao, error } = await applyCarteiraScope(query, scope.carteiraIds).maybeSingle()
     if (error) throw error
@@ -48,7 +48,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ? { state: 'completed', terminal: true, online: false, detail: 'Consulta concluída: sem inadimplência no portal. Não há cobranças para importar ou flows para montar.' }
       : resumirMonitor(execucao, arquivo, conversao, ultimoSinal)
     let montagem = null
-    if (execucao.origem === 'maestro' && conversao && ['concluido', 'concluido_com_alertas'].includes(conversao.status)) {
+    if (execucao.origem === 'maestro' && !execucao.easy_maestro_lote_id && conversao && ['concluido', 'concluido_com_alertas'].includes(conversao.status)) {
       const result = await admin.from('maestro_flow_montagens').select('status,flow_ids,erro').eq('execucao_id', id).eq('carteira_id', execucao.carteira_id).maybeSingle()
       if (result.error) throw result.error
       montagem = result.data
@@ -56,7 +56,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         state: montagem?.status === 'concluido' ? 'completed' : montagem?.status === 'atencao' ? 'attention' : 'running',
         detail: montagem?.status === 'concluido' ? (montagem.flow_ids?.length ? `Montagem concluída: ${montagem.flow_ids.length} flow(s). Acompanhe a agenda de envios em Flows.` : 'Montagem concluída: nenhuma cobrança elegível para novo Flow. Consulte os motivos na validação.') : montagem?.status === 'atencao' ? montagem.erro || 'Montagem requer revisão.' : 'Importação concluída; montagem dos flows em andamento.',
       }
-    } else if (execucao.status === 'pendente' && ['maestro', 'manual'].includes(execucao.origem ?? '')) {
+    } else if (execucao.status === 'pendente' && !execucao.easy_maestro_lote_id && ['maestro', 'manual'].includes(execucao.origem ?? '')) {
       resumo = { ...resumo, detail: 'Aguardando abertura do executor manual neste computador. Use Abrir executor manual e permita a abertura no navegador.' }
     }
     return NextResponse.json({ ok: true, ...resumo, execucao, arquivo, conversao, montagem,

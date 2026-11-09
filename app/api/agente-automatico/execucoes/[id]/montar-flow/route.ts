@@ -12,8 +12,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ ok: false, error: 'Execução inválida.' }, { status: 400 })
   try {
     const db = createAdminClient()
-    const { data: execucao, error } = await db.from('agente_execucoes').select('origem,agendado_para,condominio_id,carteira_id').eq('id', id).single()
+    const { data: execucao, error } = await db.from('agente_execucoes').select('origem,agendado_para,condominio_id,carteira_id,easy_maestro_lote_id').eq('id', id).single()
     if (error || !execucao || execucao.origem !== 'maestro' || execucao.agendado_para) return NextResponse.json({ ok: false, error: 'Execução não é um disparo manual do Maestro.' }, { status: 403 })
+    if (execucao.easy_maestro_lote_id) return NextResponse.json({ ok: true, montagem: { status: 'concluido', flow_ids: [] } })
     const { data: montagem, error: consultaError } = await db.from('maestro_flow_montagens')
       .select('id,status,erro,condominio_id,carteira_id,flow_ids,parte').eq('execucao_id', id).maybeSingle()
     if (consultaError) throw consultaError
