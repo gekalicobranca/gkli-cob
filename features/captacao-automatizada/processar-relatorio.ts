@@ -118,6 +118,7 @@ function aplicarFiltroBlocoManager(preview: any, nomeCondominio: string) {
   return {
     ...preview,
     cobrancas: filtradas,
+    escopoBlocosMaestro: [blocoEsperado],
     ...(filtradasRankingMensal ? { cobrancasRankingMensal: filtradasRankingMensal } : {}),
     totalParcelas: filtradas.reduce((total: number, item: any) => total + Math.max(1, item.parcelas?.length ?? 0), 0),
     valorTotal: filtradas.reduce((total: number, item: any) => total + Number(item.valorTotal ?? 0), 0),

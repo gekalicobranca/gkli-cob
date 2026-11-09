@@ -54,6 +54,15 @@ test('múltiplos registros existentes não escolhem canônico automaticamente', 
   assert.equal(result.status, 'divergente')
   assert.match(result.motivo, /Mais de um registro/)
 })
+test('Maestro atualiza recibo confirmado apesar da divergência de saldo e marcador', async () => {
+  const existente = { ...antiga, updated_at: '2026-11-01', observacoes: 'Recibo J 12345' }
+  const captada = { ...entrada, recibo: 'AE 12345', valor_atualizado: 115 }
+  assert.equal((await conciliarCobrancaImportada(client([existente]), captada, true)).status, 'atualizar')
+  assert.equal((await conciliarCobrancaImportada(client([existente]), { ...captada, vencimento: '2026-06-15' }, true)).status, 'divergente')
+  assert.equal((await conciliarCobrancaImportada(client([existente]), { ...captada, valor_original: 99 }, true)).status, 'divergente')
+  const arquivada = { ...existente, arquivada_em: '2026-11-01' }
+  assert.equal((await conciliarCobrancaImportada(client([arquivada]), captada, true)).status, 'divergente')
+})
 test('preserva zero, rejeita valor inválido e erro de leitura', async () => {
   assert.equal((await conciliarCobrancaImportada(client([antiga]), { ...entrada, valor_original: 0 })).status, 'divergente')
   await assert.rejects(conciliarCobrancaImportada(client([antiga]), { ...entrada, valor_original: 'inválido' }), /Valor inválido/)

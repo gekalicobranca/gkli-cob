@@ -125,6 +125,7 @@ async function isCarteiraPermitida(
 
 export async function POST(request: NextRequest) {
   let easyImportId: string | undefined
+  let processamentoMaestro: { id: string; inicio: string } | undefined
   try {
     const chamadaMaestro = isCronSecretAuthorized(request)
     const autenticacao = chamadaMaestro ? null : await requireAuthenticatedApiUser()
@@ -231,7 +232,8 @@ export async function POST(request: NextRequest) {
     }
 
     const captacaoPdf = conversaoPdfDeCobrancas(preview)
-    const importarRegularesMaestro = chamadaMaestro && String(conversao.origem ?? "").startsWith("captacao_automatizada:")
+    const conciliarMaestro = preview?.captacaoAutomatizada === true && String(conversao.origem ?? "").startsWith("captacao_automatizada:")
+    const importarRegularesMaestro = chamadaMaestro && conciliarMaestro
     const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
     const { data: condominioConfiguracao, error: condominioError } = await supabase
       .from("condominios")
@@ -242,6 +244,12 @@ export async function POST(request: NextRequest) {
     if (!condominioConfiguracao || condominioConfiguracao.carteira_id !== carteiraId) {
       return NextResponse.json({ ok: false, error: "Condomínio não pertence à carteira informada." }, { status: 403 })
     }
+    if (conciliarMaestro) {
+      const { data, error } = await supabase.rpc('maestro_iniciar_conciliacao', { p_conversao: conversaoId })
+      if (error) throw new Error(`Erro ao iniciar conciliação do Maestro: ${error.message}`)
+      if (data.jaConfirmada) return NextResponse.json({ ok: true, jaConfirmada: true })
+      processamentoMaestro = { id: conversaoId, inicio: data.inicio }
+    }
 
     let cobrancasCriadas = 0
     let cobrancasIgnoradas = 0
@@ -251,6 +259,11 @@ export async function POST(request: NextRequest) {
     let cobrancasAnterioresRemovidas = 0
     let falhasImportacao = 0
     let limpezaAusentesPdf: { removidas: number; motivo?: string } | undefined
+    let conciliacaoMaestro: { atualizadas: number; arquivadas: number; comAcordo: number; motivo?: string } | undefined
+    const valoresMaestro = new Map<string, {
+      id: string; atualizado_em: string; valor_atualizado: number; juros: number; multa: number; correcao: number
+    }>()
+    const alvosAmbiguosMaestro = new Set<string>()
     const inconsistencias: string[] = []
     const importadasParaAusencia: CobrancaImportadaConciliacao[] = []
     const origemImportacao = formatOrigemImportacao("conversao_relatorio")
@@ -264,7 +277,7 @@ export async function POST(request: NextRequest) {
       if(limpezaError) throw new Error(limpezaError.message)
       easyImportId=conversaoId
       cobrancasAnterioresRemovidas=Number(limpeza?.removidas ?? 0)
-    } else if (limparCobrancasAnteriores && !captacaoPdf) {
+    } else if (!conciliarMaestro && limparCobrancasAnteriores && !captacaoPdf) {
       if (chamadaMaestro) {
         const { data: limpeza, error: limpezaError } = await supabase.rpc('maestro_substituir_cobrancas_conversao', { p_conversao: conversaoId })
         if (limpezaError) throw new Error(`Erro ao substituir cobranças do Maestro: ${limpezaError.message}`)
@@ -417,9 +430,29 @@ export async function POST(request: NextRequest) {
       }
       importadasParaAusencia.push(importadaConciliacao)
 
-      const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao)
+      const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao, conciliarMaestro)
+
+      if (conciliacao.status === "atualizar") {
+        const id = conciliacao.cobrancaId
+        const valores = { id, atualizado_em: conciliacao.atualizadoEm, valor_atualizado: valorTotal, juros, multa, correcao }
+        const anterior = valoresMaestro.get(id)
+        if (![valorTotal, juros, multa, correcao].every(Number.isFinite) || valorTotal <= 0
+          || (anterior && JSON.stringify(anterior) !== JSON.stringify(valores))) {
+          valoresMaestro.delete(id)
+          alvosAmbiguosMaestro.add(id)
+          cobrancasDivergentes += 1
+          inconsistencias.push(`Unidade ${unidadeLabel}: valores inválidos ou conflitantes para o mesmo lançamento (${id}).`)
+        } else if (!alvosAmbiguosMaestro.has(id)) {
+          valoresMaestro.set(id, valores)
+        }
+        continue
+      }
 
       if (conciliacao.status === "ja_existente") {
+        if (conciliarMaestro) {
+          cobrancasIgnoradas += 1
+          continue
+        }
         await bloquearAutomacaoAcordoHflex(supabase, conciliacao.cobrancaId, item)
         await persistirComposicaoConciliada(supabase, conciliacao.cobrancaId, {
           condominioId, carteiraId, recibo, vencimento: vencimentoMaisAntigo,
@@ -569,7 +602,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (captacaoEasy) {
+    if (conciliarMaestro) {
+      const { data, error } = await supabase.rpc('maestro_conciliar_cobrancas', {
+        p_conversao: conversaoId,
+        p_inicio: processamentoMaestro!.inicio,
+        p_importadas: importadasParaAusencia,
+        p_valores: [...valoresMaestro.values()],
+        p_conferida: limparCobrancasAnteriores && falhasImportacao === 0 && cobrancasDivergentes === 0
+          && !(Array.isArray(preview.inconsistencias) && preview.inconsistencias.some((aviso: string) =>
+            /ignorad|descartad|inv[áa]lid|diverg|sem vencimento|relat[óo]rio incompleto/i.test(aviso))),
+      })
+      if (error) throw new Error(`Erro ao conciliar cobranças do Maestro: ${error.message}`)
+      conciliacaoMaestro = data
+      cobrancasAnterioresRemovidas = data.arquivadas
+      cobrancasAusentes = data.arquivadas + data.comAcordo
+      if (data.motivo) inconsistencias.push(data.motivo)
+    } else if (captacaoEasy) {
       // A substituição foi confirmada e auditada pela mesma rotina do Maestro.
     } else if (captacaoPdf && limparCobrancasAnteriores) {
       const limpeza = await removerAusentesDaConversaoPdf(supabase, {
@@ -627,16 +675,21 @@ export async function POST(request: NextRequest) {
     const previewSemBaseRanking = { ...preview }
     delete previewSemBaseRanking.cobrancasRankingMensal
 
-    await supabase
+    let concluirConversao = supabase
       .from("conversoes_relatorio")
       .update({
         status: captacaoEasy && falhasImportacao ? 'falha' : inconsistencias.length ? "concluido_com_alertas" : "concluido",
         inconsistencias_json: inconsistencias,
         preview_json: { ...previewSemBaseRanking, ...(rankingMensal ? { rankingMensal } : {}),
-          ...(limpezaAusentesPdf ? { limpezaAusentesPdf } : {}) },
+          ...(limpezaAusentesPdf ? { limpezaAusentesPdf } : {}),
+          ...(conciliacaoMaestro ? { conciliacaoMaestro } : {}) },
         atualizado_em: new Date().toISOString(),
       } as any)
       .eq("id", conversaoId)
+    if (processamentoMaestro) concluirConversao = concluirConversao.eq('status', 'processando').eq('atualizado_em', processamentoMaestro.inicio)
+    const { data: concluida, error: concluirError } = await concluirConversao.select('id').single()
+    if (concluirError) throw new Error(`Erro ao concluir a conversão: ${concluirError.message}`)
+    if (!concluida) throw new Error('Conversão não concluída.')
 
     revalidatePath("/app/pendencias")
     revalidatePath("/app/cobrancas")
@@ -652,6 +705,7 @@ export async function POST(request: NextRequest) {
         cobrancasDivergentes,
         cobrancasAusentes,
         cobrancasAnterioresRemovidas,
+        ...(conciliacaoMaestro ? { conciliacaoMaestro } : {}),
         captacaoHistoricaCriada: historicoCaptacao.inseridas,
         captacaoHistoricaRetida: historicoCaptacao.retidas,
         parcelasCriadas,
@@ -660,6 +714,10 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
+    if (processamentoMaestro) {
+      await createAdminClient().from('conversoes_relatorio').update({ status: 'falha', atualizado_em: new Date().toISOString() })
+        .eq('id', processamentoMaestro.id).eq('status', 'processando').eq('atualizado_em', processamentoMaestro.inicio)
+    }
     if(easyImportId) await createAdminClient().from('conversoes_relatorio').update({status:'falha',atualizado_em:new Date().toISOString()}).eq('id',easyImportId).eq('status','processando')
     console.error("Erro ao confirmar conversão:", error)
 
