@@ -25,6 +25,7 @@ export const dynamic = 'force-dynamic'
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> }
 type EtapaEstado = 'concluida' | 'executando' | 'aguardando' | 'atencao' | 'nao_configurada' | 'pausada'
 type Etapa = { nome: string; estado: EtapaEstado; detalhe: string; data?: string | null }
+const DIAS_PLANEJAMENTO_APOS_VENCIMENTO = 3
 
 const getParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] ?? '' : value ?? ''
 const normalizar = (value?: string | null) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase()
@@ -59,7 +60,7 @@ function proximaExecucao(dia?: number | null, horario?: string | null, realizada
   return data
 }
 
-function proximaExecucaoPorVencimento(vencimentoDia?: number | null, horario?: string | null, diasAposVencimento = 10) {
+function proximaExecucaoPorVencimento(vencimentoDia?: number | null, horario?: string | null, diasAposVencimento = DIAS_PLANEJAMENTO_APOS_VENCIMENTO) {
   if (!vencimentoDia) return null
   const now = new Date()
   const partes = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
@@ -85,7 +86,7 @@ function proximaExecucaoPorVencimento(vencimentoDia?: number | null, horario?: s
 
 function diaPlanejadoPorVencimento(vencimentoDia?: number | null) {
   if (!vencimentoDia) return null
-  const base = new Date(2026, 0, Number(vencimentoDia) + 10)
+  const base = new Date(2026, 0, Number(vencimentoDia) + DIAS_PLANEJAMENTO_APOS_VENCIMENTO)
   return base.getDate()
 }
 
@@ -342,10 +343,10 @@ export default async function MaestroPage({ searchParams }: Props) {
       <MaestroMontagens mostrarVazio carteiraId={carteiraFiltro} status={montagemStatus} condominioIds={condominioFiltro || administradoraFiltro ? linhas.filter(linha => (!condominioFiltro || linha.condominio.id === condominioFiltro) && (!administradoraFiltro || linha.administradora === administradoraFiltro)).map(linha => linha.condominio.id) : undefined} />
     </> : <>
       <section className="grid gap-3 md:grid-cols-4">
-        <Kpi icon={<CalendarClock size={18} />} label="Planejadas pela regra" value={agendasPlanejadas} helper="vencimento + 10 dias" />
+        <Kpi icon={<CalendarClock size={18} />} label="Planejadas pela regra" value={agendasPlanejadas} helper={`vencimento + ${DIAS_PLANEJAMENTO_APOS_VENCIMENTO} dias`} />
         <Kpi icon={<Bot size={18} />} label="Executados no mês" value={executadosNoMes} helper={`competência ${competenciaAtual}`} />
         <Kpi icon={<Clock3 size={18} />} label="Sem agenda completa" value={semAgenda} helper="faltando agenda ou agente" tone="amber" />
-        <Kpi icon={<TriangleAlert size={18} />} label="Fora da regra" value={agendasForaRegra} helper="agenda atual difere do vencimento + 10" tone="amber" />
+        <Kpi icon={<TriangleAlert size={18} />} label="Fora da regra" value={agendasForaRegra} helper={`agenda atual difere do vencimento + ${DIAS_PLANEJAMENTO_APOS_VENCIMENTO}`} tone="amber" />
       </section>
       <Card className="p-4"><form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_220px_240px_190px_auto]">
         <input type="hidden" name="aba" value="agenda" />
@@ -383,7 +384,7 @@ export default async function MaestroPage({ searchParams }: Props) {
         })}</div>
       </div>
       </MaestroAgendaSelecao>
-      <Card className="flex items-start gap-3 border-blue-100 bg-blue-50 text-sm text-blue-900"><History size={18} className="mt-0.5 shrink-0" /><div><p className="font-medium">A agenda planejada do Maestro segue vencimento + 10 dias.</p><p className="mt-1 text-blue-800">A agenda atual continua vindo do cadastro do condomínio; quando ela diverge da regra, a linha marca o dia sugerido para ajuste.</p></div></Card>
+      <Card className="flex items-start gap-3 border-blue-100 bg-blue-50 text-sm text-blue-900"><History size={18} className="mt-0.5 shrink-0" /><div><p className="font-medium">A agenda planejada do Maestro segue vencimento + {DIAS_PLANEJAMENTO_APOS_VENCIMENTO} dias.</p><p className="mt-1 text-blue-800">A agenda atual continua vindo do cadastro do condomínio; quando ela diverge da regra, a linha marca o dia sugerido para ajuste.</p></div></Card>
     </>}
   </main>
 }
