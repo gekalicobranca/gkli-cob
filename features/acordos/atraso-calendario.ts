@@ -18,7 +18,9 @@ export function classificarSituacaoNoPeriodo(parcelas: Parcela[], inicio: string
   return periodo.every(paga) ? 'em_dia' : 'ativo'
 }
 
-export function classificarPrazoAcordo(parcelas: Parcela[], hoje: string, diasParaAtraso = 15, diasParaRomper = 30, valorAcordado?: number | string) {
+export function classificarPrazoAcordo(parcelas: Parcela[], hoje: string, diasParaAtraso = 15, _diasParaRomper = 30, valorAcordado?: number | string) {
+  // Mantido apenas para compatibilidade com chamadas antigas; prazo não autoriza quebra.
+  void _diasParaRomper
   const ordenadas = parcelas.filter(p => p.status !== 'cancelada')
     .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || (a.numero ?? 0) - (b.numero ?? 0))
   const paga = (p: Parcela) => p.status === 'paga' || Boolean(p.data_pagamento)
@@ -34,7 +36,6 @@ export function classificarPrazoAcordo(parcelas: Parcela[], hoje: string, diasPa
     return ordenadas.some(p => paga(p) && p.vencimento.slice(0, 7) === hoje.slice(0, 7)) ? 'em_dia' : null
   }
   const atraso = diasAtrasoAcordo(abertas[0].vencimento, hoje)
-  if (atraso >= diasParaRomper) return 'quebrado'
   if (atraso >= diasParaAtraso) return 'em_atraso'
   if (atraso > 0) return 'ativo' // Tolerância D+1 a D+14 não significa “em dia”.
   const indice = ordenadas.indexOf(abertas[0])

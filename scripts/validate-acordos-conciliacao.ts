@@ -41,7 +41,7 @@ test('pausa explícita de conciliação preserva parcelas e acordo; pausas comun
     return q
   } }
   const result = await checkAcordosStatus({}, { createAdminClient: () => db as any, registrarEventoOperacional: async () => undefined as any })
-  assert.equal(result.acordosRompidos, 3)
+  assert.equal(result.acordosRompidos, 0)
   assert.equal(result.acordosQuitados, 0)
   for (const id of ['pendente', 'pago_em_conciliacao']) {
     assert.deepEqual(tables.acordos.find(a => a.id === id), before.acordos.find(a => a.id === id))

@@ -9,7 +9,7 @@ test('calendário usa São Paulo sem depender do fuso do servidor', () => {
   assert.equal(diasAtrasoAcordo('2026-10-14', '2026-10-20'), 6)
 })
 
-test('período aberto mantém pendências como ativo; quebra e quitação continuam preservadas', async () => {
+test('período aberto mantém pendências como ativo; atraso não quebra acordo e quitação exige saldo zero', async () => {
   const hoje = dataOperacionalAcordos()
   const dia = (dias: number) => new Date(Date.parse(`${hoje}T00:00:00Z`) - dias * 86400000).toISOString().slice(0, 10)
   const statuses = ['em_dia', 'em_dia', 'quitado', 'cancelado', 'renegociado', 'quebrado', 'em_dia', 'em_dia', 'em_dia']
@@ -56,10 +56,10 @@ test('período aberto mantém pendências como ativo; quebra e quitação contin
   const deps = { createAdminClient: () => db as any, registrarEventoOperacional: async () => undefined as any }
   const options = { acordoIds: statuses.map((_, i) => String(i)).filter(id => id !== '8') }
   const result = await checkAcordosStatus(options, deps)
-  assert.equal(result.acordosMarcadosEmAtraso, 0)
-  assert.equal(result.acordosRompidos, 1)
-  assert.equal(tables.acordos[0].status, 'ativo')
-  assert.equal(tables.acordos[1].status, 'quebrado')
+  assert.equal(result.acordosMarcadosEmAtraso, 2)
+  assert.equal(result.acordosRompidos, 0)
+  assert.equal(tables.acordos[0].status, 'em_atraso')
+  assert.equal(tables.acordos[1].status, 'em_atraso')
   assert.equal(result.acordosQuitados, 2)
   for (const i of [6, 7]) {
     assert.equal(tables.acordos[i].status, 'quitado')
@@ -108,7 +108,7 @@ test('parcela do período paga é em dia; quitação exige todas pagas e cobertu
   assert.notEqual(classificarPrazoAcordo([{...paga, valor: undefined}], hoje, 15, 30, 100), 'quitado')
   assert.notEqual(classificarPrazoAcordo([paga], hoje), 'quitado', 'sem valor contratado não há prova de saldo zero')
   assert.equal(classificarPrazoAcordo([{...paga, valor: 0.1}, {...paga, valor: 0.2}], hoje, 15, 30, 0.3), 'quitado')
-  assert.equal(classificarPrazoAcordo([{ ...paga, vencimento: '2026-09-10', status: 'aberta', data_pagamento: null }, paga, futura], hoje, 15, 30, 300), 'quebrado', 'pagamento do período não oculta parcela anterior vencida')
+  assert.equal(classificarPrazoAcordo([{ ...paga, vencimento: '2026-09-10', status: 'aberta', data_pagamento: null }, paga, futura], hoje, 15, 30, 300), 'em_atraso', 'pagamento do período não oculta parcela anterior vencida')
 })
 
 test('limites D+14, D+15, D+29 e D+30 e condição de em dia', () => {
@@ -116,10 +116,10 @@ test('limites D+14, D+15, D+29 e D+30 e condição de em dia', () => {
   const parcela = (dias: number) => ({ vencimento: new Date(Date.parse(`${hoje}T00:00:00Z`) - dias * 86400000).toISOString().slice(0, 10), status: 'aberta' })
   for (const dias of [1, 7, 14]) assert.equal(classificarPrazoAcordo([parcela(dias)], hoje), 'ativo')
   for (const dias of [15, 29]) assert.equal(classificarPrazoAcordo([parcela(dias)], hoje), 'em_atraso')
-  for (const dias of [30, 40]) assert.equal(classificarPrazoAcordo([parcela(dias)], hoje), 'quebrado')
+  for (const dias of [30, 40]) assert.equal(classificarPrazoAcordo([parcela(dias)], hoje), 'em_atraso')
   assert.equal(classificarPrazoAcordo([parcela(-10)], hoje), 'ativo', 'primeira parcela ainda não paga não significa em dia')
   assert.equal(classificarPrazoAcordo([{...parcela(20),status:'paga'}, parcela(-10)], hoje), 'em_dia')
   assert.equal(classificarPrazoAcordo([{...parcela(20),status:'paga'}, parcela(0)], hoje), 'em_dia', 'dia do vencimento ainda não é atraso')
   assert.equal(classificarPrazoAcordo([{...parcela(40),status:'paga'}, parcela(14)], hoje), 'ativo')
-  assert.equal(classificarPrazoAcordo([parcela(40), parcela(-10)], hoje), 'quebrado', 'parcela futura não esconde dívida antiga')
+  assert.equal(classificarPrazoAcordo([parcela(40), parcela(-10)], hoje), 'em_atraso', 'parcela futura não esconde dívida antiga')
 })

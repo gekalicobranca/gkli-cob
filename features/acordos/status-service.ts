@@ -20,27 +20,13 @@ type ParcelaAcordoStatusRow = {
   status: string;
 };
 
-type AcordoStatusRow = {
-  id: string;
-  cobranca_id: string | null;
-  carteira_id: string | null;
-  condominio_id: string | null;
-  unidade_id: string | null;
-  status: string;
-};
-
-type AcordoCobrancaStatusRow = {
-  acordo_id: string;
-  cobranca_id: string;
-};
-
 export async function checkAcordosStatus(
   options: CheckAcordosStatusOptions = {},
   dependencies = { createAdminClient, registrarEventoOperacional },
 ) {
   const diasParaRomper = options.diasParaRomper ?? 30;
   const diasParaAtraso = options.diasParaAtraso ?? 15;
-  if (diasParaAtraso < 1 || diasParaRomper <= diasParaAtraso) throw new Error('Prazos de atraso e quebra inválidos.');
+  if (diasParaAtraso < 1) throw new Error('Prazos de atraso e quebra inválidos.');
   const hojeISO = dataOperacionalAcordos();
 
   const supabase = dependencies.createAdminClient();
@@ -138,11 +124,11 @@ export async function checkAcordosStatus(
   }
   const classificados = [...porAcordo].map(([id, parcelas]) => {
     const prazo = classificarPrazoAcordo(parcelas, hojeISO, diasParaAtraso, diasParaRomper, valoresContratados.get(id));
-    return { id, status: prazo === 'quitado' || prazo === 'quebrado' ? prazo
+    return { id, status: prazo === 'quitado' || prazo === 'em_atraso' ? prazo
       : periodoAberto ? classificarSituacaoNoPeriodo(parcelas, periodoAberto.data_abertura, periodoAberto.data_fechamento) : null };
   });
   const acordoIdsComAtraso = classificados.filter(a => a.status === 'em_atraso').map(a => a.id);
-  const acordoIdsParaRomper = classificados.filter(a => a.status === 'quebrado').map(a => a.id);
+
 
   for (const status of [ACORDO_STATUS.ATIVO, ACORDO_STATUS.EM_DIA]) {
     for (const financeiro of ['em_aberto', 'parcial']) {
@@ -157,8 +143,8 @@ export async function checkAcordosStatus(
   }
 
   let acordosMarcadosEmAtraso = 0;
-  let acordosRompidos = 0;
-  let cobrancasAguardandoLiberacao = 0;
+  const acordosRompidos = 0;
+  const cobrancasAguardandoLiberacao = 0;
   let acordosQuitados = 0;
 
   for (const acordo of classificados.filter(a => a.status === 'quitado' && acordosElegiveisQuitacao.has(a.id))) {
@@ -183,9 +169,7 @@ export async function checkAcordosStatus(
   }
 
   if (acordoIdsComAtraso.length > 0) {
-    const idsAtraso = acordoIdsComAtraso.filter(
-      (id) => !acordoIdsParaRomper.includes(id),
-    );
+    const idsAtraso = acordoIdsComAtraso;
 
     if (idsAtraso.length > 0) {
       const { error: atrasoError, count } = await supabase
@@ -204,96 +188,11 @@ export async function checkAcordosStatus(
     }
   }
 
-  if (acordoIdsParaRomper.length > 0) {
-    const { data: acordosParaRomper, error: acordosError } = await supabase
-      .from("acordos")
-      .select("id, cobranca_id, carteira_id, condominio_id, unidade_id, status")
-      .in("id", acordoIdsParaRomper)
-      .in("status", ACORDO_STATUS_VIGENTES);
-
-    if (acordosError) {
-      throw new Error(
-        `Erro ao carregar acordos para romper: ${acordosError.message}`,
-      );
-    }
-
-    let acordos = (acordosParaRomper ?? []) as AcordoStatusRow[];
-    let acordoIds = acordos.map((acordo) => acordo.id);
-
-    if (acordoIds.length > 0) {
-      const { data: alterados, error: rompidoError, count } = await supabase
-        .from("acordos")
-        .update(
-          {
-            status: ACORDO_STATUS.QUEBRADO,
-            status_financeiro: "vencido",
-            data_quebra: hojeISO,
-          },
-          { count: "exact" },
-        )
-        .in("id", acordoIds)
-        .in("status", ACORDO_STATUS_VIGENTES)
-        .select('id');
-
-      if (rompidoError) {
-        throw new Error(
-          `Erro ao marcar acordos quebrados: ${rompidoError.message}`,
-        );
-      }
-
-      acordosRompidos = count ?? 0;
-      const idsAlterados = new Set((alterados ?? []).map((row) => row.id));
-      acordos = acordos.filter((acordo) => idsAlterados.has(acordo.id));
-      acordoIds = acordos.map((acordo) => acordo.id);
-
-      for (const acordo of acordos) {
-        if (!acordo.unidade_id) continue;
-        await dependencies.registrarEventoOperacional(supabase as any, {
-          carteiraId: acordo.carteira_id,
-          entidadeTipo: "unidade",
-          entidadeId: acordo.unidade_id,
-          eventoCodigo: "unidade.acordo.quebrado",
-          titulo: `Acordo quebrado em D+${diasParaRomper}`,
-          descricao: "Unidade aguardando decisão do operador para voltar à cobrança ativa ou seguir para outro destino.",
-          severidade: "alerta",
-          payload: { acordo_id: acordo.id, condominio_id: acordo.condominio_id, cobranca_id: acordo.cobranca_id },
-          estadoAnterior: acordo.status,
-          estadoNovo: ACORDO_STATUS.QUEBRADO,
-          origem: "sistema",
-          auditavel: true,
-          required: true,
-        });
-      }
-    }
-
-    const { data: vinculosCobrancas, error: vinculosError } = await supabase
-      .from("acordo_cobrancas")
-      .select("acordo_id, cobranca_id")
-      .in("acordo_id", acordoIds);
-
-    if (vinculosError) {
-      throw new Error(
-        `Erro ao carregar cobranças vinculadas aos acordos: ${vinculosError.message}`,
-      );
-    }
-
-    const cobrancaIds = [
-      ...new Set(
-        [
-          ...((vinculosCobrancas ?? []) as AcordoCobrancaStatusRow[]).map(
-            (vinculo) => vinculo.cobranca_id,
-          ),
-          ...acordos.map((acordo) => acordo.cobranca_id),
-        ]
-          .filter((id): id is string => Boolean(id)),
-      ),
-    ];
-
-    cobrancasAguardandoLiberacao = cobrancaIds.length;
-  }
 
   return {
     ok: true,
+    quebraAutomatica: false,
+    confirmacaoAdministradoraObrigatoria: true,
     hoje: hojeISO,
     diasParaRomper,
     diasParaAtraso,
