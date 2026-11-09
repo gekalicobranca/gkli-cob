@@ -46,7 +46,9 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
   return <Card className="space-y-3">
     <MaestroRefresh ativo={data.some((job: any) => ['pendente', 'processando'].includes(job.status))} />
     <div><h2 className="font-semibold">Montagem de flows pelo Maestro</h2><p className="text-sm text-slate-500">A montagem continua com a página fechada. Os flows aguardam sua revisão e ativação manual em lote.</p></div>
-    <MaestroAgendaSelecao montagens ids={status === 'arquivado' ? [] : data.filter((job: any) => ['pendente', 'atencao'].includes(job.status)).map((job: any) => job.id)}>
+    <MaestroAgendaSelecao montagens
+      ids={status === 'arquivado' ? [] : data.filter(job => ['pendente', 'atencao'].includes(job.status)).map(job => job.id)}
+      idsConcluidas={status === 'arquivado' ? [] : data.filter(job => job.status === 'concluido').map(job => job.id)}>
     <div className="divide-y divide-slate-100">{data.map((job: any) => {
       const condominio = Array.isArray(job.condominio) ? job.condominio[0] : job.condominio
       const partes = job.plano?.length ?? 0
@@ -57,10 +59,10 @@ async function Montagens({ condominioIds, carteiraId, status, mostrarVazio = fal
       const prontos = flows.filter(flow => flow.status === 'pronto').length
       return <div key={job.id} className="space-y-2 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3"><div>
-          <div className="flex items-center gap-2">{status !== 'arquivado' && ['pendente', 'atencao'].includes(job.status) ? <MaestroAgendaCheckbox montagens id={job.id} nome={condominio?.nome_operacional || condominio?.nome || 'Condomínio'} /> : null}<p className="text-sm font-medium">{condominio?.nome_operacional || condominio?.nome}</p></div>
+          <div className="flex items-center gap-2">{status !== 'arquivado' && ['pendente', 'atencao', 'concluido'].includes(job.status) ? <MaestroAgendaCheckbox montagens id={job.id} nome={condominio?.nome_operacional || condominio?.nome || 'Condomínio'} /> : null}<p className="text-sm font-medium">{condominio?.nome_operacional || condominio?.nome}</p></div>
           <p className="text-xs text-slate-500">{labels[job.status]}{partes > 0 ? ` · ${job.parte}/${partes} partes` : job.status === 'concluido' ? ' · Nenhuma nova cobrança elegível nesta avaliação' : ''}</p>
         </div>
-        {job.status === 'atencao' || (job.status === 'concluido' && pendencias.length > 0) ? <form action={retomarMontagemMaestro.bind(null, job.id)}><PendingSubmitButton variant="secondary" size="sm" pendingLabel="Enfileirando...">{job.status === 'atencao' ? 'Retomar montagem' : 'Reavaliar pendências'}</PendingSubmitButton></form> : null}</div>
+        {status !== 'arquivado' && (job.status === 'atencao' || (job.status === 'concluido' && pendencias.length > 0)) ? <form action={retomarMontagemMaestro.bind(null, job.id)}><PendingSubmitButton variant="secondary" size="sm" pendingLabel="Enfileirando...">{job.status === 'atencao' ? 'Retomar montagem' : 'Reavaliar pendências'}</PendingSubmitButton></form> : null}</div>
         <p className="text-xs text-slate-600">{flowsIndisponiveis ? 'Total de flows temporariamente indisponível.' : `${flows.length} flow(s) no condomínio · ${destaMontagem} desta montagem do Maestro · ${flows.length - destaMontagem} de outras montagens, inclusive manuais · ${prontos} pronto(s) para ativar`}</p>
         {vinculadas.length ? <p className="text-xs text-emerald-700">{vinculadas.length} cobrança(s) já incluída(s) em flows na última avaliação.</p> : null}
         {job.erro ? <p className="text-sm text-rose-700">{job.erro}</p> : null}
