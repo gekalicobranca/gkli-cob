@@ -55,12 +55,20 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
       insert into condominios values ('${id(1)}','${id(2)}','ativo');
       insert into unidades values ('${id(3)}','${id(1)}','${id(2)}','A',false);
       insert into conversoes_relatorio values ('${id(4)}','${id(1)}','${id(2)}','captacao_automatizada:teste','processando',
-        '2026-11-10','2026-11-10','{"captacaoAutomatizada":true}',2,null);
+        '2026-11-10','2026-11-10','{"captacaoAutomatizada":true}',3,null);
       insert into cobrancas(id,unidade_id,condominio_id,carteira_id,observacoes,status,status_operacional,status_financeiro,
         automacao_bloqueada,valor_original,valor_atualizado,vencimento,updated_at)
       select ('00000000-0000-0000-0000-'||lpad(n::text,12,'0'))::uuid,'${id(3)}','${id(1)}','${id(2)}','Recibo '||n,
         st,st,'em_aberto',false,100,100,'2025-10-10','2026-11-01'
       from (values(10,'novo'),(11,'regular'),(12,'em_cobranca_ativa'),(13,'suspenso')) v(n,st);
+      insert into cobrancas(id,unidade_id,condominio_id,carteira_id,observacoes,status,status_operacional,status_financeiro,
+        automacao_bloqueada,valor_original,valor_atualizado,vencimento,updated_at,data_pagamento,valor_pago)
+        values ('${id(15)}','${id(3)}','${id(1)}','${id(2)}','Recibo 15','acordo_efetivado','acordo_efetivado','quitado',
+          true,100,110,'2025-10-10','2026-11-01','2026-10-10',110);
+      insert into acordos values ('${id(16)}','${id(15)}','quitado');
+      insert into acordo_cobrancas values ('${id(16)}','${id(15)}');
+      insert into cobranca_parcelas(cobranca_id,data_vencimento,valor_original,valor_atualizado,status)
+        values ('${id(15)}','2025-10-10',100,110,'aberto');
       insert into maestro_flow_montagens(conversao_id,condominio_id,carteira_id,status,plano,parte) values
         ('${id(5)}','${id(1)}','${id(2)}','pendente','[["${id(10)}"]]',0),
         ('${id(6)}','${id(1)}','${id(2)}','pendente','[["${id(13)}"]]',0);
@@ -89,20 +97,23 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
     await db.exec(migration('20261110131531_substituir_cobrancas_maestro_preservar_historico'))
     await assert.rejects(db.query("update mensagens set status='agendada' where id=$1",[id(22)]), /Formalização bloqueada/)
     const ids = [id(10), id(11), id(12)]
-    const importadas = [10,13].map(n => ({ unidade_id: id(3), vencimento: '2025-10-10', recibo: String(n) }))
-    const valores = [{ id: id(13), atualizado_em: '2026-11-01', valor_atualizado: 130, juros: 10, multa: 20, correcao: 0 }]
+    const importadas = [10,13,15].map(n => ({ unidade_id: id(3), vencimento: '2025-10-10', recibo: String(n), valor_original: 100 }))
+    const valores = [13,15].map(n => ({ id: id(n), atualizado_em: '2026-11-01', valor_atualizado: 130, juros: 10, multa: 20, correcao: 0 }))
     const nova = { id: id(14), unidade_id: id(3), observacoes: 'Recibo 10', status_operacional: 'em_cobranca_ativa', valor_atualizado: 120 }
-    const substituir = (novas: object[]) => db.query<{ r: Record<string, number> }>(
+    const substituir = (novas: object[], captadas = importadas) => db.query<{ r: Record<string, number> }>(
       'select maestro_substituir_captacao($1,$2,$3::uuid[],$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb) r',
-      [id(4),'2026-11-10','{' + ids.join(',') + '}',JSON.stringify(importadas),JSON.stringify(valores),JSON.stringify(novas),'[]'],
+      [id(4),'2026-11-10','{' + ids.join(',') + '}',JSON.stringify(captadas),JSON.stringify(valores),JSON.stringify(novas),'[]'],
     )
+    await db.exec(migration('20261110171934_maestro_preservar_recibos_quitados'))
     await assert.rejects(substituir([nova]), /operator does not exist: integer/)
     await db.exec(migration('20261110150730_corrigir_plano_substituicao_maestro'))
+    await assert.rejects(substituir([nova], importadas.map(i => i.recibo === '15' ? { ...i, recibo: '99' } : i)),
+      /proteção operacional/)
     await assert.rejects(substituir([{ ...nova, id: id(13) }]), /duplicate key/)
-    assert.equal((await db.query('select id from cobrancas')).rows.length, 4)
+    assert.equal((await db.query('select id from cobrancas')).rows.length, 5)
     const { rows } = await substituir([nova])
     assert.equal(rows[0].r.removidas, 3)
-    assert.equal(rows[0].r.atualizadas, 1)
+    assert.equal(rows[0].r.atualizadas, 2)
     assert.deepEqual((await db.query('select conversao_id,status from maestro_flow_montagens order by conversao_id')).rows, [
       { conversao_id: id(5), status: 'atencao' },
       { conversao_id: id(6), status: 'pendente' },
@@ -114,7 +125,14 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
     ])
     assert.deepEqual((await db.query('select id,status_operacional from cobrancas order by id')).rows, [
       { id: id(13), status_operacional: 'suspenso' }, { id: id(14), status_operacional: 'em_cobranca_ativa' },
+      { id: id(15), status_operacional: 'acordo_efetivado' },
     ])
+    assert.deepEqual((await db.query(`select status_financeiro,automacao_bloqueada,valor_atualizado::int,valor_pago::int,
+      data_pagamento::text from cobrancas where id=$1`, [id(15)])).rows, [
+      { status_financeiro: 'quitado', automacao_bloqueada: true, valor_atualizado: 130, valor_pago: 110, data_pagamento: '2026-10-10' },
+    ])
+    assert.deepEqual((await db.query('select acordo_id,cobranca_id from acordo_cobrancas')).rows, [{ acordo_id: id(16), cobranca_id: id(15) }])
+    assert.deepEqual((await db.query('select valor_atualizado::int from cobranca_parcelas where cobranca_id=$1', [id(15)])).rows, [{ valor_atualizado: 110 }])
     await db.exec(`
       update maestro_flow_controle set ativo=true;
       insert into cobranca_flows(id,carteira_id,status,total_mensagens,payload)

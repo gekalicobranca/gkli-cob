@@ -69,6 +69,15 @@ test('preserva zero, rejeita valor inválido e erro de leitura', async () => {
   const query: any = { select: () => query, eq: () => query, is: () => query, order: () => query, range: async () => ({ error: { message: 'indisponível' } }) }
   await assert.rejects(conciliarCobrancaImportada({ from: () => query }, entrada), /indisponível/)
 })
+test('Maestro concilia valor de recibo quitado apenas com correspondência segura', async () => {
+  const quitada = { ...antiga, status_financeiro: 'quitado', status_operacional: 'acordo_efetivado', updated_at: '2026-11-01' }
+  const preservadas = new Map([[entrada.unidade_id!, [quitada]]])
+  const captada = { ...entrada, valor_atualizado: 115 }
+  assert.equal((await conciliarCobrancaImportada(client([quitada]), captada, true)).status, 'divergente')
+  assert.equal((await conciliarCobrancaImportada(client([quitada]), captada, true, preservadas)).status, 'atualizar')
+  assert.equal((await conciliarCobrancaImportada(client([quitada]), { ...captada, valor_original: 99 }, true, preservadas)).status, 'divergente')
+  assert.equal((await conciliarCobrancaImportada(client([quitada]), { ...captada, vencimento: '2026-06-15' }, true, preservadas)).status, 'divergente')
+})
 test('recibo explícito é persistido e conflito entre campos exige revisão', () => {
   assert.equal(observacoesComRecibo({ recibo: 'AE 123', observacoes: 'Origem conferida' }), 'Recibo AE 123 | Origem conferida')
   assert.throws(() => observacoesComRecibo({ recibo: '123', observacoes: 'Recibo 456' }), /diverge/)
