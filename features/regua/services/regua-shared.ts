@@ -137,13 +137,14 @@ export function criarReguaFingerprint(params: {
   etapaId?: string | null
   canal: string
   ciclo: string
+  montagemMaestroId?: string
 }) {
   return [
     params.contexto,
     params.entidadeId,
     params.etapaId ?? 'sem_etapa',
     params.canal,
-    params.ciclo,
+    params.montagemMaestroId ? `maestro-${params.montagemMaestroId}` : params.ciclo,
   ].join(':')
 }
 

@@ -123,7 +123,7 @@ type ProcessarReguaParams = {
   cobrancaIds?: string[];
   reguaId?: string;
   loteRetomadaId?: string;
-  montagemMaestro?: boolean;
+  montagemMaestroId?: string;
   // Flows começam pela primeira etapa; continuação escolhe uma etapa explícita.
   sequenciaFlow?: boolean;
   progressao?: { etapaId: string; primeiroEnvioEm: string; sequenciaId: string };
@@ -725,7 +725,7 @@ export async function processarReguaCobranca(
           total.criadas++; lote.contadores.criadas++;
           continue;
         }
-        if (params.montagemMaestro && !['novo', 'em_cobranca_ativa'].includes(String(row.status_operacional))) {
+        if (params.montagemMaestroId && !['novo', 'em_cobranca_ativa'].includes(String(row.status_operacional))) {
           await criarItemLote({ supabase, loteId: lote.id, row, status: LOTE_ITEM_STATUS.PULADA, motivo: 'Status alterado; cobrança fora da montagem automática.' });
           total.puladas++; lote.contadores.puladas++;
           continue;
@@ -849,7 +849,7 @@ export async function processarReguaCobranca(
         const etapas = await carregarEtapas(params.reguaId || condominio?.regua_cobranca_id);
         const etapa = params.progressao
           ? etapas.find(e => e.id === params.progressao!.etapaId && e.ativo !== false)
-          : params.sequenciaFlow || params.montagemMaestro
+          : params.sequenciaFlow || params.montagemMaestroId
           ? primeiraEtapaFlow(etapas)
           : selecionarEtapa({
             etapas,
@@ -896,6 +896,7 @@ export async function processarReguaCobranca(
           etapaId: etapaReferencia,
           canal,
           ciclo: params.progressao ? `sequencia:${params.progressao.sequenciaId}` : ciclo,
+          montagemMaestroId: params.montagemMaestroId,
         });
 
         const contexto = {
@@ -944,7 +945,7 @@ export async function processarReguaCobranca(
         });
 
         const compliance = await avaliarComplianceRegua({
-          prepararParaAgenda: Boolean(params.progressao) || params.prepararFlowPausado === true || (params.montagemMaestro === true && canal === 'email'),
+          prepararParaAgenda: Boolean(params.progressao) || params.prepararFlowPausado === true || (Boolean(params.montagemMaestroId) && canal === 'email'),
           carteiraId: row.carteira_id,
           condominioId: condominio?.id ?? null,
           unidadeId: unidade?.id ?? null,

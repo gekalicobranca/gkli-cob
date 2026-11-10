@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { canaisDaRegua, conflitoDeCanais, reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from '../features/flows/cobranca/canais'
 import { carregarCanaisOcupados, temFlowEmAndamento, validarCriacaoPorCanal } from '../features/flows/cobranca/vinculos-canais'
+import { criarReguaFingerprint } from '../features/regua/services/regua-shared'
 
 const email = { id: 'email', carteira_id: 'a', etapas: [{ canal: 'email' }] }
 const web = { id: 'web', carteira_id: 'a', etapas: [{ canal: 'whatsapp' }] }
@@ -82,7 +83,7 @@ test('retorno a Novo permite reativar histórico concluído sem liberar reenvio 
   for (const id of ['enviada', 'pendente', 'outro_cancelamento']) assert.deepEqual([...result.get(id)!], ['email'])
 })
 
-test('Maestro libera histórico encerrado de outro ciclo e preserva envios do mês e flows em andamento', async () => {
+test('nova captação do Maestro libera histórico encerrado e preserva flows válidos e mensagens pendentes', async () => {
   const outubro = { canal: 'email', status: 'enviada', ciclo: '2026-10' }
   const db = mockDb({ lote_itens: [
     { cobranca_id: 'antiga', cobranca_flow_id: 'f', flow: { status: 'concluido' }, mensagem: outubro },
@@ -90,12 +91,22 @@ test('Maestro libera histórico encerrado de outro ciclo e preserva envios do m�
     { cobranca_id: 'atual', cobranca_flow_id: 'f', flow: { status: 'concluido' }, mensagem: { ...outubro, ciclo: '2026-11' } },
     { cobranca_id: 'enviada-em-novembro', cobranca_flow_id: 'f', flow: { status: 'concluido' }, mensagem: { ...outubro, enviada_em: '2026-11-05T15:00:00Z' } },
     { cobranca_id: 'andamento', cobranca_flow_id: 'f', flow: { status: 'em_execucao' }, mensagem: outubro },
+    { cobranca_id: 'pronto', cobranca_flow_id: 'f', flow: { status: 'pronto' }, mensagem: { ...outubro, status: 'pendente_aprovacao' } },
+    { cobranca_id: 'pausado', cobranca_flow_id: 'f', flow: { status: 'pausado' }, mensagem: { ...outubro, status: 'falha' } },
     { cobranca_id: 'agendada', cobranca_flow_id: 'f', flow: { status: 'concluido' }, mensagem: { ...outubro, status: 'agendada' } },
   ] })
-  const ids = ['antiga', 'falha', 'atual', 'enviada-em-novembro', 'andamento', 'agendada']
-  const result = await carregarCanaisOcupados(db, ids, { cicloMaestro: '2026-11' })
-  assert.deepEqual([...result.keys()], ['atual', 'enviada-em-novembro', 'andamento', 'agendada'])
+  const ids = ['antiga', 'falha', 'atual', 'enviada-em-novembro', 'andamento', 'pronto', 'pausado', 'agendada']
+  const result = await carregarCanaisOcupados(db, ids, { novaCaptacaoMaestro: true })
+  assert.deepEqual([...result.keys()], ['andamento', 'pronto', 'pausado', 'agendada'])
   assert.equal((await carregarCanaisOcupados(db, ids)).has('antiga'), true)
+})
+
+test('a chave da cobrança no Maestro diferencia captações no mesmo mês e identifica uma retomada', () => {
+  const dados = { contexto: 'regua_cobranca' as const, entidadeId: 'cobranca', etapaId: 'etapa', canal: 'email', ciclo: '2026-11' }
+  const chave = criarReguaFingerprint({ ...dados, montagemMaestroId: 'montagem-1' })
+  assert.notEqual(chave, criarReguaFingerprint(dados))
+  assert.notEqual(chave, criarReguaFingerprint({ ...dados, montagemMaestroId: 'montagem-2' }))
+  assert.equal(chave, criarReguaFingerprint({ ...dados, ciclo: '2026-12', montagemMaestroId: 'montagem-1' }))
 })
 
 test('servidor permite WhatsApp junto ao e-mail e bloqueia repetição, régua alheia e montagem concorrente do mesmo canal', async () => {
