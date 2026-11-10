@@ -170,7 +170,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
                   {receita.montagemStatus === 'atencao' && <p className="mt-1 text-xs text-amber-800">A montagem precisa de revisão no Maestro.</p>}
                   {receita.montagemStatus === 'concluido' && (
                     receita.flowsMontados
-                      ? <Link className="mt-1 block text-xs font-semibold text-cyan-800 underline" href="/app/flows/cobranca/email">Revisar flows montados ({receita.flowsMontados})</Link>
+                      ? <Link className="mt-1 block text-xs font-semibold text-cyan-800 underline" href={`/app/flows/cobranca/email?aba=flows&condominio=${encodeURIComponent(receita.condominioId)}`}>Revisar flows montados ({receita.flowsMontados})</Link>
                       : <p className="mt-1 text-xs text-slate-600">Nenhuma cobrança elegível para um novo flow.</p>
                   )}
                   {receita.conversaoId && <Link className="mt-1 inline-block text-xs font-semibold text-cyan-800 underline" href={`/app/configuracoes/lab/captacao-automatizada/${receita.conversaoId}`}>Ver validação</Link>}
