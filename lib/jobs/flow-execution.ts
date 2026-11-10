@@ -7,6 +7,15 @@ export function withFlowBudget<T>(work: () => Promise<T>) {
   return budgets.run({ deadline: Date.now() + 90_000, remainingQueries: 400, signal: AbortSignal.timeout(90_000) }, work)
 }
 
+export function flowBudgetRemaining() {
+  const budget = budgets.getStore()
+  if (!budget) return null
+  return {
+    ms: budget.signal.aborted ? 0 : Math.max(0, budget.deadline - Date.now()),
+    queries: Math.max(0, budget.remainingQueries),
+  }
+}
+
 // Every administrative client created by this job inherits the same budget,
 // including clients created inside the régua and consolidation helpers.
 export function flowBudgetFetch(): typeof fetch | undefined {

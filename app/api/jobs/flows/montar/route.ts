@@ -3,6 +3,7 @@ import { requireCronSecret } from '@/app/api/_lib/auth'
 import { processarMontagemMaestro } from '@/features/flows/cobranca/maestro-montagem'
 
 import { processarAtivacaoMaestro } from '@/features/flows/cobranca/maestro-ativacao'
+import { processarFilaMaestro } from './processar-fila'
 
 export const maxDuration = 120
 export async function GET(request: Request) {
@@ -11,6 +12,6 @@ export async function GET(request: Request) {
   if (unauthorized) return unauthorized
   return runFlowJob('montar', async () => {
     const ativacao = await processarAtivacaoMaestro()
-    return { ativacao, ...await processarMontagemMaestro() }
+    return { ativacao, ...await processarFilaMaestro(processarMontagemMaestro) }
   })
 }
