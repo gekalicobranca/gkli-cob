@@ -3,7 +3,7 @@ import { carregarCanaisOcupados } from './vinculos-canais'
 import { conflitoDeCanais } from './canais'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { processarReguaCobranca } from '@/features/regua/services/processar-regua-cobranca'
-import { escolherContatoRegua } from '@/features/regua/services/regua-shared'
+import { cicloReferencia, escolherContatoRegua } from '@/features/regua/services/regua-shared'
 import { dividirCriacaoFlows } from './dividir-criacao'
 import { consolidarEmailsLote } from './consolidar-emails'
 import { consolidarWhatsAppLote } from './consolidar-whatsapp'
@@ -44,11 +44,12 @@ async function planejar(db: ReturnType<typeof createAdminClient>, job: any) {
   }
   const apoios = await carregarApoiosParaCorrespondencia(db, [job.condominio_id])
   const acordos = new Set<string>(), vinculadas = new Set<string>()
+  const cicloMaestro = cicloReferencia()
   for (let offset = 0; offset < rows.length; offset += 100) {
     const ids = rows.slice(offset, offset + 100).map(r => r.id)
     const [a, v] = await Promise.all([
       db.rpc('flow_cobrancas_bloqueadas_por_acordo', { p_ids: ids }),
-      carregarCanaisOcupados(db, ids),
+      carregarCanaisOcupados(db, ids, { cicloMaestro }),
     ])
     if (a.error) throw new Error('Não foi possível conferir acordos e flows anteriores.')
     for (const id of (a.data ?? []) as string[]) acordos.add(id)

@@ -82,6 +82,22 @@ test('retorno a Novo permite reativar histórico concluído sem liberar reenvio 
   for (const id of ['enviada', 'pendente', 'outro_cancelamento']) assert.deepEqual([...result.get(id)!], ['email'])
 })
 
+test('Maestro libera histórico encerrado de outro ciclo e preserva envios do mês e flows em andamento', async () => {
+  const outubro = { canal: 'email', status: 'enviada', ciclo: '2026-10' }
+  const db = mockDb({ lote_itens: [
+    { cobranca_id: 'antiga', cobranca_flow_id: 'f', flow: { status: 'concluido' }, mensagem: outubro },
+    { cobranca_id: 'falha', cobranca_flow_id: 'f', flow: { status: 'concluido_com_falhas' }, mensagem: { ...outubro, status: 'falha' } },
+    { cobranca_id: 'atual', cobranca_flow_id: 'f', flow: { status: 'concluido' }, mensagem: { ...outubro, ciclo: '2026-11' } },
+    { cobranca_id: 'enviada-em-novembro', cobranca_flow_id: 'f', flow: { status: 'concluido' }, mensagem: { ...outubro, enviada_em: '2026-11-05T15:00:00Z' } },
+    { cobranca_id: 'andamento', cobranca_flow_id: 'f', flow: { status: 'em_execucao' }, mensagem: outubro },
+    { cobranca_id: 'agendada', cobranca_flow_id: 'f', flow: { status: 'concluido' }, mensagem: { ...outubro, status: 'agendada' } },
+  ] })
+  const ids = ['antiga', 'falha', 'atual', 'enviada-em-novembro', 'andamento', 'agendada']
+  const result = await carregarCanaisOcupados(db, ids, { cicloMaestro: '2026-11' })
+  assert.deepEqual([...result.keys()], ['atual', 'enviada-em-novembro', 'andamento', 'agendada'])
+  assert.equal((await carregarCanaisOcupados(db, ids)).has('antiga'), true)
+})
+
 test('servidor permite WhatsApp junto ao e-mail e bloqueia repetição, régua alheia e montagem concorrente do mesmo canal', async () => {
   const tables: Record<string, any[]> = {
     reguas: [{ ...web, tipo: 'cobranca', ativo: true }, { ...email, tipo: 'cobranca', ativo: true }],

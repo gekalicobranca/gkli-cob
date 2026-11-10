@@ -1,4 +1,5 @@
 import type { createAdminClient } from '@/utils/supabase/admin'
+import { cicloReferencia } from '@/features/regua/services/regua-shared'
 import { canaisDaRegua, conflitoDeCanais } from './canais'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
@@ -11,18 +12,25 @@ export function temFlowEmAndamento(item: { flow?: any }) {
   return !FLOWS_TERMINAIS.has(relation(item.flow)?.status)
 }
 
-export function vinculoOcupaCanal(item: { status?: string; flow?: any; mensagem?: any }) {
+export function vinculoOcupaCanal(item: { status?: string; flow?: any; mensagem?: any; ciclo?: string | null; created_at?: string }, cicloMaestro?: string) {
   const mensagem = relation(item.mensagem)
   if (mensagem?.status === 'cancelada'
     && String(mensagem.erro ?? '').startsWith('Envio cancelado: cobrança fora da cobrança ativa.')) return false
   if (!mensagem && ['pulada', 'cancelado'].includes(item.status ?? '') && !temFlowEmAndamento(item)) return false
-  // Mensagens enviadas e tentativas não encerradas continuam protegidas.
+  if (cicloMaestro && !temFlowEmAndamento(item)
+    && (!mensagem || ['enviada', 'falha', 'cancelada'].includes(mensagem.status))) {
+    const ciclos = [mensagem?.ciclo, item.ciclo].filter(value => typeof value === 'string' && /^\d{4}-\d{2}$/.test(value))
+    for (const data of [mensagem?.enviada_em, mensagem?.sent_at, mensagem?.created_at, item.created_at]) {
+      if (data && Number.isFinite(Date.parse(data))) ciclos.push(cicloReferencia(new Date(data)))
+    }
+    if (ciclos.length && ciclos.every(ciclo => ciclo < cicloMaestro)) return false
+  }
   return true
 }
 
 // Inclui itens sem mensagem (tentativas anteriores) e mensagens órfãs pendentes.
 // Os canais gravados no Flow preservam o vínculo mesmo se a régua for editada.
-export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminClient>, ids: string[], options: { carteiraIds?: string[] } = {}) {
+export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminClient>, ids: string[], options: { carteiraIds?: string[]; cicloMaestro?: string } = {}) {
   const map = new Map<string, Set<string>>()
   if (!ids.length) return map
   function add(id: string, canais: string[]) {
@@ -50,11 +58,11 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
   async function carregarParte(parte: string[]) {
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await db.from('lote_itens')
-        .select('id,cobranca_id,status,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(status,canais:payload->canais,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal,status,erro)')
+        .select('id,cobranca_id,status,created_at,ciclo:payload->>ciclo,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(status,canais:payload->canais,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal,status,erro,created_at,enviada_em,sent_at,ciclo:payload->>ciclo)')
         .in('cobranca_id', parte).not('cobranca_flow_id', 'is', null).order('id').range(offset, offset + 499)
       if (error) throw new Error(`Erro ao conferir canais dos Flows: ${error.message}`)
       for (const row of data ?? []) {
-        if (!vinculoOcupaCanal(row)) continue
+        if (!vinculoOcupaCanal(row, options.cicloMaestro)) continue
         const flow = relation(row.flow)
         const message = relation(row.mensagem)
         const canais = [...new Set<string>([
