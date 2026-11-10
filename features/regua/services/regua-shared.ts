@@ -84,13 +84,14 @@ export function escolherContatoRegua(params: {
     ...preferidos,
     ...candidatos.filter((contato) => !preferidos.includes(contato)),
   ]
-  const escolhido = ordenados.find((contato) => canal === 'email' ? contato.email : contato.telefone) ?? ordenados[0] ?? null
+  const emailValido = (email?: string | null) => /^[^\s@;,]+@[^\s@;,]+\.[^\s@;,]+$/.test(email?.trim() ?? '')
+  const escolhido = ordenados.find((contato) => canal === 'email' ? emailValido(contato.email) : contato.telefone) ?? ordenados[0] ?? null
 
   return {
     nome: escolhido?.nome ?? unidade.responsavel_nome ?? 'responsável',
     telefone: escolhido?.telefone ?? null,
     email: escolhido?.email ?? null,
-    destinatario: canal === 'email' ? escolhido?.email ?? null : escolhido?.telefone ?? null,
+    destinatario: canal === 'email' ? emailValido(escolhido?.email) ? escolhido?.email?.trim() ?? null : null : escolhido?.telefone ?? null,
     tipoResponsavel: escolhido?.tipo ?? 'nao_informado',
     origem: escolhido?.origem ?? null,
     preferencia,

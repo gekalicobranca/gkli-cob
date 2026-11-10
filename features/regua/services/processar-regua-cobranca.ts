@@ -951,7 +951,7 @@ export async function processarReguaCobranca(
         });
 
         const compliance = await avaliarComplianceRegua({
-          prepararParaAgenda: Boolean(params.progressao) || params.prepararFlowPausado === true || (Boolean(params.montagemMaestroId) && canal === 'email'),
+          prepararParaAgenda: Boolean(params.progressao || params.montagemMaestroId) || params.prepararFlowPausado === true,
           carteiraId: row.carteira_id,
           condominioId: condominio?.id ?? null,
           unidadeId: unidade?.id ?? null,

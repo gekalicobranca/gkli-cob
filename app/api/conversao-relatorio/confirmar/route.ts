@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { carregarCondominioEasy, conferirAssinaturaCaptacao } from "@/features/easy-cob/captacao-server"
 import { validarPreviaCaptacao } from "@/features/easy-cob/captacao-preview"
@@ -6,6 +7,8 @@ import { createAdminClient } from "@/utils/supabase/admin"
 import { isCronSecretAuthorized, requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
 import type { ProfileRole } from "@/utils/auth/trusted-profile"
 import {
+  carregarCobrancasPreservadasMaestro,
+  chaveConciliacaoCobranca,
   conciliarCobrancaImportada,
   encontrarCobrancasAbertasAusentes,
   registrarPendenciasCobrancasAusentes,
@@ -259,7 +262,7 @@ export async function POST(request: NextRequest) {
     let cobrancasAnterioresRemovidas = 0
     let falhasImportacao = 0
     let limpezaAusentesPdf: { removidas: number; motivo?: string } | undefined
-    let conciliacaoMaestro: { atualizadas: number; arquivadas: number; comAcordo: number; motivo?: string } | undefined
+    let conciliacaoMaestro: { atualizadas: number; arquivadas: number; removidas?: number; comAcordo: number; motivo?: string } | undefined
     const valoresMaestro = new Map<string, {
       id: string; atualizado_em: string; valor_atualizado: number; juros: number; multa: number; correcao: number
     }>()
@@ -268,6 +271,27 @@ export async function POST(request: NextRequest) {
     const importadasParaAusencia: CobrancaImportadaConciliacao[] = []
     const origemImportacao = formatOrigemImportacao("conversao_relatorio")
     const anoCorrente = anoCorrenteImportacao()
+    const substituicaoConcluida = conciliarMaestro && typeof preview.conciliacaoMaestro?.removidas === 'number'
+    const substituirMaestro = conciliarMaestro && limparCobrancasAnteriores && !substituicaoConcluida
+    let idsSubstituir: string[] = []
+    const novasMaestro: Record<string, unknown>[] = []
+    const parcelasMaestro: Record<string, unknown>[] = []
+    const saneamentoMaestro: Parameters<typeof registrarSaneamentoConversao>[1][] = []
+    if (substituirMaestro) {
+      if (preview.relatorioCompleto === false || preview.parcial === true
+        || (preview.recorteRegua ?? 'todos') !== 'todos'
+        || (!cobrancas.length && preview.semPendencias !== true)) {
+        throw new Error('A captação precisa estar completa para substituir as cobranças.')
+      }
+      const { data: ids, error } = await supabase.rpc('maestro_cobrancas_substituiveis', { p_conversao: conversaoId })
+      if (error || !Array.isArray(ids)) throw new Error(error?.message ?? 'Não foi possível conferir a substituição.')
+      idsSubstituir = ids
+    }
+    const preservadasMaestro = substituirMaestro
+      ? await carregarCobrancasPreservadasMaestro(supabase, condominioId, new Set(idsSubstituir))
+      : undefined
+    const chavesMaestro = new Set<string>()
+
 
     // No PDF, substitui apenas os ausentes depois de conferir a captação inteira.
     if (captacaoEasy) {
@@ -301,7 +325,7 @@ export async function POST(request: NextRequest) {
       vencimento: brDateToIso(String(item.vencimento ?? '')) ?? (Array.isArray(item.parcelas)
         ? item.parcelas.map((p: any) => brDateToIso(String(p.vencimento ?? ''))).filter(Boolean).sort()[0] : null),
     })))
-    for (const [indiceItem, item] of cobrancas.entries()) {
+    for (const [indiceItem, item] of (substituicaoConcluida ? [] : cobrancas).entries()) {
       const unidadeLabel = String(item.unidade ?? "").trim()
       const blocoLabel = String(item.bloco ?? "").trim()
       const responsavelNome = String(item.responsavel ?? "").trim()
@@ -414,7 +438,9 @@ export async function POST(request: NextRequest) {
         unidade_id: unidadeId,
         observacoes,
       }, contextoJudicial, indiceItem)
-      const statusOperacional = statusComBloqueioGarantidora(statusCalculado, bloqueioGarantidora.bloqueada)
+      const statusImportado = substituirMaestro && statusCalculado === 'novo'
+        && contextoJudicial.unidadesJudiciais.get(String(unidadeId)) !== true ? 'em_cobranca_ativa' : statusCalculado
+      const statusOperacional = statusComBloqueioGarantidora(statusImportado, bloqueioGarantidora.bloqueada)
 
       const importadaConciliacao: CobrancaImportadaConciliacao = {
         carteira_id: carteiraId,
@@ -430,7 +456,16 @@ export async function POST(request: NextRequest) {
       }
       importadasParaAusencia.push(importadaConciliacao)
 
-      const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao, conciliarMaestro)
+      if (substituirMaestro) {
+        const chave = chaveConciliacaoCobranca(importadaConciliacao)
+        if (chavesMaestro.has(chave)) {
+          cobrancasDivergentes += 1
+          inconsistencias.push(`Unidade ${unidadeLabel}: lançamento repetido no relatório.`)
+          continue
+        }
+        chavesMaestro.add(chave)
+      }
+      const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao, conciliarMaestro, preservadasMaestro)
 
       if (conciliacao.status === "atualizar") {
         const id = conciliacao.cobrancaId
@@ -519,9 +554,7 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      const { data: cobranca, error: cobrancaError } = await supabase
-        .from("cobrancas")
-        .insert({
+      const dadosCobranca = {
           carteira_id: carteiraId ?? null,
           condominio_id: condominioId,
           unidade_id: unidadeId,
@@ -539,9 +572,12 @@ export async function POST(request: NextRequest) {
           observacoes,
           origem_importacao: origemImportacao,
           conversao_relatorio_id: conversaoId,
-        } as any)
-        .select("id")
-        .single()
+        }
+      const stagedId = substituirMaestro ? randomUUID() : null
+      if (stagedId) novasMaestro.push({ id: stagedId, ...dadosCobranca })
+      const { data: cobranca, error: cobrancaError } = stagedId
+        ? { data: { id: stagedId }, error: null }
+        : await supabase.from("cobrancas").insert(dadosCobranca).select("id").single()
 
       if (cobrancaError || !cobranca) {
         falhasImportacao += 1
@@ -556,7 +592,7 @@ export async function POST(request: NextRequest) {
         inconsistencias.push(`Unidade ${unidadeLabel}: cobrança importada como suspensa por Bloqueio Garantidora.`)
       }
 
-      await registrarSaneamentoConversao(supabase, {
+      const dadosSaneamento = {
         carteiraId,
         condominioId,
         unidadeLabel,
@@ -566,7 +602,9 @@ export async function POST(request: NextRequest) {
         unidadeCriada,
         unidadeSugerida,
         cobrancaId: cobranca.id,
-      })
+      }
+      if (substituirMaestro) saneamentoMaestro.push(dadosSaneamento)
+      else await registrarSaneamentoConversao(supabase, dadosSaneamento)
 
       const parcelas = Array.isArray(item.parcelas) ? item.parcelas : []
 
@@ -585,7 +623,10 @@ export async function POST(request: NextRequest) {
           }))
           .filter((parcela: any) => parcela.data_vencimento && parcela.valor_atualizado > 0)
 
-        if (payload.length) {
+        if (substituirMaestro) {
+          parcelasMaestro.push(...payload)
+          parcelasCriadas += payload.length
+        } else if (payload.length) {
           const { error: parcelasError } = await supabase
             .from("cobranca_parcelas")
             .insert(payload as any)
@@ -602,7 +643,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (conciliarMaestro) {
+    if (substituicaoConcluida) {
+      conciliacaoMaestro = preview.conciliacaoMaestro
+      cobrancasAnterioresRemovidas = preview.conciliacaoMaestro.removidas
+      cobrancasCriadas = Number(preview.conciliacaoMaestro.criadas ?? 0)
+      parcelasCriadas = Number(preview.conciliacaoMaestro.parcelasCriadas ?? 0)
+    } else if (substituirMaestro) {
+      if (falhasImportacao || cobrancasDivergentes
+        || (Array.isArray(preview.inconsistencias) && preview.inconsistencias.some((aviso: string) =>
+          /ignorad|descartad|inv[áa]lid|diverg|sem vencimento|relat[óo]rio incompleto/i.test(aviso)))) {
+        throw new Error('A captação tem linhas para conferência. Nenhuma cobrança foi substituída. ' + inconsistencias.slice(0, 4).join(' '))
+      }
+      const { data, error } = await supabase.rpc('maestro_substituir_captacao', {
+        p_conversao: conversaoId, p_inicio: processamentoMaestro!.inicio, p_ids: idsSubstituir,
+        p_importadas: importadasParaAusencia, p_valores: [...valoresMaestro.values()],
+        p_novas: novasMaestro, p_parcelas: parcelasMaestro,
+      })
+      if (error) throw new Error(error.message)
+      conciliacaoMaestro = data
+      cobrancasAnterioresRemovidas = Number(data.removidas ?? 0)
+      if (data.semReciboCorrespondente > 0) inconsistencias.push(`${data.semReciboCorrespondente} cobrança(s) preservada(s) sem recibo correspondente na captação.`)
+      for (const dados of saneamentoMaestro) {
+        try { await registrarSaneamentoConversao(supabase, dados) }
+        catch (erro) { inconsistencias.push(erro instanceof Error ? erro.message : 'Erro ao registrar pendência da unidade.') }
+      }
+    } else if (conciliarMaestro) {
       const { data, error } = await supabase.rpc('maestro_conciliar_cobrancas', {
         p_conversao: conversaoId,
         p_inicio: processamentoMaestro!.inicio,
