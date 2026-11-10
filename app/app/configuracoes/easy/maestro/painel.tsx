@@ -31,9 +31,18 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   const administradoras = new Map(inicial.receitas.map(r => [r.administradora, r.administradoraNome]))
   const receitas = painel.receitas.filter(r => r.administradora === administradora)
   const condominios = new Set(receitas.map(r => r.condominioId)).size
-  const disponiveis = new Set(receitas.filter(r => r.liberada && !emAndamento(r)).map(r => r.condominioId)).size
+  const emPrazo = new Set(receitas.filter(r => r.liberada && !emAndamento(r)).map(r => r.condominioId)).size
   const atualizando = receitas.some(r => emAndamento(r) || montandoFlow(r))
-  const loteEmAndamento = receitas.some(r => r.easy && (emAndamento(r) || montandoFlow(r)))
+  const captacaoEmAndamento = receitas.some(r => r.easy && emAndamento(r))
+  const montagemEmAndamento = receitas.find(r => r.easy && montandoFlow(r))
+  const loteEmAndamento = captacaoEmAndamento || Boolean(montagemEmAndamento)
+  let motivoBloqueio = ''
+  if (!painel.ativo) motivoBloqueio = 'A captação está desligada no Maestro.'
+  else if (!podeCaptar) motivoBloqueio = 'Seu perfil não tem permissão para iniciar captações.'
+  else if (enviando) motivoBloqueio = 'Registrando o pedido de captação.'
+  else if (captacaoEmAndamento) motivoBloqueio = 'Aguarde a captação em andamento nesta administradora.'
+  else if (montagemEmAndamento) motivoBloqueio = `Aguarde a montagem do flow de ${montagemEmAndamento.condominio}.`
+  const disponiveis = motivoBloqueio ? 0 : emPrazo
 
   useEffect(() => {
     if (!administradora || !atualizando || enviando) return
@@ -59,7 +68,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   }, [administradora, atualizando, enviando])
 
   async function captar() {
-    if (enviando || !administradora) return
+    if (!administradora || disponiveis === 0) return
     setEnviando(true)
     setErro('')
     setMensagem('')
@@ -102,7 +111,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
             <option value="">Selecione a administradora</option>
             {[...administradoras].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
           </select>
-          <button type="button" className={styles.primary} disabled={!podeCaptar || !painel.ativo || disponiveis === 0 || enviando || loteEmAndamento} onClick={captar}>
+          <button type="button" className={styles.primary} disabled={disponiveis === 0} onClick={captar}>
             <Play size={16} aria-hidden="true" /> {enviando ? 'Registrando pedido…' : 'Captar agora'}
           </button>
         </div>
@@ -116,14 +125,20 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
           </span>
         </label>
         <p className="mt-3 text-sm text-slate-600">A captação fica disponível quando a cota do ciclo completa o prazo da régua do condomínio.</p>
-        {administradora && (
-          <p aria-live="polite" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
-            <strong className="text-lg font-bold tabular-nums">{disponiveis}</strong>
-            {disponiveis === 1 ? 'condomínio disponível para captar' : 'condomínios disponíveis para captar'}
-          </p>
-        )}
+        <div aria-live="polite">
+          {administradora && (
+            <p className={`mt-3 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium ${disponiveis ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-100 text-slate-700'}`}>
+              <strong className="text-lg font-bold tabular-nums">{disponiveis}</strong>
+              {disponiveis === 1 ? 'condomínio disponível para captar agora' : 'condomínios disponíveis para captar agora'}
+            </p>
+          )}
+          {motivoBloqueio && (administradora || !painel.ativo) && (
+            <p className="mt-2 text-sm font-semibold text-amber-800">
+              {motivoBloqueio}
+            </p>
+          )}
+        </div>
         {!inicial.receitas.length && <p className="mt-2 text-sm text-slate-600">Nenhuma captação automática está disponível nas suas carteiras.</p>}
-        {!painel.ativo && <p className="mt-2 text-sm font-semibold text-amber-800">A captação está desligada no Maestro.</p>}
         {mensagem && <p role="status" className="mt-3 text-sm font-semibold text-cyan-900">{mensagem}</p>}
         {erro && <p role="alert" className="mt-3 text-sm font-semibold text-rose-800">{erro}</p>}
       </section>
