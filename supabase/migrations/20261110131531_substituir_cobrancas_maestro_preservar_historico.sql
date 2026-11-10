@@ -39,11 +39,12 @@ do $migration$
 declare src text; inicio integer; fim integer;
 begin
   src := pg_get_functiondef('public.maestro_flow_ativar(uuid,text)'::regprocedure);
-  if position($a$f.payload->>'origem' is distinct from 'maestro'$a$ in src)=0 then
+  if position($a$f.payload->>'origem' is distinct from 'maestro'$a$ in src)>0 then
+    src := replace(src,$a$f.payload->>'origem' is distinct from 'maestro'$a$,
+      $a$coalesce(f.payload->>'origem','') not in ('maestro','easy_maestro')$a$);
+  elsif position($a$coalesce(f.payload->>'origem','') not in ('maestro','easy_maestro')$a$ in src)=0 then
     raise exception 'Validação da origem do flow fora da versão esperada.';
   end if;
-  src := replace(src,$a$f.payload->>'origem' is distinct from 'maestro'$a$,
-    $a$coalesce(f.payload->>'origem','') not in ('maestro','easy_maestro')$a$);
   inicio := position($a$if exists(select 1 from mensagens where cobranca_flow_id=f.id and canal<>'email')$a$ in src);
   fim := position('n := email_ativar_flow' in src);
   if inicio=0 or fim<=inicio then raise exception 'Validação dos canais fora da versão esperada.'; end if;

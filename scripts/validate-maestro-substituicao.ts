@@ -11,7 +11,7 @@ test('e-mail inválido não impede outro e-mail válido nem o uso de celular', (
   assert.equal(escolherContatoRegua({ unidade, canal: 'email', apoios: [{ email: 'contato@example.com' }] }).destinatario, 'contato@example.com')
 })
 
-test('captação substitui os três status e preserva mensagens, exceções e rollback', async () => {
+async function conferirSubstituicao(origemJaMigrada: boolean) {
   const db = new PGlite()
   const migration = (name: string) => readFileSync('supabase/migrations/' + name + '.sql', 'utf8')
   const id = (n: number) => '00000000-0000-0000-0000-' + String(n).padStart(12, '0')
@@ -68,6 +68,13 @@ test('captação substitui os três status e preserva mensagens, exceções e ro
     await db.exec(migration('20260923010000_cobrancas_recibo_guard'))
     await db.exec(migration('20261109230901_maestro_conciliar_cobrancas'))
     await db.exec(migration('20260917190000_maestro_ativacao_automatica').split('create or replace function public.maestro_flow_tick()')[0] + 'commit;')
+    if (origemJaMigrada) await db.exec(`
+      do $test$ begin
+        execute replace(pg_get_functiondef('public.maestro_flow_ativar(uuid,text)'::regprocedure),
+          $antigo$f.payload->>'origem' is distinct from 'maestro'$antigo$,
+          $novo$coalesce(f.payload->>'origem','') not in ('maestro','easy_maestro')$novo$);
+      end $test$;
+    `)
     await db.exec(migration('20261110131531_substituir_cobrancas_maestro_preservar_historico'))
     const ids = [id(10), id(11), id(12)]
     const importadas = [10,13].map(n => ({ unidade_id: id(3), vencimento: '2025-10-10', recibo: String(n) }))
@@ -98,4 +105,7 @@ test('captação substitui os três status e preserva mensagens, exceções e ro
     `)
     assert.deepEqual((await db.query("select maestro_flow_ativar($1,'') status", [id(30)])).rows, [{ status: 'ativado' }])
   } finally { await db.close() }
-})
+}
+
+test('captação preserva histórico e rollback com a origem do projeto local', () => conferirSubstituicao(false))
+test('captação preserva histórico e rollback com a origem de produção', () => conferirSubstituicao(true))
