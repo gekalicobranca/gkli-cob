@@ -28,7 +28,7 @@ test('SQL: cron, madrugada, cotas, bloqueio diurno e concorrência', async () =>
       insert into cron.job values(1,'gkli-email-agenda','*/10 12-20 * * *',true);
       create function cron.alter_job(p_jobid bigint,schedule text) returns void language sql as $$update cron.job set schedule=$2 where jobid=$1$$;
     `)
-    await db.exec(clock(readFileSync('supabase/migrations/20261015180513_email_agenda_janela_noturna.sql', 'utf8')))
+    await db.exec(clock(readFileSync('supabase/migrations/20261015181509_email_agenda_janela_noturna.sql', 'utf8')))
     assert.equal((await db.query<{schedule:string}>('select schedule from cron.job')).rows[0].schedule, '*/10 1-8 * * *')
     await db.query('insert into carteiras(id) values ($1)', [id(1)])
     const slots: string[] = []

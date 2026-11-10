@@ -5,7 +5,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { applyFlowJobProtection } from './flow-job-test-schema'
 
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`
-const migration = readFileSync('supabase/migrations/20261105111008_flows_cancelar_acordo_vigente.sql', 'utf8')
+const migration = readFileSync('supabase/migrations/20261105111845_flows_cancelar_acordo_vigente.sql', 'utf8')
 
 async function fixture() {
   const db = new PGlite()
@@ -54,7 +54,7 @@ async function fixture() {
     .split('create or replace function public.flow_cancelar_apos_status_cobranca')[0]
   await db.exec('create or replace function public.flow_cancelar_mensagem' + cancelamento)
   await db.exec(migration)
-  await db.exec(readFileSync('supabase/migrations/20261105111934_flows_limitar_limpeza_acordos.sql', 'utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261105112018_flows_limitar_limpeza_acordos.sql', 'utf8'))
   await db.exec(`
     insert into carteiras values('${id(1)}');
     insert into condominios values('${id(2)}','${id(1)}','ativo');

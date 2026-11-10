@@ -67,7 +67,7 @@ async function main() {
       create table agente_execucoes(id uuid,condominio_id uuid,carteira_id uuid,status text,created_at timestamptz);
       create schema cron; create function cron.schedule(text,text,text) returns bigint language sql as $$select 1::bigint$$;
     `)
-    await db.exec(readFileSync('supabase/migrations/20261019002458_validade_propostas_agentes.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261019003154_validade_propostas_agentes.sql', 'utf8'))
     await db.exec(`
       insert into unidades values('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000004',false,'destino@example.com');
       insert into cobrancas values('00000000-0000-0000-0000-000000000005','00000000-0000-0000-0000-000000000002',null,'em_aberto',false,'em_cobranca_ativa');

@@ -179,8 +179,12 @@ test('direct extra installments enforce approval; zero limit and entry keep exis
   await admin(`update condominios set parcelas_acordo_sem_aprovacao_sindico=3 where id='${id(3)}'`)
 })
 test('rejection cancels unpaid installments atomically and preserves recorded payments', async () => {
-  const a=await createAgreement(4); await user(11); await decide(a,'rejeitar')
-  assert.equal((await agreement(a)).status,'cancelado')
+  const a=await createAgreement(4)
+  const financeiroAntes=(await agreement(a)).status_financeiro
+  await user(11); await decide(a,'rejeitar')
+  const rejeitado=await agreement(a)
+  assert.equal(rejeitado.status,'cancelado')
+  assert.equal(rejeitado.status_financeiro,financeiroAntes)
   assert.ok((await db.query<any>('select status from parcelas_acordo where acordo_id=$1',[a])).rows.every(p=>p.status==='cancelada'))
   await assert.rejects(decide(a,'aprovar'),/não está aguardando/)
   const paid=await createAgreement(4)

@@ -19,7 +19,9 @@ origens manuais já autorizadas e suspende as automáticas. SELL mantém seu exe
 manual específico. O observador da pasta Downloads é independente; continua
 disponível com `npm run captacao:worker` quando necessário.
 
-Aplicar a migração `20261015191240_maestro_supervisor_sob_demanda.sql` antes de instalar:
+Aplicar as migrações `20261015191717_maestro_supervisor_sob_demanda.sql` e
+`20261015191833_maestro_supervisor_preservar_pedidos_manuais.sql`, nessa ordem,
+antes de instalar:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/agente-automatico/install-supervisor.ps1

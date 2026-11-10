@@ -21,7 +21,7 @@ test('migração protege a marcação judicial inclusive contra importações po
   const db = new PGlite()
   try {
     await db.exec('create table public.unidades(id integer primary key, carteira_id uuid, acao_judicial boolean not null default false);')
-    await db.exec(await fs.readFile('supabase/migrations/20261028115740_unidade_conducao_processo.sql', 'utf8'))
+    await db.exec(await fs.readFile('supabase/migrations/20261028115918_unidade_conducao_processo.sql', 'utf8'))
     await db.exec("insert into unidades(id,conducao_processo) values(1,'outro_advogado'),(2,'nosso_escritorio'),(3,'nao_informado'); update unidades set acao_judicial=false;")
     const { rows } = await db.query('select id,acao_judicial from unidades order by id')
     assert.deepEqual(rows, [{ id: 1, acao_judicial: true }, { id: 2, acao_judicial: true }, { id: 3, acao_judicial: false }])

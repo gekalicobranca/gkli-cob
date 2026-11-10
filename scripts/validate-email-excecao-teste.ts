@@ -19,7 +19,7 @@ async function main(){
       and public.email_aviso_interno_autorizado(m) is not true;
    end$$;
   `)
-  await db.exec(readFileSync('supabase/migrations/20261019205138_email_excecao_teste_restrita.sql','utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261019205254_email_excecao_teste_restrita.sql','utf8'))
   const u=(n:number)=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`
   await db.query('insert into carteiras(id) values($1)',[u(1)])
   await db.query('insert into condominios values($1,$2)',[u(2),u(1)])

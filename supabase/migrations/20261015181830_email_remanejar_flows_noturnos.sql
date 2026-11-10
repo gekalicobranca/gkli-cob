@@ -1,4 +1,4 @@
--- Executar após 20261015180513_email_agenda_janela_noturna.sql.
+-- Executar após 20261015181509_email_agenda_janela_noturna.sql.
 -- Não ativa flows pausados e não reaproveita tentativas enviadas/incertas.
 begin;
 set local lock_timeout='10s';

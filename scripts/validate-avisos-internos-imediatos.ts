@@ -30,10 +30,10 @@ async function main(){
    create schema net;create table net.requests(id bigserial,url text);
    create function net.http_get(url text,headers jsonb,timeout_milliseconds integer) returns bigint language plpgsql as $$declare n bigint;begin insert into net.requests(url) values(url) returning id into n;return n;end$$;
   `)
-  await db.exec(clock(readFileSync('supabase/migrations/20261015180513_email_agenda_janela_noturna.sql','utf8')))
+  await db.exec(clock(readFileSync('supabase/migrations/20261015181509_email_agenda_janela_noturna.sql','utf8')))
   const financeiro=readFileSync('scripts/validate-aceite-formalizacao.ts','utf8').split('   create function agente_virtual_negociar_acordo')[1].split('  `)')[0]
   await db.exec(clock('create function agente_virtual_negociar_acordo'+financeiro))
-  for(const nome of ['20261019004657_aceite_agentes_encaminhar_humano.sql','20261019005823_avisar_operador_acordo_firmado.sql','20261019010614_aviso_operador_lidia_camila.sql','20261019012801_avisos_internos_envio_imediato.sql']) await db.exec(clock(readFileSync('supabase/migrations/'+nome,'utf8')))
+  for(const nome of ['20261019005410_aceite_agentes_encaminhar_humano.sql','20261019010537_avisar_operador_acordo_firmado.sql','20261019010952_aviso_operador_lidia_camila.sql','20261019013637_avisos_internos_envio_imediato.sql']) await db.exec(clock(readFileSync('supabase/migrations/'+nome,'utf8')))
   const gekali='e1f6e3ac-1098-4b30-9e0f-af4c47b351a3',genske='06827218-e2b1-4267-ad8f-81a0ab222cad'
   for(const carteira of [gekali,genske]){
    await db.query('insert into carteiras(id) values($1)',[carteira])

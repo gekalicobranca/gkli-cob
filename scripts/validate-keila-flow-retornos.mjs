@@ -14,7 +14,7 @@ create table central_pendencias(id uuid primary key, carteira_id uuid, condomini
  origem text, tipo text, status text, prioridade text, titulo text, descricao text, entidade_tipo text, entidade_id uuid,
  payload jsonb, updated_at timestamptz default now());
 `)
-await db.exec(await readFile(new URL('../supabase/migrations/20261011235845_keila_flow_retornos.sql', import.meta.url), 'utf8'))
+await db.exec(await readFile(new URL('../supabase/migrations/20261012000112_keila_flow_retornos.sql', import.meta.url), 'utf8'))
 const id = n => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`
 await db.query(`insert into condominios values ($1,$2,'Safira',true,'2026-10-11'),($3,$2,'Outro',true,null)`, [id(1),id(2),id(3)])
 await db.query(`insert into cobranca_flows values ($1,$2,$3,'2026-10-11','em_execucao'),($4,$2,$5,null,'pronto')`, [id(4),id(2),id(5),id(6),id(7)])

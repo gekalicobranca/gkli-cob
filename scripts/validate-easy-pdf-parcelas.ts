@@ -92,9 +92,9 @@ test("transação real de PostgreSQL preserva IDs, pagamentos, versão e histór
     insert into condominios values('${condo}',0);
     select set_config('test.uid','${user}',false),set_config('test.wallet','${wallet}',false);
   `);
-  await db.exec(await readFile("supabase/migrations/20261104121946_acordo_homologacao_administradora.sql", "utf8"));
-  await db.exec(await readFile("supabase/migrations/20261104143001_acordo_homologacao_independente_dos_boletos.sql", "utf8"));
-  await db.exec(await readFile("supabase/migrations/20261108021528_easy_acordo_parcelas_pdf.sql", "utf8"));
+  await db.exec(await readFile("supabase/migrations/20261104124434_acordo_homologacao_administradora.sql", "utf8"));
+  await db.exec(await readFile("supabase/migrations/20261104143324_acordo_homologacao_independente_dos_boletos.sql", "utf8"));
+  await db.exec(await readFile("supabase/migrations/20261108022636_easy_acordo_parcelas_pdf.sql", "utf8"));
 
   async function fixture() {
     const id = randomUUID();

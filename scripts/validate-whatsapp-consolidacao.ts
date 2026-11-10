@@ -43,7 +43,7 @@ test('SQL consolida atomicamente, preserva anexos e itens, recalcula fila e recu
     create table cobranca_flows(id uuid,total_pendentes int,total_agendadas int,proximo_disparo_em timestamptz,updated_at timestamptz);
     create table lotes(id uuid,total_criadas int,total_pendentes int);
     create table mensageria_logs(mensagem_id uuid,carteira_id uuid,evento text,descricao text,payload jsonb);`)
-  await db.exec(readFileSync('supabase/migrations/20261013143445_whatsapp_consolidar_unidade.sql', 'utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261013143857_whatsapp_consolidar_unidade.sql', 'utf8'))
   await db.query('insert into lotes(id) values ($1)', [id(10)])
   await db.query('insert into cobranca_flows(id) values ($1)', [id(12)])
   for (const n of [1, 2, 3]) {
@@ -74,7 +74,7 @@ test('SQL consolida atomicamente, preserva anexos e itens, recalcula fila e recu
       if m.id is null then return null; end if;
       return to_jsonb(m);
     end $$;`)
-  await db.exec(readFileSync('supabase/migrations/20261013144033_whatsapp_consolidacao_automatica.sql', 'utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261013144228_whatsapp_consolidacao_automatica.sql', 'utf8'))
   await db.query('update mensagens set payload=$1 where id=$2', [JSON.stringify(message(3).payload), id(3)])
   await db.query('insert into cobrancas(id,unidade_id) values ($1,$2)', [id(104), id(13)])
   await db.query(`insert into mensagens(id,lote_id,canal,status,carteira_id,cobranca_id,cobranca_flow_id,destinatario,payload)
