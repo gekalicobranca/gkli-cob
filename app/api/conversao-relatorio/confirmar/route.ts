@@ -236,7 +236,6 @@ export async function POST(request: NextRequest) {
 
     const captacaoPdf = conversaoPdfDeCobrancas(preview)
     const conciliarMaestro = preview?.captacaoAutomatizada === true && String(conversao.origem ?? "").startsWith("captacao_automatizada:")
-    const importarRegularesMaestro = chamadaMaestro && conciliarMaestro
     const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
     const { data: condominioConfiguracao, error: condominioError } = await supabase
       .from("condominios")
@@ -536,7 +535,7 @@ export async function POST(request: NextRequest) {
         vencimento: vencimentoMaisAntigo,
         inicioCobrancaDias: (condominioConfiguracao as any)?.dias_apos_vencimento_regua ?? (condominioConfiguracao as any)?.inicio_cobranca_dias,
       })
-      if (reguaImportacao.foraRegua && !importarRegularesMaestro && contextoJudicial.unidadesJudiciais.get(String(unidadeId)) !== true) {
+      if (reguaImportacao.foraRegua && !conciliarMaestro && contextoJudicial.unidadesJudiciais.get(String(unidadeId)) !== true) {
         await registrarSaneamentoConversao(supabase, {
           carteiraId,
           condominioId,
