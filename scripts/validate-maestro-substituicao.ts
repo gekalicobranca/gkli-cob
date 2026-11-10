@@ -47,7 +47,7 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
       create table whatsapp_web_envios(mensagem_id uuid,estado text);
       create table flow_progressao(cobranca_ids uuid[],status text,token uuid,lease_ate timestamptz,erro text,updated_at timestamptz);
       create table maestro_flow_montagens(conversao_id uuid,condominio_id uuid,carteira_id uuid,status text,
-        token uuid,lease_ate timestamptz,erro text,updated_at timestamptz,plano jsonb);
+        token uuid,lease_ate timestamptz,erro text,updated_at timestamptz,plano jsonb,parte int not null default 0);
       create table central_pendencias(cobranca_id uuid,entidade_tipo text,entidade_id uuid,status text,resolvido_em timestamptz);
       create function email_ativar_flow(p_flow uuid,p_remetente text,p_usuario uuid) returns int language sql as 'select 1';
       create function flow_cobranca_mensagem_elegivel(m mensagens) returns bool language sql as 'select true';
@@ -61,6 +61,9 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
       select ('00000000-0000-0000-0000-'||lpad(n::text,12,'0'))::uuid,'${id(3)}','${id(1)}','${id(2)}','Recibo '||n,
         st,st,'em_aberto',false,100,100,'2025-10-10','2026-11-01'
       from (values(10,'novo'),(11,'regular'),(12,'em_cobranca_ativa'),(13,'suspenso')) v(n,st);
+      insert into maestro_flow_montagens(conversao_id,condominio_id,carteira_id,status,plano,parte) values
+        ('${id(5)}','${id(1)}','${id(2)}','pendente','[["${id(10)}"]]',0),
+        ('${id(6)}','${id(1)}','${id(2)}','pendente','[["${id(13)}"]]',0);
       insert into mensagens(id,cobranca_id,carteira_id,canal,status) values
         ('${id(20)}','${id(10)}','${id(2)}','email','enviada'),
         ('${id(21)}','${id(12)}','${id(2)}','whatsapp','agendada'),
@@ -93,11 +96,17 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
       'select maestro_substituir_captacao($1,$2,$3::uuid[],$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb) r',
       [id(4),'2026-11-10','{' + ids.join(',') + '}',JSON.stringify(importadas),JSON.stringify(valores),JSON.stringify(novas),'[]'],
     )
+    await assert.rejects(substituir([nova]), /operator does not exist: integer/)
+    await db.exec(migration('20261110150730_corrigir_plano_substituicao_maestro'))
     await assert.rejects(substituir([{ ...nova, id: id(13) }]), /duplicate key/)
     assert.equal((await db.query('select id from cobrancas')).rows.length, 4)
     const { rows } = await substituir([nova])
     assert.equal(rows[0].r.removidas, 3)
     assert.equal(rows[0].r.atualizadas, 1)
+    assert.deepEqual((await db.query('select conversao_id,status from maestro_flow_montagens order by conversao_id')).rows, [
+      { conversao_id: id(5), status: 'atencao' },
+      { conversao_id: id(6), status: 'pendente' },
+    ])
     assert.deepEqual((await db.query('select status,cobranca_id,unidade_id from mensagens order by id')).rows, [
       { status: 'enviada', cobranca_id: null, unidade_id: id(3) },
       { status: 'cancelada', cobranca_id: null, unidade_id: id(3) },
