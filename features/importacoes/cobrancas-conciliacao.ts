@@ -157,6 +157,7 @@ function classificarCandidato(
   importada: CobrancaImportadaConciliacao,
   existente: CobrancaExistente,
   conciliarValores: boolean,
+  preservarQuitadas: boolean,
 ) {
   const reciboImportado = identidadeRecibo(importada);
   const reciboExistente = identidadeRecibo(existente);
@@ -169,6 +170,14 @@ function classificarCandidato(
   const marcadorConflitante = mesmoRecibo && reciboImportado?.marcador !== reciboExistente?.marcador;
   if (conciliarValores && existente.arquivada_em) {
     return { status: "divergente" as const, motivo: "Recibo já arquivado reapareceu no relatório. Confira o registro original." };
+  }
+  const situacoes = [existente.status_financeiro, existente.status_operacional].map(normalizeText);
+  if (preservarQuitadas && mesmoRecibo && mesmoVencimento && importada.vencimento
+    && temMesmaCompetencia(importada, existente) && mesmoOriginal
+    && existente.carteira_id === importada.carteira_id && existente.updated_at
+    && situacoes.some(status => status === "quitado" || status === "pago")
+    && !situacoes.some(status => status === "cancelado" || status === "baixado")) {
+    return { status: "atualizar" as const, atualizadoEm: existente.updated_at };
   }
   if (conciliarValores && mesmoVencimento && temMesmaCompetencia(importada, existente) && mesmoOriginal
     && existente.carteira_id === importada.carteira_id && existente.updated_at && statusAberto(existente)
@@ -418,7 +427,7 @@ export async function conciliarCobrancaImportada(
       : await query.order("id").range(from, from + 499);
     if (error) throw new Error(`Erro ao conciliar cobrança importada: ${error.message}`);
     for (const candidata of (data ?? []) as CobrancaExistente[]) {
-      const resultado = classificarCandidato(cobranca, candidata, conciliarValores);
+      const resultado = classificarCandidato(cobranca, candidata, conciliarValores, conciliarValores && Boolean(preservadas));
       if (preservadas && resultado?.status === 'atualizar') {
         const recebido = identidadeRecibo(cobranca)?.recibo;
         if (!recebido || recebido !== identidadeRecibo(candidata)?.recibo) {
