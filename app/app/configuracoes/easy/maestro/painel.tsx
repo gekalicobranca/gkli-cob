@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Play } from 'lucide-react'
+import { Check, Play } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import styles from '@/components/easy/easy.module.css'
 import { formatarVencimentoAcordo } from '@/features/acordos/formatar-vencimento'
@@ -133,9 +133,17 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
           <p className="mt-1 text-sm text-slate-600">{condominios} condomínio(s) · {receitas.length} coleta(s){atualizando ? ' · Atualização automática' : ''}</p>
           <ul className="mt-3 divide-y divide-slate-100">
             {receitas.map(receita => (
-              <li key={receita.id} className="flex flex-wrap items-start justify-between gap-2 py-3 text-sm">
+              <li key={receita.id} className={`flex flex-wrap items-start justify-between gap-2 rounded-xl px-3 py-3 text-sm ${receita.ultimaCaptacaoNoMes ? 'bg-emerald-50' : ''}`}>
                 <div>
-                  <p className="font-semibold">{receita.condominio}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold">{receita.condominio}</p>
+                    {receita.ultimaCaptacaoNoMes && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">
+                        <Check size={13} aria-hidden="true" />
+                        Captado no mês · {new Date(receita.ultimaCaptacaoNoMes).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-600">{receita.nome}</p>
                   {!receita.liberada && !emAndamento(receita) && (
                     <p className="mt-1 text-xs font-medium text-amber-800">
