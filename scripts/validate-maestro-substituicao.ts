@@ -26,7 +26,12 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
         observacoes text,duplicada_de_id uuid,status text,status_operacional text,status_financeiro text,automacao_bloqueada bool,
         valor_original numeric,valor_atualizado numeric,juros numeric,multa numeric,correcao numeric,
         created_at timestamptz default now(),updated_at timestamptz default now(),vencimento date,data_pagamento date,
-        valor_pago numeric,conversao_relatorio_id uuid,arquivada_em timestamptz,origem_importacao text);
+        valor_pago numeric,conversao_relatorio_id uuid,arquivada_em timestamptz,origem_importacao text,
+        arquivamento_motivo text,duplicidade_lote_id uuid,duplicidade_arquivada_em timestamptz,
+        foreign key(duplicada_de_id) references cobrancas(id));
+      create table cobrancas_duplicidade_execucoes(lote_id uuid,estado text,arquivar_ids uuid[],preservar_ids uuid[]);
+      create schema auth;
+      create function auth.uid() returns uuid language sql as 'select null::uuid';
       create table cobranca_parcelas(cobranca_id uuid references cobrancas on delete cascade,conversao_relatorio_id uuid,
         data_vencimento date,referencia text,valor_original numeric,valor_atualizado numeric,status text,origem_linha_json jsonb);
       create table acordos(id uuid,cobranca_id uuid,status text);
@@ -55,12 +60,17 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
       insert into condominios values ('${id(1)}','${id(2)}','ativo');
       insert into unidades values ('${id(3)}','${id(1)}','${id(2)}','A',false);
       insert into conversoes_relatorio values ('${id(4)}','${id(1)}','${id(2)}','captacao_automatizada:teste','processando',
-        '2026-11-10','2026-11-10','{"captacaoAutomatizada":true}',3,null);
+        '2026-11-10','2026-11-10','{"captacaoAutomatizada":true,"cobrancas":[{"recibo":"10"},{"recibo":"13"},{"recibo":"15"},{"recibo":"18"}]}',4,null);
       insert into cobrancas(id,unidade_id,condominio_id,carteira_id,observacoes,status,status_operacional,status_financeiro,
         automacao_bloqueada,valor_original,valor_atualizado,vencimento,updated_at)
       select ('00000000-0000-0000-0000-'||lpad(n::text,12,'0'))::uuid,'${id(3)}','${id(1)}','${id(2)}','Recibo '||n,
-        st,st,'em_aberto',false,100,100,'2025-10-10','2026-11-01'
-      from (values(10,'novo'),(11,'regular'),(12,'em_cobranca_ativa'),(13,'suspenso')) v(n,st);
+        st,st,'em_aberto',n in (12,18),100,100,'2025-10-10','2026-11-01'
+      from (values(10,'novo'),(11,'regular'),(12,'em_cobranca_ativa'),(13,'suspenso'),(18,'em_cobranca_ativa')) v(n,st);
+      update cobrancas set created_at='2026-11-01';
+      insert into cobrancas(id,unidade_id,condominio_id,carteira_id,observacoes,status,status_operacional,status_financeiro,
+        automacao_bloqueada,valor_original,valor_atualizado,vencimento,duplicada_de_id,duplicidade_lote_id,duplicidade_arquivada_em)
+        values ('${id(17)}','${id(3)}','${id(1)}','${id(2)}','Recibo 11','suspenso','suspenso','em_aberto',
+          true,100,100,'2025-10-10','${id(11)}','${id(19)}','2026-11-02');
       insert into cobrancas(id,unidade_id,condominio_id,carteira_id,observacoes,status,status_operacional,status_financeiro,
         automacao_bloqueada,valor_original,valor_atualizado,vencimento,updated_at,data_pagamento,valor_pago)
         values ('${id(15)}','${id(3)}','${id(1)}','${id(2)}','Recibo 15','acordo_efetivado','acordo_efetivado','quitado',
@@ -85,6 +95,12 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
         for each row execute function validar_formalizacao_aprovada();
     `)
     await db.exec(migration('20260923010000_cobrancas_recibo_guard'))
+    await db.exec(migration('20260923020000_cobrancas_arquivamento_base').split('create function public.validar_arquivo_duplicidade()')[1]
+      .split('create function public.mensagem_contem_cobranca_arquivada')[0]
+      .replace(/^/, 'create function public.validar_arquivo_duplicidade()'))
+    await db.exec(migration('20261103194949_cobrancas_arquivamento_operacional').split('create function public.proteger_arquivo_operacional_cobranca()')[1]
+      .split('create function public.auditar_arquivo_operacional_cobranca')[0]
+      .replace(/^/, 'create function public.proteger_arquivo_operacional_cobranca()'))
     await db.exec(migration('20261109230901_maestro_conciliar_cobrancas'))
     await db.exec(migration('20260917190000_maestro_ativacao_automatica').split('create or replace function public.maestro_flow_tick()')[0] + 'commit;')
     if (origemJaMigrada) await db.exec(`
@@ -97,7 +113,7 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
     await db.exec(migration('20261110131531_substituir_cobrancas_maestro_preservar_historico'))
     await assert.rejects(db.query("update mensagens set status='agendada' where id=$1",[id(22)]), /Formalização bloqueada/)
     const ids = [id(10), id(11), id(12)]
-    const importadas = [10,13,15].map(n => ({ unidade_id: id(3), vencimento: '2025-10-10', recibo: String(n), valor_original: 100 }))
+    const importadas = [10,13,15,18].map(n => ({ unidade_id: id(3), vencimento: '2025-10-10', recibo: String(n), valor_original: 100 }))
     const valores = [13,15].map(n => ({ id: id(n), atualizado_em: '2026-11-01', valor_atualizado: 130, juros: 10, multa: 20, correcao: 0 }))
     const nova = { id: id(14), unidade_id: id(3), observacoes: 'Recibo 10', status_operacional: 'em_cobranca_ativa', valor_atualizado: 120 }
     const substituir = (novas: object[], captadas = importadas) => db.query<{ r: Record<string, number> }>(
@@ -105,12 +121,13 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
       [id(4),'2026-11-10','{' + ids.join(',') + '}',JSON.stringify(captadas),JSON.stringify(valores),JSON.stringify(novas),'[]'],
     )
     await db.exec(migration('20261110171934_maestro_preservar_recibos_quitados'))
+    await db.exec(migration('20261110175351_maestro_excluir_ausentes_com_bloqueio_ou_duplicata'))
     await assert.rejects(substituir([nova]), /operator does not exist: integer/)
     await db.exec(migration('20261110150730_corrigir_plano_substituicao_maestro'))
     await assert.rejects(substituir([nova], importadas.map(i => i.recibo === '15' ? { ...i, recibo: '99' } : i)),
       /proteção operacional/)
     await assert.rejects(substituir([{ ...nova, id: id(13) }]), /duplicate key/)
-    assert.equal((await db.query('select id from cobrancas')).rows.length, 5)
+    assert.equal((await db.query('select id from cobrancas')).rows.length, 7)
     const { rows } = await substituir([nova])
     assert.equal(rows[0].r.removidas, 3)
     assert.equal(rows[0].r.atualizadas, 2)
@@ -126,7 +143,11 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
     assert.deepEqual((await db.query('select id,status_operacional from cobrancas order by id')).rows, [
       { id: id(13), status_operacional: 'suspenso' }, { id: id(14), status_operacional: 'em_cobranca_ativa' },
       { id: id(15), status_operacional: 'acordo_efetivado' },
+      { id: id(17), status_operacional: 'suspenso' }, { id: id(18), status_operacional: 'em_cobranca_ativa' },
     ])
+    assert.deepEqual((await db.query('select duplicada_origem_excluida_id,arquivada_em is not null arquivada from cobrancas where id=$1', [id(17)])).rows,
+      [{ duplicada_origem_excluida_id: id(11), arquivada: true }])
+    await db.query("insert into cobrancas(id,unidade_id,observacoes) values ($1,$2,'Recibo 11')", [id(40), id(3)])
     assert.deepEqual((await db.query(`select status_financeiro,automacao_bloqueada,valor_atualizado::int,valor_pago::int,
       data_pagamento::text from cobrancas where id=$1`, [id(15)])).rows, [
       { status_financeiro: 'quitado', automacao_bloqueada: true, valor_atualizado: 130, valor_pago: 110, data_pagamento: '2026-10-10' },

@@ -416,7 +416,7 @@ export async function conciliarCobrancaImportada(
   for (let from = 0; ; from += 500) {
     const campos = "id, carteira_id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status_financeiro, status_operacional";
     const base = supabase.from("cobrancas").select(conciliarValores ? campos + ", updated_at, arquivada_em" : campos);
-    let query = (conciliarValores ? base.is("duplicada_de_id", null) : somenteCobrancasCanonicas(base))
+    let query = (conciliarValores ? base.is("duplicada_de_id", null).is("duplicada_origem_excluida_id", null) : somenteCobrancasCanonicas(base))
       .eq("unidade_id", cobranca.unidade_id);
     if (cobranca.condominio_id) query = query.eq("condominio_id", cobranca.condominio_id);
     // A transferência de carteira não transforma o recibo da mesma unidade em outro débito.
@@ -458,7 +458,8 @@ export async function carregarCobrancasPreservadasMaestro(supabase: SupabaseLike
   for (let from = 0; ; from += 500) {
     const { data, error } = await supabase.from('cobrancas')
       .select('id,carteira_id,condominio_id,unidade_id,competencia,vencimento,valor_original,valor_atualizado,observacoes,status_financeiro,status_operacional,updated_at,arquivada_em')
-      .eq('condominio_id', condominioId).is('duplicada_de_id', null).order('id').range(from, from + 499);
+      .eq('condominio_id', condominioId).is('duplicada_de_id', null).is('duplicada_origem_excluida_id', null)
+      .order('id').range(from, from + 499);
     if (error) throw new Error(`Erro ao carregar cobranças preservadas: ${error.message}`);
     for (const row of (data ?? []) as CobrancaExistente[]) {
       if (!row.unidade_id || substituir.has(row.id)) continue;
