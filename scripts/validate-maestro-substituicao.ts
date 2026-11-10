@@ -63,7 +63,15 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
       from (values(10,'novo'),(11,'regular'),(12,'em_cobranca_ativa'),(13,'suspenso')) v(n,st);
       insert into mensagens(id,cobranca_id,carteira_id,canal,status) values
         ('${id(20)}','${id(10)}','${id(2)}','email','enviada'),
-        ('${id(21)}','${id(12)}','${id(2)}','whatsapp','agendada');
+        ('${id(21)}','${id(12)}','${id(2)}','whatsapp','agendada'),
+        ('${id(22)}','${id(13)}','${id(2)}','email','enviada');
+      create function validar_formalizacao_aprovada() returns trigger language plpgsql as $$
+      begin
+        if old.id='${id(22)}' then raise exception 'Formalização bloqueada.'; end if;
+        return new;
+      end $$;
+      create trigger validar_mensagem_acordo_aprovado before update on mensagens
+        for each row execute function validar_formalizacao_aprovada();
     `)
     await db.exec(migration('20260923010000_cobrancas_recibo_guard'))
     await db.exec(migration('20261109230901_maestro_conciliar_cobrancas'))
@@ -76,6 +84,7 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
       end $test$;
     `)
     await db.exec(migration('20261110131531_substituir_cobrancas_maestro_preservar_historico'))
+    await assert.rejects(db.query("update mensagens set status='agendada' where id=$1",[id(22)]), /Formalização bloqueada/)
     const ids = [id(10), id(11), id(12)]
     const importadas = [10,13].map(n => ({ unidade_id: id(3), vencimento: '2025-10-10', recibo: String(n) }))
     const valores = [{ id: id(13), atualizado_em: '2026-11-01', valor_atualizado: 130, juros: 10, multa: 20, correcao: 0 }]
@@ -92,6 +101,7 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
     assert.deepEqual((await db.query('select status,cobranca_id,unidade_id from mensagens order by id')).rows, [
       { status: 'enviada', cobranca_id: null, unidade_id: id(3) },
       { status: 'cancelada', cobranca_id: null, unidade_id: id(3) },
+      { status: 'enviada', cobranca_id: id(13), unidade_id: id(3) },
     ])
     assert.deepEqual((await db.query('select id,status_operacional from cobrancas order by id')).rows, [
       { id: id(13), status_operacional: 'suspenso' }, { id: id(14), status_operacional: 'em_cobranca_ativa' },

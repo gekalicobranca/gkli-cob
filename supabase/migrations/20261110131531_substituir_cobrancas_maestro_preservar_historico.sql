@@ -1,11 +1,33 @@
 begin;
 
 alter table public.mensagens add column unidade_id uuid references public.unidades(id) on delete set null;
-update public.mensagens m set unidade_id=c.unidade_id
-from public.cobrancas c where m.cobranca_id=c.id and m.unidade_id is null;
-update public.mensagens m set unidade_id=i.unidade_id
-from public.lote_itens i join public.unidades u on u.id=i.unidade_id
-where m.lote_item_id=i.id and m.unidade_id is null and m.carteira_id=u.carteira_id;
+-- O preenchimento histórico só altera unidade_id. O bloqueio exclusivo do ALTER
+-- impede outras escritas até restaurarmos as validações de operação da tabela.
+do $historico$
+declare
+  gatilho record;
+  estados jsonb;
+begin
+  select coalesce(jsonb_object_agg(tgname,tgenabled::text),'{}'::jsonb) into estados
+  from pg_trigger
+  where tgrelid='public.mensagens'::regclass and not tgisinternal and tgenabled<>'D'
+    and tgname in ('validar_mensagem_acordo_aprovado','acordo_evento_mensagem','z_impedir_operacao_em_copia');
+
+  for gatilho in select key from jsonb_each_text(estados) loop
+    execute format('alter table public.mensagens disable trigger %I',gatilho.key);
+  end loop;
+
+  update public.mensagens m set unidade_id=c.unidade_id
+  from public.cobrancas c where m.cobranca_id=c.id and m.unidade_id is null and c.unidade_id is not null;
+  update public.mensagens m set unidade_id=i.unidade_id
+  from public.lote_itens i join public.unidades u on u.id=i.unidade_id
+  where m.lote_item_id=i.id and m.unidade_id is null and m.carteira_id=u.carteira_id;
+
+  for gatilho in select key,value from jsonb_each_text(estados) loop
+    execute format('alter table public.mensagens enable %s trigger %I',
+      case gatilho.value when 'A' then 'always' when 'R' then 'replica' else '' end,gatilho.key);
+  end loop;
+end $historico$;
 alter table public.mensagens drop constraint mensagens_cobranca_id_fkey;
 alter table public.mensagens add constraint mensagens_cobranca_id_fkey
   foreign key (cobranca_id) references public.cobrancas(id) on delete set null;
