@@ -24,7 +24,7 @@ export function classificarPendenciasMaestro(registros: PendenciaMaestro[]) {
   const vinculadas: PendenciaMaestro[] = []
   const excluidas: PendenciaMaestro[] = []
   for (const registro of registros) {
-    if (['Responsável não cadastrado', 'E-mail ausente ou inválido'].includes(registro.motivo)) {
+    if (['Responsável não cadastrado', 'E-mail ausente ou inválido', 'E-mail e celular ausentes ou inválidos'].includes(registro.motivo)) {
       pendencias.push(registro)
     } else if (['Já vinculada a outro Flow', 'Já vinculada a outro Flow de e-mail'].includes(registro.motivo)) {
       vinculadas.push(registro)

@@ -392,11 +392,13 @@ export async function conciliarCobrancaImportada(
   supabase: SupabaseLike,
   cobranca: CobrancaImportadaConciliacao,
   conciliarValores: boolean,
+  preservadas?: ReadonlyMap<string, CobrancaExistente[]>,
 ): Promise<ResultadoConciliacaoCobranca | AtualizacaoConciliada>;
 export async function conciliarCobrancaImportada(
   supabase: SupabaseLike,
   cobranca: CobrancaImportadaConciliacao,
   conciliarValores = false,
+  preservadas?: ReadonlyMap<string, CobrancaExistente[]>,
 ): Promise<ResultadoConciliacaoCobranca | AtualizacaoConciliada> {
   const chave = chaveConciliacaoCobranca(cobranca);
 
@@ -411,13 +413,22 @@ export async function conciliarCobrancaImportada(
     // A transferência de carteira não transforma o recibo da mesma unidade em outro débito.
     if (!identidadeRecibo(cobranca) && cobranca.carteira_id) query = query.eq("carteira_id", cobranca.carteira_id);
     if (!identidadeRecibo(cobranca) && cobranca.vencimento) query = query.eq("vencimento", cobranca.vencimento);
-    const { data, error } = await query.order("id").range(from, from + 499);
+    const { data, error } = preservadas
+      ? { data: preservadas.get(cobranca.unidade_id) ?? [], error: null }
+      : await query.order("id").range(from, from + 499);
     if (error) throw new Error(`Erro ao conciliar cobrança importada: ${error.message}`);
     for (const candidata of (data ?? []) as CobrancaExistente[]) {
       const resultado = classificarCandidato(cobranca, candidata, conciliarValores);
+      if (preservadas && resultado?.status === 'atualizar') {
+        const recebido = identidadeRecibo(cobranca)?.recibo;
+        if (!recebido || recebido !== identidadeRecibo(candidata)?.recibo) {
+          resultados.push({ candidata, resultado: { status: 'divergente', motivo: 'Recibo sem correspondência segura para atualização.' } });
+          continue;
+        }
+      }
       if (resultado) resultados.push({ candidata, resultado });
     }
-    if (!data || data.length < 500) break;
+    if (preservadas || !data || data.length < 500) break;
   }
   if (resultados.length > 1) return {
     status: "divergente", chave, cobrancaId: resultados[0].candidata.id,
@@ -431,4 +442,21 @@ export async function conciliarCobrancaImportada(
     cobrancaId: null,
     motivo: "Nenhuma cobrança equivalente aberta foi encontrada.",
   };
+}
+
+export async function carregarCobrancasPreservadasMaestro(supabase: SupabaseLike, condominioId: string, substituir: ReadonlySet<string>) {
+  const porUnidade = new Map<string, CobrancaExistente[]>();
+  for (let from = 0; ; from += 500) {
+    const { data, error } = await supabase.from('cobrancas')
+      .select('id,carteira_id,condominio_id,unidade_id,competencia,vencimento,valor_original,valor_atualizado,observacoes,status_financeiro,status_operacional,updated_at,arquivada_em')
+      .eq('condominio_id', condominioId).is('duplicada_de_id', null).order('id').range(from, from + 499);
+    if (error) throw new Error(`Erro ao carregar cobranças preservadas: ${error.message}`);
+    for (const row of (data ?? []) as CobrancaExistente[]) {
+      if (!row.unidade_id || substituir.has(row.id)) continue;
+      const unidade = porUnidade.get(row.unidade_id) ?? [];
+      unidade.push(row);
+      porUnidade.set(row.unidade_id, unidade);
+    }
+    if (!data || data.length < 500) return porUnidade;
+  }
 }

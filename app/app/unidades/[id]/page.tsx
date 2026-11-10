@@ -141,6 +141,19 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
         </div>
       </Card>
 
+      <Card className="p-6">
+        <h2 className="text-lg font-semibold text-slate-950">Histórico de mensagens enviadas</h2>
+        <div className="mt-3 divide-y divide-slate-100 text-sm">
+          {historico.mensagensEnviadas.map(mensagem => (
+            <div key={mensagem.id} className="flex flex-wrap justify-between gap-2 py-2">
+              <span>{mensagem.canal === 'whatsapp' ? 'WhatsApp' : mensagem.canal === 'email' ? 'E-mail' : mensagem.canal} · {mensagem.destinatario || 'Destinatário não registrado'}</span>
+              <time>{formatDateBR(mensagem.enviada_em ?? mensagem.created_at)}</time>
+            </div>
+          ))}
+          {!historico.mensagensEnviadas.length && <p className="py-2 text-slate-500">Nenhum envio registrado para esta unidade.</p>}
+        </div>
+      </Card>
+
       <Card id="cadastro" className="p-6">
         <div className="mb-5">
           <h2 className="text-lg font-semibold text-slate-950">Editar cadastro</h2>

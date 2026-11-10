@@ -15,7 +15,11 @@ export async function processarAtivacaoMaestro() {
   const resultados = []
   for (const item of fila ?? []) {
     let remetente: string
-    try { remetente = await getEmailRemetenteKey(item.carteira_id) }
+    try {
+      const { data, error } = await db.from('mensagens').select('id').eq('cobranca_flow_id', item.flow_id).eq('canal', 'email').limit(1)
+      if (error) throw new Error(error.message)
+      remetente = data?.length ? await getEmailRemetenteKey(item.carteira_id) : ''
+    }
     catch (error) {
       const motivo = error instanceof Error ? error.message : 'Configuração de e-mail indisponível.'
       const { error: ue } = await db.from('maestro_flow_ativacoes').update({ status: 'atencao', erro: motivo, updated_at: new Date().toISOString() }).eq('flow_id', item.flow_id).eq('status', 'pendente')

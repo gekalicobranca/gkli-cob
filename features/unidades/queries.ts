@@ -327,6 +327,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
       cobrancas: [],
       acordos: [],
       eventos: [],
+      mensagensEnviadas: [],
       resumo: {
         totalCobrancas: 0,
         valorEmAberto: 0,
@@ -384,9 +385,14 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
 
-  const [cobrancasResult, acordosResult] = await Promise.all([
+  const mensagensQuery = applyCarteiraScope(supabase.from('mensagens')
+    .select('id,canal,destinatario,enviada_em,created_at')
+    .eq('unidade_id', id).eq('status', 'enviada')
+    .order('enviada_em', { ascending: false, nullsFirst: false }).limit(30), scope.carteiraIds)
+  const [cobrancasResult, acordosResult, mensagensResult] = await Promise.all([
     cobrancasQuery,
     acordosQuery,
+    mensagensQuery,
   ])
 
   if (cobrancasResult.error) {
@@ -396,6 +402,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
   if (acordosResult.error) {
     throw new Error(`Erro ao carregar acordos da unidade: ${acordosResult.error.message}`)
   }
+  if (mensagensResult.error) throw new Error(`Erro ao carregar envios da unidade: ${mensagensResult.error.message}`)
 
   const cobrancas = (cobrancasResult.data ?? []) as any[]
   const acordos = (acordosResult.data ?? []) as any[]
@@ -430,6 +437,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
     cobrancas,
     acordos,
     eventos,
+    mensagensEnviadas: mensagensResult.data ?? [],
     resumo: {
       totalCobrancas: cobrancasCanonicas.length,
       valorEmAberto,
