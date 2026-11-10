@@ -23,6 +23,7 @@ const montandoFlow = (receita: ReceitaEasyMaestro) => receita.estado === 'import
 export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestro; podeCaptar: boolean }) {
   const [painel, setPainel] = useState(inicial)
   const [administradora, setAdministradora] = useState('')
+  const [selecionados, setSelecionados] = useState<string[]>([])
   const [montarFlow, setMontarFlow] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [mensagem, setMensagem] = useState('')
@@ -30,8 +31,11 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   const pedido = useRef<string | null>(null)
   const administradoras = new Map(inicial.receitas.map(r => [r.administradora, r.administradoraNome]))
   const receitas = painel.receitas.filter(r => r.administradora === administradora)
-  const condominios = new Set(receitas.map(r => r.condominioId)).size
-  const emPrazo = new Set(receitas.filter(r => r.liberada && !emAndamento(r)).map(r => r.condominioId)).size
+  const primeiraReceita = new Map<string, string>()
+  for (const receita of receitas) {
+    if (!primeiraReceita.has(receita.condominioId)) primeiraReceita.set(receita.condominioId, receita.id)
+  }
+  const emPrazo = new Set(receitas.filter(r => r.liberada && !emAndamento(r)).map(r => r.condominioId))
   const atualizando = receitas.some(r => emAndamento(r) || montandoFlow(r))
   const captacaoEmAndamento = receitas.some(r => r.easy && emAndamento(r))
   const montagemEmAndamento = receitas.find(r => r.easy && montandoFlow(r))
@@ -42,7 +46,15 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   else if (enviando) motivoBloqueio = 'Registrando o pedido de captação.'
   else if (captacaoEmAndamento) motivoBloqueio = 'Aguarde a captação em andamento nesta administradora.'
   else if (montagemEmAndamento) motivoBloqueio = `Aguarde a montagem do flow de ${montagemEmAndamento.condominio}.`
-  const disponiveis = motivoBloqueio ? 0 : emPrazo
+  const disponiveis = motivoBloqueio ? 0 : emPrazo.size
+  const selecaoDisponivel = selecionados.filter(id => emPrazo.has(id))
+
+  function atualizarSelecao(ids: string[]) {
+    pedido.current = null
+    setSelecionados(ids)
+    setMensagem('')
+    setErro('')
+  }
 
   useEffect(() => {
     if (!administradora || !atualizando || enviando) return
@@ -68,13 +80,13 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   }, [administradora, atualizando, enviando])
 
   async function captar() {
-    if (!administradora || disponiveis === 0) return
+    if (!administradora || disponiveis === 0 || !selecaoDisponivel.length) return
     setEnviando(true)
     setErro('')
     setMensagem('')
     pedido.current ??= crypto.randomUUID()
     try {
-      const resultado = await captarEasyMaestro(administradora, pedido.current, montarFlow)
+      const resultado = await captarEasyMaestro(administradora, pedido.current, montarFlow, selecaoDisponivel)
       if (resultado.error) {
         pedido.current = null
         setErro(resultado.error)
@@ -83,14 +95,17 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
       setMensagem(resultado.criadas
         ? `${resultado.criadas} pedido(s) registrado(s) na fila do Maestro.`
         : 'As captações selecionadas já têm pedido registrado ou em andamento.')
+      pedido.current = null
+      setSelecionados([])
       const atualizado = await consultarEasyMaestro(administradora)
       setPainel(atual => ({
         ativo: atualizado.ativo,
         receitas: [...atual.receitas.filter(r => r.administradora !== administradora), ...atualizado.receitas],
       }))
-      pedido.current = null
     } catch {
-      setErro('Não foi possível atualizar o painel. Clique em Captar agora para consultar o mesmo pedido.')
+      setErro(pedido.current
+        ? 'Não foi possível confirmar o pedido. Clique em Captar agora para tentar o mesmo pedido.'
+        : 'Pedido processado. Recarregue a página para atualizar o painel.')
     } finally {
       setEnviando(false)
     }
@@ -104,21 +119,22 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
           <select id="easy-maestro-administradora" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" value={administradora} disabled={enviando}
             onChange={event => {
               setAdministradora(event.target.value)
-              setMensagem('')
-              setErro('')
-              pedido.current = null
+              atualizarSelecao([])
             }}>
             <option value="">Selecione a administradora</option>
             {[...administradoras].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
           </select>
-          <button type="button" className={styles.primary} disabled={disponiveis === 0} onClick={captar}>
+          <button type="button" className={styles.primary} disabled={disponiveis === 0 || !selecaoDisponivel.length} onClick={captar}>
             <Play size={16} aria-hidden="true" /> {enviando ? 'Registrando pedido…' : 'Captar agora'}
           </button>
         </div>
         <label className="mt-4 flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-0.5 h-4 w-4 accent-cyan-700" checked={montarFlow}
             disabled={!podeCaptar || enviando || loteEmAndamento}
-            onChange={event => setMontarFlow(event.target.checked)} />
+            onChange={event => {
+              pedido.current = null
+              setMontarFlow(event.target.checked)
+            }} />
           <span>
             <span className="block font-semibold">Montar flow após a captação</span>
             <span className="text-xs text-slate-600">Deixa o flow pronto para revisão e liberação em Flows.</span>
@@ -130,6 +146,11 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
             <p className={`mt-3 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium ${disponiveis ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-100 text-slate-700'}`}>
               <strong className="text-lg font-bold tabular-nums">{disponiveis}</strong>
               {disponiveis === 1 ? 'condomínio disponível para captar agora' : 'condomínios disponíveis para captar agora'}
+            </p>
+          )}
+          {disponiveis > 0 && (
+            <p className="mt-2 text-sm text-slate-600">
+              {selecaoDisponivel.length ? `${selecaoDisponivel.length} de ${disponiveis} selecionados.` : 'Marque na lista os condomínios que deseja captar.'}
             </p>
           )}
           {motivoBloqueio && (administradora || !painel.ativo) && (
@@ -145,13 +166,30 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
       {administradora && (
         <section className={styles.panel}>
           <h2 className="text-lg font-semibold">Captações da administradora</h2>
-          <p className="mt-1 text-sm text-slate-600">{condominios} condomínio(s) · {receitas.length} coleta(s){atualizando ? ' · Atualização automática' : ''}</p>
+          <p className="mt-1 text-sm text-slate-600">{primeiraReceita.size} condomínio(s) · {receitas.length} coleta(s){atualizando ? ' · Atualização automática' : ''}</p>
+          {disponiveis > 0 && (
+            <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" className="h-4 w-4 accent-cyan-700" checked={selecaoDisponivel.length === disponiveis}
+                onChange={event => atualizarSelecao(event.target.checked ? [...emPrazo] : [])} />
+              Selecionar todos os disponíveis
+            </label>
+          )}
           <ul className="mt-3 divide-y divide-slate-100">
             {receitas.map(receita => (
               <li key={receita.id} className={`flex flex-wrap items-start justify-between gap-2 rounded-xl px-3 py-3 text-sm ${receita.ultimaCaptacaoNoMes ? 'bg-emerald-50' : ''}`}>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold">{receita.condominio}</p>
+                    {primeiraReceita.get(receita.condominioId) === receita.id ? (
+                      <label className="inline-flex items-center gap-2 font-semibold">
+                        <input type="checkbox" className="h-4 w-4 accent-cyan-700"
+                          disabled={disponiveis === 0 || !emPrazo.has(receita.condominioId)}
+                          checked={selecaoDisponivel.includes(receita.condominioId)}
+                          onChange={event => atualizarSelecao(event.target.checked
+                            ? [...selecaoDisponivel, receita.condominioId]
+                            : selecaoDisponivel.filter(id => id !== receita.condominioId))} />
+                        {receita.condominio}
+                      </label>
+                    ) : <p className="font-semibold">{receita.condominio}</p>}
                     {receita.ultimaCaptacaoNoMes && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">
                         <Check size={13} aria-hidden="true" />
