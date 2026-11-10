@@ -8,6 +8,7 @@ import { dividirCriacaoFlows } from './dividir-criacao'
 import { consolidarEmailsLote } from './consolidar-emails'
 import { consolidarWhatsAppLote } from './consolidar-whatsapp'
 import { motivoExclusaoMaestro, motivoSaneamentoMaestro } from './maestro-elegibilidade'
+import { motivoImpedimentoFlow } from './eligibilidade'
 import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade'
 import { carregarApoiosParaCorrespondencia } from '@/features/responsaveis-unidades/correspondencia'
 
@@ -35,7 +36,7 @@ async function planejar(db: ReturnType<typeof createAdminClient>, job: any) {
   if (!regua) throw new Error('Cadastre uma régua de cobrança por e-mail ativa para esta carteira.')
   const rows: any[] = []
   for (let offset = 0; ; offset += 500) {
-    const { data, error } = await somenteCobrancasCanonicas(db.from('cobrancas').select('id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,vencimento,unidade:unidades(identificacao,bloco,responsavel_nome,email)'))
+    const { data, error } = await somenteCobrancasCanonicas(db.from('cobrancas').select('id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,vencimento,unidade:unidades(identificacao,bloco,responsavel_nome,email,acao_judicial)'))
       .eq('conversao_relatorio_id', job.conversao_id).eq('condominio_id', job.condominio_id).eq('carteira_id', job.carteira_id).order('id').range(offset, offset + 499)
     if (error) throw new Error(error.message)
     rows.push(...(data ?? []))
@@ -57,7 +58,10 @@ async function planejar(db: ReturnType<typeof createAdminClient>, job: any) {
   const elegiveis: any[] = [], pendencias: any[] = []
   for (const row of rows) {
     const unidade = relation(row.unidade)
-    let motivo = vinculadas.has(row.id) ? 'Já vinculada a outro Flow de e-mail' : motivoExclusaoMaestro(row, Number(condominio.dias_apos_vencimento_regua ?? condominio.inicio_cobranca_dias ?? 30), acordos.has(row.id))
+    let motivo = vinculadas.has(row.id)
+      ? 'Já vinculada a outro Flow de e-mail'
+      : motivoExclusaoMaestro(row, Number(condominio.dias_apos_vencimento_regua ?? condominio.inicio_cobranca_dias ?? 30), acordos.has(row.id))
+        ?? motivoImpedimentoFlow(row)
     let saneamento = false
     if (!motivo) {
       const contatos = resolverCorrespondenciasUnidade(unidade ?? {}, apoios ?? []).correspondencias
