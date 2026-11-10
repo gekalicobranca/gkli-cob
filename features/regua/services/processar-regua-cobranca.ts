@@ -76,6 +76,7 @@ type CobrancaReguaRow = {
   } | null;
   unidades?: {
     id?: string | null;
+    acao_judicial?: boolean | null;
     identificacao?: string | null;
     bloco?: string | null;
     responsavel_nome?: string | null;
@@ -615,7 +616,7 @@ export async function processarReguaCobranca(
         ultima_interacao_em,
         proxima_acao_em,
         condominios(id, nome, inicio_cobranca_dias, dias_apos_vencimento_regua, dias_cobranca_ativa, pre_juridico_habilitado, intensidade_regua, regua_cobranca_id),
-        unidades(id, identificacao, bloco, responsavel_nome, telefone, email)
+        unidades(id, identificacao, bloco, responsavel_nome, telefone, email, acao_judicial)
       `,
       ))
       .in("status_operacional", COBRANCA_STATUS_OPERACIONAIS_ATIVOS as string[])
@@ -713,6 +714,11 @@ export async function processarReguaCobranca(
       try {
         const condominio = row.condominios;
         const unidade = row.unidades;
+        if (unidade?.acao_judicial) {
+          await criarItemLote({ supabase, loteId: lote.id, row, status: LOTE_ITEM_STATUS.PULADA, motivo: 'Unidade com ação judicial.' });
+          total.puladas++; lote.contadores.puladas++;
+          continue;
+        }
         // Se a chamada caiu após gravar a mensagem, reconstitui apenas seu item.
         const recuperada = mensagensRetomada.get(row.id);
         if (recuperada) {
