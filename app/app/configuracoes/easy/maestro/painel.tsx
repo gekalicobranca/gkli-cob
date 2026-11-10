@@ -24,7 +24,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   const [painel, setPainel] = useState(inicial)
   const [administradora, setAdministradora] = useState('')
   const [selecionados, setSelecionados] = useState<string[]>([])
-  const [montarFlow, setMontarFlow] = useState(false)
+  const [montarFlow, setMontarFlow] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
@@ -57,7 +57,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   }
 
   useEffect(() => {
-    if (!administradora || !atualizando || enviando) return
+    if (!administradora || enviando) return
     let cancelado = false
     let timer: ReturnType<typeof setTimeout>
     async function atualizar() {
@@ -72,10 +72,10 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
       } catch {
         // Mantém a última leitura e tenta novamente.
       } finally {
-        if (!cancelado) timer = setTimeout(atualizar, 8000)
+        if (!cancelado && atualizando) timer = setTimeout(atualizar, 8000)
       }
     }
-    timer = setTimeout(atualizar, 8000)
+    void atualizar()
     return () => { cancelado = true; clearTimeout(timer) }
   }, [administradora, atualizando, enviando])
 
@@ -175,50 +175,58 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
             </label>
           )}
           <ul className="mt-3 divide-y divide-slate-100">
-            {receitas.map(receita => (
-              <li key={receita.id} className={`flex flex-wrap items-start justify-between gap-2 rounded-xl px-3 py-3 text-sm ${receita.ultimaCaptacaoNoMes ? 'bg-emerald-50' : ''}`}>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {primeiraReceita.get(receita.condominioId) === receita.id ? (
-                      <label className="inline-flex items-center gap-2 font-semibold">
-                        <input type="checkbox" className="h-4 w-4 accent-cyan-700"
-                          disabled={disponiveis === 0 || !emPrazo.has(receita.condominioId)}
-                          checked={selecaoDisponivel.includes(receita.condominioId)}
-                          onChange={event => atualizarSelecao(event.target.checked
-                            ? [...selecaoDisponivel, receita.condominioId]
-                            : selecaoDisponivel.filter(id => id !== receita.condominioId))} />
-                        {receita.condominio}
-                      </label>
-                    ) : <p className="font-semibold">{receita.condominio}</p>}
-                    {receita.ultimaCaptacaoNoMes && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">
-                        <Check size={13} aria-hidden="true" />
-                        Captado no mês · {new Date(receita.ultimaCaptacaoNoMes).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
-                      </span>
+            {receitas.map(receita => {
+              const consolidado = receita.consolidado
+              const dataExibida = consolidado && !emAndamento(receita) ? consolidado.captadoEm : receita.solicitadaEm
+              return (
+                <li key={receita.id} className={`flex flex-wrap items-start justify-between gap-2 rounded-xl px-3 py-3 text-sm ${receita.ultimaCaptacaoNoMes ? 'bg-emerald-50' : ''}`}>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {primeiraReceita.get(receita.condominioId) === receita.id ? (
+                        <label className="inline-flex items-center gap-2 font-semibold">
+                          <input type="checkbox" className="h-4 w-4 accent-cyan-700"
+                            disabled={disponiveis === 0 || !emPrazo.has(receita.condominioId)}
+                            checked={selecaoDisponivel.includes(receita.condominioId)}
+                            onChange={event => atualizarSelecao(event.target.checked
+                              ? [...selecaoDisponivel, receita.condominioId]
+                              : selecaoDisponivel.filter(id => id !== receita.condominioId))} />
+                          {receita.condominio}
+                        </label>
+                      ) : <p className="font-semibold">{receita.condominio}</p>}
+                      {receita.ultimaCaptacaoNoMes && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">
+                          <Check size={13} aria-hidden="true" />
+                          {consolidado ? 'Captado no consolidado' : 'Captado no mês'} · {new Date(consolidado?.captadoEm ?? receita.ultimaCaptacaoNoMes).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600">{receita.nome}</p>
+                    {!receita.liberada && !emAndamento(receita) && (
+                      <p className="mt-1 text-xs font-medium text-amber-800">
+                        {receita.liberacaoEm ? `Libera em ${formatarVencimentoAcordo(receita.liberacaoEm)}` : 'Cadastre o dia de vencimento da cota para liberar.'}
+                      </p>
                     )}
+                    {receita.detalhe && <p className="mt-1 text-xs text-slate-600">{consolidado && receita.estado === 'revisar' ? 'Tentativa avulsa: ' : ''}{receita.detalhe}</p>}
+                    {montandoFlow(receita) && <p className="mt-1 text-xs text-slate-600">Montando flow para revisão.</p>}
+                    {receita.montagemStatus === 'atencao' && <p className="mt-1 text-xs text-amber-800">A montagem precisa de revisão no Maestro.</p>}
+                    {receita.montagemStatus === 'concluido' && (
+                      receita.flowsMontados
+                        ? <Link className="mt-1 block text-xs font-semibold text-cyan-800 underline" href={`/app/flows/cobranca/email?aba=flows&condominio=${encodeURIComponent(receita.condominioId)}`}>Revisar flows montados ({receita.flowsMontados})</Link>
+                        : <p className="mt-1 text-xs text-slate-600">Nenhuma cobrança elegível para um novo flow.</p>
+                    )}
+                    {consolidado ? (
+                      <Link className="mt-1 inline-block text-xs font-semibold text-cyan-800 underline" href={`/app/configuracoes/lab/captacao-automatizada/${consolidado.conversaoId}`}>Ver validação do consolidado</Link>
+                    ) : receita.conversaoId && <Link className="mt-1 inline-block text-xs font-semibold text-cyan-800 underline" href={`/app/configuracoes/lab/captacao-automatizada/${receita.conversaoId}`}>Ver validação</Link>}
                   </div>
-                  <p className="text-xs text-slate-600">{receita.nome}</p>
-                  {!receita.liberada && !emAndamento(receita) && (
-                    <p className="mt-1 text-xs font-medium text-amber-800">
-                      {receita.liberacaoEm ? `Libera em ${formatarVencimentoAcordo(receita.liberacaoEm)}` : 'Cadastre o dia de vencimento da cota para liberar.'}
-                    </p>
-                  )}
-                  {receita.detalhe && <p className="mt-1 text-xs text-slate-600">{receita.detalhe}</p>}
-                  {montandoFlow(receita) && <p className="mt-1 text-xs text-slate-600">Montando flow para revisão.</p>}
-                  {receita.montagemStatus === 'atencao' && <p className="mt-1 text-xs text-amber-800">A montagem precisa de revisão no Maestro.</p>}
-                  {receita.montagemStatus === 'concluido' && (
-                    receita.flowsMontados
-                      ? <Link className="mt-1 block text-xs font-semibold text-cyan-800 underline" href={`/app/flows/cobranca/email?aba=flows&condominio=${encodeURIComponent(receita.condominioId)}`}>Revisar flows montados ({receita.flowsMontados})</Link>
-                      : <p className="mt-1 text-xs text-slate-600">Nenhuma cobrança elegível para um novo flow.</p>
-                  )}
-                  {receita.conversaoId && <Link className="mt-1 inline-block text-xs font-semibold text-cyan-800 underline" href={`/app/configuracoes/lab/captacao-automatizada/${receita.conversaoId}`}>Ver validação</Link>}
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-slate-800">{receita.estado === 'disponivel' && !receita.liberada ? 'Aguardando régua' : estados[receita.estado]}{receita.estado === 'importado' && receita.cobrancas !== null ? ` · ${receita.cobrancas} cobrança(s)` : ''}</p>
-                  {receita.solicitadaEm && <p className="text-xs text-slate-500">{new Date(receita.solicitadaEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>}
-                </div>
-              </li>
-            ))}
+                  <div className="text-right">
+                    <p className="font-semibold text-slate-800">{consolidado && !emAndamento(receita)
+                      ? 'Importado no consolidado'
+                      : <>{receita.estado === 'disponivel' && !receita.liberada ? 'Aguardando régua' : estados[receita.estado]}{receita.estado === 'importado' && receita.cobrancas !== null ? ` · ${receita.cobrancas} cobrança(s)` : ''}</>}</p>
+                    {dataExibida && <p className="text-xs text-slate-500">{new Date(dataExibida).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>}
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         </section>
       )}

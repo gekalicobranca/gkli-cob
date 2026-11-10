@@ -16,6 +16,7 @@ export type ReceitaEasyMaestro = {
   cobrancas: number | null
   solicitadaEm: string | null
   ultimaCaptacaoNoMes?: string | null
+  consolidado?: { conversaoId: string; captadoEm: string } | null
   easy: boolean
   liberada: boolean
   liberacaoEm: string | null
