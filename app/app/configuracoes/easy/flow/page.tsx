@@ -1,3 +1,4 @@
+import { nomeCondominioEasy } from '@/features/easy-cob/nome-condominio';
 import {getPermittedCarteiras} from '@/utils/auth/get-permitted-carteiras';
 import {listarCondominiosEasy} from '@/features/easy-cob/captacao-server';
 import {EasyHeader} from '@/components/easy/easy-ui';
@@ -9,7 +10,7 @@ export default async function EasyFlowPage(){
   return (
     <div className={`${styles.container} ${styles.blue}`}>
       <EasyHeader title="Easy Flow" description="Monte os flows do condomínio, confira e libere para a agenda." />
-      <EasyFlow condominios={condominios.map(c => ({ id: c.id, nome: c.nome, cnpj: c.cnpj }))} canWrite={['admin', 'gestor', 'operador'].includes(scope.perfil)} />
+      <EasyFlow condominios={condominios.map(c => ({ id: c.id, nome: nomeCondominioEasy(c.nome, c.nome_operacional), cnpj: c.cnpj }))} canWrite={['admin', 'gestor', 'operador'].includes(scope.perfil)} />
     </div>
   );
 }
