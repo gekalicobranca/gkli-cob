@@ -6,9 +6,9 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope';
 import { getCondominioAgenteStatus, getCondominiosAgenteStatus } from '@/features/agente-automatico/queries';
 
 export async function listarCondominiosEasy(scope: CarteiraScope, exigirCnpj = true) {
-  const db=await createClient(); const rows: {id:string; nome:string; cnpj:string; carteira_id:string}[]=[];
+  const db=await createClient(); const rows: {id:string; nome:string; nome_operacional:string | null; cnpj:string; carteira_id:string}[]=[];
   for(let offset=0;;offset+=500) {
-    let query=db.from('condominios').select('id,nome,cnpj,carteira_id').eq('status','ativo');
+    let query=db.from('condominios').select('id,nome,nome_operacional,cnpj,carteira_id').eq('status','ativo');
     if(exigirCnpj)query=query.not('cnpj','is',null);
     const {data,error}=await applyCarteiraScope(query,scope.carteiraIds).order('nome').order('id').range(offset,offset+499);
     if(error) throw new Error('Não foi possível consultar os condomínios.');
