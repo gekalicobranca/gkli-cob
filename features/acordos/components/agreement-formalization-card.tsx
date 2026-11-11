@@ -26,7 +26,7 @@ export function AgreementFormalizationCard({ acordo, hideTitle = false }: { acor
     ["Comunicação ao devedor", state.comunicacao],
     ["Solicitação à administradora", state.solicitacao],
     ["Boletos", state.boletos],
-    ...(acordo.tipo === "extrajudicial" ? [["Homologação da ADM", homologacao]] : []),
+    ...(["extrajudicial", "judicial"].includes(acordo.tipo) ? [["Homologação da ADM", homologacao]] : []),
     ["Primeiro pagamento", pagamento ? "Pagamento registrado" : "Aguardando pagamento"],
   ];
   const acoes = [
@@ -41,7 +41,7 @@ export function AgreementFormalizationCard({ acordo, hideTitle = false }: { acor
         <dt className="text-slate-500">{titulo}</dt><dd className="font-medium text-slate-950">{descricao}</dd>
       </div>)}
     </dl>
-    {acordo.tipo === "extrajudicial" && <details open={state.recebido && !acordo.acordo_homologado} className="rounded-lg border border-slate-200 p-3">
+    {["extrajudicial", "judicial"].includes(acordo.tipo) && <details open={state.recebido && !acordo.acordo_homologado} className="rounded-lg border border-slate-200 p-3">
       <summary className="cursor-pointer text-sm font-semibold">Homologação da administradora</summary>
       <div className="mt-3 space-y-3">
         <p className="text-sm text-slate-700">Anexe o registro da administradora e compare o PDF com as cotas vinculadas, os valores e a tabela de parcelas deste acordo.</p>

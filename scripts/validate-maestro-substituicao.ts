@@ -1,0 +1,169 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { test } from 'node:test'
+import { PGlite } from '@electric-sql/pglite'
+import { escolherContatoRegua } from '../features/regua/services/regua-shared'
+
+test('e-mail inválido não impede outro e-mail válido nem o uso de celular', () => {
+  const unidade = { email: 'invalido', telefone: '11987654321' }
+  assert.equal(escolherContatoRegua({ unidade, canal: 'email' }).destinatario, null)
+  assert.ok(escolherContatoRegua({ unidade, canal: 'whatsapp' }).destinatario)
+  assert.equal(escolherContatoRegua({ unidade, canal: 'email', apoios: [{ email: 'contato@example.com' }] }).destinatario, 'contato@example.com')
+})
+
+async function conferirSubstituicao(origemJaMigrada: boolean) {
+  const db = new PGlite()
+  const migration = (name: string) => readFileSync('supabase/migrations/' + name + '.sql', 'utf8')
+  const id = (n: number) => '00000000-0000-0000-0000-' + String(n).padStart(12, '0')
+  try {
+    await db.exec(`
+      create role anon; create role authenticated; create role service_role;
+      create table condominios(id uuid primary key,carteira_id uuid,status text);
+      create table unidades(id uuid primary key,condominio_id uuid,carteira_id uuid,bloco text,acao_judicial boolean);
+      create table conversoes_relatorio(id uuid primary key,condominio_id uuid,carteira_id uuid,origem text,status text,
+        criado_em timestamptz,atualizado_em timestamptz,preview_json jsonb,total_cobrancas int,limpeza_maestro_em timestamptz);
+      create table cobrancas(id uuid primary key,unidade_id uuid,condominio_id uuid,carteira_id uuid,competencia text,
+        observacoes text,duplicada_de_id uuid,status text,status_operacional text,status_financeiro text,automacao_bloqueada bool,
+        valor_original numeric,valor_atualizado numeric,juros numeric,multa numeric,correcao numeric,
+        created_at timestamptz default now(),updated_at timestamptz default now(),vencimento date,data_pagamento date,
+        valor_pago numeric,conversao_relatorio_id uuid,arquivada_em timestamptz,origem_importacao text,
+        arquivamento_motivo text,duplicidade_lote_id uuid,duplicidade_arquivada_em timestamptz,
+        foreign key(duplicada_de_id) references cobrancas(id));
+      create table cobrancas_duplicidade_execucoes(lote_id uuid,estado text,arquivar_ids uuid[],preservar_ids uuid[]);
+      create schema auth;
+      create function auth.uid() returns uuid language sql as 'select null::uuid';
+      create table cobranca_parcelas(cobranca_id uuid references cobrancas on delete cascade,conversao_relatorio_id uuid,
+        data_vencimento date,referencia text,valor_original numeric,valor_atualizado numeric,status text,origem_linha_json jsonb);
+      create table acordos(id uuid,cobranca_id uuid,status text);
+      create table acordo_cobrancas(acordo_id uuid,cobranca_id uuid);
+      create table scanner_baixas(cobranca_id uuid references cobrancas);
+      create table auditoria_eventos(carteira_id uuid,entidade_tipo text,entidade_id uuid,evento_tipo text,titulo text,descricao text,antes jsonb,depois jsonb);
+      create table cobranca_flows(id uuid primary key,carteira_id uuid,status text,total_mensagens int,payload jsonb,
+        total_pendentes int,total_agendadas int,total_falhas int,proximo_disparo_em timestamptz);
+      create table carteiras(id uuid primary key);
+      create table automacao_controle(chave text,ativo bool);
+      create table lote_itens(id uuid primary key,unidade_id uuid,cobranca_id uuid references cobrancas on delete cascade,cobranca_flow_id uuid,status text);
+      create table mensagens(id uuid primary key,cobranca_id uuid references cobrancas on delete cascade,carteira_id uuid,
+        cobranca_flow_id uuid,canal text,status text,status_operacional text,destinatario text,email_destinatario text,whatsapp_numero text,
+        payload jsonb,created_at timestamptz default now(),lote_item_id uuid references lote_itens on delete set null,
+        cancelado_em timestamptz,cancelada_em timestamptz,agendada_para timestamptz,scheduled_at timestamptz,motivo_cancelamento text);
+      create table email_agenda(mensagem_id uuid);
+      create table email_tentativas(mensagem_id uuid,estado text);
+      create table whatsapp_web_envios(mensagem_id uuid,estado text);
+      create table flow_progressao(cobranca_ids uuid[],status text,token uuid,lease_ate timestamptz,erro text,updated_at timestamptz);
+      create table maestro_flow_montagens(conversao_id uuid,condominio_id uuid,carteira_id uuid,status text,
+        token uuid,lease_ate timestamptz,erro text,updated_at timestamptz,plano jsonb,parte int not null default 0);
+      create table central_pendencias(cobranca_id uuid,entidade_tipo text,entidade_id uuid,status text,resolvido_em timestamptz);
+      create function email_ativar_flow(p_flow uuid,p_remetente text,p_usuario uuid) returns int language sql as 'select 1';
+      create function flow_cobranca_mensagem_elegivel(m mensagens) returns bool language sql as 'select true';
+      insert into carteiras values ('${id(2)}');
+      insert into condominios values ('${id(1)}','${id(2)}','ativo');
+      insert into unidades values ('${id(3)}','${id(1)}','${id(2)}','A',false);
+      insert into conversoes_relatorio values ('${id(4)}','${id(1)}','${id(2)}','captacao_automatizada:teste','processando',
+        '2026-11-10','2026-11-10','{"captacaoAutomatizada":true,"cobrancas":[{"recibo":"10"},{"recibo":"13"},{"recibo":"15"},{"recibo":"18"}]}',4,null);
+      insert into cobrancas(id,unidade_id,condominio_id,carteira_id,observacoes,status,status_operacional,status_financeiro,
+        automacao_bloqueada,valor_original,valor_atualizado,vencimento,updated_at)
+      select ('00000000-0000-0000-0000-'||lpad(n::text,12,'0'))::uuid,'${id(3)}','${id(1)}','${id(2)}','Recibo '||n,
+        st,st,'em_aberto',n in (12,18),100,100,'2025-10-10','2026-11-01'
+      from (values(10,'novo'),(11,'regular'),(12,'em_cobranca_ativa'),(13,'suspenso'),(18,'em_cobranca_ativa')) v(n,st);
+      update cobrancas set created_at='2026-11-01';
+      insert into cobrancas(id,unidade_id,condominio_id,carteira_id,observacoes,status,status_operacional,status_financeiro,
+        automacao_bloqueada,valor_original,valor_atualizado,vencimento,duplicada_de_id,duplicidade_lote_id,duplicidade_arquivada_em)
+        values ('${id(17)}','${id(3)}','${id(1)}','${id(2)}','Recibo 11','suspenso','suspenso','em_aberto',
+          true,100,100,'2025-10-10','${id(11)}','${id(19)}','2026-11-02');
+      insert into cobrancas(id,unidade_id,condominio_id,carteira_id,observacoes,status,status_operacional,status_financeiro,
+        automacao_bloqueada,valor_original,valor_atualizado,vencimento,updated_at,data_pagamento,valor_pago)
+        values ('${id(15)}','${id(3)}','${id(1)}','${id(2)}','Recibo 15','acordo_efetivado','acordo_efetivado','quitado',
+          true,100,110,'2025-10-10','2026-11-01','2026-10-10',110);
+      insert into acordos values ('${id(16)}','${id(15)}','quitado');
+      insert into acordo_cobrancas values ('${id(16)}','${id(15)}');
+      insert into cobranca_parcelas(cobranca_id,data_vencimento,valor_original,valor_atualizado,status)
+        values ('${id(15)}','2025-10-10',100,110,'aberto');
+      insert into maestro_flow_montagens(conversao_id,condominio_id,carteira_id,status,plano,parte) values
+        ('${id(5)}','${id(1)}','${id(2)}','pendente','[["${id(10)}"]]',0),
+        ('${id(6)}','${id(1)}','${id(2)}','pendente','[["${id(13)}"]]',0);
+      insert into mensagens(id,cobranca_id,carteira_id,canal,status) values
+        ('${id(20)}','${id(10)}','${id(2)}','email','enviada'),
+        ('${id(21)}','${id(12)}','${id(2)}','whatsapp','agendada'),
+        ('${id(22)}','${id(13)}','${id(2)}','email','enviada');
+      create function validar_formalizacao_aprovada() returns trigger language plpgsql as $$
+      begin
+        if old.id='${id(22)}' then raise exception 'Formalização bloqueada.'; end if;
+        return new;
+      end $$;
+      create trigger validar_mensagem_acordo_aprovado before update on mensagens
+        for each row execute function validar_formalizacao_aprovada();
+    `)
+    await db.exec(migration('20260923010000_cobrancas_recibo_guard'))
+    await db.exec(migration('20260923020000_cobrancas_arquivamento_base').split('create function public.validar_arquivo_duplicidade()')[1]
+      .split('create function public.mensagem_contem_cobranca_arquivada')[0]
+      .replace(/^/, 'create function public.validar_arquivo_duplicidade()'))
+    await db.exec(migration('20261103194949_cobrancas_arquivamento_operacional').split('create function public.proteger_arquivo_operacional_cobranca()')[1]
+      .split('create function public.auditar_arquivo_operacional_cobranca')[0]
+      .replace(/^/, 'create function public.proteger_arquivo_operacional_cobranca()'))
+    await db.exec(migration('20261109230901_maestro_conciliar_cobrancas'))
+    await db.exec(migration('20260917190000_maestro_ativacao_automatica').split('create or replace function public.maestro_flow_tick()')[0] + 'commit;')
+    if (origemJaMigrada) await db.exec(`
+      do $test$ begin
+        execute replace(pg_get_functiondef('public.maestro_flow_ativar(uuid,text)'::regprocedure),
+          $antigo$f.payload->>'origem' is distinct from 'maestro'$antigo$,
+          $novo$coalesce(f.payload->>'origem','') not in ('maestro','easy_maestro')$novo$);
+      end $test$;
+    `)
+    await db.exec(migration('20261110131531_substituir_cobrancas_maestro_preservar_historico'))
+    await assert.rejects(db.query("update mensagens set status='agendada' where id=$1",[id(22)]), /Formalização bloqueada/)
+    const ids = [id(10), id(11), id(12)]
+    const importadas = [10,13,15,18].map(n => ({ unidade_id: id(3), vencimento: '2025-10-10', recibo: String(n), valor_original: 100 }))
+    const valores = [13,15].map(n => ({ id: id(n), atualizado_em: '2026-11-01', valor_atualizado: 130, juros: 10, multa: 20, correcao: 0 }))
+    const nova = { id: id(14), unidade_id: id(3), observacoes: 'Recibo 10', status_operacional: 'em_cobranca_ativa', valor_atualizado: 120 }
+    const substituir = (novas: object[], captadas = importadas) => db.query<{ r: Record<string, number> }>(
+      'select maestro_substituir_captacao($1,$2,$3::uuid[],$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb) r',
+      [id(4),'2026-11-10','{' + ids.join(',') + '}',JSON.stringify(captadas),JSON.stringify(valores),JSON.stringify(novas),'[]'],
+    )
+    await db.exec(migration('20261110171934_maestro_preservar_recibos_quitados'))
+    await db.exec(migration('20261110175351_maestro_excluir_ausentes_com_bloqueio_ou_duplicata'))
+    await assert.rejects(substituir([nova]), /operator does not exist: integer/)
+    await db.exec(migration('20261110150730_corrigir_plano_substituicao_maestro'))
+    await assert.rejects(substituir([nova], importadas.map(i => i.recibo === '15' ? { ...i, recibo: '99' } : i)),
+      /proteção operacional/)
+    await assert.rejects(substituir([{ ...nova, id: id(13) }]), /duplicate key/)
+    assert.equal((await db.query('select id from cobrancas')).rows.length, 7)
+    const { rows } = await substituir([nova])
+    assert.equal(rows[0].r.removidas, 3)
+    assert.equal(rows[0].r.atualizadas, 2)
+    assert.deepEqual((await db.query('select conversao_id,status from maestro_flow_montagens order by conversao_id')).rows, [
+      { conversao_id: id(5), status: 'atencao' },
+      { conversao_id: id(6), status: 'pendente' },
+    ])
+    assert.deepEqual((await db.query('select status,cobranca_id,unidade_id from mensagens order by id')).rows, [
+      { status: 'enviada', cobranca_id: null, unidade_id: id(3) },
+      { status: 'cancelada', cobranca_id: null, unidade_id: id(3) },
+      { status: 'enviada', cobranca_id: id(13), unidade_id: id(3) },
+    ])
+    assert.deepEqual((await db.query('select id,status_operacional from cobrancas order by id')).rows, [
+      { id: id(13), status_operacional: 'suspenso' }, { id: id(14), status_operacional: 'em_cobranca_ativa' },
+      { id: id(15), status_operacional: 'acordo_efetivado' },
+      { id: id(17), status_operacional: 'suspenso' }, { id: id(18), status_operacional: 'em_cobranca_ativa' },
+    ])
+    assert.deepEqual((await db.query('select duplicada_origem_excluida_id,arquivada_em is not null arquivada from cobrancas where id=$1', [id(17)])).rows,
+      [{ duplicada_origem_excluida_id: id(11), arquivada: true }])
+    await db.query("insert into cobrancas(id,unidade_id,observacoes) values ($1,$2,'Recibo 11')", [id(40), id(3)])
+    assert.deepEqual((await db.query(`select status_financeiro,automacao_bloqueada,valor_atualizado::int,valor_pago::int,
+      data_pagamento::text from cobrancas where id=$1`, [id(15)])).rows, [
+      { status_financeiro: 'quitado', automacao_bloqueada: true, valor_atualizado: 130, valor_pago: 110, data_pagamento: '2026-10-10' },
+    ])
+    assert.deepEqual((await db.query('select acordo_id,cobranca_id from acordo_cobrancas')).rows, [{ acordo_id: id(16), cobranca_id: id(15) }])
+    assert.deepEqual((await db.query('select valor_atualizado::int from cobranca_parcelas where cobranca_id=$1', [id(15)])).rows, [{ valor_atualizado: 110 }])
+    await db.exec(`
+      update maestro_flow_controle set ativo=true;
+      insert into cobranca_flows(id,carteira_id,status,total_mensagens,payload)
+        values ('${id(30)}','${id(2)}','pronto',1,'{"origem":"easy_maestro","condominio_id":"${id(1)}"}');
+      insert into mensagens(id,carteira_id,cobranca_id,cobranca_flow_id,canal,status,destinatario)
+        values ('${id(31)}','${id(2)}','${id(14)}','${id(30)}','whatsapp','pendente_aprovacao','5511987654321');
+    `)
+    assert.deepEqual((await db.query("select maestro_flow_ativar($1,'') status", [id(30)])).rows, [{ status: 'ativado' }])
+  } finally { await db.close() }
+}
+
+test('captação preserva histórico e rollback com a origem do projeto local', () => conferirSubstituicao(false))
+test('captação preserva histórico e rollback com a origem de produção', () => conferirSubstituicao(true))

@@ -40,21 +40,24 @@ function categoriaDefault(tipoRegua: string, categoria?: string | null) {
   return tipoRegua === 'acordo' ? 'lembrete_acordo' : 'cobranca_inicial'
 }
 
-export async function resolveTemplateMensagem(input: TemplateResolveInput): Promise<ResolvedTemplate> {
+type TemplateSource = Omit<ResolvedTemplate, 'renderizado'>
+
+async function carregarTemplate(input: TemplateResolveInput): Promise<{ fonte: TemplateSource; cacheavel: boolean }> {
   const supabase = createAdminClient()
   const categoria = categoriaDefault(String(input.tipoRegua), input.categoria)
   const canal = input.canal || 'whatsapp'
   const intensidade = input.intensidade || 'medio'
-  const variables = input.variables ?? {}
+  let cacheavel = true
 
   async function byId() {
     if (!input.templateId) return null
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('mensagens_templates')
       .select('id,nome,assunto,conteudo')
       .eq('id', input.templateId)
       .eq('ativo', true)
       .maybeSingle()
+    if (error) cacheavel = false
     return data as any | null
   }
 
@@ -72,25 +75,47 @@ export async function resolveTemplateMensagem(input: TemplateResolveInput): Prom
       .limit(1)
 
     query = carteira ? query.eq('carteira_id', carteira) : query.is('carteira_id', null)
-    const { data } = await query.maybeSingle()
+    const { data, error } = await query.maybeSingle()
+    if (error) cacheavel = false
     return data as any | null
   }
 
   const explicit = await byId()
   if (explicit?.conteudo) {
-    return { templateId: explicit.id, origem: 'template_id', nome: explicit.nome, assunto: explicit.assunto, conteudo: explicit.conteudo, renderizado: renderTemplate(explicit.conteudo, variables) }
+    return { cacheavel, fonte: { templateId: explicit.id, origem: 'template_id', nome: explicit.nome, assunto: explicit.assunto, conteudo: explicit.conteudo } }
   }
 
   const carteiraTemplate = input.carteiraId ? await byScope(input.carteiraId) : null
   if (carteiraTemplate?.conteudo) {
-    return { templateId: carteiraTemplate.id, origem: 'carteira', nome: carteiraTemplate.nome, assunto: carteiraTemplate.assunto, conteudo: carteiraTemplate.conteudo, renderizado: renderTemplate(carteiraTemplate.conteudo, variables) }
+    return { cacheavel, fonte: { templateId: carteiraTemplate.id, origem: 'carteira', nome: carteiraTemplate.nome, assunto: carteiraTemplate.assunto, conteudo: carteiraTemplate.conteudo } }
   }
 
   const globalTemplate = await byScope(null)
   if (globalTemplate?.conteudo) {
-    return { templateId: globalTemplate.id, origem: 'global', nome: globalTemplate.nome, assunto: globalTemplate.assunto, conteudo: globalTemplate.conteudo, renderizado: renderTemplate(globalTemplate.conteudo, variables) }
+    return { cacheavel, fonte: { templateId: globalTemplate.id, origem: 'global', nome: globalTemplate.nome, assunto: globalTemplate.assunto, conteudo: globalTemplate.conteudo } }
   }
 
   const fallback = input.fallbackText || DEFAULTS[categoria] || DEFAULTS.manual
-  return { templateId: null, origem: 'fallback', nome: 'Fallback GKLI', assunto: null, conteudo: fallback, renderizado: renderTemplate(fallback, variables) }
+  return { cacheavel, fonte: { templateId: null, origem: 'fallback', nome: 'Fallback GKLI', assunto: null, conteudo: fallback } }
+}
+
+export async function resolveTemplateMensagem(input: TemplateResolveInput): Promise<ResolvedTemplate> {
+  const { fonte } = await carregarTemplate(input)
+  return { ...fonte, renderizado: renderTemplate(fonte.conteudo, input.variables ?? {}) }
+}
+
+// Uma instância por parte do Maestro. Só reutiliza a fonte, nunca a mensagem renderizada.
+export function criarResolvedorTemplateDaParte() {
+  const fontes = new Map<string, TemplateSource>()
+  return async (input: TemplateResolveInput): Promise<ResolvedTemplate> => {
+    const { carteiraId, tipoRegua, categoria, intensidade, canal, templateId, fallbackText } = input
+    const chave = JSON.stringify([carteiraId, tipoRegua, categoria, intensidade, canal, templateId, fallbackText])
+    let fonte = fontes.get(chave)
+    if (!fonte) {
+      const carregada = await carregarTemplate(input)
+      fonte = carregada.fonte
+      if (carregada.cacheavel) fontes.set(chave, fonte)
+    }
+    return { ...fonte, renderizado: renderTemplate(fonte.conteudo, input.variables ?? {}) }
+  }
 }

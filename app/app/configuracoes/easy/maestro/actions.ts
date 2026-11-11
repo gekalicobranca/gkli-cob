@@ -16,6 +16,7 @@ export type ReceitaEasyMaestro = {
   cobrancas: number | null
   solicitadaEm: string | null
   ultimaCaptacaoNoMes?: string | null
+  consolidado?: { conversaoId: string; captadoEm: string } | null
   easy: boolean
   liberada: boolean
   liberacaoEm: string | null
@@ -36,7 +37,7 @@ export async function consultarEasyMaestro(administradora: string | null = null)
   return data as PainelEasyMaestro
 }
 
-export async function captarEasyMaestro(administradora: string, lote: string, montarFlow = false) {
+export async function captarEasyMaestro(administradora: string, lote: string, montarFlow: boolean, condominios: string[]) {
   const scope = await getPermittedCarteiras()
   if (!['admin', 'gestor', 'operador'].includes(scope.perfil)) {
     return { error: 'Seu perfil não pode iniciar captações.' }
@@ -44,12 +45,18 @@ export async function captarEasyMaestro(administradora: string, lote: string, mo
   if (!administradora.trim() || !/^[0-9a-f-]{36}$/i.test(lote)) {
     return { error: 'Selecione uma administradora para captar.' }
   }
+  if (!Array.isArray(condominios) || !condominios.length || condominios.some(
+    id => typeof id !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id),
+  )) {
+    return { error: 'Selecione pelo menos um condomínio válido para captar.' }
+  }
   const { data, error } = await createAdminClient().rpc('easy_maestro_captar', {
     p_carteiras: scope.carteiraIds,
     p_administradora: administradora,
     p_usuario: scope.userId,
     p_lote: lote,
     p_montar_flow: montarFlow === true,
+    p_condominios: [...new Set(condominios)],
   })
   if (error) {
     return { error: error.code === 'P0001' ? error.message : 'Não foi possível registrar o pedido. Tente novamente.' }

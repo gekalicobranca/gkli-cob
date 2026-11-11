@@ -1,3 +1,4 @@
+import { nomeCondominioEasy } from '@/features/easy-cob/nome-condominio';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
@@ -29,7 +30,7 @@ const operations = [
   { key: "efetivar", title: "Efetivar", description: "Anexe o PDF da administradora e confira as parcelas.", color: styles.violet, icon: FileCheck2, trail: "Conferir e efetivar" },
 ];
 type Search = { operacao?: string; condominio?: string; unidade?: string; acordo?: string };
-type Row = AcordoEasy & { id: string; nome?: string; identificacao?: string; bloco?: string; unidade_id?: string; status_operacional?: string; status_financeiro?: string; data_acordo?: string; valor_acordado?: number };
+type Row = AcordoEasy & { id: string; nome?: string; nome_operacional?: string | null; identificacao?: string; bloco?: string; unidade_id?: string; status_operacional?: string; status_financeiro?: string; data_acordo?: string; valor_acordado?: number };
 const cobrancaAtiva = (charge: Row) =>
   (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as readonly string[]).includes(getCobrancaStatusOperacional(charge)) &&
   !["quitado", "renegociado"].includes(getCobrancaStatusFinanceiro(charge));
@@ -72,7 +73,7 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
     }
   }
 
-  const condominiums = await rows("condominios", "id,nome", "nome");
+  const condominiums = await rows("condominios", "id,nome,nome_operacional", "nome");
   const condominium = condominiums.find(item => item.id === query.condominio);
   if (query.condominio && !condominium) notFound();
   const allUnits = condominium
@@ -128,7 +129,7 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
           : ["Localizar acordo", operation.key === "efetivar" ? "Conferir PDF" : "Revisar cancelamento"]} current={unit ? 1 : 0} />
     </div>
     <EasyFilters operation={operation.key} condominium={condominium?.id ?? ""} unit={unit?.id ?? ""}
-      condominiums={condominiums.map(item => ({ id: item.id, label: item.nome ?? item.id }))}
+      condominiums={condominiums.map(item => ({ id: item.id, label: nomeCondominioEasy(item.nome ?? item.id, item.nome_operacional) }))}
       units={units.map(item => ({ id: item.id, label: [item.bloco && `Bloco ${item.bloco}`, item.identificacao].filter(Boolean).join(" · ") }))} />
     {!unit && <EasyEmpty title={condominium && !units.length ? "Nenhuma unidade disponível para esta ação" : "Vamos localizar a unidade"}
       description={condominium && !units.length ? "Escolha outro condomínio ou consulte os acordos para acompanhar a situação das unidades." : "Busque o condomínio e digite a unidade ou o bloco. As opções já estão filtradas para esta ação."} />}

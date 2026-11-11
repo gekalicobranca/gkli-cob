@@ -3,6 +3,104 @@ import { test } from 'node:test'
 import { flowBudgetFetch, withFlowBudget } from '../lib/jobs/flow-execution'
 import { runFlowJob } from '../app/api/jobs/flows/_lib/run'
 import { createAdminClient } from '../utils/supabase/admin'
+import { processarFilaMaestro } from '../app/api/jobs/flows/montar/processar-fila'
+import { criarResolvedorTemplateDaParte } from '../features/mensageria/template-resolver'
+
+test('orçamento do Maestro agrupa partes no perfil de duração observado no Rio Negro', async () => {
+  const now = Date.now
+  let tempo = now()
+  Date.now = () => tempo
+  try {
+    async function simular(limite: { ms: number; queries: number }) {
+      const duracoes = [67_000, 59_000, 52_000, 47_000, 62_000, 23_000]
+      const chamadas: number[] = []
+      const flows = new Set<string>()
+      let parte = 0
+      while (parte < duracoes.length) {
+        const result = await withFlowBudget(() => processarFilaMaestro(async () => {
+          if (parte === duracoes.length) return { processadas: 0 }
+          tempo += duracoes[parte++]
+          return { processadas: 1, flowId: String(parte) }
+        }), limite)
+        chamadas.push(result.processadas)
+        for (const item of result.resultados) {
+          if (!item.flowId) continue
+          assert.equal(flows.has(item.flowId), false)
+          flows.add(item.flowId)
+        }
+      }
+      assert.equal(flows.size, 6)
+      return chamadas
+    }
+    assert.deepEqual(await simular({ ms: 90_000, queries: 400 }), [1, 1, 1, 1, 1, 1])
+    assert.deepEqual(await simular({ ms: 125_000, queries: 800 }), [1, 1, 2, 1, 1])
+  } finally { Date.now = now }
+})
+
+test('reutiliza a fonte do template apenas na parte e renderiza cada destinatário', async () => {
+  const originalFetch = globalThis.fetch
+  const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const originalKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://flow-job-test.invalid'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key'
+  let consultas = 0
+  globalThis.fetch = async () => {
+    consultas++
+    return Response.json({ id: 'template', nome: 'Modelo', conteudo: 'Olá, {{nome}}' })
+  }
+  try {
+    const input = { tipoRegua: 'cobranca', templateId: 'template' }
+    const resolver = criarResolvedorTemplateDaParte()
+    assert.equal((await resolver({ ...input, variables: { nome: 'Ana' } })).renderizado, 'Olá, Ana')
+    assert.equal((await resolver({ ...input, variables: { nome: 'Bia' } })).renderizado, 'Olá, Bia')
+    assert.equal(consultas, 1)
+    await criarResolvedorTemplateDaParte()({ ...input, variables: { nome: 'Caio' } })
+    assert.equal(consultas, 2)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl
+    if (originalKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey
+  }
+})
+
+test('Maestro processa várias partes na mesma reserva e encerra na primeira falha', async () => {
+  let partes = 0
+  const lote = await withFlowBudget(() => processarFilaMaestro(async () => ({
+    processadas: 1, flowId: `flow-${++partes}`,
+  })))
+  assert.equal(lote.processadas, 4)
+  assert.deepEqual(lote.resultados.map(p => p.flowId), ['flow-1', 'flow-2', 'flow-3', 'flow-4'])
+
+  const falha = await withFlowBudget(() => processarFilaMaestro(async () => {
+    partes++
+    return partes === 5 ? { processadas: 1, flowId: 'flow-5' }
+      : { processadas: 1, status: 'atencao', erro: 'Revisar parte' }
+  }))
+  assert.equal(partes, 6)
+  assert.equal(falha.resultados.at(-1)?.status, 'atencao')
+
+  const vazio = await withFlowBudget(() => processarFilaMaestro(async () => ({ processadas: 0 })))
+  assert.equal(vazio.resultados.length, 1)
+})
+
+test('Maestro deixa a próxima parte na fila se o orçamento já foi consumido', async () => {
+  const originalFetch = globalThis.fetch
+  let partes = 0
+  globalThis.fetch = async () => Response.json(null)
+  try {
+    const lote = await withFlowBudget(() => processarFilaMaestro(async () => {
+      partes++
+      for (let i = 0; i < 201; i++) await flowBudgetFetch()!('https://flow-job-test.invalid')
+      return { processadas: 1, flowId: 'primeiro' }
+    }))
+    assert.equal(partes, 1)
+    assert.equal(lote.processadas, 1)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
 
 test('clientes internos compartilham orçamento, respeitam abort e não afetam chamadas fora do job', async () => {
   const originalFetch = globalThis.fetch
