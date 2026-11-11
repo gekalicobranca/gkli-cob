@@ -3,8 +3,10 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 type Budget = { deadline: number; remainingQueries: number; signal: AbortSignal }
 const budgets = new AsyncLocalStorage<Budget>()
 
-export function withFlowBudget<T>(work: () => Promise<T>) {
-  return budgets.run({ deadline: Date.now() + 90_000, remainingQueries: 400, signal: AbortSignal.timeout(90_000) }, work)
+export function withFlowBudget<T>(work: () => Promise<T>, limite = { ms: 90_000, queries: 400 }) {
+  return budgets.run({
+    deadline: Date.now() + limite.ms, remainingQueries: limite.queries, signal: AbortSignal.timeout(limite.ms),
+  }, work)
 }
 
 export function flowBudgetRemaining() {

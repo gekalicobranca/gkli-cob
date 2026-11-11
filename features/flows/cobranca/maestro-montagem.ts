@@ -11,6 +11,7 @@ import { motivoExclusaoMaestro, motivoSaneamentoMaestro } from './maestro-elegib
 import { motivoImpedimentoFlow } from './eligibilidade'
 import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade'
 import { carregarApoiosParaCorrespondencia } from '@/features/responsaveis-unidades/correspondencia'
+import { flowBudgetRemaining } from '@/lib/jobs/flow-execution'
 
 const relation = (v: any) => Array.isArray(v) ? v[0] : v
 const origens = ['maestro', 'maestro_agendada', 'agenda_mensal']
@@ -111,9 +112,22 @@ export async function processarMontagemMaestro(execucaoManualId?: string) {
   if (error) throw new Error(error.message)
   let job = data?.[0]
   if (!job) return { processadas: 0 }
+  const fases: Record<string, { ms: number; consultas: number | null }> = {}
+  async function medir<T>(fase: string, executar: () => Promise<T>): Promise<T> {
+    const inicio = performance.now()
+    const antes = flowBudgetRemaining()
+    try { return await executar() }
+    finally {
+      const depois = flowBudgetRemaining()
+      fases[fase] = {
+        ms: Math.round(performance.now() - inicio),
+        consultas: antes && depois ? antes.queries - depois.queries : null,
+      }
+    }
+  }
   try {
-    if (!job.plano) job = await planejar(db, job)
-    if (!job.plano.length) return { processadas: 1, jobId: job.id, status: 'concluido', flows: 0 }
+    if (!job.plano) job = await medir('planejamento', () => planejar(db, job))
+    if (!job.plano.length) return { processadas: 1, jobId: job.id, status: 'concluido', flows: 0, fases }
     const { data: condominio, error: ce } = await db.from('condominios').select('nome,nome_operacional,status,carteira_id,carteira:carteiras(nome)').eq('id', job.condominio_id).single()
     if (ce || condominio.status !== 'ativo' || condominio.carteira_id !== job.carteira_id) throw new Error('Condomínio inativo ou carteira alterada durante a montagem.')
     const reguaId = job.reguas_por_parte?.[job.parte] ?? job.regua_id
@@ -124,19 +138,22 @@ export async function processarMontagemMaestro(execucaoManualId?: string) {
     }
     const { data: loteId, error: le } = await db.rpc('maestro_flow_lote', { p_job: job.id, p_token: job.token })
     if (le) throw new Error(le.message)
-    await processarReguaCobranca({ origem: 'maestro_captacao', carteiraId: job.carteira_id, condominioId: job.condominio_id,
-      cobrancaIds: job.plano[job.parte], reguaId, cooldownDias: 0, loteRetomadaId: loteId, montagemMaestroId: job.id })
-    await consolidarEmailsLote(loteId)
-    await consolidarWhatsAppLote(loteId)
+    await medir('regua', () => processarReguaCobranca({ origem: 'maestro_captacao', carteiraId: job.carteira_id, condominioId: job.condominio_id,
+      cobrancaIds: job.plano[job.parte], reguaId, cooldownDias: 0, loteRetomadaId: loteId, montagemMaestroId: job.id }))
+    await medir('consolidacao', async () => {
+      await consolidarEmailsLote(loteId)
+      await consolidarWhatsAppLote(loteId)
+    })
     const carteira = relation(condominio.carteira)
     const nome = `Flow cobrança · ${carteira?.nome ?? 'Carteira'} · ${condominio.nome_operacional || condominio.nome} · Maestro · parte ${job.parte + 1}`
-    const { data: flowId, error: fe } = await db.rpc('maestro_flow_finalizar', { p_job: job.id, p_token: job.token, p_nome: nome })
+    const { data: flowId, error: fe } = await medir('finalizacao', async () =>
+      db.rpc('maestro_flow_finalizar', { p_job: job.id, p_token: job.token, p_nome: nome }))
     if (fe) throw new Error(fe.message)
-    return { processadas: 1, jobId: job.id, flowId }
+    return { processadas: 1, jobId: job.id, flowId, fases }
   } catch (error) {
     const mensagem = error instanceof Error ? error.message : 'Falha na montagem dos flows.'
     const { error: updateError } = await db.from('maestro_flow_montagens').update({ status: 'atencao', erro: mensagem, token: null, lease_ate: null, updated_at: new Date().toISOString() }).eq('id', job.id).eq('token', job.token)
     if (updateError) throw new Error(updateError.message)
-    return { processadas: 1, jobId: job.id, status: 'atencao', erro: mensagem }
+    return { processadas: 1, jobId: job.id, status: 'atencao', erro: mensagem, fases }
   }
 }
