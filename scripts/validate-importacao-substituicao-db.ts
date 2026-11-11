@@ -46,7 +46,7 @@ async function main() {
     await db.exec(readFileSync('supabase/migrations/20261008203444_importacao_substituir_regular.sql', 'utf8'))
     await db.exec(`create table conversoes_relatorio(id uuid primary key,carteira_id uuid,condominio_id uuid,status text);
       insert into conversoes_relatorio values('${id(60)}','${id(2)}','${id(3)}','preview');`)
-    await db.exec(readFileSync('supabase/migrations/20261015143031_maestro_substituir_cobrancas_conversao.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261015143321_maestro_substituir_cobrancas_conversao.sql', 'utf8'))
     await db.exec('begin; savepoint maestro')
     await db.exec(`insert into cobrancas values('${id(61)}','${id(3)}','${id(2)}','${id(4)}','2026-01-05',null,'regular','em_aberto')`)
     await db.exec(`insert into mensagens(id,cobranca_id,cobranca_flow_id,payload,status) values('${id(63)}','${id(61)}','${id(40)}','{"cobranca_ids":["${id(61)}"]}','agendada');

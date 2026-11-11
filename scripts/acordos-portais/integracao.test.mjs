@@ -49,10 +49,10 @@ test('migração mantém Manager isolado, reivindicação atômica e RLS por car
       create function public.current_user_can_access_carteira(uuid) returns boolean language sql as $$select true$$;
       create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);`)
     await db.exec(await readFile(new URL('../../supabase/migrations/20261006034019_agente_acordos_pdfs.sql', import.meta.url), 'utf8'))
-    await db.exec(await readFile(new URL('../../supabase/migrations/20261006040409_agente_acordos_lello_bbz.sql', import.meta.url), 'utf8'))
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261006041349_agente_acordos_lello_bbz.sql', import.meta.url), 'utf8'))
     await db.exec(await readFile(new URL('../../supabase/migrations/20261006225204_agente_acordos_atipass.sql', import.meta.url), 'utf8'))
     await db.exec(await readFile(new URL('../../supabase/migrations/20261006225234_agente_acordos_atipass_identificador.sql', import.meta.url), 'utf8'))
-    await db.exec(await readFile(new URL('../../supabase/migrations/20261006230035_agente_acordos_hflex_final.sql', import.meta.url), 'utf8'))
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261006232512_agente_acordos_hflex_final.sql', import.meta.url), 'utf8'))
     const carteira = '00000000-0000-0000-0000-000000000001', worker = '00000000-0000-0000-0000-000000000002'
     await db.query('insert into carteiras values ($1)', [carteira])
     for (const [i, admin] of ['BBZ', 'Lello', 'Manager', 'ATIPASS', 'HFlex'].entries()) {

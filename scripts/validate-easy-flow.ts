@@ -38,7 +38,7 @@ test('SMTP escolhido é exclusivo, herda nas próximas etapas e falha sem trocar
   // A mesma seleção de contas instalada em produção, incluindo a rota de condomínio.
   const original=await readFile('supabase/migrations/20261027024355_multiplos_smtp_por_carteira.sql','utf8');
   await db.exec(original.slice(original.indexOf('create function public.email_smtp_candidatas('),original.indexOf('-- Preserva a identidade')));
-  await db.exec(await readFile('supabase/migrations/20261108141732_easy_flow_smtp.sql','utf8'));
+  await db.exec(await readFile('supabase/migrations/20261108142307_easy_flow_smtp.sql','utf8'));
   await db.exec(`insert into carteiras(id) values('${id(1)}'),('${id(2)}');insert into condominios values('${id(3)}','${id(1)}');insert into reguas values('${id(4)}');
     insert into integracoes_smtp_config(id,carteira_id,usuario,ativo,prioridade) values('${id(5)}','${id(1)}','principal@example.com',true,0),('${id(6)}','${id(1)}','alternativa@example.com',true,100),('${id(7)}','${id(2)}','outra@example.com',true,0);
     insert into cobrancas values('${id(8)}','${id(3)}','${id(1)}');

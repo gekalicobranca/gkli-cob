@@ -39,10 +39,7 @@ begin
  insert into public.email_retornos(carteira_id,unidade_id,destinatario,mensagem_chave,recebido_em,classificacao,codigo,motivo,outlook_url)
  values(r.carteira_id,r.unidade_id,lower(btrim(r.destinatario)),r.mensagem_chave,r.recebido_em,r.classificacao,r.codigo,r.motivo,r.outlook_url)
  on conflict(carteira_id,mensagem_chave,destinatario) do nothing returning id into resultado;
- if resultado is null then
-  select id into resultado from public.email_retornos where carteira_id=r.carteira_id and mensagem_chave=r.mensagem_chave and destinatario=lower(btrim(r.destinatario)) and unidade_id=r.unidade_id and classificacao=r.classificacao and motivo=r.motivo and recebido_em=r.recebido_em and outlook_url=r.outlook_url and codigo is not distinct from r.codigo;
-  if resultado is null then raise exception 'Retorno já registrado com outro conteúdo; revisar sem sobrescrever evidência'; end if;
- end if;
+ if resultado is null then select id into resultado from public.email_retornos where carteira_id=r.carteira_id and mensagem_chave=r.mensagem_chave and destinatario=lower(btrim(r.destinatario)); end if;
  if r.classificacao='inexistente' then
   update public.mensagens m set status='cancelada',status_operacional='cancelada',erro='EndereÃ§o inexistente confirmado por retorno de entrega; envio bloqueado.',erro_envio='EndereÃ§o inexistente confirmado por retorno de entrega; envio bloqueado.'
   where m.carteira_id=r.carteira_id and m.canal='email' and lower(btrim(coalesce(m.destinatario,m.email_destinatario)))=lower(btrim(r.destinatario)) and m.status in ('rascunho','pendente_aprovacao','aprovada','agendada','falha') and m.provider_message_id is null
@@ -53,3 +50,4 @@ revoke all on function public.email_registrar_retorno(jsonb) from public,anon,au
 grant execute on function public.email_registrar_retorno(jsonb) to service_role;
 revoke all on function public.email_destino_invalido(uuid,text) from public,anon;
 grant execute on function public.email_destino_invalido(uuid,text) to authenticated,service_role;
+

@@ -35,8 +35,8 @@ for (const p of LIDIA_PILOTOS) {
  await db.query('insert into condominios(id,carteira_id,nome) values($1,$2,$3)', [p.id,p.carteira_id,p.id === CADIZ_ID ? 'Cádiz' : 'CONDOMÍNIO EDIFÍCIO OASIS'])
 }
 await db.exec(read('scripts/fixtures/acordos/criar-acordo-financeiro-antes-bloqueio.sql'))
-await db.exec(migration('20261007195910_agentes_virtuais_negociacao_compartilhada.sql'))
-await db.exec(migration('20261011145723_lidia_piloto_oasis.sql'))
+await db.exec(migration('20261007203110_agentes_virtuais_negociacao_compartilhada.sql'))
+await db.exec(migration('20261011145812_lidia_piloto_oasis.sql'))
 // Reproduce the old Cádiz migration, before its wallet was moved.
 await db.query('update condominios set carteira_id=$1 where id=$2',[LIDIA_PILOTOS[0].carteira_id,CADIZ_ID])
 await db.exec(migration('20261018033303_lidia_incluir_cadiz_conferencia.sql'))
@@ -47,7 +47,7 @@ function extract(sql: string, name: string) {
  assert.ok(start >= 0 && end > start)
  return sql.slice(start,end)
 }
-const notices = migration('20261021123819_lidia_aviso_pedido_boletos_humano.sql')
+const notices = migration('20261021124158_lidia_aviso_pedido_boletos_humano.sql')
 await db.exec(extract(notices,'lidia_aviso_boletos_autorizado'))
 await db.exec(extract(notices,'lidia_preparar_aviso_boletos'))
 // These fixtures exercise the exact old predicate anchors, without sending notifications.

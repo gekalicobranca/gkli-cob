@@ -60,7 +60,7 @@ test('PostgreSQL usa limpeza real do Maestro, bloqueia prévia obsoleta e preser
   for(const [index,[status,ano,cond]] of rows.entries()) await db.query('insert into cobrancas values($1,$2,$3,$4,$5,$6,100,null)',[ids[index],wallet,cond,randomUUID(),status,`${ano}-03-01`]);
   await db.query('insert into acordos values($1,$2)',[randomUUID(),ids[7]]);
   await db.exec(await readFile('supabase/migrations/20261016182723_living_subcondominio_escopo.sql','utf8'));
-  await db.exec(await readFile('supabase/migrations/20261108131331_easy_captacao_maestro.sql','utf8'));
+  await db.exec(await readFile('supabase/migrations/20261108132205_easy_captacao_maestro.sql','utf8'));
   const snap=async()=> (await db.query<{r:{quantidade:number;versao:string}}>('select easy_captacao_snapshot($1,$2) r',[condo,wallet])).rows[0].r;
   const before=await snap();assert.equal(before.quantidade,3);
   await db.query('update cobrancas set valor_atualizado=101 where id=$1',[ids[0]]);

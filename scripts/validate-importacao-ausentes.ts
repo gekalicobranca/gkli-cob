@@ -38,7 +38,7 @@ async function main() {
       insert into flow_progressao(cobranca_ids,status) values(array['${id(11)}'::uuid],'pendente');
       insert into maestro_flow_montagens(plano,status) values('[["${id(11)}"]]','processando');
     `)
-    await db.exec(readFileSync('supabase/migrations/20261007143610_importacao_remover_ausentes_sem_acordo.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261007150318_importacao_remover_ausentes_sem_acordo.sql', 'utf8'))
     const run = async () => (await db.query<{ result: any }>('select importacao_remover_cobrancas_ausentes($1) result', [id(1)])).rows[0].result
     await db.exec("update importacoes set total_invalidas=1")
     assert.equal((await run()).removidas, 0)

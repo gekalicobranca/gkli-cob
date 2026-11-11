@@ -16,7 +16,7 @@ test('limpeza persiste por canal, preserva cobrança e bloqueia acesso direto', 
       insert into auth.users values ('${user}');
       insert into public.cobrancas values ('${cobranca}', 100);
     `)
-    await db.exec(readFileSync('supabase/migrations/20261013150342_flows_saneamento_limpeza.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261013150919_flows_saneamento_limpeza.sql', 'utf8'))
     const limpar = () => db.query(`insert into flow_saneamento_dispensas(cobranca_id,canal,dispensado_por)
       values ($1,'email',$2) on conflict(cobranca_id,canal) do update set dispensado_por=excluded.dispensado_por`, [cobranca, user])
     await limpar()

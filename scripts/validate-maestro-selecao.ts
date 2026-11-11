@@ -31,8 +31,8 @@ test('ações em massa isolam seleção e carteira, preservam histórico e recus
         ('${id(34)}','${id(10)}','concluido',array['${id(92)}'::uuid]),
         ('${id(35)}','${id(11)}','concluido',null);
     `)
-    await db.exec(readFileSync('supabase/migrations/20261011160304_maestro_pausar_agendas_selecionadas.sql', 'utf8'))
-    await db.exec(readFileSync('supabase/migrations/20261109220214_maestro_arquivar_montagens_concluidas.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261011160541_maestro_pausar_agendas_selecionadas.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261109220623_maestro_arquivar_montagens_concluidas.sql', 'utf8'))
     await assert.rejects(db.query('select maestro_pausar_agendas($1::uuid[])', [[id(2)]]), /Sem permissão/)
     await db.query("select set_config('test.uid',$1,false)", [id(1)])
     await assert.rejects(db.query('select maestro_pausar_agendas($1::uuid[])', [[]]), /Selecione/)

@@ -30,7 +30,7 @@ async function main() {
     await db.exec(readFileSync('scripts/fixtures/whatsapp-web-reservar-limite-diario.sql', 'utf8'))
     await db.exec('alter table mensagens add column conteudo text; alter table mensagens add column conteudo_renderizado text;')
     await db.exec(readFileSync('supabase/migrations/20261023134005_whatsapp_limite_20_janela_movel_24h.sql', 'utf8'))
-    await db.exec(readFileSync('supabase/migrations/20261103191824_whatsapp_rotas_grupo_carteira.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261103192159_whatsapp_rotas_grupo_carteira.sql', 'utf8'))
     const definition = (await db.query<{ src: string }>("select pg_get_functiondef('whatsapp_web_reservar(text,text)'::regprocedure) src")).rows[0].src
     await db.exec(definition.replaceAll('now()', 'test_now()'))
     const route = async (n: number) => (await db.query<any>('select whatsapp_web_rota_mensagem($1) r', [id(n)])).rows[0].r

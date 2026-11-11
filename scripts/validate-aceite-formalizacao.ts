@@ -32,9 +32,9 @@ async function main() {
     return proposta;
    end $$;
   `)
-  await db.exec(readFileSync('supabase/migrations/20261019004657_aceite_agentes_encaminhar_humano.sql','utf8'))
-  await db.exec(readFileSync('supabase/migrations/20261019005823_avisar_operador_acordo_firmado.sql','utf8'))
-  await db.exec(readFileSync('supabase/migrations/20261019010614_aviso_operador_lidia_camila.sql','utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261019005410_aceite_agentes_encaminhar_humano.sql','utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261019010537_avisar_operador_acordo_firmado.sql','utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261019010952_aviso_operador_lidia_camila.sql','utf8'))
   const id='00000000-0000-0000-0000-000000000001',unidade='00000000-0000-0000-0000-000000000002'
   const proposta={id:'proposta-original',unidade_id:unidade,unidade:'35',etapa:'possivel_acordo',base:100,despesas:10,total:110,percentual:10,parcelas:[{numero:1,valor:110,vencimento:'2026-11-05'}]}
   const original={versao:1,estado:'proposta_preparada',acordos:[proposta],resposta_aprovada:{texto:'texto aprovado',mensagem_id:'mensagem-original'},atividades:[],acompanhamento:{conversas:[{message_id:'original'}],pendencias:[{id:'anterior',tipo:'proposta',prazo:'2026-10-20',proxima_acao:'Preservar'}]}}

@@ -90,7 +90,7 @@ async function main() {
   const pg = new PGlite()
   try {
     await pg.exec('create role anon; create role authenticated; create role service_role bypassrls; create table condominios(id uuid primary key); create table carteiras(id uuid primary key); create table integracoes_smtp_config(id uuid primary key);')
-    await pg.exec(readFileSync('supabase/migrations/20261019195825_smtp_condominio_oasis_lidia.sql', 'utf8'))
+    await pg.exec(readFileSync('supabase/migrations/20261019200058_smtp_condominio_oasis_lidia.sql', 'utf8'))
     for (const role of ['anon', 'authenticated']) {
       await pg.exec(`set role ${role}`)
       for (const sql of ['select * from integracoes_smtp_rotas_condominio', 'delete from integracoes_smtp_rotas_condominio', 'update integracoes_smtp_rotas_condominio set ativo=false', 'insert into integracoes_smtp_rotas_condominio default values']) await assert.rejects(pg.query(sql), /permission denied/)

@@ -29,14 +29,14 @@ async function main(){
    create schema net;create table net.requests(id bigserial,url text);
    create function net.http_get(url text,headers jsonb,timeout_milliseconds integer) returns bigint language plpgsql as $$declare n bigint;begin insert into net.requests(url) values(url) returning id into n;return n;end$$;
   `)
-  await db.exec(clock(readFileSync('supabase/migrations/20261015180513_email_agenda_janela_noturna.sql','utf8')))
+  await db.exec(clock(readFileSync('supabase/migrations/20261015181509_email_agenda_janela_noturna.sql','utf8')))
   const financeiro=readFileSync('scripts/validate-aceite-formalizacao.ts','utf8').split('   create function agente_virtual_negociar_acordo')[1].split('  `)')[0]
   await db.exec(clock('create function agente_virtual_negociar_acordo'+financeiro))
-  for(const nome of ['20261019004657_aceite_agentes_encaminhar_humano.sql','20261019005823_avisar_operador_acordo_firmado.sql','20261019010614_aviso_operador_lidia_camila.sql','20261019012801_avisos_internos_envio_imediato.sql']) await db.exec(clock(readFileSync('supabase/migrations/'+nome,'utf8')))
+  for(const nome of ['20261019005410_aceite_agentes_encaminhar_humano.sql','20261019010537_avisar_operador_acordo_firmado.sql','20261019010952_aviso_operador_lidia_camila.sql','20261019013637_avisos_internos_envio_imediato.sql']) await db.exec(clock(readFileSync('supabase/migrations/'+nome,'utf8')))
 
   await db.exec('alter table central_pendencias add column titulo text;')
-  await db.exec(clock(readFileSync('supabase/migrations/20261021123819_lidia_aviso_pedido_boletos_humano.sql','utf8')))
-  await db.exec(clock(readFileSync('supabase/migrations/20261021125550_keila_aviso_pedido_boletos_humano.sql','utf8')))
+  await db.exec(clock(readFileSync('supabase/migrations/20261021124158_lidia_aviso_pedido_boletos_humano.sql','utf8')))
+  await db.exec(clock(readFileSync('supabase/migrations/20261021125632_keila_aviso_pedido_boletos_humano.sql','utf8')))
   const wallet='e1f6e3ac-1098-4b30-9e0f-af4c47b351a3',condo='2b1aa7ca-91d6-44fc-b667-8fb9bfeffb53'
   await db.query('insert into carteiras(id) values($1)',[wallet])
   await db.query('insert into condominios values($1,$2,$3)',[condo,wallet,'Cádiz'])

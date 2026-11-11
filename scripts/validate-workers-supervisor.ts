@@ -19,7 +19,7 @@ test('supervisor: PDFs elegíveis, pausa persistente WhatsApp e RPC privada',asy
   create function whatsapp_web_reservar(text,text) returns jsonb language plpgsql as $$begin
    update public.claim_calls set n=n+1;return jsonb_build_object('ok',true);end$$;
  `)
- await db.exec(readFileSync('supabase/migrations/20261015192312_workers_supervisor_sob_demanda.sql','utf8'))
+ await db.exec(readFileSync('supabase/migrations/20261015192829_workers_supervisor_sob_demanda.sql','utf8'))
  assert.equal((await db.query<{n:number}>('select count(*)::int n from whatsapp_worker_controles where habilitado')).rows[0].n,0)
  assert.equal((await db.query<{r:any}>("select whatsapp_web_reservar('genske','123') r")).rows[0].r,null)
  assert.equal((await db.query<{n:number}>('select n from claim_calls')).rows[0].n,0)

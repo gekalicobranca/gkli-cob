@@ -265,6 +265,11 @@ export default async function AcordoDetalhePage({ params }: Props) {
 
   return (
     <div className="space-y-2">
+      {['quebrado', 'rompido'].includes(String(acordo.status)) && !acordo.quebra_confirmacao ? (
+        <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          Quebra histórica pendente de conferência com a administradora. Confirme pagamentos aproveitados, saldo residual e cotas antes de retomar a cobrança.
+        </div>
+      ) : null}
       <header className="flex flex-wrap items-center justify-between gap-2"><h1 className="text-lg font-semibold text-slate-950">Acordo</h1>
           <div className="flex flex-wrap gap-2">
             <Link
