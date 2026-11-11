@@ -19,7 +19,8 @@ import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
 import { bloquearAutomacaoAcordoHflex, isImportacaoAcordoHflex, statusOperacionalParaCobrancaImportada } from "@/features/importacoes/status-cobranca-importada"
 import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "@/features/importacoes/regra-judicial-importacao"
 import { associarCobrancaConciliada } from "@/features/importacoes/reaproveitar-conversao"
-import { observacoesComComposicao, persistirComposicaoConciliada } from "@/features/importacoes/composicao-origem"
+import { observacoesComComposicao, observacoesComMarcador, persistirComposicaoConciliada } from "@/features/importacoes/composicao-origem"
+import { statusMarcadorCaptacaoManual } from "@/features/easy-cob/captacao-preview"
 import {
   avaliarBloqueioGarantidora,
   observacaoComBloqueioGarantidora,
@@ -429,8 +430,13 @@ export async function POST(request: NextRequest) {
           bloqueioGarantidora = avaliarBloqueioGarantidora(condominioConfiguracao as any, { vencimento: parcelaBloqueada })
         }
       }
-      const observacoes = observacoesComComposicao(observacaoComBloqueioGarantidora(observacoesBase, bloqueioGarantidora.bloqueada), item)
-      const statusCalculado = await statusOperacionalParaCobrancaImportada(supabase as any, {
+      const statusMarcador = captacaoEasy ? statusMarcadorCaptacaoManual(item) : undefined
+      const marcadorOrigem = statusMarcador ? item.marcadorOrigem : undefined
+      const observacoes = observacoesComMarcador(
+        observacoesComComposicao(observacaoComBloqueioGarantidora(observacoesBase, bloqueioGarantidora.bloqueada), item),
+        marcadorOrigem,
+      )
+      const statusCalculado = statusMarcador ?? await statusOperacionalParaCobrancaImportada(supabase as any, {
         ...item,
         condominio_id: condominioId,
         vencimento: vencimentoMaisAntigo,
@@ -489,7 +495,7 @@ export async function POST(request: NextRequest) {
         }
         await bloquearAutomacaoAcordoHflex(supabase, conciliacao.cobrancaId, item)
         await persistirComposicaoConciliada(supabase, conciliacao.cobrancaId, {
-          condominioId, carteiraId, recibo, vencimento: vencimentoMaisAntigo,
+          condominioId, carteiraId, recibo, vencimento: vencimentoMaisAntigo, marcadorOrigem,
         }, item)
         await associarCobrancaConciliada(supabase, conciliacao.cobrancaId, {
           condominio_id: condominioId, carteira_id: carteiraId, unidade_id: unidadeId, conversao_relatorio_id: conversaoId,
@@ -535,7 +541,7 @@ export async function POST(request: NextRequest) {
         vencimento: vencimentoMaisAntigo,
         inicioCobrancaDias: (condominioConfiguracao as any)?.dias_apos_vencimento_regua ?? (condominioConfiguracao as any)?.inicio_cobranca_dias,
       })
-      if (reguaImportacao.foraRegua && !conciliarMaestro && contextoJudicial.unidadesJudiciais.get(String(unidadeId)) !== true) {
+      if (reguaImportacao.foraRegua && !statusMarcador && !conciliarMaestro && contextoJudicial.unidadesJudiciais.get(String(unidadeId)) !== true) {
         await registrarSaneamentoConversao(supabase, {
           carteiraId,
           condominioId,
@@ -567,7 +573,7 @@ export async function POST(request: NextRequest) {
           status: statusOperacional,
           status_operacional: statusOperacional,
           status_financeiro: "em_aberto",
-          automacao_bloqueada: isImportacaoAcordoHflex(item),
+          automacao_bloqueada: Boolean(statusMarcador) || isImportacaoAcordoHflex(item),
           observacoes,
           origem_importacao: origemImportacao,
           conversao_relatorio_id: conversaoId,

@@ -3,6 +3,7 @@ import {test} from 'node:test';
 import {readFile} from 'node:fs/promises';
 import * as XLSX from 'xlsx';
 import {lerPlanilhaManualEasy} from '../features/easy-cob/planilha-manual';
+import {statusMarcadorCaptacaoManual} from '../features/easy-cob/captacao-preview';
 const condo={cnpj:'12345678000190',nome:'CONDOMÍNIO GEKALI TESTE'};
 async function fixture(){
   const wb=XLSX.read(await readFile('public/modelos/easy-flow-importacao.xlsx'),{type:'buffer',cellDates:false});const s=wb.Sheets['Cobranças'];
@@ -25,12 +26,35 @@ test('arquivo vazio, outro condomínio, datas, valores, contatos e fórmulas inv
     ['valor negativo',s=>{s.D9.v=-1;},/Linha 9/],
     ['precisão',s=>{s.D9.v=1.001;},/Linha 9/],
     ['e-mail',s=>{s.J9.v='invalido';},/Linha 9.*e-mail/],
-    ['sem contato',s=>{delete s.J9;},/Linha 9.*contato|Linha 9.*telefone/],
     ['fórmula externa',s=>{s.H9.f='WEBSERVICE("https://example.invalid")';},/Linha 9.*fórmula/],
     ['valor manual divergente',s=>{s.H9={t:'n',v:10};},/Linha 9.*não confere/],
   ];
   for(const [name,edit,pattern] of cases){const f=await fixture();edit(f.s);assert.throws(f.parse,pattern,name);}
   const f=await fixture();delete f.s.B9;assert.throws(f.parse,/Linha 9.*unidade/);
+});
+test('Easy Cap aceita contato vazio e preserva marcador do recibo em ambas as versões da planilha',async()=>{
+  const {wb,s,parse}=await fixture();
+  delete s.J9;
+  s.L9={t:'s',v:'12345'};
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+    ...Array.from({length:14},()=>[]),
+    ['Bloco','Unidade','Recibo','Marcador no PDF'],
+    ['01','000001','12345','J — Jurídico'],
+  ]),'Conferência');
+  const [juridica]=parse().cobrancas;
+  assert.equal(juridica.email,'');
+  assert.equal(juridica.telefone,'');
+  assert.equal(juridica.marcadorOrigem,'J');
+  assert.equal(statusMarcadorCaptacaoManual(juridica),'judicializado');
+  assert.throws(()=>lerPlanilhaManualEasy(XLSX.write(wb,{type:'buffer',bookType:'xlsx'}),'modelo.xlsx',condo,{exigirContato:true}),/preencha e-mail ou telefone/);
+  s.M8={t:'s',v:'Marcador no PDF'};
+  s.M9={t:'s',v:'A'};
+  s['!ref']='A1:M100';
+  assert.throws(parse,/marcadores diferentes/);
+  wb.Sheets['Conferência'].D16={t:'s',v:'A — Acordo'};
+  const [acordo]=parse().cobrancas;
+  assert.equal(acordo.situacaoOrigem,'acordo');
+  assert.equal(statusMarcadorCaptacaoManual(acordo),'possivel_acordo');
 });
 test('duplicidades e divergência de contatos na mesma unidade não geram importação parcial',async()=>{
   const f=await fixture();
