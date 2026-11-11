@@ -29,7 +29,7 @@ import { carregarEtapasDeReguaAdmin } from "../queries";
 import { avaliarComplianceRegua } from "./compliance";
 import { verificarSuspensaoRegua } from "./suspension";
 import { salvarScoreRegua } from "./intelligence";
-import { resolveTemplateMensagem } from "@/features/mensageria/template-resolver";
+import { criarResolvedorTemplateDaParte, resolveTemplateMensagem } from "@/features/mensageria/template-resolver";
 import { registrarLogMensageria } from "@/features/mensageria/engine/logs";
 import { createCarteiraCanalChecker, nomeCanalComunicacao } from "@/features/carteiras/canais";
 import type { ReguaTom } from "../types";
@@ -590,6 +590,7 @@ export async function processarReguaCobranca(
     return etapas;
   }
   const carteiraPermiteCanal = createCarteiraCanalChecker(supabase);
+  const resolverTemplate = params.montagemMaestroId ? criarResolvedorTemplateDaParte() : resolveTemplateMensagem;
   const cooldownDias = Number(params.cooldownDias ?? 3);
   const ciclo = cicloReferencia();
   const selectedIdsForQuery = params.cobrancaIds
@@ -923,7 +924,7 @@ export async function processarReguaCobranca(
         contexto.nome = contatoRegua.nome;
         contexto.primeiro_nome = String(contatoRegua.nome).split(" ")[0];
 
-        const templateResolvido = await resolveTemplateMensagem({
+        const templateResolvido = await resolverTemplate({
           carteiraId: row.carteira_id,
           tipoRegua: "cobranca",
           categoria: (etapa as any).categoria_template,

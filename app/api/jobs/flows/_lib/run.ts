@@ -18,7 +18,8 @@ export async function runFlowJob(name: 'montar' | 'progredir', work: () => Promi
     if (claim.error) throw new Error(`Não foi possível reservar o job: ${claim.error.message}`)
     token = claim.data
     if (!token) return NextResponse.json({ ok: true, skipped: true, motivo: 'concorrencia_ou_backoff' })
-    const result = await withFlowBudget(work)
+    // O cron aguarda até 150 s. Reserva e conclusão têm até 10 s cada.
+    const result = await withFlowBudget(work, name === 'montar' ? { ms: 125_000, queries: 800 } : undefined)
     const failed = hasFailure(result)
     const finish = await db.rpc('flows_job_concluir', { p_job: name, p_token: token, p_sucesso: !failed })
       .abortSignal(AbortSignal.timeout(10_000))
