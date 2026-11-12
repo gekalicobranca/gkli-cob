@@ -18,7 +18,7 @@ import {
   COBRANCA_STATUS_JUDICIALIZACAO,
 } from "@/lib/constants/cobrancas";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
-import { ACORDO_STATUS, ACORDO_STATUS_VIGENTES } from "@/lib/constants/acordos";
+import { ACORDO_STATUS, ACORDO_STATUS_VIGENTES, PARCELA_ACORDO_STATUS } from "@/lib/constants/acordos";
 import { normalizeStatus } from "@/lib/core/status";
 import { aplicarFiltroCriacao, criadoNoIntervalo } from '@/lib/core/filtros-criacao';
 import { operadorResponsavelId } from '@/lib/core/operador-responsavel';
@@ -781,7 +781,7 @@ function attachAgreementHealth(acordos: any[], parcelas: any[]) {
     return {
       ...acordo,
       parcelas_lista: parcelasDoAcordo,
-      parcelas_periodo: parcelasDoAcordo.map(parcela => ({ vencimento: parcela.vencimento })),
+      parcelas_periodo: parcelasDoAcordo.map(parcela => ({ vencimento: parcela.vencimento, status: parcela.status })),
       parcelas_alertas: health,
       saude_acordo: health.saude,
     };
@@ -973,6 +973,7 @@ async function applyAcordosDirectFilters(query: any, filters: ListAcordosComSaud
   if (unidadeId) query = query.in("id", filters.acordo_ids_unidade ?? []);
   if (carteiraId) query = query.eq("carteira_id", carteiraId);
   if (status) query = query.eq("status", status);
+  if (dataDe || dataAte) query = query.neq("parcelas_periodo.status", PARCELA_ACORDO_STATUS.CANCELADA);
   if (dataDe) query = query.gte("parcelas_periodo.vencimento", dataDe);
   if (dataAte) query = query.lte("parcelas_periodo.vencimento", dataAte);
 
