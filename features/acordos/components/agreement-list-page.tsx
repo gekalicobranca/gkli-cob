@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/select'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { StatusBadge } from '@/components/data/status-badge'
+import { AgreementStatusBadge } from '@/features/acordos/components/agreement-status-badge'
 import {
   ClearFiltersLink,
   ListEmptyState,
@@ -351,8 +352,8 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
                           >
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                {isJudicialUnderReview(row) ? <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Em conferência</span> : <StatusBadge status={row.status} />}
-                                {row.tipo === "extrajudicial" && <span className="block text-xs text-slate-600">{row.acordo_homologado ? "Homologado pela ADM" : "Homologação pendente"}</span>}
+                                {isJudicialUnderReview(row) ? <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Em conferência</span> : <AgreementStatusBadge status={row.status} homologado={row.acordo_homologado} />}
+                                {row.tipo === "extrajudicial" && (row.status !== "ativo" || row.acordo_homologado) && <span className="block text-xs text-slate-600">{row.acordo_homologado ? "Homologado pela ADM" : "Homologação pendente"}</span>}
                               </div>
                               <ListItemTitle className="mt-2">{getUnitLabel(row.unidades)}</ListItemTitle>
                               <ListItemMeta>

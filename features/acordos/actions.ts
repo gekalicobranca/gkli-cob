@@ -3213,7 +3213,6 @@ export async function atualizarAtrasosERompimentosAcordos() {
 
   const result = await checkAcordosStatus({
     diasParaRomper: 30,
-    diasParaAtraso: 15,
   });
 
   revalidatePath("/app/acordos");

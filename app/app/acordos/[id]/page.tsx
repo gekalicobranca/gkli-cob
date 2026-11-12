@@ -20,6 +20,7 @@ import {
   solicitarReemissaoParcelaAcordo,
 } from "@/features/acordos/actions";
 import { calculateAgreementHealth, getAcordoDetalhe } from "@/features/acordos/queries";
+import { AgreementStatusBadge } from "@/features/acordos/components/agreement-status-badge";
 import { AgreementHealthBadge } from "@/features/acordos/components/agreement-health-badge";
 import { AgreementFormalizationCard } from "@/features/acordos/components/agreement-formalization-card";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
@@ -310,7 +311,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
       </header>
       <AgreementFinancialDetail view="summary" acordo={acordo} cotas={cobrancasVinculadas} parcelas={parcelas} identity={
         <div id="dados-acordo" className="space-y-1 border-b border-slate-100 pb-2">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="text-sm font-semibold text-slate-950">{acordo.condominios?.nome || 'Condomínio não informado'}</h3><Badge value={acordo.status} />{String(acordo.status_financeiro ?? '').toLowerCase() !== String(acordo.status ?? '').toLowerCase() && <Badge value={acordo.status_financeiro} />}{!statusFechado && <AgreementHealthBadge health={health.saude} />}</div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="text-sm font-semibold text-slate-950">{acordo.condominios?.nome || 'Condomínio não informado'}</h3><AgreementStatusBadge status={acordo.status} homologado={acordo.acordo_homologado} />{String(acordo.status_financeiro ?? '').toLowerCase() !== String(acordo.status ?? '').toLowerCase() && <Badge value={acordo.status_financeiro} />}{!statusFechado && <AgreementHealthBadge health={health.saude} />}</div>
           <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700"><span>Unidade titular: <Link href={`/app/unidades/${acordo.unidade_id}`} className="text-sky-800 underline">{acordo.unidades?.identificacao || '—'}{acordo.unidades?.bloco ? ` / ${acordo.unidades.bloco}` : ''}</Link></span><span>Responsável: {responsavelApoio?.responsavel_nome || acordo.unidades?.responsavel_nome || 'Não informado'}</span></p>
           <p className="text-xs text-slate-500">{acordo.carteiras?.nome ?? 'Carteira não informada'} · {normalizeLabel(acordo.tipo)} · {formatDate(acordo.data_acordo)} · <strong>{ACORDO_ORIGEM_LABEL[origem]}</strong></p>
           {unidadesParticipantes.length > 0 && <p className="flex flex-wrap gap-x-3 text-xs text-slate-600"><span>Outras unidades:</span>{unidadesParticipantes.map((u: any) => <Link key={u.id} href={`/app/unidades/${u.id}`} className="text-sky-800 underline">{u.identificacao}{u.bloco ? ` / ${u.bloco}` : ''}</Link>)}</p>}
