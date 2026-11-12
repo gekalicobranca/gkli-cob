@@ -56,6 +56,11 @@ async function main() {
     poll: async agendar => {
       const { data, error } = await db.rpc('workers_supervisor_fila', { p_agendar: agendar })
       if (error) throw error
+      const vencido = new Date(Date.now() - 20 * 60_000).toISOString()
+      const { data: espelho, error: espelhoErro } = await db.from('easy_espelhamentos').select('criado_em')
+        .or(`estado.eq.fila,and(estado.eq.processando,iniciado_em.lt.${vencido})`).order('criado_em').limit(1).maybeSingle()
+      if (espelhoErro && espelhoErro.code !== 'PGRST205') console.error('Fila de espelhamento indisponível:', espelhoErro.message)
+      if (espelho) data.pendentes.push({ script_key: 'espelhamento:lello', created_at: espelho.criado_em })
       const pendentes = await arquivos.pending()
       if (data.captacao_ativa && pendentes.length) {
         importFile = pendentes[0]
@@ -64,7 +69,7 @@ async function main() {
       return data
     },
     launch: async key => {
-      if (!keys.includes(key) && !Object.hasOwn(PDF_WORKERS,key) && !['importacao:arquivos','whatsapp:cloud'].includes(key)) throw new Error('Worker não autorizado.')
+      if (!keys.includes(key) && !Object.hasOwn(PDF_WORKERS,key) && !['importacao:arquivos','whatsapp:cloud','espelhamento:lello'].includes(key)) throw new Error('Worker não autorizado.')
       const selectedFile = key==='importacao:arquivos' ? importFile : undefined
       const logKey = key.replaceAll(':','-')
       const out = await open(path.join(pasta, `${logKey}.stdout.log`), 'a')
