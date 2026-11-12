@@ -641,6 +641,7 @@ export async function createAcordo(formData: FormData) {
   const entradaVencimento = String(formData.get("entrada_vencimento") ?? "");
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
   let primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
+  const dataAcordoInformada = String(formData.get("data_acordo") ?? "").trim();
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
   const cotasSemDespesas = normalizeUuidList(formData.getAll("cotas_sem_despesas"));
   validarCotasSemDespesas(cotasSemDespesas, cobrancaIds, formData.get("cota_mes_autorizada") === "on");
@@ -668,6 +669,7 @@ export async function createAcordo(formData: FormData) {
   }
   if (!primeiroVencimento) throw new Error("Primeiro vencimento obrigatório.");
   validarDataCivil(primeiroVencimento, 'Primeiro vencimento');
+  if (dataAcordoInformada) validarDataCivil(dataAcordoInformada, 'Data do acordo');
   if (entrada > 0) validarDataCivil(entradaVencimento, 'Vencimento da entrada');
 
   const supabase = await createClient();
@@ -879,7 +881,7 @@ export async function createAcordo(formData: FormData) {
       p_entrada: entrada,
       p_despesa_cobranca_percentual: despesaCobrancaValor > 0 ? despesaCobrancaPercentual : 0,
       p_despesa_cobranca_valor: despesaCobrancaValor,
-      p_data_acordo: toISODate(new Date()),
+      p_data_acordo: dataAcordoInformada || (saldoParcelado > 0 ? primeiroVencimento : entradaVencimento),
       p_status: ACORDO_STATUS.ATIVO,
       p_fluxo_status: fluxoStatusInicial,
       p_exige_aprovacao_sindico: exigeAprovacaoSindico,

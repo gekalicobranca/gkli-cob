@@ -498,6 +498,9 @@ export function AcordoSimulatorForm({
             <Input aria-label="Primeiro vencimento" name="primeiro_vencimento" type="date" required value={primeiroVencimento}
               onChange={event => setPrimeiroVencimento(event.target.value)} />
           </FormField>
+          <FormField label="Data do acordo (opcional)" hint="Em branco, usa o vencimento da primeira parcela.">
+            <Input aria-label="Data do acordo" name="data_acordo" type="date" defaultValue={formularioInicial.data_acordo ?? ""} />
+          </FormField>
           </div>
           <p className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">Cotas com juros e multa registrados. Parcelamento com Price de 1% ao mês. Boleto: {formatCurrency(Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0))} por emissão.</p>
           <div className="flex justify-end border-t border-slate-100 pt-4"><Button type="submit" className="h-11 rounded-xl px-6" disabled={blocked}>Simular acordo →</Button></div>
@@ -857,6 +860,9 @@ export function AcordoSimulatorForm({
                 event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
               ) => setPrimeiroVencimento(event.target.value)}
             />
+          </FormField>
+          <FormField label="Data do acordo (opcional)" hint="Em branco, usa o vencimento da primeira parcela.">
+            <Input aria-label="Data do acordo" name="data_acordo" type="date" defaultValue={formularioInicial.data_acordo ?? ""} />
           </FormField>
         </div>
 

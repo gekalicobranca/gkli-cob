@@ -2164,7 +2164,7 @@ function normalizeSimplePayload(
     ...rowPayload,
     cnpj: getDocumento(rowPayload, CONDOMINIO_CNPJ_KEYS, 14),
     condominio_cnpj: getDocumento(rowPayload, CONDOMINIO_CNPJ_KEYS, 14),
-    data_acordo: normalizeDate(rowPayload.data_acordo ?? ""),
+    data_acordo: normalizeDate(rowPayload.data_acordo ?? "") || (legacy ? primeiroVencimento : ""),
     primeiro_vencimento: primeiroVencimento,
     vencimento_parcela_atual: vencimentoParcelaAtual,
     periodo_negociado:
