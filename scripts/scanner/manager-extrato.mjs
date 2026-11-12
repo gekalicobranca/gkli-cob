@@ -1,5 +1,6 @@
 import {pagamentosManager,referenciaExtrato} from './manager-pagamentos.mjs'
 import {leituraFinanceira} from './leitura-auxiliar.mjs'
+import {lerRepassesCreditados} from '../acordos-portais/espelhamento-repasses.mjs'
 export const fonteManager='https://atentum-s9.webware.com.br/bin/rt/gExtratoUnidade.asp'
 
 // O cadastro usa 0 para o tipo vazio, enquanto o filtro usa //.
@@ -46,6 +47,6 @@ export async function abrirExtratoManager(context,href,signal,etapa=()=>{},dataL
   const tabelas=await page.locator('table').evaluateAll(xs=>xs.map(t=>[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim()))))
   let resultado
   try{resultado=pagamentosManager(tabelas,ref,texto)}catch{resultado={status:'inconclusivo',motivo:'Formato financeiro exige interpretação assistida; nenhuma confirmação inferida.'}}
-  return {...resultado,leitura_auxiliar:leituraFinanceira(tabelas),referencia_financeira:ref,periodo:{inicio:fmt(inicio),fim:fmt(fim)}}
+  return {...resultado,repasses_creditados:lerRepassesCreditados(tabelas),leitura_auxiliar:leituraFinanceira(tabelas),referencia_financeira:ref,periodo:{inicio:fmt(inicio),fim:fmt(fim)}}
  }}
 }

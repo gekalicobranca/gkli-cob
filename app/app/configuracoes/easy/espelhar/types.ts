@@ -24,6 +24,7 @@ export type CondominioEspelhamento = {
   nome: string
   nomeOperacional: string | null
   carteira: string
+  administradoras: string[]
   ultimaConferenciaEm: string | null
   ultimoEspelhamentoEm: string | null
   execucao: {
@@ -33,11 +34,12 @@ export type CondominioEspelhamento = {
     concluidoEm: string | null
     resultado: {
       cotas?: number
-      acordos?: number
+      acordos?: number | null
       parcelasPagas?: number
       aplicadas?: number
       alteracoes?: Alteracao[]
       pendencias?: Divergencia[]
+      repasses?: { unidade: string; recibo: string; dataCredito: string; valor: number; estado: string }[]
       erro?: string
     } | null
   } | null

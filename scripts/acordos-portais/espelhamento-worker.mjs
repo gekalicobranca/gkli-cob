@@ -1,10 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { coletarEspelhoLello } from './espelhamento-lello.mjs'
-import { lerEspelhoApp, planejarEspelhoLello } from './espelhamento-conciliar.mjs'
+import { confirmarRepassesLello, lerEspelhoApp, planejarEspelhoLello } from './espelhamento-conciliar.mjs'
+import fontesDoEspelhamento from './espelhamento-fontes.ts'
+import { coletarExtratos, completarFinanceiro, conferirDemonstrativo, planejarCotasPortais } from './espelhamento-portais.mjs'
 
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 })
+const { captarCotasEspelhamento, coletarAcordosManager, coletarAcordosWebware } = fontesDoEspelhamento
 
 async function configurar(pedido) {
   const [receitas, cadastro] = await Promise.all([
@@ -30,14 +33,57 @@ async function processar(pedido) {
   let etapa = 'configuração'
   let config
   try {
-    config = await configurar(pedido)
-    etapa = 'consulta dos relatórios da Lello'
-    const portal = await coletarEspelhoLello(config, AbortSignal.timeout(12 * 60_000), mensagem => console.log(`Espelhamento ${pedido.id}: ${mensagem}`))
-    etapa = 'conciliação com o GKLI Cob'
-    const app = await lerEspelhoApp(db, pedido.condominio_id, pedido.carteira_id)
-    const plano = planejarEspelhoLello(portal, app, config.codigo)
+    const progresso = mensagem => console.log(`Espelhamento ${pedido.id}: ${mensagem}`)
+    const signal = AbortSignal.timeout(17 * 60_000)
+    const { data: salvos, error: erroRepasses } = await db.from('easy_espelhamento_repasses').select('parcela_id,recibo,data_credito,valor_centavos')
+      .eq('condominio_id', pedido.condominio_id).eq('carteira_id', pedido.carteira_id)
+    if (erroRepasses) throw Error('Não foi possível consultar os repasses já confirmados.')
+    let plano, codigo
+    if (!pedido.administradora || pedido.administradora === 'Lello') {
+      config = await configurar(pedido)
+      codigo = config.codigo
+      etapa = 'consulta dos relatórios da Lello'
+      const portal = await coletarEspelhoLello(config, signal, progresso)
+      etapa = 'conciliação com o GKLI Cob'
+      const app = await lerEspelhoApp(db, pedido.condominio_id, pedido.carteira_id)
+      plano = planejarEspelhoLello(portal, app, codigo)
+      plano.repasses = confirmarRepassesLello(plano, portal, app, salvos, pedido.demonstrativo_repasses)
+    } else {
+      const { data: fontes, error } = await db.rpc('easy_espelhamento_receitas', { p_carteiras: [pedido.carteira_id] })
+      if (error) throw Error('Não foi possível validar os agentes do condomínio.')
+      const receitas = fontes.filter(r => r.condominio_id === pedido.condominio_id && r.administradora === pedido.administradora)
+      if (!receitas.length || new Set(receitas.map(r => r.script_key)).size !== 1) throw Error('Agente ativo ausente ou ambíguo neste condomínio.')
+      etapa = 'coleta da inadimplência'
+      const [receita] = receitas
+      codigo = `receita:${receita.receita_id}`
+      const cap = await captarCotasEspelhamento(db, pedido, receitas, signal)
+      progresso(`Cotas consultadas: ${cap.cotas.length}`)
+      etapa = 'conciliação com o GKLI Cob'
+      const app = await lerEspelhoApp(db, pedido.condominio_id, pedido.carteira_id)
+      const base = planejarCotasPortais(cap.cotas, app)
+      const { data: recibos, error: erroRecibos } = await db.rpc('easy_espelhamento_recibos', { p_condominio: pedido.condominio_id, p_carteira: pedido.carteira_id })
+      if (erroRecibos) throw Error('Não foi possível validar os recibos de parcelas do app.')
+      const porParcela = new Map(recibos.map(r => [r.id, r.recibo]))
+      const alvos = new Set(base.aguardandoExtrato.map(r => r.u.id))
+      for (const a of app.acordos) for (const p of a.parcelas_acordo) {
+        p.recibo_financeiro = porParcela.get(p.id)
+        if (p.recibo_financeiro && p.status !== 'cancelada') alvos.add(a.unidade_id)
+      }
+      let demonstrativo = null
+      if (receita.script_key === 'manager_atentum_cotas_pendentes' && receitas.length === 1) {
+        const { data } = await db.from('agente_receitas').select('config_json').eq('id', receita.receita_id).single()
+        demonstrativo = await coletarAcordosManager(data?.config_json?.codigo_cliente, pedido.condominio_id, signal).catch(() => null)
+      } else if (['bbz_condopro_clock_vila_romana', 'captacao_atipass'].includes(receita.script_key)) {
+        demonstrativo = await coletarAcordosWebware(db, pedido, receita.script_key === 'captacao_atipass' ? 'atipass' : 'bbz', signal).catch(() => null)
+      }
+      const acordos = conferirDemonstrativo(demonstrativo, app, base.pendencias)
+      const extratos = await coletarExtratos(db, pedido, receitas, app, alvos, signal, progresso)
+      const financeiro = completarFinanceiro(base, extratos, app, salvos, pedido.demonstrativo_repasses, pedido.administradora)
+      plano = { consultadoEm: new Date().toISOString(), cotas: cap.cotas.length, acordos, ...financeiro,
+        fontes: cap.fontes, alteracoes: base.alteracoes, pendencias: base.pendencias }
+    }
     const { error } = await db.rpc('easy_espelhamento_concluir', {
-      p_id: pedido.id, p_tentativa: pedido.tentativas, p_codigo: config.codigo, p_resultado: plano,
+      p_id: pedido.id, p_tentativa: pedido.tentativas, p_codigo: codigo, p_resultado: plano,
     })
     if (error) throw error
     console.log(`Espelhamento ${pedido.id} concluído.`)

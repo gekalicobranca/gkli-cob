@@ -1,5 +1,6 @@
 import {pagamentosManager,complementarComPagamentos,referenciaExtrato} from './manager-pagamentos.mjs'
 import {leituraFinanceira} from './leitura-auxiliar.mjs'
+import {lerRepassesCreditados} from '../acordos-portais/espelhamento-repasses.mjs'
 
 export const fonteBBZ='https://servc9.webware.com.br/bin/rt/gExtratoUnidade.asp'
 
@@ -52,6 +53,6 @@ export async function abrirFinanceiroBBZ(context,disponivel,etapa,{portal='bbz',
   const tabelas=await page.locator('table').evaluateAll(xs=>xs.map(t=>[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim()))))
   let resultado
   try{resultado=pagamentosManager(tabelas,referencia,texto)}catch{resultado={status:'inconclusivo',motivo:'Formato financeiro exige interpretação assistida; nenhuma confirmação inferida.'}}
-  return {...resultado,leitura_auxiliar:leituraFinanceira(tabelas),periodo:{inicio:fmt(inicio),fim:fmt(fim)}}
+  return {...resultado,repasses_creditados:lerRepassesCreditados(tabelas),leitura_auxiliar:leituraFinanceira(tabelas),periodo:{inicio:fmt(inicio),fim:fmt(fim)}}
  }}
 }

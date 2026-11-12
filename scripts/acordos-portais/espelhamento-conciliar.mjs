@@ -226,3 +226,44 @@ export function planejarEspelhoLello(portal, app, codigo) {
     parcelasPagas: portal.acordos.reduce((s, a) => s + a.parcelas.filter(p => p.situacao === 'Contabilizado').length, 0),
     alteracoes: alteracoes.filter(a => !conflitantes.has(a)), pendencias }
 }
+
+export function confirmarRepassesLello(plano, portal, app, repassesSalvos, demonstrativo) {
+  const hoje = new Date(portal.consultadoEm).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+  const salvos = new Map(repassesSalvos.map(r => [r.parcela_id, r]))
+  const repasses = []
+  const comprovantesAnexados = demonstrativo?.repasses ?? []
+  const referenciasUsadas = new Set()
+  for (const a of app.acordos.filter(a => a.origem_controle === 'carteira' && a.acordos_fontes_lello)) {
+    const u = app.unidades.find(u => u.id === a.unidade_id)
+    if (!u) continue
+    const numero = a.acordos_fontes_lello.numero_acordo
+    const chave = chaveUnidade(u.identificacao, u.bloco)
+    for (const p of a.parcelas_acordo.filter(p => p.status === 'paga' && p.data_pagamento)) {
+      const salvo = salvos.get(p.id)
+      if (salvo) {
+        comprovantesAnexados.filter(r => r.recibo === salvo.recibo && r.dataCredito === salvo.data_credito && r.centavos === salvo.valor_centavos)
+          .forEach(r => referenciasUsadas.add(r.referencia))
+        repasses.push({ unidade: u.identificacao, recibo: salvo.recibo, dataCredito: salvo.data_credito, valor: salvo.valor_centavos, estado: 'confirmado' })
+        continue
+      }
+      const recebimentos = portal.pagamentos.filter(h => chaveUnidade(h.unidade) === chave && h.descricao === `Parcela ${p.numero} Acordo ${numero}`
+        && h.pagamento === p.data_pagamento && h.vencimento === p.vencimento && h.valorPago === centavos(p.valor))
+      if (recebimentos.length !== 1) continue
+      const [linha] = recebimentos
+      const provas = [...new Map([...portal.repasses.filter(r => r.unidade === linha.unidade),
+        ...comprovantesAnexados.map(r => ({ ...r, unidade: linha.unidade, fonte: `arquivo:${demonstrativo.sha256}` }))]
+        .filter(r => r.recibo === linha.recibo && r.dataCredito <= hoje && r.dataCredito >= p.data_pagamento)
+        .map(r => [`${r.referencia}:${r.dataCredito}:${r.centavos}`, r])).values()]
+      if (provas.length !== 1 || plano.alteracoes.some(r => r.id === p.id)) continue
+      const [r] = provas
+      referenciasUsadas.add(r.referencia)
+      plano.alteracoes.push({ tipo: 'repasse_creditado', id: p.id, rev: p.updated_at, acordoId: a.id, unidadeId: u.id,
+        numero, ...r, portal: 'lello' })
+      repasses.push({ unidade: r.unidade, recibo: r.recibo, dataCredito: r.dataCredito, valor: r.centavos, estado: 'comprovado na fonte' })
+      plano.pendencias = plano.pendencias.filter(q => q.tipo !== 'repasse' || q.referencia !== numero || q.vencimento !== p.vencimento || chaveUnidade(q.unidade) !== chave)
+    }
+  }
+  for (const r of comprovantesAnexados) if (!referenciasUsadas.has(r.referencia)) plano.pendencias.push({ tipo: 'repasse', referencia: r.recibo,
+    valor: r.centavos, motivo: 'Crédito do demonstrativo anexado sem parcela paga única na Lello e no app.' })
+  return repasses
+}

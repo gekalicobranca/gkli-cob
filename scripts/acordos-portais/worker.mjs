@@ -184,7 +184,7 @@ async function bbz(page, config, acesso) {
   // Quando todos os registros cabem, o portal remove o paginador inteiro.
   const paginas = optionsPaginas.length ? optionsPaginas : ['1']
   if (paginas.length > 200) throw new Error('Paginação BBZ não reconhecida.')
-  const tabelas = [], hashes = new Set(), processos = new Set()
+  const tabelas = [], linhasPortal = [], hashes = new Set(), processos = new Set()
   for (const numero of paginas) {
     if (optionsPaginas.length && await paginador.inputValue() !== numero) {
       await Promise.all([page.waitForNavigation({ waitUntil: 'domcontentloaded' }), paginador.selectOption(numero)])
@@ -197,13 +197,15 @@ async function bbz(page, config, acesso) {
       const copia = el.cloneNode(true)
       copia.querySelectorAll('script,iframe,input,button,select').forEach(n => n.remove())
       for (const n of copia.querySelectorAll('*')) for (const a of [...n.attributes]) if (a.name.startsWith('on')) n.removeAttribute(a.name)
-      return { html: copia.innerHTML, texto: el.innerText, processos: [...el.querySelectorAll('tbody tr')].map(r => r.cells[2]?.innerText.trim()).filter(t => /^\d+$/.test(t || '')) }
+      return { html: copia.innerHTML, texto: el.innerText, processos: [...el.querySelectorAll('tbody tr')].map(r => r.cells[2]?.innerText.trim()).filter(t => /^\d+$/.test(t || '')),
+        linhas: [...el.rows].map(r => [...r.cells].map(c => ({ texto: c.innerText.trim(), colspan: c.colSpan }))) }
     })
     if (!/Total Geral/i.test(tabela.texto)) throw new Error('Tabela BBZ incompleta.')
     const hash = createHash('sha256').update(tabela.texto).digest('hex')
     if (hashes.has(hash)) throw new Error('O portal repetiu uma página; coleta incompleta.')
     hashes.add(hash)
     tabela.processos.forEach(p => processos.add(p))
+    linhasPortal.push(tabela.linhas)
     tabelas.push(`<section><h2>Página do portal ${numero} de ${paginas.length}</h2>${tabela.html}</section>`)
   }
   // Um total geral explicitamente zerado é evidência de relatório vazio.
@@ -215,7 +217,7 @@ async function bbz(page, config, acesso) {
     const imprimir = await printContext.newPage()
     await imprimir.setContent(html, { waitUntil: 'load' })
     const pdf = await imprimir.pdf({ printBackground: true, preferCSSPageSize: true })
-    return { pdf, filtro: 'aberto_e_baixado', html, paginas_portal: paginas.length, processos: [...processos] }
+    return { pdf, filtro: 'aberto_e_baixado', html, paginas_portal: paginas.length, processos: [...processos], linhas_portal: linhasPortal }
   } finally { await printContext.close() }
 }
 async function main() {
@@ -245,7 +247,7 @@ async function main() {
       await writeFile(path.join(pasta, 'acordos.pdf'), resultado.pdf)
       if (resultado.html) await writeFile(path.join(pasta, 'acordos.html'), resultado.html)
       if (resultado.evidencia_html) await writeFile(path.join(pasta, 'evidencia-portal.html'), resultado.evidencia_html)
-      await writeFile(path.join(pasta, 'acordos.json'), JSON.stringify({ ...resumo, status: 'sucesso', filtro: resultado.filtro, paginas: validacao.paginas, paginas_portal: resultado.paginas_portal, processos: resultado.processos, texto_portal: validacao.texto }, null, 2))
+      await writeFile(path.join(pasta, 'acordos.json'), JSON.stringify({ ...resumo, status: 'sucesso', filtro: resultado.filtro, paginas: validacao.paginas, paginas_portal: resultado.paginas_portal, processos: resultado.processos, texto_portal: validacao.texto, linhas_portal: resultado.linhas_portal, sem_acordos_confirmado: resultado.sem_acordos_confirmado === true }, null, 2))
       Object.assign(resumo, { status: 'sucesso', filtro: resultado.filtro, paginas: validacao.paginas, sha256: createHash('sha256').update(resultado.pdf).digest('hex'), arquivo_pdf: 'acordos.pdf' })
     } catch (error) {
       Object.assign(resumo, { status: 'falha', erro: seguro(error) }); process.exitCode = 1

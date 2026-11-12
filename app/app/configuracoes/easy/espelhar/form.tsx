@@ -15,6 +15,7 @@ const emAndamento = (c: CondominioEspelhamento) => c.execucao?.estado === 'fila'
 const rotulos: Record<string, string> = {
   cota_aberta: 'Atualizar cota', cota_paga: 'Baixa de cota', parcela_paga: 'Baixa de parcela',
   vinculo: 'Vincular recibo ao acordo', acordo_novo: 'Cadastrar acordo', acordo_cancelado: 'Cancelar acordo',
+  parcela_paga_extrato: 'Baixa de parcela por extrato', repasse_creditado: 'Registrar crédito de repasse',
 }
 
 export function EspelharForm({ inicial, podeExecutar }: { inicial: CondominioEspelhamento[]; podeExecutar: boolean }) {
@@ -26,7 +27,10 @@ export function EspelharForm({ inicial, podeExecutar }: { inicial: CondominioEsp
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
   const lote = useRef<string | null>(null)
-  const disponiveis = condominios.filter(c => !emAndamento(c))
+  const campoAnexo = useRef<HTMLInputElement>(null)
+  const administradoras = [...new Set(condominios.flatMap(c => c.administradoras ?? []))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const condominiosDaAdministradora = condominios.filter(c => c.administradoras?.includes(administradora))
+  const disponiveis = condominiosDaAdministradora.filter(c => !emAndamento(c))
   const selecao = disponiveis.filter(c => selecionados.includes(c.id)).map(c => c.id)
   const atualizando = condominios.some(emAndamento)
   const mesAtual = dataCivilSaoPaulo().slice(0, 7)
@@ -51,6 +55,7 @@ export function EspelharForm({ inicial, podeExecutar }: { inicial: CondominioEsp
 
   function selecionar(ids: string[]) {
     lote.current = null
+    if (campoAnexo.current) campoAnexo.current.value = ''
     setSelecionados(ids)
     setMensagem('')
     setErro('')
@@ -63,7 +68,10 @@ export function EspelharForm({ inicial, podeExecutar }: { inicial: CondominioEsp
     setMensagem('')
     lote.current ??= crypto.randomUUID()
     try {
-      const resposta = await solicitarEspelhamento(selecao, lote.current, aplicar)
+      const arquivo = campoAnexo.current?.files?.[0]
+      const anexo = arquivo ? new FormData() : undefined
+      if (arquivo && anexo) anexo.set('demonstrativo', arquivo)
+      const resposta = await solicitarEspelhamento(selecao, lote.current, aplicar, administradora, anexo)
       if (resposta.error) {
         setErro(resposta.error)
         return
@@ -88,7 +96,7 @@ export function EspelharForm({ inicial, podeExecutar }: { inicial: CondominioEsp
           <select id="espelhar-administradora" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"
             value={administradora} disabled={enviando} onChange={event => { setAdministradora(event.target.value); selecionar([]) }}>
             <option value="">Selecione a administradora</option>
-            <option value="lello">Lello</option>
+            {administradoras.map(nome => <option key={nome} value={nome}>{nome}</option>)}
           </select>
           <button type="button" className={styles.primary} disabled={!podeExecutar || !administradora || !selecao.length || enviando} onClick={iniciar}>
             <ScanLine size={16} aria-hidden="true" /> {enviando ? 'Registrando…' : aplicar ? 'Espelhar agora' : 'Conferir agora'}
@@ -100,6 +108,15 @@ export function EspelharForm({ inicial, podeExecutar }: { inicial: CondominioEsp
           Aplicar ajustes comprovados no app
         </label>
         {administradora && <p className="mt-3 text-sm text-slate-600">{selecao.length} de {disponiveis.length} disponíveis selecionados.</p>}
+        {podeExecutar && selecao.length === 1 && (
+          <details className="mt-3 text-sm">
+            <summary className="cursor-pointer font-semibold">Anexar demonstrativo de repasses</summary>
+            <label htmlFor="espelhar-demonstrativo" className="mt-2 block">CSV da administradora, até 256 KB</label>
+            <p id="espelhar-colunas" className="mt-1 text-xs text-slate-600">Colunas separadas por ponto e vírgula: CNPJ, Recibo, Referência do repasse, Data de crédito do repasse e Valor do repasse creditado.</p>
+            <input ref={campoAnexo} id="espelhar-demonstrativo" type="file" accept=".csv,text/csv" aria-describedby="espelhar-colunas"
+              className="mt-2 block w-full" disabled={enviando} onChange={() => { lote.current = null }} />
+          </details>
+        )}
         {mensagem && <p role="status" className="mt-3 text-sm text-cyan-900">{mensagem}</p>}
         {erro && <p role="alert" className="mt-3 text-sm text-rose-800">{erro}</p>}
       </section>
@@ -112,7 +129,7 @@ export function EspelharForm({ inicial, podeExecutar }: { inicial: CondominioEsp
             Selecionar todos os disponíveis
           </label>
           <ul className="mt-3 divide-y divide-slate-100">
-            {condominios.map(c => {
+            {condominiosDaAdministradora.map(c => {
               const execucao = c.execucao
               const resultado = execucao?.resultado
               const noMes = c.ultimoEspelhamentoEm && dataCivilSaoPaulo(new Date(c.ultimoEspelhamentoEm)).startsWith(mesAtual)
@@ -134,11 +151,13 @@ export function EspelharForm({ inicial, podeExecutar }: { inicial: CondominioEsp
                   {execucao?.estado === 'concluido' && resultado && (
                     <details className="mt-2">
                       <summary className="cursor-pointer text-sm font-semibold text-cyan-800">
-                        {resultado.cotas} cotas em atraso · {resultado.acordos} acordos consultados · {resultado.parcelasPagas} parcelas pagas · {resultado.pendencias?.length ?? 0} pendências
+                        {resultado.cotas} cotas em atraso · {resultado.acordos == null ? 'acordos sem demonstrativo' : `${resultado.acordos} acordos consultados`} · {resultado.parcelasPagas} parcelas confirmadas · {resultado.pendencias?.length ?? 0} pendências
                       </summary>
                       <div className="mt-2 max-h-96 overflow-y-auto">
                         <p className="font-semibold">{execucao.aplicar ? `${resultado.aplicadas ?? 0} ajustes aplicados` : `${resultado.alteracoes?.length ?? 0} ajustes identificados na conferência`}</p>
+                        {!!resultado.repasses?.length && <p className="mt-2 font-semibold">Créditos de repasse</p>}
                         <ul className="mt-1 list-inside list-disc space-y-1 text-slate-700">
+                          {resultado.repasses?.map((r, i) => <li key={`repasse-${i}`}>{r.unidade} · {r.recibo} · {r.dataCredito.split('-').reverse().join('/')} · {moeda.format(r.valor / 100)} · {r.estado}</li>)}
                           {resultado.alteracoes?.map((a, i) => <li key={i}>{a.unidade} · {rotulos[a.tipo] ?? a.tipo} · {a.recibo ?? a.numero}{a.vencimento && ` · ${a.vencimento.split('-').reverse().join('/')}`}{(a.valorPago ?? a.total) != null && ` · ${moeda.format((a.valorPago ?? a.total ?? 0) / 100)}`}</li>)}
                           {resultado.pendencias?.map((p, i) => <li key={`pendencia-${i}`}>{[p.unidade, p.tipo, p.referencia, p.vencimento?.split('-').reverse().join('/'), p.valor != null ? moeda.format(p.valor / 100) : null].filter(Boolean).join(' · ')}. {p.motivo}</li>)}
                         </ul>

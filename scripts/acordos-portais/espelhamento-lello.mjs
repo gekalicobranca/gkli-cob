@@ -1,6 +1,7 @@
 import { chromium } from 'playwright'
 import { autenticarLello } from '../scanner/lello-auth.mjs'
 import { normalizar } from './validacao.mjs'
+import { lerRepassesCreditados } from './espelhamento-repasses.mjs'
 
 const origem = 'https://portal.lellocondominios.com.br'
 const caminhos = {
@@ -25,14 +26,16 @@ function dinheiro(valor) {
 }
 
 async function ler(frame) {
-  return frame.locator('body').evaluate(body => ({
-    linhas: [...body.querySelectorAll('table')].filter(t => !t.querySelector('table'))
-      .flatMap(t => [...t.rows].map(r => [...r.cells].map(c => c.innerText.trim()))),
+  return frame.locator('body').evaluate(body => {
+    const tabelas = [...body.querySelectorAll('table')].filter(t => !t.querySelector('table'))
+      .map(t => [...t.rows].map(r => [...r.cells].map(c => c.innerText.trim())))
+    return {
+    linhas: tabelas.flat(), tabelasDeRepasse: tabelas.filter(t => t[0]?.some(c => /repasse/i.test(c))),
     links: [...body.querySelectorAll('a[href]')].map(a => a.href),
     unidades: [...body.querySelectorAll('input[name="codigoUnidade"]')].map(input => input.value),
     semRecibos: /n[aã]o h[aá] recibos para esse condom[ií]nio\/unidade/i.test(body.innerText),
     semAcordos: /n[aã]o (?:h[aá]|existem|foram encontrados)[^\n.]*acordos|nenhum acordo/i.test(body.innerText),
-  }))
+  }})
 }
 
 export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, signal, progresso = () => {}) {
@@ -153,7 +156,7 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
     const historicos = await lote(urlsHistoricos, async (tab, url) => {
       const unidade = url.searchParams.get('codUnidade')
       const tela = await visitar(tab, url)
-      if (tela.semRecibos) return { pagamentos: [], acordos: [] }
+      if (tela.semRecibos) return { pagamentos: [], acordos: [], repasses: [] }
       if (!unidade || tela.unidades.length !== 1 || tela.unidades[0] !== unidade) throw Error('Unidade do histórico não confirmada.')
       return {
         pagamentos: tela.linhas.filter(r => /^\d+$/.test(r[0]) && dataBR(r[2])).map(r => ({
@@ -161,6 +164,7 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
           principal: dinheiro(r[4]), pagamento: dataBR(r[5]), valorPago: dinheiro(r[6]),
         })),
         acordos: links(tela, caminhos.acordo),
+        repasses: lerRepassesCreditados(tela.tabelasDeRepasse).map(r => ({ ...r, unidade, fonte: origem + caminhos.historico })),
       }
     }, 'Históricos')
 
@@ -201,7 +205,7 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
         })),
       }
     }, 'Acordos')
-    return { consultadoEm: new Date().toISOString(), cotas, acordos, pagamentos: historicos.flatMap(h => h.pagamentos) }
+    return { consultadoEm: new Date().toISOString(), cotas, acordos, pagamentos: historicos.flatMap(h => h.pagamentos), repasses: historicos.flatMap(h => h.repasses) }
   } catch (error) {
     if (respostaTemporaria) throw Error(`A Lello respondeu HTTP ${respostaTemporaria} durante a coleta. Tente novamente após a normalização.`)
     throw error
