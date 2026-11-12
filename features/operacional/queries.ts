@@ -16,6 +16,7 @@ async function loadEstadosOperacionais(supabase: Awaited<ReturnType<typeof creat
   let acordosQuery = supabase
     .from('acordos')
     .select('id, carteira_id, status, status_financeiro, risco, updated_at, valor_acordado')
+    .eq('origem_controle', 'carteira')
     .order('updated_at', { ascending: false })
     .limit(40)
 

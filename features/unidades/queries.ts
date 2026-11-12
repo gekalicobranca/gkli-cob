@@ -377,6 +377,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
       status,
       status_financeiro,
       fluxo_status,
+      origem_controle,
       created_at
     `)
     .in('id', idsAcordosDaUnidade)

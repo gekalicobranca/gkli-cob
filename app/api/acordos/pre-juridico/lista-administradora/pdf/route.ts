@@ -187,6 +187,7 @@ async function carregarDados(ids: string[]) {
       ),
       unidades:unidade_id (id,identificacao,bloco,responsavel_nome)
     `)
+    .eq("origem_controle", "carteira")
     .in("id", ids);
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds);

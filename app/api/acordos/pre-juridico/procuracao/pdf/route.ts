@@ -364,6 +364,7 @@ async function carregarAcordos(ids: string[]) {
         telefone
       )
     `)
+    .eq("origem_controle", "carteira")
     .in("id", ids)
     .order("data_acordo", { ascending: false });
 

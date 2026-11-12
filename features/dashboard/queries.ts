@@ -234,6 +234,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
       parcelas_acordo(valor, vencimento, status, data_pagamento)
     `,
     ))
+    .eq("origem_controle", "carteira")
     .order("data_acordo", { ascending: false });
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds);
@@ -593,6 +594,7 @@ export async function getManagementDashboardTabs(scope: CarteiraScope) {
       parcelas_acordo(valor, vencimento, status, data_pagamento)
     `,
     ))
+    .eq("origem_controle", "carteira")
     .order("data_acordo", { ascending: false });
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds);

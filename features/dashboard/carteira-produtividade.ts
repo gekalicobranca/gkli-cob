@@ -223,6 +223,7 @@ export async function getCarteiraProdutividadeData(
   let acordosQuery = somenteAcordosCanonicos(supabase
     .from('acordos')
     .select('id, carteira_id, cobranca_id, status, status_financeiro, valor_acordado, created_at'))
+    .eq('origem_controle', 'carteira')
     .order('created_at', { ascending: false })
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
 

@@ -283,6 +283,7 @@ async function carregarAcordos(
         telefone
       )
     `)
+    .eq("origem_controle", "carteira")
     .in("id", acordoIds);
 
   if (scope.carteiraIds !== null) {

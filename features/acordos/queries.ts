@@ -5,6 +5,7 @@ import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
 import {acordoIdsDaUnidade} from './unidades-consulta';
 import { acordoTemParcelaNoPeriodo } from './filtro-vencimento'
 import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
+import { type AcordoOrigem } from './origem-controle'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { applyAgreementKind, matchesAgreementKind, isJudicialUnderReview, type AgreementKind } from './agreement-kind';
@@ -55,7 +56,7 @@ function isBloqueadaParaAcordo(cobranca: any) {
   );
 }
 
-export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind) {
+export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind, origem: AcordoOrigem = "carteira") {
   const supabase = await createClient();
 
   let query = somenteAcordosCanonicos(supabase
@@ -97,6 +98,7 @@ export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind) {
       termos:acordos_termos (*)
     `,
     ))
+    .eq("origem_controle", origem)
     .order("data_acordo", { ascending: false }).order("id", { ascending: true });
 
   if (scope) {
@@ -786,14 +788,15 @@ function attachAgreementHealth(acordos: any[], parcelas: any[]) {
   });
 }
 
-export async function listAcordosComSaude(scope?: CarteiraScope, tipo?: AgreementKind) {
-  const acordos = await listAcordos(scope, tipo);
+export async function listAcordosComSaude(scope?: CarteiraScope, tipo?: AgreementKind, origem?: AcordoOrigem) {
+  const acordos = await listAcordos(scope, tipo, origem);
   const parcelas = await getParcelasDosAcordos(acordos.map((acordo: any) => acordo.id));
   return attachAgreementHealth(acordos as any[], parcelas);
 }
 
 export type ListAcordosComSaudePageFilters = {
   tipo_acordo?: AgreementKind;
+  origem_controle?: AcordoOrigem;
   operador_id?: string;
   q?: string;
   condominio_id?: string;
@@ -954,6 +957,7 @@ function canUsePagedAcordosQuery(filters: ListAcordosComSaudePageFilters) {
 }
 
 async function applyAcordosDirectFilters(query: any, filters: ListAcordosComSaudePageFilters, scope?: CarteiraScope) {
+  query = query.eq("origem_controle", filters.origem_controle ?? "carteira");
   if (filters.tipo_acordo) query = applyAgreementKind(query, filters.tipo_acordo);
   query = (await aplicarFiltroOperador(query, await createClient(), scope, filters.operador_id)).query;
   query = aplicarFiltroCriacao(query, filters.criacao_de, filters.criacao_ate);
@@ -997,7 +1001,7 @@ export async function listAcordosComSaudePage(
   const ordenar = cleanPageFilter(filters.ordenar) || "data_desc";
 
   if (!canUsePagedAcordosQuery(filters)) {
-    const allRows = await listAcordosComSaude(scope, filters.tipo_acordo);
+    const allRows = await listAcordosComSaude(scope, filters.tipo_acordo, filters.origem_controle);
     const filteredRows = filterAcordosPageRows(allRows, filters);
     const sortedRows = sortAcordosPageRows(filteredRows, ordenar);
     return {
@@ -1334,6 +1338,7 @@ export async function getAgreementOperationalIntelligence(params: {
   let query = somenteAcordosCanonicos(supabase
     .from("acordos")
     .select("id,status,status_financeiro"))
+    .eq("origem_controle", "carteira")
     .eq("unidade_id", params.unidadeId);
 
   query = applyCarteiraScope(query, params.scope.carteiraIds);
@@ -1617,7 +1622,7 @@ export async function listAgreementManualActivationInbox(
       destinatario_email,
       visualizado_em,
       created_at,
-      acordos:acordo_id (
+      acordos:acordo_id!inner (
         id,
         carteira_id,
         fluxo_status,
@@ -1629,6 +1634,7 @@ export async function listAgreementManualActivationInbox(
       )
     `,
     )
+    .eq("acordos.origem_controle", "carteira")
     .eq("tipo_aceite", tipoAceite)
     .in("status", ["pendente", "visualizado"])
     .order("created_at", { ascending: true })

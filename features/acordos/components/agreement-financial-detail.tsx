@@ -11,7 +11,8 @@ export function AgreementFinancialDetail({ acordo, cotas, parcelas, view = 'comp
   // Older agreements may only have the primary charge. Never show it twice.
   const unicas = [...new Map(cotas.filter(c => c.cobranca_id).map(c => [c.cobranca_id, c])).values()];
   const linhas = unicas.length ? unicas : acordo.cobrancas ? [{ cobranca_id: acordo.cobrancas.id, cobrancas: { ...acordo.cobrancas, unidades: acordo.unidades }, referenciaAtual: true }] : [];
-  const repasse = resumoRepassesConsulta(acordo, parcelas);
+  const repasse = !acordo.origem_controle || acordo.origem_controle === 'carteira'
+    ? resumoRepassesConsulta(acordo, parcelas) : null;
   const snapshot = linhas.length > 0 && linhas.every(c => !c.referenciaAtual && valorCadastrado(c.valor_original_no_acordo) != null && Number(c.valor_total_no_acordo) > 0);
   const original = snapshot ? linhas.reduce((sum, c) => sum + Number(c.valor_original_no_acordo), 0) : valorCadastrado(acordo.valor_original);
   const somaHistorica = (campo: string) => snapshot ? linhas.reduce((sum, c) => sum + Number(c[campo] ?? 0), 0) : null;
@@ -27,9 +28,9 @@ export function AgreementFinancialDetail({ acordo, cotas, parcelas, view = 'comp
       <dl className="divide-y divide-slate-100">
         {original != null && <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-1.5 text-sm"><dt className="w-32 shrink-0 text-slate-600">Original</dt><dd className="font-semibold tabular-nums text-slate-950">{moeda(original)}</dd></div>}
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-1.5 text-sm"><dt className="w-32 shrink-0 text-slate-600">Valor acordado</dt><dd className="font-semibold tabular-nums text-slate-950">{moeda(acordo.valor_acordado)}</dd><dd className="text-xs text-slate-500">{pago === Number(acordo.valor_acordado) && pago > 0 ? 'Todas as parcelas pagas' : `Parcelas pagas: ${formatCurrency(pago)}`}</dd></div>
-        {repasse.parcelas > repasse.semRepasse && <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-1.5 text-sm"><dt className="w-32 shrink-0 text-slate-600">{repasse.semRepasse ? 'Repasse parcial' : 'Repasse previsto'}</dt><dd className="font-semibold tabular-nums text-slate-950">{formatCurrency(repasse.total)}</dd>{repasse.quantidadePagas > 0 && repasse.quantidadePagas < repasse.parcelas && <dd className="text-xs text-slate-500">Das parcelas pagas: {formatCurrency(repasse.pagos)}{repasse.semRepassePagas > 0 ? ' (parcial)' : ''}</dd>}</div>}
+        {repasse && repasse.parcelas > repasse.semRepasse && <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-1.5 text-sm"><dt className="w-32 shrink-0 text-slate-600">{repasse.semRepasse ? 'Repasse parcial' : 'Repasse previsto'}</dt><dd className="font-semibold tabular-nums text-slate-950">{formatCurrency(repasse.total)}</dd>{repasse.quantidadePagas > 0 && repasse.quantidadePagas < repasse.parcelas && <dd className="text-xs text-slate-500">Das parcelas pagas: {formatCurrency(repasse.pagos)}{repasse.semRepassePagas > 0 ? ' (parcial)' : ''}</dd>}</div>}
       </dl>
-      {(original == null || repasse.semRepasse > 0) && <p className="text-xs leading-5 text-amber-800">Dados não informados: {[original == null ? 'valor original' : '', repasse.semRepasse > 0 ? `repasse de ${repasse.semRepasse} parcela(s)${repasse.semRepassePagas > 0 ? ` (${repasse.semRepassePagas} paga(s))` : ''}` : ''].filter(Boolean).join('; ')}.</p>}
+      {(original == null || (repasse && repasse.semRepasse > 0)) && <p className="text-xs leading-5 text-amber-800">Dados não informados: {[original == null ? 'valor original' : '', repasse && repasse.semRepasse > 0 ? `repasse de ${repasse.semRepasse} parcela(s)${repasse.semRepassePagas > 0 ? ` (${repasse.semRepassePagas} paga(s))` : ''}` : ''].filter(Boolean).join('; ')}.</p>}
     </Card>}
     {view !== 'summary' && <Card id="cotas-acordo" className="space-y-2 scroll-mt-14 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold text-slate-950">Cotas incluídas no acordo</h2>{linhas.length > 0 && <span className="text-sm text-slate-600">{linhas.length} cota(s)</span>}</div>

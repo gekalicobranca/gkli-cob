@@ -245,6 +245,7 @@ export async function getSindicoPortalOverview(mode: SindicoPortalMode = "ativos
         condominios:condominio_id (id, nome),
         unidades:unidade_id (id, identificacao, bloco, responsavel_nome)
       `)
+      .eq("origem_controle", "carteira")
       .in("condominio_id", condominioIds)
       .order("data_acordo", { ascending: false });
 

@@ -465,6 +465,7 @@ export async function listReguaAcordoPreview(scope: CarteiraScope, filters: Regu
       `,
       )
       .in('status', ['ativo', 'em_dia', 'em_atraso', 'vencido'])
+      .eq('origem_controle', 'carteira')
       .neq('status_financeiro', 'quitado')
       .order('data_acordo', { ascending: false })
       .range(from, to)

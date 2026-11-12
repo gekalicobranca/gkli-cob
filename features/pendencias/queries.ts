@@ -65,6 +65,7 @@ async function materializarPendenciasBoletosAdministradora(
       condominios:condominio_id (administradora_id)
     `)
     .not('boletos_solicitados_em', 'is', null)
+    .eq('origem_controle', 'carteira')
     .lte('boletos_solicitados_em', limiteSemRetorno.toISOString())
     .limit(200)
 

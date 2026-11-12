@@ -10,6 +10,8 @@ import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { getImportacaoDetalhe, listImportacaoItens } from '@/features/importacoes/queries'
 import { confirmarImportacao } from '@/features/importacoes/actions'
+import { Select } from '@/components/ui/select'
+import { ACORDO_ORIGEM_LABEL } from '@/features/acordos/origem-controle'
 import { priorityTone } from '@/features/importacoes/preview-rules'
 import { ConfirmarImportacaoButton } from './confirmar-importacao-button'
 import { PreviewLogDownloadButton } from './preview-log-download-button'
@@ -210,8 +212,16 @@ export default async function ImportacaoDetalhePage({ params, searchParams }: Pa
                 processadas={Number(resumo.execucao_lotes?.cursor ?? 0)} gravadas={Number(importacao.gravadas ?? 0)}
                 retomada={Boolean(resumo.execucao_lotes || importacao.gravadas)} />
             ) : canConfirm ? (
-              <form id="confirmar-importacao-form" action={confirmarImportacao}>
+              <form id="confirmar-importacao-form" action={confirmarImportacao} className="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="importacao_id" value={importacao.id} />
+                {importacaoTipo === 'acordos_extra' && <label className="space-y-1 text-sm">
+                  <span>Origem dos acordos</span>
+                  <Select name="origem_controle" defaultValue="a_confirmar">
+                    {Object.entries(ACORDO_ORIGEM_LABEL).map(([value, label]) =>
+                      <option key={value} value={value}>{label}</option>
+                    )}
+                  </Select>
+                </label>}
                 <ConfirmarImportacaoButton />
               </form>
             ) : null}

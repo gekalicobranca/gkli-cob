@@ -197,6 +197,7 @@ async function listAcordos(scope: CarteiraScope, filters: RelatorioFilters) {
       condominios(id, nome, nome_operacional, cnpj, administradora, status, carteiras(nome)),
       unidades(identificacao, bloco, responsavel_nome)
     `)
+    .eq('origem_controle', 'carteira')
     .order('data_acordo', { ascending: false })
 
   query = applyCarteiraScope(query, scope.carteiraIds)

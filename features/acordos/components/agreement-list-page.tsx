@@ -33,6 +33,7 @@ import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCondominiosForSelect, listUnidadesForSelect } from '@/features/cadastros/queries'
 import { listAcordosComSaudePage } from '@/features/acordos/queries'
+import { ACORDO_ORIGEM_LABEL, isAcordoOrigem } from '@/features/acordos/origem-controle'
 import { listCarteiras } from '@/features/carteiras/queries'
 import { AgreementHealthBadge } from '@/features/acordos/components/agreement-health-badge'
 import { listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
@@ -41,6 +42,7 @@ type AcordosPageProps = {
   agreementKind: AgreementKind
   searchParams?: Promise<{
     q?: string
+    origem_controle?: string
     condominio_id?: string
     unidade_id?: string
     carteira_id?: string
@@ -142,10 +144,12 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
   const judicial = agreementKind === 'judicial'
   const basePath = judicial ? '/app/acordos/judiciais' : '/app/acordos'
   const params = searchParams ? await searchParams : {}
+  const origem = isAcordoOrigem(params.origem_controle) ? params.origem_controle : 'carteira'
+  const controleInterno = origem === 'carteira'
   const scope = await getPermittedCarteiras()
   const page = getPageParam(params.page)
   const [acordosPage, condominios, unidades, carteiras, operadores] = await Promise.all([
-    listAcordosComSaudePage(scope, { ...params, tipo_acordo: agreementKind }, page, PAGE_SIZE),
+    listAcordosComSaudePage(scope, { ...params, tipo_acordo: agreementKind, origem_controle: origem }, page, PAGE_SIZE),
     listCondominiosForSelect(scope),
     clean(params.condominio_id)
       ? listUnidadesForSelect(scope, { condominioId: clean(params.condominio_id) })
@@ -155,7 +159,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
   ])
   const rows = acordosPage.rows
   const groups = groupAcordos(rows)
-  const hasFilters = Boolean(params.q || params.condominio_id || params.unidade_id || params.carteira_id || params.status || params.data_de || params.data_ate || params.criacao_de || params.criacao_ate || params.operador_id || params.ordenar)
+  const hasFilters = Boolean(!controleInterno || params.q || params.condominio_id || params.unidade_id || params.carteira_id || params.status || params.data_de || params.data_ate || params.criacao_de || params.criacao_ate || params.operador_id || params.ordenar)
   const reportParams = new URLSearchParams({ tipo_acordo: agreementKind })
   for (const [key, value] of Object.entries(params)) {
     if (key !== 'page' && value) reportParams.set(key, value)
@@ -171,7 +175,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
         eyebrow="Base Operacional"
         title={judicial ? "Acordos judiciais" : "Acordos extrajudiciais"}
         description={judicial ? "Controle processos, parcelas, pagamentos e pendências dos acordos judiciais." : "Controle acordos extrajudiciais, parcelas, atrasos e quebras operacionais."}
-        actions={
+        actions={controleInterno &&
           <>
             <ButtonLink href={`/api/acordos/relatorio?${reportQuery}`} prefetch={false} variant="secondary"><Download size={16} />Exportar</ButtonLink>
             <ButtonLink href={`/api/acordos/relatorio-executivo?${reportQuery}`} prefetch={false} target="_blank" rel="noopener noreferrer" variant="secondary"><FileText size={16} />Relatório executivo</ButtonLink>
@@ -181,7 +185,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
         }
       />
 
-      <ListKpiGrid className={judicial ? "xl:grid-cols-5" : undefined}>
+      {controleInterno && <ListKpiGrid className={judicial ? "xl:grid-cols-5" : undefined}>
         {judicial && <KpiCard label="Em conferência" value={emConferencia} />}
         <KpiCard label="Valor ativo" value={formatCurrency(valorAtivo)} icon={<Handshake size={18} />} />
         {[
@@ -196,7 +200,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
             badge={<span className={`rounded-full px-2.5 py-1 text-xs font-medium ${tagClass}`}>{tag}</span>}
           />
         ))}
-      </ListKpiGrid>
+      </ListKpiGrid>}
 
       <ListPanel>
         <ListPanelHeader className="bg-white/80">
@@ -206,6 +210,14 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
           </ListTitleBar>
 
           <ListFiltersForm className="mt-0 grid-cols-1">
+            <label className="max-w-xs space-y-1 text-sm">
+              <span>Origem do acordo</span>
+              <Select name="origem_controle" defaultValue={origem}>
+                {Object.entries(ACORDO_ORIGEM_LABEL).map(([value, label]) =>
+                  <option key={value} value={value}>{label}</option>
+                )}
+              </Select>
+            </label>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
               <ListSearchField
                 defaultValue={clean(params.q)}
@@ -301,7 +313,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
         </ListPanelHeader>
 
         {rows.length === 0 ? (
-          <ListEmptyState title="Nenhum acordo encontrado" description="Crie acordos a partir das cobranças negociadas." />
+          <ListEmptyState title="Nenhum acordo encontrado" description={controleInterno ? "Crie acordos a partir das cobranças negociadas." : undefined} />
         ) : (
           <ListRows>
             {groups.map((carteiraGroup) => (

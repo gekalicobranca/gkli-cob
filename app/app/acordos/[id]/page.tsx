@@ -23,6 +23,8 @@ import { calculateAgreementHealth, getAcordoDetalhe } from "@/features/acordos/q
 import { AgreementHealthBadge } from "@/features/acordos/components/agreement-health-badge";
 import { AgreementFormalizationCard } from "@/features/acordos/components/agreement-formalization-card";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
+import { AgreementOriginForm } from "@/features/acordos/components/agreement-origin-form";
+import { ACORDO_ORIGEM_LABEL, isAcordoOrigem } from "@/features/acordos/origem-controle";
 
 type Props = {
   params: Promise<{
@@ -245,6 +247,8 @@ export default async function AcordoDetalhePage({ params }: Props) {
   if (!data?.acordo) notFound();
 
   const { acordo, parcelas, timeline, cobrancasVinculadas, responsavelApoio, revisoes } = data;
+  const origem = isAcordoOrigem(acordo.origem_controle) ? acordo.origem_controle : "carteira";
+  const controleInterno = origem === "carteira";
 
   const unidadesParticipantes = [...new Map(cobrancasVinculadas.map((v: any) => [v.cobrancas?.unidades?.id, v.cobrancas?.unidades])).values()].filter((u: any) => u && u.id !== acordo.unidade_id) as any[];
   const diasReemissao = Number(acordo.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0);
@@ -265,7 +269,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
 
   return (
     <div className="space-y-2">
-      {['quebrado', 'rompido'].includes(String(acordo.status)) && !acordo.quebra_confirmacao ? (
+      {controleInterno && ['quebrado', 'rompido'].includes(String(acordo.status)) && !acordo.quebra_confirmacao ? (
         <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
           Quebra histórica pendente de conferência com a administradora. Confirme pagamentos aproveitados, saldo residual e cotas antes de retomar a cobrança.
         </div>
@@ -308,18 +312,20 @@ export default async function AcordoDetalhePage({ params }: Props) {
         <div id="dados-acordo" className="space-y-1 border-b border-slate-100 pb-2">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="text-sm font-semibold text-slate-950">{acordo.condominios?.nome || 'Condomínio não informado'}</h3><Badge value={acordo.status} />{String(acordo.status_financeiro ?? '').toLowerCase() !== String(acordo.status ?? '').toLowerCase() && <Badge value={acordo.status_financeiro} />}{!statusFechado && <AgreementHealthBadge health={health.saude} />}</div>
           <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700"><span>Unidade titular: <Link href={`/app/unidades/${acordo.unidade_id}`} className="text-sky-800 underline">{acordo.unidades?.identificacao || '—'}{acordo.unidades?.bloco ? ` / ${acordo.unidades.bloco}` : ''}</Link></span><span>Responsável: {responsavelApoio?.responsavel_nome || acordo.unidades?.responsavel_nome || 'Não informado'}</span></p>
-          <p className="text-xs text-slate-500">{acordo.carteiras?.nome ?? 'Carteira não informada'} · {normalizeLabel(acordo.tipo)} · {formatDate(acordo.data_acordo)}</p>
+          <p className="text-xs text-slate-500">{acordo.carteiras?.nome ?? 'Carteira não informada'} · {normalizeLabel(acordo.tipo)} · {formatDate(acordo.data_acordo)} · <strong>{ACORDO_ORIGEM_LABEL[origem]}</strong></p>
           {unidadesParticipantes.length > 0 && <p className="flex flex-wrap gap-x-3 text-xs text-slate-600"><span>Outras unidades:</span>{unidadesParticipantes.map((u: any) => <Link key={u.id} href={`/app/unidades/${u.id}`} className="text-sky-800 underline">{u.identificacao}{u.bloco ? ` / ${u.bloco}` : ''}</Link>)}</p>}
         </div>
       } />
 
       <nav aria-label="Seções do acordo" className="sticky top-0 z-20 flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white px-1 py-0.5">
-        {[['resumo-acordo','Resumo'],['cotas-acordo','Cotas'],['parcelas-acordo','Parcelas e repasses'],['historico-acordo','Histórico']].map(([id,label]) => <a key={id} href={`#${id}`} className="rounded-lg px-3 py-1.5 text-sm font-medium text-sky-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-sky-700">{label}</a>)}
+        {[['resumo-acordo','Resumo'],['cotas-acordo','Cotas'],['parcelas-acordo', controleInterno ? 'Parcelas e repasses' : 'Parcelas'],['historico-acordo','Histórico']].map(([id,label]) => <a key={id} href={`#${id}`} className="rounded-lg px-3 py-1.5 text-sm font-medium text-sky-800 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-sky-700">{label}</a>)}
       </nav>
       <AgreementFinancialDetail view="cotas" acordo={acordo} cotas={cobrancasVinculadas} parcelas={parcelas} />
 
-      <AgreementInstallmentsTable acordo={acordo} parcelas={parcelas} renderActions={(parcela) => <ParcelaActions parcela={parcela} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} />} />
+      <AgreementInstallmentsTable acordo={acordo} parcelas={parcelas} renderActions={controleInterno ? (parcela) => <ParcelaActions parcela={parcela} acordoId={acordo.id} diasReemissao={diasReemissao} acordoEncerrado={statusFechado} podeRevisar={podeRevisar} /> : undefined} />
+      {podeRevisar && <AgreementOriginForm key={origem} acordoId={acordo.id} origem={origem} />}
 
+      {controleInterno && <>
       {acordo.exige_aprovacao_sindico && acordo.sindico_aprovado_em && acordo.fluxo_status === 'aprovado_sindico_aguardando_aceite_devedor' ? <form action={retomarFormalizacaoAcordo} className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
         <input type="hidden" name="acordo_id" value={acordo.id} />
         <p className="mb-2 text-sm">Aprovação registrada. Prepare o termo e a solicitação de boletos com o plano aprovado.</p>
@@ -440,6 +446,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
         </CardContent>
       </Card>
       </details>
+      </>}
 
       <details id="historico-acordo" className="scroll-mt-20 rounded-lg border border-slate-200 bg-white p-3" open={timeline.length > 0}>
         <summary className="cursor-pointer font-semibold text-slate-900">Histórico · {timeline.length} atividades · {revisoes?.length ?? 0} revisões</summary>

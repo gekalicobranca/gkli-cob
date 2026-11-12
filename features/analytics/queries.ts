@@ -177,6 +177,7 @@ export async function getCentralAnalitica(scope: CarteiraScope): Promise<Central
   let acordosQuery = somenteAcordosCanonicos(supabase
     .from('acordos')
     .select('id, carteira_id, status, status_financeiro, valor_acordado, data_acordo, created_at'))
+    .eq('origem_controle', 'carteira')
     .order('created_at', { ascending: false })
     .limit(3000)
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)

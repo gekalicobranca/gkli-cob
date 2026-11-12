@@ -58,6 +58,7 @@ export async function getCondominioOperationalMetrics(condominioId: string, scop
   let acordosQuery = supabase
     .from('acordos')
     .select('id, carteira_id, valor_acordado, status, status_financeiro')
+    .eq('origem_controle', 'carteira')
     .eq('condominio_id', condominioId)
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)

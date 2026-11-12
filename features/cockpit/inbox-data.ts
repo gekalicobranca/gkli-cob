@@ -41,7 +41,7 @@ export async function carregarBaseInbox(db: any, scope: CarteiraScope, leituraIn
   // This avoids repeatedly evaluating nested RLS for the complete operational catalog.
   const selecionar = (table: string, fields: string) => applyCarteiraScope(leituraInterna.from(table).select(fields).in('condominio_id', ids).order('id'), scope.carteiraIds)
   const [acordosRows, cobrancasRows, judiciais, periodos, casos] = await Promise.all([
-    lerTodasPaginas(selecionar('acordos', `id,condominio_id,unidade_id,cobranca_id,tipo,status,status_financeiro,risco,valor_acordado,entrada,data_acordo,numero_processo,condominios(nome),unidades(identificacao,bloco,responsavel_nome,responsavel_documento,email,telefone,acao_judicial,numero_processo),acordo_cobrancas(cobranca_id,cobrancas(unidade_id))`), 'acordos do inbox'),
+    lerTodasPaginas(selecionar('acordos', `id,condominio_id,unidade_id,cobranca_id,tipo,status,status_financeiro,risco,valor_acordado,entrada,data_acordo,numero_processo,origem_controle,condominios(nome),unidades(identificacao,bloco,responsavel_nome,responsavel_documento,email,telefone,acao_judicial,numero_processo),acordo_cobrancas(cobranca_id,cobrancas(unidade_id))`), 'acordos do inbox'),
     lerTodasPaginas(somenteCobrancasCanonicas(selecionar('cobrancas', `id,unidade_id,condominio_id,competencia,vencimento,valor_original,valor_atualizado,status,status_operacional,status_financeiro,data_pagamento,dias_atraso,score_prioridade,ultima_interacao_at,condominios(nome),unidades(identificacao,bloco,responsavel_nome,responsavel_documento,email,telefone,acao_judicial,numero_processo)`)).eq('status_financeiro', 'em_aberto').is('data_pagamento', null).lte('vencimento', hoje), 'cobranças do inbox'),
     lerTodasPaginas(somenteCobrancasCanonicas(selecionar('cobrancas', 'id,unidade_id')).eq('status_operacional', 'judicializado'), 'unidades judicializadas'),
     // This internal table is service-only. IDs are restricted to the active condominiums
@@ -67,7 +67,7 @@ export async function carregarBaseInbox(db: any, scope: CarteiraScope, leituraIn
       if (judicial && c?.unidade_id) judicializadas.add(c.unidade_id)
     }
   }
-  const ativos = acordos.filter(a => a.tipo === 'extrajudicial' && !judicializadas.has(a.unidade_id) && (ACORDO_STATUS_ATIVOS as string[]).includes(a.status))
+  const ativos = acordos.filter(a => a.origem_controle === 'carteira' && a.tipo === 'extrajudicial' && !judicializadas.has(a.unidade_id) && (ACORDO_STATUS_ATIVOS as string[]).includes(a.status))
   const parcelas: any[] = []
   for (let start = 0; start < ativos.length; start += 150) {
     // Parent agreement IDs are scoped above; parcelas_acordo has no carteira_id column.
