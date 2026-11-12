@@ -28,10 +28,11 @@ async function configurar(pedido) {
 
 async function processar(pedido) {
   let etapa = 'configuração'
+  let config
   try {
-    const config = await configurar(pedido)
+    config = await configurar(pedido)
     etapa = 'consulta dos relatórios da Lello'
-    const portal = await coletarEspelhoLello(config, AbortSignal.timeout(12 * 60_000))
+    const portal = await coletarEspelhoLello(config, AbortSignal.timeout(12 * 60_000), mensagem => console.log(`Espelhamento ${pedido.id}: ${mensagem}`))
     etapa = 'conciliação com o GKLI Cob'
     const app = await lerEspelhoApp(db, pedido.condominio_id, pedido.carteira_id)
     const plano = planejarEspelhoLello(portal, app, config.codigo)
@@ -42,11 +43,13 @@ async function processar(pedido) {
     console.log(`Espelhamento ${pedido.id} concluído.`)
   } catch (error) {
     const motivo = etapa === 'configuração' ? error.message : `O espelhamento foi interrompido na ${etapa}.`
+    const detalhe = String(error.message ?? error).split('\n')[0].replace(/https?:\/\/\S+/g, '[link da fonte]')
+    const seguro = [config?.usuario, config?.senha].filter(Boolean).reduce((texto, segredo) => texto.replaceAll(segredo, '[credencial]'), detalhe)
     const { error: registro } = await db.from('easy_espelhamentos').update({
       estado: 'falha', concluido_em: new Date().toISOString(), resultado: { erro: motivo },
     }).eq('id', pedido.id).eq('estado', 'processando').eq('tentativas', pedido.tentativas)
     if (registro) throw Error('Falha ao registrar o resultado do espelhamento.')
-    console.error(`Espelhamento ${pedido.id}: ${motivo}`)
+    console.error(`Espelhamento ${pedido.id}: ${motivo} ${seguro}`)
   }
 }
 

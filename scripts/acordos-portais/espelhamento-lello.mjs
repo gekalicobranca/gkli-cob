@@ -35,16 +35,20 @@ async function ler(frame) {
   }))
 }
 
-export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, signal) {
+export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, signal, progresso = () => {}) {
   if (!/^\d+$/.test(codigo) || !nome || !usuario || !senha) throw Error('Acesso ou alvo da Lello incompleto.')
   const browser = await chromium.launch({ channel: 'chrome', headless: true })
   const fechar = () => { void browser.close().catch(() => {}) }
+  let respostaTemporaria = null
   signal.addEventListener('abort', fechar, { once: true })
   try {
     signal.throwIfAborted()
     const context = await browser.newContext()
     context.on('response', res => {
-      if (new URL(res.url()).origin === origem && [429, 503].includes(res.status())) fechar()
+      if (new URL(res.url()).origin === origem && [429, 503].includes(res.status())) {
+        respostaTemporaria = res.status()
+        fechar()
+      }
     })
     const pagina = await context.newPage()
     pagina.setDefaultTimeout(25_000)
@@ -84,15 +88,25 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
 
     async function visitar(tab, url) {
       if (url.origin !== origem || url.searchParams.get('codCondo') !== codigo) throw Error('Link do portal fora do escopo.')
-      const res = await tab.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 25_000 })
+      let res
+      for (let tentativa = 1; tentativa <= 2; tentativa++) {
+        try {
+          res = await tab.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 25_000 })
+          if (res?.status() !== 502 || tentativa === 2) break
+        } catch (error) {
+          if (tentativa === 2 || respostaTemporaria || signal.aborted || !/Timeout|ERR_(CONNECTION_RESET|TIMED_OUT|EMPTY_RESPONSE)/i.test(error.message)) throw error
+        }
+        await new Promise(resolve => setTimeout(resolve, 1200))
+        signal.throwIfAborted()
+      }
       const atual = new URL(tab.url())
       if (!res?.ok() || atual.origin !== origem || atual.pathname !== url.pathname || await tab.locator('input[type=password]').count()) {
-        throw Error('Página da Lello indisponível ou sessão expirada.')
+        throw Error(`Relatório ${url.pathname.split('/').at(-1)} indisponível${res ? ` (HTTP ${res.status()})` : ''}.`)
       }
       return ler(tab)
     }
 
-    async function lote(urls, lerItem) {
+    async function lote(urls, lerItem, fase) {
       const resultados = []
       let indice = 0
       const tarefas = Array.from({ length: Math.min(3, urls.length) }, async () => {
@@ -102,10 +116,12 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
             signal.throwIfAborted()
             const url = urls[indice++]
             resultados.push(await lerItem(tab, url))
+            if (fase && resultados.length % 50 === 0) progresso(`${fase}: ${resultados.length}/${urls.length}`)
           }
         } finally { await tab.close().catch(() => {}) }
       })
       await Promise.all(tarefas)
+      if (fase) progresso(`${fase}: ${resultados.length}/${urls.length}`)
       return resultados
     }
 
@@ -129,7 +145,7 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
       return tela.linhas.filter(r => /^\d+$/.test(r[0]) && dataBR(r[1])).map(r => ({
         unidade, recibo: r[0], vencimento: dataBR(r[1]), valores: r.slice(2).map(dinheiro),
       }))
-    })).flat()
+    }, 'Cotas')).flat()
     if (cotas.length !== Number(totalCotas) || cotas.some(c => c.valores.length < 5 || c.valores.some(v => v === null))) {
       throw Error('Detalhamento de cotas diverge do total da Lello.')
     }
@@ -146,7 +162,7 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
         })),
         acordos: links(tela, caminhos.acordo),
       }
-    })
+    }, 'Históricos')
 
     const referencias = new Map()
     for (const url of [...urlsAtivos, ...historicos.flatMap(h => h.acordos)]) {
@@ -184,8 +200,11 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
           recibo: r[0], vencimento: dataBR(r[1]), principal: dinheiro(r[2]), situacao: r[4],
         })),
       }
-    })
+    }, 'Acordos')
     return { consultadoEm: new Date().toISOString(), cotas, acordos, pagamentos: historicos.flatMap(h => h.pagamentos) }
+  } catch (error) {
+    if (respostaTemporaria) throw Error(`A Lello respondeu HTTP ${respostaTemporaria} durante a coleta. Tente novamente após a normalização.`)
+    throw error
   } finally {
     signal.removeEventListener('abort', fechar)
     await browser.close().catch(() => {})
