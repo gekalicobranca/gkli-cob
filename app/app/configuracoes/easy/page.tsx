@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Bot, Handshake, FileUp, ReceiptText, Sparkles, Workflow } from 'lucide-react';
+import { ArrowRight, Bot, Handshake, FileUp, ReceiptText, ScanLine, Sparkles, Workflow } from 'lucide-react';
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras';
 import styles from '@/components/easy/easy.module.css';
 export default async function EasyModulePage() {
@@ -12,5 +12,6 @@ export default async function EasyModulePage() {
     { title:'Easy Flow', text:'Escolha a régua e a conta SMTP, monte os flows e libere para a agenda.', href:'/app/configuracoes/easy/flow', icon:Workflow, tone:styles.blue },
     { title:'Easy Pag', text:'Consulte pagamentos de parcelas de acordos por administradora ou gere uma planilha para conferência.', href:'/app/configuracoes/easy/pag', icon:ReceiptText, tone:styles.violet },
     { title:'Easy Maestro', text:'Capte a inadimplência automaticamente por administradora e acompanhe a atualização das cobranças.', href:'/app/configuracoes/easy/maestro', icon:Bot, tone:styles.green },
+    { title:'Espelhar', text:'Prepare o prompt para conciliar cotas, acordos, baixas e repasses por administradora ou condomínio.', href:'/app/configuracoes/easy/espelhar', icon:ScanLine, tone:styles.violet },
   ].map(item=><Link key={item.href} href={item.href} className={`${styles.card} ${item.tone}`}><span className={styles.icon}><item.icon size={23} aria-hidden="true" /></span><div><h2>{item.title}</h2><p className="mt-2">{item.text}</p></div><span className={styles.cardFooter}>Começar<ArrowRight size={18} aria-hidden="true" /></span></Link>)}</div></div>;
 }
