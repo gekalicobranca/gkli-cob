@@ -36,16 +36,20 @@ function harness() {
     const code = ts.transpileModule(fs.readFileSync(absolute, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
     const mockedRequire = name => {
       if (name === '@/utils/supabase/server') return { createClient: async () => client }
+      if (name === '@supabase/ssr') return { createServerClient: () => client }
       if (name === '@/utils/supabase/admin') return { createAdminClient: () => client }
       if (name === 'next/navigation') return { redirect: url => { throw Error('REDIRECT ' + url) } }
-      if (name === 'next/server') return { NextResponse: { json: (body, options) => ({ body, status: options.status }), redirect: (url, options) => ({ url: String(url), status: options.status }) } }
+      if (name === 'next/server') {
+        const response = (status, extra) => ({ status, headers: new Map(), cookies: { getAll: () => [], set() {} }, ...extra })
+        return { NextResponse: { next: () => response(200), json: (body, options) => response(options.status, { body }), redirect: (url, options) => response(options?.status ?? 307, { url: String(url) }) } }
+      }
       if (name === 'xlsx') return {}
-      if (state.stubDependencies && !name.includes('/auth/') && !name.startsWith('./require-') && !name.startsWith('./get-current-') && !name.startsWith('./trusted-')) return {}
+      if (state.stubDependencies && !name.includes('/auth/') && !name.startsWith('./require-') && !name.startsWith('./get-current-') && !name.startsWith('./trusted-') && name !== './janela-acesso') return {}
       if (name.startsWith('@/')) return load(name.slice(2) + '.ts')
       if (name.startsWith('.')) return load(path.relative(root, path.resolve(path.dirname(absolute), name + '.ts')))
       throw Error('Unexpected dependency: ' + name)
     }
-    new vm.Script(code, { filename: absolute }).runInNewContext({ require: mockedRequire, module: mod, exports: mod.exports, URL, console: { warn: (...args) => state.warnings.push(args) } })
+    new vm.Script(code, { filename: absolute }).runInNewContext({ require: mockedRequire, module: mod, exports: mod.exports, URL, Date: class extends Date { static now() { return state.now ?? Date.now() } }, process: { env: { NEXT_PUBLIC_SUPABASE_URL: 'https://db.example.invalid', NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic' } }, console: { warn: (...args) => state.warnings.push(args) } })
     return mod.exports
   }
   return { state, load }
@@ -142,6 +146,42 @@ test('sindico login denies metadata-only and internal profiles', async () => {
   assert.match((await login(req)).url, /\/sindico\/login\?erro=/)
   state.profile.role = 'sindico'
   assert.equal((await login(req)).url, 'https://app.example.invalid/sindico')
+})
+
+test('scheduled maintenance blocks new logins and existing sessions except Julio', async () => {
+  const { state, load } = harness()
+  const jul = '3a7d6ecb-f85d-4f1e-b1c3-67f20ebe64cc'
+  const inicio = Date.parse('2026-11-12T23:00:00Z')
+  const fim = Date.parse('2026-11-16T12:00:00Z')
+  const aviso = 'https://app.example.invalid/acesso-temporariamente-indisponivel'
+  const request = pathname => ({ nextUrl: { pathname }, url: 'https://app.example.invalid' + pathname })
+  const loginRequest = { ...request('/auth/login'), formData: async () => new Map([['email', 'test@example.invalid'], ['password', 'synthetic']]) }
+  const middleware = load('utils/supabase/middleware.ts').updateSession
+  const login = load('app/auth/login/route.ts').POST
+  state.profile = { id: state.user.id, role: 'admin' }
+  state.now = inicio - 1
+  assert.equal((await middleware(request('/app/acordos'))).status, 200)
+  state.now = inicio
+  assert.equal((await middleware(request('/app/acordos'))).url, aviso)
+  assert.equal((await middleware(request('/sindico'))).url, aviso)
+  assert.equal((await middleware(request('/api/acordos/relatorio'))).status, 503)
+  assert.equal((await login(loginRequest)).url, aviso)
+  assert.equal(state.signedOut, true)
+
+  state.user = null
+  assert.equal((await middleware(request('/api/jobs/acordos/check-status'))).status, 200)
+  state.user = { id: jul, user_metadata: {} }
+  state.profile = { id: jul, role: 'admin' }
+  assert.equal((await login(loginRequest)).url, 'https://app.example.invalid/app')
+  assert.equal((await middleware(request('/app/acordos'))).status, 200)
+
+  state.user.id = 'another-user'
+  state.profile.id = state.user.id
+  state.now = fim - 1
+  assert.equal((await middleware(request('/app/acordos'))).url, aviso)
+  state.now = fim
+  assert.equal((await middleware(request('/app/acordos'))).status, 200)
+  assert.equal((await login(loginRequest)).url, 'https://app.example.invalid/app')
 })
 
 for (const endpoint of ['ranking', 'exportar']) {

@@ -1,3 +1,5 @@
+import { AvisoJanelaAcesso } from '@/components/auth/aviso-janela-acesso'
+import { precisaAcompanharJanela } from '@/utils/auth/janela-acesso'
 import { AppShell } from '@/components/layout/app-shell'
 import { requireUser } from '@/utils/auth/require-user'
 import { redirect } from 'next/navigation'
@@ -15,5 +17,10 @@ export default async function AppLayout({
     redirect('/sindico')
   }
 
-  return <AppShell user={user}>{children}</AppShell>
+  return (
+    <AppShell user={user}>
+      {precisaAcompanharJanela(user.id) && <AvisoJanelaAcesso />}
+      {children}
+    </AppShell>
+  )
 }

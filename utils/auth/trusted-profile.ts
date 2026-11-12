@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { acessoTemporariamenteBloqueado, AVISO_ACESSO } from './janela-acesso'
 
 export const PROFILE_ROLES = ['admin', 'gestor', 'operador', 'leitura', 'sindico'] as const
 export type ProfileRole = (typeof PROFILE_ROLES)[number]
@@ -6,7 +7,7 @@ export type TrustedProfile = { id: string; email: string | null; nome: string | 
 
 export class ProfileAuthorizationError extends Error {
   constructor(public readonly status: 403 | 503, public readonly code: string) {
-    super('Perfil de acesso indisponível. Contate um administrador.')
+    super(code === 'janela_acesso' ? AVISO_ACESSO : 'Perfil de acesso indisponível. Contate um administrador.')
   }
 }
 
@@ -20,6 +21,8 @@ export function logAuthorizationDenied(userId: string, guard: string) {
 
 /** Only the database profile grants privileges. Auth metadata is never an authority. */
 export async function loadTrustedProfile(supabase: SupabaseClient, userId: string): Promise<TrustedProfile> {
+  if (acessoTemporariamenteBloqueado(userId)) throw new ProfileAuthorizationError(503, 'janela_acesso')
+
   const { data, error } = await supabase.from('profiles')
     .select('id, email, nome, role').eq('id', userId).maybeSingle()
   const code = error ? 'profile_lookup_failed' : !data ? 'profile_missing'
