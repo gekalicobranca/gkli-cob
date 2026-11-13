@@ -133,6 +133,7 @@ type ProcessarReguaParams = {
   // As mensagens continuam pendentes de aprovação, nunca agendadas para envio.
   prepararFlowPausado?: boolean;
   destinatariosConfirmados?: ReadonlyMap<string, string>;
+  cicloFechamento?: string;
 };
 
 type Contadores = ReguaContadores;
@@ -594,7 +595,7 @@ export async function processarReguaCobranca(
   const carteiraPermiteCanal = createCarteiraCanalChecker(supabase);
   const resolverTemplate = params.montagemMaestroId ? criarResolvedorTemplateDaParte() : resolveTemplateMensagem;
   const cooldownDias = Number(params.cooldownDias ?? 3);
-  const ciclo = cicloReferencia();
+  const ciclo = params.cicloFechamento ?? cicloReferencia();
   const selectedIdsForQuery = params.cobrancaIds
     ? params.cobrancaIds.map((id) => String(id).trim()).filter(Boolean)
     : null;

@@ -20,6 +20,7 @@ import { requireUser } from '@/utils/auth/require-user'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { hasResponsavelVinculado, motivoImpedimentoFlow, unicoCondominio } from './eligibilidade'
 import { dividirCriacaoFlows, LIMITE_COBRANCAS_CHAMADA, LIMITE_EMAILS_FLOW } from './dividir-criacao'
+import { cicloFechamentoCobranca } from './ciclo-fechamento'
 
 type SupabaseAdmin = ReturnType<typeof createAdminClient>
 
@@ -100,7 +101,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
   return criarFlowsComDestinatariosConferidos(formData)
 }
 
-export async function criarFlowsComDestinatariosConferidos(formData: FormData, destinos?: [string, string][]): Promise<{ error?: string; flowIds?: string[] }> {
+export async function criarFlowsComDestinatariosConferidos(formData: FormData, destinos?: [string, string][], usarCicloFechamento = false): Promise<{ error?: string; flowIds?: string[] }> {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
   const scope = await getPermittedCarteiras()
@@ -112,7 +113,7 @@ export async function criarFlowsComDestinatariosConferidos(formData: FormData, d
 
   let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional),unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone,acao_judicial)'))
+    .select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional,vencimento_cota_dia),unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone,acao_judicial)'))
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
@@ -143,8 +144,11 @@ export async function criarFlowsComDestinatariosConferidos(formData: FormData, d
   const flowIds: string[] = []
   for (const [key, rows] of grupos.entries()) {
     const [carteiraId, reguaId] = key.split('|')
+    const cadastro = Array.isArray(rows[0].condominio) ? rows[0].condominio[0] : rows[0].condominio
+    const diaFechamento = usarCicloFechamento ? cadastro?.vencimento_cota_dia ?? undefined : undefined
+    const ciclo = cicloFechamentoCobranca(diaFechamento ?? null)
     let canais: string[]
-    try { canais = await validarCriacaoPorCanal(supabase, rows, reguaId) }
+    try { canais = await validarCriacaoPorCanal(supabase, rows, reguaId, diaFechamento) }
     catch (error) { return { error: error instanceof Error ? error.message : 'Não foi possível conferir os canais.' } }
     const comContatos = await carregarContatosFlow(supabase, rows)
     if (comContatos.some(row => canais.some(canal => row.canais_sem_destinatario.includes(canal)))) {
@@ -159,6 +163,7 @@ export async function criarFlowsComDestinatariosConferidos(formData: FormData, d
       sequenciaFlow: true,
       prepararFlowPausado: criarPausado,
       destinatariosConfirmados: destinos ? new Map(destinos) : undefined,
+      cicloFechamento: ciclo ?? undefined,
     })
 
     for (const loteId of resultado.loteIds) {

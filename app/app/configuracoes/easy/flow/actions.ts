@@ -1,7 +1,7 @@
 'use server';
 import {revalidatePath} from 'next/cache';
 import {configuracaoEasyFlow,planejarEasyFlow,carregarEasyFlow,viewEasyFlow} from '@/features/easy-cob/flow-server';
-import {criarFlowsCobranca,enviarFlowCobranca} from '@/features/flows/cobranca/actions';
+import {criarFlowsComDestinatariosConferidos,enviarFlowCobranca} from '@/features/flows/cobranca/actions';
 import type {EasyFlowView} from '@/features/easy-cob/flow-model';
 
 const mensagem=(e:unknown)=>e instanceof Error?e.message:'Não foi possível concluir a operação.';
@@ -44,7 +44,7 @@ export async function montarParteFlowEasy(id:string,parte:number){
     const {error:ae}=await db.from('cobrancas').update({status:'em_cobranca_ativa',status_operacional:'em_cobranca_ativa'}).in('id',ids).eq('condominio_id',run.condominio_id).eq('carteira_id',run.carteira_id).eq('status_operacional','novo');
     if(ae)throw Error('Não foi possível preparar as cobranças para a montagem.');
     const form=new FormData();ids.forEach(id=>form.append('cobranca_id',id));form.set('criar_pausado','true');form.set(`regua_id:${run.carteira_id}`,run.regua_id);
-    const resultado=await criarFlowsCobranca(null,form);criados=resultado.flowIds??[];
+    const resultado=await criarFlowsComDestinatariosConferidos(form,undefined,true);criados=resultado.flowIds??[];
     if(resultado.error)throw Error(resultado.error);
     if(!criados.length)throw Error('Nenhum flow foi gerado. Revise as pendências no painel completo.');
     const {data:flows,error:fe}=await db.from('cobranca_flows').select('id,status,total_mensagens').in('id',criados).eq('carteira_id',run.carteira_id);

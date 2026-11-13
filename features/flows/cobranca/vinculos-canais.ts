@@ -1,5 +1,6 @@
 import type { createAdminClient } from '@/utils/supabase/admin'
 import { canaisDaRegua, conflitoDeCanais } from './canais'
+import { cicloFechamentoCobranca } from './ciclo-fechamento'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
@@ -11,7 +12,7 @@ export function temFlowEmAndamento(item: { flow?: any }) {
   return !FLOWS_TERMINAIS.has(relation(item.flow)?.status)
 }
 
-export function vinculoOcupaCanal(item: { status?: string; flow?: any; mensagem?: any }, novaCaptacaoMaestro = false) {
+export function vinculoOcupaCanal(item: { status?: string; flow?: any; mensagem?: any }, novaCaptacaoMaestro = false, diaFechamento?: number, agora = new Date()) {
   const mensagem = relation(item.mensagem)
   if (novaCaptacaoMaestro) {
     return temFlowEmAndamento(item) || Boolean(mensagem && !['enviada', 'falha', 'cancelada'].includes(mensagem.status))
@@ -19,13 +20,19 @@ export function vinculoOcupaCanal(item: { status?: string; flow?: any; mensagem?
   if (mensagem?.status === 'cancelada'
     && String(mensagem.erro ?? '').startsWith('Envio cancelado: cobrança fora da cobrança ativa.')) return false
   if (!mensagem && ['pulada', 'cancelado'].includes(item.status ?? '') && !temFlowEmAndamento(item)) return false
+  if (diaFechamento !== undefined && !temFlowEmAndamento(item) && mensagem?.status === 'enviada') {
+    const envio = new Date(mensagem.enviada_em ?? mensagem.enviada_manual_em ?? '')
+    const ciclo = cicloFechamentoCobranca(diaFechamento, agora)
+    if (ciclo && Number.isFinite(envio.getTime()) && envio <= agora && cicloFechamentoCobranca(diaFechamento, envio)! < ciclo) return false
+  }
   return true
 }
 
 // Inclui itens sem mensagem (tentativas anteriores) e mensagens órfãs pendentes.
 // Os canais gravados no Flow preservam o vínculo mesmo se a régua for editada.
-export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminClient>, ids: string[], options: { carteiraIds?: string[]; novaCaptacaoMaestro?: boolean } = {}) {
+export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminClient>, ids: string[], options: { carteiraIds?: string[]; novaCaptacaoMaestro?: boolean; diaFechamento?: number } = {}) {
   const map = new Map<string, Set<string>>()
+  const agora = new Date()
   if (!ids.length) return map
   function add(id: string, canais: string[]) {
     const current = map.get(id) ?? new Set<string>()
@@ -52,11 +59,11 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
   async function carregarParte(parte: string[]) {
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await db.from('lote_itens')
-        .select('id,cobranca_id,status,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(status,canais:payload->canais,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal,status,erro)')
+        .select('id,cobranca_id,status,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(status,canais:payload->canais,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal,status,erro,enviada_em,enviada_manual_em)')
         .in('cobranca_id', parte).not('cobranca_flow_id', 'is', null).order('id').range(offset, offset + 499)
       if (error) throw new Error(`Erro ao conferir canais dos Flows: ${error.message}`)
       for (const row of data ?? []) {
-        if (!vinculoOcupaCanal(row, options.novaCaptacaoMaestro)) continue
+        if (!vinculoOcupaCanal(row, options.novaCaptacaoMaestro, options.diaFechamento, agora)) continue
         const flow = relation(row.flow)
         const message = relation(row.mensagem)
         const canais = [...new Set<string>([
@@ -85,7 +92,7 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
   return map
 }
 
-export async function validarCriacaoPorCanal(db: ReturnType<typeof createAdminClient>, rows: { id: string; carteira_id: string; condominio_id: string; unidade_id?: string }[], reguaId: string) {
+export async function validarCriacaoPorCanal(db: ReturnType<typeof createAdminClient>, rows: { id: string; carteira_id: string; condominio_id: string; unidade_id?: string }[], reguaId: string, diaFechamento?: number) {
   if (!rows.length || rows.some(row => row.carteira_id !== rows[0].carteira_id || row.condominio_id !== rows[0].condominio_id)) throw new Error('Selecione um condomínio e uma carteira por Flow.')
   const { data: regua, error } = await db.from('reguas').select('id,carteira_id,tipo,ativo,status,etapas:regua_etapas(canal,ativo)').eq('id', reguaId).single()
   if (error || !regua || regua.tipo !== 'cobranca' || regua.ativo === false || regua.status === 'inativa'
@@ -110,7 +117,7 @@ export async function validarCriacaoPorCanal(db: ReturnType<typeof createAdminCl
   if ((jobs ?? []).some(job => conflitoDeCanais(relation(job.regua) ? canaisDaRegua(relation(job.regua)) : ['email'], canais))) {
     throw new Error('Este condomínio tem uma montagem do Maestro pendente neste canal. Acompanhe a montagem antes de criar outro Flow.')
   }
-  const ocupados = await carregarCanaisOcupados(db, rows.map(row => row.id))
+  const ocupados = await carregarCanaisOcupados(db, rows.map(row => row.id), { diaFechamento })
   if (rows.some(row => conflitoDeCanais(ocupados.get(row.id) ?? [], canais))) {
     throw new Error('Uma ou mais cobranças já possuem Flow ou mensagem pendente no mesmo canal. Atualize a lista e revise a seleção.')
   }

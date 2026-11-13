@@ -1,11 +1,25 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { canaisDaRegua, conflitoDeCanais, reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from '../features/flows/cobranca/canais'
-import { carregarCanaisOcupados, temFlowEmAndamento, validarCriacaoPorCanal } from '../features/flows/cobranca/vinculos-canais'
+import { carregarCanaisOcupados, temFlowEmAndamento, validarCriacaoPorCanal, vinculoOcupaCanal } from '../features/flows/cobranca/vinculos-canais'
+import { cicloFechamentoCobranca } from '../features/flows/cobranca/ciclo-fechamento'
 import { criarReguaFingerprint } from '../features/regua/services/regua-shared'
 
 const email = { id: 'email', carteira_id: 'a', etapas: [{ canal: 'email' }] }
 const web = { id: 'web', carteira_id: 'a', etapas: [{ canal: 'whatsapp' }] }
+test('Easy libera flow concluído de ciclo anterior e preserva bloqueios do ciclo atual e pendentes', () => {
+  const hoje = new Date('2026-11-13T14:00:00Z')
+  const enviado = (enviada_em: string, status = 'concluido') => ({ flow: { status }, mensagem: { status: 'enviada', enviada_em } })
+  assert.equal(cicloFechamentoCobranca(10, hoje), '2026-12-10')
+  assert.equal(cicloFechamentoCobranca(31, new Date('2026-02-28T23:00:00Z')), '2026-02-28')
+  assert.equal(cicloFechamentoCobranca(10, new Date('2026-11-11T02:59:59Z')), '2026-11-10')
+  assert.equal(vinculoOcupaCanal(enviado('2026-09-21T17:20:09Z'), false, 10, hoje), false)
+  assert.equal(vinculoOcupaCanal(enviado('2026-11-10T20:00:00Z'), false, 10, hoje), false)
+  assert.equal(vinculoOcupaCanal(enviado('2026-11-11T12:00:00Z'), false, 10, hoje), true)
+  assert.equal(vinculoOcupaCanal(enviado('2026-09-21T17:20:09Z', 'pausado'), false, 10, hoje), true)
+  assert.equal(vinculoOcupaCanal(enviado(''), false, 10, hoje), true)
+  assert.equal(vinculoOcupaCanal({ flow: { status: 'concluido' }, mensagem: { status: 'agendada' } }, false, 10, hoje), true)
+})
 test('filtro de e-mail exclui régua WhatsApp e cobranças disponíveis apenas para WhatsApp', () => {
   const reguas = [email, web]
   const row = { carteira_id: 'a', canais_ocupados: ['email'] }
