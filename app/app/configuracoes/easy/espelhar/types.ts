@@ -85,6 +85,7 @@ export type ResultadoEspelhamento = {
   acordos?: number | null
   parcelasPagas?: number
   aplicadas?: number
+  avisos?: string[]
   alteracoes?: Alteracao[]
   pendencias?: Divergencia[]
   repasses?: { unidade: string; recibo: string; dataCredito: string; valor: number; estado: string }[]

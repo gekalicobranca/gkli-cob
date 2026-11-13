@@ -198,7 +198,7 @@ async function bbz(page, config, acesso) {
       copia.querySelectorAll('script,iframe,input,button,select').forEach(n => n.remove())
       for (const n of copia.querySelectorAll('*')) for (const a of [...n.attributes]) if (a.name.startsWith('on')) n.removeAttribute(a.name)
       return { html: copia.innerHTML, texto: el.innerText, processos: [...el.querySelectorAll('tbody tr')].map(r => r.cells[2]?.innerText.trim()).filter(t => /^\d+$/.test(t || '')),
-        linhas: [...el.rows].map(r => [...r.cells].map(c => ({ texto: c.innerText.trim(), colspan: c.colSpan }))) }
+        linhas: [...el.querySelectorAll('tr')].map(r => [...r.cells].map(c => ({ texto: (c.innerText ?? c.textContent ?? '').trim(), colspan: c.colSpan }))) }
     })
     if (!/Total Geral/i.test(tabela.texto)) throw new Error('Tabela BBZ incompleta.')
     const hash = createHash('sha256').update(tabela.texto).digest('hex')

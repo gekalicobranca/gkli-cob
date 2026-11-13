@@ -208,6 +208,14 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
                       {detalhe === 'carregando' && <p role="status" className="mt-2">Carregando resultado…</p>}
                       {detalhe === 'erro' && <button type="button" className="mt-2 text-cyan-800 underline" onClick={() => carregarDetalhe(execucao.id)}>Tentar carregar o resultado novamente</button>}
                       {resultado && <>
+                      {!!resultado.avisos?.length && (
+                        <div className="mt-2 rounded-lg bg-amber-50 p-3 text-amber-900">
+                          <p className="font-semibold">Avisos da conferência</p>
+                          <ul className="list-inside list-disc">
+                            {resultado.avisos.map((aviso, i) => <li key={i}>{aviso}</li>)}
+                          </ul>
+                        </div>
+                      )}
                       <div className="mt-2 max-h-96 overflow-y-auto">
                         <p className="font-semibold">{execucao.aplicar ? `${resultado.aplicadas ?? 0} ajustes aplicados` : `${resultado.alteracoes?.length ?? 0} ajustes identificados na conferência`}</p>
                         <ul className="mt-1 list-inside list-disc space-y-1 text-slate-700">

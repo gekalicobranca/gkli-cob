@@ -11,10 +11,26 @@ import { interpretarTabela } from '../manager-acordos/relatorio.mjs'
 
 const executar = promisify(execFile)
 
+export function validarRelatorioEspelhamento(
+  convertido: Awaited<ReturnType<typeof parseRelatorioBuffer>>,
+  aplicar: boolean,
+) {
+  if (!convertido.ok || !convertido.preview.padraoDetectado) {
+    throw Error('O arquivo não pôde ser validado integralmente pelo conversor do app.')
+  }
+  const { cobrancas, semPendencias, inconsistencias } = convertido.preview
+  const avisoCotasAntigas = /^\d+ cota\(s\) com vencimento superior a 5 anos foram desprezadas\.$/
+  const avisos = aplicar ? [] : inconsistencias.filter(mensagem => avisoCotasAntigas.test(mensagem))
+  if ((!cobrancas.length && !semPendencias && !avisos.length) || inconsistencias.length !== avisos.length) {
+    throw Error('O arquivo não pôde ser validado integralmente pelo conversor do app.')
+  }
+  return { cobrancas, avisos }
+}
+
 export async function captarCotasEspelhamento(db, job, receitas, signal) {
   const { data: cadastro, error: erroCadastro } = await db.from('condominios').select('cnpj').eq('id', job.condominio_id).eq('carteira_id', job.carteira_id).single()
   if (erroCadastro) throw Error('Cadastro do condomínio indisponível para a captação.')
-  const cotas = [], fontes = []
+  const cotas = [], fontes = [], avisos: string[] = []
   const pasta = await mkdtemp(path.join(os.tmpdir(), 'gkli-espelhamento-'))
   try {
     for (const receita of receitas) {
@@ -57,16 +73,16 @@ export async function captarCotasEspelhamento(db, job, receitas, signal) {
       if (createHash('sha256').update(bytes).digest('hex') !== arquivo.hash_arquivo) throw Error('Arquivo da coleta diverge do original do agente.')
       const convertido = await parseRelatorioBuffer({ buffer: bytes, filename: arquivo.nome_arquivo, mimeType: arquivo.tipo_arquivo,
         condominioCnpj: cadastro.cnpj ?? undefined, tipoConversao: 'cobrancas', somenteAnoCorrente: false })
-      if (!convertido.ok || !convertido.preview.padraoDetectado || (!convertido.preview.cobrancas.length && !convertido.preview.semPendencias)
-        || convertido.preview.inconsistencias.length) throw Error('O arquivo não pôde ser validado integralmente pelo conversor do app.')
-      cotas.push(...convertido.preview.cobrancas.map(cota => ({
+      const validacao = validarRelatorioEspelhamento(convertido, job.aplicar)
+      avisos.push(...validacao.avisos)
+      cotas.push(...validacao.cobrancas.map(cota => ({
         unidade: cota.unidade, bloco: cota.bloco, recibo: cota.recibo, vencimento: cota.vencimento ?? cota.vencimentoMaisAntigo,
         principal: cota.valorPrincipal, total: cota.valorTotal, multa: cota.multa, juros: cota.juros, correcao: cota.correcao,
         honorarios: cota.honorarios, situacao: cota.situacaoOrigem, componentes: cota.parcelas.length,
       })))
       fontes.push({ execucao: id, arquivo: arquivo.nome_arquivo, hash: arquivo.hash_arquivo })
     }
-    return { cotas, fontes }
+    return { cotas, fontes, avisos }
   } finally {
     await rm(pasta, { recursive: true, force: true }).catch(() => {})
   }
@@ -122,10 +138,18 @@ export async function coletarAcordosWebware(db, job, portal: 'bbz' | 'atipass', 
           else if (pagina === 0 || linha[0]?.texto !== 'Bloco') grade.push(linha)
         }
       }
-      if (!totais.length || totais.some(t => JSON.stringify(t) !== JSON.stringify(totais[0]))) throw Error('Paginação do demonstrativo exige revisão.')
-      const analisado = interpretarTabela([...grade, totais[0]])
-      if (doc.processos?.some(numero => !analisado.acordos.some(a => a.processo === numero))) throw Error('Nem todos os acordos foram interpretados.')
-      acordos.push(...analisado.acordos)
+      if (!totais.length) throw Error('Paginação do demonstrativo exige revisão.')
+      const totalIgual = totais.every(t => JSON.stringify(t) === JSON.stringify(totais[0]))
+      const paginas = doc.linhas_portal
+      if (!totalIgual && totais.length !== paginas.length) throw Error('Total por página do demonstrativo incompleto.')
+      const registros = totalIgual
+        ? interpretarTabela([...grade, totais[0]]).acordos
+        : paginas.flatMap(linhas => interpretarTabela(linhas).acordos)
+      const processos = new Set(registros.map(a => a.processo))
+      if (processos.size !== registros.length || doc.processos?.some(numero => !processos.has(numero))) {
+        throw Error('Processos ausentes ou repetidos na paginação do demonstrativo.')
+      }
+      acordos.push(...registros)
     }
     return acordos
   } finally {

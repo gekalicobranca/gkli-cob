@@ -12,10 +12,10 @@ export function selecionarCartaoBBZ(cartoes,titulo,codigo){
 }
 
 // Executada no navegador, sem expor cookies, credenciais ou conteúdo financeiro.
-export function sessaoCondominioBBZ({origem,titulo}){
- const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()
+export function sessaoCondominioBBZ({origem,tituloNormalizado}){
+ const titulo=document.title.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()
   .replace(/^(?:(?:CONDOMINIO|COND\.?|EDIFICIO|ED\.?)\s+)+/,'').replace(/[^A-Z0-9]/g,'')
- return location.origin===origem&&norm(document.title)===norm(titulo)
+ return location.origin===origem&&titulo===tituloNormalizado
   &&![...document.querySelectorAll('input[type=password]')].some(e=>e.getClientRects().length)
 }
 
@@ -33,6 +33,6 @@ export async function acessarCondominioBBZ(page,{titulo,codigo,signal,timeoutMs=
  signal.throwIfAborted()
  await page.locator('.card').nth(cartao.indice).getByText('Acessar',{exact:true}).click()
  // O condomínio principal usa outro cabeçalho e não exibe “bem vindo ao”.
- await page.waitForFunction(sessaoCondominioBBZ,{origem:'https://servc9.webware.com.br',titulo:cartao.titulo},{timeout:timeoutMs})
+ await page.waitForFunction(sessaoCondominioBBZ,{origem:'https://servc9.webware.com.br',tituloNormalizado:normalizarTituloBBZ(cartao.titulo)},{timeout:timeoutMs})
  return {titulo:cartao.titulo,codigo:cartao.codigo}
 }

@@ -33,7 +33,7 @@ function unidadeDoRelatorio(unidades, item) {
   return lista.length === 1 ? lista[0] : null
 }
 
-export async function coletarExtratos(db, job, receitas, app, unidadesAlvo, signal, progresso) {
+export async function coletarExtratos(db, job, receitas, app, unidadesAlvo, signal, progresso, limitePreviaMs = 0) {
   const { data: configuracoes, error } = await db.from('scanner_configuracoes').select('id,portal,codigo_portal,perfil_acesso,unidades,receita_id')
     .eq('condominio_id', job.condominio_id).eq('ativo', true).eq('situacao', 'validado').in('receita_id', receitas.map(r => r.receita_id))
   if (error || configuracoes.length !== 1 || !['manager', 'bbz', 'sell'].includes(configuracoes[0].portal)) return new Map()
@@ -42,15 +42,20 @@ export async function coletarExtratos(db, job, receitas, app, unidadesAlvo, sign
   if (erroReceita || receita.config_json?.condominio_id !== job.condominio_id) return new Map()
   const ids = new Set(config.unidades)
   const unidades = app.unidades.filter(u => unidadesAlvo.has(u.id) && ids.has(u.id))
+  progresso(`Unidades habilitadas para extrato: ${unidades.length}`)
   const resposta = new Map()
+  const limite = !job.aplicar && limitePreviaMs > 0 ? AbortSignal.timeout(limitePreviaMs) : null
+  const sinalColeta = limite ? AbortSignal.any([signal, limite]) : signal
   for (let i = 0; i < unidades.length; i += 12) {
     signal.throwIfAborted()
+    if (limite?.aborted) break
     const lote = unidades.slice(i, i + 12)
-    const sessao = await (config.portal === 'manager' ? abrirManager : abrirWebware)({ ...config, dataLimite: hojeSP() }, receita.config_json, lote, signal).catch(() => null)
+    const sessao = await (config.portal === 'manager' ? abrirManager : abrirWebware)({ ...config, dataLimite: hojeSP() }, receita.config_json, lote, sinalColeta).catch(() => null)
     if (!sessao) break
     try {
       for (const u of lote) {
         signal.throwIfAborted()
+        if (limite?.aborted) break
         if (sessao.podeIniciarUnidade?.() === false) break
         const r = await (sessao.coletarExtrato ?? sessao.coletar)(u.id).catch(() => null)
         if (r?.pagamentos?.unidade === u.id && r.pagamentos.codigo === config.codigo_portal) resposta.set(u.id, { ...r.pagamentos, portal: config.portal })

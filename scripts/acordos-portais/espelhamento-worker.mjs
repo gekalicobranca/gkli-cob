@@ -118,10 +118,14 @@ async function processar(pedido) {
         demonstrativo = await medir('Coleta de acordos', () => coletarAcordosWebware(db, pedido, receita.script_key === 'captacao_atipass' ? 'atipass' : 'bbz', signal)).catch(() => null)
       }
       const acordos = conferirDemonstrativo(demonstrativo, app, base.pendencias)
-      const extratos = await medir('Coleta de extratos', () => coletarExtratos(db, pedido, receitas, app, alvos, signal, progresso))
+      const limiteExtratos = pedido.administradora === 'BBZ' ? Math.max(1, 16 * 60_000 - (Date.now() - inicio)) : 0
+      const extratos = await medir('Coleta de extratos', () => coletarExtratos(db, pedido, receitas, app, alvos, signal, progresso, limiteExtratos))
       const financeiro = completarFinanceiro(base, extratos, app, salvos, pedido.demonstrativo_repasses, pedido.administradora)
+      if (!pedido.aplicar && pedido.administradora === 'BBZ' && extratos.size < alvos.size) {
+        cap.avisos.push(`A BBZ retornou consultas de extrato para ${extratos.size} de ${alvos.size} unidades a conferir. As baixas sem comprovação ficam pendentes.`)
+      }
       plano = { consultadoEm: new Date().toISOString(), cotas: cap.cotas.length, acordos, ...financeiro,
-        fontes: cap.fontes, alteracoes: base.alteracoes, pendencias: base.pendencias }
+        fontes: cap.fontes, avisos: cap.avisos, extratosConsultados: extratos.size, alteracoes: base.alteracoes, pendencias: base.pendencias }
     }
     signal.throwIfAborted()
     const { error } = await db.rpc('easy_espelhamento_concluir', {
