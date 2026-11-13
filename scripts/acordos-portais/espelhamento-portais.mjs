@@ -72,6 +72,7 @@ export function planejarCotasPortais(cotas, app) {
   const unidades = agrupar(app.unidades, u => identidadeUnidade(u.identificacao, u.bloco))
   const unidadesPorId = new Map(app.unidades.map(u => [u.id, u]))
   const cotasPorVencimento = agrupar(app.cotas, c => `${c.unidade_id}|${c.vencimento}`)
+  const cotasPorRecibo = agrupar(app.cotas, c => `${c.unidade_id}|${recibo(c.observacoes)}`)
   const qtd = new Map()
   for (const item of cotas) {
     const chave = `${bloco(item.bloco)}|${codigo(item.unidade)}|${item.recibo}`
@@ -87,9 +88,16 @@ export function planejarCotasPortais(cotas, app) {
     const possiveis = exatas.length ? exatas : legadas
     const local = possiveis[0]
     possiveis.forEach(c => vistas.add(c.id))
+    const mesmoRecibo = u && item.recibo ? cotasPorRecibo.get(`${u.id}|${item.recibo}`) ?? [] : []
+    mesmoRecibo.forEach(c => vistas.add(c.id))
     if (qtd.get(chave) > 1) {
       if (!duplicadas.has(chave)) pendencias.push({ tipo: 'cota', unidade: item.unidade, referencia: item.recibo, vencimento, valor: total, motivo: 'Recibo repetido nos arquivos da administradora.' })
       duplicadas.add(chave)
+      continue
+    }
+    if (vencimento && mesmoRecibo.some(c => c.vencimento !== vencimento)) {
+      pendencias.push({ tipo: 'cota', unidade: item.unidade, referencia: item.recibo, vencimento, valor: total,
+        motivo: 'O recibo já existe na unidade com outro vencimento. Confira as datas antes de aplicar.' })
       continue
     }
     if (!u || !vencimento || !/^\d{5,}$/.test(item.recibo ?? '') || !(principal > 0) || !(total > 0) || item.componentes > 1

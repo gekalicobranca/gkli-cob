@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { confirmarRepassesLello, planejarEspelhoLello } from './espelhamento-conciliar.mjs'
 import { coletarEtapaLello } from './espelhamento-lello.mjs'
-import { completarFinanceiro } from './espelhamento-portais.mjs'
+import { completarFinanceiro, planejarCotasPortais } from './espelhamento-portais.mjs'
 
 const unidade = { id: 'u', identificacao: '400038', bloco: '0', responsavel_nome: 'Titular', email: 'antes@example.org' }
 const acordo = { id: 'a', unidade_id: 'u', origem_controle: 'carteira', status: 'quitado', valor_acordado: 971.36,
@@ -14,8 +14,8 @@ const pagamento = { unidade: '400038', recibo: '3318217', descricao: 'Parcela 1 
 
 const periodo = { id: 'fechamento', inicio: '2026-10-13', fim: '2026-11-12', status: 'aberto' }
 
-function executar({ parcelas = acordo.parcelas_acordo, recebimentos = [pagamento], ficha = {}, unidadeAtual = {}, despesa = 161.89, periodosBordero = [periodo] } = {}) {
-  return planejarEspelhoLello({ consultadoEm: '2026-11-12T23:00:00Z', cotas: [{ unidade: '400038', recibo: '54111111', vencimento: '2026-10-10', valores: [38000, 0, 0, 0, 40000] }],
+function executar({ parcelas = acordo.parcelas_acordo, recebimentos = [pagamento], ficha = {}, unidadeAtual = {}, despesa = 161.89, periodosBordero = [periodo], vencimentoPortal = '2026-10-10' } = {}) {
+  return planejarEspelhoLello({ consultadoEm: '2026-11-12T23:00:00Z', cotas: [{ unidade: '400038', recibo: '54111111', vencimento: vencimentoPortal, valores: [38000, 0, 0, 0, 40000] }],
     acordos: [acordoPortal], pagamentos: recebimentos, contatos: [{ unidade: '400038', nome: 'Titular', email: 'confirmado@example.org', telefones: ['(11) 91234-5678'], ...ficha }] }, {
     condominio: { nome: 'Safira', vencimento_cota_dia: 10, dias_apos_vencimento_regua: 30 },
     unidades: [{ ...unidade, ...unidadeAtual }], cotas: [{ id: 'c', unidade_id: 'u', vencimento: '2026-10-10', observacoes: 'Recibo: 54111111',
@@ -25,6 +25,27 @@ function executar({ parcelas = acordo.parcelas_acordo, recebimentos = [pagamento
     reguas: ['email', 'whatsapp'].map(canal => ({ ativo: true, etapas: [{ canal, ativo: true }] })),
   }, '63004')
 }
+
+test('recibo com vencimento alterado fica para revisão na Lello e nos demais portais', () => {
+  const vencimentoPortal = '2026-10-11'
+  const lello = executar({ vencimentoPortal })
+  const outros = planejarCotasPortais([
+    { unidade: unidade.identificacao, bloco: unidade.bloco, recibo: '54111111', vencimento: vencimentoPortal, principal: 380, total: 400 },
+  ], {
+    condominio: {}, unidades: [unidade], acordos: [],
+    cotas: [{ id: 'c', unidade_id: unidade.id, vencimento: '2026-10-10', observacoes: 'Recibo: 54111111',
+      status_operacional: 'em_cobranca_ativa', status_financeiro: 'em_aberto', valor_original: 380, valor_atualizado: 400 }],
+  })
+  for (const plano of [lello, outros]) {
+    assert.equal(plano.alteracoes.some(a => a.tipo.startsWith('cota_')), false)
+    const pendencias = plano.pendencias.filter(p => p.referencia === '54111111')
+    assert.equal(pendencias.length, 1)
+    assert.equal(pendencias[0].vencimento, vencimentoPortal)
+    assert.match(pendencias[0].motivo, /outro vencimento/)
+  }
+  assert.equal(outros.aguardandoExtrato.length, 0)
+  assert.equal(lello.contatosEFlows.candidatas.length, 0)
+})
 
 test('espelho produz prévia com e-mail e WhatsApp e preserva repasse sem crédito', () => {
   const { contatosEFlows, bordero } = executar()

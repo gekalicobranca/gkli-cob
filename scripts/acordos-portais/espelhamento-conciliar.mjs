@@ -62,6 +62,7 @@ export function planejarEspelhoLello(portal, app, codigo) {
   const unidadesPorId = new Map(app.unidades.map(u => [u.id, u]))
   const cotasPorId = new Map(app.cotas.map(c => [c.id, c]))
   const cotasPorVencimento = grupo(app.cotas, c => `${c.unidade_id}:${c.vencimento}`)
+  const cotasPorRecibo = grupo(app.cotas, c => `${c.unidade_id}:${numeroRecibo(c.observacoes)}`)
   const acordosPorUnidade = grupo(app.acordos, a => a.unidade_id)
   const cotasVinculadas = new Set(app.acordos.filter(a => a.status !== 'cancelado').flatMap(a => [a.cobranca_id, ...a.acordo_cobrancas.map(c => c.cobranca_id)]).filter(Boolean))
   const vinculosImpedemPre = new Set(app.acordos.filter(a => !['cancelado', 'renegociado'].includes(a.status)).flatMap(a => [a.cobranca_id, ...a.acordo_cobrancas.map(c => c.cobranca_id)]).filter(Boolean))
@@ -107,6 +108,11 @@ export function planejarEspelhoLello(portal, app, codigo) {
     const lista = unidades.get(chaveUnidade(item.unidade)) ?? []
     if (lista.length !== 1) {
       pendente('cota', item, 'Unidade ausente ou ambígua no app.', total)
+      continue
+    }
+    const mesmoRecibo = item.recibo ? cotasPorRecibo.get(`${lista[0].id}:${item.recibo}`) ?? [] : []
+    if (mesmoRecibo.some(c => c.vencimento !== item.vencimento)) {
+      pendente('cota', item, 'O recibo já existe na unidade com outro vencimento. Confira as datas antes de aplicar.', total)
       continue
     }
     const { cota, ambiguo } = localizarCota(lista[0].id, item, principal)
