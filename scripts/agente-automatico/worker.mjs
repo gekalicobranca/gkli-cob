@@ -310,29 +310,39 @@ async function collectBbzCondominio(execution) {
     }
 
     await log(execution.id, 'condominio', `Localizando o condomínio ${condominioNome}.`)
-    let card = /\bIN JARDIM SUL\b/i.test(nomePortal)
-      ? page.locator('div.card.principal').filter({ hasText: /IN JARDIM SUL GALLERY/i }).first()
-      : page.getByText(nomePortal, { exact: false }).first()
-    if (!await card.isVisible({ timeout: 8_000 }).catch(() => false)) {
-      const identificador = identificadorPortal(nomePortal)
-      await log(execution.id, 'condominio_fallback', `Nome completo não localizado; tentando pelo identificador ${identificador}.`, 'warning')
-      card = page.getByText(identificador, { exact: false }).first()
+    const validarVinculo = config.codigo_vinculo_bbz && config.titulo_portal_validado && !/\bIN JARDIM SUL\b/i.test(nomePortal)
+    if (validarVinculo) {
+      const { acessarCondominioBBZ } = await import('../scanner/bbz-acesso.mjs')
+      await acessarCondominioBBZ(page, {
+        titulo: config.titulo_portal_validado,
+        codigo: config.codigo_vinculo_bbz,
+        signal: AbortSignal.timeout(90_000),
+      })
+    } else {
+      let card = /\bIN JARDIM SUL\b/i.test(nomePortal)
+        ? page.locator('div.card.principal').filter({ hasText: /IN JARDIM SUL GALLERY/i }).first()
+        : page.getByText(nomePortal, { exact: false }).first()
       if (!await card.isVisible({ timeout: 8_000 }).catch(() => false)) {
-        const opcoes = (await page.locator('body').innerText()).split(/\r?\n/)
-          .map((item) => item.trim()).filter((item) => item.length >= 4 && item.length <= 120)
-          .filter((item, index, array) => array.indexOf(item) === index).slice(0, 80)
-        throw new Error(`Condomínio não localizado na relação BBZ: ${nomePortal}. Opções visíveis: ${opcoes.join(' | ')}`)
+        const identificador = identificadorPortal(nomePortal)
+        await log(execution.id, 'condominio_fallback', `Nome completo não localizado; tentando pelo identificador ${identificador}.`, 'warning')
+        card = page.getByText(identificador, { exact: false }).first()
+        if (!await card.isVisible({ timeout: 8_000 }).catch(() => false)) {
+          const opcoes = (await page.locator('body').innerText()).split(/\r?\n/)
+            .map((item) => item.trim()).filter((item) => item.length >= 4 && item.length <= 120)
+            .filter((item, index, array) => array.indexOf(item) === index).slice(0, 80)
+          throw new Error(`Condomínio não localizado na relação BBZ: ${nomePortal}. Opções visíveis: ${opcoes.join(' | ')}`)
+        }
       }
+      await card.waitFor({ state: 'visible', timeout: 60_000 })
+      const cardContainer = /\bIN JARDIM SUL\b/i.test(nomePortal)
+        ? card
+        : card.locator('xpath=ancestor::*[.//a or .//button][1]')
+      const acessar = cardContainer.getByText(/Acessar/i).first()
+      if (await acessar.isVisible().catch(() => false)) await acessar.click()
+      else await card.click()
+      await page.waitForTimeout(2_000)
+      await page.waitForLoadState('domcontentloaded')
     }
-    await card.waitFor({ state: 'visible', timeout: 60_000 })
-    const cardContainer = /\bIN JARDIM SUL\b/i.test(nomePortal)
-      ? card
-      : card.locator('xpath=ancestor::*[.//a or .//button][1]')
-    const acessar = cardContainer.getByText(/Acessar/i).first()
-    if (await acessar.isVisible().catch(() => false)) await acessar.click()
-    else await card.click()
-    await page.waitForTimeout(2_000)
-    await page.waitForLoadState('domcontentloaded')
 
     if (/\bIN JARDIM SUL\b/i.test(nomePortal)) {
       await page.getByText(/bem vindo ao,?\s*(?:CONDOM[IÍ]NIO\s+)?IN JARDIM SUL GALLERY/i).first()
@@ -355,7 +365,7 @@ async function collectBbzCondominio(execution) {
 
     const consultar = page.getByRole('button', { name: /Consultar|Avançar/i })
       .or(page.getByText(/Consultar|Avançar/i)).first()
-    await consultar.click()
+    await consultar.click({ noWaitAfter: true })
     const exportar = page.getByText(/Exportar Excel/i).first()
     await exportar.waitFor({ state: 'visible', timeout: 60_000 })
     if (/\bIN JARDIM SUL\b/i.test(nomePortal)) {
@@ -363,8 +373,7 @@ async function collectBbzCondominio(execution) {
         .waitFor({ state: 'visible', timeout: 60_000 })
     }
     const downloadPromise = page.waitForEvent('download', { timeout: 120_000 })
-    await exportar.click()
-    const download = await downloadPromise
+    const [download] = await Promise.all([downloadPromise, exportar.click({ noWaitAfter: true })])
     const nomeArquivoBase = [condominioNome, config.portal_segmento || config.bloco_padrao]
       .filter(Boolean)
       .join(' ')
