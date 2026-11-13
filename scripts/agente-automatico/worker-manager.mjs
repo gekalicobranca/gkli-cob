@@ -131,7 +131,7 @@ async function aguardarLogin(page, execucaoId) {
   if (usuario && senha) {
     await page.locator('input[type="text"]').first().fill(usuario)
     await page.locator('input[type="password"]').first().fill(senha)
-    await page.getByRole('button', { name: /entrar/i }).click()
+    await page.getByRole('button', { name: /entrar/i }).click({ noWaitAfter: true, timeout: 60_000 })
     await registrarLog(execucaoId, 'login', 'Credenciais locais preenchidas; aguardando acesso ao Atentum.')
   } else {
     await registrarLog(execucaoId, 'intervencao_login', 'Navegador aberto. Faça login manualmente para continuar a coleta.', 'warning')

@@ -203,7 +203,7 @@ async function waitForPortalReady(page, execucaoId) {
     const aceiteTermos = page.locator('input[type="checkbox"]').first()
     if (await aceiteTermos.isVisible().catch(() => false)) await aceiteTermos.check()
     const entrar = page.getByRole('button', { name: /entrar/i }).or(page.getByText(/entrar/i)).first()
-    if (await entrar.isVisible().catch(() => false)) await entrar.click()
+    if (await entrar.isVisible().catch(() => false)) await entrar.click({ noWaitAfter: true, timeout: 60_000 })
     await log(execucaoId, 'login', 'Credenciais locais preenchidas; aguardando acesso ao portal.')
   } else {
     await log(
