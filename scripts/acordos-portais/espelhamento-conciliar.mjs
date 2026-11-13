@@ -78,6 +78,7 @@ export function planejarEspelhoLello(portal, app, codigo) {
   const acordosEncontrados = new Set()
   const hoje = new Date(portal.consultadoEm).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
   const cotasPortalPorUnidade = grupo(portal.cotas, c => chaveUnidade(c.unidade))
+  const cotasPortalPorIdentidade = grupo(portal.cotas, c => `${chaveUnidade(c.unidade)}:${c.vencimento}:${c.valores[0]}`)
   for (const acordo of app.acordos.filter(a => a.tipo === 'judicial' && a.data_acordo && !['cancelado', 'renegociado', 'quitado'].includes(a.status))) {
     const unidade = unidadesPorId.get(acordo.unidade_id)
     if (!unidade) continue
@@ -116,6 +117,16 @@ export function planejarEspelhoLello(portal, app, codigo) {
       continue
     }
     const { cota, ambiguo } = localizarCota(lista[0].id, item, principal)
+    const chaveLegada = `LELLO-${codigo}-${item.unidade}-${item.vencimento.replaceAll('-', '')}`
+    const observacoes = cota?.observacoes ?? ''
+    const chaveImportada = observacoes.match(/^(?:Conversão de relatório - recibo |Origem: Conversão de Relatório \| Sistema: Lello Condomínios \| Recibo: )(LELLO-[^\s|]+)(?=\s|\||$)/i)?.[1]
+    const vincularRecibo = chaveImportada === chaveLegada && !numeroRecibo(observacoes)
+      && /^\d{6,}$/.test(item.recibo)
+      && cotasPortalPorIdentidade.get(`${chaveUnidade(item.unidade)}:${item.vencimento}:${principal}`).length === 1
+    if (chaveImportada && !numeroRecibo(observacoes) && !vincularRecibo) {
+      pendente('cota', item, 'Chave de importação da Lello sem correspondência única.', total)
+      continue
+    }
     const garantidora = app.condominio.bloqueio_garantidora_habilitado && item.vencimento >= app.condominio.bloqueio_garantidora_inicio
       && item.vencimento <= app.condominio.bloqueio_garantidora_fim
     const dias = (Date.parse(hoje) - Date.parse(item.vencimento)) / 86_400_000
@@ -123,8 +134,8 @@ export function planejarEspelhoLello(portal, app, codigo) {
     const baixaNaFonte = (historico.get(key) ?? []).some(r => r.pagamento && r.valorPago > 0 && r.vencimento === item.vencimento)
     if (!ambiguo && cota) {
       basePreJuridico.push({
-        item, unidade, cota, diasAtraso: dias, baixaNaFonte,
-        vinculoExato: numeroRecibo(cota.observacoes) === item.recibo,
+        item, unidade, cota, diasAtraso: dias, baixaNaFonte, vincularRecibo,
+        vinculoExato: numeroRecibo(cota.observacoes) === item.recibo || vincularRecibo,
         impedida: garantidora || baixaNaFonte || vinculosImpedemPre.has(cota.id) || recibosEmAcordoNaLello.has(key)
           || unidade.acao_judicial || unidade.numero_processo?.trim() || unidadesComAcordoJudicial.has(unidade.id)
           || ['nosso_escritorio', 'outro_advogado'].includes(unidade.conducao_processo),
@@ -138,7 +149,8 @@ export function planejarEspelhoLello(portal, app, codigo) {
     const reclassificar = cota && cota.status_operacional !== status && ['regular', 'novo', 'em_cobranca_ativa'].includes(cota.status_operacional)
     if (!cota || centavos(cota.valor_original) !== principal || Math.abs(centavos(cota.valor_atualizado) - total) > 100 || !numeroRecibo(cota.observacoes) || reclassificar) {
       alteracoes.push({ tipo: 'cota_aberta', unidadeId: lista[0].id, id: cota?.id, rev: cota?.updated_at,
-        unidade: item.unidade, recibo: item.recibo, vencimento: item.vencimento, principal, multa, juros, correcao,
+        unidade: item.unidade, recibo: item.recibo, chaveLegada: vincularRecibo ? chaveLegada : undefined,
+        vencimento: item.vencimento, principal, multa, juros, correcao,
         honorarios: item.valores.length > 5 ? item.valores[4] : null, total })
     }
   }

@@ -33,6 +33,7 @@ type PreviaPreJuridico = {
     unidade: string
     totalEmAtraso: number
     exigeRevisaoVinculo: boolean
+    recibosParaVincular?: string[]
     saldoCentavos: number
     cotas: {
       recibo: string

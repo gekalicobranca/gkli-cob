@@ -28,6 +28,14 @@ test('reimportação reconhece recibo nas observações apesar da competência a
   assert.equal((await conciliarCobrancaImportada(client([antiga]), entrada)).status, 'ja_existente')
   assert.equal((await conciliarCobrancaImportada(client([{ ...antiga, competencia: '2026-06-01' }]), entrada)).status, 'ja_existente')
 })
+
+test('reimportar a planilha Lello encontra a cobrança que recebeu o número do portal', async () => {
+  const chave = 'LELLO-63004-100018-20260610'
+  const existente = { ...antiga, observacoes: `Recibo: 53105612\nConversão de relatório - recibo ${chave}\nHistórico original` }
+  const importada = { ...entrada, recibo: chave }
+  assert.equal((await conciliarCobrancaImportada(client([existente]), importada)).status, 'ja_existente')
+  assert.equal((await conciliarCobrancaImportada(client([existente]), { ...importada, valor_atualizado: 120 })).status, 'divergente')
+})
 test('marcadores, quitação, valores, competência e vencimento divergentes bloqueiam nova cópia', async () => {
   for (const changes of [
     { observacoes: 'Recibo J 12345' }, { status_financeiro: 'quitado' },

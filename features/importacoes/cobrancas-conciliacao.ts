@@ -161,7 +161,9 @@ function classificarCandidato(
 ) {
   const reciboImportado = identidadeRecibo(importada);
   const reciboExistente = identidadeRecibo(existente);
-  const mesmoRecibo = Boolean(reciboImportado && reciboExistente && reciboImportado.recibo === reciboExistente.recibo);
+  const chaveLegada = existente.observacoes?.match(/^Recibo: \d{6,}\r?\n(?:Conversão de relatório - recibo |Origem: Conversão de Relatório \| Sistema: Lello Condomínios \| Recibo: )(LELLO-[^\s|]+)(?=\s|\||$)/i)?.[1];
+  const mesmoRecibo = Boolean(reciboImportado && reciboExistente
+    && (reciboImportado.recibo === reciboExistente.recibo || reciboImportado.recibo === chaveLegada?.toUpperCase()));
   const mesmaReferencia = temMesmaReferencia(importada, existente);
   const mesmoVencimento = existente.vencimento === importada.vencimento;
   if (!mesmoRecibo && !(mesmoVencimento && mesmaReferencia && temMesmaCompetencia(importada, existente) && statusAberto(existente))) return null;

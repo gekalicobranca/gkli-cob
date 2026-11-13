@@ -14,7 +14,7 @@ export function planejarPreJuridico({ dataBase, condominio, cotas, acordos }) {
     correspondenciasPorCota.set(cota.id, (correspondenciasPorCota.get(cota.id) ?? 0) + 1)
   }
 
-  for (const { item, unidade, cota, vinculoExato, impedida } of cotas) {
+  for (const { item, unidade, cota, vinculoExato, vincularRecibo, impedida } of cotas) {
     const diasAtraso = (Date.parse(dataBase) - Date.parse(item.vencimento)) / MS_POR_DIA
     if (!(diasAtraso > 0) || impedida || correspondenciasPorCota.get(cota.id) !== 1
       || cota.data_pagamento || !situacoesAbertas.has(cota.status_financeiro)
@@ -26,7 +26,7 @@ export function planejarPreJuridico({ dataBase, condominio, cotas, acordos }) {
     vencidas.set(item.recibo, {
       id: cota.id, recibo: item.recibo, unidade: item.unidade, competencia: cota.competencia ?? null,
       vencimento: item.vencimento, diasAtraso, saldoCentavos: item.valores.at(-1),
-      vinculoExato, encaminhavel: situacoesEncaminhaveis.has(cota.status_operacional),
+      vinculoExato, vincularRecibo, encaminhavel: situacoesEncaminhaveis.has(cota.status_operacional),
     })
     porUnidade.set(unidade.id, vencidas)
   }
@@ -44,6 +44,7 @@ export function planejarPreJuridico({ dataBase, condominio, cotas, acordos }) {
       totalEmAtraso: vencidas.size,
       comprovacaoMinimo: [...vencidas.values()].filter(c => c.vinculoExato).map(c => ({ id: c.id, recibo: c.recibo, vencimento: c.vencimento })),
       exigeRevisaoVinculo: cotas.some(c => !c.vinculoExato) || [...vencidas.values()].filter(c => c.vinculoExato).length < minimoCotas,
+      recibosParaVincular: [...vencidas.values()].filter(c => c.vincularRecibo).map(c => c.id),
       saldoCentavos: cotas.reduce((soma, c) => soma + c.saldoCentavos, 0),
       cotas,
     })

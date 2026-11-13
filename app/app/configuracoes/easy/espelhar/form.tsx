@@ -265,7 +265,8 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
                                   <ul className="ml-4 mt-1 text-xs text-slate-600">
                                     {unidade.cotas.map(cota => <li key={cota.recibo}>{cota.recibo} · {cota.competencia ?? 'Competência a conferir'} · {cota.vencimento.split('-').reverse().join('/')} · {moeda.format(cota.saldoCentavos / 100)}{!cota.vinculoExato && ' · Correspondência por vencimento e principal'}</li>)}
                                   </ul>
-                                  {podeExecutar && resultado.preJuridico.habilitado && unidade.unidadeId && !unidade.exigeRevisaoVinculo && acaoEspelho(chave, 'Encaminhar dossiê ao Pré-Jurídico', () => entregarPreJuridico(execucao.id, unidade.unidadeId))}
+                                  {!!unidade.recibosParaVincular?.length && !execucao.aplicar && <p className="text-xs text-slate-600">Recibos identificados. Aplique o espelhamento para gravar os vínculos.</p>}
+                                  {podeExecutar && resultado.preJuridico.habilitado && unidade.unidadeId && !unidade.exigeRevisaoVinculo && (execucao.aplicar || !unidade.recibosParaVincular?.length) && acaoEspelho(chave, 'Encaminhar dossiê ao Pré-Jurídico', () => entregarPreJuridico(execucao.id, unidade.unidadeId))}
                                 </details>
                               </li>
                             })}

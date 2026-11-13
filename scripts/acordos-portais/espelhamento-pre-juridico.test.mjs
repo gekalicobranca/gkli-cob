@@ -43,6 +43,26 @@ test('conta uma segunda cota vencida abaixo do prazo sem somá-la ao encaminhame
   assert.ok(alteracoes.every(a => a.tipo !== 'pre_juridico'))
 })
 
+test('chave da importação Lello identifica recibo único sem criar outra cota', () => {
+  const segunda = { observacoes: 'Conversão de relatório - recibo LELLO-63004-100001-20261110\nHistórico original' }
+  const { alteracoes, preJuridico } = planejar({ segunda })
+  const ajuste = alteracoes.find(a => a.recibo === recente.recibo)
+  assert.equal(ajuste.id, '1')
+  assert.equal(ajuste.chaveLegada, 'LELLO-63004-100001-20261110')
+  assert.equal(preJuridico.unidades[0].exigeRevisaoVinculo, false)
+  assert.deepEqual(preJuridico.unidades[0].recibosParaVincular, ['1'])
+  const detalhada = planejar({ segunda: {
+    observacoes: 'Origem: Conversão de Relatório | Sistema: Lello Condomínios | Recibo: LELLO-63004-100001-20261110 | Composição origem: Taxa condominial',
+  } })
+  assert.equal(detalhada.alteracoes.find(a => a.recibo === recente.recibo)?.chaveLegada, ajuste.chaveLegada)
+  assert.equal(detalhada.preJuridico.unidades[0].exigeRevisaoVinculo, false)
+  const ambiguo = planejar({
+    segunda, itens: [antiga, recente, { ...recente, recibo: '333333' }], itensCadastrados: [antiga, recente],
+  })
+  assert.equal(ambiguo.alteracoes.some(a => a.chaveLegada || !a.id), false)
+  assert.equal(ambiguo.preJuridico.unidades.length, 0)
+})
+
 test('exclui cota única, cota a vencer, baixa no app, ação judicial e recibo vinculado', () => {
   const acordo = { id: 'a', unidade_id: 'u', status: 'ativo', cobranca_id: '1', acordo_cobrancas: [], parcelas_acordo: [] }
   for (const caso of [
