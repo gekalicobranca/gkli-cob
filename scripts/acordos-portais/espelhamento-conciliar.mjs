@@ -38,7 +38,7 @@ export async function lerEspelhoApp(db, condominioId, carteiraId) {
     }
   }
   const [condominio, unidades, cotas, acordos, reguas] = await Promise.all([
-    db.from('condominios').select('nome,vencimento_cota_dia,dias_apos_vencimento_regua,inicio_cobranca_dias,dias_cobranca_ativa,pre_juridico_habilitado,carteiras:carteira_id(pre_juridico_habilitado),bloqueio_garantidora_habilitado,bloqueio_garantidora_inicio,bloqueio_garantidora_fim')
+    db.from('condominios').select('nome,vencimento_cota_dia,dias_apos_vencimento_regua,inicio_cobranca_dias,dias_cobranca_ativa,pre_juridico_habilitado,pre_juridico_minimo_cotas,carteiras:carteira_id(pre_juridico_habilitado),bloqueio_garantidora_habilitado,bloqueio_garantidora_inicio,bloqueio_garantidora_fim')
       .eq('id', condominioId).eq('carteira_id', carteiraId).eq('status', 'ativo').single(),
     listar('unidades', 'id,identificacao,bloco,acao_judicial,numero_processo,conducao_processo,responsavel_nome,responsavel_documento,email,telefone,updated_at'),
     listar('cobrancas', 'id,unidade_id,competencia,vencimento,valor_original,valor_atualizado,status_financeiro,status_operacional,data_pagamento,valor_pago,observacoes,automacao_bloqueada,updated_at',

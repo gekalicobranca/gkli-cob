@@ -1,3 +1,4 @@
+import { unidadesComMinimoPreJuridico } from '@/features/pre-juridico/minimo-cotas';
 import { liberarCobrancasRegulares } from '@/features/cobrancas/regular';
 import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade';
 import { carregarApoiosParaCorrespondencia } from '@/features/responsaveis-unidades/correspondencia';
@@ -644,6 +645,9 @@ export async function processarReguaCobranca(
     .filter((row) => matchesSearch(row, params.q))
     .filter((row) => matchesContato(row, params.contato));
 
+  const unidadesComMinimo = await unidadesComMinimoPreJuridico(supabase, rows
+    .filter(row => avaliarExpiracaoPreJuridico(row).expirada)
+    .map(row => row.unidades?.id));
   const cobrancaIds = rows.map((row) => row.id).filter(Boolean);
   const reguaIds = [
     params.reguaId,
@@ -744,7 +748,7 @@ export async function processarReguaCobranca(
           row.status_financeiro !== COBRANCA_STATUS_FINANCEIRO.QUITADO &&
           !acordosAtivos.has(row.id);
 
-        if (expiracaoPreJuridico.expirada && podeExpirarParaPreJuridico) {
+        if (expiracaoPreJuridico.expirada && podeExpirarParaPreJuridico && unidade && unidadesComMinimo.has(unidade.id)) {
           const motivo = "Cobrança expirada após a régua e encaminhada automaticamente para preparação documental.";
           const payloadExpiracao = {
             origem: "expiracao_regua_pre_juridico",

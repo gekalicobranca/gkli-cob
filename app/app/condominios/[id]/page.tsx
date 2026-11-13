@@ -218,6 +218,10 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <label className="block text-sm text-slate-700">
+              <span className="block font-medium text-slate-950">Mínimo de cotas em atraso para o Pré-Jurídico</span>
+              <input type="number" name="pre_juridico_minimo_cotas" min={1} max={2147483647} step={1} required defaultValue={condominio.pre_juridico_minimo_cotas ?? 5} className="mt-1 w-24 rounded-md border border-slate-300 px-2 py-1" />
+            </label>
             <label className="flex items-start gap-3 text-sm text-slate-700"><input type="checkbox" name="pre_juridico_habilitado" defaultChecked={Boolean(condominio.pre_juridico_habilitado)} className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" /><span><span className="block font-medium text-slate-950">Enviar automaticamente à Pré-distribuição</span><span className="mt-1 block text-xs leading-5 text-slate-500">Após o prazo, envia apenas cobranças sem acordo. Desmarcado, a cobrança permanece como está.</span></span></label>
           </div>
 

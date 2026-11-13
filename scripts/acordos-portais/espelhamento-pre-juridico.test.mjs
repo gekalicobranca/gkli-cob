@@ -13,11 +13,24 @@ function planejar({ itens = [antiga, recente], itensCadastrados = itens, segunda
     ...(i === 1 ? segunda : {}),
   }))
   return planejarEspelhoLello({ consultadoEm: '2026-11-13T01:00:00Z', cotas: itens, acordos: acordosPortal, pagamentos: [] }, {
-    condominio: { inicio_cobranca_dias: 30, dias_cobranca_ativa: 60, pre_juridico_habilitado: true,
+    condominio: { inicio_cobranca_dias: 30, dias_cobranca_ativa: 60, pre_juridico_habilitado: true, pre_juridico_minimo_cotas: 2,
       carteiras: { pre_juridico_habilitado: true }, ...condominio },
     unidades: [{ id: 'u', identificacao: '100001', ...unidade }], cotas, acordos,
   }, '63004')
 }
+
+test('o padrão de cinco exige cinco cotas distintas e mantém o prazo do saldo', () => {
+  const itens = [antiga, ...[0, 1, 2, 3].map(i => ({
+    ...recente, recibo: String(222222 + i), vencimento: `2026-11-0${i + 5}`,
+  }))]
+  const condominio = { pre_juridico_minimo_cotas: undefined }
+  assert.equal(planejar({ itens: itens.slice(0, 4), condominio }).preJuridico.unidades.length, 0)
+  const { preJuridico } = planejar({ itens, condominio })
+  assert.equal(preJuridico.minimoCotas, 5)
+  assert.equal(preJuridico.unidades[0].totalEmAtraso, 5)
+  assert.equal(preJuridico.quantidadeCotas, 1)
+  assert.equal(planejar({ itens, condominio, segunda: { data_pagamento: '2026-11-12' } }).preJuridico.unidades.length, 0)
+})
 
 test('conta uma segunda cota vencida abaixo do prazo sem somá-la ao encaminhamento', () => {
   const { preJuridico, alteracoes } = planejar()

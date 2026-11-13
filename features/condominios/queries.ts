@@ -29,6 +29,7 @@ const CONDOMINIO_SELECT = `
   inicio_cobranca_dias,
   dias_cobranca_ativa,
   pre_juridico_habilitado,
+  pre_juridico_minimo_cotas,
   dias_expiracao_regua_pre_juridico,
   despesas_acordo_avista_percentual,
   despesas_acordo_parcelado_percentual,

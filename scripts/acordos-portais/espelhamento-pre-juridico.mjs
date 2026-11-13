@@ -4,6 +4,7 @@ const situacoesImpedidas = new Set(['acordo_firmado', 'acordo_efetivado', 'acord
 const situacoesEncaminhaveis = new Set(['novo', 'em_cobranca_ativa', 'em_negociacao', 'possivel_acordo'])
 
 export function planejarPreJuridico({ dataBase, condominio, cotas, acordos }) {
+  const minimoCotas = condominio.pre_juridico_minimo_cotas ?? 5
   const prazoDias = (condominio.inicio_cobranca_dias ?? 0) + (condominio.dias_cobranca_ativa ?? 60)
   const habilitado = condominio.pre_juridico_habilitado === true && condominio.carteiras?.pre_juridico_habilitado === true
   const acordosJudiciais = new Set(acordos.filter(a => a.tipo === 'judicial').map(a => a.unidade_id))
@@ -32,7 +33,7 @@ export function planejarPreJuridico({ dataBase, condominio, cotas, acordos }) {
 
   const unidades = []
   for (const [unidadeId, vencidas] of porUnidade) {
-    if (vencidas.size < 2) continue
+    if (vencidas.size < minimoCotas) continue
     const cotasEncaminhaveis = [...vencidas.values()].filter(c => c.encaminhavel && c.diasAtraso >= prazoDias)
     if (!cotasEncaminhaveis.length) continue
     const cotas = cotasEncaminhaveis.map(({ id, recibo, competencia, vencimento, diasAtraso, saldoCentavos, vinculoExato }) =>
@@ -42,14 +43,14 @@ export function planejarPreJuridico({ dataBase, condominio, cotas, acordos }) {
       unidade: cotasEncaminhaveis[0].unidade,
       totalEmAtraso: vencidas.size,
       comprovacaoMinimo: [...vencidas.values()].filter(c => c.vinculoExato).map(c => ({ id: c.id, recibo: c.recibo, vencimento: c.vencimento })),
-      exigeRevisaoVinculo: cotas.some(c => !c.vinculoExato) || [...vencidas.values()].filter(c => c.vinculoExato).length < 2,
+      exigeRevisaoVinculo: cotas.some(c => !c.vinculoExato) || [...vencidas.values()].filter(c => c.vinculoExato).length < minimoCotas,
       saldoCentavos: cotas.reduce((soma, c) => soma + c.saldoCentavos, 0),
       cotas,
     })
   }
   unidades.sort((a, b) => a.unidade.localeCompare(b.unidade, 'pt-BR', { numeric: true }))
   return {
-    dataBase, habilitado, prazoDias, unidades,
+    dataBase, habilitado, prazoDias, minimoCotas, unidades,
     quantidadeCotas: unidades.reduce((soma, u) => soma + u.cotas.length, 0),
     saldoCentavos: unidades.reduce((soma, u) => soma + u.saldoCentavos, 0),
   }

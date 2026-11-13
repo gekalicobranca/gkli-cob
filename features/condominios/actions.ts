@@ -21,6 +21,16 @@ function optionalText(formData: FormData, field: string) {
   return String(formData.get(field) ?? '').trim() || null
 }
 
+function minimoCotasPreJuridico(formData: FormData) {
+  const valor = optionalText(formData, 'pre_juridico_minimo_cotas')
+  if (valor === null) return undefined
+  const minimo = Number(valor)
+  if (!/^\d+$/.test(valor) || !Number.isInteger(minimo) || minimo < 1 || minimo > 2147483647) {
+    throw new Error('Informe um número inteiro positivo para o mínimo de cotas em atraso.')
+  }
+  return minimo
+}
+
 function optionalEmail(formData: FormData, field: string, label: string) {
   const value = String(formData.get(field) ?? '').trim().toLowerCase()
   if (!value) return null
@@ -194,6 +204,7 @@ export async function createCondominio(formData: FormData) {
     inicio_cobranca_dias: inicioCobrancaDias,
     dias_cobranca_ativa: diasCobrancaAtiva,
     pre_juridico_habilitado: preJuridicoHabilitado,
+    pre_juridico_minimo_cotas: minimoCotasPreJuridico(formData),
     dias_expiracao_regua_pre_juridico: preJuridicoHabilitado ? diasCobrancaAtiva : null,
     parcelas_acordo_sem_aprovacao_sindico: parcelasAcordoSemAprovacaoSindico,
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,
@@ -292,7 +303,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const scope = await getPermittedCarteiras()
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, grupo, operador_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, sindico_email, sindico_celular, gerente_email, gerente_celular, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, dias_expiracao_regua_pre_juridico, despesas_acordo_avista_percentual, despesas_acordo_parcelado_percentual, custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, mascara_unidade, mascara_bloco, status, observacoes')
+    .select('id, carteira_id, grupo, operador_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, sindico_email, sindico_celular, gerente_email, gerente_celular, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, pre_juridico_minimo_cotas, dias_expiracao_regua_pre_juridico, despesas_acordo_avista_percentual, despesas_acordo_parcelado_percentual, custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, mascara_unidade, mascara_bloco, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -326,6 +337,7 @@ export async function updateCondominioIntegral(formData: FormData) {
     inicio_cobranca_dias: inicioCobrancaDias,
     dias_cobranca_ativa: diasCobrancaAtiva,
     pre_juridico_habilitado: preJuridicoHabilitado,
+    pre_juridico_minimo_cotas: minimoCotasPreJuridico(formData),
     dias_expiracao_regua_pre_juridico: preJuridicoHabilitado ? diasCobrancaAtiva : null,
     parcelas_acordo_sem_aprovacao_sindico: parcelasAcordoSemAprovacaoSindico,
     dias_reemissao_parcela_acordo_atrasada: diasReemissaoParcelaAcordoAtrasada,

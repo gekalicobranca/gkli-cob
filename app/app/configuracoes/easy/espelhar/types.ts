@@ -24,6 +24,7 @@ type PreviaPreJuridico = {
   dataBase: string
   habilitado: boolean
   prazoDias: number
+  minimoCotas?: number
   quantidadeCotas: number
   saldoCentavos: number
   revisoesJudiciais?: { acordoId: string; unidade: string; processo?: string | null; cotas: { recibo: string; vencimento: string; saldoCentavos: number }[] }[]

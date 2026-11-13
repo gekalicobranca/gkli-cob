@@ -1,3 +1,4 @@
+import { unidadesComMinimoPreJuridico } from './minimo-cotas'
 import { acordoBloqueiaPre, cobrancaAbertaPre, unidadeBloqueiaPre, totalizarRecortePre } from './eligibilidade'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
@@ -76,6 +77,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
     for (const row of (acordosResult.data ?? []) as any[]) if (row.cobranca_id && acordoBloqueiaPre(row.status)) cobrancasEmAcordo.add(row.cobranca_id)
   }
 
+  const unidadesComMinimo = await unidadesComMinimoPreJuridico(supabase, data.map(row => row.unidade_id))
   const today = todaySaoPaulo()
   const resultado = (data ?? []).flatMap((row: any) => {
     const carteira = Array.isArray(row.carteira) ? row.carteira[0] : row.carteira
@@ -89,6 +91,7 @@ export async function listPreJuridicoCobrancas(scope: CarteiraScope) {
     const diasAtraso = due ? daysBetween(due, today) : 0
     const encaminhado = ['pre_distribuicao', 'pre_juridico'].includes(operational)
     const elegivel = Boolean(
+      unidadesComMinimo.has(row.unidade_id) &&
       carteira?.pre_juridico_habilitado &&
       condominio?.pre_juridico_habilitado &&
       due &&
