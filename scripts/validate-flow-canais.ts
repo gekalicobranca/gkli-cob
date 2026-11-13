@@ -17,6 +17,14 @@ test('Easy libera flow concluído de ciclo anterior e preserva bloqueios do cicl
   assert.equal(vinculoOcupaCanal(enviado('2026-11-10T20:00:00Z'), false, 10, hoje), false)
   assert.equal(vinculoOcupaCanal(enviado('2026-11-11T12:00:00Z'), false, 10, hoje), true)
   assert.equal(vinculoOcupaCanal(enviado('2026-09-21T17:20:09Z', 'pausado'), false, 10, hoje), true)
+  const puladaPorAcordo = {
+    status: 'pulada',
+    motivo: 'Cobrança possui acordo ativo/vigente.',
+    flow: { status: 'em_execucao' },
+  }
+  assert.equal(vinculoOcupaCanal(puladaPorAcordo, false, 10, hoje), false)
+  assert.equal(vinculoOcupaCanal({ ...puladaPorAcordo, mensagem: { status: 'agendada' } }, false, 10, hoje), true)
+  assert.equal(vinculoOcupaCanal({ ...puladaPorAcordo, motivo: 'Outro motivo' }, false, 10, hoje), true)
   assert.equal(vinculoOcupaCanal(enviado(''), false, 10, hoje), true)
   assert.equal(vinculoOcupaCanal({ flow: { status: 'concluido' }, mensagem: { status: 'agendada' } }, false, 10, hoje), true)
 })

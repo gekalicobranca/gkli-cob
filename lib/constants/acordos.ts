@@ -77,3 +77,5 @@ export const ACORDO_STATUS_LABEL: Record<string, string> = {
   vencida: 'Vencida',
   cancelada: 'Cancelada',
 }
+
+export const MOTIVO_COBRANCA_COM_ACORDO_VIGENTE = 'Cobrança possui acordo ativo/vigente.';

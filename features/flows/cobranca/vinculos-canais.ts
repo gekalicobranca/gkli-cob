@@ -1,5 +1,6 @@
 import type { createAdminClient } from '@/utils/supabase/admin'
 import { canaisDaRegua, conflitoDeCanais } from './canais'
+import { MOTIVO_COBRANCA_COM_ACORDO_VIGENTE } from '@/lib/constants/acordos'
 import { cicloFechamentoCobranca } from './ciclo-fechamento'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
@@ -12,8 +13,10 @@ export function temFlowEmAndamento(item: { flow?: any }) {
   return !FLOWS_TERMINAIS.has(relation(item.flow)?.status)
 }
 
-export function vinculoOcupaCanal(item: { status?: string; flow?: any; mensagem?: any }, novaCaptacaoMaestro = false, diaFechamento?: number, agora = new Date()) {
+export function vinculoOcupaCanal(item: { status?: string; motivo?: string | null; flow?: any; mensagem?: any }, novaCaptacaoMaestro = false, diaFechamento?: number, agora = new Date()) {
   const mensagem = relation(item.mensagem)
+  // Uma cota pulada por acordo não tem mensagem a retomar no flow original.
+  if (!mensagem && item.status === 'pulada' && item.motivo === MOTIVO_COBRANCA_COM_ACORDO_VIGENTE) return false
   if (novaCaptacaoMaestro) {
     return temFlowEmAndamento(item) || Boolean(mensagem && !['enviada', 'falha', 'cancelada'].includes(mensagem.status))
   }
@@ -59,7 +62,7 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
   async function carregarParte(parte: string[]) {
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await db.from('lote_itens')
-        .select('id,cobranca_id,status,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(status,canais:payload->canais,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal,status,erro,enviada_em,enviada_manual_em)')
+        .select('id,cobranca_id,status,motivo,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(status,canais:payload->canais,regua:reguas(etapas:regua_etapas(canal,ativo))),mensagem:mensagens!lote_itens_mensagem_id_fkey(canal,status,erro,enviada_em,enviada_manual_em)')
         .in('cobranca_id', parte).not('cobranca_flow_id', 'is', null).order('id').range(offset, offset + 499)
       if (error) throw new Error(`Erro ao conferir canais dos Flows: ${error.message}`)
       for (const row of data ?? []) {

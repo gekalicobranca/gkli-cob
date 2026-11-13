@@ -1,3 +1,4 @@
+import { MOTIVO_COBRANCA_COM_ACORDO_VIGENTE } from '@/lib/constants/acordos';
 import { unidadesComMinimoPreJuridico } from '@/features/pre-juridico/minimo-cotas';
 import { liberarCobrancasRegulares } from '@/features/cobrancas/regular';
 import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade';
@@ -537,7 +538,7 @@ function avaliarElegibilidade(params: {
   }
 
   if (params.acordosAtivos.has(row.id)) {
-    return { elegivel: false, motivo: "Cobrança possui acordo ativo/vigente.", diasAtraso, inicio };
+    return { elegivel: false, motivo: MOTIVO_COBRANCA_COM_ACORDO_VIGENTE, diasAtraso, inicio };
   }
 
   if (!isCobrancaElegivelParaRegua({ vencimento: row.vencimento, inicioCobrancaDias: inicio })) {
