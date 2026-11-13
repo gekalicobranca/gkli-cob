@@ -33,7 +33,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
   const campoAnexo = useRef<HTMLInputElement>(null)
   const administradoras = [...new Set(condominios.flatMap(c => c.administradoras))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const condominiosDaAdministradora = condominios.filter(c => c.administradoras.includes(administradora))
-  const disponiveis = condominiosDaAdministradora.filter(c => !emAndamento(c))
+  const disponiveis = condominiosDaAdministradora.filter(c => c.liberado && !emAndamento(c))
   const selecao = disponiveis.filter(c => selecionados.includes(c.id)).map(c => c.id)
   const atualizando = condominios.some(emAndamento)
   const mesAtual = dataCivilSaoPaulo().slice(0, 7)
@@ -162,7 +162,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
           <h2>Condomínios da administradora</h2>
           <label className="mt-3 inline-flex items-center gap-2 text-sm font-semibold">
             <input type="checkbox" className="h-4 w-4" checked={disponiveis.length > 0 && selecao.length === disponiveis.length}
-              disabled={enviando || !disponiveis.length} onChange={event => selecionar(event.target.checked ? disponiveis.map(c => c.id) : [])} />
+              disabled={!podeExecutar || enviando || !disponiveis.length} onChange={event => selecionar(event.target.checked ? disponiveis.map(c => c.id) : [])} />
             Selecionar todos os disponíveis
           </label>
           <ul className="mt-3 divide-y divide-slate-100">
@@ -181,7 +181,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
                 <li key={c.id} className={`px-3 py-3 text-sm ${noMes ? 'bg-emerald-50' : ''}`}>
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="inline-flex items-center gap-2 font-semibold">
-                      <input type="checkbox" className="h-4 w-4" checked={selecionados.includes(c.id)} disabled={emAndamento(c) || enviando}
+                      <input type="checkbox" className="h-4 w-4" checked={selecao.includes(c.id)} disabled={!podeExecutar || !c.liberado || emAndamento(c) || enviando}
                         onChange={event => selecionar(event.target.checked ? [...selecionados, c.id] : selecionados.filter(id => id !== c.id))} />
                       {nomeCondominioEasy(c.nome, c.nomeOperacional)}
                     </label>
@@ -190,7 +190,12 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
                     {execucao?.estado === 'fila' && <span className={styles.badge}>Na fila</span>}
                     {execucao?.estado === 'processando' && <span className={styles.badge}>Processando</span>}
                   </div>
-                  <p className="mt-1 text-xs text-slate-600">{c.carteira}</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {c.carteira} · {c.cotasEmCobrancaAtiva} em cobrança ativa
+                    {!c.liberado && (c.liberacaoEm
+                      ? ' · Disponível em ' + c.liberacaoEm.split('-').reverse().join('/')
+                      : ' · Configure o dia de vencimento')}
+                  </p>
                   {podeAprovarBordero && c.agendado !== undefined && acaoEspelho(`${c.id}:agenda:${c.agendado}`, c.agendado ? 'Desativar conferência mensal' : 'Ativar conferência mensal', async () => {
                     const retorno = await configurarAgendaEspelhamento(c.id, !c.agendado)
                     if (retorno.error) return retorno

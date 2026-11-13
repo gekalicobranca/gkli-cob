@@ -62,6 +62,9 @@ export type CondominioEspelhamento = {
   nomeOperacional: string | null
   carteira: string
   administradoras: string[]
+  liberado: boolean
+  liberacaoEm: string | null
+  cotasEmCobrancaAtiva: number
   agendado?: boolean
   ultimaConferenciaEm: string | null
   ultimoEspelhamentoEm: string | null
