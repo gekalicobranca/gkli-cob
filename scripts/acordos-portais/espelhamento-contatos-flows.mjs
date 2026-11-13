@@ -1,4 +1,6 @@
-import { normalizarCelular, normalizarTelefone } from '../../lib/core/telefone.ts'
+import * as telefone from '../../lib/core/telefone.ts'
+
+const { normalizarCelular, normalizarTelefone } = telefone.default ?? telefone
 
 const nomeNormalizado = nome => String(nome ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().replace(/\s+/g, ' ').toUpperCase()
 const documento = valor => String(valor ?? '').replace(/\D/g, '')
