@@ -51,16 +51,21 @@ async function main() {
   const importFolder = path.resolve(process.env.CAPTACAO_AUTOMATIZADA_PASTA || process.env.AGENTE_DOWNLOAD_DIR || path.join(os.homedir(),'Downloads'))
   const arquivos = await observarArquivos(importFolder,path.join(pasta,'arquivos.json'),()=>wake?.())
   let importFile
+  let ultimaConsultaAgendaEspelho = 0
   const supervisor = createMaestroSupervisor({
     maxWorkers: Math.max(1, Math.min(8, Number(process.env.MAESTRO_MAX_WORKERS) || 2)),
     poll: async agendar => {
       const { data, error } = await db.rpc('workers_supervisor_fila', { p_agendar: agendar })
       if (error) throw error
-      const vencido = new Date(Date.now() - 20 * 60_000).toISOString()
-      const { data: espelho, error: espelhoErro } = await db.from('easy_espelhamentos').select('criado_em')
-        .or(`estado.eq.fila,and(estado.eq.processando,iniciado_em.lt.${vencido})`).order('criado_em').limit(1).maybeSingle()
-      if (espelhoErro && espelhoErro.code !== 'PGRST205') console.error('Fila de espelhamento indisponível:', espelhoErro.message)
-      if (espelho) data.pendentes.push({ script_key: 'espelhamento:lello', created_at: espelho.criado_em })
+      const operadorEspelho = process.env.AGENTE_ESPELHAMENTO_OPERADOR_ID
+      if (operadorEspelho && Date.now() - ultimaConsultaAgendaEspelho >= 60_000) {
+        ultimaConsultaAgendaEspelho = Date.now()
+        const { error: erroAgenda } = await db.rpc('easy_espelhamento_agendar', { p_usuario: operadorEspelho })
+        if (erroAgenda) console.error('Agenda de espelhamento indisponível:', erroAgenda.message)
+      }
+      const { data: espelhos, error: espelhoErro } = await db.rpc('easy_espelhamento_fila_disponivel')
+      if (espelhoErro) console.error('Fila de espelhamento indisponível:', espelhoErro.message)
+      for (const espelho of espelhos ?? []) data.pendentes.push({ script_key: `espelhamento:${espelho.familia}`, created_at: espelho.criado_em })
       const pendentes = await arquivos.pending()
       if (data.captacao_ativa && pendentes.length) {
         importFile = pendentes[0]
@@ -69,7 +74,8 @@ async function main() {
       return data
     },
     launch: async key => {
-      if (!keys.includes(key) && !Object.hasOwn(PDF_WORKERS,key) && !['importacao:arquivos','whatsapp:cloud','espelhamento:lello'].includes(key)) throw new Error('Worker não autorizado.')
+      const espelho = /^espelhamento:(lello|manager|webware|outros)$/.test(key)
+      if (!keys.includes(key) && !Object.hasOwn(PDF_WORKERS,key) && !espelho && !['importacao:arquivos','whatsapp:cloud'].includes(key)) throw new Error('Worker não autorizado.')
       const selectedFile = key==='importacao:arquivos' ? importFile : undefined
       const logKey = key.replaceAll(':','-')
       const out = await open(path.join(pasta, `${logKey}.stdout.log`), 'a')
@@ -82,6 +88,7 @@ async function main() {
           child.once('exit', (code, signal) => code === 0 ? resolve() : reject(new Error(`Fila encerrou (${signal || code}).`)))
         })
         if (selectedFile) await arquivos.complete(selectedFile)
+        if (espelho) setTimeout(() => wake?.(), 0)
       } finally { await out.close(); await err.close() }
     },
     report: (key, erro) => console.error(new Date().toISOString(), key, erro),

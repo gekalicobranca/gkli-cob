@@ -139,6 +139,7 @@ export async function listPreJuridicoCasos(scope: CarteiraScope) {
       unidade:unidades(identificacao,bloco,responsavel_nome,acao_judicial,numero_processo,conducao_processo),
       acordo:acordos(valor_acordado,data_acordo,status,status_financeiro),
       cobranca:cobrancas(valor_original,valor_atualizado,vencimento,status_financeiro),
+      cotas_espelhadas:pre_juridico_caso_cotas_espelho(cobranca_id),
       responsavel:profiles(nome,email)
     `)
     .order('updated_at', { ascending: false })
@@ -158,5 +159,9 @@ export async function listPreJuridicoCasos(scope: CarteiraScope) {
     current.push(cobranca)
     porUnidade.set(cobranca.unidade_id, current)
   }
-  return rows.map((row) => ({ ...row, cobrancas_unidade: porUnidade.get(row.unidade_id) ?? [] }))
+  return rows.map((row) => {
+    const candidatas = porUnidade.get(row.unidade_id) ?? []
+    const ids = new Set((row.cotas_espelhadas ?? []).map(c => c.cobranca_id))
+    return { ...row, cobrancas_unidade: ids.size ? candidatas.filter(c => ids.has(c.id)) : candidatas }
+  })
 }

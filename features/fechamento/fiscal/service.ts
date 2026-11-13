@@ -25,7 +25,18 @@ export async function sendFiscalPeriod(db: SupabaseClient, periodoId: string): P
       let orderId: string | null = null
       let message: string | null = null
       try {
-        const payload = row.payload ?? createFiscalPayload(row.snapshot, mapping)
+        let descricaoBordero: string | undefined
+        if (!row.payload && row.snapshot.tipo_faturamento === 'repasse_cobranca_extrajudicial') {
+          const { data: bordero, error } = await db.from('easy_espelhamento_borderos_aprovados')
+            .select('descricao,total_centavos,espelhamento_id').eq('periodo_id', row.snapshot.periodo_id)
+            .eq('condominio_id', row.snapshot.condominio_id).eq('carteira_id', row.snapshot.carteira_id).maybeSingle()
+          if (error && !['42P01', 'PGRST205'].includes(error.code)) throw new FiscalDeliveryError('Não foi possível consultar a versão aprovada do borderô.')
+          if (bordero) {
+            if (Number(bordero.total_centavos) !== Math.round(Number(row.snapshot.valor_faturamento) * 100)) throw new FiscalDeliveryError('O valor fiscal diverge do borderô aprovado.', true)
+            descricaoBordero = bordero.descricao.length <= 1000 ? bordero.descricao : `Repasse de cobrança extrajudicial. Detalhamento no borderô ${bordero.espelhamento_id}.`
+          }
+        }
+        const payload = row.payload ?? createFiscalPayload(row.snapshot, mapping, descricaoBordero)
         const frozen = await db.rpc('fiscal_core_salvar_payload', { p_id: row.id, p_claim_id: row.claim_id, p_payload: payload })
         if (frozen.error) throw new FiscalDeliveryError('Não foi possível congelar os dados da entrega. Reprocesse a fila.')
         const delivered = await client.send(frozen.data as FiscalPayload)

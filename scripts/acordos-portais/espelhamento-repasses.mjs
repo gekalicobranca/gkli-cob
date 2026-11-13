@@ -1,5 +1,20 @@
 const normalizar = v => String(v ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().replace(/\s+/g, ' ').toLowerCase()
 
+export function conferirCreditoRegistrado({ salvo, provas, unidade, vencimento, pendencias, referenciasUsadas }) {
+  const divergencias = new Map()
+  for (const prova of provas) {
+    if (prova.fonte?.startsWith('arquivo:')) referenciasUsadas.add(prova.referencia)
+    if (prova.recibo !== salvo.recibo || prova.dataCredito !== salvo.data_credito || prova.centavos !== Number(salvo.valor_centavos)) {
+      divergencias.set(`${prova.recibo}:${prova.dataCredito}:${prova.centavos}`, prova)
+    }
+  }
+  for (const prova of divergencias.values()) {
+    pendencias.push({ tipo: 'repasse', unidade, referencia: salvo.recibo, vencimento, valor: prova.centavos,
+      valorSalvo: Number(salvo.valor_centavos), motivo: `Crédito divergente na fonte, recibo ${prova.recibo} de ${prova.dataCredito.split('-').reverse().join('/')}. O registro de ${salvo.data_credito.split('-').reverse().join('/')} foi preservado para revisão.` })
+  }
+  return divergencias.size ? 'divergente' : 'confirmado'
+}
+
 export function dataDoExtrato(v) {
   const s = String(v ?? '').trim()
   const iso = /^\d{2}\/\d{2}\/\d{4}$/.test(s) ? s.split('/').reverse().join('-') : s

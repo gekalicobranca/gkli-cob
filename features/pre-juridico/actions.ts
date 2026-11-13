@@ -108,6 +108,9 @@ export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
   if (!caso.unidade_id) throw new Error('Este caso não possui unidade vinculada para marcar ação judicial.')
   if (caso.distribuicao_status === 'distribuido') throw new Error('A distribuição deste caso já foi confirmada.')
 
+  const { data: espelhadas, error: erroEscopo } = await supabase.from('pre_juridico_caso_cotas_espelho').select('cobranca_id').eq('caso_id', caso.id)
+  if (erroEscopo) throw new Error(`Erro ao conferir o escopo da distribuição: ${erroEscopo.message}`)
+
   const agora = new Date().toISOString()
   const payload: Record<string, unknown> = {
     etapa: 'judicializado',
@@ -121,7 +124,9 @@ export async function atualizarDistribuicaoPreJuridico(formData: FormData) {
   const { error } = await persistirCasos(supabase, [{ caso, dados: payload }], formData)
   if (error) throw new Error(`Erro ao atualizar distribuição: ${error.message}`)
 
-  const { data: cobrancas } = await somenteCobrancasCanonicas(supabase.from('cobrancas').select('id')).eq('unidade_id', caso.unidade_id)
+  let consultaCobrancas = somenteCobrancasCanonicas(supabase.from('cobrancas').select('id')).eq('unidade_id', caso.unidade_id)
+  if (espelhadas?.length) consultaCobrancas = consultaCobrancas.in('id', espelhadas.map(c => c.cobranca_id))
+  const { data: cobrancas } = await consultaCobrancas
   for (const cobranca of (cobrancas ?? []) as any[]) {
     await registrarEventoOperacional(supabase as any, {
       carteiraId: caso.carteira_id,

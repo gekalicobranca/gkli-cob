@@ -1,7 +1,7 @@
 import { abrirManager } from '../scanner/manager.mjs'
 import { abrirWebware } from '../scanner/webware.mjs'
 import { resultadosEasyPague } from '../scanner/easy-pague-resultado.mjs'
-import { dataDoExtrato } from './espelhamento-repasses.mjs'
+import { conferirCreditoRegistrado, dataDoExtrato } from './espelhamento-repasses.mjs'
 
 const reais = v => v == null ? null : Math.round(Number(v) * 100)
 const normalizar = v => String(v ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim()
@@ -15,8 +15,21 @@ function escopo(u) {
   return { unidadeId: u.id, unidade: u.identificacao, unidadeLocal: u.identificacao, blocoLocal: u.bloco }
 }
 
+function agrupar(itens, chave) {
+  const mapa = new Map()
+  for (const item of itens) {
+    const id = chave(item)
+    const grupo = mapa.get(id) ?? []
+    grupo.push(item)
+    mapa.set(id, grupo)
+  }
+  return mapa
+}
+
+const identidadeUnidade = (unidade, setor) => `${bloco(setor)}|${codigo(unidade)}`
+
 function unidadeDoRelatorio(unidades, item) {
-  const lista = unidades.filter(u => codigo(u.identificacao) === codigo(item.unidade) && bloco(u.bloco) === bloco(item.bloco))
+  const lista = unidades.get(identidadeUnidade(item.unidade, item.bloco)) ?? []
   return lista.length === 1 ? lista[0] : null
 }
 
@@ -31,20 +44,23 @@ export async function coletarExtratos(db, job, receitas, app, unidadesAlvo, sign
   const unidades = app.unidades.filter(u => unidadesAlvo.has(u.id) && ids.has(u.id))
   const resposta = new Map()
   for (let i = 0; i < unidades.length; i += 12) {
-    if (signal.aborted) break
+    signal.throwIfAborted()
     const lote = unidades.slice(i, i + 12)
     const sessao = await (config.portal === 'manager' ? abrirManager : abrirWebware)({ ...config, dataLimite: hojeSP() }, receita.config_json, lote, signal).catch(() => null)
     if (!sessao) break
     try {
       for (const u of lote) {
-        if (signal.aborted || sessao.podeIniciarUnidade?.() === false) break
-        const r = await sessao.coletar(u.id).catch(() => null)
+        signal.throwIfAborted()
+        if (sessao.podeIniciarUnidade?.() === false) break
+        const r = await (sessao.coletarExtrato ?? sessao.coletar)(u.id).catch(() => null)
         if (r?.pagamentos?.unidade === u.id && r.pagamentos.codigo === config.codigo_portal) resposta.set(u.id, { ...r.pagamentos, portal: config.portal })
         if (r?.pagamentos?.diagnostico === 'sem_acesso') return resposta
+        if (r?.pagamentos?.diagnostico === 'acesso_adiado') break
       }
     } finally { await sessao.close().catch(() => {}) }
     progresso(`Extratos: ${resposta.size}/${unidades.length}`)
   }
+  signal.throwIfAborted()
   return resposta
 }
 
@@ -53,16 +69,19 @@ export function planejarCotasPortais(cotas, app) {
   const vinculadas = new Set(app.acordos.filter(a => a.status !== 'cancelado').flatMap(a => [a.cobranca_id, ...a.acordo_cobrancas.map(c => c.cobranca_id)]))
   const regua = Math.max(0, app.condominio.dias_apos_vencimento_regua ?? app.condominio.inicio_cobranca_dias ?? 30)
   const hoje = hojeSP()
+  const unidades = agrupar(app.unidades, u => identidadeUnidade(u.identificacao, u.bloco))
+  const unidadesPorId = new Map(app.unidades.map(u => [u.id, u]))
+  const cotasPorVencimento = agrupar(app.cotas, c => `${c.unidade_id}|${c.vencimento}`)
   const qtd = new Map()
   for (const item of cotas) {
     const chave = `${bloco(item.bloco)}|${codigo(item.unidade)}|${item.recibo}`
     qtd.set(chave, (qtd.get(chave) ?? 0) + 1)
   }
   for (const item of cotas) {
-    const u = unidadeDoRelatorio(app.unidades, item), vencimento = dataDoExtrato(item.vencimento)
+    const u = unidadeDoRelatorio(unidades, item), vencimento = dataDoExtrato(item.vencimento)
     const chave = `${bloco(item.bloco)}|${codigo(item.unidade)}|${item.recibo}`
     const principal = reais(item.principal), total = reais(item.total)
-    const candidatas = app.cotas.filter(c => c.unidade_id === u?.id && c.vencimento === vencimento)
+    const candidatas = u ? cotasPorVencimento.get(`${u.id}|${vencimento}`) ?? [] : []
     const exatas = candidatas.filter(c => recibo(c.observacoes) === item.recibo)
     const legadas = candidatas.filter(c => !recibo(c.observacoes) && reais(c.valor_original) === principal)
     const possiveis = exatas.length ? exatas : legadas
@@ -91,7 +110,7 @@ export function planejarCotasPortais(cotas, app) {
     }
   }
   for (const c of app.cotas.filter(c => situacaoAberta(c) && !vistas.has(c.id))) {
-    const u = app.unidades.find(x => x.id === c.unidade_id)
+    const u = unidadesPorId.get(c.unidade_id)
     if (u) aguardandoExtrato.push({ c, u, recibo: recibo(c.observacoes), vinculada: vinculadas.has(c.id) })
   }
   return { alteracoes, pendencias, aguardandoExtrato }
@@ -112,13 +131,18 @@ export function completarFinanceiro(plano, extratos, app, repassesSalvos, demons
   }
 
   const comprovantesAnexados = demonstrativo?.repasses ?? []
+  const anexos = agrupar(comprovantesAnexados.map(r => ({ ...r, fonte: `arquivo:${demonstrativo.sha256}` })), r => r.recibo)
   const referenciasUsadas = new Set()
-  const todasParcelas = app.acordos.flatMap(a => a.parcelas_acordo)
+  const reciboParcela = p => p.recibo_financeiro ?? recibo(p.observacoes)
+  const parcelasPorRecibo = agrupar(app.acordos.flatMap(a => a.parcelas_acordo), reciboParcela)
+  const acordosPorUnidade = agrupar(app.acordos.filter(a => !['cancelado', 'renegociado'].includes(a.status)), a => a.unidade_id)
+  const salvos = new Map(repassesSalvos.map(r => [r.parcela_id, r]))
   for (const u of app.unidades) {
     const extrato = extratos.get(u.id)
-    const alvos = app.acordos.filter(a => a.unidade_id === u.id && !['cancelado', 'renegociado'].includes(a.status))
+    const creditos = agrupar(extrato?.repasses_creditados ?? [], r => r.recibo)
+    const alvos = (acordosPorUnidade.get(u.id) ?? [])
       .flatMap(a => a.parcelas_acordo.filter(p => p.status !== 'cancelada' && p.vencimento <= hoje).map(p => ({
-        acordo: a, parcela: p, parcela_id: p.id, numero: p.numero, recibo: p.recibo_financeiro ?? recibo(p.observacoes), vencimento: p.vencimento, valor: p.valor,
+        acordo: a, parcela: p, parcela_id: p.id, numero: p.numero, recibo: reciboParcela(p), vencimento: p.vencimento, valor: p.valor,
       })))
     const baixas = new Map((extrato ? resultadosEasyPague(alvos, extrato, extrato.portal, hoje) : []).map(p => [p.parcela_id, p]))
     for (const alvo of alvos) {
@@ -137,18 +161,17 @@ export function completarFinanceiro(plano, extratos, app, repassesSalvos, demons
       }
       if (a.origem_controle !== 'carteira' || (p.status !== 'paga' && baixa?.estado !== 'confirmado')) continue
       const pagamento = p.data_pagamento ?? baixa?.data_pagamento
-      const provas = [...(extrato?.repasses_creditados ?? []).map(r => ({ ...r, fonte: extrato.fonte })),
-        ...comprovantesAnexados.map(r => ({ ...r, fonte: `arquivo:${demonstrativo.sha256}` }))]
-      const evidencias = [...new Map(provas.filter(r => r.recibo === alvo.recibo && r.dataCredito <= hoje && r.dataCredito >= pagamento)
-        .map(r => [`${r.referencia}:${r.dataCredito}:${r.centavos}`, r])).values()]
-      const salvo = repassesSalvos.find(r => r.parcela_id === p.id)
+      const salvo = salvos.get(p.id)
+      const reciboCredito = salvo?.recibo ?? alvo.recibo
+      const provas = [...(creditos.get(reciboCredito) ?? []).map(r => ({ ...r, fonte: extrato.fonte })), ...(anexos.get(reciboCredito) ?? [])]
       if (salvo) {
-        comprovantesAnexados.filter(r => r.recibo === salvo.recibo && r.dataCredito === salvo.data_credito && r.centavos === salvo.valor_centavos)
-          .forEach(r => referenciasUsadas.add(r.referencia))
-        repasses.push({ unidade: u.identificacao, recibo: salvo.recibo, dataCredito: salvo.data_credito, valor: salvo.valor_centavos, estado: 'confirmado' })
+        const estado = conferirCreditoRegistrado({ salvo, provas, unidade: u.identificacao, vencimento: p.vencimento, pendencias: plano.pendencias, referenciasUsadas })
+        repasses.push({ unidade: u.identificacao, recibo: salvo.recibo, dataCredito: salvo.data_credito, valor: salvo.valor_centavos, estado })
         continue
       }
-      if (evidencias.length === 1 && todasParcelas.filter(q => (q.recibo_financeiro ?? recibo(q.observacoes)) === alvo.recibo).length === 1 && p.status === 'paga' && p.data_pagamento) {
+      const evidencias = [...new Map(provas.filter(r => r.dataCredito <= hoje && r.dataCredito >= pagamento)
+        .map(r => [`${r.referencia}:${r.dataCredito}:${r.centavos}`, r])).values()]
+      if (evidencias.length === 1 && parcelasPorRecibo.get(alvo.recibo)?.length === 1 && p.status === 'paga' && p.data_pagamento) {
         const r = evidencias[0]
         referenciasUsadas.add(r.referencia)
         plano.alteracoes.push({ tipo: 'repasse_creditado', ...escopo(u), id: p.id, rev: p.updated_at, acordoId: a.id,
@@ -170,9 +193,11 @@ export function conferirDemonstrativo(acordosPortal, app, pendencias) {
     pendencias.push({ tipo: 'acordo', motivo: 'Demonstrativo de acordos com identidade e composição não disponível neste acesso.' })
     return null
   }
+  const unidades = agrupar(app.unidades, u => identidadeUnidade(u.identificacao, u.bloco))
+  const acordos = agrupar(app.acordos, a => a.unidade_id)
   for (const a of acordosPortal) {
-    const u = unidadeDoRelatorio(app.unidades, a)
-    const candidatos = app.acordos.filter(x => x.unidade_id === u?.id && Math.abs(reais(x.valor_acordado) - a.total.valor_centavos) <= 100
+    const u = unidadeDoRelatorio(unidades, a)
+    const candidatos = (u ? acordos.get(u.id) ?? [] : []).filter(x => Math.abs(reais(x.valor_acordado) - a.total.valor_centavos) <= 100
       && x.parcelas_acordo.length === a.parcelas.length && a.parcelas.every(p => x.parcelas_acordo.some(q =>
         dataDoExtrato(p.vencimento) === q.vencimento && Math.abs(p.valor_centavos - reais(q.valor)) <= 100)))
     if (candidatos.length !== 1) pendencias.push({ tipo: 'acordo', unidade: a.unidade, referencia: a.processo, valor: a.total.valor_centavos,

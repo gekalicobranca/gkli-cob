@@ -131,6 +131,7 @@ type ProcessarReguaParams = {
   // Preparação manual sem ativação: permite rascunhar o canal desabilitado.
   // As mensagens continuam pendentes de aprovação, nunca agendadas para envio.
   prepararFlowPausado?: boolean;
+  destinatariosConfirmados?: ReadonlyMap<string, string>;
 };
 
 type Contadores = ReguaContadores;
@@ -895,6 +896,18 @@ export async function processarReguaCobranca(
         });
         const intensidade = (condominio?.intensidade_regua ?? etapa.tom ?? "medio") as ReguaTom;
         const destinatario = contatoRegua.destinatario;
+        if (params.destinatariosConfirmados) {
+          const atual = canal === 'email' ? destinatario?.trim().toLowerCase() : destinatario?.replace(/\D/g, '');
+          if (!atual || atual !== params.destinatariosConfirmados.get(row.id)) {
+            const motivo = 'Destinatário mudou após a conferência no espelhamento.';
+            total.puladas += 1;
+            lote.contadores.puladas += 1;
+            itens.push({ cobrancaId: row.id, status: LOTE_ITEM_STATUS.PULADA, motivo });
+            await criarItemLote({ supabase, loteId: lote.id, row, status: LOTE_ITEM_STATUS.PULADA, motivo,
+              reguaEtapaId: normalizarEtapaId(etapa.id), payload: { canal, origem: 'espelhamento', ciclo } });
+            continue;
+          }
+        }
         const reguaEtapaId = normalizarEtapaId(etapa.id);
         const etapaReferencia = reguaEtapaId ?? etapa.id ?? null;
         const fingerprint = criarReguaFingerprint({

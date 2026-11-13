@@ -1,3 +1,8 @@
+import { planejarPreJuridico } from './espelhamento-pre-juridico.mjs'
+import { planejarBorderoLello } from './espelhamento-bordero.mjs'
+import { planejarContatosEFlows } from './espelhamento-contatos-flows.mjs'
+import { conferirCreditoRegistrado } from './espelhamento-repasses.mjs'
+
 function grupo(items, key) {
   const map = new Map()
   for (const item of items) {
@@ -32,16 +37,23 @@ export async function lerEspelhoApp(db, condominioId, carteiraId) {
       if (data.length < 500) return registros
     }
   }
-  const [condominio, unidades, cotas, acordos] = await Promise.all([
-    db.from('condominios').select('dias_apos_vencimento_regua,inicio_cobranca_dias,bloqueio_garantidora_habilitado,bloqueio_garantidora_inicio,bloqueio_garantidora_fim')
+  const [condominio, unidades, cotas, acordos, reguas] = await Promise.all([
+    db.from('condominios').select('nome,vencimento_cota_dia,dias_apos_vencimento_regua,inicio_cobranca_dias,dias_cobranca_ativa,pre_juridico_habilitado,carteiras:carteira_id(pre_juridico_habilitado),bloqueio_garantidora_habilitado,bloqueio_garantidora_inicio,bloqueio_garantidora_fim')
       .eq('id', condominioId).eq('carteira_id', carteiraId).eq('status', 'ativo').single(),
-    listar('unidades', 'id,identificacao,bloco,acao_judicial'),
-    listar('cobrancas', 'id,unidade_id,vencimento,valor_original,valor_atualizado,status_financeiro,status_operacional,data_pagamento,valor_pago,observacoes,automacao_bloqueada,updated_at',
+    listar('unidades', 'id,identificacao,bloco,acao_judicial,numero_processo,conducao_processo,responsavel_nome,responsavel_documento,email,telefone,updated_at'),
+    listar('cobrancas', 'id,unidade_id,competencia,vencimento,valor_original,valor_atualizado,status_financeiro,status_operacional,data_pagamento,valor_pago,observacoes,automacao_bloqueada,updated_at',
       query => base(query).is('duplicada_de_id', null).is('duplicidade_arquivada_em', null).is('arquivada_em', null).not('excluida_por_cessao_espaco', 'is', true)),
-    listar('acordos', 'id,unidade_id,cobranca_id,status,status_financeiro,data_acordo,data_quitacao,valor_acordado,origem_controle,updated_at,acordos_fontes_lello(codigo_condominio,numero_acordo,fonte_json),parcelas_acordo(id,numero,vencimento,valor,status,data_pagamento,valor_repasse_informado,updated_at),acordo_cobrancas(cobranca_id)'),
+    listar('acordos', 'id,unidade_id,cobranca_id,tipo,numero_processo,status,status_financeiro,data_acordo,data_quitacao,valor_acordado,despesa_cobranca_valor,origem_controle,updated_at,acordos_fontes_lello(codigo_condominio,numero_acordo),parcelas_acordo(id,numero,vencimento,valor,status,data_pagamento,valor_repasse_informado,updated_at),acordo_cobrancas(cobranca_id)'),
+    listar('reguas', 'id,ativo,status,etapas:regua_etapas(canal,ativo)', query => query.eq('carteira_id', carteiraId).eq('tipo', 'cobranca')),
   ])
   if (condominio.error) throw Error('Cadastro do condomínio indisponível.')
-  return { condominio: condominio.data, unidades, cotas, acordos }
+  return { condominio: condominio.data, unidades, cotas, acordos, reguas }
+}
+
+export async function lerPeriodosBordero(db, dataBase) {
+  const { data, error } = await db.rpc('easy_espelhamento_periodos_bordero', { p_data_base: dataBase })
+  if (error) throw Error('Não foi possível consultar os períodos do fechamento.')
+  return data
 }
 
 export function planejarEspelhoLello(portal, app, codigo) {
@@ -52,10 +64,29 @@ export function planejarEspelhoLello(portal, app, codigo) {
   const cotasPorVencimento = grupo(app.cotas, c => `${c.unidade_id}:${c.vencimento}`)
   const acordosPorUnidade = grupo(app.acordos, a => a.unidade_id)
   const cotasVinculadas = new Set(app.acordos.filter(a => a.status !== 'cancelado').flatMap(a => [a.cobranca_id, ...a.acordo_cobrancas.map(c => c.cobranca_id)]).filter(Boolean))
+  const vinculosImpedemPre = new Set(app.acordos.filter(a => !['cancelado', 'renegociado'].includes(a.status)).flatMap(a => [a.cobranca_id, ...a.acordo_cobrancas.map(c => c.cobranca_id)]).filter(Boolean))
+  const recibosEmAcordoNaLello = new Set(portal.acordos.filter(a => normalizar(a.situacao) !== 'CANCELADO')
+    .flatMap(a => a.cotas.map(c => `${chaveUnidade(a.unidade)}:${c.recibo}`)))
+  const unidadesComAcordoJudicial = new Set(app.acordos.filter(a => a.tipo === 'judicial').map(a => a.unidade_id))
+  const basePreJuridico = []
+  const homologacoes = []
+  const revisoesJudiciais = []
   const historico = grupo(portal.pagamentos, r => `${chaveUnidade(r.unidade)}:${r.recibo}`)
+  const pagamentosPorAcordo = grupo(portal.pagamentos, r => `${chaveUnidade(r.unidade)}:${r.descricao}`)
   const recibosAtuais = new Set()
   const acordosEncontrados = new Set()
   const hoje = new Date(portal.consultadoEm).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+  const cotasPortalPorUnidade = grupo(portal.cotas, c => chaveUnidade(c.unidade))
+  for (const acordo of app.acordos.filter(a => a.tipo === 'judicial' && a.data_acordo && !['cancelado', 'renegociado', 'quitado'].includes(a.status))) {
+    const unidade = unidadesPorId.get(acordo.unidade_id)
+    if (!unidade) continue
+    const recibosVinculados = new Set([acordo.cobranca_id, ...acordo.acordo_cobrancas.map(v => v.cobranca_id)]
+      .map(id => numeroRecibo(cotasPorId.get(id)?.observacoes)).filter(Boolean))
+    const candidatas = (cotasPortalPorUnidade.get(chaveUnidade(unidade.identificacao, unidade.bloco)) ?? [])
+      .filter(c => c.vencimento > acordo.data_acordo && c.vencimento < hoje && !recibosVinculados.has(c.recibo))
+    if (candidatas.length) revisoesJudiciais.push({ acordoId: acordo.id, unidade: unidade.identificacao, processo: acordo.numero_processo ?? unidade.numero_processo,
+      cotas: candidatas.map(c => ({ recibo: c.recibo, vencimento: c.vencimento, saldoCentavos: c.valores.at(-1) })) })
+  }
   const regua = Math.max(0, app.condominio.dias_apos_vencimento_regua ?? app.condominio.inicio_cobranca_dias ?? 30)
   const pendente = (tipo, item, motivo, valor, app) => pendencias.push({ tipo, unidade: item.unidade, referencia: item.recibo ?? item.numero, vencimento: item.vencimento, motivo, valor, app })
 
@@ -79,13 +110,24 @@ export function planejarEspelhoLello(portal, app, codigo) {
       continue
     }
     const { cota, ambiguo } = localizarCota(lista[0].id, item, principal)
-    if (ambiguo || (cota && (!emAberto(cota) || cota.data_pagamento || cotasVinculadas.has(cota.id)))) {
-      pendente('cota', item, 'Cota no portal em aberto com situação ou vínculo conflitante no app.', total, cota?.status_financeiro)
-      continue
-    }
     const garantidora = app.condominio.bloqueio_garantidora_habilitado && item.vencimento >= app.condominio.bloqueio_garantidora_inicio
       && item.vencimento <= app.condominio.bloqueio_garantidora_fim
     const dias = (Date.parse(hoje) - Date.parse(item.vencimento)) / 86_400_000
+    const unidade = lista[0]
+    const baixaNaFonte = (historico.get(key) ?? []).some(r => r.pagamento && r.valorPago > 0 && r.vencimento === item.vencimento)
+    if (!ambiguo && cota) {
+      basePreJuridico.push({
+        item, unidade, cota, diasAtraso: dias, baixaNaFonte,
+        vinculoExato: numeroRecibo(cota.observacoes) === item.recibo,
+        impedida: garantidora || baixaNaFonte || vinculosImpedemPre.has(cota.id) || recibosEmAcordoNaLello.has(key)
+          || unidade.acao_judicial || unidade.numero_processo?.trim() || unidadesComAcordoJudicial.has(unidade.id)
+          || ['nosso_escritorio', 'outro_advogado'].includes(unidade.conducao_processo),
+      })
+    }
+    if (ambiguo || baixaNaFonte || recibosEmAcordoNaLello.has(key) || (cota && (!emAberto(cota) || cota.data_pagamento || cotasVinculadas.has(cota.id)))) {
+      pendente('cota', item, 'Cota no portal em aberto com situação ou vínculo conflitante no app.', total, cota?.status_financeiro)
+      continue
+    }
     const status = lista[0].acao_judicial ? 'judicializado' : garantidora ? 'suspenso' : dias >= regua ? 'em_cobranca_ativa' : 'regular'
     const reclassificar = cota && cota.status_operacional !== status && ['regular', 'novo', 'em_cobranca_ativa'].includes(cota.status_operacional)
     if (!cota || centavos(cota.valor_original) !== principal || Math.abs(centavos(cota.valor_atualizado) - total) > 100 || !numeroRecibo(cota.observacoes) || reclassificar) {
@@ -119,6 +161,8 @@ export function planejarEspelhoLello(portal, app, codigo) {
 
   for (const item of portal.acordos) {
     const situacao = normalizar(item.situacao)
+    const baixasDaParcela = p => (pagamentosPorAcordo.get(`${chaveUnidade(item.unidade)}:Parcela ${p.numero} Acordo ${item.numero}`) ?? [])
+      .filter(r => r.recibo && r.vencimento === p.vencimento && r.pagamento === p.pagamento && r.valorPago === p.valor)
     const lista = unidades.get(chaveUnidade(item.unidade)) ?? []
     if (lista.length !== 1) {
       if (situacao !== 'CANCELADO') pendente('acordo', item, 'Unidade ausente ou ambígua no app.', item.total)
@@ -135,7 +179,8 @@ export function planejarEspelhoLello(portal, app, codigo) {
       const compValida = composicao.length > 0 && composicao.every(c => c.cota && !c.ambiguo && !cotasVinculadas.has(c.cota.id)
         && numeroRecibo(c.cota.observacoes) === c.recibo && /^BAIXADO POR ACORDO/.test(normalizar(c.situacao)))
       const gradeValida = item.parcelas.length > 0 && item.parcelas.every(p => p.valor > 0 && ['Pendente', 'Contabilizado'].includes(p.situacao)
-        && (p.situacao === 'Contabilizado' ? p.pagamento : !p.pagamento)) && item.total === item.pago + item.saldo
+        && (p.situacao === 'Contabilizado' ? p.pagamento && baixasDaParcela(p).length === 1 : !p.pagamento))
+        && item.total === item.pago + item.saldo
       if (!possiveis.length && !locais.some(a => a.data_acordo === item.data || Math.abs(centavos(a.valor_acordado) - item.total) <= 100)
         && ['QUITADO', 'EM ANDAMENTO'].includes(situacao) && ['Amigável', 'Pré-Jurídico'].includes(item.tipo) && item.data && compValida && gradeValida) {
         alteracoes.push({ tipo: 'acordo_novo', unidadeId: unidade.id, unidade: item.unidade, numero: item.numero,
@@ -160,6 +205,14 @@ export function planejarEspelhoLello(portal, app, codigo) {
     const composicao = item.cotas.map(c => ({ ...c, ...localizarCota(unidade.id, c, c.principal) }))
     const vinculadas = new Set([acordo.cobranca_id, ...acordo.acordo_cobrancas.map(c => c.cobranca_id)].filter(Boolean))
     const novosVinculos = composicao.filter(c => c.cota && !vinculadas.has(c.cota.id))
+    const origemExata = composicao.length > 0 && composicao.every(c => c.cota && !c.ambiguo && vinculadas.has(c.cota.id)
+      && numeroRecibo(c.cota.observacoes) === c.recibo) && composicao.length === vinculadas.size
+    const gradeExata = parcelas.every(p => item.parcelas.some(r => r.numero === p.numero && r.vencimento === p.vencimento && r.valor === centavos(p.valor)))
+    if (exatos.length === 1 && ['QUITADO', 'EM ANDAMENTO'].includes(situacao)) {
+      homologacoes.push({ acordoId: acordo.id, unidade: item.unidade, numero: item.numero,
+        composicaoConferida: origemExata, condicoesConferidas: gradeExata && item.data === acordo.data_acordo && item.total === centavos(acordo.valor_acordado),
+        documento: `https://portal.lellocondominios.com.br/relatorios/Acordo.do?${new URLSearchParams({ codCondo: codigo, codUnidade: item.unidade, codAcordo: item.numero })}` })
+    }
     if (composicao.some(c => !c.cota || c.ambiguo) || [...vinculadas].some(id => !composicao.some(c => c.cota?.id === id))) {
       if (situacao !== 'CANCELADO') pendente('vínculo', item, 'Composição por recibo difere do cadastro ou contém cota ainda sem vínculo confirmado.', item.total, acordo.status)
     } else if (situacao !== 'CANCELADO' && novosVinculos.length) {
@@ -195,6 +248,11 @@ export function planejarEspelhoLello(portal, app, codigo) {
         if (local.data_pagamento) pendente('parcela', { ...item, vencimento: p.vencimento }, `Pagamento no app sem baixa correspondente na Lello na parcela ${p.numero}.`, p.valor, local.status)
         continue
       }
+      const recebimentos = baixasDaParcela(p)
+      if (recebimentos.length !== 1) {
+        pendente('parcela', { ...item, vencimento: p.vencimento }, `Parcela ${p.numero} sem recibo de baixa inequívoco no histórico.`, p.valor, local.status)
+        continue
+      }
       if (!local.valor_repasse_informado && acordo.origem_controle === 'carteira') pendente('repasse', { ...item, vencimento: p.vencimento }, `Parcela ${p.numero} paga. Repasse sem evidência no demonstrativo consultado.`, p.valor)
       if (local.status === 'paga' && local.data_pagamento === p.pagamento && centavos(local.valor) === p.valor) continue
       if (!exatos.length || ['cancelado', 'quebrado', 'renegociado', 'suspenso'].includes(acordo.status) || local.status === 'cancelada') {
@@ -203,7 +261,7 @@ export function planejarEspelhoLello(portal, app, codigo) {
       }
       alteracoes.push({ tipo: 'parcela_paga', id: local.id, rev: local.updated_at, acordoId: acordo.id, acordoRev: acordo.updated_at,
         unidadeId: unidade.id, unidade: item.unidade, numero: item.numero, parcela: p.numero, vencimento: p.vencimento,
-        dataPagamento: p.pagamento, valorPago: p.valor })
+        dataPagamento: p.pagamento, valorPago: p.valor, recibo: recebimentos[0].recibo })
     }
   }
 
@@ -222,8 +280,22 @@ export function planejarEspelhoLello(portal, app, codigo) {
   const conflitantes = new Set([...alteracoesPorCota.values()].filter(lista => lista.length > 1).flatMap(lista => lista.map(a => a.alteracao)))
   for (const a of conflitantes) pendente(a.tipo, a, 'Mais de uma alteração disputando o mesmo recibo nesta consulta.', a.total ?? a.valorPago)
 
+  const [periodo, anterior] = app.periodosBordero ?? []
+  const bordero = periodo => periodo && ({ ...planejarBorderoLello({ portal, app, codigo, ...periodo, chaveUnidade }),
+    periodoId: periodo.id, status: periodo.status })
+  if (!periodo) pendencias.push({ tipo: 'borderô', motivo: 'Nenhum período de fechamento configurado para a data da conferência.' })
+  const preJuridico = planejarPreJuridico({ dataBase: hoje, condominio: app.condominio, cotas: basePreJuridico, acordos: app.acordos })
+  const canais = ['email', 'whatsapp'].filter(canal => (app.reguas ?? []).some(regua => {
+    const etapas = regua.etapas.filter(e => e.ativo !== false)
+    return regua.ativo && regua.status !== 'inativa' && etapas.length && etapas.every(e => e.canal === canal)
+  }))
   return { consultadoEm: portal.consultadoEm, cotas: portal.cotas.length, acordos: portal.acordos.length,
     parcelasPagas: portal.acordos.reduce((s, a) => s + a.parcelas.filter(p => p.situacao === 'Contabilizado').length, 0),
+    preJuridico: { ...preJuridico, revisoesJudiciais },
+    homologacoes,
+    contatosEFlows: planejarContatosEFlows({ fichas: portal.contatos ?? [], cotas: basePreJuridico, chaveUnidade, canais, prazoDias: regua, preJuridico }),
+    bordero: bordero(periodo) ?? null,
+    borderoAnterior: bordero(anterior) ?? null,
     alteracoes: alteracoes.filter(a => !conflitantes.has(a)), pendencias }
 }
 
@@ -232,37 +304,48 @@ export function confirmarRepassesLello(plano, portal, app, repassesSalvos, demon
   const salvos = new Map(repassesSalvos.map(r => [r.parcela_id, r]))
   const repasses = []
   const comprovantesAnexados = demonstrativo?.repasses ?? []
+  const unidades = new Map(app.unidades.map(u => [u.id, u]))
+  const pagamentos = grupo(portal.pagamentos, h => `${chaveUnidade(h.unidade)}:${h.descricao}`)
+  const repassesPortal = grupo(portal.repasses ?? [], r => `${chaveUnidade(r.unidade)}:${r.recibo}`)
+  const anexos = grupo(comprovantesAnexados.map(r => ({ ...r, fonte: `arquivo:${demonstrativo.sha256}` })), r => r.recibo)
+  const baixasPorRecibo = grupo(portal.pagamentos, h => h.recibo)
+  const parcelasAlteradas = new Set(plano.alteracoes.map(r => r.id))
+  const pendenciasResolvidas = new Set()
   const referenciasUsadas = new Set()
   for (const a of app.acordos.filter(a => a.origem_controle === 'carteira' && a.acordos_fontes_lello)) {
-    const u = app.unidades.find(u => u.id === a.unidade_id)
+    const u = unidades.get(a.unidade_id)
     if (!u) continue
     const numero = a.acordos_fontes_lello.numero_acordo
     const chave = chaveUnidade(u.identificacao, u.bloco)
     for (const p of a.parcelas_acordo.filter(p => p.status === 'paga' && p.data_pagamento)) {
       const salvo = salvos.get(p.id)
+      const recebimentos = (pagamentos.get(`${chave}:Parcela ${p.numero} Acordo ${numero}`) ?? []).filter(h =>
+        h.pagamento === p.data_pagamento && h.vencimento === p.vencimento && h.valorPago === centavos(p.valor))
+      const recibo = salvo?.recibo ?? (recebimentos.length === 1 ? recebimentos[0].recibo : null)
+      if (!recibo) continue
+      const provas = [...(repassesPortal.get(`${chave}:${recibo}`) ?? []), ...(anexos.get(recibo) ?? [])]
       if (salvo) {
-        comprovantesAnexados.filter(r => r.recibo === salvo.recibo && r.dataCredito === salvo.data_credito && r.centavos === salvo.valor_centavos)
-          .forEach(r => referenciasUsadas.add(r.referencia))
-        repasses.push({ unidade: u.identificacao, recibo: salvo.recibo, dataCredito: salvo.data_credito, valor: salvo.valor_centavos, estado: 'confirmado' })
+        const novoRecibo = recebimentos.length === 1 && recebimentos[0].recibo !== salvo.recibo ? recebimentos[0].recibo : null
+        const provasNovoRecibo = novoRecibo ? repassesPortal.get(`${chave}:${novoRecibo}`) ?? [] : []
+        const estado = conferirCreditoRegistrado({ salvo, provas: [...provas, ...provasNovoRecibo], unidade: u.identificacao, vencimento: p.vencimento, pendencias: plano.pendencias, referenciasUsadas })
+        repasses.push({ parcelaId: p.id, unidade: u.identificacao, recibo: salvo.recibo, dataCredito: salvo.data_credito, valor: salvo.valor_centavos, estado })
         continue
       }
-      const recebimentos = portal.pagamentos.filter(h => chaveUnidade(h.unidade) === chave && h.descricao === `Parcela ${p.numero} Acordo ${numero}`
-        && h.pagamento === p.data_pagamento && h.vencimento === p.vencimento && h.valorPago === centavos(p.valor))
-      if (recebimentos.length !== 1) continue
       const [linha] = recebimentos
-      const provas = [...new Map([...portal.repasses.filter(r => r.unidade === linha.unidade),
-        ...comprovantesAnexados.map(r => ({ ...r, unidade: linha.unidade, fonte: `arquivo:${demonstrativo.sha256}` }))]
-        .filter(r => r.recibo === linha.recibo && r.dataCredito <= hoje && r.dataCredito >= p.data_pagamento)
+      const validas = [...new Map(provas.filter(r => r.dataCredito <= hoje && r.dataCredito >= p.data_pagamento
+        && (!r.fonte?.startsWith('arquivo:') || baixasPorRecibo.get(recibo)?.length === 1))
         .map(r => [`${r.referencia}:${r.dataCredito}:${r.centavos}`, r])).values()]
-      if (provas.length !== 1 || plano.alteracoes.some(r => r.id === p.id)) continue
-      const [r] = provas
+      if (validas.length !== 1 || parcelasAlteradas.has(p.id)) continue
+      const [r] = validas
       referenciasUsadas.add(r.referencia)
       plano.alteracoes.push({ tipo: 'repasse_creditado', id: p.id, rev: p.updated_at, acordoId: a.id, unidadeId: u.id,
-        numero, ...r, portal: 'lello' })
-      repasses.push({ unidade: r.unidade, recibo: r.recibo, dataCredito: r.dataCredito, valor: r.centavos, estado: 'comprovado na fonte' })
-      plano.pendencias = plano.pendencias.filter(q => q.tipo !== 'repasse' || q.referencia !== numero || q.vencimento !== p.vencimento || chaveUnidade(q.unidade) !== chave)
+        numero, ...r, unidade: linha.unidade, portal: 'lello' })
+      repasses.push({ parcelaId: p.id, unidade: linha.unidade, recibo: r.recibo, dataCredito: r.dataCredito, valor: r.centavos, estado: 'comprovado na fonte' })
+      pendenciasResolvidas.add(`${chave}:${numero}:${p.vencimento}`)
     }
   }
+  if (pendenciasResolvidas.size) plano.pendencias = plano.pendencias.filter(q =>
+    q.tipo !== 'repasse' || !pendenciasResolvidas.has(`${chaveUnidade(q.unidade)}:${q.referencia}:${q.vencimento}`))
   for (const r of comprovantesAnexados) if (!referenciasUsadas.has(r.referencia)) plano.pendencias.push({ tipo: 'repasse', referencia: r.recibo,
     valor: r.centavos, motivo: 'Crédito do demonstrativo anexado sem parcela paga única na Lello e no app.' })
   return repasses

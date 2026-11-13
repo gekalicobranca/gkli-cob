@@ -17,7 +17,7 @@ export default async function EasyEspelharPage() {
         description="Confira cotas, acordos e pagamentos na administradora e acompanhe o resultado por condomínio."
         backLabel="Voltar para o Easy Cob"
       />
-      <EspelharForm inicial={condominios} podeExecutar={['admin', 'gestor', 'operador'].includes(scope.perfil)} />
+      <EspelharForm inicial={condominios} podeExecutar={['admin', 'gestor', 'operador'].includes(scope.perfil)} podeAprovarBordero={['admin', 'gestor'].includes(scope.perfil)} />
     </div>
   )
 }

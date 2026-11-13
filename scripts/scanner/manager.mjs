@@ -49,6 +49,15 @@ export async function abrirManager(config, receita, unidades, signal) {
   }
   return {
    close:sessao.close,
+   podeIniciarUnidade:sessao.podeIniciarUnidade,
+   async coletarExtrato(id) {
+    const unidade=unidades.find(u=>u.id===id)
+    if(!unidade)throw Error('Unidade fora do condomínio do lote.')
+    let opcao
+    try{opcao=selecionarUnidade(opcoes,unidade)}catch(e){if(e.code!=='SCANNER_VINCULO')throw e;return null}
+    const resultado=await pagamentos(opcao.label)
+    return {pagamentos:{...resultado,codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:base+'/bin/rt/gExtratoUnidade.asp'}}
+   },
    async coletar(id){
     const unidade=unidades.find(u=>u.id===id)
     if(!unidade)throw Error('Unidade fora do condomínio do lote.')

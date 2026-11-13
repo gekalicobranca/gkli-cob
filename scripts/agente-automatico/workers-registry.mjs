@@ -8,7 +8,7 @@ export const PDF_WORKERS = {
 export function argumentosWorker(key, arquivo) {
  if(Object.hasOwn(PDF_WORKERS,key))return ['--env-file=.env.local',...PDF_WORKERS[key]]
  if(key==='whatsapp:cloud')return ['--env-file=.env.local','scripts/whatsapp-cloud/worker.mjs']
- if(key==='espelhamento:lello')return ['--env-file=.env.local','--env-file-if-exists=.env.lello-acordos.local','node_modules/tsx/dist/cli.mjs','scripts/acordos-portais/espelhamento-worker.mjs']
+  if(/^espelhamento:(lello|manager|webware|outros)$/.test(key))return ['--env-file=.env.local','--env-file-if-exists=.env.lello-acordos.local','node_modules/tsx/dist/cli.mjs','scripts/acordos-portais/espelhamento-worker.mjs',key.split(':')[1]]
  if(key==='importacao:arquivos'){
   if(!arquivo || arquivo.includes('/') || arquivo.includes('\\'))throw Error('Arquivo de captação inválido.')
   return ['--env-file=.env.local','node_modules/tsx/dist/cli.mjs','scripts/captacao-automatizada/worker.ts']

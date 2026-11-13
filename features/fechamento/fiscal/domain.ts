@@ -23,7 +23,7 @@ function required(value: string | null, label: string) {
   if (!result || result.length > 200) throw new FiscalDeliveryError(`${label}: preencha até 200 caracteres no cadastro de origem.`)
   return result
 }
-export function createFiscalPayload(snapshot: FiscalSnapshot, mapping: Record<string, string>): FiscalPayload {
+export function createFiscalPayload(snapshot: FiscalSnapshot, mapping: Record<string, string>, descricaoBordero?: string): FiscalPayload {
   const reference = sourceId(snapshot)
   const carteiraId = mapping[snapshot.carteira_id]
   if (!carteiraId || !UUID.test(carteiraId)) throw new FiscalDeliveryError('Carteira sem vínculo válido com o Core. Configure o mapeamento da integração.')
@@ -42,7 +42,7 @@ export function createFiscalPayload(snapshot: FiscalSnapshot, mapping: Record<st
     empresa_documento: document(snapshot.emissor_cnpj, 'do emissor'),
     cliente_nome: required(snapshot.tomador_razao_social, 'Tomador'), cliente_documento: document(snapshot.tomador_cnpj, 'do tomador'),
     competencia, servico: snapshot.tipo_faturamento,
-    descricao: `Repasse de cobrança extrajudicial · competência ${competencia.split('-').reverse().join('/')}.`, valor,
+    descricao: descricaoBordero ?? `Repasse de cobrança extrajudicial · competência ${competencia.split('-').reverse().join('/')}.`, valor,
   }
 }
 export function parseCarteiraMapping(raw: string | undefined): Record<string, string> {

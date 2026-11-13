@@ -1,4 +1,5 @@
 import { chromium } from 'playwright'
+import { createHash } from 'node:crypto'
 import { autenticarLello } from '../scanner/lello-auth.mjs'
 import { normalizar } from './validacao.mjs'
 import { lerRepassesCreditados } from './espelhamento-repasses.mjs'
@@ -12,6 +13,7 @@ const caminhos = {
   ativos: '/relatorios/AcordosEmAndamento.do',
   acordo: '/relatorios/Acordo.do',
   composicao: '/relatorios/CotasAcordo.do',
+  cadastro: '/relatorios/CadastroUnidades.do',
 }
 
 function dataBR(valor) {
@@ -25,20 +27,42 @@ function dinheiro(valor) {
   return /^-?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}$/.test(valor ?? '') ? Number(valor.replace(/[.,]/g, '')) : null
 }
 
-async function ler(frame) {
-  return frame.locator('body').evaluate(body => {
-    const tabelas = [...body.querySelectorAll('table')].filter(t => !t.querySelector('table'))
+async function ler(frame, ficha = false) {
+  return frame.locator('body').evaluate((body, ficha) => {
+    const folhas = [...body.querySelectorAll('table')].filter(t => !t.querySelector('table'))
+    const tabelas = folhas
       .map(t => [...t.rows].map(r => [...r.cells].map(c => c.innerText.trim())))
+    const texto = body.innerText
     return {
+    pedeLogin: Boolean(body.querySelector('input[type=password]')),
     linhas: tabelas.flat(), tabelasDeRepasse: tabelas.filter(t => t[0]?.some(c => /repasse/i.test(c))),
     links: [...body.querySelectorAll('a[href]')].map(a => a.href),
     unidades: [...body.querySelectorAll('input[name="codigoUnidade"]')].map(input => input.value),
-    semRecibos: /n[aã]o h[aá] recibos para esse condom[ií]nio\/unidade/i.test(body.innerText),
-    semAcordos: /n[aã]o (?:h[aá]|existem|foram encontrados)[^\n.]*acordos|nenhum acordo/i.test(body.innerText),
-  }})
+    fichas: ficha ? folhas.map(t => Object.fromEntries(
+      [...t.querySelectorAll('th')].filter(th => th.nextElementSibling?.tagName === 'TD')
+        .map(th => [th.innerText.trim(), th.nextElementSibling.innerText.trim()]))).filter(f => f.Nome) : [],
+    semRecibos: /n[aã]o h[aá] recibos para esse condom[ií]nio\/unidade/i.test(texto),
+    semAcordos: /n[aã]o (?:h[aá]|existem|foram encontrados)[^\n.]*acordos|nenhum acordo/i.test(texto),
+  }}, ficha)
 }
 
-export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, signal, progresso = () => {}) {
+export class FalhaTemporariaLello extends Error {}
+
+export async function coletarEtapaLello(etapas, etapa, urls, dependencia, progresso, coletar) {
+  const inicio = Date.now()
+  const assinatura = createHash('sha256').update(JSON.stringify([dependencia, urls.map(url => url.href).sort()])).digest('hex')
+  const anterior = etapas?.salvas.get(etapa)
+  if (anterior?.assinatura === assinatura) {
+    progresso(`${etapa}: retomada (${Date.now() - inicio} ms)`)
+    return anterior.itens
+  }
+  const itens = await coletar()
+  await etapas?.salvar(etapa, { assinatura, itens })
+  progresso(`${etapa}: ${Date.now() - inicio} ms`)
+  return itens
+}
+
+export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, signal, progresso = () => {}, etapas) {
   if (!/^\d+$/.test(codigo) || !nome || !usuario || !senha) throw Error('Acesso ou alvo da Lello incompleto.')
   const browser = await chromium.launch({ channel: 'chrome', headless: true })
   const fechar = () => { void browser.close().catch(() => {}) }
@@ -97,16 +121,20 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
           res = await tab.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 25_000 })
           if (res?.status() !== 502 || tentativa === 2) break
         } catch (error) {
-          if (tentativa === 2 || respostaTemporaria || signal.aborted || !/Timeout|ERR_(CONNECTION_RESET|TIMED_OUT|EMPTY_RESPONSE)/i.test(error.message)) throw error
+          if (respostaTemporaria || signal.aborted || !/Timeout|ERR_(CONNECTION_RESET|TIMED_OUT|EMPTY_RESPONSE)/i.test(error.message)) throw error
+          if (tentativa === 2) throw new FalhaTemporariaLello('Falha de conexão durante a consulta da Lello.')
         }
         await new Promise(resolve => setTimeout(resolve, 1200))
         signal.throwIfAborted()
       }
       const atual = new URL(tab.url())
-      if (!res?.ok() || atual.origin !== origem || atual.pathname !== url.pathname || await tab.locator('input[type=password]').count()) {
+      if (res?.status() === 502) throw new FalhaTemporariaLello('A Lello respondeu HTTP 502 durante a coleta.')
+      if (!res?.ok() || atual.origin !== origem || atual.pathname !== url.pathname) {
         throw Error(`Relatório ${url.pathname.split('/').at(-1)} indisponível${res ? ` (HTTP ${res.status()})` : ''}.`)
       }
-      return ler(tab)
+      const tela = await ler(tab, url.pathname === caminhos.cadastro)
+      if (tela.pedeLogin) throw Error('Sessão da Lello expirada durante a coleta.')
+      return tela
     }
 
     async function lote(urls, lerItem, fase) {
@@ -141,19 +169,25 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
       throw Error('A ausência de acordos ativos não foi confirmada no relatório.')
     }
 
-    const cotas = (await lote(links(indiceCotas, caminhos.cotas), async (tab, url) => {
-      const unidade = url.searchParams.get('codUnidade')
-      const tela = await visitar(tab, url)
-      if (!unidade || !tela.linhas.some(r => r[0] === 'Recibo' && r[1] === 'Vencimento')) throw Error('Ficha de cotas inválida.')
-      return tela.linhas.filter(r => /^\d+$/.test(r[0]) && dataBR(r[1])).map(r => ({
-        unidade, recibo: r[0], vencimento: dataBR(r[1]), valores: r.slice(2).map(dinheiro),
-      }))
-    }, 'Cotas')).flat()
-    if (cotas.length !== Number(totalCotas) || cotas.some(c => c.valores.length < 5 || c.valores.some(v => v === null))) {
-      throw Error('Detalhamento de cotas diverge do total da Lello.')
-    }
+    const urlsCotas = links(indiceCotas, caminhos.cotas)
+    const posicao = [new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }), indiceCotas.linhas]
+    const cotas = await coletarEtapaLello(etapas, 'cotas', urlsCotas, posicao, progresso, async () => {
+      const itens = (await lote(urlsCotas, async (tab, url) => {
+        const unidade = url.searchParams.get('codUnidade')
+        const tela = await visitar(tab, url)
+        if (!unidade || !tela.linhas.some(r => r[0] === 'Recibo' && r[1] === 'Vencimento')) throw Error('Ficha de cotas inválida.')
+        return tela.linhas.filter(r => /^\d+$/.test(r[0]) && dataBR(r[1])).map(r => ({
+          unidade, recibo: r[0], vencimento: dataBR(r[1]), valores: r.slice(2).map(dinheiro),
+        }))
+      }, 'Cotas')).flat()
+      if (itens.length !== Number(totalCotas) || itens.some(c => c.valores.length < 5 || c.valores.some(v => v === null))) {
+        throw Error('Detalhamento de cotas diverge do total da Lello.')
+      }
+      return itens
+    })
+    const consultadoEm = new Date().toISOString()
 
-    const historicos = await lote(urlsHistoricos, async (tab, url) => {
+    const historicos = await coletarEtapaLello(etapas, 'historicos', urlsHistoricos, [posicao, indiceHistorico.linhas], progresso, () => lote(urlsHistoricos, async (tab, url) => {
       const unidade = url.searchParams.get('codUnidade')
       const tela = await visitar(tab, url)
       if (tela.semRecibos) return { pagamentos: [], acordos: [], repasses: [] }
@@ -163,13 +197,13 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
           unidade, recibo: r[0], descricao: r[1], vencimento: dataBR(r[2]), situacao: r[3],
           principal: dinheiro(r[4]), pagamento: dataBR(r[5]), valorPago: dinheiro(r[6]),
         })),
-        acordos: links(tela, caminhos.acordo),
+        acordos: links(tela, caminhos.acordo).map(link => link.href),
         repasses: lerRepassesCreditados(tela.tabelasDeRepasse).map(r => ({ ...r, unidade, fonte: origem + caminhos.historico })),
       }
-    }, 'Históricos')
+    }, 'Históricos'))
 
     const referencias = new Map()
-    for (const url of [...urlsAtivos, ...historicos.flatMap(h => h.acordos)]) {
+    for (const url of [...urlsAtivos, ...historicos.flatMap(h => h.acordos.map(link => new URL(link)))]) {
       const numero = url.searchParams.get('codAcordo')
       const unidade = url.searchParams.get('codUnidade')
       if (!/^\d+$/.test(numero ?? '') || !unidade) throw Error('Identificador de acordo inválido.')
@@ -182,7 +216,8 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
       const unidade = url.searchParams.get('codUnidade')
       return [url.searchParams.get('codAcordo'), linhasAtivos[i]?.[0]?.startsWith(`${unidade} `) ? dataBR(linhasAtivos[i][1]) : null]
     }))
-    const acordos = await lote([...referencias.values()], async (tab, url) => {
+    const urlsAcordos = [...referencias.values()]
+    const acordos = await coletarEtapaLello(etapas, 'acordos', urlsAcordos, [posicao, linhasAtivos], progresso, () => lote(urlsAcordos, async (tab, url) => {
       const unidade = url.searchParams.get('codUnidade'), numero = url.searchParams.get('codAcordo')
       const { linhas, ...tela } = await visitar(tab, url)
       const campo = nome => linhas.find(r => r[0] === nome)?.[1]
@@ -204,10 +239,35 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
           recibo: r[0], vencimento: dataBR(r[1]), principal: dinheiro(r[2]), situacao: r[4],
         })),
       }
-    }, 'Acordos')
-    return { consultadoEm: new Date().toISOString(), cotas, acordos, pagamentos: historicos.flatMap(h => h.pagamentos), repasses: historicos.flatMap(h => h.repasses) }
+    }, 'Acordos'))
+    let contatos = []
+    if (cotas.length) {
+      try {
+        const indice = await menu(caminhos.cadastro)
+        const unidadesComCota = new Set(cotas.map(c => c.unidade))
+        const urls = links(indice, caminhos.cadastro).filter(url => unidadesComCota.has(url.searchParams.get('codUnidade')))
+        contatos = (await lote(urls, async (tab, url) => {
+          try {
+            const unidade = url.searchParams.get('codUnidade')
+            const tela = await visitar(tab, url)
+            const titulares = tela.fichas.filter(f => f.Unidade === unidade && Object.hasOwn(f, 'Email'))
+            if (titulares.length !== 1) return null
+            const [titular] = titulares
+            return { unidade, nome: titular.Nome, documento: titular.CPF, email: titular.Email,
+              telefones: tela.fichas.filter(f => normalizar(f.Nome) === normalizar(titular.Nome)).flatMap(f => [f.Celular, f.Telefone].filter(Boolean)),
+              consultadoEm: new Date().toISOString() }
+          } catch (error) {
+            if (signal.aborted || respostaTemporaria || error instanceof FalhaTemporariaLello) throw error
+            return null
+          }
+        }, 'Fichas de contato')).filter(Boolean)
+      } catch (error) {
+        if (signal.aborted || respostaTemporaria || error instanceof FalhaTemporariaLello) throw error
+      }
+    }
+    return { consultadoEm, cotas, acordos, contatos, pagamentos: historicos.flatMap(h => h.pagamentos), repasses: historicos.flatMap(h => h.repasses) }
   } catch (error) {
-    if (respostaTemporaria) throw Error(`A Lello respondeu HTTP ${respostaTemporaria} durante a coleta. Tente novamente após a normalização.`)
+    if (respostaTemporaria) throw new FalhaTemporariaLello(`A Lello respondeu HTTP ${respostaTemporaria} durante a coleta.`)
     throw error
   } finally {
     signal.removeEventListener('abort', fechar)

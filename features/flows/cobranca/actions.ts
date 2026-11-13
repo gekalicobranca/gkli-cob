@@ -97,6 +97,10 @@ export async function recalcularFlowCobranca(supabase: SupabaseAdmin, flowId: st
 }
 
 export async function criarFlowsCobranca(_state: { error: string } | null, formData: FormData): Promise<{ error?: string; flowIds?: string[] }> {
+  return criarFlowsComDestinatariosConferidos(formData)
+}
+
+export async function criarFlowsComDestinatariosConferidos(formData: FormData, destinos?: [string, string][]): Promise<{ error?: string; flowIds?: string[] }> {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
   const scope = await getPermittedCarteiras()
@@ -154,6 +158,7 @@ export async function criarFlowsCobranca(_state: { error: string } | null, formD
       cooldownDias: 0,
       sequenciaFlow: true,
       prepararFlowPausado: criarPausado,
+      destinatariosConfirmados: destinos ? new Map(destinos) : undefined,
     })
 
     for (const loteId of resultado.loteIds) {

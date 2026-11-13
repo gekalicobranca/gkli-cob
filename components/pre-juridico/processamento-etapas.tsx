@@ -177,6 +177,8 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
   const condominio = relation(caso.condominio)
   const unidade = relation(caso.unidade)
   const cobrancasUnidade = Array.isArray(caso.cobrancas_unidade) ? caso.cobrancas_unidade : []
+  const cotasEspelhadas = Array.isArray(caso.cotas_espelhadas) ? caso.cotas_espelhadas : []
+  const laudo = new URLSearchParams(cotasEspelhadas.map(c => ['cobrancaIds', String(c.cobranca_id)]))
 
   if (caso.etapa === 'confirmar_juridico') return <ConfirmarJuridicoInlineRow caso={caso} condominio={condominio} unidade={unidade} cobrancasUnidade={cobrancasUnidade} selectable={selectable} selectionLabel={selectionLabel} selected={selected} onToggle={onToggle} />
 
@@ -192,6 +194,7 @@ function CasoProcessamento({ caso, selectable = false, selectionLabel = 'Selecio
       <div><p className="text-xs text-slate-400">Atualização</p><p className="mt-1 text-sm">{formatDateBR(caso.updated_at)}</p></div>
       <ChevronRight size={17} className="text-slate-400 transition group-open/caso:rotate-90" />
     </ListRow></summary>
+    {cotasEspelhadas.length > 0 && caso.unidade_id && <a className="mx-5 mt-3 inline-block text-sm font-semibold text-cyan-800 underline" href={`/app/unidades/${caso.unidade_id}/laudo-pre-juridico?${laudo}`}>Abrir laudo com histórico de cobrança</a>}
     {caso.etapa === 'aguardando_documentos' ? <form action={atualizarCertidaoPreJuridico} className="grid gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 md:grid-cols-[220px_1fr_auto] md:items-end" onSubmit={(event) => { if (!window.confirm('Confirmar o andamento da certidão?')) event.preventDefault() }}>
       <input type="hidden" name="caso_id" value={caso.id} /><input type="hidden" name="versao" value={caso.versao} />
       <Field label="Andamento da certidão"><select name="certidao_status" defaultValue={caso.certidao_status ?? 'pendente'} className={controlClass}><option value="pendente">Pendente</option><option value="solicitada">Solicitada</option><option value="recebida">Recebida</option></select></Field>
