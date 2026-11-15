@@ -301,9 +301,16 @@ export async function updateCondominioIntegral(formData: FormData) {
 
   const supabase = await createClient()
   const scope = await getPermittedCarteiras()
+  const liberacao = formData.get('easy_espelhamento_liberacao')
+  if (liberacao !== null && (aba !== 'cobranca' || !['admin', 'gestor'].includes(scope.perfil))) {
+    throw new Error('A liberação do Easy Espelhar exige perfil de gestão.')
+  }
+  if (liberacao !== null && !['revisao', 'cotas', 'completo'].some(valor => valor === liberacao)) {
+    throw new Error('Liberação de espelhamento inválida.')
+  }
   const { data: before, error: beforeError } = await supabase
     .from('condominios')
-    .select('id, carteira_id, grupo, operador_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, sindico_email, sindico_celular, gerente_email, gerente_celular, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, pre_juridico_minimo_cotas, dias_expiracao_regua_pre_juridico, despesas_acordo_avista_percentual, despesas_acordo_parcelado_percentual, custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, mascara_unidade, mascara_bloco, status, observacoes')
+    .select('id, carteira_id, grupo, operador_id, nome, nome_operacional, cnpj, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, administradora, sindico_email, sindico_celular, gerente_email, gerente_celular, vencimento_cota_dia, valor_cota_condominial, inicio_cobranca_dias, dias_cobranca_ativa, pre_juridico_habilitado, pre_juridico_minimo_cotas, easy_espelhamento_liberacao, dias_expiracao_regua_pre_juridico, despesas_acordo_avista_percentual, despesas_acordo_parcelado_percentual, custo_emissao_boleto, parcelas_acordo_sem_aprovacao_sindico, dias_reemissao_parcela_acordo_atrasada, classificacao_operacional, operacao_virtual_habilitada, captacao_automatica_habilitada, captacao_dia_mes, captacao_horario, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim, regua_cobranca_id, regua_acordo_id, mascara_unidade, mascara_bloco, status, observacoes')
     .eq('id', id)
     .maybeSingle()
 
@@ -315,6 +322,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const payload = {
     ...condicoesAcordoPayload(formData),
     carteira_id: carteiraId,
+    ...(liberacao !== null ? { easy_espelhamento_liberacao: liberacao } : {}),
     ...(formData.has('grupo') ? { grupo: normalizeGrupo(formData.get('grupo')) } : {}),
     ...(formData.has('operador_id') ? { operador_id: optionalText(formData, 'operador_id') } : {}),
     nome,
@@ -379,6 +387,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   revalidatePath('/app/condominios')
   revalidatePath(`/app/condominios/${id}`)
   revalidatePath('/app/gestao/keila')
+  revalidatePath('/app/configuracoes/easy/espelhar')
   redirect(aba && aba !== 'cadastro' ? `/app/condominios/${id}?aba=${encodeURIComponent(aba)}` : `/app/condominios/${id}`)
 }
 

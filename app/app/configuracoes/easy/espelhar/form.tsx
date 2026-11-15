@@ -33,7 +33,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
   const campoAnexo = useRef<HTMLInputElement>(null)
   const administradoras = [...new Set(condominios.flatMap(c => c.administradoras))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const condominiosDaAdministradora = condominios.filter(c => c.administradoras.includes(administradora))
-  const disponiveis = condominiosDaAdministradora.filter(c => c.liberado && !emAndamento(c))
+  const disponiveis = condominiosDaAdministradora.filter(c => c.liberado && !emAndamento(c) && (!aplicar || c.liberacao === 'cotas' || c.liberacao === 'completo'))
   const selecao = disponiveis.filter(c => selecionados.includes(c.id)).map(c => c.id)
   const atualizando = condominios.some(emAndamento)
   const mesAtual = dataCivilSaoPaulo().slice(0, 7)
@@ -181,9 +181,12 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
                 <li key={c.id} className={`px-3 py-3 text-sm ${noMes ? 'bg-emerald-50' : ''}`}>
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="inline-flex items-center gap-2 font-semibold">
-                      <input type="checkbox" className="h-4 w-4" checked={selecao.includes(c.id)} disabled={!podeExecutar || !c.liberado || emAndamento(c) || enviando}
+                      <input type="checkbox" className="h-4 w-4" checked={selecao.includes(c.id)} disabled={!podeExecutar || enviando || !disponiveis.some(disponivel => disponivel.id === c.id)}
                         onChange={event => selecionar(event.target.checked ? [...selecionados, c.id] : selecionados.filter(id => id !== c.id))} />
                       {nomeCondominioEasy(c.nome, c.nomeOperacional)}
+                      <span className={styles.badge}>
+                        {c.liberacao === 'completo' ? 'Liberado' : c.liberacao === 'cotas' ? 'Liberado só para cotas' : 'Em revisão'}
+                      </span>
                     </label>
                     {c.ultimoEspelhamentoEm && <span className={styles.badge}><Check size={13} aria-hidden="true" />{noMes ? 'Espelhado no mês' : 'Último espelhamento'} · {data(c.ultimoEspelhamentoEm)}</span>}
                     {c.ultimaConferenciaEm && <span className="text-xs text-slate-600">Conferido em {data(c.ultimaConferenciaEm)}</span>}

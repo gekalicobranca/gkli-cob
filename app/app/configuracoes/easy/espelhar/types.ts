@@ -66,6 +66,7 @@ export type CondominioEspelhamento = {
   liberacaoEm: string | null
   cotasEmCobrancaAtiva: number
   agendado?: boolean
+  liberacao: 'revisao' | 'cotas' | 'completo'
   ultimaConferenciaEm: string | null
   ultimoEspelhamentoEm: string | null
   execucao: {

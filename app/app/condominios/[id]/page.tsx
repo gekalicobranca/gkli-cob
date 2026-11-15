@@ -205,6 +205,15 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
 
         {abaAtiva === 'cobranca' ? <CollapsibleArea id="cobranca" title="Parâmetros operacionais" description="Cobrança, acordos e automações vinculadas." defaultOpen>
 
+          <FormField label="Liberação do Easy Espelhar" hint="Em revisão permite prévias. Só cotas permite aplicar ajustes comprovados nas cotas.">
+            <select name="easy_espelhamento_liberacao" defaultValue={condominio.easy_espelhamento_liberacao}
+              disabled={!['admin', 'gestor'].includes(scope.perfil)} className="w-full rounded-lg border border-slate-300 px-3 py-2">
+              <option value="revisao">Em revisão</option>
+              <option value="cotas">Liberado só para cotas</option>
+              <option value="completo">Liberado para espelhar</option>
+            </select>
+          </FormField>
+
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Dia de vencimento da cota"><Input name="vencimento_cota_dia" type="number" min="1" max="31" defaultValue={condominio.vencimento_cota_dia ?? 10} /></FormField>
             <FormField label="Valor médio da cota"><Input name="valor_cota_condominial" defaultValue={String(condominio.valor_cota_condominial ?? 0).replace('.', ',')} /></FormField>

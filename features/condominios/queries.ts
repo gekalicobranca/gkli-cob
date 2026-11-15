@@ -30,6 +30,7 @@ const CONDOMINIO_SELECT = `
   dias_cobranca_ativa,
   pre_juridico_habilitado,
   pre_juridico_minimo_cotas,
+  easy_espelhamento_liberacao,
   dias_expiracao_regua_pre_juridico,
   despesas_acordo_avista_percentual,
   despesas_acordo_parcelado_percentual,
