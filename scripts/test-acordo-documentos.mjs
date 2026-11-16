@@ -13,7 +13,7 @@ await db.exec(`
  insert into public.profiles values ('00000000-0000-0000-0000-000000000002','operador');
  insert into public.acordos values ('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000001');
 `);
-await db.exec(await readFile(new URL("../supabase/migrations/20261116152527_acordo_documentos.sql",import.meta.url),"utf8"));
+await db.exec(await readFile(new URL("../supabase/migrations/20261116152754_acordo_documentos.sql",import.meta.url),"utf8"));
 await assert.rejects(db.query("select public.acordo_anexar_documento($1,$2,$3,$4)",['00000000-0000-0000-0000-000000000003','x.pdf','application/pdf','JVBERi0=']));
 await db.exec("select set_config('test.uid','00000000-0000-0000-0000-000000000002',false)");
 await assert.rejects(db.query("select public.acordo_anexar_documento($1,$2,$3,$4)",['00000000-0000-0000-0000-000000000003','x.pdf','application/pdf','bm90cGRm']));
