@@ -1,0 +1,27 @@
+import { PGlite } from "@electric-sql/pglite";
+import { readFile } from "node:fs/promises";
+import assert from "node:assert/strict";
+const db = new PGlite();
+await db.exec(`
+ create role anon; create role authenticated; create schema auth;
+ create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('test.uid',true),'')::uuid $$;
+ create table public.carteiras(id uuid primary key);
+ create table public.profiles(id uuid primary key,role text);
+ create table public.acordos(id uuid primary key,carteira_id uuid references public.carteiras);
+ create function public.current_user_can_access_carteira(uuid) returns boolean language sql as $$ select $1='00000000-0000-0000-0000-000000000001'::uuid $$;
+ insert into public.carteiras values ('00000000-0000-0000-0000-000000000001');
+ insert into public.profiles values ('00000000-0000-0000-0000-000000000002','operador');
+ insert into public.acordos values ('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000001');
+`);
+await db.exec(await readFile(new URL("../supabase/migrations/20261116152527_acordo_documentos.sql",import.meta.url),"utf8"));
+await assert.rejects(db.query("select public.acordo_anexar_documento($1,$2,$3,$4)",['00000000-0000-0000-0000-000000000003','x.pdf','application/pdf','JVBERi0=']));
+await db.exec("select set_config('test.uid','00000000-0000-0000-0000-000000000002',false)");
+await assert.rejects(db.query("select public.acordo_anexar_documento($1,$2,$3,$4)",['00000000-0000-0000-0000-000000000003','x.pdf','application/pdf','bm90cGRm']));
+const inserted=await db.query("select public.acordo_anexar_documento($1,$2,$3,$4) id",['00000000-0000-0000-0000-000000000003','x.pdf','application/pdf','JVBERi0=']);
+const downloaded=await db.query("select * from public.acordo_baixar_documento($1)",[inserted.rows[0].id]);
+assert.equal(downloaded.rows[0].base64,'JVBERi0=');
+await db.exec("select set_config('test.uid','',false)");
+const hidden=await db.query("select * from public.acordo_baixar_documento($1)",[inserted.rows[0].id]);
+assert.equal(hidden.rows.length,0);
+await db.close();
+console.log("Anexos: autenticação, validação e download verificados.");
