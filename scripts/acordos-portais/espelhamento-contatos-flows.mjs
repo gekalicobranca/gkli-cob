@@ -6,10 +6,10 @@ const nomeNormalizado = nome => String(nome ?? '').normalize('NFD').replace(/\p{
 const documento = valor => String(valor ?? '').replace(/\D/g, '')
 const emailValido = valor => /^[^\s@;,]+@[^\s@;,]+\.[^\s@;,]+$/.test(valor)
 
-export function planejarContatosEFlows({ fichas, cotas, chaveUnidade, canais, prazoDias, preJuridico }) {
+export function planejarContatosEFlows({ fichas, cotas, chaveUnidade, canais, prazoDias, preJuridico, administradora = 'Lello' }) {
   const porUnidade = new Map()
   for (const ficha of fichas) {
-    const chave = chaveUnidade(ficha.unidade)
+    const chave = chaveUnidade(ficha.unidade, ficha.bloco)
     porUnidade.set(chave, porUnidade.has(chave) ? null : ficha)
   }
   const unidades = new Map(cotas.map(c => [c.unidade.id, c.unidade]))
@@ -37,7 +37,7 @@ export function planejarContatosEFlows({ fichas, cotas, chaveUnidade, canais, pr
     const campos = Object.keys(depois)
     if (campos.length || celulares.length > 1) revisoes.push({ unidadeId: u.id, unidade: u.identificacao, bloco: u.bloco,
       revisao: campos.length ? u.updated_at : null, antes, depois, consultadoEm: ficha.consultadoEm,
-      motivo: [campos.length ? `Atualização proposta na ficha Lello (${campos.join(', ')}).` : '', celulares.length > 1 ? 'Mais de um celular para confirmar.' : ''].filter(Boolean).join(' ') })
+      motivo: [campos.length ? `Atualização proposta na ficha da ${administradora} (${campos.join(', ')}).` : '', celulares.length > 1 ? 'Mais de um celular para confirmar.' : ''].filter(Boolean).join(' ') })
   }
 
   const candidatas = []

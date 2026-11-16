@@ -69,7 +69,7 @@ export async function aplicarContatoEspelhado(execucaoId: string, unidadeId: str
   const { error } = await db.rpc('easy_espelhamento_aplicar_contato', { p_execucao: execucao.id, p_unidade: unidadeId, p_usuario: scope.userId })
   if (error) return { error: error.code === 'P0001' ? error.message : 'Contato indisponível. Atualize a conferência.' }
   revalidatePath(`/app/unidades/${unidadeId}`)
-  return { mensagem: 'Contato atualizado conforme a ficha da Lello.' }
+  return { mensagem: 'Contato atualizado conforme a ficha da administradora.' }
 }
 
 export async function aprovarBorderoEspelhado(execucaoId: string, fim: string) {
@@ -89,7 +89,7 @@ export async function prepararFlowEspelhado(execucaoId: string, unidadeId: strin
   if (!['admin', 'gestor', 'operador'].includes(scope.perfil) || !['email', 'whatsapp'].includes(canal)) return { error: 'Montagem indisponível.' }
   const db = createAdminClient()
   const { data: execucao, error: erroConsulta } = await applyCarteiraScope(db.from('easy_espelhamentos')
-    .select('id,carteira_id,condominio_id,criado_em,resultado').eq('id', execucaoId).eq('estado', 'concluido'), scope.carteiraIds).maybeSingle()
+    .select('id,carteira_id,condominio_id,criado_em,administradora,resultado').eq('id', execucaoId).eq('estado', 'concluido'), scope.carteiraIds).maybeSingle()
   if (erroConsulta || !execucao) return { error: 'Conferência indisponível para esta carteira.' }
   const resultado = execucao.resultado as ResultadoEspelhamento
   const selecionadas = resultado?.contatosEFlows?.candidatas.filter(c => c.id && c.unidadeId === unidadeId && c.destinatarios?.[canal]) ?? []
@@ -103,7 +103,7 @@ export async function prepararFlowEspelhado(execucaoId: string, unidadeId: strin
     db.from('reguas').select('id,destinatario_preferencial,etapas:regua_etapas(canal,ativo)').eq('carteira_id', execucao.carteira_id)
       .eq('tipo', 'cobranca').eq('ativo', true).neq('status', 'inativa').order('prioridade', { ascending: false }).order('nome'),
     db.rpc('flow_cobrancas_bloqueadas_por_acordo', { p_ids: selecionadas.map(c => c.id) }),
-    db.from('cobrancas').select('id,vencimento,data_pagamento,observacoes').eq('unidade_id', unidadeId).in('id', selecionadas.map(c => c.id)),
+    db.from('cobrancas').select('id,vencimento,data_pagamento,observacoes,valor_atualizado').eq('unidade_id', unidadeId).in('id', selecionadas.map(c => c.id)),
     db.from('acordos').select('id').eq('unidade_id', unidadeId).eq('tipo', 'judicial').limit(1),
   ])
   const cadastro = unidade.data
@@ -119,7 +119,8 @@ export async function prepararFlowEspelhado(execucaoId: string, unidadeId: strin
   if (cobrancas.data.some(c => {
     const dias = (Date.parse(hoje) - Date.parse(c.vencimento)) / 86_400_000
     const recibo = String(c.observacoes ?? '').match(/\brecibo\s*:?\s*(?:(?:LELLO|AE|AJ|J|A|D|B|P)\s+)?(\d{6,})(?!\d)/i)?.[1]
-    return c.data_pagamento || !selecionadas.some(r => r.id === c.id && r.recibo === recibo) || dias < Math.max(1, inicio)
+    return c.data_pagamento || !selecionadas.some(r => r.id === c.id && r.recibo === recibo
+      && (execucao.administradora !== 'Manager' || Math.round(Number(c.valor_atualizado) * 100) === r.saldoCentavos)) || dias < Math.max(1, inicio)
       || (regras.pre_juridico_habilitado && carteira?.pre_juridico_habilitado && dias >= prazo)
   })) return { error: 'Uma cota saiu da régua. Refaça a conferência.' }
   const validas = reguas.data.filter(r => {
@@ -132,7 +133,7 @@ export async function prepararFlowEspelhado(execucaoId: string, unidadeId: strin
   const correspondencias = resolverCorrespondenciasUnidade({ ...cadastro, condominio_id: execucao.condominio_id }, apoios).correspondencias
   const contato = escolherContatoRegua({ unidade: cadastro, apoios: correspondencias, canal, preferencia: regua.destinatario_preferencial })
   const destino = canal === 'email' ? contato.destinatario?.trim().toLowerCase() : contato.destinatario?.replace(/\D/g, '')
-  if (!destino || selecionadas.some(c => c.destinatarios?.[canal] !== destino)) return { error: 'O destinatário da régua diverge da ficha da Lello. Confira o cadastro.' }
+  if (!destino || selecionadas.some(c => c.destinatarios?.[canal] !== destino)) return { error: 'O destinatário da régua diverge da ficha da administradora. Confira o cadastro.' }
   const form = new FormData()
   for (const c of selecionadas) form.append('cobranca_id', c.id)
   form.set('criar_pausado', 'true')

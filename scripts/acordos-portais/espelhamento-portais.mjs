@@ -33,7 +33,7 @@ function unidadeDoRelatorio(unidades, item) {
   return lista.length === 1 ? lista[0] : null
 }
 
-export async function coletarExtratos(db, job, receitas, app, unidadesAlvo, signal, progresso, limitePreviaMs = 0) {
+export async function coletarExtratos(db, job, receitas, app, unidadesAlvo, signal, progresso, limitePreviaMs = 0, somenteCadastro = false) {
   const { data: configuracoes, error } = await db.from('scanner_configuracoes').select('id,portal,codigo_portal,perfil_acesso,unidades,receita_id')
     .eq('condominio_id', job.condominio_id).eq('ativo', true).eq('situacao', 'validado').in('receita_id', receitas.map(r => r.receita_id))
   if (error || configuracoes.length !== 1 || !['manager', 'bbz', 'sell'].includes(configuracoes[0].portal)) return new Map()
@@ -44,19 +44,26 @@ export async function coletarExtratos(db, job, receitas, app, unidadesAlvo, sign
   const unidades = app.unidades.filter(u => unidadesAlvo.has(u.id) && ids.has(u.id))
   progresso(`Unidades habilitadas para extrato: ${unidades.length}`)
   const resposta = new Map()
-  const limite = !job.aplicar && limitePreviaMs > 0 ? AbortSignal.timeout(limitePreviaMs) : null
+  const limite = (!job.aplicar || somenteCadastro) && limitePreviaMs > 0 ? AbortSignal.timeout(limitePreviaMs) : null
   const sinalColeta = limite ? AbortSignal.any([signal, limite]) : signal
   for (let i = 0; i < unidades.length; i += 12) {
     signal.throwIfAborted()
     if (limite?.aborted) break
     const lote = unidades.slice(i, i + 12)
-    const sessao = await (config.portal === 'manager' ? abrirManager : abrirWebware)({ ...config, dataLimite: hojeSP() }, receita.config_json, lote, sinalColeta).catch(() => null)
+    const sessao = await (config.portal === 'manager' ? abrirManager : abrirWebware)({ ...config, dataLimite: hojeSP(), financeiroSuspenso: somenteCadastro }, receita.config_json, lote, sinalColeta).catch(() => null)
     if (!sessao) break
     try {
       for (const u of lote) {
         signal.throwIfAborted()
         if (limite?.aborted) break
         if (sessao.podeIniciarUnidade?.() === false) break
+        if (somenteCadastro) {
+          const cadastro = await sessao.coletarCadastro(u.id).catch(() => null)
+          if (cadastro?.unidade === u.id && cadastro.codigo === config.codigo_portal && cadastro.fichas?.length === 1) {
+            resposta.set(u.id, { ...cadastro, consultadoEm: new Date().toISOString() })
+          }
+          continue
+        }
         const r = await (sessao.coletarExtrato ?? sessao.coletar)(u.id).catch(() => null)
         if (r?.pagamentos?.unidade === u.id && r.pagamentos.codigo === config.codigo_portal) resposta.set(u.id, { ...r.pagamentos, portal: config.portal })
         if (r?.pagamentos?.diagnostico === 'sem_acesso') return resposta
@@ -129,13 +136,13 @@ export function planejarCotasPortais(cotas, app) {
   return { alteracoes, pendencias, aguardandoExtrato }
 }
 
-export function completarFinanceiro(plano, extratos, app, repassesSalvos, demonstrativo, administradora) {
-  const hoje = hojeSP(), dataCorte = new Date(Date.parse(hoje) - 90 * 86_400_000).toISOString().slice(0, 10)
-  const repasses = [], confirmados = new Set()
+export function completarFinanceiro(plano, extratos, app, repassesSalvos, demonstrativo, administradora, hoje = hojeSP()) {
+  const dataCorte = new Date(Date.parse(hoje) - 90 * 86_400_000).toISOString().slice(0, 10)
+  const repasses = [], confirmados = new Map()
   for (const { c, u, recibo: numero, vinculada } of plano.aguardandoExtrato) {
     const extrato = extratos.get(u.id)
     const itens = (extrato?.pagamentos ?? []).filter(p => p.recibo === numero && dataDoExtrato(p.vencimento) === c.vencimento && p.natureza === 'cobranca'
-      && p.componentes_conferidos && p.valor_original_centavos === reais(c.valor_original) && dataDoExtrato(p.data_pagamento) <= hoje && p.valor_pago > 0)
+      && p.componentes_conferidos && p.valor_original_centavos === reais(c.valor_original) && dataDoExtrato(p.data_pagamento) && dataDoExtrato(p.data_pagamento) <= hoje && p.valor_pago > 0)
     if (numero && !vinculada && itens.length === 1 && !c.data_pagamento && !c.valor_pago) {
       plano.alteracoes.push({ tipo: 'cota_paga', ...escopo(u), id: c.id, rev: c.updated_at, recibo: numero, vencimento: c.vencimento,
         dataPagamento: dataDoExtrato(itens[0].data_pagamento), valorPago: reais(itens[0].valor_pago) })
@@ -161,7 +168,7 @@ export function completarFinanceiro(plano, extratos, app, repassesSalvos, demons
     for (const alvo of alvos) {
       const p = alvo.parcela, a = alvo.acordo, baixa = baixas.get(p.id)
       if (baixa?.estado === 'confirmado') {
-        confirmados.add(p.id)
+        confirmados.set(p.id, baixa)
         if (p.status !== 'paga' && !p.data_pagamento && reais(p.valor) === reais(baixa.valor_pago)) {
           plano.alteracoes.push({ tipo: 'parcela_paga_extrato', ...escopo(u), id: p.id, rev: p.updated_at, acordoId: a.id,
             recibo: baixa.recibo, vencimento: p.vencimento, dataPagamento: baixa.data_pagamento, valorPago: reais(baixa.valor_pago) })
@@ -179,7 +186,7 @@ export function completarFinanceiro(plano, extratos, app, repassesSalvos, demons
       const provas = [...(creditos.get(reciboCredito) ?? []).map(r => ({ ...r, fonte: extrato.fonte })), ...(anexos.get(reciboCredito) ?? [])]
       if (salvo) {
         const estado = conferirCreditoRegistrado({ salvo, provas, unidade: u.identificacao, vencimento: p.vencimento, pendencias: plano.pendencias, referenciasUsadas })
-        repasses.push({ unidade: u.identificacao, recibo: salvo.recibo, dataCredito: salvo.data_credito, valor: salvo.valor_centavos, estado })
+        repasses.push({ parcelaId: p.id, unidade: u.identificacao, recibo: salvo.recibo, dataCredito: salvo.data_credito, valor: salvo.valor_centavos, estado })
         continue
       }
       const evidencias = [...new Map(provas.filter(r => r.dataCredito <= hoje && r.dataCredito >= pagamento)
@@ -189,7 +196,7 @@ export function completarFinanceiro(plano, extratos, app, repassesSalvos, demons
         referenciasUsadas.add(r.referencia)
         plano.alteracoes.push({ tipo: 'repasse_creditado', ...escopo(u), id: p.id, rev: p.updated_at, acordoId: a.id,
           ...r, portal: extrato?.portal ?? administradora })
-        repasses.push({ unidade: u.identificacao, recibo: r.recibo, dataCredito: r.dataCredito, valor: r.centavos, estado: 'comprovado na fonte' })
+        repasses.push({ parcelaId: p.id, unidade: u.identificacao, recibo: r.recibo, dataCredito: r.dataCredito, valor: r.centavos, estado: 'comprovado na fonte' })
       } else if (pagamento >= dataCorte) {
         plano.pendencias.push({ tipo: 'repasse', unidade: u.identificacao, referencia: alvo.recibo, vencimento: p.vencimento,
           valor: reais(p.valor_repasse_informado), motivo: p.valor_repasse_informado ? 'Repasse informado no app, aguardando comprovante de crédito.' : 'Valor de repasse e crédito sem comprovante na fonte consultada.' })
@@ -198,7 +205,7 @@ export function completarFinanceiro(plano, extratos, app, repassesSalvos, demons
   }
   for (const r of comprovantesAnexados) if (!referenciasUsadas.has(r.referencia)) plano.pendencias.push({ tipo: 'repasse', referencia: r.recibo,
     valor: r.centavos, motivo: 'Crédito do demonstrativo anexado sem parcela paga única no app.' })
-  return { repasses, parcelasPagas: confirmados.size }
+  return { repasses, parcelasPagas: confirmados.size, confirmados }
 }
 
 export function conferirDemonstrativo(acordosPortal, app, pendencias) {

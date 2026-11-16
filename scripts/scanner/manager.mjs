@@ -47,9 +47,21 @@ export async function abrirManager(config, receita, unidades, signal) {
    if(r.codigo_diagnostico==='manager_relatorio_indisponivel'){financeiro=null;financeiroInterrompido=true}
    return r
   }
+  async function coletarCadastro(id) {
+    const unidade=unidades.find(u=>u.id===id)
+    if(!unidade)throw Error('Unidade fora do condomínio do lote.')
+    let opcao
+    try{opcao=selecionarUnidade(opcoes,unidade)}catch(e){if(e.code!=='SCANNER_VINCULO')throw e;return {codigo:config.codigo_portal,unidade:id,fichas:[],status:'revisao_vinculo'}}
+    const url=new URL(opcao.value,base+'/bin/iproperty/')
+    if(url.origin!==base||url.pathname!=='/bin/iproperty/undProp.asp'||url.searchParams.get('iUnd')!==opcao.label)throw Error('Destino do cadastro Manager inválido.')
+    etapa('cadastro_manager');await page.waitForTimeout(2000);signal.throwIfAborted()
+    const ficha=await lerCadastroManager(context,url.href,{signal,referencia:opcao.label,unidade:id,onTentativa:n=>{if(n>1)etapa('cadastro_manager_retomada')}})
+    return {codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:url.href,fichas:[ficha]}
+  }
   return {
    close:sessao.close,
    podeIniciarUnidade:sessao.podeIniciarUnidade,
+   coletarCadastro,
    async coletarExtrato(id) {
     const unidade=unidades.find(u=>u.id===id)
     if(!unidade)throw Error('Unidade fora do condomínio do lote.')
@@ -59,17 +71,11 @@ export async function abrirManager(config, receita, unidades, signal) {
     return {pagamentos:{...resultado,codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:base+'/bin/rt/gExtratoUnidade.asp'}}
    },
    async coletar(id){
-    const unidade=unidades.find(u=>u.id===id)
-    if(!unidade)throw Error('Unidade fora do condomínio do lote.')
-    let opcao
-    try{opcao=selecionarUnidade(opcoes,unidade)}catch(e){if(e.code!=='SCANNER_VINCULO')throw e;return {contatos:{codigo:config.codigo_portal,unidade:id,fichas:[],status:'revisao_vinculo'},pagamentos:{status:'inconclusivo',motivo:'Unidade sem vínculo inequívoco no portal.'}}}
-    const url=new URL(opcao.value,base+'/bin/iproperty/')
-    if(url.origin!==base||url.pathname!=='/bin/iproperty/undProp.asp'||url.searchParams.get('iUnd')!==opcao.label)throw Error('Destino do cadastro Manager inválido.')
-    etapa('cadastro_manager');await page.waitForTimeout(2000);signal.throwIfAborted()
-    const ficha=await lerCadastroManager(context,url.href,{signal,referencia:opcao.label,unidade:id,onTentativa:n=>{if(n>1)etapa('cadastro_manager_retomada')}})
-    const contatos={codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:url.href,fichas:[ficha]}
-    const resultado=await complementarComPagamentos(contatos,()=>pagamentos(opcao.label),()=>{financeiro=null;financeiroInterrompido=true;etapa('financeiro_indisponivel_manager')})
-    resultado.pagamentos={...resultado.pagamentos,codigo:config.codigo_portal,unidade:id,referencia_portal:opcao.label,fonte:base+'/bin/rt/gExtratoUnidade.asp'}
+    const contatos=await coletarCadastro(id)
+    if(!contatos.fichas.length)return {contatos,pagamentos:{status:'inconclusivo',motivo:'Unidade sem vínculo inequívoco no portal.'}}
+    const referencia=contatos.referencia_portal
+    const resultado=await complementarComPagamentos(contatos,()=>pagamentos(referencia),()=>{financeiro=null;financeiroInterrompido=true;etapa('financeiro_indisponivel_manager')})
+    resultado.pagamentos={...resultado.pagamentos,codigo:config.codigo_portal,unidade:id,referencia_portal:referencia,fonte:base+'/bin/rt/gExtratoUnidade.asp'}
     return resultado
    }
   }

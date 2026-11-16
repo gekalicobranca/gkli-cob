@@ -4,7 +4,7 @@ function centavos(valor) {
   return Number.isFinite(numero) && numero >= 0 ? Math.round(numero * 100) : null
 }
 
-function apurarRepasse(acordo, parcela) {
+export function apurarRepasse(acordo, parcela) {
   const informado = centavos(parcela.valor_repasse_informado)
   if (informado != null) return { valor: informado, origem: 'Valor informado na parcela' }
 

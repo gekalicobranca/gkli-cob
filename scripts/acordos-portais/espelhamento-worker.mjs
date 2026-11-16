@@ -3,6 +3,7 @@ import { coletarEspelhoLello, FalhaTemporariaLello } from './espelhamento-lello.
 import { confirmarRepassesLello, lerEspelhoApp, lerPeriodosBordero, planejarEspelhoLello } from './espelhamento-conciliar.mjs'
 import fontesDoEspelhamento from './espelhamento-fontes.ts'
 import { coletarExtratos, completarFinanceiro, conferirDemonstrativo, planejarCotasPortais } from './espelhamento-portais.mjs'
+import { alvosContatoManager, basePreviaManager, planejarPreviasManager } from './espelhamento-manager.mjs'
 
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -91,6 +92,7 @@ async function processar(pedido) {
       if (!receitas.length || new Set(receitas.map(r => r.script_key)).size !== 1) throw Error('Agente ativo ausente ou ambíguo neste condomínio.')
       etapa = 'coleta da inadimplência'
       const [receita] = receitas
+      const manager = receita.script_key === 'manager_atentum_cotas_pendentes'
       codigo = `receita:${receita.receita_id}`
       const cap = await medir('Coleta de cotas', () => captarCotasEspelhamento(db, pedido, receitas, signal))
       progresso(`Cotas consultadas: ${cap.cotas.length}`)
@@ -111,20 +113,37 @@ async function processar(pedido) {
         if (p.recibo_financeiro && p.status !== 'cancelada' && !['cancelado', 'renegociado'].includes(a.status)) alvos.add(a.unidade_id)
       }
       let demonstrativo = null
-      if (receita.script_key === 'manager_atentum_cotas_pendentes' && receitas.length === 1) {
+      if (manager && receitas.length === 1) {
         const { data } = await db.from('agente_receitas').select('config_json').eq('id', receita.receita_id).single()
         demonstrativo = await medir('Coleta de acordos', () => coletarAcordosManager(data?.config_json?.codigo_cliente, pedido.condominio_id, signal)).catch(() => null)
       } else if (['bbz_condopro_clock_vila_romana', 'captacao_atipass'].includes(receita.script_key)) {
         demonstrativo = await medir('Coleta de acordos', () => coletarAcordosWebware(db, pedido, receita.script_key === 'captacao_atipass' ? 'atipass' : 'bbz', signal)).catch(() => null)
       }
       const acordos = conferirDemonstrativo(demonstrativo, app, base.pendencias)
-      const limiteExtratos = pedido.administradora === 'BBZ' ? Math.max(1, 16 * 60_000 - (Date.now() - inicio)) : 0
+      const limiteExtratos = manager && !pedido.aplicar ? Math.max(1, 14 * 60_000 - (Date.now() - inicio))
+        : !pedido.aplicar && pedido.administradora === 'BBZ' ? Math.max(1, 16 * 60_000 - (Date.now() - inicio)) : 0
       const extratos = await medir('Coleta de extratos', () => coletarExtratos(db, pedido, receitas, app, alvos, signal, progresso, limiteExtratos))
-      const financeiro = completarFinanceiro(base, extratos, app, salvos, pedido.demonstrativo_repasses, pedido.administradora)
+      const consultadoEm = new Date().toISOString()
+      const dataBase = new Date(consultadoEm).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+      const { confirmados, ...financeiro } = completarFinanceiro(base, extratos, app, salvos, pedido.demonstrativo_repasses, pedido.administradora, dataBase)
       if (!pedido.aplicar && pedido.administradora === 'BBZ' && extratos.size < alvos.size) {
         cap.avisos.push(`A BBZ retornou consultas de extrato para ${extratos.size} de ${alvos.size} unidades a conferir. As baixas sem comprovação ficam pendentes.`)
       }
-      plano = { consultadoEm: new Date().toISOString(), cotas: cap.cotas.length, acordos, ...financeiro,
+      let previas = {}
+      if (manager) {
+        const baseManager = basePreviaManager(cap.cotas, app, dataBase, extratos)
+        const alvosContato = alvosContatoManager(baseManager, app)
+        const [periodos, cadastros] = await Promise.all([
+          lerPeriodosBordero(db, dataBase),
+          alvosContato.size ? medir('Coleta de contatos', () => coletarExtratos(db, pedido, receitas, app, alvosContato,
+            signal, progresso, Math.max(1, 16 * 60_000 - (Date.now() - inicio)), true)) : new Map(),
+        ])
+        app.periodosBordero = periodos
+        previas = planejarPreviasManager({ app, base: baseManager, cadastros, confirmados, repasses: financeiro.repasses, acordosPortal: demonstrativo, dataBase })
+        if (cadastros.size < alvosContato.size) cap.avisos.push(`A Manager retornou fichas de ${cadastros.size} de ${alvosContato.size} unidades para conferir. Os contatos não confirmados ficam fora dos flows.`)
+        if (!periodos.length) base.pendencias.push({ tipo: 'borderô', motivo: 'Nenhum período de fechamento configurado para a data da conferência.' })
+      }
+      plano = { consultadoEm, cotas: cap.cotas.length, acordos, ...financeiro, ...previas,
         fontes: cap.fontes, avisos: cap.avisos, extratosConsultados: extratos.size, alteracoes: base.alteracoes, pendencias: base.pendencias }
     }
     signal.throwIfAborted()
