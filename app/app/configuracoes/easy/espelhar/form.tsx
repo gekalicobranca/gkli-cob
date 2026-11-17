@@ -7,6 +7,7 @@ import styles from '@/components/easy/easy.module.css'
 import { dataCivilSaoPaulo } from '@/lib/core/data-civil'
 import { nomeCondominioEasy } from '@/features/easy-cob/nome-condominio'
 import { aplicarContatoEspelhado, aprovarBorderoEspelhado, configurarAgendaEspelhamento, consultarDetalheEspelhamento, consultarEspelhamentos, entregarPreJuridico, prepararFlowEspelhado, solicitarEspelhamento } from './actions'
+import { AcordosHomologados } from './acordos-homologados'
 import type { CondominioEspelhamento, ResultadoEspelhamento } from './types'
 
 const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -127,6 +128,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
 
   return (
     <div className="space-y-5">
+      <AcordosHomologados condominios={administradora ? condominiosDaAdministradora : condominios} />
       <section className={styles.panel}>
         <label htmlFor="espelhar-administradora" className="text-sm font-semibold">Qual administradora?</label>
         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -136,7 +138,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
             {administradoras.map(nome => <option key={nome} value={nome}>{nome}</option>)}
           </select>
           <button type="button" className={styles.primary} disabled={!podeExecutar || !administradora || !selecao.length || enviando} onClick={iniciar}>
-            <ScanLine size={16} aria-hidden="true" /> {enviando ? 'Registrando…' : aplicar ? 'Espelhar agora' : 'Conferir agora'}
+            <ScanLine size={16} aria-hidden="true" /> {enviando ? 'Registrando…' : aplicar ? 'Espelhar agora' : 'Só conferir'}
           </button>
         </div>
         <label className="mt-4 inline-flex items-start gap-2 text-sm">

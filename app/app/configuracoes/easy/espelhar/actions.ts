@@ -9,7 +9,7 @@ import { carregarApoiosParaCorrespondencia } from '@/features/responsaveis-unida
 import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade'
 import { escolherContatoRegua } from '@/features/regua/services/regua-shared'
 import { lerDemonstrativoRepasses } from '@/features/easy-cob/demonstrativo-repasses'
-import type { CondominioEspelhamento, ResultadoEspelhamento } from './types'
+import type { AcordoAuditado, CondominioEspelhamento, ResultadoEspelhamento } from './types'
 
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
 
@@ -18,7 +18,33 @@ export async function consultarEspelhamentos(): Promise<CondominioEspelhamento[]
   const db = createAdminClient()
   const { data, error } = await db.rpc('easy_espelhamento_painel_resumo', { p_carteiras: scope.carteiraIds })
   if (error) throw new Error('Não foi possível consultar o espelhamento.')
-  return data as CondominioEspelhamento[]
+  const condominios = data as CondominioEspelhamento[]
+  if (!condominios.length) return condominios
+
+  const pendentes = new Map(condominios.map(c => [c.id, c]))
+  const tamanhoPagina = 100
+  for (let offset = 0; pendentes.size > 0; offset += tamanhoPagina) {
+    const { data: auditorias, error: erroAuditoria } = await applyCarteiraScope(db.from('easy_espelhamentos')
+      .select('condominio_id,concluido_em,administradora,auditoria:resultado->auditoriaAcordos')
+      .in('condominio_id', condominios.map(c => c.id)).eq('estado', 'concluido')
+      .not('resultado->auditoriaAcordos', 'is', null)
+      .order('concluido_em', { ascending: false }).order('id', { ascending: false })
+      .range(offset, offset + tamanhoPagina - 1), scope.carteiraIds)
+    if (erroAuditoria) throw new Error('Não foi possível consultar a conferência dos acordos homologados.')
+    for (const row of auditorias) {
+      const condominio = pendentes.get(row.condominio_id)
+      if (!condominio || !Array.isArray(row.auditoria)) continue
+      const acordos: AcordoAuditado[] = row.auditoria
+      const excecoes = acordos.filter(a => a.estado !== 'encontrado')
+      condominio.auditoria = {
+        concluidaEm: row.concluido_em, administradora: row.administradora,
+        encontrados: acordos.length - excecoes.length, excecoes,
+      }
+      pendentes.delete(condominio.id)
+    }
+    if (auditorias.length < tamanhoPagina) break
+  }
+  return condominios
 }
 
 export async function consultarDetalheEspelhamento(execucaoId: string): Promise<ResultadoEspelhamento | null> {

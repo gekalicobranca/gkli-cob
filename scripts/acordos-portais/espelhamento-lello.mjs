@@ -2,6 +2,8 @@ import { chromium } from 'playwright'
 import { createHash } from 'node:crypto'
 import { autenticarLello } from '../scanner/lello-auth.mjs'
 import { normalizar } from './validacao.mjs'
+import { acordoHomologadoVigente, situacaoAcordoLello } from './espelhamento-auditoria-acordos.mjs'
+import { chaveUnidade } from './espelhamento-conciliar.mjs'
 import { lerRepassesCreditados } from './espelhamento-repasses.mjs'
 
 const origem = 'https://portal.lellocondominios.com.br'
@@ -42,6 +44,7 @@ async function ler(frame, ficha = false) {
       [...t.querySelectorAll('th')].filter(th => th.nextElementSibling?.tagName === 'TD')
         .map(th => [th.innerText.trim(), th.nextElementSibling.innerText.trim()]))).filter(f => f.Nome) : [],
     semRecibos: /n[aã]o h[aá] recibos para esse condom[ií]nio\/unidade/i.test(texto),
+    acordoNaoEncontrado: /^(?:acordo (?:n[a\u00e3]o encontrado|inexistente)|n[a\u00e3]o foi encontrado o acordo)[.!]?$/im.test(texto),
     semAcordos: /n[aã]o (?:h[aá]|existem|foram encontrados)[^\n.]*acordos|nenhum acordo/i.test(texto),
   }}, ficha)
 }
@@ -62,7 +65,7 @@ export async function coletarEtapaLello(etapas, etapa, urls, dependencia, progre
   return itens
 }
 
-export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, signal, progresso = () => {}, etapas) {
+export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, signal, progresso = () => {}, etapas, lerIdentidadesApp) {
   if (!/^\d+$/.test(codigo) || !nome || !usuario || !senha) throw Error('Acesso ou alvo da Lello incompleto.')
   const browser = await chromium.launch({ channel: 'chrome', headless: true })
   const fechar = () => { void browser.close().catch(() => {}) }
@@ -187,12 +190,14 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
     })
     const consultadoEm = new Date().toISOString()
 
-    const historicos = await coletarEtapaLello(etapas, 'historicos', urlsHistoricos, [posicao, indiceHistorico.linhas], progresso, () => lote(urlsHistoricos, async (tab, url) => {
+    const historicos = await coletarEtapaLello(etapas, 'historicos', urlsHistoricos, ['historico-por-unidade', posicao, indiceHistorico.linhas], progresso, () => lote(urlsHistoricos, async (tab, url) => {
       const unidade = url.searchParams.get('codUnidade')
       const tela = await visitar(tab, url)
-      if (tela.semRecibos) return { pagamentos: [], acordos: [], repasses: [] }
-      if (!unidade || tela.unidades.length !== 1 || tela.unidades[0] !== unidade) throw Error('Unidade do histórico não confirmada.')
+      const unidadeConferida = unidade && tela.unidades.length === 1 && tela.unidades[0] === unidade
+      if (tela.semRecibos) return { unidade: unidadeConferida ? unidade : null, pagamentos: [], acordos: [], repasses: [] }
+      if (!unidadeConferida) throw Error('Unidade do histórico não confirmada.')
       return {
+        unidade,
         pagamentos: tela.linhas.filter(r => /^\d+$/.test(r[0]) && dataBR(r[2])).map(r => ({
           unidade, recibo: r[0], descricao: r[1], vencimento: dataBR(r[2]), situacao: r[3],
           principal: dinheiro(r[4]), pagamento: dataBR(r[5]), valorPago: dinheiro(r[6]),
@@ -217,9 +222,10 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
       return [url.searchParams.get('codAcordo'), linhasAtivos[i]?.[0]?.startsWith(`${unidade} `) ? dataBR(linhasAtivos[i][1]) : null]
     }))
     const urlsAcordos = [...referencias.values()]
-    const acordos = await coletarEtapaLello(etapas, 'acordos', urlsAcordos, [posicao, linhasAtivos], progresso, () => lote(urlsAcordos, async (tab, url) => {
+    async function lerAcordo(tab, url, consultarAusencia = false) {
       const unidade = url.searchParams.get('codUnidade'), numero = url.searchParams.get('codAcordo')
       const { linhas, ...tela } = await visitar(tab, url)
+      if (consultarAusencia && tela.acordoNaoEncontrado && !linhas.some(r => r[0] === 'Acordo Número')) return { naoEncontrado: true }
       const campo = nome => linhas.find(r => r[0] === nome)?.[1]
       const header = linhas.find(r => r[0] === 'Unidade')
       if (campo('Acordo Número') !== numero || header?.[1] !== unidade || !header[2]) throw Error('Identidade do acordo não confirmada.')
@@ -239,7 +245,72 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
           recibo: r[0], vencimento: dataBR(r[1]), principal: dinheiro(r[2]), situacao: r[4],
         })),
       }
-    }, 'Acordos'))
+    }
+    const acordos = await coletarEtapaLello(etapas, 'acordos', urlsAcordos, [posicao, linhasAtivos], progresso,
+      () => lote(urlsAcordos, lerAcordo, 'Acordos'))
+    const verificacaoAcordos = {}
+    if (lerIdentidadesApp) {
+      const app = await lerIdentidadesApp()
+      const unidadesPorId = new Map(app.unidades.map(u => [u.id, u]))
+      const unicas = new Map()
+      for (const u of app.unidades) {
+        const chave = chaveUnidade(u.identificacao, u.bloco)
+        unicas.set(chave, unicas.has(chave) ? null : u.id)
+      }
+      const unidadesFonte = new Map()
+      for (const url of [...urlsHistoricos, ...urlsAtivos]) {
+        const unidade = url.searchParams.get('codUnidade')
+        if (!unidade) continue
+        const chave = chaveUnidade(unidade)
+        unidadesFonte.set(chave, unidadesFonte.has(chave) && unidadesFonte.get(chave) !== unidade ? null : unidade)
+      }
+      const historicoPorUnidade = new Map(historicos.filter(h => h.unidade).map(h => [h.unidade, h]))
+      const ativas = new Set(urlsAtivos.map(u => u.searchParams.get('codUnidade') + ':' + u.searchParams.get('codAcordo')))
+      const fichas = new Map(acordos.map(a => [a.unidade + ':' + a.numero, a]))
+      const alvos = new Map()
+      for (const a of app.acordos) {
+        const u = unidadesPorId.get(a.unidade_id)
+        const fonte = a.acordos_fontes_lello
+        if (!u || fonte?.codigo_condominio !== codigo || !/^\d+$/.test(fonte.numero_acordo ?? '')) continue
+        const chave = chaveUnidade(u.identificacao, u.bloco)
+        const unidade = unidadesFonte.get(chave)
+        if (!unidade || unicas.get(chave) !== u.id) continue
+        const identidade = unidade + ':' + fonte.numero_acordo
+        const lista = alvos.get(identidade) ?? []
+        lista.push(a)
+        alvos.set(identidade, lista)
+      }
+      const sondagens = []
+      for (const [identidade, lista] of alvos) {
+        if (lista.length !== 1 || !acordoHomologadoVigente(lista[0])) continue
+        const [unidade, numero] = identidade.split(':')
+        const [a] = lista
+        const historico = historicoPorUnidade.get(unidade)
+        const indice = fichas.get(identidade)
+        const referencia = new RegExp('\\bAcordo\\s+' + numero + '\\b', 'i')
+        const recibosNoHistorico = historico?.pagamentos.some(p => referencia.test(p.descricao))
+        const registrar = ficha => {
+          verificacaoAcordos[a.id] = {
+            revisao: a.updated_at,
+            resultado: situacaoAcordoLello({
+              emAndamento: ativas.has(identidade), historicoConferido: Boolean(historico), recibosNoHistorico, ficha,
+            }),
+          }
+        }
+        if (indice) registrar(indice)
+        else sondagens.push({ url: new URL(caminhos.acordo + '?' + new URLSearchParams({ codCondo: codigo, codUnidade: unidade, codAcordo: numero }), origem), registrar })
+      }
+      await lote(sondagens, async (tab, { url, registrar }) => {
+        try {
+          const ficha = await lerAcordo(tab, url, true)
+          registrar(ficha)
+        } catch (error) {
+          signal.throwIfAborted()
+          if (respostaTemporaria) throw error
+          registrar()
+        }
+      }, 'Acordos fora da lista e do histórico')
+    }
     let contatos = []
     if (cotas.length) {
       try {
@@ -265,7 +336,7 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
         if (signal.aborted || respostaTemporaria || error instanceof FalhaTemporariaLello) throw error
       }
     }
-    return { consultadoEm, cotas, acordos, contatos, pagamentos: historicos.flatMap(h => h.pagamentos), repasses: historicos.flatMap(h => h.repasses) }
+    return { consultadoEm, cotas, acordos, contatos, verificacaoAcordos, pagamentos: historicos.flatMap(h => h.pagamentos), repasses: historicos.flatMap(h => h.repasses) }
   } catch (error) {
     if (respostaTemporaria) throw new FalhaTemporariaLello(`A Lello respondeu HTTP ${respostaTemporaria} durante a coleta.`)
     throw error

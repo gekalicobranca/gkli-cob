@@ -208,7 +208,7 @@ export function completarFinanceiro(plano, extratos, app, repassesSalvos, demons
   return { repasses, parcelasPagas: confirmados.size, confirmados }
 }
 
-export function conferirDemonstrativo(acordosPortal, app, pendencias) {
+export function conferirDemonstrativo(acordosPortal, app, pendencias, correspondencias = new Map()) {
   if (!acordosPortal) {
     pendencias.push({ tipo: 'acordo', motivo: 'Demonstrativo de acordos com identidade e composição não disponível neste acesso.' })
     return null
@@ -220,6 +220,12 @@ export function conferirDemonstrativo(acordosPortal, app, pendencias) {
     const candidatos = (u ? acordos.get(u.id) ?? [] : []).filter(x => Math.abs(reais(x.valor_acordado) - a.total.valor_centavos) <= 100
       && x.parcelas_acordo.length === a.parcelas.length && a.parcelas.every(p => x.parcelas_acordo.some(q =>
         dataDoExtrato(p.vencimento) === q.vencimento && Math.abs(p.valor_centavos - reais(q.valor)) <= 100)))
+    if (candidatos.length === 1) {
+      const [local] = candidatos
+      const linhas = correspondencias.get(local.id) ?? []
+      linhas.push(a)
+      correspondencias.set(local.id, linhas)
+    }
     if (candidatos.length !== 1) pendencias.push({ tipo: 'acordo', unidade: a.unidade, referencia: a.processo, valor: a.total.valor_centavos,
       motivo: 'Acordo do demonstrativo sem correspondência única por unidade, valor e grade.' })
   }

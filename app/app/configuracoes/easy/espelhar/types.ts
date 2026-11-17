@@ -56,7 +56,18 @@ type PreviaBordero = {
   pendencias: { parcelaId: string; unidade: string; numero: string | null; parcela: number; motivo: string }[]
 }
 
+export type AcordoAuditado = {
+  acordoId: string
+  unidade: string | null
+  bloco: string | null
+  numero: string | null
+  cotasProtegidas: number
+  estado: 'encontrado' | 'historico' | 'critico' | 'inconclusivo'
+  motivo?: string
+}
+
 export type CondominioEspelhamento = {
+  auditoria?: { concluidaEm: string; administradora: string | null; encontrados: number; excecoes: AcordoAuditado[] }
   id: string
   nome: string
   nomeOperacional: string | null
@@ -87,6 +98,7 @@ export type CondominioEspelhamento = {
 export type ResultadoEspelhamento = {
   cotas?: number
   acordos?: number | null
+  auditoriaAcordos?: AcordoAuditado[]
   parcelasPagas?: number
   aplicadas?: number
   avisos?: string[]

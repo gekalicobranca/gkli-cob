@@ -1,6 +1,7 @@
 import { planejarPreJuridico } from './espelhamento-pre-juridico.mjs'
 import { planejarBorderoLello } from './espelhamento-bordero.mjs'
 import { planejarContatosEFlows } from './espelhamento-contatos-flows.mjs'
+import { auditarAcordosHomologados, acordoHomologadoVigente } from './espelhamento-auditoria-acordos.mjs'
 import { conferirCreditoRegistrado } from './espelhamento-repasses.mjs'
 
 function grupo(items, key) {
@@ -18,7 +19,7 @@ const emAberto = c => ['em_aberto', 'vencido', 'parcial'].includes(c.status_fina
 const centavos = v => Math.round(Number(v) * 100)
 const normalizar = s => String(s ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toUpperCase()
 
-function chaveUnidade(identificacao, bloco) {
+export function chaveUnidade(identificacao, bloco) {
   const unidade = normalizar(identificacao).replace(/[^A-Z0-9]/g, '').replace(/^0+(?=\w)/, '')
   const setor = normalizar(bloco).replace(/[^A-Z0-9]/g, '')
   return /^\d+$/.test(unidade) && /^[A-Z]$/.test(setor) ? unidade + setor : unidade
@@ -26,9 +27,9 @@ function chaveUnidade(identificacao, bloco) {
 
 const numeroRecibo = s => String(s ?? '').match(/\brecibo\s*:?\s*(?:(?:LELLO|AE|AJ|J|A|D|B|P)\s+)?(\d{6,})(?!\d)/i)?.[1] ?? null
 
-export async function lerEspelhoApp(db, condominioId, carteiraId) {
+function listarEspelhoApp(db, condominioId, carteiraId) {
   const base = query => query.eq('condominio_id', condominioId).eq('carteira_id', carteiraId)
-  async function listar(tabela, colunas, limitar = base) {
+  return async (tabela, colunas, limitar = base) => {
     const registros = []
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await limitar(db.from(tabela).select(colunas)).order('id').range(offset, offset + 499)
@@ -37,13 +38,27 @@ export async function lerEspelhoApp(db, condominioId, carteiraId) {
       if (data.length < 500) return registros
     }
   }
+}
+
+export async function lerIdentidadesAcordosApp(db, condominioId, carteiraId) {
+  const listar = listarEspelhoApp(db, condominioId, carteiraId)
+  const [unidades, acordos] = await Promise.all([
+    listar('unidades', 'id,identificacao,bloco'),
+    listar('acordos', 'id,unidade_id,status,acordo_homologado,updated_at,acordos_fontes_lello!inner(codigo_condominio,numero_acordo)'),
+  ])
+  return { unidades, acordos }
+}
+
+export async function lerEspelhoApp(db, condominioId, carteiraId) {
+  const listar = listarEspelhoApp(db, condominioId, carteiraId)
+  const base = query => query.eq('condominio_id', condominioId).eq('carteira_id', carteiraId)
   const [condominio, unidades, cotas, acordos, reguas] = await Promise.all([
     db.from('condominios').select('nome,vencimento_cota_dia,dias_apos_vencimento_regua,inicio_cobranca_dias,dias_cobranca_ativa,pre_juridico_habilitado,pre_juridico_minimo_cotas,carteiras:carteira_id(pre_juridico_habilitado),bloqueio_garantidora_habilitado,bloqueio_garantidora_inicio,bloqueio_garantidora_fim')
       .eq('id', condominioId).eq('carteira_id', carteiraId).eq('status', 'ativo').single(),
     listar('unidades', 'id,identificacao,bloco,acao_judicial,numero_processo,conducao_processo,responsavel_nome,responsavel_documento,email,telefone,updated_at'),
     listar('cobrancas', 'id,unidade_id,competencia,vencimento,valor_original,valor_atualizado,status_financeiro,status_operacional,data_pagamento,valor_pago,observacoes,automacao_bloqueada,updated_at',
       query => base(query).is('duplicada_de_id', null).is('duplicidade_arquivada_em', null).is('arquivada_em', null).not('excluida_por_cessao_espaco', 'is', true)),
-    listar('acordos', 'id,unidade_id,cobranca_id,tipo,numero_processo,status,status_financeiro,data_acordo,data_quitacao,valor_acordado,despesa_cobranca_valor,origem_controle,updated_at,acordos_fontes_lello(codigo_condominio,numero_acordo),parcelas_acordo(id,numero,vencimento,valor,status,data_pagamento,valor_repasse_informado,updated_at),acordo_cobrancas(cobranca_id)'),
+    listar('acordos', 'id,unidade_id,cobranca_id,tipo,numero_processo,status,status_financeiro,acordo_homologado,data_acordo,data_quitacao,valor_acordado,despesa_cobranca_valor,origem_controle,updated_at,acordos_fontes_lello(codigo_condominio,numero_acordo),parcelas_acordo(id,numero,vencimento,valor,status,data_pagamento,valor_repasse_informado,updated_at),acordo_cobrancas(cobranca_id)'),
     listar('reguas', 'id,ativo,status,etapas:regua_etapas(canal,ativo)', query => query.eq('carteira_id', carteiraId).eq('tipo', 'cobranca')),
   ])
   if (condominio.error) throw Error('Cadastro do condomínio indisponível.')
@@ -58,6 +73,13 @@ export async function lerPeriodosBordero(db, dataBase) {
 
 export function planejarEspelhoLello(portal, app, codigo) {
   const pendencias = [], alteracoes = []
+  const auditoriaAcordos = auditarAcordosHomologados(app, acordo => {
+    const verificacao = portal.verificacaoAcordos?.[acordo.id]
+    if (verificacao && verificacao.revisao !== acordo.updated_at) {
+      return { estado: 'inconclusivo', motivo: 'Cadastro alterado durante a consulta. Confira novamente.' }
+    }
+    return verificacao?.resultado ?? { estado: 'inconclusivo', motivo: 'Identidade ou histórico da unidade sem confirmação.' }
+  })
   const unidades = grupo(app.unidades, u => chaveUnidade(u.identificacao, u.bloco))
   const unidadesPorId = new Map(app.unidades.map(u => [u.id, u]))
   const cotasPorId = new Map(app.cotas.map(c => [c.id, c]))
@@ -284,7 +306,7 @@ export function planejarEspelhoLello(portal, app, codigo) {
   }
 
   for (const acordo of app.acordos) {
-    if (acordosEncontrados.has(acordo.id) || acordo.status === 'cancelado') continue
+    if (acordosEncontrados.has(acordo.id) || acordo.status === 'cancelado' || acordoHomologadoVigente(acordo)) continue
     const unidade = unidadesPorId.get(acordo.unidade_id)
     const fonte = acordo.acordos_fontes_lello
     const vinculo = cotasPorId.get(acordo.cobranca_id)
@@ -311,6 +333,7 @@ export function planejarEspelhoLello(portal, app, codigo) {
     parcelasPagas: portal.acordos.reduce((s, a) => s + a.parcelas.filter(p => p.situacao === 'Contabilizado').length, 0),
     preJuridico: { ...preJuridico, revisoesJudiciais },
     homologacoes,
+    auditoriaAcordos,
     contatosEFlows: planejarContatosEFlows({ fichas: portal.contatos ?? [], cotas: basePreJuridico, chaveUnidade, canais, prazoDias: regua, preJuridico }),
     bordero: bordero(periodo) ?? null,
     borderoAnterior: bordero(anterior) ?? null,

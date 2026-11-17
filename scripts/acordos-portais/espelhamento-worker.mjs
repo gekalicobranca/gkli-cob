@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { coletarEspelhoLello, FalhaTemporariaLello } from './espelhamento-lello.mjs'
-import { confirmarRepassesLello, lerEspelhoApp, lerPeriodosBordero, planejarEspelhoLello } from './espelhamento-conciliar.mjs'
+import { confirmarRepassesLello, lerEspelhoApp, lerIdentidadesAcordosApp, lerPeriodosBordero, planejarEspelhoLello } from './espelhamento-conciliar.mjs'
+import { auditarAcordosHomologados, situacaoAcordoDemonstrativo } from './espelhamento-auditoria-acordos.mjs'
 import fontesDoEspelhamento from './espelhamento-fontes.ts'
 import { coletarExtratos, completarFinanceiro, conferirDemonstrativo, planejarCotasPortais } from './espelhamento-portais.mjs'
 import { alvosContatoManager, basePreviaManager, planejarPreviasManager } from './espelhamento-manager.mjs'
@@ -68,7 +69,7 @@ async function processar(pedido) {
           const { error } = await db.rpc('easy_espelhamento_salvar_etapa', { p_id: pedido.id, p_tentativa: pedido.tentativas, p_etapa: nome, p_dados: dados })
           if (error) throw Error('Não foi possível guardar a etapa da coleta.')
         },
-      }))
+      }, () => lerIdentidadesAcordosApp(db, pedido.condominio_id, pedido.carteira_id)))
       etapa = 'conciliação com o GKLI Cob'
       const dataBase = new Date(portal.consultadoEm).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
       const [app, periodos] = await Promise.all([
@@ -119,7 +120,10 @@ async function processar(pedido) {
       } else if (['bbz_condopro_clock_vila_romana', 'captacao_atipass'].includes(receita.script_key)) {
         demonstrativo = await medir('Coleta de acordos', () => coletarAcordosWebware(db, pedido, receita.script_key === 'captacao_atipass' ? 'atipass' : 'bbz', signal)).catch(() => null)
       }
-      const acordos = conferirDemonstrativo(demonstrativo, app, base.pendencias)
+      const correspondencias = new Map()
+      const acordos = conferirDemonstrativo(demonstrativo, app, base.pendencias, correspondencias)
+      const auditoriaAcordos = auditarAcordosHomologados(app, a =>
+        situacaoAcordoDemonstrativo(correspondencias.get(a.id), demonstrativo !== null, manager))
       const limiteExtratos = manager && !pedido.aplicar ? Math.max(1, 14 * 60_000 - (Date.now() - inicio))
         : !pedido.aplicar && pedido.administradora === 'BBZ' ? Math.max(1, 16 * 60_000 - (Date.now() - inicio)) : 0
       const extratos = await medir('Coleta de extratos', () => coletarExtratos(db, pedido, receitas, app, alvos, signal, progresso, limiteExtratos))
@@ -143,7 +147,7 @@ async function processar(pedido) {
         if (cadastros.size < alvosContato.size) cap.avisos.push(`A Manager retornou fichas de ${cadastros.size} de ${alvosContato.size} unidades para conferir. Os contatos não confirmados ficam fora dos flows.`)
         if (!periodos.length) base.pendencias.push({ tipo: 'borderô', motivo: 'Nenhum período de fechamento configurado para a data da conferência.' })
       }
-      plano = { consultadoEm, cotas: cap.cotas.length, acordos, ...financeiro, ...previas,
+      plano = { consultadoEm, cotas: cap.cotas.length, acordos, auditoriaAcordos, ...financeiro, ...previas,
         fontes: cap.fontes, avisos: cap.avisos, extratosConsultados: extratos.size, alteracoes: base.alteracoes, pendencias: base.pendencias }
     }
     signal.throwIfAborted()
