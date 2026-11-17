@@ -225,21 +225,24 @@ function montarResumoAcordo(params: {
   responsavelTelefone?: string | null;
   valorBase: number;
   despesa: number;
+  cotaManual?: number;
+  despesaManual?: number;
   jurosAdicional?: number;
-  ajusteManual?: number;
   custoBoletos?: number;
   valorAcordado: number;
   entrada: number;
   quantidadeParcelas: number;
   primeiroVencimento: string;
-  parcelas: Array<{ numero: number; valor: number; vencimento: string; tipo_parcela?: string; juros?: number; amortizacao?: number; saldoDevedor?: number }>;
+  parcelas: Array<{ numero: number; valor: number; vencimento: string; tipo_parcela?: string; cota?: number; despesa?: number; juros?: number; amortizacao?: number; saldoDevedor?: number }>;
   tipo: string;
   numeroProcesso?: string | null;
 }) {
   const linhasParcelas = params.parcelas
     .map((parcela) => {
       const label = parcela.tipo_parcela === "entrada" ? "Entrada" : `Parcela ${parcela.numero}`;
-      return `${label}: ${formatBRL(Number(parcela.valor ?? 0))} · vencimento ${formatDate(parcela.vencimento)}`
+      return params.cotaManual !== undefined && params.despesaManual !== undefined
+        ? `${label}: Cota ${formatBRL(Number(parcela.cota ?? 0))} · Despesas ${formatBRL(Number(parcela.despesa ?? 0))} · Total ${formatBRL(Number(parcela.valor ?? 0))} · vencimento ${formatDate(parcela.vencimento)}`
+        : `${label}: ${formatBRL(Number(parcela.valor ?? 0))} · vencimento ${formatDate(parcela.vencimento)}`
         + (params.jurosAdicional && parcela.tipo_parcela !== "entrada" && parcela.juros !== undefined
           ? ` · Amortização: ${formatBRL(parcela.amortizacao ?? 0)} · Juros: ${formatBRL(parcela.juros)} · Saldo devedor: ${formatBRL(parcela.saldoDevedor ?? 0)}` : "");
     })
@@ -256,11 +259,11 @@ function montarResumoAcordo(params: {
     params.numeroProcesso ? `Processo: ${params.numeroProcesso}` : null,
     "",
     "Resumo financeiro:",
-    `Valor das cobranças: ${formatBRL(params.valorBase)}`,
-    `Despesa de cobrança: ${formatBRL(params.despesa)}`,
-    params.jurosAdicional ? `Juros pela tabela Price (1% ao mês sobre o saldo devedor): ${formatBRL(params.jurosAdicional)}` : null,
-    `Emissão de boletos: ${formatBRL(params.custoBoletos ?? 0)}`,
-    params.ajusteManual !== undefined ? `Ajuste manual sobre a simulação: ${formatBRL(params.ajusteManual)}` : null,
+    ...(params.cotaManual !== undefined && params.despesaManual !== undefined
+      ? [`Cotas no plano de pagamento: ${formatBRL(params.cotaManual)}`, `Despesas no plano de pagamento: ${formatBRL(params.despesaManual)}`]
+      : [`Valor das cobranças: ${formatBRL(params.valorBase)}`, `Despesa de cobrança: ${formatBRL(params.despesa)}`,
+        params.jurosAdicional ? `Juros pela tabela Price (1% ao mês sobre o saldo devedor): ${formatBRL(params.jurosAdicional)}` : null,
+        `Emissão de boletos: ${formatBRL(params.custoBoletos ?? 0)}`]),
     `Valor total do acordo: ${formatBRL(params.valorAcordado)}`,
     `Entrada: ${formatBRL(params.entrada)}`,
     `Quantidade de parcelas: ${params.quantidadeParcelas}`,
@@ -893,7 +896,7 @@ export async function createAcordo(formData: FormData) {
       p_fluxo_status: fluxoStatusInicial,
       p_exige_aprovacao_sindico: exigeAprovacaoSindico,
       p_documento_url: documentoUrl || null,
-      p_observacoes: [observacoes, planoManual ? `Plano editado manualmente pelo operador. Total calculado: ${formatBRL(calculoDespesas.total)}. Ajuste manual: ${formatBRL(ajusteManual)}. Total negociado: ${formatBRL(valorAcordado)}.` : "", calculoDespesas.custoBoletos > 0 ? `Emissão: ${calculoDespesas.quantidadeBoletos} boleto(s) × ${formatBRL(calculoDespesas.custoEmissaoBoleto)} = ${formatBRL(calculoDespesas.custoBoletos)}. Sem juros ou honorários sobre a emissão.` : "", calculoDespesas.jurosAdicional > 0
+      p_observacoes: [observacoes, planoManual ? `Plano editado manualmente pelo operador. Cotas: ${formatBRL(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.cota, 0))}. Despesas: ${formatBRL(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.despesa, 0))}. Total negociado: ${formatBRL(valorAcordado)}.` : "", calculoDespesas.custoBoletos > 0 ? `Emissão: ${calculoDespesas.quantidadeBoletos} boleto(s) × ${formatBRL(calculoDespesas.custoEmissaoBoleto)} = ${formatBRL(calculoDespesas.custoBoletos)}. Sem juros ou honorários sobre a emissão.` : "", calculoDespesas.jurosAdicional > 0
         ? `Juros pela tabela Price de 1% ao mês sobre o saldo devedor após a entrada: ${formatBRL(calculoDespesas.jurosAdicional)}.` : ""].filter(Boolean).join("\n") || null,
       p_itens: itensAcordo,
       p_parcelas: parcelas,
@@ -932,7 +935,8 @@ export async function createAcordo(formData: FormData) {
     despesa: despesaCobrancaValor,
     custoBoletos: calculoDespesas.custoBoletos,
     jurosAdicional: calculoDespesas.jurosAdicional,
-    ajusteManual: planoManual ? ajusteManual : undefined,
+    cotaManual: planoManual ? roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.cota, 0)) : undefined,
+    despesaManual: planoManual ? roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.despesa, 0)) : undefined,
     valorAcordado,
     entrada,
     quantidadeParcelas,
