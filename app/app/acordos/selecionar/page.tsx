@@ -44,6 +44,7 @@ function getValorAtualizado(cobranca: any) {
 function isBloqueada(cobranca: any) {
   const status = getCobrancaStatusOperacional(cobranca);
   return (
+    cobranca.bloqueada_por_acordo_existente ||
     cobranca.unidade_bloqueada_por_judicializacao ||
     (COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(status)
   );
@@ -199,7 +200,7 @@ export default async function SelecionarCobrancasAcordoPage({
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 Marque apenas os recibos que farão parte do acordo. Para incluir a cota do mês fora da régua, selecione o recibo e marque a opção somente com autorização da administradora. A isenção de despesas vale apenas à vista; no parcelamento, a cota também gera despesas. Débitos fora
                 da régua aparecem aqui também; cobranças já bloqueadas para novo
-                acordo ficam travadas. Unidades com judicialização ativa também bloqueiam novas dívidas/vincendas para acordo.
+                acordo ficam travadas. Um acordo existente na unidade não bloqueia cotas diferentes. Unidades com judicialização ativa também bloqueiam novas dívidas/vincendas para acordo.
               </p>
               {acordoBloqueadoPorJudicializacao ? (
                 <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
