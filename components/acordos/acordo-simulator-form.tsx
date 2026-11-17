@@ -403,9 +403,14 @@ export function AcordoSimulatorForm({
     let manualError = "";
     try { manual = lerPlanoManual(easyManualPlan ? JSON.stringify(easyManualPlan) : null, preview.parcelas.length); }
     catch (error) { manualError = error instanceof Error ? error.message : "Confira as parcelas."; }
-    const reviewParcels = manual?.parcelas ?? preview.parcelas;
+    const reviewParcels = manual?.parcelas ?? preview.parcelas.map(parcela => ({
+      ...parcela,
+      cota: parcela.amortizacao,
+      despesa: roundMoney(parcela.valor - parcela.amortizacao),
+    }));
     const reviewTotal = manual?.total ?? preview.total;
-    const ajusteManual = roundMoney(reviewTotal - preview.total);
+    const reviewCota = roundMoney(reviewParcels.reduce((sum, parcela) => sum + parcela.cota, 0));
+    const reviewDespesa = roundMoney(reviewParcels.reduce((sum, parcela) => sum + parcela.despesa, 0));
     const paymentLines = reviewParcels.map(parcela =>
       `Parcela ${parcela.numero} · ${formatDateBR(parcela.vencimento)} · Cota ${formatCurrency(parcela.cota ?? parcela.valor)} · Despesa ${formatCurrency(parcela.despesa ?? 0)} · Total ${formatCurrency(parcela.valor)}`,
     );
@@ -416,11 +421,8 @@ export function AcordoSimulatorForm({
       "Cobranças selecionadas:",
       ...cobrancasSelecionadas.map(item => `${item.competencia || "Cobrança"} · ${formatDateBR(item.vencimento)} · ${formatCurrency(getValorAtualizado(item))}`),
       "",
-      `Subtotal das cobranças: ${formatCurrency(preview.valorOriginal)}`,
-      `Despesas de cobrança: ${formatCurrency(preview.despesaCobranca)}`,
-      `Emissão de boletos: ${formatCurrency(preview.custoBoletos)}`,
-      ...(preview.jurosAdicional > 0 ? [`Juros do parcelamento (Price, 1% ao mês): ${formatCurrency(preview.jurosAdicional)}`] : []),
-      ...(easyManualPlan ? [`Ajuste manual sobre a simulação: ${formatCurrency(ajusteManual)}`] : []),
+      `Cotas no plano de pagamento: ${formatCurrency(reviewCota)}`,
+      `Despesas no plano de pagamento: ${formatCurrency(reviewDespesa)}`,
       `Total: ${formatCurrency(reviewTotal)}`,
       "",
       ...paymentLines,
@@ -518,11 +520,8 @@ export function AcordoSimulatorForm({
                 <p className="mt-3 text-xs text-cyan-100">{preview.parcelas.length === 1 ? "Pagamento à vista" : `${preview.parcelas.length} parcelas${easyManualPlan ? "" : " mensais"}`}</p>
               </div>
               <dl className="space-y-2 text-sm">
-                <div className="flex justify-between gap-3"><dt className="text-slate-600">Cotas atualizadas</dt><dd className="font-medium tabular-nums">{formatCurrency(preview.valorOriginal)}</dd></div>
-                <div className="flex justify-between gap-3"><dt className="text-slate-600">Despesas de cobrança</dt><dd className="font-medium tabular-nums">{formatCurrency(preview.despesaCobranca)}</dd></div>
-                {preview.jurosAdicional > 0 && <div className="flex justify-between gap-3"><dt className="text-slate-600">Juros Price · 1% ao mês</dt><dd className="font-medium tabular-nums">{formatCurrency(preview.jurosAdicional)}</dd></div>}
-                <div className="flex justify-between gap-3"><dt className="text-slate-600">Emissão de boletos</dt><dd className="font-medium tabular-nums">{formatCurrency(preview.custoBoletos)}</dd></div>
-                {easyManualPlan && <div className="flex justify-between gap-3"><dt className="text-slate-600">Ajuste manual</dt><dd className="font-medium tabular-nums">{formatCurrency(ajusteManual)}</dd></div>}
+                <div className="flex justify-between gap-3"><dt className="text-slate-600">Cotas no plano</dt><dd className="font-medium tabular-nums">{formatCurrency(reviewCota)}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-600">Despesas no plano</dt><dd className="font-medium tabular-nums">{formatCurrency(reviewDespesa)}</dd></div>
               </dl>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
