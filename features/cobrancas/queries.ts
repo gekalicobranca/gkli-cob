@@ -349,6 +349,30 @@ export function ordenarCobrancasPorCampoRelacionado(rows: any[], orderBy?: strin
   })
 }
 
+function compareCobrancasForReport(left: any, right: any, orderBy?: string) {
+  let comparison = 0
+  if (orderBy === 'condominio') comparison = compareText(left.condominios?.nome, right.condominios?.nome)
+  else if (orderBy === 'unidade') comparison = compareText(left.unidades?.bloco, right.unidades?.bloco)
+    || compareText(left.unidades?.identificacao, right.unidades?.identificacao)
+  else if (orderBy === 'responsavel') comparison = compareText(left.unidades?.responsavel_nome, right.unidades?.responsavel_nome)
+  else if (orderBy === 'valor_desc') comparison = Number(right.valor_atualizado ?? 0) - Number(left.valor_atualizado ?? 0)
+  else if (orderBy === 'valor_asc') comparison = Number(left.valor_atualizado ?? 0) - Number(right.valor_atualizado ?? 0)
+  else if (orderBy === 'status') comparison = compareText(left.status_operacional ?? left.status, right.status_operacional ?? right.status)
+  else if (orderBy === 'vencimento_desc') comparison = compareDate(right.vencimento, left.vencimento)
+  else comparison = compareDate(left.vencimento, right.vencimento)
+
+  if (comparison) return comparison
+  if (orderBy === 'valor_desc' || orderBy === 'valor_asc' || orderBy === 'status'
+    || RELATED_ORDER_FIELDS.has(String(orderBy ?? ''))) {
+    return compareDate(left.vencimento, right.vencimento) || compareText(left.id, right.id)
+  }
+  return compareText(left.id, right.id)
+}
+
+export function ordenarCobrancasParaRelatorio(rows: any[], orderBy?: string) {
+  return [...rows].sort((left, right) => compareCobrancasForReport(left, right, orderBy))
+}
+
 export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListFilters = {}) {
   const supabase = await createClient()
   const limit = Number(filters.limit ?? 0)
