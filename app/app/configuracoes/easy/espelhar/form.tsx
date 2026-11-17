@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { Check, ScanLine } from 'lucide-react'
 import { EasyEmpty } from '@/components/easy/easy-ui'
 import styles from '@/components/easy/easy.module.css'
@@ -13,6 +14,8 @@ import type { CondominioEspelhamento, ResultadoEspelhamento } from './types'
 const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const data = (valor: string) => dataCivilSaoPaulo(new Date(valor)).split('-').reverse().join('/')
 const emAndamento = (c: CondominioEspelhamento) => c.execucao?.estado === 'fila' || c.execucao?.estado === 'processando'
+const permiteAplicar = (c: CondominioEspelhamento) => c.liberacao === 'cotas' || c.liberacao === 'completo'
+type AcaoEspelhamento = 'conferir' | 'espelhar'
 const rotulos: Record<string, string> = {
   cota_aberta: 'Atualizar cota', cota_paga: 'Baixa de cota', parcela_paga: 'Baixa de parcela',
   vinculo: 'Vincular recibo ao acordo', acordo_novo: 'Cadastrar acordo', acordo_cancelado: 'Cancelar acordo',
@@ -23,19 +26,22 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
   const [condominios, setCondominios] = useState(inicial)
   const [administradora, setAdministradora] = useState('')
   const [selecionados, setSelecionados] = useState<string[]>([])
-  const [aplicar, setAplicar] = useState(false)
-  const [enviando, setEnviando] = useState(false)
+  const [enviando, setEnviando] = useState<AcaoEspelhamento | null>(null)
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
   const [entregando, setEntregando] = useState<string | null>(null)
   const [entregas, setEntregas] = useState<Record<string, { error?: string; mensagem?: string }>>({})
   const [detalhes, setDetalhes] = useState<Record<string, ResultadoEspelhamento | 'carregando' | 'erro'>>({})
-  const lote = useRef<string | null>(null)
+  const lotes = useRef<Partial<Record<AcaoEspelhamento, string>>>({})
   const campoAnexo = useRef<HTMLInputElement>(null)
   const administradoras = [...new Set(condominios.flatMap(c => c.administradoras))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const condominiosDaAdministradora = condominios.filter(c => c.administradoras.includes(administradora))
-  const disponiveis = condominiosDaAdministradora.filter(c => c.liberado && !emAndamento(c) && (!aplicar || c.liberacao === 'cotas' || c.liberacao === 'completo'))
-  const selecao = disponiveis.filter(c => selecionados.includes(c.id)).map(c => c.id)
+  const disponiveis = condominiosDaAdministradora.filter(c => c.liberado && !emAndamento(c))
+  const disponiveisIds = new Set(disponiveis.map(c => c.id))
+  const selecao = disponiveis.filter(c => selecionados.includes(c.id))
+  const selecaoIds = new Set(selecao.map(c => c.id))
+  const totalEmRevisao = selecao.filter(c => !permiteAplicar(c)).length
+  const podeSolicitar = podeExecutar && Boolean(administradora) && selecao.length > 0 && !enviando
   const atualizando = condominios.some(emAndamento)
   const mesAtual = dataCivilSaoPaulo().slice(0, 7)
 
@@ -60,35 +66,38 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
   }, [atualizando])
 
   function selecionar(ids: string[]) {
-    lote.current = null
+    lotes.current = {}
     if (campoAnexo.current) campoAnexo.current.value = ''
     setSelecionados(ids)
     setMensagem('')
     setErro('')
   }
 
-  async function iniciar() {
-    if (enviando || !administradora || !selecao.length) return
-    setEnviando(true)
+  async function iniciar(acao: AcaoEspelhamento) {
+    const aplicar = acao === 'espelhar'
+    if (!podeSolicitar || (aplicar && totalEmRevisao > 0)) return
+    setEnviando(acao)
     setErro('')
     setMensagem('')
-    lote.current ??= crypto.randomUUID()
+    const lote = lotes.current[acao] ??= crypto.randomUUID()
     try {
       const arquivo = campoAnexo.current?.files?.[0]
       const anexo = arquivo ? new FormData() : undefined
       if (arquivo && anexo) anexo.set('demonstrativo', arquivo)
-      const resposta = await solicitarEspelhamento(selecao, lote.current, aplicar, administradora, anexo)
+      const resposta = await solicitarEspelhamento([...selecaoIds], lote, aplicar, administradora, anexo)
       if (resposta.error) {
         setErro(resposta.error)
         return
       }
       setCondominios(await consultarEspelhamentos())
       selecionar([])
-      setMensagem(resposta.quantidade ? 'Solicitação registrada. Acompanhe o andamento na lista.' : 'As solicitações já foram registradas.')
+      setMensagem(resposta.quantidade
+        ? aplicar ? 'Espelhamento solicitado. Acompanhe o andamento na lista.' : 'Conferência solicitada. Acompanhe o andamento na lista.'
+        : 'As solicitações já foram registradas.')
     } catch {
       setErro('Não foi possível confirmar a solicitação. Tente novamente para atualizar o mesmo pedido.')
     } finally {
-      setEnviando(false)
+      setEnviando(null)
     }
   }
 
@@ -133,27 +142,31 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
         <label htmlFor="espelhar-administradora" className="text-sm font-semibold">Qual administradora?</label>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <select id="espelhar-administradora" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"
-            value={administradora} disabled={enviando} onChange={event => { setAdministradora(event.target.value); selecionar([]) }}>
+            value={administradora} disabled={Boolean(enviando)} onChange={event => { setAdministradora(event.target.value); selecionar([]) }}>
             <option value="">Selecione a administradora</option>
             {administradoras.map(nome => <option key={nome} value={nome}>{nome}</option>)}
           </select>
-          <button type="button" className={styles.primary} disabled={!podeExecutar || !administradora || !selecao.length || enviando} onClick={iniciar}>
-            <ScanLine size={16} aria-hidden="true" /> {enviando ? 'Registrando…' : aplicar ? 'Espelhar agora' : 'Só conferir'}
+          <button type="button" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+            disabled={!podeSolicitar} onClick={() => iniciar('conferir')}>
+            {enviando === 'conferir' ? 'Registrando conferência…' : 'Só conferir'}
+          </button>
+          <button type="button" className={styles.primary} disabled={!podeSolicitar || totalEmRevisao > 0}
+            aria-describedby={totalEmRevisao ? 'espelhar-liberacao' : undefined} onClick={() => iniciar('espelhar')}>
+            <ScanLine size={16} aria-hidden="true" /> {enviando === 'espelhar' ? 'Registrando espelhamento…' : 'Espelhar agora'}
           </button>
         </div>
-        <label className="mt-4 inline-flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-0.5 h-4 w-4" checked={aplicar} disabled={!podeExecutar || enviando}
-            onChange={event => { setAplicar(event.target.checked); lote.current = null }} />
-          Aplicar ajustes comprovados no app
-        </label>
         {administradora && <p className="mt-3 text-sm text-slate-600">{selecao.length} de {disponiveis.length} disponíveis selecionados.</p>}
+        {totalEmRevisao > 0 && <p id="espelhar-liberacao" className="mt-2 text-sm text-amber-800">
+          {totalEmRevisao === 1 ? 'Um condomínio selecionado está em revisão.' : `${totalEmRevisao} condomínios selecionados estão em revisão.`}
+          {' '}Só conferir está disponível. Para usar Espelhar agora, a gestão precisa liberar esses condomínios no cadastro.
+        </p>}
         {podeExecutar && selecao.length === 1 && (
           <details className="mt-3 text-sm">
             <summary className="cursor-pointer font-semibold">Anexar demonstrativo de repasses</summary>
             <label htmlFor="espelhar-demonstrativo" className="mt-2 block">CSV da administradora, até 256 KB</label>
             <p id="espelhar-colunas" className="mt-1 text-xs text-slate-600">Colunas separadas por ponto e vírgula: CNPJ, Recibo, Referência do repasse, Data de crédito do repasse e Valor do repasse creditado.</p>
             <input ref={campoAnexo} id="espelhar-demonstrativo" type="file" accept=".csv,text/csv" aria-describedby="espelhar-colunas"
-              className="mt-2 block w-full" disabled={enviando} onChange={() => { lote.current = null }} />
+              className="mt-2 block w-full" disabled={Boolean(enviando)} onChange={() => { lotes.current = {} }} />
           </details>
         )}
         {mensagem && <p role="status" className="mt-3 text-sm text-cyan-900">{mensagem}</p>}
@@ -164,7 +177,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
           <h2>Condomínios da administradora</h2>
           <label className="mt-3 inline-flex items-center gap-2 text-sm font-semibold">
             <input type="checkbox" className="h-4 w-4" checked={disponiveis.length > 0 && selecao.length === disponiveis.length}
-              disabled={!podeExecutar || enviando || !disponiveis.length} onChange={event => selecionar(event.target.checked ? disponiveis.map(c => c.id) : [])} />
+              disabled={!podeExecutar || Boolean(enviando) || !disponiveis.length} onChange={event => selecionar(event.target.checked ? [...disponiveisIds] : [])} />
             Selecionar todos os disponíveis
           </label>
           <ul className="mt-3 divide-y divide-slate-100">
@@ -183,13 +196,18 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
                 <li key={c.id} className={`px-3 py-3 text-sm ${noMes ? 'bg-emerald-50' : ''}`}>
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="inline-flex items-center gap-2 font-semibold">
-                      <input type="checkbox" className="h-4 w-4" checked={selecao.includes(c.id)} disabled={!podeExecutar || enviando || !disponiveis.some(disponivel => disponivel.id === c.id)}
+                      <input type="checkbox" className="h-4 w-4" checked={selecaoIds.has(c.id)} disabled={!podeExecutar || Boolean(enviando) || !disponiveisIds.has(c.id)}
                         onChange={event => selecionar(event.target.checked ? [...selecionados, c.id] : selecionados.filter(id => id !== c.id))} />
                       {nomeCondominioEasy(c.nome, c.nomeOperacional)}
                       <span className={styles.badge}>
-                        {c.liberacao === 'completo' ? 'Liberado' : c.liberacao === 'cotas' ? 'Liberado só para cotas' : 'Em revisão'}
+                        {c.liberacao === 'completo' ? 'Liberado' : c.liberacao === 'cotas' ? 'Liberado só para cotas' : 'Em revisão · só conferência'}
                       </span>
                     </label>
+                    {podeAprovarBordero && !permiteAplicar(c) && (
+                      <Link href={`/app/condominios/${c.id}?aba=cobranca#cobranca`} prefetch={false} className="text-xs font-semibold text-cyan-800 underline">
+                        Configurar liberação
+                      </Link>
+                    )}
                     {c.ultimoEspelhamentoEm && <span className={styles.badge}><Check size={13} aria-hidden="true" />{noMes ? 'Espelhado no mês' : 'Último espelhamento'} · {data(c.ultimoEspelhamentoEm)}</span>}
                     {c.ultimaConferenciaEm && <span className="text-xs text-slate-600">Conferido em {data(c.ultimaConferenciaEm)}</span>}
                     {execucao?.estado === 'fila' && <span className={styles.badge}>Na fila</span>}
