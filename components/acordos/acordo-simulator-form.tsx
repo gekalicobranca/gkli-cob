@@ -407,7 +407,7 @@ export function AcordoSimulatorForm({
     const reviewTotal = manual?.total ?? preview.total;
     const ajusteManual = roundMoney(reviewTotal - preview.total);
     const paymentLines = reviewParcels.map(parcela =>
-      `Parcela ${parcela.numero} · ${formatDateBR(parcela.vencimento)} · ${formatCurrency(parcela.valor)}`,
+      `Parcela ${parcela.numero} · ${formatDateBR(parcela.vencimento)} · Cota ${formatCurrency(parcela.cota ?? parcela.valor)} · Despesa ${formatCurrency(parcela.despesa ?? 0)} · Total ${formatCurrency(parcela.valor)}`,
     );
     const simulationText = [
       `Condomínio: ${cobrancaSelecionada?.condominios?.nome}`,
@@ -532,25 +532,28 @@ export function AcordoSimulatorForm({
               <div className="flex flex-wrap gap-2">
                 {easyManualPlan && <Button type="button" variant="ghost" disabled={isCreatingAcordo} onClick={() => { setEasyManualPlan(null); setEasyEditing(false); setEasyCopyStatus(""); }}>Restaurar cálculo</Button>}
                 <Button type="button" variant="secondary" disabled={isCreatingAcordo || (easyEditing && Boolean(manualError))} onClick={() => {
-                  if (!easyManualPlan) setEasyManualPlan(preview.parcelas.map(p => ({ numero: p.numero, valor: p.valor.toFixed(2).replace('.', ','), vencimento: p.vencimento })));
+                  if (!easyManualPlan) setEasyManualPlan(preview.parcelas.map(p => ({ numero: p.numero, cota: p.amortizacao.toFixed(2).replace('.', ','), despesa: Math.max(0, p.valor - p.amortizacao).toFixed(2).replace('.', ','), vencimento: p.vencimento })));
                   setEasyEditing(!easyEditing); setEasyCopyStatus("");
                 }}>{easyEditing ? "Concluir edição" : "Editar manualmente"}</Button>
               </div>
             </div>
-            {easyEditing && <p className="text-sm text-slate-600">Altere valores e vencimentos abaixo. O total será a soma das parcelas informadas.</p>}
+            {easyEditing && <p className="text-sm text-slate-600">Altere separadamente o valor de cota e as despesas de cada parcela. O total é calculado automaticamente.</p>}
             {manualError && <p role="alert" className="text-sm text-rose-700">{manualError}</p>}
             <div className="max-h-64 overflow-auto rounded-xl border border-slate-200">
               <table className="w-full text-left text-sm">
                 <caption className="sr-only">Parcelas da simulação</caption>
                 <thead className="sticky top-0 bg-slate-50 text-slate-600"><tr>
-                  <th scope="col" className="px-4 py-3 font-medium">Parcela</th><th scope="col" className="px-4 py-3 font-medium">Vencimento</th><th scope="col" className="px-4 py-3 text-right font-medium">Valor</th>
+                  <th scope="col" className="px-4 py-3 font-medium">Parcela</th><th scope="col" className="px-4 py-3 font-medium">Vencimento</th><th scope="col" className="px-4 py-3 text-right font-medium">Cota</th><th scope="col" className="px-4 py-3 text-right font-medium">Despesa</th><th scope="col" className="px-4 py-3 text-right font-medium">Total</th>
                 </tr></thead>
                 <tbody className="divide-y divide-slate-100">{reviewParcels.map((parcela, index) => <tr key={parcela.numero}>
                   <td className="px-4 py-3">{preview.parcelas.length === 1 ? "Única" : `${parcela.numero} de ${preview.parcelas.length}`}</td>
                   <td className="px-4 py-3 tabular-nums">{easyEditing ? <Input aria-label={`Vencimento da parcela ${parcela.numero}`} type="date" disabled={isCreatingAcordo} required value={easyManualPlan?.[index]?.vencimento ?? ''}
                     onInput={event => { const vencimento = event.currentTarget.value; setEasyManualPlan(plan => plan?.map((p, i) => i === index ? { ...p, vencimento } : p) ?? null); setEasyCopyStatus(""); }} /> : formatDateBR(parcela.vencimento)}</td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{easyEditing ? <Input aria-label={`Valor da parcela ${parcela.numero}`} inputMode="decimal" disabled={isCreatingAcordo} required className="min-w-24 text-right" value={easyManualPlan?.[index]?.valor ?? ''}
-                    onChange={event => { setEasyManualPlan(plan => plan?.map((p, i) => i === index ? { ...p, valor: event.target.value } : p) ?? null); setEasyCopyStatus(""); }} /> : formatCurrency(parcela.valor)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{easyEditing ? <Input aria-label={`Cota da parcela ${parcela.numero}`} inputMode="decimal" disabled={isCreatingAcordo} required className="min-w-24 text-right" value={easyManualPlan?.[index]?.cota ?? ''}
+                    onChange={event => { setEasyManualPlan(plan => plan?.map((p, i) => i === index ? { ...p, cota: event.target.value } : p) ?? null); setEasyCopyStatus(""); }} /> : formatCurrency(parcela.cota ?? parcela.valor)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{easyEditing ? <Input aria-label={`Despesa da parcela ${parcela.numero}`} inputMode="decimal" disabled={isCreatingAcordo} required className="min-w-24 text-right" value={easyManualPlan?.[index]?.despesa ?? '0,00'}
+                    onChange={event => { setEasyManualPlan(plan => plan?.map((p, i) => i === index ? { ...p, despesa: event.target.value } : p) ?? null); setEasyCopyStatus(""); }} /> : formatCurrency(parcela.despesa ?? 0)}</td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatCurrency(parcela.valor)}</td>
                 </tr>)}</tbody>
               </table>
             </div>

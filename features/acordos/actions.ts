@@ -842,10 +842,15 @@ export async function createAcordo(formData: FormData) {
 
   const saldoParcelado = roundMoney(valorAcordado - entrada);
   if (planoManual) {
-    const totais = ratearTotalManual(valorAcordado, itensAcordo.map(item => item.valor_total_no_acordo));
+    const totalCotas = roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.cota, 0));
+    const totalDespesas = roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.despesa, 0));
+    const basesCota = itensAcordo.map((item, index) => Math.max(0, item.valor_atualizado_no_acordo - calculoDespesas.itens[index].credito));
+    const basesDespesa = itensAcordo.map(item => Math.max(0, item.encargos_no_acordo));
+    const cotasRateadas = ratearTotalManual(totalCotas, basesCota);
+    const despesasRateadas = ratearTotalManual(totalDespesas, basesDespesa.some(base => base > 0) ? basesDespesa : basesCota);
     itensAcordo.forEach((item, index) => {
-      item.valor_total_no_acordo = totais[index];
-      item.encargos_no_acordo = roundMoney(Math.max(0, totais[index] - cobrancasComValores[index].valor_base_acordo + calculoDespesas.itens[index].credito));
+      item.valor_total_no_acordo = roundMoney(cotasRateadas[index] + despesasRateadas[index]);
+      item.encargos_no_acordo = despesasRateadas[index];
     });
   }
   const parcelas = [];
