@@ -346,17 +346,34 @@ export async function POST(request: NextRequest) {
 
       const vencimentoMaisAntigo = vencimentoPorRecibo ?? vencimentos[0] ?? null
 
+      // A Lello usa bloco "0" em condomínios sem divisão por blocos. Preserve
+      // esse valor na busca literal, mas trate-o como ausência de bloco na
+      // correspondência normalizada para evitar duplicar unidades.
+      const blocoZero = /^0+$/.test(blocoLabel.trim())
+      const blocosReais = blocoZero
+        ? await supabase.from("unidades").select("bloco").eq("condominio_id", condominioId)
+          .not("bloco", "is", null).neq("bloco", "")
+        : null
+      if (blocosReais?.error) throw new Error(`Erro ao conferir blocos do condomínio: ${blocosReais.error.message}`)
+      const temBlocosReais = blocosReais?.data?.some(({ bloco }: { bloco: string | null }) => !/^0+$/.test(String(bloco ?? "").trim()))
+      const blocoParaCorrespondencia = blocoZero && !temBlocosReais
+        ? null
+        : /^(?:sem bloco|n\/?a|na)$/i.test(blocoLabel.trim())
+          ? null
+          : blocoLabel
+      const blocoLiteral = blocoZero && !temBlocosReais ? blocoLabel : blocoParaCorrespondencia
+
       const unidadeExistente = await buscarUnidadeLiteral(supabase, {
         condominioId,
         identificacao: unidadeLabel,
-        bloco: blocoLabel,
+        bloco: blocoLiteral,
       })
       const unidadeSugerida = unidadeExistente
         ? null
         : await buscarPossivelUnidadePorNormalizacao(supabase as any, {
             condominioId,
             identificacao: unidadeLabel,
-            bloco: blocoLabel,
+            bloco: blocoParaCorrespondencia,
           })
 
       let unidadeUsada: UnidadeSaneamentoRow | null = unidadeExistente ?? unidadeSugerida

@@ -166,7 +166,14 @@ function classificarCandidato(
     && (reciboImportado.recibo === reciboExistente.recibo || reciboImportado.recibo === chaveLegada?.toUpperCase()));
   const mesmaReferencia = temMesmaReferencia(importada, existente);
   const mesmoVencimento = existente.vencimento === importada.vencimento;
-  if (!mesmoRecibo && !(mesmoVencimento && mesmaReferencia && temMesmaCompetencia(importada, existente) && statusAberto(existente))) return null;
+  const mesmaUnidadeDebitoPreservado = preservarQuitadas
+    && existente.unidade_id === importada.unidade_id
+    && mesmoVencimento
+    && temMesmaCompetencia(importada, existente)
+    && cents(importada.valor_original ?? importada.valor_atualizado)
+      === cents(existente.valor_original ?? existente.valor_atualizado);
+  if (!mesmoRecibo && !mesmaUnidadeDebitoPreservado
+    && !(mesmoVencimento && mesmaReferencia && temMesmaCompetencia(importada, existente) && statusAberto(existente))) return null;
   const mesmoOriginal = cents(importada.valor_original ?? importada.valor_atualizado) === cents(existente.valor_original ?? existente.valor_atualizado);
   const mesmoAtualizado = cents(importada.valor_atualizado ?? importada.valor_original) === cents(existente.valor_atualizado ?? existente.valor_original);
   const marcadorConflitante = mesmoRecibo && reciboImportado?.marcador !== reciboExistente?.marcador;
@@ -433,8 +440,18 @@ export async function conciliarCobrancaImportada(
       if (preservadas && resultado?.status === 'atualizar') {
         const recebido = identidadeRecibo(cobranca)?.recibo;
         if (!recebido || recebido !== identidadeRecibo(candidata)?.recibo) {
-          resultados.push({ candidata, resultado: { status: 'divergente', motivo: 'Recibo sem correspondência segura para atualização.' } });
-          continue;
+          // A mesma unidade, carteira, data, competência e principal são uma
+          // chave segura para recibos Lello legados sem identificador comum.
+          const mesmaUnidadeDebito = candidata.unidade_id === cobranca.unidade_id
+            && candidata.vencimento === cobranca.vencimento
+            && temMesmaCompetencia(cobranca, candidata)
+            && candidata.carteira_id === cobranca.carteira_id
+            && cents(cobranca.valor_original ?? cobranca.valor_atualizado)
+              === cents(candidata.valor_original ?? candidata.valor_atualizado);
+          if (!mesmaUnidadeDebito) {
+            resultados.push({ candidata, resultado: { status: 'divergente', motivo: 'Recibo sem correspondência segura para atualização.' } });
+            continue;
+          }
         }
       }
       if (resultado) resultados.push({ candidata, resultado });

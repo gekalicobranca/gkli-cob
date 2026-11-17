@@ -193,7 +193,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
                           {receita.condominio}
                         </label>
                       ) : <p className="font-semibold">{receita.condominio}</p>}
-                      {receita.ultimaCaptacaoNoMes && (
+                      {receita.ultimaCaptacaoNoMes && receita.estado !== 'revisar' && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">
                           <Check size={13} aria-hidden="true" />
                           {consolidado ? 'Captado no consolidado' : 'Captado no mês'} · {new Date(consolidado?.captadoEm ?? receita.ultimaCaptacaoNoMes).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
