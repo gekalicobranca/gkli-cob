@@ -842,10 +842,15 @@ export async function createAcordo(formData: FormData) {
 
   const saldoParcelado = roundMoney(valorAcordado - entrada);
   if (planoManual) {
-    const totais = ratearTotalManual(valorAcordado, itensAcordo.map(item => item.valor_total_no_acordo));
+    const totalCotas = roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.cota, 0));
+    const totalDespesas = roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.despesa, 0));
+    const basesCota = itensAcordo.map((item, index) => Math.max(0, item.valor_atualizado_no_acordo - calculoDespesas.itens[index].credito));
+    const basesDespesa = itensAcordo.map(item => Math.max(0, item.encargos_no_acordo));
+    const cotasRateadas = ratearTotalManual(totalCotas, basesCota);
+    const despesasRateadas = ratearTotalManual(totalDespesas, basesDespesa.some(base => base > 0) ? basesDespesa : basesCota);
     itensAcordo.forEach((item, index) => {
-      item.valor_total_no_acordo = totais[index];
-      item.encargos_no_acordo = roundMoney(Math.max(0, totais[index] - cobrancasComValores[index].valor_base_acordo + calculoDespesas.itens[index].credito));
+      item.valor_total_no_acordo = roundMoney(cotasRateadas[index] + despesasRateadas[index]);
+      item.encargos_no_acordo = despesasRateadas[index];
     });
   }
   const parcelas = [];
@@ -881,7 +886,9 @@ export async function createAcordo(formData: FormData) {
       p_entrada: entrada,
       p_despesa_cobranca_percentual: despesaCobrancaValor > 0 ? despesaCobrancaPercentual : 0,
       p_despesa_cobranca_valor: despesaCobrancaValor,
-      p_data_acordo: dataAcordoInformada || (saldoParcelado > 0 ? primeiroVencimento : entradaVencimento),
+      p_data_acordo: formData.get("origem_easy") === "1"
+        ? dataCivilSaoPaulo()
+        : dataAcordoInformada || (saldoParcelado > 0 ? primeiroVencimento : entradaVencimento),
       p_status: ACORDO_STATUS.ATIVO,
       p_fluxo_status: fluxoStatusInicial,
       p_exige_aprovacao_sindico: exigeAprovacaoSindico,

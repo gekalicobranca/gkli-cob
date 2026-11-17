@@ -1,7 +1,12 @@
 import { dataCivilValida } from '@/lib/core/data-civil';
 import { moneyFromForm } from '@/utils/formatters/parse-money';
 
-export type ParcelaManual = { numero: number; valor: string; vencimento: string };
+export type ParcelaManual = {
+  numero: number;
+  cota: string;
+  despesa: string;
+  vencimento: string;
+};
 export function lerPlanoManual(raw: unknown, quantidade: number) {
   if (raw === null || raw === undefined || raw === '') return null;
   if (typeof raw !== 'string' || raw.length > 20000) throw new Error('Plano manual inválido.');
@@ -14,9 +19,11 @@ export function lerPlanoManual(raw: unknown, quantidade: number) {
     if (!item || item.numero !== index + 1 || !dataCivilValida(item.vencimento)) {
       throw new Error(`Informe um vencimento válido para a parcela ${index + 1}.`);
     }
-    const valor = moneyFromForm(item.valor, `Parcela ${index + 1}`, { format: 'form' });
-    if (valor <= 0 || valor > 9999999999.99) throw new Error(`Informe um valor maior que zero para a parcela ${index + 1}.`);
-    return { numero: index + 1, valor, vencimento: item.vencimento as string };
+    const cota = moneyFromForm(item.cota, `Cota da parcela ${index + 1}`, { format: 'form' });
+    const despesa = moneyFromForm(item.despesa, `Despesa da parcela ${index + 1}`, { format: 'form' });
+    if (cota <= 0 || cota > 9999999999.99) throw new Error(`Informe um valor de cota maior que zero para a parcela ${index + 1}.`);
+    if (despesa < 0 || despesa > 9999999999.99) throw new Error(`Informe uma despesa válida para a parcela ${index + 1}.`);
+    return { numero: index + 1, cota, despesa, valor: Math.round((cota + despesa) * 100) / 100, vencimento: item.vencimento as string };
   });
   const totalCentavos = parcelas.reduce((sum, parcela) => sum + Math.round(parcela.valor * 100), 0);
   if (totalCentavos > 999999999999) throw new Error('Total manual acima do limite permitido.');
