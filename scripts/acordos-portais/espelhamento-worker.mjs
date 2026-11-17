@@ -5,6 +5,7 @@ import { auditarAcordosHomologados, situacaoAcordoDemonstrativo } from './espelh
 import fontesDoEspelhamento from './espelhamento-fontes.ts'
 import { coletarExtratos, completarFinanceiro, conferirDemonstrativo, planejarCotasPortais } from './espelhamento-portais.mjs'
 import { alvosContatoManager, basePreviaManager, planejarPreviasManager } from './espelhamento-manager.mjs'
+import { coletarReceitasOma } from './espelhamento-oma.mjs'
 
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -110,7 +111,18 @@ async function processar(pedido) {
         situacaoAcordoDemonstrativo(correspondencias.get(a.id), demonstrativo !== null, manager))
       const limiteExtratos = manager && !pedido.aplicar ? Math.max(1, 14 * 60_000 - (Date.now() - inicio))
         : !pedido.aplicar && pedido.administradora === 'BBZ' ? Math.max(1, 16 * 60_000 - (Date.now() - inicio)) : 0
-      const extratos = await medir('Coleta de extratos', () => coletarExtratos(db, pedido, receitas, app, alvos, signal, progresso, limiteExtratos))
+      let extratos
+      if (pedido.administradora === 'OMA' && !pedido.aplicar && receitas.length === 1) {
+        const { data } = await db.from('agente_receitas').select('config_json').eq('id', receita.receita_id).single()
+        const retorno = await medir('Demonstrativo de receitas OMA', () =>
+          coletarReceitasOma(data?.config_json ?? {}, base.aguardandoExtrato, signal)).catch(() => ({
+          extratos: new Map(), aviso: 'O demonstrativo de receitas da OMA não pôde ser validado.',
+        }))
+        extratos = retorno.extratos
+        if (retorno.aviso) cap.avisos.push(retorno.aviso)
+      } else {
+        extratos = await medir('Coleta de extratos', () => coletarExtratos(db, pedido, receitas, app, alvos, signal, progresso, limiteExtratos))
+      }
       const consultadoEm = new Date().toISOString()
       const dataBase = new Date(consultadoEm).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
       const { confirmados, ...financeiro } = completarFinanceiro(base, extratos, app, dataBase)

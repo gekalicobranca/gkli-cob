@@ -166,6 +166,14 @@ export function completarFinanceiro(plano, extratos, app, hoje = hojeSP()) {
     if (numero && !vinculada && itens.length === 1 && !c.data_pagamento && !c.valor_pago) {
       plano.alteracoes.push({ tipo: 'cota_paga', ...escopo(u), id: c.id, rev: c.updated_at, recibo: numero, vencimento: c.vencimento,
         dataPagamento: dataDoExtrato(itens[0].data_pagamento), valorPago: reais(itens[0].valor_pago) })
+      const diferenca = reais(c.valor_atualizado) - reais(itens[0].valor_pago)
+      if (extrato.portal === 'oma' && diferenca > 0) {
+        const motivo = diferenca === reais(c.juros)
+          ? 'Juros do GKLI não constam no recebimento informado pela OMA.'
+          : 'Recebimento da OMA inferior ao valor atualizado no GKLI.'
+        plano.pendencias.push({ tipo: 'cota', unidade: u.identificacao, referencia: numero, vencimento: c.vencimento,
+          valor: diferenca, motivo })
+      }
     } else plano.pendencias.push({ tipo: 'cota', unidade: u.identificacao, referencia: numero, vencimento: c.vencimento, valor: reais(c.valor_original),
       motivo: 'Fora da posição de inadimplência, sem baixa direta inequívoca no extrato consultado.' })
   }

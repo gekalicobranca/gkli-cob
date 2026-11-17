@@ -55,7 +55,7 @@ export async function lerEspelhoApp(db, condominioId, carteiraId) {
     db.from('condominios').select('nome,vencimento_cota_dia,dias_apos_vencimento_regua,inicio_cobranca_dias,dias_cobranca_ativa,pre_juridico_habilitado,pre_juridico_minimo_cotas,carteiras:carteira_id(pre_juridico_habilitado),bloqueio_garantidora_habilitado,bloqueio_garantidora_inicio,bloqueio_garantidora_fim')
       .eq('id', condominioId).eq('carteira_id', carteiraId).eq('status', 'ativo').single(),
     listar('unidades', 'id,identificacao,bloco,acao_judicial,numero_processo,conducao_processo,responsavel_nome,responsavel_documento,email,telefone,updated_at'),
-    listar('cobrancas', 'id,unidade_id,competencia,vencimento,valor_original,valor_atualizado,status_financeiro,status_operacional,data_pagamento,valor_pago,observacoes,automacao_bloqueada,updated_at',
+    listar('cobrancas', 'id,unidade_id,competencia,vencimento,valor_original,valor_atualizado,juros,multa,status_financeiro,status_operacional,data_pagamento,valor_pago,observacoes,automacao_bloqueada,updated_at',
       query => base(query).is('duplicada_de_id', null).is('duplicidade_arquivada_em', null).is('arquivada_em', null).not('excluida_por_cessao_espaco', 'is', true)),
     listar('acordos', 'id,unidade_id,cobranca_id,tipo,numero_processo,status,status_financeiro,acordo_homologado,data_acordo,data_quitacao,valor_acordado,despesa_cobranca_valor,origem_controle,updated_at,acordos_fontes_lello(codigo_condominio,numero_acordo),parcelas_acordo(id,numero,vencimento,valor,status,data_pagamento,valor_repasse_informado,updated_at),acordo_cobrancas(cobranca_id)'),
     listar('reguas', 'id,ativo,status,etapas:regua_etapas(canal,ativo)', query => query.eq('carteira_id', carteiraId).eq('tipo', 'cobranca')),
