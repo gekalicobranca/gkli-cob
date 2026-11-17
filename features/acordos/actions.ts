@@ -886,7 +886,9 @@ export async function createAcordo(formData: FormData) {
       p_entrada: entrada,
       p_despesa_cobranca_percentual: despesaCobrancaValor > 0 ? despesaCobrancaPercentual : 0,
       p_despesa_cobranca_valor: despesaCobrancaValor,
-      p_data_acordo: dataAcordoInformada || (saldoParcelado > 0 ? primeiroVencimento : entradaVencimento),
+      p_data_acordo: formData.get("origem_easy") === "1"
+        ? dataCivilSaoPaulo()
+        : dataAcordoInformada || (saldoParcelado > 0 ? primeiroVencimento : entradaVencimento),
       p_status: ACORDO_STATUS.ATIVO,
       p_fluxo_status: fluxoStatusInicial,
       p_exige_aprovacao_sindico: exigeAprovacaoSindico,
