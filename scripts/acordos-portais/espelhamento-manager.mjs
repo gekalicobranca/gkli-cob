@@ -65,11 +65,10 @@ export function alvosContatoManager(base, app) {
     && centavos(r.cota.valor_atualizado) === r.item.valores.at(-1)).map(r => r.unidade.id))
 }
 
-function planejarBorderoManager(app, periodo, confirmados, repasses, acordosPortal) {
+function planejarBorderoManager(app, periodo, confirmados, acordosPortal) {
   const { inicio, fim } = periodo
   const noPeriodo = data => data && data >= inicio && data <= fim
   const unidades = new Map(app.unidades.map(u => [u.id, u]))
-  const creditos = new Map(repasses.map(r => [r.parcelaId, r]))
   const recibos = indexar(app.acordos.flatMap(a => a.parcelas_acordo.filter(p => p.status !== 'cancelada')), p => p.recibo_financeiro)
   const linhas = [], pendencias = []
   const acordosPorUnidade = indexar(acordosPortal ?? [], a => chaveUnidade(a.unidade, a.bloco))
@@ -100,17 +99,15 @@ function planejarBorderoManager(app, periodo, confirmados, repasses, acordosPort
         continue
       }
       const unidade = u.bloco && !/^0+$/.test(u.bloco) ? `${u.identificacao}, bloco ${u.bloco}` : u.identificacao
-      const credito = creditos.get(p.id)
       linhas.push({ ...campo, recibo: baixa.recibo, dataBaixa: baixa.data_pagamento, valorPagoCentavos: centavos(baixa.valor_pago),
         repasseCentavos: repasse.valor, origemRepasse: repasse.origem,
-        credito: credito ? { estado: credito.estado, data: credito.dataCredito, valorCentavos: credito.valor } : undefined,
         descricao: `Serviços de cobrança extrajudicial — ${app.condominio.nome}, acordo ${numero ?? 'Easy ' + a.id}, unidade ${unidade}, parcela ${p.numero}/${grade.length}, baixa de ${baixa.data_pagamento.split('-').reverse().join('/')}, repasse de ${moeda.format(repasse.valor / 100)}.` })
     }
   }
   return { inicio, fim, periodoId: periodo.id, status: periodo.status, linhas, pendencias, totalCentavos: linhas.reduce((total, r) => total + r.repasseCentavos, 0) }
 }
 
-export function planejarPreviasManager({ app, base, cadastros, confirmados, repasses, acordosPortal, dataBase }) {
+export function planejarPreviasManager({ app, base, cadastros, confirmados, acordosPortal, dataBase }) {
   const preJuridico = planejarPreJuridico({ dataBase, condominio: app.condominio, cotas: base, acordos: app.acordos })
   const basePorUnidade = indexar(base, r => r.unidade.id)
   preJuridico.revisoesJudiciais = app.acordos.flatMap(a => {
@@ -141,7 +138,7 @@ export function planejarPreviasManager({ app, base, cadastros, confirmados, repa
     return regua.ativo && regua.status !== 'inativa' && ativas.length && ativas.every(e => e.canal === canal)
   }))
   const [periodo, anterior] = app.periodosBordero ?? []
-  const bordero = ciclo => ciclo ? planejarBorderoManager(app, ciclo, confirmados, repasses, acordosPortal) : null
+  const bordero = ciclo => ciclo ? planejarBorderoManager(app, ciclo, confirmados, acordosPortal) : null
   return { preJuridico, contatosEFlows: planejarContatosEFlows({ fichas, cotas, chaveUnidade, canais,
     prazoDias: app.condominio.dias_apos_vencimento_regua ?? app.condominio.inicio_cobranca_dias ?? 30, preJuridico, administradora: 'Manager' }),
     bordero: bordero(periodo), borderoAnterior: bordero(anterior) }

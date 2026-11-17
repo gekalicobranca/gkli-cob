@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { coletarEspelhoLello, FalhaTemporariaLello } from './espelhamento-lello.mjs'
-import { confirmarRepassesLello, lerEspelhoApp, lerIdentidadesAcordosApp, lerPeriodosBordero, planejarEspelhoLello } from './espelhamento-conciliar.mjs'
+import { lerEspelhoApp, lerIdentidadesAcordosApp, lerPeriodosBordero, planejarEspelhoLello } from './espelhamento-conciliar.mjs'
 import { auditarAcordosHomologados, situacaoAcordoDemonstrativo } from './espelhamento-auditoria-acordos.mjs'
 import fontesDoEspelhamento from './espelhamento-fontes.ts'
 import { coletarExtratos, completarFinanceiro, conferirDemonstrativo, planejarCotasPortais } from './espelhamento-portais.mjs'
@@ -43,14 +43,6 @@ async function processar(pedido) {
       finally { progresso(`${nome}: ${Date.now() - comeco} ms`) }
     }
     const signal = AbortSignal.timeout(17 * 60_000)
-    const salvos = []
-    for (let offset = 0; ; offset += 500) {
-      const { data, error } = await db.from('easy_espelhamento_repasses').select('parcela_id,recibo,data_credito,valor_centavos')
-        .eq('condominio_id', pedido.condominio_id).eq('carteira_id', pedido.carteira_id).order('parcela_id').range(offset, offset + 499)
-      if (error) throw Error('Não foi possível consultar os repasses já confirmados.')
-      salvos.push(...data)
-      if (data.length < 500) break
-    }
     let plano, codigo
     if (!pedido.administradora || pedido.administradora === 'Lello') {
       config = await configurar(pedido)
@@ -78,14 +70,6 @@ async function processar(pedido) {
       ])
       app.periodosBordero = periodos
       plano = planejarEspelhoLello(portal, app, codigo)
-      plano.repasses = confirmarRepassesLello(plano, portal, app, salvos, pedido.demonstrativo_repasses)
-      const creditos = new Map(plano.repasses.map(r => [r.parcelaId, r]))
-      for (const bordero of [plano.bordero, plano.borderoAnterior]) {
-        for (const linha of bordero?.linhas ?? []) {
-          const credito = creditos.get(linha.parcelaId)
-          if (credito) linha.credito = { estado: credito.estado, data: credito.dataCredito, valorCentavos: credito.valor }
-        }
-      }
     } else {
       const { data: fontes, error } = await db.rpc('easy_espelhamento_receitas', { p_carteiras: [pedido.carteira_id] })
       if (error) throw Error('Não foi possível validar os agentes do condomínio.')
@@ -129,7 +113,7 @@ async function processar(pedido) {
       const extratos = await medir('Coleta de extratos', () => coletarExtratos(db, pedido, receitas, app, alvos, signal, progresso, limiteExtratos))
       const consultadoEm = new Date().toISOString()
       const dataBase = new Date(consultadoEm).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
-      const { confirmados, ...financeiro } = completarFinanceiro(base, extratos, app, salvos, pedido.demonstrativo_repasses, pedido.administradora, dataBase)
+      const { confirmados, ...financeiro } = completarFinanceiro(base, extratos, app, dataBase)
       if (!pedido.aplicar && pedido.administradora === 'BBZ' && extratos.size < alvos.size) {
         cap.avisos.push(`A BBZ retornou consultas de extrato para ${extratos.size} de ${alvos.size} unidades a conferir. As baixas sem comprovação ficam pendentes.`)
       }
@@ -143,7 +127,7 @@ async function processar(pedido) {
             signal, progresso, Math.max(1, 16 * 60_000 - (Date.now() - inicio)), true)) : new Map(),
         ])
         app.periodosBordero = periodos
-        previas = planejarPreviasManager({ app, base: baseManager, cadastros, confirmados, repasses: financeiro.repasses, acordosPortal: demonstrativo, dataBase })
+        previas = planejarPreviasManager({ app, base: baseManager, cadastros, confirmados, acordosPortal: demonstrativo, dataBase })
         if (cadastros.size < alvosContato.size) cap.avisos.push(`A Manager retornou fichas de ${cadastros.size} de ${alvosContato.size} unidades para conferir. Os contatos não confirmados ficam fora dos flows.`)
         if (!periodos.length) base.pendencias.push({ tipo: 'borderô', motivo: 'Nenhum período de fechamento configurado para a data da conferência.' })
       }

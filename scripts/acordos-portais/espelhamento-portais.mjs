@@ -1,7 +1,7 @@
 import { abrirManager } from '../scanner/manager.mjs'
 import { abrirWebware } from '../scanner/webware.mjs'
 import { resultadosEasyPague } from '../scanner/easy-pague-resultado.mjs'
-import { conferirCreditoRegistrado, dataDoExtrato } from './espelhamento-repasses.mjs'
+import { dataDoExtrato } from './espelhamento-repasses.mjs'
 
 const reais = v => v == null ? null : Math.round(Number(v) * 100)
 const normalizar = v => String(v ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim()
@@ -76,7 +76,11 @@ export async function coletarExtratos(db, job, receitas, app, unidadesAlvo, sign
   return resposta
 }
 
-export function planejarCotasPortais(cotas, app) {
+export function planejarCotasPortais(relatorio, app) {
+  const cotas = relatorio.map(item => {
+    const marcado = item.origemSistema === 'Winker' ? String(item.recibo ?? '').match(/^(\d{5,})\s+([AJ])$/i) : null
+    return marcado ? { ...item, recibo: marcado[1], marcadorWinker: marcado[2].toUpperCase() } : item
+  })
   const pendencias = [], alteracoes = [], vistas = new Set(), duplicadas = new Set(), aguardandoExtrato = []
   const vinculadas = new Set(app.acordos.filter(a => a.status !== 'cancelado').flatMap(a => [a.cobranca_id, ...a.acordo_cobrancas.map(c => c.cobranca_id)]))
   const regua = Math.max(0, app.condominio.dias_apos_vencimento_regua ?? app.condominio.inicio_cobranca_dias ?? 30)
@@ -112,7 +116,24 @@ export function planejarCotasPortais(cotas, app) {
         motivo: 'O recibo já existe na unidade com outro vencimento. Confira as datas antes de aplicar.' })
       continue
     }
-    if (!u || !vencimento || !/^\d{5,}$/.test(item.recibo ?? '') || !(principal > 0) || !(total > 0) || item.componentes > 1
+    if (!u) {
+      pendencias.push({ tipo: 'cota', unidade: item.unidade, referencia: item.recibo, vencimento, valor: total,
+        motivo: 'Unidade e bloco sem correspondência única no cadastro.' })
+      continue
+    }
+    if (item.marcadorWinker === 'A') {
+      if (exatas.length !== 1 || !vinculadas.has(local.id)) {
+        pendencias.push({ tipo: 'cota', unidade: item.unidade, referencia: item.recibo, vencimento, valor: total,
+          motivo: 'A Verti indica acordo. Confira o vínculo da cota com o acordo.' })
+      }
+      continue
+    }
+    if (item.marcadorWinker === 'J' && !u.acao_judicial && local?.status_operacional !== 'judicializado') {
+      pendencias.push({ tipo: 'cota', unidade: item.unidade, referencia: item.recibo, vencimento, valor: total,
+        motivo: 'A Verti indica situação judicial. Confira a situação da cota no cadastro.' })
+      continue
+    }
+    if (!vencimento || !/^\d{5,}$/.test(item.recibo ?? '') || !(principal > 0) || !(total > 0) || item.componentes > 1
       || possiveis.length > 1 || (!local && candidatas.some(c => !recibo(c.observacoes)))
       || ['acordo', 'acordo_extrajudicial', 'acordo_judicial', 'deposito_identificado', 'boleto_bancario', 'protesto'].includes(item.situacao)
       || (local && (!situacaoAberta(local) || local.data_pagamento || vinculadas.has(local.id)))) {
@@ -136,9 +157,8 @@ export function planejarCotasPortais(cotas, app) {
   return { alteracoes, pendencias, aguardandoExtrato }
 }
 
-export function completarFinanceiro(plano, extratos, app, repassesSalvos, demonstrativo, administradora, hoje = hojeSP()) {
-  const dataCorte = new Date(Date.parse(hoje) - 90 * 86_400_000).toISOString().slice(0, 10)
-  const repasses = [], confirmados = new Map()
+export function completarFinanceiro(plano, extratos, app, hoje = hojeSP()) {
+  const confirmados = new Map()
   for (const { c, u, recibo: numero, vinculada } of plano.aguardandoExtrato) {
     const extrato = extratos.get(u.id)
     const itens = (extrato?.pagamentos ?? []).filter(p => p.recibo === numero && dataDoExtrato(p.vencimento) === c.vencimento && p.natureza === 'cobranca'
@@ -150,16 +170,10 @@ export function completarFinanceiro(plano, extratos, app, repassesSalvos, demons
       motivo: 'Fora da posição de inadimplência, sem baixa direta inequívoca no extrato consultado.' })
   }
 
-  const comprovantesAnexados = demonstrativo?.repasses ?? []
-  const anexos = agrupar(comprovantesAnexados.map(r => ({ ...r, fonte: `arquivo:${demonstrativo.sha256}` })), r => r.recibo)
-  const referenciasUsadas = new Set()
   const reciboParcela = p => p.recibo_financeiro ?? recibo(p.observacoes)
-  const parcelasPorRecibo = agrupar(app.acordos.flatMap(a => a.parcelas_acordo), reciboParcela)
   const acordosPorUnidade = agrupar(app.acordos.filter(a => !['cancelado', 'renegociado'].includes(a.status)), a => a.unidade_id)
-  const salvos = new Map(repassesSalvos.map(r => [r.parcela_id, r]))
   for (const u of app.unidades) {
     const extrato = extratos.get(u.id)
-    const creditos = agrupar(extrato?.repasses_creditados ?? [], r => r.recibo)
     const alvos = (acordosPorUnidade.get(u.id) ?? [])
       .flatMap(a => a.parcelas_acordo.filter(p => p.status !== 'cancelada' && p.vencimento <= hoje).map(p => ({
         acordo: a, parcela: p, parcela_id: p.id, numero: p.numero, recibo: reciboParcela(p), vencimento: p.vencimento, valor: p.valor,
@@ -179,33 +193,9 @@ export function completarFinanceiro(plano, extratos, app, repassesSalvos, demons
         plano.pendencias.push({ tipo: 'parcela', unidade: u.identificacao, referencia: alvo.recibo, vencimento: p.vencimento,
           motivo: baixa?.detalhe ?? 'Extrato do período indisponível ou unidade sem acesso financeiro validado.' })
       }
-      if (a.origem_controle !== 'carteira' || (p.status !== 'paga' && baixa?.estado !== 'confirmado')) continue
-      const pagamento = p.data_pagamento ?? baixa?.data_pagamento
-      const salvo = salvos.get(p.id)
-      const reciboCredito = salvo?.recibo ?? alvo.recibo
-      const provas = [...(creditos.get(reciboCredito) ?? []).map(r => ({ ...r, fonte: extrato.fonte })), ...(anexos.get(reciboCredito) ?? [])]
-      if (salvo) {
-        const estado = conferirCreditoRegistrado({ salvo, provas, unidade: u.identificacao, vencimento: p.vencimento, pendencias: plano.pendencias, referenciasUsadas })
-        repasses.push({ parcelaId: p.id, unidade: u.identificacao, recibo: salvo.recibo, dataCredito: salvo.data_credito, valor: salvo.valor_centavos, estado })
-        continue
-      }
-      const evidencias = [...new Map(provas.filter(r => r.dataCredito <= hoje && r.dataCredito >= pagamento)
-        .map(r => [`${r.referencia}:${r.dataCredito}:${r.centavos}`, r])).values()]
-      if (evidencias.length === 1 && parcelasPorRecibo.get(alvo.recibo)?.length === 1 && p.status === 'paga' && p.data_pagamento) {
-        const r = evidencias[0]
-        referenciasUsadas.add(r.referencia)
-        plano.alteracoes.push({ tipo: 'repasse_creditado', ...escopo(u), id: p.id, rev: p.updated_at, acordoId: a.id,
-          ...r, portal: extrato?.portal ?? administradora })
-        repasses.push({ parcelaId: p.id, unidade: u.identificacao, recibo: r.recibo, dataCredito: r.dataCredito, valor: r.centavos, estado: 'comprovado na fonte' })
-      } else if (pagamento >= dataCorte) {
-        plano.pendencias.push({ tipo: 'repasse', unidade: u.identificacao, referencia: alvo.recibo, vencimento: p.vencimento,
-          valor: reais(p.valor_repasse_informado), motivo: p.valor_repasse_informado ? 'Repasse informado no app, aguardando comprovante de crédito.' : 'Valor de repasse e crédito sem comprovante na fonte consultada.' })
-      }
     }
   }
-  for (const r of comprovantesAnexados) if (!referenciasUsadas.has(r.referencia)) plano.pendencias.push({ tipo: 'repasse', referencia: r.recibo,
-    valor: r.centavos, motivo: 'Crédito do demonstrativo anexado sem parcela paga única no app.' })
-  return { repasses, parcelasPagas: confirmados.size, confirmados }
+  return { parcelasPagas: confirmados.size, confirmados }
 }
 
 export function conferirDemonstrativo(acordosPortal, app, pendencias, correspondencias = new Map()) {

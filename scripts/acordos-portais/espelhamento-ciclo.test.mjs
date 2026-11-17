@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { confirmarRepassesLello, planejarEspelhoLello } from './espelhamento-conciliar.mjs'
+import { planejarEspelhoLello } from './espelhamento-conciliar.mjs'
 import { coletarEtapaLello } from './espelhamento-lello.mjs'
 import { completarFinanceiro, planejarCotasPortais } from './espelhamento-portais.mjs'
 
@@ -47,6 +47,27 @@ test('recibo com vencimento alterado fica para revisão na Lello e nos demais po
   assert.equal(lello.contatosEFlows.candidatas.length, 0)
 })
 
+test('Espelhar cruza recibos Winker com marcadores de acordo e situação judicial', () => {
+  const vencimento = '2026-10-10'
+  const itens = ['54111111 A', '54111112 A', '54111113 J', '54111114 J'].map(recibo => ({
+    unidade: unidade.identificacao, bloco: unidade.bloco, recibo, vencimento,
+    principal: 380, total: 400, origemSistema: 'Winker',
+  }))
+  const cotas = itens.map(({ recibo }, i) => ({
+    id: String(i), unidade_id: unidade.id, vencimento, observacoes: `Recibo: ${recibo}`,
+    status_financeiro: 'em_aberto', status_operacional: i === 2 ? 'judicializado' : 'em_cobranca_ativa',
+    valor_original: 380, valor_atualizado: 350,
+  }))
+  const plano = planejarCotasPortais(itens, { condominio: {}, unidades: [unidade],
+    acordos: [{ ...acordo, cobranca_id: cotas[0].id }], cotas })
+
+  assert.deepEqual(plano.aguardandoExtrato, [])
+  assert.deepEqual(plano.alteracoes.map(a => [a.tipo, a.id, a.recibo]), [['cota_aberta', '2', '54111113']])
+  assert.deepEqual(plano.pendencias.map(p => p.referencia), ['54111112', '54111114'])
+  assert.match(plano.pendencias[0].motivo, /indica acordo/)
+  assert.match(plano.pendencias[1].motivo, /indica situação judicial/)
+})
+
 test('espelho produz prévia com e-mail e WhatsApp e preserva repasse sem crédito', () => {
   const { contatosEFlows, bordero } = executar()
   assert.deepEqual(contatosEFlows.candidatas[0].canais, ['email', 'whatsapp'])
@@ -86,22 +107,12 @@ test('sem ciclo cadastrado o borderô fica pendente', () => {
   assert.equal(resultado.pendencias.some(p => p.tipo === 'borderô'), true)
 })
 
-test('crédito divergente vira pendência e preserva o registro nas duas rotinas', () => {
+test('Espelhar confere parcelas sem exigir crédito de repasse', () => {
   const app = { unidades: [unidade], acordos: [{ ...acordo, parcelas_acordo: [{ ...acordo.parcelas_acordo[0], recibo_financeiro: pagamento.recibo }] }] }
-  const salvo = { parcela_id: 'p', recibo: pagamento.recibo, data_credito: '2026-11-12', valor_centavos: 2000 }
-  const credito = { recibo: pagamento.recibo, referencia: 'credito-01', dataCredito: '2026-11-12', centavos: 3000 }
-  const planoLello = { alteracoes: [], pendencias: [] }
-  const repasses = confirmarRepassesLello(planoLello, { consultadoEm: '2026-11-12T15:00:00Z', pagamentos: [pagamento],
-    repasses: [{ ...credito, unidade: unidade.identificacao }] }, app, [salvo], null)
-  const planoManager = { alteracoes: [], pendencias: [], aguardandoExtrato: [] }
-  const financeiro = completarFinanceiro(planoManager, new Map(), app, [salvo], { sha256: 'teste', repasses: [credito] }, 'Manager')
-  for (const [plano, creditos] of [[planoLello, repasses], [planoManager, financeiro.repasses]]) {
-    assert.equal(creditos[0].estado, 'divergente')
-    assert.equal(creditos[0].valor, 2000)
-    assert.equal(plano.pendencias.length, 1)
-    assert.equal(plano.pendencias[0].valor, 3000)
-    assert.equal(plano.alteracoes.length, 0)
-  }
+  const plano = { alteracoes: [], pendencias: [], aguardandoExtrato: [] }
+  completarFinanceiro(plano, new Map(), app, '2026-11-12')
+  assert.deepEqual(plano.pendencias, [])
+  assert.deepEqual(plano.alteracoes, [])
 })
 
 test('retomada reutiliza a etapa concluída e recolhe quando o índice muda', async () => {

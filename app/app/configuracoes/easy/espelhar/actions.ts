@@ -8,7 +8,6 @@ import { criarFlowsComDestinatariosConferidos } from '@/features/flows/cobranca/
 import { carregarApoiosParaCorrespondencia } from '@/features/responsaveis-unidades/correspondencia'
 import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade'
 import { escolherContatoRegua } from '@/features/regua/services/regua-shared'
-import { lerDemonstrativoRepasses } from '@/features/easy-cob/demonstrativo-repasses'
 import type { AcordoAuditado, CondominioEspelhamento, ResultadoEspelhamento } from './types'
 
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
@@ -180,19 +179,12 @@ export async function prepararFlowEspelhado(execucaoId: string, unidadeId: strin
   return error ? { error } : flowIds?.length ? { mensagem: 'Flow criado pausado para revisão.' } : { error: 'Nenhum Flow foi criado.' }
 }
 
-export async function solicitarEspelhamento(ids: string[], lote: string, aplicar: boolean, administradora: string, anexo?: FormData) {
+export async function solicitarEspelhamento(ids: string[], lote: string, aplicar: boolean, administradora: string) {
   const scope = await getPermittedCarteiras()
   if (!['admin', 'gestor', 'operador'].includes(scope.perfil)) return { error: 'Seu perfil não pode executar o espelhamento.' }
   if (!Array.isArray(ids) || !ids.length || ids.length > 500 || !ids.every(id => typeof id === 'string' && uuid.test(id)) || !uuid.test(lote)
     || typeof administradora !== 'string' || !administradora.trim() || administradora.length > 120) {
     return { error: 'Selecione pelo menos um condomínio válido.' }
-  }
-  const arquivo = anexo?.get('demonstrativo')
-  let demonstrativo = null
-  if (arquivo instanceof File && arquivo.size > 0) {
-    if (ids.length !== 1) return { error: 'Selecione um único condomínio para anexar o demonstrativo.' }
-    try { demonstrativo = await lerDemonstrativoRepasses(arquivo) }
-    catch (erro) { return { error: erro instanceof Error ? erro.message : 'Demonstrativo inválido.' } }
   }
   const { data, error } = await createAdminClient().rpc('easy_espelhamento_solicitar_administradora', {
     p_carteiras: scope.carteiraIds,
@@ -201,7 +193,7 @@ export async function solicitarEspelhamento(ids: string[], lote: string, aplicar
     p_condominios: [...new Set(ids)],
     p_aplicar: aplicar === true,
     p_administradora: administradora,
-    p_demonstrativo: demonstrativo,
+    p_demonstrativo: null,
   })
   if (error) return { error: error.code === 'P0001' ? error.message : 'Não foi possível solicitar o espelhamento.' }
   return { quantidade: Number(data) }

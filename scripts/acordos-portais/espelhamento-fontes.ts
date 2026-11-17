@@ -78,7 +78,7 @@ export async function captarCotasEspelhamento(db, job, receitas, signal) {
       cotas.push(...validacao.cobrancas.map(cota => ({
         unidade: cota.unidade, bloco: cota.bloco, recibo: cota.recibo, vencimento: cota.vencimento ?? cota.vencimentoMaisAntigo,
         principal: cota.valorPrincipal, total: cota.valorTotal, multa: cota.multa, juros: cota.juros, correcao: cota.correcao,
-        honorarios: cota.honorarios, situacao: cota.situacaoOrigem, componentes: cota.parcelas.length,
+        honorarios: cota.honorarios, situacao: cota.situacaoOrigem, componentes: cota.parcelas.length, origemSistema: cota.origemSistema,
       })))
       fontes.push({ execucao: id, arquivo: arquivo.nome_arquivo, hash: arquivo.hash_arquivo })
     }

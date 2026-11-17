@@ -2,7 +2,6 @@ import { planejarPreJuridico } from './espelhamento-pre-juridico.mjs'
 import { planejarBorderoLello } from './espelhamento-bordero.mjs'
 import { planejarContatosEFlows } from './espelhamento-contatos-flows.mjs'
 import { auditarAcordosHomologados, acordoHomologadoVigente } from './espelhamento-auditoria-acordos.mjs'
-import { conferirCreditoRegistrado } from './espelhamento-repasses.mjs'
 
 function grupo(items, key) {
   const map = new Map()
@@ -338,56 +337,4 @@ export function planejarEspelhoLello(portal, app, codigo) {
     bordero: bordero(periodo) ?? null,
     borderoAnterior: bordero(anterior) ?? null,
     alteracoes: alteracoes.filter(a => !conflitantes.has(a)), pendencias }
-}
-
-export function confirmarRepassesLello(plano, portal, app, repassesSalvos, demonstrativo) {
-  const hoje = new Date(portal.consultadoEm).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
-  const salvos = new Map(repassesSalvos.map(r => [r.parcela_id, r]))
-  const repasses = []
-  const comprovantesAnexados = demonstrativo?.repasses ?? []
-  const unidades = new Map(app.unidades.map(u => [u.id, u]))
-  const pagamentos = grupo(portal.pagamentos, h => `${chaveUnidade(h.unidade)}:${h.descricao}`)
-  const repassesPortal = grupo(portal.repasses ?? [], r => `${chaveUnidade(r.unidade)}:${r.recibo}`)
-  const anexos = grupo(comprovantesAnexados.map(r => ({ ...r, fonte: `arquivo:${demonstrativo.sha256}` })), r => r.recibo)
-  const baixasPorRecibo = grupo(portal.pagamentos, h => h.recibo)
-  const parcelasAlteradas = new Set(plano.alteracoes.map(r => r.id))
-  const pendenciasResolvidas = new Set()
-  const referenciasUsadas = new Set()
-  for (const a of app.acordos.filter(a => a.origem_controle === 'carteira' && a.acordos_fontes_lello)) {
-    const u = unidades.get(a.unidade_id)
-    if (!u) continue
-    const numero = a.acordos_fontes_lello.numero_acordo
-    const chave = chaveUnidade(u.identificacao, u.bloco)
-    for (const p of a.parcelas_acordo.filter(p => p.status === 'paga' && p.data_pagamento)) {
-      const salvo = salvos.get(p.id)
-      const recebimentos = (pagamentos.get(`${chave}:Parcela ${p.numero} Acordo ${numero}`) ?? []).filter(h =>
-        h.pagamento === p.data_pagamento && h.vencimento === p.vencimento && h.valorPago === centavos(p.valor))
-      const recibo = salvo?.recibo ?? (recebimentos.length === 1 ? recebimentos[0].recibo : null)
-      if (!recibo) continue
-      const provas = [...(repassesPortal.get(`${chave}:${recibo}`) ?? []), ...(anexos.get(recibo) ?? [])]
-      if (salvo) {
-        const novoRecibo = recebimentos.length === 1 && recebimentos[0].recibo !== salvo.recibo ? recebimentos[0].recibo : null
-        const provasNovoRecibo = novoRecibo ? repassesPortal.get(`${chave}:${novoRecibo}`) ?? [] : []
-        const estado = conferirCreditoRegistrado({ salvo, provas: [...provas, ...provasNovoRecibo], unidade: u.identificacao, vencimento: p.vencimento, pendencias: plano.pendencias, referenciasUsadas })
-        repasses.push({ parcelaId: p.id, unidade: u.identificacao, recibo: salvo.recibo, dataCredito: salvo.data_credito, valor: salvo.valor_centavos, estado })
-        continue
-      }
-      const [linha] = recebimentos
-      const validas = [...new Map(provas.filter(r => r.dataCredito <= hoje && r.dataCredito >= p.data_pagamento
-        && (!r.fonte?.startsWith('arquivo:') || baixasPorRecibo.get(recibo)?.length === 1))
-        .map(r => [`${r.referencia}:${r.dataCredito}:${r.centavos}`, r])).values()]
-      if (validas.length !== 1 || parcelasAlteradas.has(p.id)) continue
-      const [r] = validas
-      referenciasUsadas.add(r.referencia)
-      plano.alteracoes.push({ tipo: 'repasse_creditado', id: p.id, rev: p.updated_at, acordoId: a.id, unidadeId: u.id,
-        numero, ...r, unidade: linha.unidade, portal: 'lello' })
-      repasses.push({ parcelaId: p.id, unidade: linha.unidade, recibo: r.recibo, dataCredito: r.dataCredito, valor: r.centavos, estado: 'comprovado na fonte' })
-      pendenciasResolvidas.add(`${chave}:${numero}:${p.vencimento}`)
-    }
-  }
-  if (pendenciasResolvidas.size) plano.pendencias = plano.pendencias.filter(q =>
-    q.tipo !== 'repasse' || !pendenciasResolvidas.has(`${chaveUnidade(q.unidade)}:${q.referencia}:${q.vencimento}`))
-  for (const r of comprovantesAnexados) if (!referenciasUsadas.has(r.referencia)) plano.pendencias.push({ tipo: 'repasse', referencia: r.recibo,
-    valor: r.centavos, motivo: 'Crédito do demonstrativo anexado sem parcela paga única na Lello e no app.' })
-  return repasses
 }

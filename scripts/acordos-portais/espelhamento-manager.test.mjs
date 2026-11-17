@@ -18,9 +18,9 @@ const demonstrativo = [{ unidade: '21', bloco: 'C2', processo: 'P-1', total: { v
 
 function previa({ local = app, cotas = [relatorio], ficha = cadastro, pagamentos = extrato } = {}) {
   const extratos = new Map(pagamentos ? [['u', pagamentos]] : [])
-  const financeiro = completarFinanceiro({ aguardandoExtrato: [], alteracoes: [], pendencias: [] }, extratos, local, [], null, 'Manager', dataBase)
+  const financeiro = completarFinanceiro({ aguardandoExtrato: [], alteracoes: [], pendencias: [] }, extratos, local, dataBase)
   return planejarPreviasManager({ app: local, base: basePreviaManager(cotas, local, dataBase, extratos),
-    cadastros: new Map(ficha ? [['u', ficha]] : []), confirmados: financeiro.confirmados, repasses: financeiro.repasses, acordosPortal: demonstrativo, dataBase })
+    cadastros: new Map(ficha ? [['u', ficha]] : []), confirmados: financeiro.confirmados, acordosPortal: demonstrativo, dataBase })
 }
 
 test('Manager coteja ficha por unidade e bloco e compõe o borderô com recebimento comprovado', () => {

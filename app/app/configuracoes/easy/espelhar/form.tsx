@@ -33,7 +33,6 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
   const [entregas, setEntregas] = useState<Record<string, { error?: string; mensagem?: string }>>({})
   const [detalhes, setDetalhes] = useState<Record<string, ResultadoEspelhamento | 'carregando' | 'erro'>>({})
   const lotes = useRef<Partial<Record<AcaoEspelhamento, string>>>({})
-  const campoAnexo = useRef<HTMLInputElement>(null)
   const administradoras = [...new Set(condominios.flatMap(c => c.administradoras))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const condominiosDaAdministradora = condominios.filter(c => c.administradoras.includes(administradora))
   const disponiveis = condominiosDaAdministradora.filter(c => c.liberado && !emAndamento(c))
@@ -67,7 +66,6 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
 
   function selecionar(ids: string[]) {
     lotes.current = {}
-    if (campoAnexo.current) campoAnexo.current.value = ''
     setSelecionados(ids)
     setMensagem('')
     setErro('')
@@ -81,10 +79,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
     setMensagem('')
     const lote = lotes.current[acao] ??= crypto.randomUUID()
     try {
-      const arquivo = campoAnexo.current?.files?.[0]
-      const anexo = arquivo ? new FormData() : undefined
-      if (arquivo && anexo) anexo.set('demonstrativo', arquivo)
-      const resposta = await solicitarEspelhamento([...selecaoIds], lote, aplicar, administradora, anexo)
+      const resposta = await solicitarEspelhamento([...selecaoIds], lote, aplicar, administradora)
       if (resposta.error) {
         setErro(resposta.error)
         return
@@ -160,15 +155,6 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
           {totalEmRevisao === 1 ? 'Um condomínio selecionado está em revisão.' : `${totalEmRevisao} condomínios selecionados estão em revisão.`}
           {' '}Só conferir está disponível. Para usar Espelhar agora, a gestão precisa liberar esses condomínios no cadastro.
         </p>}
-        {podeExecutar && selecao.length === 1 && (
-          <details className="mt-3 text-sm">
-            <summary className="cursor-pointer font-semibold">Anexar demonstrativo de repasses</summary>
-            <label htmlFor="espelhar-demonstrativo" className="mt-2 block">CSV da administradora, até 256 KB</label>
-            <p id="espelhar-colunas" className="mt-1 text-xs text-slate-600">Colunas separadas por ponto e vírgula: CNPJ, Recibo, Referência do repasse, Data de crédito do repasse e Valor do repasse creditado.</p>
-            <input ref={campoAnexo} id="espelhar-demonstrativo" type="file" accept=".csv,text/csv" aria-describedby="espelhar-colunas"
-              className="mt-2 block w-full" disabled={Boolean(enviando)} onChange={() => { lotes.current = {} }} />
-          </details>
-        )}
         {mensagem && <p role="status" className="mt-3 text-sm text-cyan-900">{mensagem}</p>}
         {erro && <p role="alert" className="mt-3 text-sm text-rose-800">{erro}</p>}
       </section>

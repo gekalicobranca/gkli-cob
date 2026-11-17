@@ -4,7 +4,6 @@ import { autenticarLello } from '../scanner/lello-auth.mjs'
 import { normalizar } from './validacao.mjs'
 import { acordoHomologadoVigente, situacaoAcordoLello } from './espelhamento-auditoria-acordos.mjs'
 import { chaveUnidade } from './espelhamento-conciliar.mjs'
-import { lerRepassesCreditados } from './espelhamento-repasses.mjs'
 
 const origem = 'https://portal.lellocondominios.com.br'
 const caminhos = {
@@ -37,7 +36,7 @@ async function ler(frame, ficha = false) {
     const texto = body.innerText
     return {
     pedeLogin: Boolean(body.querySelector('input[type=password]')),
-    linhas: tabelas.flat(), tabelasDeRepasse: tabelas.filter(t => t[0]?.some(c => /repasse/i.test(c))),
+    linhas: tabelas.flat(),
     links: [...body.querySelectorAll('a[href]')].map(a => a.href),
     unidades: [...body.querySelectorAll('input[name="codigoUnidade"]')].map(input => input.value),
     fichas: ficha ? folhas.map(t => Object.fromEntries(
@@ -194,7 +193,7 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
       const unidade = url.searchParams.get('codUnidade')
       const tela = await visitar(tab, url)
       const unidadeConferida = unidade && tela.unidades.length === 1 && tela.unidades[0] === unidade
-      if (tela.semRecibos) return { unidade: unidadeConferida ? unidade : null, pagamentos: [], acordos: [], repasses: [] }
+      if (tela.semRecibos) return { unidade: unidadeConferida ? unidade : null, pagamentos: [], acordos: [] }
       if (!unidadeConferida) throw Error('Unidade do histórico não confirmada.')
       return {
         unidade,
@@ -203,7 +202,6 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
           principal: dinheiro(r[4]), pagamento: dataBR(r[5]), valorPago: dinheiro(r[6]),
         })),
         acordos: links(tela, caminhos.acordo).map(link => link.href),
-        repasses: lerRepassesCreditados(tela.tabelasDeRepasse).map(r => ({ ...r, unidade, fonte: origem + caminhos.historico })),
       }
     }, 'Históricos'))
 
@@ -336,7 +334,7 @@ export async function coletarEspelhoLello({ codigo, nome, usuario, senha }, sign
         if (signal.aborted || respostaTemporaria || error instanceof FalhaTemporariaLello) throw error
       }
     }
-    return { consultadoEm, cotas, acordos, contatos, verificacaoAcordos, pagamentos: historicos.flatMap(h => h.pagamentos), repasses: historicos.flatMap(h => h.repasses) }
+    return { consultadoEm, cotas, acordos, contatos, verificacaoAcordos, pagamentos: historicos.flatMap(h => h.pagamentos) }
   } catch (error) {
     if (respostaTemporaria) throw new FalhaTemporariaLello(`A Lello respondeu HTTP ${respostaTemporaria} durante a coleta.`)
     throw error
