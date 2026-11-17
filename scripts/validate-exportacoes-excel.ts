@@ -131,8 +131,15 @@ async function validateCobrancas(outputDir: string) {
   const resumo = workbook.getWorksheet('RESUMO')!
   const agrupado = workbook.getWorksheet('AGRUPADO')!
   const detalhado = workbook.getWorksheet('DETALHADO')!
-  assert.equal(resumo.getCell('B18').value, 1125.75)
-  assert.equal(resumo.getCell('B18').numFmt, '"R$" #,##0.00')
+  const summaryValue = (label: string) => {
+    const row = resumo.getColumn(1).values.findIndex((value) => value === label)
+    assert.notEqual(row, -1, `Campo de resumo ausente: ${label}`)
+    return resumo.getCell(row, 2)
+  }
+  assert.equal(summaryValue('Ordenação do arquivo').value, 'Vencimento mais antigo')
+  assert.equal(summaryValue('Total de cobranças').value, 1)
+  assert.equal(summaryValue('Valor atualizado total').value, 1125.75)
+  assert.equal(summaryValue('Valor atualizado total').numFmt, '"R$" #,##0.00')
   assert.equal(agrupado.getCell('K6').value, 1125.75)
   assert.equal(agrupado.getCell('K6').numFmt, '"R$" #,##0.00')
   assert.equal(detalhado.getCell('G6').value instanceof Date, true)

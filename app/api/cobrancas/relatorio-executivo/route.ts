@@ -9,7 +9,8 @@ import {
   COBRANCA_STATUS_LABEL,
   COBRANCA_STATUS_OPERACIONAL,
 } from "@/lib/constants/cobrancas";
-import { listCobrancas } from "@/features/cobrancas/queries";
+import { CONDUCAO_PROCESSO } from '@/features/unidades/conducao-processo'
+import { listCobrancas, ordenarCobrancasParaRelatorio, type CobrancaListFilters } from "@/features/cobrancas/queries";
 
 export const runtime = "nodejs";
 
@@ -45,6 +46,8 @@ type CondominioResumo = {
   cobrancas: number;
   valor: number;
 };
+
+type CobrancaReportFilters = CobrancaListFilters & { ordenar: string };
 
 function text(value: unknown) {
   return String(value ?? "")
@@ -134,24 +137,6 @@ function unidadeDisplay(row: any) {
   return [row.unidades?.bloco, row.unidades?.identificacao].filter(Boolean).join("/") || "Sem unidade";
 }
 
-function sortHierarchy(rows: any[]) {
-  return [...rows].sort((a, b) => [
-    a.carteiras?.nome ?? "Sem carteira",
-    a.condominios?.nome ?? "Sem condomínio",
-    a.unidades?.bloco ?? "",
-    a.unidades?.identificacao ?? "",
-    a.vencimento ?? "",
-    a.id ?? "",
-  ].join("|").localeCompare([
-    b.carteiras?.nome ?? "Sem carteira",
-    b.condominios?.nome ?? "Sem condomínio",
-    b.unidades?.bloco ?? "",
-    b.unidades?.identificacao ?? "",
-    b.vencimento ?? "",
-    b.id ?? "",
-  ].join("|"), "pt-BR", { numeric: true, sensitivity: "base" }));
-}
-
 async function carregarReguas(rows: any[]) {
   const ids = Array.from(
     new Set(rows.map((row) => row.condominios?.regua_cobranca_id).filter(Boolean) as string[]),
@@ -203,10 +188,7 @@ function resumirPorCondominio(rows: any[], reguas: Map<string, string>) {
     map.set(key, current);
   }
 
-  return Array.from(map.values()).sort((a, b) => `${a.carteira}|${a.condominio}`.localeCompare(`${b.carteira}|${b.condominio}`, "pt-BR", {
-    numeric: true,
-    sensitivity: "base",
-  }));
+  return Array.from(map.values());
 }
 
 function resumoPorCarteira(condominios: CondominioResumo[]) {
@@ -260,7 +242,42 @@ function card(ops: string[], x: number, y: number, w: number, h: number, label: 
   drawText(ops, note, x + 10, y + 14, { size: 7.5, color: MUTED });
 }
 
-function drawCover(pages: PdfPage[], totals: { carteiras: number; condominios: number; cobrancas: number; novas: number; ativas: number; valor: number }) {
+function drawAppliedFilters(ops: string[], filters: CobrancaReportFilters) {
+  const conduction = filters.conducaoProcesso
+    ? CONDUCAO_PROCESSO[filters.conducaoProcesso as keyof typeof CONDUCAO_PROCESSO] ?? filters.conducaoProcesso
+    : 'Todas'
+  const status = filters.status
+    ? COBRANCA_STATUS_LABEL[filters.status as keyof typeof COBRANCA_STATUS_LABEL] ?? filters.status
+    : filters.statusList?.length ? 'Fila operacional' : 'Todos'
+  const block = filters.judicializacaoUnidade === 'sim'
+    ? 'Somente judicialização'
+    : filters.judicializacaoUnidade === 'todos' ? 'Incluir bloqueios'
+      : filters.judicializacaoUnidade === 'bloqueados' ? 'Somente bloqueadas'
+        : filters.judicializacaoUnidade && filters.judicializacaoUnidade !== 'nao'
+          ? COBRANCA_STATUS_LABEL[filters.judicializacaoUnidade as keyof typeof COBRANCA_STATUS_LABEL] ?? filters.judicializacaoUnidade
+          : 'Sem bloqueios'
+  const orderLabels: Record<string, string> = {
+    vencimento_asc: 'Vencimento mais antigo', vencimento_desc: 'Vencimento mais recente',
+    valor_desc: 'Maior valor', valor_asc: 'Menor valor', condominio: 'Condomínio',
+    unidade: 'Unidade', responsavel: 'Responsável', status: 'Status',
+  }
+  const lines = [
+    `Busca: ${filters.search || 'todas'} | Operador: ${filters.operadorId || 'todos'} | Administradora: ${filters.administradoraId || 'todas'}`,
+    `Condomínio: ${filters.condominioId || 'todos'} | Unidade: ${filters.unidadeId || 'todas'}`,
+    `Condução do processo: ${conduction} | Status: ${status} | Bloqueios: ${block}`,
+    `Vencimento: ${filters.vencimentoDe || 'sem início'} a ${filters.vencimentoAte || 'sem fim'} | Criação: ${filters.criacaoDe || 'sem início'} a ${filters.criacaoAte || 'sem fim'}`,
+    `Ordenação solicitada: ${orderLabels[filters.ordenar] ?? orderLabels.vencimento_asc}`,
+  ]
+  let y = 196
+  drawText(ops, 'Filtros aplicados', MARGIN_X, y, { size: 8, bold: true, color: MUTED })
+  y -= 12
+  for (const line of lines.flatMap((value) => wrap(value, 105))) {
+    drawText(ops, line, MARGIN_X, y, { size: 7, color: MUTED })
+    y -= 9
+  }
+}
+
+function drawCover(pages: PdfPage[], totals: { carteiras: number; condominios: number; cobrancas: number; novas: number; ativas: number; valor: number }, filters: CobrancaReportFilters) {
   const page = addPage(pages, "cover");
   const ops = page.ops;
   rect(ops, 0, 0, PAGE_WIDTH, PAGE_HEIGHT, SOFT);
@@ -280,6 +297,7 @@ function drawCover(pages: PdfPage[], totals: { carteiras: number; condominios: n
   card(ops, MARGIN_X + 250, yTop, 220, 78, "Condomínios", numberText(totals.condominios), "com cobranças elegíveis", GREEN);
   card(ops, MARGIN_X, yTop - 100, 220, 78, "Cobranças", numberText(totals.cobrancas), `${numberText(totals.novas)} novas - ${numberText(totals.ativas)} ativas`, AMBER);
   card(ops, MARGIN_X + 250, yTop - 100, 220, 78, "Valor atualizado", formatCurrency(totals.valor), "impacto financeiro previsto", NAVY);
+  drawAppliedFilters(ops, filters)
 }
 
 function ensureSpace(pages: PdfPage[], y: number, needed: number) {
@@ -521,7 +539,7 @@ function buildPdf(pages: PdfPage[]) {
   return Buffer.concat([header, ...objects, Buffer.from(xref, "latin1")]);
 }
 
-function montarPdf(rows: any[], condominios: CondominioResumo[]) {
+function montarPdf(rows: any[], condominios: CondominioResumo[], filters: CobrancaReportFilters) {
   const carteiras = resumoPorCarteira(condominios);
   const totals = {
     carteiras: carteiras.length,
@@ -533,7 +551,7 @@ function montarPdf(rows: any[], condominios: CondominioResumo[]) {
   };
 
   const pages: PdfPage[] = [];
-  drawCover(pages, totals);
+  drawCover(pages, totals, filters);
   const summaryStartY = drawCarteiraSummary(pages, carteiras);
   drawCondominioSummary(pages, summaryStartY, condominios);
   drawDetails(pages, rows, condominios);
@@ -545,10 +563,10 @@ export async function GET(request: Request) {
   const filters = filtrosRelatorioCobrancas(searchParams);
 
   const scope = await getPermittedCarteiras();
-  const rows = sortHierarchy(await listCobrancas(scope, filters));
+  const rows = ordenarCobrancasParaRelatorio(await listCobrancas(scope, filters), filters.ordenar);
   const reguas = await carregarReguas(rows);
   const condominios = resumirPorCondominio(rows, reguas);
-  const pdf = await aplicarIdentidadePdf(montarPdf(rows, condominios));
+  const pdf = await aplicarIdentidadePdf(montarPdf(rows, condominios, filters));
   const fileName = `gkli-relatorio-executivo-cobrancas-${new Date().toISOString().slice(0, 10)}.pdf`;
 
   return new Response(pdf, {
