@@ -474,6 +474,7 @@ export function AcordoSimulatorForm({
         <input type="hidden" name="tipo" value="extrajudicial" />
         <input type="hidden" name="entrada" value="0,00" />
         <input type="hidden" name="juros_adicional" value={jurosAdicional ? "on" : "off"} />
+        <input type="hidden" name="origem_easy" value="1" />
         {easyManualPlan && <input type="hidden" name="plano_manual" value={JSON.stringify(easyManualPlan)} />}
         <section hidden={easyReview} className={`${easyStyles.panel} space-y-5`}>
           <h2 className="text-xl font-semibold">Como será o pagamento?</h2>
@@ -497,9 +498,6 @@ export function AcordoSimulatorForm({
             hint={Number(quantidadeParcelas) > 1 ? "As demais vencem mensalmente no mesmo dia ou no último dia do mês." : undefined}>
             <Input aria-label="Primeiro vencimento" name="primeiro_vencimento" type="date" required value={primeiroVencimento}
               onChange={event => setPrimeiroVencimento(event.target.value)} />
-          </FormField>
-          <FormField label="Data do acordo (opcional)" hint="Em branco, usa o vencimento da primeira parcela.">
-            <Input aria-label="Data do acordo" name="data_acordo" type="date" defaultValue={formularioInicial.data_acordo ?? ""} />
           </FormField>
           </div>
           <p className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">Cotas com juros e multa registrados. Parcelamento com Price de 1% ao mês. Boleto: {formatCurrency(Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0))} por emissão.</p>
