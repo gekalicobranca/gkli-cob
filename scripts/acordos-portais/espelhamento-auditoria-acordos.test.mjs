@@ -42,6 +42,7 @@ test('só confirma ausência com histórico da unidade e negativa direta', () =>
     assert.equal(situacaoAcordoLello({ ...ausente, ficha: { situacao } }).estado, 'historico')
   }
   assert.equal(situacaoAcordoLello({ emAndamento: true, ficha: { situacao: 'Em Andamento' } }).estado, 'encontrado')
+  assert.deepEqual(situacaoAcordoLello({ historicoConferido: true, ficha: { situacao: 'Atrasado' } }), { estado: 'encontrado', motivo: 'Atrasado' })
   assert.equal(situacaoAcordoLello({ historicoConferido: true, ficha: { situacao: 'Em Andamento' } }).estado, 'inconclusivo')
 })
 

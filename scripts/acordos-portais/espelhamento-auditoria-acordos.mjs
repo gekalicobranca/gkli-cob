@@ -20,6 +20,7 @@ export function auditarAcordosHomologados(app, verificar) {
 
 export function situacaoAcordoLello({ emAndamento, historicoConferido, ficha, recibosNoHistorico }) {
   const situacao = ficha?.situacao?.trim().toUpperCase()
+  if (situacao === 'ATRASADO') return { estado: 'encontrado', motivo: ficha.situacao }
   if (situacao === 'EM ANDAMENTO') {
     return emAndamento ? { estado: 'encontrado' }
       : { estado: 'inconclusivo', motivo: 'A ficha confirma o acordo em andamento, mas ele ficou fora da lista ativa.' }
