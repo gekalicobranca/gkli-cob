@@ -53,7 +53,7 @@ test('Espelhar quita financeiramente e distingue recibos da Lello com o mesmo ve
     const original = await readFile(new URL('20261112224748_easy_espelhar.sql', migrations), 'utf8')
     await db.exec(original.replaceAll('\r\n', '\n').match(/create function public[.]easy_espelhamento_concluir\([\s\S]*?\$\$;/)[0])
     const correcao = (await readdir(migrations)).find(nome => nome.endsWith('_espelhar_quitacao_financeira.sql'))
-    await db.exec(await readFile(new URL(correcao, migrations), 'utf8'))
+    await db.exec((await readFile(new URL(correcao, migrations), 'utf8')).replaceAll('\r\n', '\n'))
     const base = { unidade: '600041', unidadeId: unidade, vencimento }
     const nova = { ...base, tipo: 'cota_aberta', principal: 27621, total: 29526, multa: 552, juros: 217, correcao: 1136 }
     const plano = {

@@ -292,7 +292,6 @@ export function planejarEspelhoLello(portal, app, codigo) {
         pendente('parcela', { ...item, vencimento: p.vencimento }, `Parcela ${p.numero} sem recibo de baixa inequívoco no histórico.`, p.valor, local.status)
         continue
       }
-      if (!local.valor_repasse_informado && acordo.origem_controle === 'carteira') pendente('repasse', { ...item, vencimento: p.vencimento }, `Parcela ${p.numero} paga. Repasse sem evidência no demonstrativo consultado.`, p.valor)
       if (local.status === 'paga' && local.data_pagamento === p.pagamento && centavos(local.valor) === p.valor) continue
       if (!exatos.length || ['cancelado', 'quebrado', 'renegociado', 'suspenso'].includes(acordo.status) || local.status === 'cancelada') {
         pendente('parcela', { ...item, vencimento: p.vencimento }, `Baixa da parcela ${p.numero} requer conferência do acordo no app.`, p.valor, local.status)

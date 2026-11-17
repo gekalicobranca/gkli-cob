@@ -53,13 +53,16 @@ export async function consultarDetalheEspelhamento(execucaoId: string): Promise<
     .select('resultado').eq('id', execucaoId).eq('estado', 'concluido'), scope.carteiraIds).maybeSingle()
   if (error) throw new Error('Não foi possível consultar o resultado.')
   const resultado = data?.resultado as ResultadoEspelhamento | null
-  const contatos = resultado?.contatosEFlows
+  if (!resultado) return null
+  resultado.pendencias = resultado.pendencias?.filter(p => p.tipo !== 'repasse')
+  resultado.alteracoes = resultado.alteracoes?.filter(a => a.tipo !== 'repasse_creditado')
+  const contatos = resultado.contatosEFlows
   if (contatos) {
     contatos.candidatas = contatos.candidatas.map(({ id, unidadeId, unidade, bloco, recibo, saldoCentavos, canais }) =>
       ({ id, unidadeId, unidade, bloco, recibo, saldoCentavos, canais }))
     contatos.revisoes = contatos.revisoes.map(({ unidade, bloco, motivo, unidadeId, revisao }) => ({ unidade, bloco, motivo, unidadeId, revisao }))
   }
-  return resultado ?? null
+  return resultado
 }
 
 export async function configurarAgendaEspelhamento(condominioId: string, ativa: boolean) {

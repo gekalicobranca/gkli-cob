@@ -19,7 +19,7 @@ type AcaoEspelhamento = 'conferir' | 'espelhar'
 const rotulos: Record<string, string> = {
   cota_aberta: 'Atualizar cota', cota_paga: 'Baixa de cota', parcela_paga: 'Baixa de parcela',
   vinculo: 'Vincular recibo ao acordo', acordo_novo: 'Cadastrar acordo', acordo_cancelado: 'Cancelar acordo',
-  parcela_paga_extrato: 'Baixa de parcela', repasse_creditado: 'Confirmar crédito de repasse',
+  parcela_paga_extrato: 'Baixa de parcela',
 }
 
 export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { inicial: CondominioEspelhamento[]; podeExecutar: boolean; podeAprovarBordero: boolean }) {
@@ -233,7 +233,6 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
                       <div className="mt-2 max-h-96 overflow-y-auto">
                         <p className="font-semibold">{execucao.aplicar ? `${resultado.aplicadas ?? 0} ajustes aplicados` : `${resultado.alteracoes?.length ?? 0} ajustes identificados na conferência`}</p>
                         <ul className="mt-1 list-inside list-disc space-y-1 text-slate-700">
-                          {resultado.repasses?.map((r, i) => <li key={`repasse-${i}`}>{r.unidade} · {r.recibo} · {r.dataCredito.split('-').reverse().join('/')} · {moeda.format(r.valor / 100)} · {r.estado}</li>)}
                           {resultado.alteracoes?.map((a, i) => <li key={i}>{a.unidade} · {rotulos[a.tipo] ?? a.tipo} · {a.recibo ?? a.numero}{a.vencimento && ` · ${a.vencimento.split('-').reverse().join('/')}`}{(a.valorPago ?? a.total) != null && ` · ${moeda.format((a.valorPago ?? a.total ?? 0) / 100)}`}</li>)}
                           {resultado.pendencias?.map((p, i) => <li key={`pendencia-${i}`}>{[p.unidade, p.tipo, p.referencia, p.vencimento?.split('-').reverse().join('/'), p.valor != null ? moeda.format(p.valor / 100) : null].filter(Boolean).join(' · ')}. {p.motivo}{p.valorSalvo != null && ` Valor registrado: ${moeda.format(p.valorSalvo / 100)}.`}</li>)}
                         </ul>
@@ -255,7 +254,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
                           <summary className="cursor-pointer font-semibold text-cyan-800">Prévia do borderô · {moeda.format(bordero.totalCentavos / 100)} · {bordero.pendencias.length} pendências</summary>
                           <p className="mt-2 text-xs text-slate-600">{bordero.inicio.split('-').reverse().join('/')} a {bordero.fim.split('-').reverse().join('/')}</p>
                           <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto text-xs text-slate-600">
-                            {bordero.linhas.map(l => <li key={l.parcelaId}>{l.descricao} {l.credito ? `Crédito de ${moeda.format(l.credito.valorCentavos / 100)} em ${l.credito.data.split('-').reverse().join('/')}.` : 'Crédito a confirmar.'}</li>)}
+                            {bordero.linhas.map(l => <li key={l.parcelaId}>{l.descricao}</li>)}
                             {bordero.pendencias.map(p => <li key={p.parcelaId}>{p.unidade} · {p.numero ?? 'Acordo sem referência externa'} · parcela {p.parcela}. {p.motivo}</li>)}
                           </ul>
                           {podeAprovarBordero && bordero.periodoId && bordero.totalCentavos > 0 && (resultado.preJuridico?.dataBase ?? '') >= bordero.fim

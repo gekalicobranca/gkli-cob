@@ -52,7 +52,7 @@ type PreviaBordero = {
   inicio: string
   fim: string
   totalCentavos: number
-  linhas: { parcelaId: string; descricao: string; credito?: { estado: string; data: string; valorCentavos: number } }[]
+  linhas: { parcelaId: string; descricao: string }[]
   pendencias: { parcelaId: string; unidade: string; numero: string | null; parcela: number; motivo: string }[]
 }
 
@@ -104,7 +104,6 @@ export type ResultadoEspelhamento = {
   avisos?: string[]
   alteracoes?: Alteracao[]
   pendencias?: Divergencia[]
-  repasses?: { unidade: string; recibo: string; dataCredito: string; valor: number; estado: string }[]
   preJuridico?: PreviaPreJuridico
   homologacoes?: { acordoId: string; unidade: string; numero: string; composicaoConferida: boolean; condicoesConferidas: boolean; documento: string }[]
   contatosEFlows?: {
