@@ -1,4 +1,5 @@
 import { valorAcordadoRelatorio, excluidoDaSomaDivida } from "@/features/acordos/valor-relatorio";
+import { parcelasDoPeriodoExecutivo } from '@/features/acordos/parcelas-executivo'
 import {
   addStyledTableSheet,
   addSummarySheet,
@@ -227,10 +228,11 @@ export async function criarExcelRelatorioAcordos(
   generatedAt = new Date(),
 ) {
   const sortedRows = sortByReportHierarchy(rows)
-  const parcelasRows = buildParcelasRows(rows, parcelas)
+  const parcelasConsideradas = parcelasDoPeriodoExecutivo(parcelas, filters.data_de, filters.data_ate)
+  const parcelasRows = buildParcelasRows(rows, parcelasConsideradas)
   const totalAcordado = rows.reduce((sum, row) => sum + valorAcordadoRelatorio(row), 0)
   const totalEntrada = rows.reduce((sum, row) => sum + money(row.entrada), 0)
-  const totalParcelas = parcelas.reduce((sum, parcela) => sum + money(parcela.valor), 0)
+  const totalParcelas = parcelasConsideradas.reduce((sum, parcela) => sum + money(parcela.valor), 0)
   const workbook = createExcelWorkbook('Relatório de acordos', generatedAt)
 
   const resumoRows: SummaryRow[] = [
@@ -239,16 +241,20 @@ export async function criarExcelRelatorioAcordos(
     { label: 'Unidade', value: filters.unidade_id || 'Sem filtro' },
     { label: 'Carteira', value: filters.carteira_id || 'Sem filtro' },
     { label: 'Status', value: filters.status ? statusLabel(filters.status) : 'Todos' },
-    { label: 'Data início', value: filters.data_de || 'Sem filtro', type: filters.data_de ? 'date' : 'text' },
-    { label: 'Data fim', value: filters.data_ate || 'Sem filtro', type: filters.data_ate ? 'date' : 'text' },
+    { label: 'Vencimento das parcelas de', value: filters.data_de || 'Sem filtro', type: filters.data_de ? 'date' : 'text' },
+    { label: 'Vencimento das parcelas até', value: filters.data_ate || 'Sem filtro', type: filters.data_ate ? 'date' : 'text' },
+    { label: 'Criação de', value: filters.criacao_de || 'Sem filtro', type: filters.criacao_de ? 'date' : 'text' },
+    { label: 'Criação até', value: filters.criacao_ate || 'Sem filtro', type: filters.criacao_ate ? 'date' : 'text' },
+    { label: 'Operador responsável', value: filters.operador_id || 'Todos' },
+    { label: 'Tipo de acordo', value: filters.tipo_acordo === 'judicial' ? 'Judicial' : 'Extrajudicial' },
     { label: 'Ordenação solicitada na tela', value: ordenacaoLabel(filters.ordenar) },
     { label: 'Ordenação do arquivo', value: 'Carteira / Condomínio / Unidade / Data do acordo' },
     { label: 'Registros de acordos', value: rows.length, type: 'integer' },
     { label: 'Históricos excluídos da soma da dívida', value: rows.filter(excluidoDaSomaDivida).length, type: 'integer' },
-    { label: 'Total de parcelas', value: parcelas.length, type: 'integer' },
+    { label: filters.data_de || filters.data_ate ? 'Parcelas no intervalo de vencimento' : 'Total de parcelas', value: parcelasConsideradas.length, type: 'integer' },
     { label: 'Valor acordado total', value: totalAcordado, type: 'currency' },
     { label: 'Entrada total', value: totalEntrada, type: 'currency' },
-    { label: 'Valor total das parcelas', value: totalParcelas, type: 'currency' },
+    { label: filters.data_de || filters.data_ate ? 'Valor das parcelas no intervalo de vencimento' : 'Valor total das parcelas', value: totalParcelas, type: 'currency' },
   ]
 
   addSummarySheet(workbook, {
@@ -274,7 +280,9 @@ export async function criarExcelRelatorioAcordos(
     generatedAt,
     countLabel: 'parcela(s)',
     emptyNote: 'Nenhuma parcela encontrada para a seleção.',
-    note: 'Uma linha por parcela. Acordos sem parcelas aparecem com campos de parcela em branco.',
+    note: filters.data_de || filters.data_ate
+      ? 'Uma linha por parcela com vencimento dentro do intervalo selecionado. Acordos sem parcelas nesse intervalo aparecem com campos de parcela em branco.'
+      : 'Uma linha por parcela. Acordos sem parcelas aparecem com campos de parcela em branco.',
   })
 
   return exportExcelWorkbook(workbook)
