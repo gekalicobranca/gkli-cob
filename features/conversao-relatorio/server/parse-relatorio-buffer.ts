@@ -224,6 +224,19 @@ const PADRAO_SUPERLOGICA_PENDENTES_COBRANCAS: Omit<
   ativo: true,
 };
 
+const PADRAO_SUPERLOGICA_INADIMPLENCIA_ZERO_COBRANCAS: Omit<
+  PadraoConversaoDetectado,
+  "condominioDetectado" | "confianca"
+> = {
+  id: "superlogica-inadimplencia-zero-cobrancas-v1",
+  nome: "Superlógica · Inadimplência Zero",
+  tipoConversao: "cobrancas",
+  fornecedor: "Superlógica",
+  sistema: "Superlógica Condomínios",
+  relatorio: "Relação Analítica de Pendentes - Recibo do Inadimplência Zero",
+  ativo: true,
+};
+
 
 const PADRAO_HFLEX_LIVEFACILITIES_COBRANCAS: Omit<
   PadraoConversaoDetectado,
@@ -3714,6 +3727,84 @@ function detectSuperlogicaPendentesCobrancas(text: string): DeteccaoPdfCobrancas
   };
 }
 
+function detectSuperlogicaPendentesZeroCobrancas(text: string): DeteccaoPdfCobrancas {
+  const normalized = normalizePdfText(text);
+  const loose = normalizeForLooseMatch(normalized);
+  const condominioDetectado = normalized.match(/Condom[ií]nio\s*:\s*\d+\s*-\s*([^\n]+)/i)?.[1]?.trim() ?? null;
+  const isZero = /RECIBO\s+DO\s+INADIMPLENCIA\s+ZERO/i.test(loose);
+  const isAnalitico = /RELACAO\s+ANALITICA\s+DE\s+PENDENTES/i.test(loose);
+  const isHeader = /RECIBO\s*VENCIMENTO\s*EMISSAO\s*CONTA\s*HISTORICO\s*VALOR\s*TOTAL\s*RECIBO\s*TOTAL/i.test(loose);
+  const units = countRegexMatches(normalized, /(?:^|\n)\s*Bloco:\s*\S+\s+Unidade:\s*\S+/g);
+  const receipts = countRegexMatches(normalized, /(?:^|\n)\s*\d{6,}\s*\d{2}\/\d{2}\/\d{4}\d{5,}/g);
+  const hasSummary = /QUANTIDADE\s+DE\s+UNIDADES\s+INADIMPLENTES\s+DO\s+CONDOMINIO/i.test(loose);
+  const ok = isZero && isAnalitico && isHeader && units > 0 && receipts > 0 && hasSummary;
+  return { ok, confianca: ok ? Math.min(99, 60 + Math.min(units, 20) + Math.min(receipts, 19)) : 0, condominioDetectado, semDevedores: false };
+}
+
+function parseSuperlogicaPendentesZeroCobrancasPdf(text: string): ReciboCondopro[] {
+  const lines = normalizePdfText(text).split("\n").map(normalize).filter(Boolean);
+  const result: ReciboCondopro[] = [];
+  let bloco = "";
+  let unidade = "";
+  let responsavel = "";
+  let documento = "";
+  let recibo = "";
+  let vencimento = "";
+  let marcador: string | undefined;
+  let linhasItem: string[] = [];
+  let unitExpected: number | null = null;
+  let reportExpected: number | null = null;
+  let reportCount: number | null = null;
+  const money = (value: string) => {
+    const match = value.match(/(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/);
+    return match ? parseMoney(match[0]) : null;
+  };
+  const flushReceipt = (finalInUnit = false) => {
+    if (!recibo || !vencimento || !unidade || !linhasItem.length) return;
+    let total: number | null = null;
+    for (const item of linhasItem) {
+      const matches = [...item.matchAll(/(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/g)];
+      if (matches.length < 2) continue;
+      const last = matches[matches.length - 1];
+      const tail = item.slice(last.index! + last[0].length);
+      if (/^(?:AE|AJ|A|J|D|B|P)?\s*$/i.test(tail)) {
+        const index = finalInUnit && matches.length >= 3 ? matches.length - 2 : matches.length - 1;
+        total = parseMoney(matches[index][0]);
+      }
+    }
+    if (total === null) return;
+    result.push({ bloco, unidade, responsavel, responsavelDocumento: documento || undefined, recibo, vencimento, valorPrincipal: total, multa: 0, correcao: 0, juros: 0, valorTotal: total, marcadorOrigem: marcador, situacaoOrigem: situacaoOrigemFromMarcador(marcador), detalhesOrigem: "Inadimplência Zero: o relatório informa somente o total do recibo, sem discriminar principal e encargos." });
+    recibo = ""; vencimento = ""; marcador = undefined; linhasItem = [];
+  };
+  const flushUnit = () => {
+    flushReceipt(true);
+    if (unitExpected !== null && unidade && Math.abs(result.filter((item) => item.bloco === bloco && item.unidade === unidade).reduce((sum, item) => sum + item.valorTotal, 0) - unitExpected) > 0.011) {
+      throw new Error(`Superlógica Inadimplência Zero: total divergente na unidade ${unidade}. A planilha não foi gerada.`);
+    }
+    unitExpected = null;
+  };
+  for (const line of lines) {
+    const header = line.match(/^Bloco:\s*(\S+)\s+Unidade:\s*(\S+)\s+(.+?)(?:\s+(CPF|CNPJ)\s*:\s*([\d.\-/]+))?$/i);
+    if (header) {
+      flushUnit(); bloco = header[1] || "0"; unidade = header[2]; responsavel = normalize(header[3]); documento = header[5] ? cleanDocument(header[5]) : ""; continue;
+    }
+    if (/^Total\s+(?:Geral\s+)?da\s+Unidade\s*:/i.test(line)) {
+      const values = moneyMatchesFromText(line); unitExpected = values.length ? values[values.length - 1] : null; flushUnit(); continue;
+    }
+    const summary = line.match(/^Quantidade de Unidades inadimplentes do Condom[ií]nio:\s*(\d+)\s*Total\s*:/i);
+    if (summary) { reportCount = Number(summary[1]); const values = moneyMatchesFromText(line); reportExpected = values.length ? values[values.length - 1] : null; continue; }
+    const start = line.match(/^(\d{6,})\s*(?:(AE|AJ|A|J|D|B|P)\s*)?(\d{2}\/\d{2}\/\d{4})\d{5,}/i);
+    if (start) {
+      flushReceipt(); recibo = start[1]; marcador = normalizeMarcadorOrigem(start[2] ?? line.match(/,\d{2}\s*(AE|AJ|A|J|D|B|P)\s*$/i)?.[1]); vencimento = start[3]; linhasItem = [line]; continue;
+    }
+    if (recibo) linhasItem.push(line);
+  }
+  flushUnit();
+  if (reportCount !== null && new Set(result.map((item) => `${item.bloco}::${item.unidade}`)).size !== reportCount) throw new Error("Superlógica Inadimplência Zero: quantidade de unidades divergente do relatório.");
+  if (reportExpected !== null && Math.abs(result.reduce((sum, item) => sum + item.valorTotal, 0) - reportExpected) > 0.011) throw new Error("Superlógica Inadimplência Zero: total geral divergente do relatório.");
+  return result;
+}
+
 function situacaoOrigemFromMarcador(marcador?: string): SituacaoOrigemCobranca {
   switch ((marcador ?? "").toUpperCase()) {
     case "J":
@@ -5532,6 +5623,23 @@ export async function parseRelatorioBuffer(
       });
       if (result.ok) result.preview.inconsistencias.push(...parsed.inconsistencias);
       return result;
+    }
+    const deteccaoSuperlogicaZero = detectSuperlogicaPendentesZeroCobrancas(text);
+    if (deteccaoSuperlogicaZero.ok) {
+      const recibos = parseSuperlogicaPendentesZeroCobrancasPdf(text);
+      const padraoDetectado = buildPadraoDetectado(PADRAO_SUPERLOGICA_INADIMPLENCIA_ZERO_COBRANCAS, {
+        condominioDetectado: deteccaoSuperlogicaZero.condominioDetectado,
+        confianca: deteccaoSuperlogicaZero.confianca,
+      });
+      if (recibos.length) return buildPreviewFromRecibos({
+        somenteAnoCorrente: input.somenteAnoCorrente,
+        origem: "Superlógica - Relação Analítica de Pendentes (Inadimplência Zero)",
+        filename: input.filename,
+        recibos,
+        condominioCnpj: input.condominioCnpj,
+        origemSistema: "Superlógica Condomínios",
+        padraoDetectado,
+      });
     }
     const deteccaoSuperlogica = detectSuperlogicaPendentesCobrancas(text);
     const deteccaoHflex = detectHflexLiveFacilitiesCobrancas(text);
