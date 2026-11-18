@@ -309,17 +309,18 @@ async function validateRelatorioAcordos(outputDir: string) {
   assert.equal(parcelasSheet.getCell('K6').value instanceof Date, true)
   assert.equal(parcelasSheet.getCell('L6').value, 200)
   assert.equal(parcelasSheet.getCell('L6').numFmt, '"R$" #,##0.00')
-  assert.equal(parcelasSheet.getCell('M5').value, 'Valor do repasse da parcela')
-  assert.equal(parcelasSheet.getCell('M6').value, 18.18)
-  assert.equal(parcelasSheet.getCell('M6').numFmt, '"R$" #,##0.00')
-  assert.equal(parcelasSheet.getCell('O6').value instanceof Date, true)
-  assert.equal(parcelasSheet.autoFilter, 'A5:Q7')
+  assert.equal(parcelasSheet.getCell('M5').value, 'Valor pago')
+  assert.equal(parcelasSheet.getCell('N5').value, 'Valor do repasse da parcela')
+  assert.equal(parcelasSheet.getCell('N6').value, 18.18)
+  assert.equal(parcelasSheet.getCell('N6').numFmt, '"R$" #,##0.00')
+  assert.equal(parcelasSheet.getCell('P6').value instanceof Date, true)
+  assert.equal(parcelasSheet.autoFilter, 'A5:R7')
   const informadoWorkbook = await loadWorkbook(await criarExcelRelatorioAcordos(
     { ordenar: 'data_desc' }, rows,
     [{ ...parcelas[0], valor_repasse_informado: '92.15' }, { ...parcelas[1], valor_repasse_informado: 0 }],
   ))
-  assert.equal(informadoWorkbook.getWorksheet('PARCELAS')!.getCell('M6').value, 92.15)
-  assert.equal(informadoWorkbook.getWorksheet('PARCELAS')!.getCell('M7').value, 0)
+  assert.equal(informadoWorkbook.getWorksheet('PARCELAS')!.getCell('N6').value, 92.15)
+  assert.equal(informadoWorkbook.getWorksheet('PARCELAS')!.getCell('N7').value, 0)
   writeFileSync(`${outputDir}/relatorio-acordos.xlsx`, bytes)
 }
 
