@@ -1,4 +1,4 @@
-export type TipoCobrancaOrigem = 'cota_condominial' | 'cessao_espaco' | 'multa' | 'consumo' | 'outros'
+export type TipoCobrancaOrigem = 'cota_condominial' | 'cessao_espaco' | 'multa' | 'consumo' | 'custos_protesto' | 'outros'
 export type ComponenteCobrancaOrigem = {
   conta: string
   historico: string
@@ -13,12 +13,13 @@ export type ComposicaoCobrancaOrigem = {
 }
 export const NOMES_TIPOS_COBRANCA: Record<TipoCobrancaOrigem, string> = {
   cota_condominial: 'Cota condominial', cessao_espaco: 'Cessão/locação de espaço',
-  multa: 'Multa (lançamento)', consumo: 'Consumo', outros: 'Outros',
+  multa: 'Multa (lançamento)', consumo: 'Consumo', custos_protesto: 'Custos de protesto', outros: 'Outros',
 }
 
 /** Classifica o histórico do componente; os encargos de atraso não definem o tipo. */
 export function tipoCobrancaDoHistorico(historico: string): TipoCobrancaOrigem {
   const text = historico.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
+  if (/\b(?:CUSTOS?|DESPESAS?|TAXAS?)\b.*\bPROTESTO\b|\bPROTESTO\b.*\b(?:CUSTOS?|DESPESAS?|TAXAS?)\b/.test(text)) return 'custos_protesto'
   if (/\b(?:CESSAO|LOCACAO|ALUGUEL)\b.*\b(?:ESPACO|SALAO|AREA)\b/.test(text)) return 'cessao_espaco'
   if (/\bMULTA\b/.test(text)) return 'multa'
   if (/\bCONSUMO\b|\b(?:AGUA|GAS|ENERGIA)\b/.test(text)) return 'consumo'

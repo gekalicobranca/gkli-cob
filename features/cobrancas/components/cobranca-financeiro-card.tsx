@@ -35,6 +35,7 @@ export function CobrancaFinanceiroCard({
   valorAtualizado,
   despesaCobranca,
   valorNegociacao,
+  editing = false,
   updateAction,
 }: {
   cobranca: any
@@ -46,10 +47,11 @@ export function CobrancaFinanceiroCard({
   valorAtualizado: number
   despesaCobranca: number
   valorNegociacao: number
+  editing?: boolean
   updateAction: (formData: FormData) => Promise<void>
 }) {
   return (
-    <details className="rounded-xl border border-slate-200 bg-white p-4">
+    <details id="financeiro" open={editing || undefined} className="rounded-xl border border-slate-200 bg-white p-4">
       <summary className="cursor-pointer text-sm font-semibold text-slate-950">Composição financeira</summary>
 
       <div className="mt-2">
@@ -63,7 +65,7 @@ export function CobrancaFinanceiroCard({
         <ValueBox label="Valor negociação" value={formatCurrency(valorNegociacao)} highlight />
       </div>
 
-      <details className="mt-3">
+      <details open={editing || undefined} className="mt-3">
         <summary className="cursor-pointer text-sm font-medium text-cyan-800">Editar valores</summary>
       <MoneyForm fields={[
         { name: 'valor_original', label: 'Principal' }, { name: 'juros', label: 'Juros' },

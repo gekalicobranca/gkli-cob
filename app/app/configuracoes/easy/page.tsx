@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Bot, Handshake, FileUp, ReceiptText, ScanLine, Sparkles, Workflow } from 'lucide-react';
+import { ArrowRight, Bot, Handshake, FileUp, ReceiptText, ScanLine, Sparkles, Workflow, WalletCards } from 'lucide-react';
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras';
 import styles from '@/components/easy/easy.module.css';
 export default async function EasyModulePage() {
@@ -8,6 +8,7 @@ export default async function EasyModulePage() {
     <span className={styles.eyebrow}><Sparkles size={15} aria-hidden="true" />Easy Cob</span><h1>Sua operação, em poucos passos.</h1><p>Escolha por onde começar. Cada tarefa tem uma trilha simples até a confirmação.</p>
   </header><div className={`${styles.grid} ${styles.moduleGrid}`}>{[
     { title:'Acordos', text:'Consulte, simule, cancele e efetive acordos.', href:'/app/configuracoes/easy/acordos', icon:Handshake, tone:styles.blue },
+    { title:'Cobranças', text:'Consulte, crie, edite e exclua cobranças.', href:'/app/configuracoes/easy/cobrancas', icon:WalletCards, tone:styles.violet },
     { title:'Easy Cap', text:'Atualize a inadimplência dos condomínios sem agente remoto usando o relatório da administradora ou a planilha modelo.', href:'/app/configuracoes/easy/captacao', icon:FileUp, tone:styles.green },
     { title:'Easy Flow', text:'Escolha a régua e a conta SMTP, monte os flows e libere para a agenda.', href:'/app/configuracoes/easy/flow', icon:Workflow, tone:styles.blue },
     { title:'Easy Pag', text:'Consulte pagamentos de parcelas de acordos por administradora ou gere uma planilha para conferência.', href:'/app/configuracoes/easy/pag', icon:ReceiptText, tone:styles.violet },

@@ -193,6 +193,7 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
             valorAtualizado={valorAtualizado}
             despesaCobranca={despesaCobranca}
             valorNegociacao={valorNegociacao}
+            editing={query.acao === 'editar-financeiro'}
             updateAction={updateCobrancaFinanceiro}
           />
           <details className="rounded-xl border border-slate-200 bg-white p-4">

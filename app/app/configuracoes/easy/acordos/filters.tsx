@@ -8,8 +8,8 @@ import styles from "@/components/easy/easy.module.css";
 
 type Option = { id: string; label: string };
 
-export function EasyFilters({ operation, condominium, unit, condominiums, units }: {
-  operation: string;
+export function EasyFilters({ operation, condominium, unit, condominiums, units, basePath = "/app/configuracoes/easy/acordos" }: {
+  basePath?: string; operation: string;
   condominium: string;
   unit: string;
   condominiums: Option[];
@@ -21,7 +21,7 @@ export function EasyFilters({ operation, condominium, unit, condominiums, units 
     const params = new URLSearchParams({ operacao: operation });
     if (condominio) params.set("condominio", condominio);
     if (unidade) params.set("unidade", unidade);
-    startTransition(() => router.push(`/app/configuracoes/easy/acordos?${params}`));
+    startTransition(() => router.push(`${basePath}?${params}`));
   }
   const fieldClass = "mt-3 w-full border bg-slate-50/60 p-3 text-sm disabled:opacity-60";
   return <div className={`${styles.panel} grid gap-5 sm:grid-cols-2`} aria-busy={pending}>
@@ -37,7 +37,7 @@ export function EasyFilters({ operation, condominium, unit, condominiums, units 
       <SearchableSelect key={condominium} id="easy-unit" name="unidade" selectedValue={unit}
         options={units.map(option => ({ value: option.id, label: option.label }))}
         placeholder={condominium && !units.length
-          ? operation === "consultar" ? "Nenhuma unidade com acordo"
+          ? basePath.endsWith("/cobrancas") ? "Nenhuma unidade disponível" : operation === "consultar" ? "Nenhuma unidade com acordo"
             : operation === "criar" ? "Nenhuma unidade com cobrança ativa"
               : operation === "cancelar" ? "Nenhuma unidade com acordo para cancelar"
                 : "Nenhuma unidade com acordo para efetivar"
