@@ -46,7 +46,8 @@ export default async function NovoCondominioPage() {
             </FormField>
 
             <FormField label="CNPJ">
-              <Input name="cnpj" placeholder="Somente números ou formatado" />
+              <Input name="cnpj" inputMode="text" autoCapitalize="characters" placeholder="00.000.000/E08G-12" />
+              <span className="block text-xs text-slate-500">Opcional; 12 posições alfanuméricas e dois verificadores numéricos.</span>
             </FormField>
 
             <GrupoField grupos={grupos} />

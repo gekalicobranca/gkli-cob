@@ -157,7 +157,7 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
             <FormField label="Status"><Select name="status" defaultValue={condominio.status ?? 'ativo'}><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="pausado">Pausado</option></Select></FormField>
             <FormField label="Nome oficial do condomínio"><Input name="nome" defaultValue={condominio.nome ?? ''} required /></FormField>
             <FormField label="Nome operacional"><Input name="nome_operacional" defaultValue={condominio.nome_operacional ?? ''} placeholder="Como a operação identifica este condomínio" /></FormField>
-            <FormField label="CNPJ"><Input name="cnpj" defaultValue={condominio.cnpj ?? ''} /></FormField>
+            <FormField label="CNPJ" hint="Opcional; 12 posições alfanuméricas e dois verificadores numéricos."><Input name="cnpj" defaultValue={condominio.cnpj ?? ''} inputMode="text" autoCapitalize="characters" placeholder="00.000.000/E08G-12" /></FormField>
             <GrupoField grupos={grupos} value={condominio.grupo} />
             <OperadorField operadores={operadores} value={condominio.operador_id} />
             <FormField label="Administradora"><Input name="administradora" defaultValue={condominio.administradora ?? ''} /></FormField>
