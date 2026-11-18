@@ -136,7 +136,7 @@ async function validateCobrancas(outputDir: string) {
     assert.notEqual(row, -1, `Campo de resumo ausente: ${label}`)
     return resumo.getCell(row, 2)
   }
-  assert.equal(summaryValue('Ordenação do arquivo').value, 'Vencimento mais antigo')
+  assert.equal(summaryValue('Ordenação do arquivo').value, 'Carteira / Condomínio / Bloco / Unidade, com a ordenação selecionada dentro da unidade')
   assert.equal(summaryValue('Total de cobranças').value, 1)
   assert.equal(summaryValue('Valor atualizado total').value, 1125.75)
   assert.equal(summaryValue('Valor atualizado total').numFmt, '"R$" #,##0.00')
