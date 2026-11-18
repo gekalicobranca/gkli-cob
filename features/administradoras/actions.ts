@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { requireUser } from '@/utils/auth/require-user'
+import { requireRole } from '@/utils/auth/require-role'
 
 function str(formData: FormData, key: string) {
   const value = formData.get(key)
@@ -19,7 +19,7 @@ function onlyDigits(value: string | null) {
 }
 
 export async function createAdministradora(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin'])
   const supabase = createAdminClient()
   const cnpj = onlyDigits(str(formData, 'cnpj'))
   if (!cnpj) throw new Error('Informe o CNPJ da administradora.')
@@ -46,7 +46,7 @@ export async function createAdministradora(formData: FormData) {
 }
 
 export async function updateAdministradora(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin'])
   const supabase = createAdminClient()
   const id = str(formData, 'id')
   if (!id) throw new Error('Administradora não informada.')
@@ -75,7 +75,7 @@ export async function updateAdministradora(formData: FormData) {
 }
 
 export async function createContatoAdministradora(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = createAdminClient()
   const administradora_id = str(formData, 'administradora_id')
   if (!administradora_id) throw new Error('Administradora não informada.')
@@ -100,7 +100,7 @@ export async function createContatoAdministradora(formData: FormData) {
 }
 
 export async function createSolicitacaoAdm(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = createAdminClient()
   const administradora_id = str(formData, 'administradora_id')
   if (!administradora_id) throw new Error('Administradora não informada.')
@@ -128,7 +128,7 @@ export async function createSolicitacaoAdm(formData: FormData) {
 }
 
 export async function resolverSolicitacaoAdm(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = createAdminClient()
   const id = str(formData, 'id')
   const administradoraId = str(formData, 'administradora_id')
