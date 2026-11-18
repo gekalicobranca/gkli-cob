@@ -68,7 +68,7 @@ async function assertMigrationConflict(options: { duplicateAdmin?: boolean; dupl
     const newIndex = await db.query(`select to_regclass('public.condominios_carteira_administradora_cnpj_uidx')::text as name`)
     assert.deepEqual(oldIndex.rows, [{ name: 'condominios_cnpj_key' }])
     assert.deepEqual(newIndex.rows, [{ name: null }])
-    const count = await db.query(`select count(*)::int as total from public.condominios`)
+    const count = await db.query<{ total: number }>(`select count(*)::int as total from public.condominios`)
     assert.equal(count.rows[0].total, options.duplicateCondominium ? 3 : 1)
   } finally {
     await db.close()
