@@ -11,9 +11,15 @@ export function CobrancaMensageriaCard({ mensagens }: { mensagens: any[]; telefo
         {mensagens.length ? mensagens.map(mensagem => (
           <div key={mensagem.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-3">
-              <StatusBadge status={mensagem.status_operacional ?? mensagem.status} />
-              <span className="text-xs text-slate-500">{formatDateBR(mensagem.created_at ?? mensagem.criado_em)}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={mensagem.status_operacional ?? mensagem.status} />
+                <span className="text-xs text-slate-500">{mensagem.canal}</span>
+              </div>
+              <span className="text-xs text-slate-500">{formatDateBR(mensagem.enviada_em ?? mensagem.created_at ?? mensagem.criado_em)}</span>
             </div>
+            <p className="mt-2 text-xs text-slate-500">Flow: {Array.isArray(mensagem.flow) ? mensagem.flow[0]?.nome ?? mensagem.cobranca_flow_id : mensagem.flow?.nome ?? mensagem.cobranca_flow_id}</p>
+            {mensagem.destinatario ? <p className="mt-2 text-xs text-slate-500">Para: {mensagem.destinatario}</p> : null}
+            {mensagem.email_assunto ? <p className="mt-2 text-sm font-medium text-slate-700">{mensagem.email_assunto}</p> : null}
             <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{mensagem.conteudo_renderizado ?? mensagem.conteudo ?? mensagem.email_assunto ?? 'Mensagem sem conteúdo renderizado.'}</p>
           </div>
         )) : (
