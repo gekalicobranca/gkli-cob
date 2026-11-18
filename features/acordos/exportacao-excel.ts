@@ -18,6 +18,7 @@ export type ParcelaAcordo = {
   numero?: number | string | null
   tipo_parcela?: string | null
   valor?: number | string | null
+  valor_pago?: number | string | null
   vencimento?: string | null
   status?: string | null
   data_pagamento?: string | null
@@ -37,6 +38,7 @@ type ParcelaReportRow = {
   parcelaTipo: string | null
   parcelaVencimento: string | null
   parcelaValor: number | null
+  parcelaValorPago: number | null
   parcelaValorRepasse: number | null
   parcelaStatus: string | null
   parcelaPagamento: string | null
@@ -161,6 +163,7 @@ function buildParcelasRows(rows: any[], parcelas: ParcelaAcordo[]): ParcelaRepor
         parcelaTipo: null,
         parcelaVencimento: null,
         parcelaValor: null,
+        parcelaValorPago: null,
         parcelaValorRepasse: null,
         parcelaStatus: null,
         parcelaPagamento: null,
@@ -174,6 +177,7 @@ function buildParcelasRows(rows: any[], parcelas: ParcelaAcordo[]): ParcelaRepor
       parcelaTipo: parcela.tipo_parcela ?? 'parcela',
       parcelaVencimento: parcela.vencimento ?? null,
       parcelaValor: money(parcela.valor),
+      parcelaValorPago: parcela.valor_pago == null ? null : money(parcela.valor_pago),
       parcelaValorRepasse: calcularValorRepasseParcela(row, parcela),
       parcelaStatus: statusLabel(parcela.status),
       parcelaPagamento: parcela.data_pagamento ?? null,
@@ -214,6 +218,7 @@ const parcelaColumns: ExcelColumn<ParcelaReportRow>[] = [
   { key: 'parcelaTipo', label: 'Tipo', width: 16 },
   { key: 'parcelaVencimento', label: 'Vencimento', width: 16, type: 'date' },
   { key: 'parcelaValor', label: 'Valor da parcela', width: 18, type: 'currency' },
+  { key: 'parcelaValorPago', label: 'Valor pago', width: 18, type: 'currency' },
   { key: 'parcelaValorRepasse', label: 'Valor do repasse da parcela', width: 26, type: 'currency' },
   { key: 'parcelaStatus', label: 'Status da parcela', width: 20 },
   { key: 'parcelaPagamento', label: 'Data de pagamento', width: 18, type: 'date' },

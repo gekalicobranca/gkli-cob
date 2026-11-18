@@ -1471,7 +1471,7 @@ async function getParcelasDosAcordos(acordoIds: string[]) {
   return await carregarParcelasRelatorio(ids, (batch, from, to) =>
     supabase
       .from("parcelas_acordo")
-      .select("id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento,valor_repasse_informado,created_at")
+      .select("id,acordo_id,numero,tipo_parcela,valor,valor_pago,status,data_pagamento,vencimento,valor_repasse_informado,created_at")
       .in("acordo_id", batch)
       .order("id", { ascending: true })
       .range(from, to),
@@ -1485,7 +1485,7 @@ function calculateAgreementSummary(acordos: any[], parcelas: any[]): AgreementPe
   );
   const valorRecuperado = parcelas
     .filter((parcela) => isStatusPago(parcela.status) || Boolean(parcela.data_pagamento))
-    .reduce((sum, parcela) => sum + Number(parcela.valor ?? 0), 0);
+    .reduce((sum, parcela) => sum + Number(parcela.valor_pago ?? parcela.valor ?? 0), 0);
   const acordosRompidos = acordos.filter(isStatusRompido).length;
   const acordosEfetivados = acordos.filter(isStatusEfetivado).length;
   const acordosAtivos = acordos.filter(

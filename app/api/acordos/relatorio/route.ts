@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     parcelas = await carregarParcelasRelatorio(acordoIds, (ids, from, to) =>
       supabase
         .from('parcelas_acordo')
-        .select('id, acordo_id, numero, tipo_parcela, valor, vencimento, status, data_pagamento, valor_repasse_informado')
+        .select('id, acordo_id, numero, tipo_parcela, valor, valor_pago, vencimento, status, data_pagamento, valor_repasse_informado')
         .in('acordo_id', ids)
         .order('id', { ascending: true })
         .range(from, to),

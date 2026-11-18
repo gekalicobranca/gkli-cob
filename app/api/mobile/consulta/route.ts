@@ -41,13 +41,13 @@ export async function GET(request: Request) {
     const rows = await listAcordosComSaudeFiltered(scope, { tipo_acordo: view === 'judiciais' ? 'judicial' : 'extrajudicial', condominio_id: condominioId, data_de: inicio, data_ate: fim, ordenar: 'condominio' })
     const subset = rows.slice((page - 1) * size, page * size)
     const parcelas = await carregarParcelasRelatorio(subset.map(r => r.id), (ids, from, to) => db.from('parcelas_acordo')
-      .select('id,acordo_id,numero,tipo_parcela,valor,vencimento,status,data_pagamento,valor_repasse_informado').in('acordo_id', ids)
+      .select('id,acordo_id,numero,tipo_parcela,valor,valor_pago,vencimento,status,data_pagamento,valor_repasse_informado').in('acordo_id', ids)
       .gte('vencimento', inicio).lte('vencimento', fim).order('id').range(from, to))
     const items = subset.map(r => ({ id: r.id, condominio: r.condominios?.nome, carteira: r.carteiras?.nome,
       unidade: r.unidades?.identificacao, bloco: r.unidades?.bloco, responsavel: r.unidades?.responsavel_nome, status: r.status,
       valor: Number(r.valor_acordado ?? 0), processo: r.numero_processo,
       parcelas: parcelas.filter(parcela => parcela.acordo_id === r.id).map(parcela => ({ id: parcela.id, numero: parcela.numero, valor: Number(parcela.valor), vencimento: parcela.vencimento,
-        pagamento: pagamentoParcelaExecutivo(parcela), dataPagamento: parcela.data_pagamento, repasse: repasseParcelaExecutivo(parcela) })) }))
+        pagamento: pagamentoParcelaExecutivo(parcela), dataPagamento: parcela.data_pagamento, valorPago: parcela.valor_pago == null ? null : Number(parcela.valor_pago), repasse: repasseParcelaExecutivo(parcela) })) }))
     return respond({ items, total: rows.length, page, pages: Math.max(1, Math.ceil(rows.length / size)) })
   } catch (error) {
     console.error('Erro na consulta mobile:', error)
