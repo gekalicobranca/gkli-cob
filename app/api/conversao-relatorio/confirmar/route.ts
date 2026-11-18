@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
-import { carregarCondominioEasy, conferirAssinaturaCaptacao } from "@/features/easy-cob/captacao-server"
-import { validarPreviaCaptacao } from "@/features/easy-cob/captacao-preview"
+import { EASY_CAP_CONFIRMATION_PAUSED, MENSAGEM_CAP_SUSPENSA } from '@/features/easy-cob/contencao'
+import {confirmarCaptacaoTransacional} from '@/features/easy-cob/captacao-commit'
 import { revalidatePath } from "next/cache"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { isCronSecretAuthorized, requireAuthenticatedApiUser } from "@/app/api/_lib/auth"
@@ -128,7 +128,6 @@ async function isCarteiraPermitida(
 }
 
 export async function POST(request: NextRequest) {
-  let easyImportId: string | undefined
   let processamentoMaestro: { id: string; inicio: string } | undefined
   try {
     const chamadaMaestro = isCronSecretAuthorized(request)
@@ -196,19 +195,30 @@ export async function POST(request: NextRequest) {
     }
 
     const preview = conversao.preview_json as any
-    const captacaoEasy = Boolean(preview?.easyCaptacao)
+    const captacaoEasy = conversao.origem === 'easy_captacao' || Boolean(preview?.easyCaptacao)
     if (body?.easy && !captacaoEasy) return NextResponse.json({ok:false,error:"Prévia Easy não encontrada."},{status:400})
     if (captacaoEasy) {
       if (chamadaMaestro || !user || !autenticacao?.profile || !['admin','gestor','operador'].includes(autenticacao.profile.role)
-        || conversao.origem !== 'easy_captacao' || preview.easyCaptacao.operadorId !== user.id) {
+        || conversao.origem !== 'easy_captacao' || preview?.easyCaptacao?.operadorId !== user.id) {
         return NextResponse.json({ok:false,error:"Sem permissão para confirmar esta captação Easy."},{status:403})
       }
       if(body.confirmacao !== true) return NextResponse.json({ok:false,error:"Confira o resumo e confirme a substituição."},{status:400})
-      await carregarCondominioEasy(condominioId)
-      if (!["concluido","concluido_com_alertas"].includes(conversao.status)) {
-        conferirAssinaturaCaptacao(conversaoId,condominioId,carteiraId,preview,user.id)
-        validarPreviaCaptacao(preview)
+      // Operações anteriores ao protocolo novo continuam bloqueadas. Não há
+      // fallback para o loop destrutivo ou continuação após falha da RPC.
+      if(preview?.easyCaptacao?.substituicao?.protocolo===2) {
+        const resultado=await confirmarCaptacaoTransacional(supabase,conversao,user.id)
+        const {httpStatus,...payload}=resultado
+        if(payload.ok) {
+          // Cache não integra o commit. Falha de revalidação não muda o resultado.
+          try { for(const path of ['/app/configuracoes/easy/captacao','/app/cobrancas','/app/unidades','/app'])revalidatePath(path) } catch {}
+        }
+        return NextResponse.json(payload,{status:httpStatus,headers:{'Cache-Control':'private, no-store'}})
       }
+      if (["concluido", "concluido_com_alertas"].includes(conversao.status)) {
+        return NextResponse.json({ok:true,jaConfirmada:true,conversaoId}, {headers:{'Cache-Control':'private, no-store'}})
+      }
+      return NextResponse.json({ok:false,code:EASY_CAP_CONFIRMATION_PAUSED,error:MENSAGEM_CAP_SUSPENSA,conversaoId},
+        {status:503,headers:{'Cache-Control':'private, no-store'}})
     }
 
     if (["concluido", "concluido_com_alertas"].includes(String((conversao as any).status ?? ""))) {
@@ -294,14 +304,7 @@ export async function POST(request: NextRequest) {
 
 
     // No PDF, substitui apenas os ausentes depois de conferir a captação inteira.
-    if (captacaoEasy) {
-      const {data:limpeza,error:limpezaError}=await supabase.rpc('easy_preparar_captacao', {
-        p_conversao:conversaoId,p_versao:preview.easyCaptacao.substituicao.versao,
-      })
-      if(limpezaError) throw new Error(limpezaError.message)
-      easyImportId=conversaoId
-      cobrancasAnterioresRemovidas=Number(limpeza?.removidas ?? 0)
-    } else if (!conciliarMaestro && limparCobrancasAnteriores && !captacaoPdf) {
+    if (!conciliarMaestro && limparCobrancasAnteriores && !captacaoPdf) {
       if (chamadaMaestro) {
         const { data: limpeza, error: limpezaError } = await supabase.rpc('maestro_substituir_cobrancas_conversao', { p_conversao: conversaoId })
         if (limpezaError) throw new Error(`Erro ao substituir cobranças do Maestro: ${limpezaError.message}`)
@@ -687,8 +690,6 @@ export async function POST(request: NextRequest) {
       cobrancasAnterioresRemovidas = data.arquivadas
       cobrancasAusentes = data.arquivadas + data.comAcordo
       if (data.motivo) inconsistencias.push(data.motivo)
-    } else if (captacaoEasy) {
-      // A substituição foi confirmada e auditada pela mesma rotina do Maestro.
     } else if (captacaoPdf && limparCobrancasAnteriores) {
       const limpeza = await removerAusentesDaConversaoPdf(supabase, {
         conversaoId, condominioId, carteiraId, preview, importadas: importadasParaAusencia,
@@ -748,7 +749,7 @@ export async function POST(request: NextRequest) {
     let concluirConversao = supabase
       .from("conversoes_relatorio")
       .update({
-        status: captacaoEasy && falhasImportacao ? 'falha' : inconsistencias.length ? "concluido_com_alertas" : "concluido",
+        status: inconsistencias.length ? "concluido_com_alertas" : "concluido",
         inconsistencias_json: inconsistencias,
         preview_json: { ...previewSemBaseRanking, ...(rankingMensal ? { rankingMensal } : {}),
           ...(limpezaAusentesPdf ? { limpezaAusentesPdf } : {}),
@@ -767,8 +768,7 @@ export async function POST(request: NextRequest) {
     revalidatePath("/app")
 
     return NextResponse.json({
-      ok: !captacaoEasy || falhasImportacao === 0,
-      ...(captacaoEasy && falhasImportacao ? { error: 'A captação teve falhas após a substituição. Consulte as inconsistências e o histórico antes de realizar uma nova captação.' } : {}),
+      ok: true,
       resumo: {
         cobrancasCriadas,
         cobrancasIgnoradas,
@@ -788,7 +788,6 @@ export async function POST(request: NextRequest) {
       await createAdminClient().from('conversoes_relatorio').update({ status: 'falha', atualizado_em: new Date().toISOString() })
         .eq('id', processamentoMaestro.id).eq('status', 'processando').eq('atualizado_em', processamentoMaestro.inicio)
     }
-    if(easyImportId) await createAdminClient().from('conversoes_relatorio').update({status:'falha',atualizado_em:new Date().toISOString()}).eq('id',easyImportId).eq('status','processando')
     console.error("Erro ao confirmar conversão:", error)
 
     return NextResponse.json(

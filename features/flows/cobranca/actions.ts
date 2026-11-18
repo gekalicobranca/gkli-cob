@@ -43,7 +43,7 @@ function flowNome(carteiraNome: string | null | undefined, loteId: string, condo
 async function getFlow(supabase: SupabaseAdmin, flowId: string, scope: CarteiraScope) {
   let query = supabase
     .from('cobranca_flows')
-    .select('id,carteira_id,lote_id,regua_id,status,nome,total_mensagens')
+    .select('id,carteira_id,lote_id,regua_id,status,nome,total_mensagens,payload')
     .eq('id', flowId)
     .maybeSingle()
   query = applyCarteiraScope(query, scope.carteiraIds)
@@ -310,6 +310,15 @@ export async function enviarFlowCobranca(flowId: string) {
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
   const flow = await getFlow(supabase, flowId, scope)
+  if ((flow.payload as any)?.easy_execucao_id) {
+    const remetente = (flow.payload as any)?.canais?.includes('email') ? await getEmailRemetenteKey(flow.carteira_id) : ''
+    const { error } = await supabase.rpc('email_ativar_flow', { p_flow: flowId, p_remetente: remetente, p_usuario: user.id })
+    if (error) throw new Error('A liberação Easy exige consulta e conferência do andamento.')
+    revalidatePath('/app/configuracoes/easy/flow')
+    revalidatePath('/app/flows/cobranca/email')
+    revalidatePath('/app/flows/cobranca/whatsapp')
+    return
+  }
   if (!['pronto', 'pausado'].includes(flow.status)) throw new Error('Este Flow não está pronto para ativação.')
   const { data: canais, error: canaisError } = await supabase.from('mensagens').select('canal').eq('cobranca_flow_id', flowId)
   if (canaisError) throw new Error(canaisError.message)

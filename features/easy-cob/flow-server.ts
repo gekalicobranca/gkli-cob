@@ -1,5 +1,6 @@
 import 'server-only';
 import {createHash} from 'node:crypto';
+import {canonical} from './captacao-assinatura';
 import {createAdminClient} from '@/utils/supabase/admin';
 import {getPermittedCarteiras} from '@/utils/auth/get-permitted-carteiras';
 import {applyCarteiraScope} from '@/utils/auth/apply-carteira-scope';
@@ -15,13 +16,14 @@ import {resolverCorrespondenciasUnidade} from '@/lib/core/identidade-unidade';
 import {escolherContatoRegua} from '@/features/regua/services/regua-shared';
 import {impedimentoEasyFlow,type EasyFlowOptions,type EasyFlowView} from './flow-model';
 import {diasDesdeVencimento} from '@/features/regua/engine';
+import {EASY_FLOW_ESTADOS_BLOQUEANTES} from './contencao';
 
-export const flowHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+export const flowHash=(value:unknown)=>createHash('sha256').update(canonical(value)).digest('hex');
 export async function contextoEasyFlow(condominioId:string) {
   const scope=await getPermittedCarteiras();
   if(!['admin','gestor','operador'].includes(scope.perfil)) throw Error('Perfil sem permissão para montar flows.');
   const db=createAdminClient();
-  const {data:c,error}=await applyCarteiraScope(db.from('condominios').select('id,nome,nome_operacional,carteira_id,status,regua_cobranca_id,inicio_cobranca_dias,dias_apos_vencimento_regua,dias_cobranca_ativa,pre_juridico_habilitado,vencimento_cota_dia,carteira:carteiras(email_transporte)').eq('id',condominioId),scope.carteiraIds).maybeSingle();
+  const {data:c,error}=await applyCarteiraScope(db.from('condominios').select('id,nome,nome_operacional,carteira_id,status,regua_cobranca_id,inicio_cobranca_dias,dias_apos_vencimento_regua,dias_cobranca_ativa,pre_juridico_habilitado,vencimento_cota_dia,carteira:carteiras(nome,email_transporte)').eq('id',condominioId),scope.carteiraIds).maybeSingle();
   if(error||!c||c.status!=='ativo')throw Error('Condomínio indisponível para este usuário.');
   if(await getCondominioAgenteStatus(c.id,scope.carteiraIds)!=='nao_configurado')throw Error('Este condomínio possui agente remoto. Acompanhe os flows no Maestro.');
   return {db,scope,c};
@@ -48,7 +50,7 @@ export async function planejarEasyFlow(condominioId:string,reguaId:string,smtpId
   if(canais.includes('email')&&!smtp)throw Error('Escolha uma conta SMTP ativa da carteira, compatível com o condomínio.');
   const rows:any[]=[];
   for(let offset=0;;offset+=500){
-    const {data,error}=await somenteCobrancasCanonicas(db.from('cobrancas').select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,vencimento,valor_atualizado,updated_at,unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone,acao_judicial)')).eq('condominio_id',c.id).eq('carteira_id',c.carteira_id).in('status_operacional',['novo','em_cobranca_ativa']).order('id').range(offset,offset+499);
+    const {data,error}=await somenteCobrancasCanonicas(db.from('cobrancas').select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,competencia,vencimento,valor_atualizado,updated_at,unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone,acao_judicial)')).eq('condominio_id',c.id).eq('carteira_id',c.carteira_id).in('status_operacional',['novo','em_cobranca_ativa']).order('id').range(offset,offset+499);
     if(error)throw Error('Não foi possível consultar as cobranças.');rows.push(...data);if(rows.length>5000)throw Error('Este condomínio excede 5.000 cobranças. Utilize o painel completo para dividir a montagem.');if(data.length<500)break;
   }
   const acordos=new Set<string>();
@@ -73,7 +75,7 @@ export async function planejarEasyFlow(condominioId:string,reguaId:string,smtpId
     if(motivo){pendencias.set(motivo,(pendencias.get(motivo)??0)+1);continue;}
     aptas.push(row);versoes[row.id]=flowHash({row,destinatarios,ciclo});
   }
-  return {...ctx,regua,canais,smtp,aptas,versoes,configVersion:flowHash(regua),partes:dividirCriacaoFlows(aptas).map(parte=>parte.map(row=>row.id)),resumo:{condominio:c.nome_operacional||c.nome,regua:regua.nome,canais,smtp:smtp?.label??'Não se aplica',cobrancas:aptas.length,unidades:new Set(aptas.map(r=>r.unidade_id)).size,valor:aptas.reduce((sum,r)=>sum+Math.round(Number(r.valor_atualizado)*100),0)/100,pendencias:[...pendencias].map(([motivo,quantidade])=>({motivo,quantidade})),amostra:aptas.slice(0,8).map(row=>{const u=Array.isArray(row.unidade)?row.unidade[0]:row.unidade;return {unidade:[u?.bloco,u?.identificacao].filter(Boolean).join(' · '),valor:Number(row.valor_atualizado)};})}};
+  return {...ctx,regua,canais,smtp,aptas,versoes,configVersion:flowHash({...regua,etapas:[...(regua.etapas??[])].sort((a,b)=>String(a.id).localeCompare(String(b.id)))}),partes:dividirCriacaoFlows(aptas).map(parte=>parte.map(row=>row.id)),resumo:{condominio:c.nome_operacional||c.nome,regua:regua.nome,canais,smtp:smtp?.label??'Não se aplica',cobrancas:aptas.length,unidades:new Set(aptas.map(r=>r.unidade_id)).size,valor:aptas.reduce((sum,r)=>sum+Math.round(Number(r.valor_atualizado)*100),0)/100,pendencias:[...pendencias].map(([motivo,quantidade])=>({motivo,quantidade})),amostra:aptas.slice(0,8).map(row=>{const u=Array.isArray(row.unidade)?row.unidade[0]:row.unidade;return {unidade:[u?.bloco,u?.identificacao].filter(Boolean).join(' · '),valor:Number(row.valor_atualizado)};})}};
 }
 export async function carregarEasyFlow(id:string){
   const scope=await getPermittedCarteiras();if(!['admin','gestor','operador'].includes(scope.perfil))throw Error('Perfil sem permissão.');
@@ -81,6 +83,24 @@ export async function carregarEasyFlow(id:string){
   if(error||!run||run.criado_por!==scope.userId)throw Error('Montagem indisponível para este usuário.');
   return {db,run,scope};
 }
+export async function exigirContencaoFlow(db:ReturnType<typeof createAdminClient>) {
+  const {data,error}=await db.rpc('easy_p0_contencao_versao');
+  if(error||data!==1)throw Error('A proteção de execuções Easy Flow ainda não está disponível. A montagem e a liberação estão bloqueadas; consulte o andamento.');
+}
+// Consulta independente da régua/SMTP/agente atuais: configuração alterada não
+// pode ocultar uma execução incerta. Não retorna a execução de outro operador.
+export async function bloqueioEasyFlow(condominioId:string) {
+  const scope=await getPermittedCarteiras();
+  if(!['admin','gestor','operador'].includes(scope.perfil))throw Error('Perfil sem permissão.');
+  const db=createAdminClient();
+  const {data,error}=await applyCarteiraScope(db.from('easy_flow_execucoes').select('*')
+    .eq('condominio_id',condominioId).in('status',[...EASY_FLOW_ESTADOS_BLOQUEANTES]),scope.carteiraIds).maybeSingle();
+  if(error)throw Error('Não foi possível conferir execuções pendentes. Nenhuma nova montagem será iniciada.');
+  if(data&&data.criado_por!==scope.userId)throw Error('Há uma execução pendente de outro operador neste condomínio. Solicite a conferência antes de iniciar outra montagem.');
+  return data;
+}
 export async function viewEasyFlow(run:any):Promise<EasyFlowView>{
-  return {...run.resumo,id:run.id,condominioId:run.condominio_id,status:run.status,parte:run.parte,partes:run.plano.length,flowIds:run.flow_ids,mensagens:run.mensagens,liberadas:run.liberadas,erro:run.erro};
+  return {...run.resumo,id:run.id,condominioId:run.condominio_id,status:run.status,parte:run.parte,partes:run.plano.length,flowIds:run.flow_ids,mensagens:run.mensagens,liberadas:run.liberadas,
+    erro:run.erro?'A operação exige conferência dos flows e mensagens antes de continuar.':null,
+    criadaEm:run.created_at,atualizadaEm:run.updated_at,requerConferencia:['montando','liberando','atencao'].includes(run.status)};
 }

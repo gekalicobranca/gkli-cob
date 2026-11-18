@@ -11,6 +11,7 @@ export type EasyFlowView = {
   cobrancas:number; unidades:number; valor:number; regua:string; canais:string[]; smtp:string;
   pendencias:{motivo:string;quantidade:number}[]; amostra:{unidade:string;valor:number}[];
   flowIds:string[]; mensagens:number; liberadas:number; erro:string|null;
+  criadaEm:string; atualizadaEm:string; requerConferencia:boolean;
 };
 export function impedimentoEasyFlow(row: any, inicio:number, acordo:boolean, ocupado:boolean, semContato:boolean) {
   return motivoExclusaoMaestro(row,inicio,acordo) || motivoImpedimentoFlow(row)

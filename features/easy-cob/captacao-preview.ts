@@ -42,4 +42,5 @@ export type ResumoCaptacaoEasy = {
   cobrancas:number; unidades:number; valor:number; substituir:number; ano:number; origem:string;
   acordos?:number; juridicas?:number;
   avisos:string[]; amostra:{ unidade:string; bloco?:string; vencimento:string; valor:number }[];
+  protocolo?:number;
 };
