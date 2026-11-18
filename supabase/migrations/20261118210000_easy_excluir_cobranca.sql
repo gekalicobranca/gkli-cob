@@ -15,6 +15,14 @@ begin
     or exists(select 1 from public.acordos where cobranca_id=p_id) then
     raise exception 'A situação atual da cobrança impede a exclusão.';
   end if;
+  -- Não alterar a operação de comunicação ou conciliação pelo atalho de exclusão.
+  if exists(select 1 from public.mensagens m where m.cobranca_id=p_id
+      or coalesce(m.payload->'cobranca_ids','[]'::jsonb) ? p_id::text)
+    or exists(select 1 from public.lote_itens where cobranca_id=p_id)
+    or exists(select 1 from public.flow_progressao where p_id=any(cobranca_ids))
+    or exists(select 1 from public.scanner_baixas where cobranca_id=p_id) then
+    raise exception 'Cobrança com comunicação, flow ou conciliação vinculada exige revisão operacional antes da exclusão.';
+  end if;
   update public.cobrancas set status='suspenso',status_operacional='suspenso',automacao_bloqueada=true where id=p_id;
   update public.cobrancas set arquivada_em=now(),arquivamento_motivo=trim(p_motivo)||' · Operador '||p_operador::text where id=p_id;
 end $$;

@@ -8,6 +8,7 @@ import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
+import { somenteCobrancasCanonicas } from '@/lib/core/cobranca-arquivamento'
 
 export async function excluirCobranca(form: FormData) {
   await requireRole(['admin','gestor'])
@@ -17,7 +18,7 @@ export async function excluirCobranca(form: FormData) {
   const id = String(form.get('id') ?? '')
   const motivo = String(form.get('motivo') ?? '').trim()
   if (motivo.length < 10 || form.get('confirmar') !== 'on') throw new Error('Confirme a exclusão e informe o motivo.')
-  const { data, error } = await applyCarteiraScope(db.from('cobrancas').select('carteira_id').eq('id',id),scope.carteiraIds).single()
+  const { data, error } = await somenteCobrancasCanonicas(applyCarteiraScope(db.from('cobrancas').select('carteira_id').eq('id',id),scope.carteiraIds)).single()
   if (error || !data) throw new Error('Cobrança indisponível.')
   const result = await createAdminClient().rpc('easy_excluir_cobranca', {
     p_id: id, p_carteira: data.carteira_id, p_motivo: motivo, p_operador: user.id,
