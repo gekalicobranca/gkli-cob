@@ -8,9 +8,9 @@ A exclusão é arquivamento, sem DELETE: exige admin/gestor, carteira permitida,
 
 ## Banco e publicação
 
-A migration `20261118210000_easy_excluir_cobranca.sql` depende do arquivamento operacional existente (`20261103194949`) e das tabelas operacionais referenciadas. Execução restrita a `service_role`; a action valida usuário e carteira antes da RPC. A migration não foi aplicada remotamente nesta preparação. Sua aplicação exige autorização explícita, conferência do projeto, pré-requisitos e histórico remoto. A Vercel não aplica migrations; sem a RPC a ação de exclusão falha sem arquivar o registro.
+A migration `20261118210959_easy_excluir_cobranca.sql` depende do arquivamento operacional existente (`20261103194949`) e das tabelas operacionais referenciadas. Execução restrita a `service_role`; a action valida usuário e carteira antes da RPC. Aplicada com autorização explícita em 18/11/2026 no projeto `GKLI - COB` (`vjcmotflmcczoepflhwc`), após conferir histórico, colunas e triggers remotos. O nome do arquivo foi alinhado à versão gerada pelo Supabase. Confirmados registro, corpo da função, `security invoker`, `search_path` vazio e bloqueio de execução por anon/authenticated. O advisor de segurança manteve as mesmas contagens anteriores, sem ocorrência para a nova RPC. Nenhum registro operacional foi arquivado para teste. A Vercel não aplica migrations.
 
-Publicação somente por PR para `main`, com quality e Vercel Preview aprovados. Este PR não autoriza aplicação SQL remota ou merge.
+Publicação pelo PR #39 para `main`, com quality e Vercel Preview aprovados no commit final. O usuário autorizou a aplicação remota e o merge condicionado à verificação. Após merge, confirmar Production READY e o domínio ligado ao commit de main; não realizar deploy manual.
 
 ## Verificação local
 

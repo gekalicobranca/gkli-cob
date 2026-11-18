@@ -24,7 +24,7 @@ test('Easy arquiva sem alterar valores e bloqueia carteira, pagamentos, acordos 
       create view cobrancas_canonicas as select * from cobrancas where duplicada_de_id is null;
       insert into cobrancas values('${id}','${carteira}','novo','novo','em_aberto',false,null,500,0,null,null);`)
     await db.exec(readFileSync('supabase/migrations/20261103194949_cobrancas_arquivamento_operacional.sql', 'utf8'))
-    await db.exec(readFileSync('supabase/migrations/20261118210000_easy_excluir_cobranca.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261118210959_easy_excluir_cobranca.sql', 'utf8'))
     await assert.rejects(db.query('select easy_excluir_cobranca($1,$2,$3,$4)', [id, operador, 'Cadastro manual incorreto', operador]))
     await db.exec('update cobrancas set valor_pago=10')
     await assert.rejects(call(), /impede a exclusão/)
