@@ -317,6 +317,9 @@ export async function updateCondominioIntegral(formData: FormData) {
   if (beforeError) throw new Error(`Erro ao carregar condomínio antes da alteração: ${beforeError.message}`)
   if (!before) throw new Error('Condomínio não encontrado.')
   assertCarteiraPermitida(scope, (before as any).carteira_id)
+  if (carteiraId !== (before as any).carteira_id) {
+    throw new Error('A carteira do condomínio não pode ser alterada por este formulário. A transferência exige um fluxo administrativo que atualize também os registros vinculados.')
+  }
   assertCarteiraPermitida(scope, carteiraId)
 
   const payload = {

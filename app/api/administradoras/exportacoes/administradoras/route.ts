@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
+import { unstable_rethrow } from 'next/navigation'
 import { criarExcelAdministradoras } from '@/features/administradoras/exportacao-excel'
 import { listAdministradoras, normalizeAdmFilters } from '@/features/administradoras/queries'
 import type { Administradora } from '@/features/administradoras/types'
-import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
+import { requireRole } from '@/utils/auth/require-role'
 
 function getParam(searchParams: URLSearchParams, key: string) {
   return String(searchParams.get(key) ?? '').trim()
@@ -22,11 +23,6 @@ function normalizeText(value: unknown) {
   return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
-function filterAdministradoras(rows: Administradora[], acessoAcordo: string) {
-  if (!acessoAcordo) return rows
-  return rows.filter((row) => (acessoAcordo === 'sim' ? row.acesso_gerar_acordo : !row.acesso_gerar_acordo))
-}
-
 function sortAdministradoras(rows: Administradora[], ordenar: string) {
   const field = ordenar || 'nome'
   return [...rows].sort((a, b) => {
@@ -44,14 +40,14 @@ function sortAdministradoras(rows: Administradora[], ordenar: string) {
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url)
-    await getPermittedCarteiras()
+    await requireRole(['admin', 'gestor'])
     const filters = normalizeAdmFilters({
       search: getParam(url.searchParams, 'q'),
       status: getParam(url.searchParams, 'status'),
+      acessoAcordo: getParam(url.searchParams, 'acesso_acordo'),
     })
-    const acessoAcordo = getParam(url.searchParams, 'acesso_acordo')
     const ordenar = getParam(url.searchParams, 'ordenar') || 'nome'
-    const rows = sortAdministradoras(filterAdministradoras(await listAdministradoras(filters), acessoAcordo), ordenar)
+    const rows = sortAdministradoras(await listAdministradoras(filters), ordenar)
     const buffer = await criarExcelAdministradoras(rows)
     const statusLabel = filters.status || 'todos'
     const fileName = `gkli-administradoras-${sanitizeFileName(statusLabel)}.xlsx`
@@ -64,6 +60,7 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
+    unstable_rethrow(error)
     const message = error instanceof Error ? error.message : 'Erro inesperado ao exportar administradoras.'
     return NextResponse.json({ ok: false, error: message }, { status: 500 })
   }

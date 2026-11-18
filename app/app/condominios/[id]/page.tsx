@@ -145,12 +145,14 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
 
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Carteira">
-              <Select name="carteira_id" defaultValue={condominio.carteira_id ?? ''} required>
+              <Select name="carteira_id_exibicao" defaultValue={condominio.carteira_id ?? ''} disabled>
                 <option value="" disabled>Selecione uma carteira</option>
                 {carteiras.map((carteira: any) => (
                   <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
                 ))}
               </Select>
+              <input type="hidden" name="carteira_id" value={condominio.carteira_id ?? ''} />
+              <p className="mt-1 text-xs text-slate-500">A transferência de carteira requer uma operação administrativa que atualize os registros vinculados.</p>
             </FormField>
             <FormField label="Status"><Select name="status" defaultValue={condominio.status ?? 'ativo'}><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="pausado">Pausado</option></Select></FormField>
             <FormField label="Nome oficial do condomínio"><Input name="nome" defaultValue={condominio.nome ?? ''} required /></FormField>
