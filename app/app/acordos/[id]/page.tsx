@@ -119,6 +119,10 @@ function ParcelaActions({
       <form action={marcarParcelaComoPaga}>
         <input type="hidden" name="parcela_id" value={parcela.id} />
         <input type="hidden" name="acordo_id" value={acordoId} />
+        <label className="mb-2 block space-y-1 text-left">
+          <span className="text-xs font-semibold text-slate-500">Valor efetivamente pago</span>
+          <input name="valor_pago" type="number" min="0" step="0.01" defaultValue={Number(parcela.valor_pago ?? parcela.valor ?? 0).toFixed(2)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm" />
+        </label>
         <PendingSubmitButton
           size="sm"
           className="bg-emerald-600 hover:bg-emerald-700"

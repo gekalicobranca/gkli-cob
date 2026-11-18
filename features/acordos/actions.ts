@@ -1469,6 +1469,7 @@ export async function marcarParcelaComoPaga(formData: FormData) {
 
   const parcelaId = String(formData.get("parcela_id") ?? "");
   const acordoId = String(formData.get("acordo_id") ?? "");
+  const valorPagoInformado = String(formData.get("valor_pago") ?? "").trim();
 
   if (!parcelaId || !acordoId) {
     throw new Error("Parcela e acordo são obrigatórios.");
@@ -1488,18 +1489,26 @@ export async function marcarParcelaComoPaga(formData: FormData) {
 
   const { data: parcelaEvento } = await supabase
     .from("parcelas_acordo")
-    .select("id, numero, valor, vencimento, status, data_pagamento")
+    .select("id, numero, valor, vencimento, status, data_pagamento, valor_pago")
     .eq("id", parcelaId)
     .eq("acordo_id", acordoId)
     .maybeSingle();
 
   if (!parcelaEvento) throw new Error("Parcela não pertence ao acordo informado.");
 
+  const valorPago = valorPagoInformado
+    ? moneyFromForm(valorPagoInformado, "Valor pago", { format: "decimal" })
+    : Number((parcelaEvento as any).valor ?? 0);
+  if (!Number.isFinite(valorPago) || valorPago < 0) {
+    throw new Error("Informe um valor pago válido, igual ou maior que zero.");
+  }
+
   const { error: parcelaError } = await supabase
     .from("parcelas_acordo")
     .update({
       status: PARCELA_ACORDO_STATUS.PAGA,
       data_pagamento: toISODate(new Date()),
+      valor_pago: roundMoney(valorPago),
     })
     .eq("id", parcelaId);
 
