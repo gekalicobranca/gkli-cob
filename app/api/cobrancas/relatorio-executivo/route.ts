@@ -1,3 +1,4 @@
+import { compararHierarquiaCotas } from '@/features/cobrancas/ordem-relatorio'
 import { IDENTIDADE_GKLI, aplicarIdentidadePdf } from '@/features/exportacoes/identidade-visual'
 import { filtrosRelatorioCobrancas } from '@/features/cobrancas/filtros-relatorio'
 import { createClient } from "@/utils/supabase/server";
@@ -286,7 +287,7 @@ function drawCover(pages: PdfPage[], totals: { carteiras: number; condominios: n
 
   drawText(ops, "GKLI COBRANÇA", MARGIN_X + 48, PAGE_HEIGHT - 68, { size: 8, bold: true, color: "BFE8F4" });
   drawText(ops, "Relatório executivo de cobranças", MARGIN_X, PAGE_HEIGHT - 120, { size: 27, bold: true, color: WHITE });
-  drawText(ops, "Cobranças novas + cobranças em andamento, desconsiderando unidades com judicialização.", MARGIN_X, PAGE_HEIGHT - 146, {
+  drawText(ops, "Cotas da seleção, com vencimentos e valores por carteira, condomínio e unidade.", MARGIN_X, PAGE_HEIGHT - 146, {
     size: 11,
     color: "D6EDF5",
   });
@@ -409,7 +410,7 @@ function drawDetailTableHeader(ops: string[], y: number) {
     { label: "Responsável / contato", x: MARGIN_X + 73, w: 178 },
     { label: "Venc.", x: MARGIN_X + 251, w: 58 },
     { label: "Comp.", x: MARGIN_X + 309, w: 48 },
-    { label: "Valor", x: MARGIN_X + 357, w: 82, align: "right" as const },
+    { label: "Atualizado", x: MARGIN_X + 357, w: 82, align: "right" as const },
     { label: "Status", x: MARGIN_X + 439, w: 72 },
   ];
   tableHeader(ops, y, columns);
@@ -422,12 +423,13 @@ function drawDetailRow(ops: string[], y: number, row: any) {
   drawText(ops, short(row.unidades?.responsavel_nome ?? "Responsável não informado", 40), MARGIN_X + 77, y - 12, { size: 7.1 });
   const contato = row.unidades?.telefone || row.unidades?.email || "";
   if (contato) drawText(ops, short(contato, 40), MARGIN_X + 77, y - 24, { size: 6.6, color: MUTED });
-  drawText(ops, formatDateBR(row.vencimento), MARGIN_X + 255, y - 12, { size: 7.1 });
+  drawText(ops, row.vencimento ? formatDateBR(String(row.vencimento).slice(0, 10) + "T12:00:00") : "-", MARGIN_X + 255, y - 12, { size: 7.1 });
   drawText(ops, row.competencia ?? "-", MARGIN_X + 313, y - 12, { size: 7.1 });
   drawText(ops, formatCurrency(Number(row.valor_atualizado ?? row.valor_original ?? 0)), MARGIN_X + 435, y - 12, {
     size: 7.1,
     align: "right",
   });
+  drawText(ops, "Orig. " + formatCurrency(Number(row.valor_original ?? 0)), MARGIN_X + 435, y - 24, { size: 6.6, color: MUTED, align: "right" });
   drawText(ops, statusLabel(getCobrancaStatusOperacional(row)), MARGIN_X + 443, y - 12, { size: 7.1 });
 }
 
@@ -554,7 +556,8 @@ function montarPdf(rows: any[], condominios: CondominioResumo[], filters: Cobran
   drawCover(pages, totals, filters);
   const summaryStartY = drawCarteiraSummary(pages, carteiras);
   drawCondominioSummary(pages, summaryStartY, condominios);
-  drawDetails(pages, rows, condominios);
+  if (rows.length) drawDetails(pages, rows, condominios);
+  else drawText(pages[0].ops, "Nenhuma cota encontrada para os filtros selecionados.", MARGIN_X, 90, { size: 10, color: MUTED });
   return buildPdf(pages);
 }
 
@@ -563,7 +566,7 @@ export async function GET(request: Request) {
   const filters = filtrosRelatorioCobrancas(searchParams);
 
   const scope = await getPermittedCarteiras();
-  const rows = ordenarCobrancasParaRelatorio(await listCobrancas(scope, filters), filters.ordenar);
+  const rows = ordenarCobrancasParaRelatorio(await listCobrancas(scope, filters), filters.ordenar).sort(compararHierarquiaCotas);
   const reguas = await carregarReguas(rows);
   const condominios = resumirPorCondominio(rows, reguas);
   const pdf = await aplicarIdentidadePdf(montarPdf(rows, condominios, filters));
