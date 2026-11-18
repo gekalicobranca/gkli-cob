@@ -1,3 +1,4 @@
+import { compararHierarquiaCotas } from './ordem-relatorio'
 import { COBRANCA_STATUS_LABEL } from '@/lib/constants/cobrancas'
 import { CONDUCAO_PROCESSO } from '@/features/unidades/conducao-processo'
 import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
@@ -86,7 +87,7 @@ function compactStatusCounts(statusCounts: Map<string, number>) {
     .join(', ')
 }
 
-function buildGroupedRows(rows: any[], orderBy: string): GroupedCobrancaRow[] {
+function buildGroupedRows(rows: any[]): GroupedCobrancaRow[] {
   const grouped = new Map<string, Omit<GroupedCobrancaRow, 'status'> & { statusCounts: Map<string, number> }>()
 
   for (const row of rows) {
@@ -121,7 +122,7 @@ function buildGroupedRows(rows: any[], orderBy: string): GroupedCobrancaRow[] {
     current.primeiroVencimento = [current.primeiroVencimento, row.vencimento].filter(Boolean).sort()[0] ?? ''
     current.ultimoVencimento = [current.ultimoVencimento, row.vencimento].filter(Boolean).sort().at(-1) ?? ''
     current.totalOriginal += money(row.valor_original)
-    current.totalAtualizado += money(row.valor_atualizado)
+    current.totalAtualizado += money(row.valor_atualizado ?? row.valor_original)
     current.totalJuros += money(row.juros)
     current.totalMulta += money(row.multa)
     current.totalCorrecao += money(row.correcao)
@@ -133,22 +134,6 @@ function buildGroupedRows(rows: any[], orderBy: string): GroupedCobrancaRow[] {
 
   return Array.from(grouped.values())
     .map(({ statusCounts, ...row }) => ({ ...row, status: compactStatusCounts(statusCounts) }))
-    .sort((a, b) => {
-      let comparison = 0
-      if (orderBy === 'condominio') comparison = compareText(a.condominio, b.condominio)
-      else if (orderBy === 'unidade') comparison = compareText(a.bloco, b.bloco) || compareText(a.unidade, b.unidade)
-      else if (orderBy === 'responsavel') comparison = compareText(a.responsavel, b.responsavel)
-      else if (orderBy === 'status') comparison = compareText(a.status, b.status)
-      else if (orderBy === 'valor_desc') comparison = b.totalAtualizado - a.totalAtualizado
-      else if (orderBy === 'valor_asc') comparison = a.totalAtualizado - b.totalAtualizado
-      else if (orderBy === 'vencimento_desc') comparison = compareText(b.ultimoVencimento, a.ultimoVencimento)
-      else comparison = compareText(a.primeiroVencimento, b.primeiroVencimento)
-      return comparison || compareText(a.carteira, b.carteira) || compareText(a.condominio, b.condominio)
-    })
-}
-
-function compareText(left: unknown, right: unknown) {
-  return String(left ?? '').localeCompare(String(right ?? ''), 'pt-BR', { numeric: true, sensitivity: 'base' })
 }
 
 const groupedColumns: ExcelColumn<GroupedCobrancaRow>[] = [
@@ -180,7 +165,7 @@ const detailedColumns: ExcelColumn<any>[] = [
   { key: 'competencia', label: 'Competência', width: 14 },
   { key: 'vencimento', label: 'Vencimento', width: 14, type: 'date' },
   { key: 'valor_original', label: 'Valor original', width: 18, type: 'currency' },
-  { key: 'valor_atualizado', label: 'Valor atualizado', width: 18, type: 'currency' },
+  { key: 'valor_atualizado', label: 'Valor atualizado', width: 18, type: 'currency', value: (row) => row.valor_atualizado ?? row.valor_original },
   { key: 'juros', label: 'Juros', width: 14, type: 'currency' },
   { key: 'multa', label: 'Multa', width: 14, type: 'currency' },
   { key: 'correcao', label: 'Correção', width: 14, type: 'currency' },
@@ -197,10 +182,10 @@ export async function criarExcelRelatorioCobrancas(
   rows: any[],
   generatedAt = new Date(),
 ) {
-  const sortedRows = ordenarCobrancasParaRelatorio(rows, filters.ordenar)
-  const groupedRows = buildGroupedRows(sortedRows, filters.ordenar)
+  const sortedRows = ordenarCobrancasParaRelatorio(rows, filters.ordenar).sort(compararHierarquiaCotas)
+  const groupedRows = buildGroupedRows(sortedRows)
   const totalOriginal = rows.reduce((sum, row) => sum + money(row.valor_original), 0)
-  const totalAtualizado = rows.reduce((sum, row) => sum + money(row.valor_atualizado), 0)
+  const totalAtualizado = rows.reduce((sum, row) => sum + money(row.valor_atualizado ?? row.valor_original), 0)
   const workbook = createExcelWorkbook('Relatório de cobranças', generatedAt)
 
   const resumoRows: SummaryRow[] = [
@@ -217,7 +202,7 @@ export async function criarExcelRelatorioCobrancas(
     { label: 'Criação até', value: filters.criacaoAte || 'Sem filtro', type: filters.criacaoAte ? 'date' : 'text' },
     { label: 'Bloqueios', value: judicializacaoLabel(filters.judicializacaoUnidade) },
     { label: 'Ordenação solicitada na tela', value: ordenacaoLabel(filters.ordenar) },
-    { label: 'Ordenação do arquivo', value: ordenacaoLabel(filters.ordenar) },
+    { label: 'Ordenação do arquivo', value: 'Carteira / Condomínio / Bloco / Unidade, com a ordenação selecionada dentro da unidade' },
     { label: 'Total de unidades agrupadas', value: groupedRows.length, type: 'integer' },
     { label: 'Total de cobranças', value: rows.length, type: 'integer' },
     { label: 'Valor original total', value: totalOriginal, type: 'currency' },
@@ -232,7 +217,7 @@ export async function criarExcelRelatorioCobrancas(
   })
   addStyledTableSheet(workbook, {
     sheetName: 'AGRUPADO',
-    title: 'Cobranças agrupadas por unidade',
+    title: 'Resumo das cotas por unidade',
     rows: groupedRows,
     columns: groupedColumns,
     generatedAt,
@@ -241,7 +226,7 @@ export async function criarExcelRelatorioCobrancas(
   })
   addStyledTableSheet(workbook, {
     sheetName: 'DETALHADO',
-    title: 'Cobranças detalhadas',
+    title: 'Cotas por condomínio e unidade',
     rows: sortedRows,
     columns: detailedColumns,
     generatedAt,
