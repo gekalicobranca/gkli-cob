@@ -53,7 +53,71 @@ async function marcarBloqueioJudicializacaoUnidade(
 function isBloqueadaParaAcordo(cobranca: any) {
   return (COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(
     statusOperacionalDaCobranca(cobranca),
+  ) || Boolean(cobranca.bloqueada_por_acordo_existente);
+}
+
+const ACORDO_STATUS_QUE_LIBERAM_COTAS = [
+  "cancelado",
+  "cancelada",
+  "quebrado",
+  "rompido",
+  "renegociado",
+] as const;
+
+async function marcarCotasVinculadasAcordoVigente(supabase: any, cobrancas: any[]) {
+  const ids = uniqueStrings(cobrancas.map((cobranca) => cobranca.id));
+  if (!ids.length) return cobrancas;
+
+  const [diretos, vinculos] = await Promise.all([
+    supabase
+      .from("acordos")
+      .select("id,cobranca_id,status,status_financeiro,observacoes")
+      .in("cobranca_id", ids),
+    supabase
+      .from("acordo_cobrancas")
+      .select("acordo_id,cobranca_id")
+      .in("cobranca_id", ids),
+  ]);
+  if (diretos.error) throw new Error(`Erro ao conferir acordos das cobranças: ${diretos.error.message}`);
+  if (vinculos.error) throw new Error(`Erro ao conferir vínculos das cobranças: ${vinculos.error.message}`);
+
+  const acordosDiretos = (diretos.data ?? []) as any[];
+  const idsDiretos = new Set(acordosDiretos.map((acordo) => acordo.id));
+  const idsVinculados = uniqueStrings((vinculos.data ?? []).map((vinculo: any) => vinculo.acordo_id))
+    .filter((id) => !idsDiretos.has(id));
+  let acordosVinculados: any[] = [];
+  if (idsVinculados.length) {
+    const resultado = await supabase
+      .from("acordos")
+      .select("id,cobranca_id,status,status_financeiro,observacoes")
+      .in("id", idsVinculados);
+    if (resultado.error) throw new Error(`Erro ao conferir acordos vinculados: ${resultado.error.message}`);
+    acordosVinculados = resultado.data ?? [];
+  }
+
+  const acordos = [...acordosDiretos, ...acordosVinculados].filter((acordo) =>
+    !(ACORDO_STATUS_QUE_LIBERAM_COTAS as readonly string[]).includes(String(acordo.status ?? "").toLowerCase()) &&
+    !String(acordo.observacoes ?? "").includes("[DUPLICIDADE_ACORDO_CONCILIADA]"),
   );
+  const acordoPorId = new Map<string, any>(acordos.map((acordo) => [acordo.id, acordo]));
+  const acordoPorCobranca = new Map<string, string>();
+
+  for (const acordo of acordos) {
+    if (acordo.cobranca_id && ids.includes(acordo.cobranca_id)) {
+      acordoPorCobranca.set(acordo.cobranca_id, acordo.id);
+    }
+  }
+  for (const vinculo of vinculos.data ?? []) {
+    if (acordoPorId.has(vinculo.acordo_id)) {
+      acordoPorCobranca.set(vinculo.cobranca_id, vinculo.acordo_id);
+    }
+  }
+
+  return cobrancas.map((cobranca) => ({
+    ...cobranca,
+    acordo_existente_id: acordoPorCobranca.get(cobranca.id) ?? null,
+    bloqueada_por_acordo_existente: acordoPorCobranca.has(cobranca.id),
+  }));
 }
 
 export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind, origem: AcordoOrigem = "carteira") {
@@ -400,7 +464,8 @@ export async function listCobrancasElegiveisParaAcordo(scope?: CarteiraScope) {
     );
   }
 
-  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, (data ?? []) as any[]);
+  const comAcordos = await marcarCotasVinculadasAcordoVigente(supabase, (data ?? []) as any[]);
+  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, comAcordos);
 
   return cobrancas.filter((cobranca) =>
     !isBloqueadaParaAcordo(cobranca) &&
@@ -582,7 +647,8 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
     if (!pagina || pagina.length < 500) break;
   }
 
-  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, (data ?? []) as any[]);
+  const comAcordos = await marcarCotasVinculadasAcordoVigente(supabase, (data ?? []) as any[]);
+  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, comAcordos);
   const unidadeBloqueadaPorJudicializacao = false; // A seleção bloqueia cada cobrança individualmente.
 
   return {
