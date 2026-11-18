@@ -3,6 +3,7 @@ import {test} from 'node:test';
 import {fixtureFlow,iniciarFlow} from './easy-flow-transaction-fixture';
 import {fixtureId as id} from './easy-p0-fixture';
 import {inserirCobranca} from './easy-cap-transaction-fixture';
+import {cicloFechamentoCobranca} from '../features/flows/cobranca/ciclo-fechamento';
 
 test('montagem e liberação têm recibos atômicos; repetição recupera sem duplicar',async()=>{
   const db=await fixtureFlow();try{
@@ -177,5 +178,29 @@ test('retorno de ativação sem agenda efetiva não produz recibo de liberação
     await assert.rejects(f.liberar(),/incompleto/);
     assert.equal((await db.query<any>('select liberada_em from easy_flow_partes')).rows[0].liberada_em,null);
     assert.equal((await db.query<any>('select status from cobranca_flows')).rows[0].status,'pausado');
+  }finally{await db.close();}
+});
+
+test('ciclo SQL acompanha helper canônico em meses curtos e datas de fechamento',async()=>{
+  const db=await fixtureFlow();try{
+    for(const dia of [null,1,15,28,29,30,31])for(const instante of ['2026-02-28T14:00:00Z','2026-03-01T01:00:00Z','2026-03-15T14:00:00Z','2026-03-16T14:00:00Z']){
+      const r=await db.query<{c:string|null}>('select easy_flow_ciclo($1,$2)::text c',[dia,instante]);
+      assert.equal(r.rows[0].c,cicloFechamentoCobranca(dia,new Date(instante)));
+    }
+  }finally{await db.close();}
+});
+
+test('histórico enviado em ciclo anterior permite novo resumo; mesmo ciclo e Flow ativo bloqueiam',async()=>{
+  const db=await fixtureFlow();try{
+    await db.exec('update condominios set vencimento_cota_dia=15');
+    await db.query("insert into lotes(id,status) values($1,'concluido')",[id(90)]);
+    await db.query("insert into cobranca_flows(id,lote_id,regua_id,status,payload) values($1,$2,$3,'concluido',$4)",[id(91),id(90),id(4),JSON.stringify({canais:['email']})]);
+    await db.query("insert into mensagens(id,carteira_id,cobranca_id,cobranca_flow_id,canal,status,enviada_em) values($1,$2,$3,$4,'email','enviada',now())",[id(92),id(1),id(30),id(91)]);
+    await db.query("insert into lote_itens(id,cobranca_id,cobranca_flow_id,mensagem_id,status) values($1,$2,$3,$4,'aprovado')",[id(93),id(30),id(91),id(92)]);
+    await assert.rejects(iniciarFlow(db),/vínculos/);
+    await db.exec("update mensagens set enviada_em=now()-interval '2 months'");
+    await db.exec("update cobranca_flows set status='em_execucao'");await assert.rejects(iniciarFlow(db),/vínculos/);
+    await db.exec("update cobranca_flows set status='concluido'");
+    const f=await iniciarFlow(db);assert.equal((await f.montar()).rows[0].r.status,'pronto');
   }finally{await db.close();}
 });

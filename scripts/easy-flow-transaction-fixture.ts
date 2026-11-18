@@ -8,6 +8,7 @@ export async function fixtureFlow(){
   const db=await fixtureCap();
   await db.exec(`
     drop table easy_flow_execucoes;
+    alter table condominios add column vencimento_cota_dia integer;
     create table reguas(id uuid primary key,carteira_id uuid,tipo text,nome text,ativo bool,status text);
     create table regua_etapas(id uuid primary key,regua_id uuid,canal text,ativo bool,delay_dias int,ordem int);
     create table integracoes_smtp_config(id uuid primary key,carteira_id uuid,ativo bool);
@@ -23,13 +24,13 @@ export async function fixtureFlow(){
     alter table mensagens add column contexto text,add column canal text,add column destinatario text,
       add column conteudo text,add column conteudo_renderizado text,add column lote_id uuid,
       add column regua_etapa_id uuid,add column template_id uuid,add column fingerprint text unique,
-      add column enviado_em timestamptz,add column aprovado_por uuid,add column aprovado_em timestamptz,
+      add column enviado_em timestamptz,add column enviada_em timestamptz,add column enviada_manual_em timestamptz,add column aprovado_por uuid,add column aprovado_em timestamptz,
       add column created_at timestamptz default now();
     alter table lote_itens alter column id set default gen_random_uuid();
     alter table lote_itens add primary key(id);
     alter table lote_itens add column lote_id uuid,add column unidade_id uuid,add column condominio_id uuid,
       add column regua_etapa_id uuid,add column mensagem_id uuid,add column status text,add column fingerprint text,
-      add column payload jsonb,add column aprovado_em timestamptz;
+      add column payload jsonb,add column motivo text,add column aprovado_em timestamptz;
     alter table cobranca_flows add column carteira_id uuid,add column lote_id uuid unique references lotes,
       add column regua_id uuid,add column nome text,add column pausado_em timestamptz,add column iniciado_em timestamptz,
       add column total_mensagens int,add column criado_por uuid,add column atualizado_por uuid,add column payload jsonb;
@@ -45,6 +46,7 @@ export async function fixtureFlow(){
   `);
   const original=await readFile('supabase/migrations/20261108142307_easy_flow_smtp.sql','utf8');
   await db.exec(original.slice(0,original.indexOf('-- Preserva a implementação instalada'))+'\ncommit;');
+  await db.exec(await readFile('supabase/migrations/20261118205314_easy_p0_contencao.sql','utf8'));
   // Ativador real; apenas o calendário externo é substituído pelo stub acima.
   const agenda=await readFile('supabase/migrations/20260916170000_agenda_email_carteira.sql','utf8');
   const inicio=agenda.indexOf('create function public.email_ativar_flow(');

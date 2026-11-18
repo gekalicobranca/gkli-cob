@@ -5,6 +5,7 @@
   "scripts": {
     "test:easy-p0": "tsx --test scripts/validate-easy-p0-db.ts scripts/validate-easy-p0-boundaries.ts",
     "test:easy-flow-transacional": "node --no-wasm-tier-up node_modules/tsx/dist/cli.mjs --test scripts/validate-easy-flow-transaction.ts scripts/validate-easy-flow-boundaries.ts",
+    "test:easy-p0-publicacao": "node --no-wasm-tier-up node_modules/tsx/dist/cli.mjs --test --test-concurrency=2 scripts/validate-easy-p0-publicacao.ts scripts/validate-easy-p0-db.ts scripts/validate-easy-p0-boundaries.ts scripts/validate-easy-cap-transaction.ts scripts/validate-easy-cap-boundaries.ts scripts/validate-easy-flow-transaction.ts scripts/validate-easy-flow-boundaries.ts scripts/validate-easy-flow.ts scripts/validate-easy-captacao.ts scripts/validate-easy-planilha-manual.ts",
     "test:easy-cap-transacional": "tsx --test scripts/validate-easy-cap-transaction.ts scripts/validate-easy-cap-boundaries.ts",
     "test:audit-1-3": "tsx --test scripts/validate-audit-items-1-3.ts",
     "test:auth": "node --test scripts/validate-auth-authorization.cjs",

@@ -2,6 +2,8 @@
 
 Data: 18/11/2026. Implementação local no worktree `C:/Users/Gekali/gkli-cob-easy-p0`, branch `codex/easy-p0-contencao`, sobre `871a57d4` e as alterações E0/P0-A/P0-B preservadas. Nenhuma migration, consulta ou operação foi executada em produção.
 
+Continuidade: [preparação da publicação](easy-p0-publicacao.md) integra a P0 à `main` atual em `codex/easy-p0-publicacao`, preserva o ciclo de fechamento atual e amplia a suíte Flow para 19 testes. Os resultados abaixo documentam a etapa original; o relatório de publicação contém a matriz final.
+
 ## Contrato implementado
 
 Execuções novas usam `protocolo=3`. A chave da montagem é `(execucao_id, indice)` de um plano imutável; mudança de plano exige outro resumo. Cada parte é registrada antes de criar artefatos e conserva snapshot, cobranças, IDs de lote/Flow/mensagens, hash do manifesto, hash dos vínculos e recibos de montagem/liberação. Índices únicos impedem duas partes com a mesma chave, reutilização de lote/Flow e duplicação da identidade Easy nos artefatos.

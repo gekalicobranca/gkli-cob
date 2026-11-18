@@ -11,6 +11,18 @@ async function fingerprint(db:PGlite) {
   for(const t of tables)state[t.tablename]=(await db.query(`select coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),'[]') dados from public.${t.tablename} t`)).rows;
   return JSON.stringify(state);
 }
+
+test('marcadores manuais da main preservam status, origem e bloqueio na RPC transacional',async()=>{
+  const db=await fixtureCap();try{
+    const ano=(await db.query<{ano:number}>("select extract(year from now() at time zone 'America/Sao_Paulo')::int ano")).rows[0].ano;
+    const preview=previewCap(ano);preview.valorTotal=450;
+    preview.cobrancas=[...(['AE','AJ','J'] as const)].map((marcadorOrigem,i)=>({...preview.cobrancas[0],unidade:String(101+i),recibo:String(123+i),origemSistema:'Easy Flow manual',marcadorOrigem}));
+    const p=await prepararConversao(db,20,preview);await p.confirmar();
+    const rows=(await db.query<any>('select status_operacional,automacao_bloqueada,observacoes from cobrancas order by observacoes')).rows;
+    assert.equal(rows.length,3);assert.deepEqual(rows.map(r=>r.status_operacional),['possivel_acordo','judicializado','judicializado']);
+    assert.ok(rows.every(r=>r.automacao_bloqueada));assert.ok(rows[0].observacoes.includes('Marcador origem: AE'));
+  }finally{await db.close();}
+});
 async function base(db:PGlite) {
   await inserirCobranca(db,30);await inserirCobranca(db,31,'999');
   const ano=(await db.query<{ano:number}>("select extract(year from now() at time zone 'America/Sao_Paulo')::int ano")).rows[0].ano;

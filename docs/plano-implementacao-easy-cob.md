@@ -3,6 +3,8 @@
 Data: 18/11/2026. Base analisada: commit `871a57d4` e `docs/especificacao-easy-cob.md`.
 Estado: implementação local em `codex/easy-p0-contencao`. E0 e contenção estão registrados em [E0 e contenção](easy-cob-e0-contencao.md). [P0-B](easy-cap-p0b-transacional.md) e [P0-C](easy-flow-p0c-transacional.md) têm implementação local e verificação em fixtures. Migrations preparadas, sem implantação ou operação em produção. A homologação integral de schema, concorrência e workers continua pendente; P0 ainda não está homologado para implantação.
 
+Preparação posterior: [candidata à publicação P0](easy-p0-publicacao.md), branch `codex/easy-p0-publicacao`, sobre a `main` `c36d4e93`, preservando a implementação original em commit local. Inclui compatibilidade com marcadores manuais/ciclo atuais, manifesto, diagnósticos somente leitura, build e descrição do PR; sem publicação remota.
+
 ## 1. Resultado esperado e ordem
 
 A primeira entrega deve eliminar as janelas em que uma falha pode deixar a base substituída sem os novos dados ou permitir repetição de montagem/liberação com efeitos desconhecidos. Melhorias de experiência vêm depois dessas garantias.

@@ -1,8 +1,8 @@
 import {createHash} from 'node:crypto';
 import type {ConversaoPreview} from '@/features/conversao-relatorio/server/parse-relatorio-buffer';
-import {validarPreviaCaptacao,dataCaptacaoISO} from './captacao-preview';
+import {validarPreviaCaptacao,dataCaptacaoISO,statusMarcadorCaptacaoManual} from './captacao-preview';
 import {canonical} from './captacao-assinatura';
-import {observacoesComComposicao} from '@/features/importacoes/composicao-origem';
+import {observacoesComComposicao,observacoesComMarcador} from '@/features/importacoes/composicao-origem';
 import {isImportacaoAcordoHflex,isImportacaoPossivelAcordo} from '@/features/importacoes/status-cobranca-importada';
 
 export type PlanoCaptacao = ReturnType<typeof prepararPlanoCaptacao>;
@@ -41,11 +41,13 @@ export function prepararPlanoCaptacao(preview:ConversaoPreview) {
     const referencia=recibo.toUpperCase()||vencimento;
     const key=JSON.stringify([chave,referencia]);
     if(chaves.has(key))throw Error('Há recibo repetido para a mesma unidade.');chaves.add(key);
+    const statusMarcador=statusMarcadorCaptacaoManual(item)??null;
     return {ordem,unidade,bloco,responsavel,email,telefone,recibo,vencimento,
       competencia:texto(item.competencia)||vencimento.slice(0,7),
       principalCentavos:centavos(item.valorPrincipal??item.valorTotal),totalCentavos:centavos(item.valorTotal),
       multaCentavos:centavos(item.multa??0),jurosCentavos:centavos(item.juros??0),correcaoCentavos:centavos(item.correcao??0),
-      observacoes:observacoesComComposicao(recibo?`Conversão de relatório - recibo ${recibo}`:'Conversão de relatório',item),
+      statusMarcador,
+      observacoes:observacoesComMarcador(observacoesComComposicao(recibo?`Conversão de relatório - recibo ${recibo}`:'Conversão de relatório',item),statusMarcador?item.marcadorOrigem:undefined),
       possivelAcordo:isImportacaoPossivelAcordo(item),hflex:isImportacaoAcordoHflex(item),
       parcelas:(item.parcelas??[]).map(p=>({vencimento:dataCaptacaoISO(p.vencimento)!,valorCentavos:centavos(p.valor),referencia:texto(p.referencia),origem:p})),
     };

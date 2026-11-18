@@ -47,6 +47,43 @@ grant select,insert on public.easy_flow_eventos to service_role;
 
 create function public.easy_flow_p0c_versao() returns integer language sql immutable set search_path='' as $$select 3$$;
 
+-- Mesmo fechamento civil do helper cicloFechamentoCobranca (inclusive fim de mês).
+create function public.easy_flow_ciclo(p_dia integer,p_instante timestamptz default now())
+returns date language plpgsql immutable set search_path='' as $$
+declare hoje date:=(p_instante at time zone 'America/Sao_Paulo')::date; mes date; corte date;
+begin
+  if p_dia is null or p_dia not between 1 and 31 then return null; end if;
+  mes:=date_trunc('month',hoje)::date;
+  corte:=mes+least(p_dia,extract(day from mes+interval '1 month'-interval '1 day')::int)-1;
+  if hoje>corte then mes:=(mes+interval '1 month')::date;
+    corte:=mes+least(p_dia,extract(day from mes+interval '1 month'-interval '1 day')::int)-1; end if;
+  return corte;
+end $$;
+
+-- Espelha vinculoOcupaCanal para os IDs selecionados. Histórico enviado em
+-- ciclo anterior pode voltar; Flow ativo, falha, envio desconhecido e órfão não.
+create function public.easy_flow_vinculo_bloqueia(p_item public.lote_itens,p_canais text[],p_dia integer)
+returns boolean language plpgsql stable security invoker set search_path='' as $$
+declare m public.mensagens; f public.cobranca_flows; terminal boolean; canais text[]; enviada timestamptz;
+begin
+  if p_item.cobranca_flow_id is null then return false; end if;
+  select * into f from public.cobranca_flows where id=p_item.cobranca_flow_id;
+  select * into m from public.mensagens where id=p_item.mensagem_id;
+  terminal:=coalesce(f.status in ('concluido','concluido_com_falhas','cancelado'),false);
+  if m.id is null and p_item.status='pulada' and p_item.motivo='Cobrança possui acordo ativo/vigente.' then return false; end if;
+  if m.status='cancelada' and coalesce(to_jsonb(m)->>'erro','') like 'Envio cancelado: cobrança fora da cobrança ativa.%' then return false; end if;
+  if m.id is null and p_item.status in ('pulada','cancelado') and terminal then return false; end if;
+  if terminal and m.status='enviada' and p_dia is not null then
+    enviada:=coalesce(nullif(to_jsonb(m)->>'enviada_em',''),nullif(to_jsonb(m)->>'enviada_manual_em',''))::timestamptz;
+    if enviada<=now() and public.easy_flow_ciclo(p_dia,enviada)<public.easy_flow_ciclo(p_dia,now()) then return false; end if;
+  end if;
+  if jsonb_typeof(f.payload->'canais')='array' then
+    select array_agg(x) into canais from jsonb_array_elements_text(f.payload->'canais') x;
+  else select array_agg(distinct e.canal) into canais from public.regua_etapas e where e.regua_id=f.regua_id and e.ativo is distinct from false; end if;
+  if m.canal is not null then canais:=array_append(coalesce(canais,'{}'),m.canal); end if;
+  return cardinality(coalesce(canais,'{}'))=0 or '*'=any(canais) or canais&&p_canais;
+end $$;
+
 create function public.easy_flow_autorizar(p_operador uuid,p_carteira uuid,p_autor uuid)
 returns void language plpgsql security invoker set search_path='' as $$
 begin
@@ -94,6 +131,8 @@ begin
     ('maestro_flow_montagens','condominio_id=$2'),
     ('flow_progressao','carteira_id=$1 and cobranca_ids && array(select id from public.cobrancas where condominio_id=$2 and ($4 is null or id=any($4)))'),
     ('mensagens','carteira_id=$1 and cobranca_id in (select id from public.cobrancas where condominio_id=$2 and ($4 is null or id=any($4))) and ($5 is null or coalesce(payload->>''easy_execucao_id'','''')<>$5::text)')
+    ,('lote_itens','cobranca_id in (select id from public.cobrancas where condominio_id=$2 and ($4 is null or id=any($4))) and ($5 is null or coalesce(payload->>''easy_execucao_id'','''')<>$5::text)')
+    ,('cobranca_flows','id in (select cobranca_flow_id from public.lote_itens where cobranca_id in (select id from public.cobrancas where condominio_id=$2 and ($4 is null or id=any($4)))) and ($5 is null or coalesce(payload->>''easy_execucao_id'','''')<>$5::text)')
   ) x(nome,filtro) loop
     execute format('select coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),''[]''::jsonb) from public.%I t where %s',nome,filtro)
       into parcela using c.carteira_id,p_condominio,p_regua,p_ids,p_execucao;
@@ -122,8 +161,8 @@ begin
   if cardinality(ids)>5000 or cardinality(ids)<>(select count(distinct x) from unnest(ids) x)
     or exists(select 1 from unnest(ids) x left join public.cobrancas b on b.id=x where b.id is null or b.condominio_id<>c.id or b.carteira_id<>c.carteira_id)
     or exists(select 1 from public.easy_flow_reservas v join public.cobrancas b on b.unidade_id=v.unidade_id where b.id=any(ids) and v.canais&&v_canais)
-    or exists(select 1 from public.lote_itens i join public.cobrancas b on b.id=i.cobranca_id where b.unidade_id in (select unidade_id from public.cobrancas where id=any(ids)))
-    or exists(select 1 from public.mensagens m join public.cobrancas b on b.id=m.cobranca_id where b.unidade_id in (select unidade_id from public.cobrancas where id=any(ids)) and m.status<>'cancelada' and m.canal=any(v_canais))
+    or exists(select 1 from public.lote_itens i where i.cobranca_id=any(ids) and public.easy_flow_vinculo_bloqueia(i,v_canais,c.vencimento_cota_dia))
+    or exists(select 1 from public.mensagens m join public.cobrancas b on b.id=m.cobranca_id where b.unidade_id in (select unidade_id from public.cobrancas where id=any(ids)) and m.status in ('pendente_aprovacao','aprovada','agendada') and m.canal=any(v_canais))
     or exists(select 1 from public.maestro_flow_montagens m where m.condominio_id=c.id and m.status in ('pendente','processando','atencao'))
   then raise exception 'Há vínculos ou reservas concorrentes. Revise as cobranças no painel completo.'; end if;
   if exists(select 1 from public.cobrancas b join public.unidades u on u.id=b.unidade_id where b.id=any(ids) and

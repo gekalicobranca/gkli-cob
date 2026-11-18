@@ -7,6 +7,7 @@ import {escolherContatoRegua} from '@/features/regua/services/regua-shared';
 import {criarResolvedorTemplateDaParte} from '@/features/mensageria/template-resolver';
 import {avaliarComplianceRegua} from '@/features/regua/services/compliance';
 import {verificarSuspensaoRegua} from '@/features/regua/services/suspension';
+import {cicloFechamentoCobranca} from '@/features/flows/cobranca/ciclo-fechamento';
 
 // Preparação somente leitura. Nenhum lote, score, promoção ou mensagem existe
 // até a RPC aceitar o snapshot e materializar a parte inteira numa transação.
@@ -41,7 +42,7 @@ export async function prepararParteEasy(run:any,indice:number) {
     if(!Number.isFinite(valor)||valor<=0)throw Error('Valor inválido para a montagem.');
     const contexto={carteira:carteira?.nome??'',nome_carteira:carteira?.nome??'',responsavel:contato.nome,nome:contato.nome,primeiro_nome:contato.nome.split(' ')[0],unidade:unidade.identificacao,condominio:p.c.nome_operacional||p.c.nome,competencia:[...new Set(rows.map(r=>r.competencia).filter(Boolean))].join(', '),vencimento:[...new Set(rows.map(r=>formatDateBR(r.vencimento)))].join(', '),valor:formatMoneyBR(valor),valor_total:formatMoneyBR(valor),dias_atraso:diasDesdeVencimento(row.vencimento)};
     const template=await resolver({carteiraId:p.c.carteira_id,tipoRegua:'cobranca',categoria:etapa.categoria_template,intensidade:etapa.tom,canal:etapa.canal,templateId:etapa.template_id,fallbackText:etapa.template,variables:contexto});
-    mensagens.push({cobranca_ids:rows.map(r=>r.id),canal:etapa.canal,destinatario:contato.destinatario,conteudo:template.renderizado||montarMensagem({tipo:'cobranca',etapa,contexto}),template_id:template.templateId,etapa_id:etapa.id,payload:{origem:'regua_cobranca',etapa_id:etapa.id,ciclo:new Date().toISOString().slice(0,7),contexto,template_resolvido:template,dias_atraso:contexto.dias_atraso,inicio_cobranca_dias:p.c.dias_apos_vencimento_regua??p.c.inicio_cobranca_dias??30,destinatario_regua:contato,cobranca_ids:rows.map(r=>r.id),total_cobrancas:rows.length,whatsapp_template_nome:(etapa as any).whatsapp_template_nome??null,whatsapp_template_idioma:(etapa as any).whatsapp_template_idioma??'pt_BR',whatsapp_template_parametros:(etapa as any).whatsapp_template_parametros??[]}});
+    mensagens.push({cobranca_ids:rows.map(r=>r.id),canal:etapa.canal,destinatario:contato.destinatario,conteudo:template.renderizado||montarMensagem({tipo:'cobranca',etapa,contexto}),template_id:template.templateId,etapa_id:etapa.id,payload:{origem:'regua_cobranca',etapa_id:etapa.id,ciclo:cicloFechamentoCobranca(p.c.vencimento_cota_dia??null)??new Date().toISOString().slice(0,7),contexto,template_resolvido:template,dias_atraso:contexto.dias_atraso,inicio_cobranca_dias:p.c.dias_apos_vencimento_regua??p.c.inicio_cobranca_dias??30,destinatario_regua:contato,cobranca_ids:rows.map(r=>r.id),total_cobrancas:rows.length,whatsapp_template_nome:(etapa as any).whatsapp_template_nome??null,whatsapp_template_idioma:(etapa as any).whatsapp_template_idioma??'pt_BR',whatsapp_template_parametros:(etapa as any).whatsapp_template_parametros??[]}});
   }
   if(!mensagens.length||mensagens.length>20)throw Error('Esta parte precisa gerar entre 1 e 20 mensagens.');
   return {mensagens};

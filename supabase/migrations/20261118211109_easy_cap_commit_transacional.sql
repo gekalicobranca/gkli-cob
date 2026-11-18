@@ -224,7 +224,7 @@ begin
       antes:=jsonb_build_object('cobranca',to_jsonb(anterior),'parcelas',
         (select coalesce(jsonb_agg(to_jsonb(p) order by p.id),'[]') from public.cobranca_parcelas p where p.cobranca_id=v_cobranca_id));
     else antes:=null;end if;
-    if fora and not judicial and v_cobranca_id is null then ignoradas:=ignoradas+1;continue;end if;
+    if fora and not judicial and v_cobranca_id is null and linha->>'statusMarcador' is null then ignoradas:=ignoradas+1;continue;end if;
     bloqueada:=false;
     if c.bloqueio_garantidora_habilitado then
       if c.bloqueio_garantidora_inicio is null or c.bloqueio_garantidora_fim is null or c.bloqueio_garantidora_inicio>c.bloqueio_garantidora_fim then
@@ -233,7 +233,8 @@ begin
       bloqueada:=(linha->>'vencimento')::date between c.bloqueio_garantidora_inicio and c.bloqueio_garantidora_fim
         or exists(select 1 from jsonb_array_elements(linha->'parcelas') p where (p->>'vencimento')::date between c.bloqueio_garantidora_inicio and c.bloqueio_garantidora_fim);
     end if;
-    status_importado:=case when bloqueada then 'suspenso' when fora then 'regular'
+    if linha->>'statusMarcador' is not null and linha->>'statusMarcador' not in ('possivel_acordo','judicializado') then raise exception 'Marcador manual inválido.'; end if;
+    status_importado:=case when bloqueada then 'suspenso' when linha->>'statusMarcador' is not null then linha->>'statusMarcador' when fora then 'regular'
       when judicial and exists(select 1 from jsonb_array_elements(plano->'linhas') x where upper(trim(x->>'unidade'))=upper(trim(linha->>'unidade')) and upper(trim(x->>'bloco'))=upper(trim(linha->>'bloco'))
         and hoje-(x->>'vencimento')::date>=inicio and (x->>'prioridadeJudicial')::int<(linha->>'prioridadeJudicial')::int) then 'judicializado'
       when judicial then 'novo' when (linha->>'hflex')::boolean then 'em_negociacao'
@@ -243,13 +244,13 @@ begin
       insert into public.cobrancas(carteira_id,condominio_id,unidade_id,competencia,valor_original,valor_atualizado,multa,juros,correcao,vencimento,status,status_operacional,status_financeiro,automacao_bloqueada,observacoes,origem_importacao,conversao_relatorio_id)
         values(c.carteira_id,c.id,u.id,linha->>'competencia',(linha->>'principalCentavos')::numeric/100,(linha->>'totalCentavos')::numeric/100,
           (linha->>'multaCentavos')::numeric/100,(linha->>'jurosCentavos')::numeric/100,(linha->>'correcaoCentavos')::numeric/100,(linha->>'vencimento')::date,
-          status_importado,status_importado,'em_aberto',(linha->>'hflex')::boolean,observacoes_importadas,'conversao_relatorio',v.id) returning id into v_cobranca_id;
+          status_importado,status_importado,'em_aberto',((linha->>'hflex')::boolean or linha->>'statusMarcador' is not null),observacoes_importadas,'conversao_relatorio',v.id) returning id into v_cobranca_id;
       criadas:=criadas+1;
     else
       update public.cobrancas set competencia=linha->>'competencia',valor_original=(linha->>'principalCentavos')::numeric/100,
         valor_atualizado=(linha->>'totalCentavos')::numeric/100,multa=(linha->>'multaCentavos')::numeric/100,
         juros=(linha->>'jurosCentavos')::numeric/100,correcao=(linha->>'correcaoCentavos')::numeric/100,vencimento=(linha->>'vencimento')::date,
-        status=status_importado,status_operacional=status_importado,automacao_bloqueada=(linha->>'hflex')::boolean,
+        status=status_importado,status_operacional=status_importado,automacao_bloqueada=((linha->>'hflex')::boolean or linha->>'statusMarcador' is not null),
         observacoes=observacoes_importadas,conversao_relatorio_id=v.id,updated_at=now() where id=v_cobranca_id;
       atualizadas:=atualizadas+1;
       delete from public.cobranca_parcelas p where p.cobranca_id=v_cobranca_id;

@@ -3,6 +3,7 @@ import {test} from 'node:test';
 import {moduloIsolado} from './easy-p0-module-harness';
 import {fixtureFlow,iniciarFlow} from './easy-flow-transaction-fixture';
 import {fixtureId as id} from './easy-p0-fixture';
+import {cicloFechamentoCobranca} from '../features/flows/cobranca/ciclo-fechamento';
 
 test('actions reais recuperam resposta perdida na montagem e liberação sem repetir preparação ou agenda',async()=>{
   const db=await fixtureFlow();try{
@@ -50,6 +51,7 @@ test('preparação somente leitura consolida unidade e mantém metadados da prim
     '@/features/mensageria/template-resolver':{criarResolvedorTemplateDaParte:()=>async(input:any)=>({templateId:null,conteudo:'Fonte',renderizado:`Total ${input.variables.valor}`})},
     '@/features/regua/services/compliance':{avaliarComplianceRegua:async()=>({permitido:!bloqueado})},
     '@/features/regua/services/suspension':{verificarSuspensaoRegua:async()=>({pausada:false})},
+    '@/features/flows/cobranca/ciclo-fechamento':{cicloFechamentoCobranca},
   });
   const run={plano:[[id(30),id(31)]],versoes:p.versoes,config_version:'v'};
   const result=await preparador.prepararParteEasy(run,0);assert.equal(result.mensagens.length,1);
