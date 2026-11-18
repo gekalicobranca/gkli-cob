@@ -11,10 +11,25 @@ import { requireUser } from '@/utils/auth/require-user'
 import { requireRole } from '@/utils/auth/require-role'
 import { getPermittedCarteiras, type CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeCondominioName } from '@/features/condominios/normalize-name'
+import { cnpjValido, MENSAGEM_CNPJ_INVALIDO, normalizarCnpj } from '@/features/administradoras/cnpj'
 import { normalizarDataBloqueio } from '@/features/importacoes/bloqueio-garantidora'
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, '')
+}
+
+function normalizarCnpjCondominio(value: string) {
+  return normalizarCnpj(value) || null
+}
+
+function cnpjCondominioInformado(value: string) {
+  const raw = value.trim()
+  if (raw && !cnpjValido(raw)) throw new Error(MENSAGEM_CNPJ_INVALIDO)
+  return normalizarCnpjCondominio(raw)
+}
+
+function isCnpjUniqueError(error: { code?: string; message?: string } | null) {
+  return error?.code === '23505' && /cnpj/i.test(error.message ?? '')
 }
 
 function optionalText(formData: FormData, field: string) {
@@ -134,7 +149,7 @@ export async function createCondominio(formData: FormData) {
   const carteiraId = String(formData.get('carteira_id') ?? '')
   const nome = normalizeCondominioName(String(formData.get('nome') ?? '').trim())
   const nomeOperacional = normalizeCondominioName(String(formData.get('nome_operacional') ?? '').trim())
-  const cnpj = onlyDigits(String(formData.get('cnpj') ?? ''))
+  const cnpj = cnpjCondominioInformado(String(formData.get('cnpj') ?? ''))
   const enderecoLogradouro = optionalText(formData, 'endereco_logradouro')
   const enderecoNumero = optionalText(formData, 'endereco_numero')
   const enderecoComplemento = optionalText(formData, 'endereco_complemento')
@@ -186,7 +201,7 @@ export async function createCondominio(formData: FormData) {
     ...(formData.has('operador_id') ? { operador_id: optionalText(formData, 'operador_id') } : {}),
     nome,
     nome_operacional: nomeOperacional || nome,
-    cnpj: cnpj || null,
+    cnpj,
     endereco_logradouro: enderecoLogradouro,
     endereco_numero: enderecoNumero,
     endereco_complemento: enderecoComplemento,
@@ -226,8 +241,8 @@ export async function createCondominio(formData: FormData) {
 
   const { data, error } = await supabase.from('condominios').insert(payload).select('id, carteira_id, nome').single()
 
-  if (error?.code === '23505' && error.message.includes('condominios_cnpj_key')) {
-    return { error: 'Este CNPJ já está cadastrado em outro condomínio. Confira o número informado ou localize o cadastro existente na lista de condomínios.' }
+  if (isCnpjUniqueError(error)) {
+    return { error: 'Este CNPJ já está cadastrado para esta administradora e carteira.' }
   }
   if (error) throw new Error(`Erro ao criar condomínio: ${error.message}`)
 
@@ -257,7 +272,8 @@ export async function updateCondominioIntegral(formData: FormData) {
   const carteiraId = String(formData.get('carteira_id') ?? '')
   const nome = normalizeCondominioName(String(formData.get('nome') ?? '').trim())
   const nomeOperacional = normalizeCondominioName(String(formData.get('nome_operacional') ?? '').trim())
-  const cnpj = onlyDigits(String(formData.get('cnpj') ?? ''))
+  const cnpjOriginal = String(formData.get('cnpj') ?? '').trim()
+  const cnpj = normalizarCnpjCondominio(cnpjOriginal)
   const enderecoLogradouro = optionalText(formData, 'endereco_logradouro')
   const enderecoNumero = optionalText(formData, 'endereco_numero')
   const enderecoComplemento = optionalText(formData, 'endereco_complemento')
@@ -316,6 +332,10 @@ export async function updateCondominioIntegral(formData: FormData) {
 
   if (beforeError) throw new Error(`Erro ao carregar condomínio antes da alteração: ${beforeError.message}`)
   if (!before) throw new Error('Condomínio não encontrado.')
+  const cnpjAnterior = normalizarCnpj(String((before as any).cnpj ?? '')) || null
+  if (cnpjOriginal && !cnpjValido(cnpjOriginal) && cnpj !== cnpjAnterior) {
+    throw new Error(MENSAGEM_CNPJ_INVALIDO)
+  }
   assertCarteiraPermitida(scope, (before as any).carteira_id)
   if (carteiraId !== (before as any).carteira_id) {
     throw new Error('A carteira do condomínio não pode ser alterada por este formulário. A transferência exige um fluxo administrativo que atualize também os registros vinculados.')
@@ -330,7 +350,7 @@ export async function updateCondominioIntegral(formData: FormData) {
     ...(formData.has('operador_id') ? { operador_id: optionalText(formData, 'operador_id') } : {}),
     nome,
     nome_operacional: nomeOperacional || nome,
-    cnpj: cnpj || null,
+    cnpj,
     endereco_logradouro: enderecoLogradouro,
     endereco_numero: enderecoNumero,
     endereco_complemento: enderecoComplemento,
@@ -368,6 +388,7 @@ export async function updateCondominioIntegral(formData: FormData) {
   const diferencas = buildDiff(before as any, payload)
 
   const { error } = await supabase.from('condominios').update(payload).eq('id', id)
+  if (isCnpjUniqueError(error)) throw new Error('Este CNPJ já está cadastrado para esta administradora e carteira.')
   if (error) throw new Error(`Erro ao atualizar Condomínio Integral: ${error.message}`)
 
   if (Object.keys(diferencas).length > 0) {

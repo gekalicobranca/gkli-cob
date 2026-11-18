@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { resumirValoresCobrancas } from '../features/cobrancas/subtotais'
+import {
+  acumularValoresCobrancas,
+  criarAcumuladorValoresCobrancas,
+  finalizarAcumuladorValoresCobrancas,
+  resumirValoresCobrancas,
+} from '../features/cobrancas/subtotais'
 import { STATUS_BLOQUEIOS, STATUS_OPERACIONAIS } from '../features/cobrancas/filtros-status'
 
 test('card, carteiras e condomínios conciliam todas as páginas em centavos', () => {
@@ -48,4 +53,19 @@ test('duplicidades arquivadas não entram nos totais nem nas quantidades', () =>
   ])
   assert.equal(resumo.totalEmAberto, 50.25)
   assert.equal(resumo.porCarteira[0].quantidade, 1)
+})
+
+test('acumulação por lotes preserva valores e subtotais da lista integral', () => {
+  const rows = Array.from({ length: 2507 }, (_, index) => ({
+    carteira_id: `carteira-${index % 4}`,
+    condominio_id: `condominio-${index % 19}`,
+    valor_atualizado: (index % 5 === 0 ? '0' : `${(index % 199) + 0.37}`),
+    valor_original: `${(index % 199) + 1.11}`,
+    status_operacional: index % 2 ? 'em_cobranca_ativa' : 'novo',
+  }))
+  const acumulador = criarAcumuladorValoresCobrancas()
+  for (let offset = 0; offset < rows.length; offset += 137) {
+    acumularValoresCobrancas(acumulador, rows.slice(offset, offset + 137))
+  }
+  assert.deepEqual(finalizarAcumuladorValoresCobrancas(acumulador), resumirValoresCobrancas(rows))
 })
