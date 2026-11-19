@@ -5,15 +5,18 @@ import {fixtureFlow} from './easy-flow-transaction-fixture';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 
-test('manifesto e snapshot gerado correspondem às únicas três migrations da candidata',async()=>{
+test('manifesto P0 é prefixo do conjunto P0/P1 e snapshot corresponde às sete migrations',async()=>{
   const manifesto=JSON.parse(await readFile('docs/easy-p0-migrations.json','utf8'));
   const esperadas=['20261118205314_easy_p0_contencao.sql','20261118211109_easy_cap_commit_transacional.sql','20261118220528_easy_flow_transacional.sql'].map(x=>'supabase/migrations/'+x);
   assert.deepEqual(manifesto.migrations.map((x:any)=>x.path),esperadas);
-  const diff=execFileSync('git',['diff','--name-only',manifesto.base,'--','supabase/migrations'],{encoding:'utf8'}).trim().split(/\r?\n/).sort();
-  assert.deepEqual(diff,[...esperadas].sort());
+  const conjunto=JSON.parse(await readFile('docs/easy-p0-p1-migrations.json','utf8'));
+  assert.equal(conjunto.migrations.length,7);
+  assert.deepEqual(conjunto.migrations.slice(0,3),manifesto.migrations);
+  const diff=execFileSync('git',['diff','--name-only',conjunto.base,'--','supabase/migrations'],{encoding:'utf8'}).trim().split(/\r?\n/).sort();
+  assert.deepEqual(diff,conjunto.migrations.map((x:any)=>x.path).sort());
   const gerado=await readFile('lib/backup/schema-files.generated.ts','utf8');
   const snapshot=JSON.parse(gerado.slice(gerado.indexOf('= ')+2));
-  for(const entrada of manifesto.migrations){
+  for(const entrada of conjunto.migrations){
     const sql=(await readFile(entrada.path,'utf8')).replace(/\r\n/g,'\n');
     assert.equal(createHash('sha256').update(sql).digest('hex'),entrada.sha256);
     assert.equal(snapshot.find((x:any)=>x.name==='schema/migrations/'+entrada.path.split('/').at(-1))?.content,sql);
