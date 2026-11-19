@@ -54,7 +54,7 @@ async function main() {
   let remocoesAusentes = 0
   let falhar = false
   let final: any
-  let sizes: number[] = []
+  const sizes: number[] = []
   const db = { from(table: string) {
     const q = { select() { return q }, eq() { return q }, order() { return q },
       async maybeSingle() { return { data: structuredClone(record), error: null } },

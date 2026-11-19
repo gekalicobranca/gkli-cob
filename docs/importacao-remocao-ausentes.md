@@ -14,7 +14,7 @@ O arquivo deve ter recorte `todos`, todas as linhas válidas e todos os lotes pr
 
 - Qualquer vínculo em `acordos.cobranca_id` ou `acordo_cobrancas`, inclusive histórico, independentemente do status do acordo.
 - Situação `judicializado` no status operacional ou legado, ou unidade marcada com ação judicial. Marcadores AE/J da administradora não determinam essa situação.
-- Cobranças quitadas, pagas, canceladas ou baixadas; referências em `fechamento_pagamentos`.
+- Cobranças quitadas, pagas, canceladas ou baixadas; qualquer valor/data de pagamento, referências em `fechamento_pagamentos` e `scanner_baixas`, mesmo quando o status estiver desatualizado.
 - Cobranças arquivadas/duplicadas, canônicos com duplicatas vinculadas, outras carteiras/condomínios e registros criados depois da prévia.
 
 ## Integridade e retomada
@@ -22,6 +22,8 @@ O arquivo deve ter recorte `todos`, todas as linhas válidas e todos os lotes pr
 As RPCs são `SECURITY INVOKER`, com execução restrita a `service_role`. A ação verifica papel e carteira antes de usar o cliente administrativo. O banco bloqueia a importação, os condomínios e as cobranças enquanto verifica vínculos e remove os elegíveis. A sobrecarga com `p_unidades` persiste os IDs resolvidos pelo servidor nos itens, evitando apagar uma cobrança presente por causa de um ID obsoleto na prévia.
 
 A transação cancela mensagens pendentes e continuidades dos Flows, atualiza seus vínculos e contadores e resolve pendências de ausência, sem presumir pagamento. Mensagens enviadas, interações e histórico de saneamento são preservados por desvinculação. A auditoria inclui snapshot das cobranças e dependências antes da exclusão. Erro de FK ou auditoria reverte toda a transação.
+
+Antes de cancelar, bloqueia as mensagens em ordem estável e recusa a operação se houver mensagem/tentativa de e-mail em envio, envio WhatsApp reservado ou token/lease de progressão/montagem ativo. Nesse caso, aguardar o executor e conferir o resultado antes de retomar; não apagar reservas para liberar a importação. A publicação não executa essa rotina em registros reais.
 
 `resumo.limpeza_ausentes` é gravado na mesma transação e conservado pela finalização: uma retomada devolve o resultado anterior, sem apagar dados adicionais. A remoção é física; recuperação depende dos snapshots da auditoria, recomposição dos vínculos e conferência operacional, não de uma reimportação automática.
 

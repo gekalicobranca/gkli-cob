@@ -69,6 +69,7 @@ begin
     and coalesce(c.status_operacional,'') not in ('judicializado','quitado','pago','cancelado','baixado')
     and coalesce(c.status,'') not in ('judicializado','quitado','pago','cancelado','baixado')
     and coalesce(c.status_financeiro,'em_aberto') not in ('quitado','pago','cancelado','baixado')
+    and c.data_pagamento is null and coalesce(c.valor_pago,0)=0
     and not exists(select 1 from public.unidades u where u.id=c.unidade_id and u.acao_judicial)
     and exists(select 1 from public.importacao_itens i where i.importacao_id=p_importacao and i.valido
       and i.payload->>'condominio_id'=c.condominio_id::text and i.payload->>'carteira_id'=c.carteira_id::text)
@@ -81,7 +82,8 @@ begin
     and not exists(select 1 from public.acordos a where a.cobranca_id=c.id)
     and not exists(select 1 from public.acordo_cobrancas a where a.cobranca_id=c.id)
     and not exists(select 1 from public.cobrancas d where d.duplicada_de_id=c.id)
-    and not exists(select 1 from public.fechamento_pagamentos f where f.cobranca_id=c.id);
+    and not exists(select 1 from public.fechamento_pagamentos f where f.cobranca_id=c.id)
+    and not exists(select 1 from public.scanner_baixas s where s.cobranca_id=c.id);
   if cardinality(ids)=0 then
     resultado:=jsonb_build_object('removidas',0,'ids','[]'::jsonb,'mensagens_canceladas',0,'itens_removidos',0);
     update public.importacoes set resumo=jsonb_set(resumo,'{limpeza_ausentes}',resultado) where id=p_importacao;
@@ -100,6 +102,16 @@ begin
   end loop;
   select coalesce(array_agg(m.id),'{}'::uuid[]) into mensagens_ids from public.mensagens m
     where m.cobranca_id=any(ids) or exists(select 1 from jsonb_array_elements_text(coalesce(m.payload->'cobranca_ids','[]'::jsonb)) v where v::uuid=any(ids));
+  perform m.id from public.mensagens m where m.id=any(mensagens_ids) order by m.id for update;
+  if exists(select 1 from public.mensagens where id=any(mensagens_ids) and status='em_envio')
+    or exists(select 1 from public.email_tentativas where mensagem_id=any(mensagens_ids) and estado='em_envio')
+    or exists(select 1 from public.whatsapp_web_envios where mensagem_id=any(mensagens_ids) and estado='reservado')
+    or exists(select 1 from public.flow_progressao where cobranca_ids && ids and (token is not null or lease_ate>now()))
+    or exists(select 1 from public.maestro_flow_montagens m where (m.token is not null or m.lease_ate>now())
+      and exists(select 1 from jsonb_array_elements(coalesce(m.plano,'[]'::jsonb)) grupo
+        cross join lateral jsonb_array_elements_text(grupo) v where v::uuid=any(ids))) then
+    raise exception 'Há envio ou execução reservada em andamento; aguarde e confira o estado antes de retomar a importação.';
+  end if;
   select coalesce(array_agg(distinct f),'{}'::uuid[]) into flows from (
     select cobranca_flow_id as f from public.mensagens where id=any(mensagens_ids)
     union select cobranca_flow_id from public.lote_itens where cobranca_id=any(ids)

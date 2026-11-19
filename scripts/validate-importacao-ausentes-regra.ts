@@ -44,6 +44,7 @@ async function main() {
       alter table importacao_itens add column linha int default 1;
       update importacoes set resumo=resumo||'{"execucao_lotes":{"cursor":1,"total":1,"resultado":{"divergentes":0,"erros":[]}}}';
       alter table cobrancas add column status text default 'novo', add column observacoes text,
+        add column valor_pago numeric, add column data_pagamento date,
         add column created_at timestamptz default now()-interval '1 day',
         add column duplicada_origem_excluida_id uuid, add column arquivada_em timestamptz;
       create table condominios(id uuid primary key,carteira_id uuid);
@@ -54,7 +55,9 @@ async function main() {
       create table fechamento_pagamentos(cobranca_id uuid references cobrancas);
       create table interacoes(cobranca_id uuid references cobrancas on delete cascade);
       create table saneamento_cobrancas(cobranca_id uuid references cobrancas on delete set null);
-      create table whatsapp_web_envios(mensagem_id uuid references mensagens);
+      create table whatsapp_web_envios(mensagem_id uuid references mensagens,estado text);
+      create table email_tentativas(mensagem_id uuid references mensagens,estado text);
+      create table scanner_baixas(cobranca_id uuid references cobrancas);
       insert into whatsapp_web_envios values('${id(41)}');
       insert into mensagens(id,cobranca_id,cobranca_flow_id,payload,status) values
         ('${id(43)}','${id(11)}','${id(40)}','{"cobranca_ids":["${id(11)}"]}','enviada');
@@ -116,6 +119,32 @@ async function main() {
     await db.exec("update importacoes set total_invalidas=0,resumo=jsonb_set(resumo,'{recorte_regua}','\"parcial\"')")
     assert.equal((await run()).removidas, 0)
     await db.exec("update importacoes set resumo=jsonb_set(resumo,'{recorte_regua}','\"todos\"')")
+    // Pagamentos prevalecem mesmo quando os status ainda não foram atualizados.
+    for (const protection of [
+      `update cobrancas set valor_pago=10 where id='${id(11)}'`,
+      `update cobrancas set data_pagamento=current_date where id='${id(11)}'`,
+      `insert into scanner_baixas values('${id(11)}')`,
+    ]) {
+      await db.exec('begin')
+      await db.exec(protection)
+      assert.equal((await run()).removidas,5)
+      assert.equal((await db.query('select id from cobrancas where id=$1',[id(11)])).rows.length,1)
+      await db.exec('rollback')
+    }
+    // A limpeza não pode cancelar uma mensagem que já pode ter efeito externo.
+    for (const reservation of [
+      `update mensagens set status='em_envio' where id='${id(41)}'`,
+      `insert into email_tentativas values('${id(41)}','em_envio')`,
+      `update whatsapp_web_envios set estado='reservado'`,
+      `update flow_progressao set token='lease-ativa'`,
+      `update maestro_flow_montagens set lease_ate=now()+interval '1 minute'`,
+    ]) {
+      await db.exec('begin')
+      await db.exec(reservation)
+      await assert.rejects(run(),/envio ou execução reservada/)
+      await db.exec('rollback')
+      assert.equal((await db.query('select id from cobrancas where id=$1',[id(11)])).rows.length,1)
+    }
     // Resolver uma unidade da prévia obsoleta não pode fazer uma cobrança presente sumir.
     await db.exec('begin')
     await db.query("update importacao_itens set payload=jsonb_set(payload,'{unidade_id}',to_jsonb($1::text))",[id(999)])
