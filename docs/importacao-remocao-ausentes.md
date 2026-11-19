@@ -21,6 +21,8 @@ A conferência de ausências em `features/importacoes/cobrancas-conciliacao.ts` 
 
 ## Integridade e retomada
 
+Na substituição inicial e na limpeza final, uma mensagem já cancelada que referencia uma cópia arquivada por duplicidade mantém seu histórico integral. A verificação usa a mesma regra do bloqueio de duplicidade e considera a cobrança direta, os IDs no conteúdo estruturado da mensagem e os itens do lote. Quando a mensagem tem uma FK direta para uma cobrança elegível, a limpeza preserva também essa cobrança para evitar a exclusão em cascata. Uma referência apenas no conteúdo histórico permite remover a cobrança elegível. A proteção de mensagens ativas continua valendo.
+
 As RPCs são `SECURITY INVOKER`, com execução restrita a `service_role`. A ação verifica papel e carteira antes de usar o cliente administrativo. O banco bloqueia a importação, os condomínios e as cobranças enquanto verifica vínculos e remove os elegíveis. A sobrecarga com `p_unidades` persiste os IDs resolvidos pelo servidor nos itens, evitando apagar uma cobrança presente por causa de um ID obsoleto na prévia.
 
 A transação cancela mensagens pendentes e continuidades dos Flows, atualiza seus vínculos e contadores e resolve pendências de ausência, sem presumir pagamento. Mensagens enviadas, interações e histórico de saneamento são preservados por desvinculação. A auditoria inclui snapshot das cobranças e dependências antes da exclusão. Erro de FK ou auditoria reverte toda a transação.
