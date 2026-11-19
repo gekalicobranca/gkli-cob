@@ -1,5 +1,5 @@
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
-import { competenciaNormalizada, identidadeRecibo, marcadorConciliavelRecibo } from "./identidade-recibo";
+import { competenciaNormalizada, identidadeRecibo, marcadoresAdministrativosCompativeis } from "./identidade-recibo";
 
 type SupabaseLike = {
   from: (table: string) => any;
@@ -174,14 +174,16 @@ function classificarCandidato(
   const mesmoOriginal = cents(importada.valor_original ?? importada.valor_atualizado) === cents(existente.valor_original ?? existente.valor_atualizado);
   const mesmoAtualizado = cents(importada.valor_atualizado ?? importada.valor_original) === cents(existente.valor_atualizado ?? existente.valor_original);
   const marcadorConflitante = mesmoRecibo && reciboImportado?.marcador !== reciboExistente?.marcador;
-  // AE, J ou marcador ausente não transformam o recibo em outro débito. Outros marcadores
+  // A, AE, J ou marcador ausente não transformam o recibo em outro débito. Outros marcadores
   // continuam exigindo revisão. O Maestro mantém sua conciliação transacional.
-  const marcador = mesmoRecibo && marcadorConciliavelRecibo(reciboImportado?.marcador, reciboExistente?.marcador);
-  if (!conciliarValores && marcador && mesmoVencimento && temMesmaCompetencia(importada, existente)
+  const atualizarSaldo = reciboImportado && reciboExistente && reciboImportado.recibo === reciboExistente.recibo
+    && (reciboImportado.marcador || reciboExistente.marcador || !mesmoAtualizado) && marcadoresAdministrativosCompativeis(reciboImportado?.marcador, reciboExistente?.marcador);
+  if (!conciliarValores && atualizarSaldo && importada.vencimento && mesmoVencimento
+    && importada.valor_original != null && existente.valor_original != null && importada.valor_atualizado != null
     && mesmoOriginal && existente.carteira_id === importada.carteira_id && statusAberto(existente)
     && ![existente.status_financeiro, existente.status_operacional].some(s => normalizeText(s) === 'pago')) {
     return { status: 'ja_existente' as const, atualizarReciboComMarcador: true,
-      motivo: `Mesmo recibo com ou sem marcador ${marcador}; atualizar dados preservando estado e acordos.` };
+      motivo: `Recibo, principal e vencimento correspondem; atualizar saldo preservando estado e acordos.` };
   }
   if (conciliarValores && existente.arquivada_em) {
     return { status: "divergente" as const, motivo: "Recibo já arquivado reapareceu no relatório. Confira o registro original." };

@@ -39,7 +39,7 @@ test('reimportar a planilha Lello encontra a cobrança que recebeu o número do 
 test('marcadores, quitação, valores, competência e vencimento divergentes bloqueiam nova cópia', async () => {
   for (const changes of [
     { observacoes: 'Recibo AJ 12345' }, { status_financeiro: 'quitado' },
-    { status_operacional: 'cancelado' }, { valor_original: 99 }, { valor_atualizado: 120 },
+    { status_operacional: 'cancelado' }, { valor_original: 99 },
     { competencia: '05/2026' }, { vencimento: '2026-05-10' },
   ]) assert.equal((await conciliarCobrancaImportada(client([{ ...antiga, ...changes }]), entrada)).status, 'divergente', JSON.stringify(changes))
   assert.equal((await conciliarCobrancaImportada(client([{ ...antiga, observacoes: 'Recibo AJ 12345' }]), { ...entrada, recibo: 'AE 12345' })).status, 'divergente')

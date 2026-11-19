@@ -19,3 +19,11 @@ Preparação de publicação em 19/11/2026: alterações preservadas em commit e
 Publicação pelo GitHub: aguardar `quality` e Vercel Preview aprovados antes do merge; confirmar Production READY para o commit resultante. Se a pausa da equipe Vercel por limite Hobby persistir, manter o PR aberto sem contornar o check. Nenhuma alteração SQL remota é necessária.
 
 Pendente: concluir a publicação e reprocessar a importação desejada em operação separada autorizada; resultados históricos de importação não são reescritos automaticamente. Publicar código não executa importações, não altera cobranças existentes e não envia mensagens.
+
+## Atualização do saldo em 19/11/2026
+
+A, AE, J e ausência de marcador são compatíveis. Com o mesmo recibo, principal e vencimento no mesmo escopo, a mudança de saldo atualiza a cobrança existente. A competência cadastrada, os estados e os acordos são preservados. Essa atualização não conta como divergência para a limpeza do lote.
+
+Esta decisão substitui a restrição anterior de competência para essa correspondência segura: competência diferente na origem não impede a atualização do saldo e não sobrescreve a competência já cadastrada. Principal, vencimento, saldo informado e controle de concorrência continuam obrigatórios; marcadores fora de A/AE/J continuam sujeitos às regras anteriores. O Maestro conserva o fluxo transacional existente.
+
+Preparação da publicação na branch existente `codex/importacao-saldo-recibo`, com `main` (`cb9840e4`) integrada por merge normal e sem nova migration. Os 22 testes de recibos, conciliação, anos, remoção de ausentes e lotes passaram após integração. Aguardar `quality` e Vercel Preview do commit final antes do merge e confirmar Production READY. Nenhuma importação real ou limpeza é executada durante a publicação.
