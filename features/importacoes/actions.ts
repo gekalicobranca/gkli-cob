@@ -1,6 +1,7 @@
 "use server";
 
 import { garantirUnidadeImportacao } from "@/features/unidades/importacao";
+import { isAcordoOrigem, type AcordoOrigem } from "@/features/acordos/origem-controle";
 
 import { revalidatePath } from "next/cache";
 import { resolverCorrespondenciasUnidade } from "@/lib/core/identidade-unidade";
@@ -2165,7 +2166,7 @@ function normalizeSimplePayload(
     ...rowPayload,
     cnpj: getDocumento(rowPayload, CONDOMINIO_CNPJ_KEYS, 14),
     condominio_cnpj: getDocumento(rowPayload, CONDOMINIO_CNPJ_KEYS, 14),
-    data_acordo: normalizeDate(rowPayload.data_acordo ?? ""),
+    data_acordo: normalizeDate(rowPayload.data_acordo ?? "") || (legacy ? primeiroVencimento : ""),
     primeiro_vencimento: primeiroVencimento,
     vencimento_parcela_atual: vencimentoParcelaAtual,
     periodo_negociado:
@@ -2973,6 +2974,7 @@ async function importarLegados(
   supabase: SupabaseClient,
   tipo: string,
   payloads: Record<string, any>[],
+  origem: AcordoOrigem,
 ) {
   let importados = 0;
   let parcelasCriadas = 0;
@@ -3068,6 +3070,7 @@ async function importarLegados(
           condominio_id: payload.condominio_id,
           unidade_id: payload.unidade_id,
           tipo: tipoAcordo,
+          origem_controle: origem,
           numero_processo: null,
           valor_acordado: valorAcordado,
           entrada: Number(payload.entrada ?? 0),
@@ -3165,6 +3168,7 @@ async function importarLegados(
         descricao: `Acordo ${acordoId} importado com ${cobrancas.length} cobrança(s) do período negociado e ${parcelas.length} parcela(s).`,
         payload: {
           acordo_id: acordoId,
+          origem_controle: origem,
           unidade_id: payload.unidade_id,
           periodo_negociado: payload.periodo_negociado,
           cobranca_ids: cobrancas.map((cobranca: any) => cobranca.id),
@@ -3267,10 +3271,13 @@ export async function confirmarImportacao(formData: FormData) {
   }
 
   if (isLegacyImportType(importacao.tipo)) {
+    const origem = formData.get("origem_controle") ?? "a_confirmar";
+    if (!isAcordoOrigem(origem)) throw new Error("Origem dos acordos inválida.");
     const resultadoLegado = await importarLegados(
       supabase,
       importacao.tipo,
       payloads,
+      origem,
     );
     execucao = {
       importados: resultadoLegado.importados,

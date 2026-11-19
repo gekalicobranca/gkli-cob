@@ -4,6 +4,7 @@ import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import { atualizarStatusBoletosAcordo } from "@/features/acordos/actions";
 import { formalizacaoState } from "@/features/acordos/formalizacao-state";
 import { AgreementHomologationForm } from "./agreement-homologation-form";
+import { AgreementDocuments } from "./agreement-documents";
 
 function formatDateTime(value?: string | null) {
   if (!value) return "Data não informada";
@@ -41,6 +42,7 @@ export function AgreementFormalizationCard({ acordo, hideTitle = false }: { acor
         <dt className="text-slate-500">{titulo}</dt><dd className="font-medium text-slate-950">{descricao}</dd>
       </div>)}
     </dl>
+    <AgreementDocuments id={acordo.id} />
     {["extrajudicial", "judicial"].includes(acordo.tipo) && <details open={state.recebido && !acordo.acordo_homologado} className="rounded-lg border border-slate-200 p-3">
       <summary className="cursor-pointer text-sm font-semibold">Homologação da administradora</summary>
       <div className="mt-3 space-y-3">

@@ -1,4 +1,4 @@
-export type TipoCobrancaOrigem = 'cota_condominial' | 'cessao_espaco' | 'multa' | 'consumo' | 'outros'
+export type TipoCobrancaOrigem = 'cota_condominial' | 'cessao_espaco' | 'multa' | 'consumo' | 'custos_protesto' | 'outros'
 export type ComponenteCobrancaOrigem = {
   conta: string
   historico: string
@@ -13,12 +13,13 @@ export type ComposicaoCobrancaOrigem = {
 }
 export const NOMES_TIPOS_COBRANCA: Record<TipoCobrancaOrigem, string> = {
   cota_condominial: 'Cota condominial', cessao_espaco: 'Cessão/locação de espaço',
-  multa: 'Multa (lançamento)', consumo: 'Consumo', outros: 'Outros',
+  multa: 'Multa (lançamento)', consumo: 'Consumo', custos_protesto: 'Custos de protesto', outros: 'Outros',
 }
 
 /** Classifica o histórico do componente; os encargos de atraso não definem o tipo. */
 export function tipoCobrancaDoHistorico(historico: string): TipoCobrancaOrigem {
   const text = historico.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
+  if (/\b(?:CUSTOS?|DESPESAS?|TAXAS?)\b.*\bPROTESTO\b|\bPROTESTO\b.*\b(?:CUSTOS?|DESPESAS?|TAXAS?)\b/.test(text)) return 'custos_protesto'
   if (/\b(?:CESSAO|LOCACAO|ALUGUEL)\b.*\b(?:ESPACO|SALAO|AREA)\b/.test(text)) return 'cessao_espaco'
   if (/\bMULTA\b/.test(text)) return 'multa'
   if (/\bCONSUMO\b|\b(?:AGUA|GAS|ENERGIA)\b/.test(text)) return 'consumo'
@@ -35,17 +36,27 @@ export function observacoesComComposicao(atual: string | null | undefined, orige
 }
 
 /** Enriquece somente metadados do débito conciliado e das suas parcelas identificadas. */
+export function observacoesComMarcador(atual: string, marcador?: string) {
+  if (!marcador) return atual
+  const base = atual.replace(/^Marcador origem: [^\n]*(?:\n|$)/gm, '').trim()
+  return [base, `Marcador origem: ${marcador}`].filter(Boolean).join('\n')
+}
+
 export async function persistirComposicaoConciliada(db: { from: (table: string) => any }, id: string,
-  contexto: { condominioId: string; carteiraId: string; recibo: string; vencimento: string }, origem: ComposicaoCobrancaOrigem) {
-  if (!origem.detalhesOrigem && !origem.composicaoOrigem?.length) return
+  contexto: { condominioId: string; carteiraId: string; recibo: string; vencimento: string; marcadorOrigem?: string }, origem: ComposicaoCobrancaOrigem) {
+  if (!origem.detalhesOrigem && !origem.composicaoOrigem?.length && !contexto.marcadorOrigem) return
   const scope = () => db.from('cobrancas').select('id,observacoes').eq('id', id).eq('condominio_id', contexto.condominioId).eq('carteira_id', contexto.carteiraId).is('duplicada_de_id', null)
   const atual = await scope().single()
   if (atual.error) throw atual.error
-  const observacoes = observacoesComComposicao(atual.data.observacoes, origem)
-  let updateQuery = db.from('cobrancas').update({ observacoes }).eq('id', id).eq('condominio_id', contexto.condominioId).eq('carteira_id', contexto.carteiraId).is('duplicada_de_id', null)
+  const observacoes = observacoesComMarcador(observacoesComComposicao(atual.data.observacoes, origem), contexto.marcadorOrigem)
+  let updateQuery = db.from('cobrancas').update({
+    observacoes,
+    ...(contexto.marcadorOrigem ? { automacao_bloqueada: true } : {}),
+  }).eq('id', id).eq('condominio_id', contexto.condominioId).eq('carteira_id', contexto.carteiraId).is('duplicada_de_id', null)
   updateQuery = atual.data.observacoes === null ? updateQuery.is('observacoes', null) : updateQuery.eq('observacoes', atual.data.observacoes)
   const update = await updateQuery.select('id')
   if (update.error || update.data?.length !== 1) throw new Error(update.error?.message ?? 'Não foi possível preservar a composição da cobrança.')
+  if (!origem.detalhesOrigem && !origem.composicaoOrigem?.length) return
   const parcelas = await db.from('cobranca_parcelas').select('id,origem_linha_json').eq('cobranca_id', id).eq('referencia', `Recibo ${contexto.recibo}`).eq('data_vencimento', contexto.vencimento)
   if (parcelas.error) throw parcelas.error
   for (const parcela of parcelas.data ?? []) {

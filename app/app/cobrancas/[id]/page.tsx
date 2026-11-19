@@ -10,7 +10,6 @@ import {
   getAcordoVigenteDaCobranca,
   getCobrancaDetalhe,
   listEventosOperacionaisDaCobranca,
-  listInteracoesDaCobranca,
   listMensagensDaCobranca,
 } from '@/features/cobrancas/queries'
 import {
@@ -59,9 +58,8 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
   const query = searchParams ? await searchParams : {}
   const scope = await getPermittedCarteiras()
 
-  const [cobranca, interacoes, acordoVigente, eventosOperacionais, mensagens] = await Promise.all([
+  const [cobranca, acordoVigente, eventosOperacionais, mensagens] = await Promise.all([
     getCobrancaDetalhe(id, scope),
-    listInteracoesDaCobranca(id),
     getAcordoVigenteDaCobranca(id),
     listEventosOperacionaisDaCobranca(id),
     listMensagensDaCobranca(id),
@@ -78,16 +76,8 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
           {cobranca.duplicada_de_id ? <Link className="font-medium text-cyan-800 underline" href={`/app/cobrancas/${cobranca.duplicada_de_id}`}>Abrir cobrança preservada</Link> : null}
           <p className="text-sm text-slate-500">Valor registrado no histórico: {formatCurrency(cobranca.valor_atualizado ?? cobranca.valor_original)}</p>
         </Card>
-        <CobrancaTimeline eventos={eventosOperacionais} interacoes={interacoes} />
-        <Card className="space-y-4 p-6">
-          <h2 className="font-semibold">Mensagens históricas</h2>
-          {mensagens.length === 0 ? <p>Nenhuma mensagem diretamente vinculada a este registro.</p> : mensagens.map(mensagem => (
-            <div key={mensagem.id} className="border-t pt-4">
-              <p className="text-sm text-slate-500">{mensagem.canal} · {mensagem.status}</p>
-              <p className="whitespace-pre-wrap text-sm">{mensagem.conteudo_renderizado || mensagem.conteudo}</p>
-            </div>
-          ))}
-        </Card>
+        <CobrancaTimeline eventos={eventosOperacionais} />
+        <CobrancaMensageriaCard mensagens={mensagens} />
       </div>
     )
   }
@@ -203,11 +193,12 @@ export default async function CobrancaDetalhePage({ params, searchParams }: Page
             valorAtualizado={valorAtualizado}
             despesaCobranca={despesaCobranca}
             valorNegociacao={valorNegociacao}
+            editing={query.acao === 'editar-financeiro'}
             updateAction={updateCobrancaFinanceiro}
           />
           <details className="rounded-xl border border-slate-200 bg-white p-4">
-            <summary className="cursor-pointer text-sm font-semibold">Histórico de contatos e eventos ({eventosOperacionais.length + interacoes.length})</summary>
-            <div className="mt-3"><CobrancaTimeline eventos={eventosOperacionais} interacoes={interacoes} /></div>
+            <summary className="cursor-pointer text-sm font-semibold">Eventos ({eventosOperacionais.length})</summary>
+            <div className="mt-3"><CobrancaTimeline eventos={eventosOperacionais} /></div>
           </details>
           <CobrancaMensageriaCard
             mensagens={mensagens}

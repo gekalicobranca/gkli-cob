@@ -4,6 +4,7 @@ import { COBRANCA_STATUS_OPERACIONAIS_ATIVOS } from '@/lib/constants/cobrancas'
 import { getCobrancaStatusFinanceiro, getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 
 export type TvAgreement = {
+  origem_controle?: string
   acordo_homologado?: boolean
   tipo?: string | null
   fluxo_status?: string | null

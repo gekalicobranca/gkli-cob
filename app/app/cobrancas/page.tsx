@@ -334,23 +334,15 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
           description="Consulte e organize as cotas em cobrança."
           actions={
             <>
-              <details className="relative">
-                <summary className="cursor-pointer rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">Exportar</summary>
-                <div className="absolute right-0 z-30 mt-2 flex min-w-52 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
-                  <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo','/relatorio')} prefetch={false} variant="secondary">
-                    <Download size={16} />
-                    Planilha
-                  </ButtonLink>
-                  <ButtonLink href={relatorioExecutivoHref} prefetch={false} target="_blank" rel="noopener noreferrer" variant="secondary">
-                    <FileText size={16} />
-                    Executivo
-                  </ButtonLink>
-                  <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo','/catalogo')} prefetch={false} variant="secondary" title="Cotas na regra de cobrança, incluindo jurídico e pré-jurídico">
-                    <FileText size={16} />
-                    Catálogo PDF
-                  </ButtonLink>
-                </div>
-              </details>
+              <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo','/relatorio')} prefetch={false} variant="secondary">
+                <Download size={16} />Exportar
+              </ButtonLink>
+              <ButtonLink href={relatorioExecutivoHref} prefetch={false} target="_blank" rel="noopener noreferrer" variant="secondary">
+                <FileText size={16} />Relatório executivo
+              </ButtonLink>
+              <ButtonLink href={relatorioExecutivoHref.replace('/relatorio-executivo', '/catalogo')} prefetch={false} variant="secondary">
+                <FileText size={16} />Catálogo PDF
+              </ButtonLink>
               <ButtonLink href="/app/cobrancas/nova">
                 <Plus size={16} />
                 Nova cobrança

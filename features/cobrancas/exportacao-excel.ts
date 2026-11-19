@@ -1,5 +1,8 @@
+import { compararHierarquiaCotas } from './ordem-relatorio'
 import { COBRANCA_STATUS_LABEL } from '@/lib/constants/cobrancas'
+import { CONDUCAO_PROCESSO } from '@/features/unidades/conducao-processo'
 import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
+import { ordenarCobrancasParaRelatorio } from './queries'
 import {
   addStyledTableSheet,
   addSummarySheet,
@@ -36,8 +39,12 @@ function judicializacaoLabel(value?: string) {
   if (value === 'sim') return 'Somente judicialização'
   if (value === 'todos') return 'Incluir bloqueios'
   if (value === 'bloqueados') return 'Somente bloqueadas'
-  if (value && value !== 'nao') return statusLabel(value)
+  if (value && value !== 'nao') return COBRANCA_STATUS_LABEL[value as keyof typeof COBRANCA_STATUS_LABEL] ?? value
   return 'Sem bloqueios'
+}
+
+function conducaoProcessoLabel(value?: string) {
+  return value ? CONDUCAO_PROCESSO[value as keyof typeof CONDUCAO_PROCESSO] ?? value : 'Todas'
 }
 
 function ordenacaoLabel(value?: string) {
@@ -71,25 +78,6 @@ function statusLabel(status: string) {
 
 function unidadeDisplay(row: any) {
   return [row.unidades?.bloco, row.unidades?.identificacao].filter(Boolean).join('/') || 'Sem unidade'
-}
-
-function reportHierarchyKey(row: any) {
-  return [
-    text(row.carteiras?.nome, 'Sem carteira'),
-    text(row.condominios?.administradora, 'Sem administradora'),
-    text(row.condominios?.nome, 'Sem condomínio'),
-    text(row.unidades?.bloco),
-    text(row.unidades?.identificacao, 'Sem unidade'),
-    row.vencimento ?? '',
-    row.id ?? '',
-  ].join('|')
-}
-
-function sortByReportHierarchy(rows: any[]) {
-  return [...rows].sort((a, b) => reportHierarchyKey(a).localeCompare(reportHierarchyKey(b), 'pt-BR', {
-    numeric: true,
-    sensitivity: 'base',
-  }))
 }
 
 function compactStatusCounts(statusCounts: Map<string, number>) {
@@ -134,7 +122,7 @@ function buildGroupedRows(rows: any[]): GroupedCobrancaRow[] {
     current.primeiroVencimento = [current.primeiroVencimento, row.vencimento].filter(Boolean).sort()[0] ?? ''
     current.ultimoVencimento = [current.ultimoVencimento, row.vencimento].filter(Boolean).sort().at(-1) ?? ''
     current.totalOriginal += money(row.valor_original)
-    current.totalAtualizado += money(row.valor_atualizado)
+    current.totalAtualizado += money(row.valor_atualizado ?? row.valor_original)
     current.totalJuros += money(row.juros)
     current.totalMulta += money(row.multa)
     current.totalCorrecao += money(row.correcao)
@@ -145,19 +133,6 @@ function buildGroupedRows(rows: any[]): GroupedCobrancaRow[] {
   }
 
   return Array.from(grouped.values())
-    .sort((a, b) => [
-      a.carteira,
-      a.administradora,
-      a.condominio,
-      a.bloco,
-      a.unidade,
-    ].join('|').localeCompare([
-      b.carteira,
-      b.administradora,
-      b.condominio,
-      b.bloco,
-      b.unidade,
-    ].join('|'), 'pt-BR', { numeric: true, sensitivity: 'base' }))
     .map(({ statusCounts, ...row }) => ({ ...row, status: compactStatusCounts(statusCounts) }))
 }
 
@@ -190,7 +165,7 @@ const detailedColumns: ExcelColumn<any>[] = [
   { key: 'competencia', label: 'Competência', width: 14 },
   { key: 'vencimento', label: 'Vencimento', width: 14, type: 'date' },
   { key: 'valor_original', label: 'Valor original', width: 18, type: 'currency' },
-  { key: 'valor_atualizado', label: 'Valor atualizado', width: 18, type: 'currency' },
+  { key: 'valor_atualizado', label: 'Valor atualizado', width: 18, type: 'currency', value: (row) => row.valor_atualizado ?? row.valor_original },
   { key: 'juros', label: 'Juros', width: 14, type: 'currency' },
   { key: 'multa', label: 'Multa', width: 14, type: 'currency' },
   { key: 'correcao', label: 'Correção', width: 14, type: 'currency' },
@@ -207,22 +182,27 @@ export async function criarExcelRelatorioCobrancas(
   rows: any[],
   generatedAt = new Date(),
 ) {
-  const sortedRows = sortByReportHierarchy(rows)
+  const sortedRows = ordenarCobrancasParaRelatorio(rows, filters.ordenar).sort(compararHierarquiaCotas)
   const groupedRows = buildGroupedRows(sortedRows)
   const totalOriginal = rows.reduce((sum, row) => sum + money(row.valor_original), 0)
-  const totalAtualizado = rows.reduce((sum, row) => sum + money(row.valor_atualizado), 0)
+  const totalAtualizado = rows.reduce((sum, row) => sum + money(row.valor_atualizado ?? row.valor_original), 0)
   const workbook = createExcelWorkbook('Relatório de cobranças', generatedAt)
 
   const resumoRows: SummaryRow[] = [
-    { label: 'Busca', value: filters.search || 'Sem filtro' },
-    { label: 'Condomínio', value: filters.condominioId || 'Sem filtro' },
-    { label: 'Unidade', value: filters.unidadeId || 'Sem filtro' },
+    { label: 'Busca', value: filters.search || 'Todas' },
+    { label: 'Operador responsável', value: filters.operadorId || 'Todos' },
+    { label: 'Administradora', value: filters.administradoraId || 'Todas' },
+    { label: 'Condomínio', value: filters.condominioId || 'Todos' },
+    { label: 'Unidade', value: filters.unidadeId || 'Todas' },
+    { label: 'Condução do processo', value: conducaoProcessoLabel(filters.conducaoProcesso) },
     { label: 'Status', value: filters.status ? statusLabel(filters.status) : filters.statusList?.length ? 'Fila operacional' : 'Todos' },
     { label: 'Vencimento de', value: filters.vencimentoDe || 'Sem filtro', type: filters.vencimentoDe ? 'date' : 'text' },
     { label: 'Vencimento até', value: filters.vencimentoAte || 'Sem filtro', type: filters.vencimentoAte ? 'date' : 'text' },
+    { label: 'Criação de', value: filters.criacaoDe || 'Sem filtro', type: filters.criacaoDe ? 'date' : 'text' },
+    { label: 'Criação até', value: filters.criacaoAte || 'Sem filtro', type: filters.criacaoAte ? 'date' : 'text' },
     { label: 'Bloqueios', value: judicializacaoLabel(filters.judicializacaoUnidade) },
     { label: 'Ordenação solicitada na tela', value: ordenacaoLabel(filters.ordenar) },
-    { label: 'Ordenação do arquivo', value: 'Carteira / Administradora / Condomínio / Unidade / Vencimento' },
+    { label: 'Ordenação do arquivo', value: 'Carteira / Condomínio / Bloco / Unidade, com a ordenação selecionada dentro da unidade' },
     { label: 'Total de unidades agrupadas', value: groupedRows.length, type: 'integer' },
     { label: 'Total de cobranças', value: rows.length, type: 'integer' },
     { label: 'Valor original total', value: totalOriginal, type: 'currency' },
@@ -237,7 +217,7 @@ export async function criarExcelRelatorioCobrancas(
   })
   addStyledTableSheet(workbook, {
     sheetName: 'AGRUPADO',
-    title: 'Cobranças agrupadas por unidade',
+    title: 'Resumo das cotas por unidade',
     rows: groupedRows,
     columns: groupedColumns,
     generatedAt,
@@ -246,7 +226,7 @@ export async function criarExcelRelatorioCobrancas(
   })
   addStyledTableSheet(workbook, {
     sheetName: 'DETALHADO',
-    title: 'Cobranças detalhadas',
+    title: 'Cotas por condomínio e unidade',
     rows: sortedRows,
     columns: detailedColumns,
     generatedAt,

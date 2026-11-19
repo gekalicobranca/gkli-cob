@@ -4,7 +4,7 @@ import {chromium} from 'playwright'
 import {lerFiltroAcordosGraiche} from './graiche-acordos.mjs'
 
 const base='https://servc9-1.webware.com.br'
-const filtro='<select><option value=">">Todas unidades</option><option value="1/AP/000114">114</option></select>'
+const filtro='<select><option value=">">Todas unidades</option><option value="0//0FEIRA">0FEIRA</option><option value="0//CONSTR">CONSTR</option><option value="1/AP/000114">114</option></select>'
 test('Graiche: filtro assíncrono dentro de quadro da mesma origem',async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true})
  try{
@@ -12,7 +12,7 @@ test('Graiche: filtro assíncrono dentro de quadro da mesma origem',async()=>{
   await page.route('**/*',r=>r.fulfill({contentType:'text/html; charset=utf-8',body:new URL(r.request().url()).pathname==='/bin/rt/gAcordo.asp'?'<iframe src="/acordos/filtro"></iframe>':'<script>setTimeout(()=>document.body.innerHTML='+JSON.stringify(filtro)+',100)</script>'}))
   await page.goto(base+'/bin/rt/gAcordo.asp')
   const r=await lerFiltroAcordosGraiche(page,{signal:new AbortController().signal})
-  assert.equal(r.opcoes[0].value,'1/AP/000114');assert.equal(r.fonte,base+'/bin/rt/gAcordo.asp')
+  assert.equal(r.opcoes.length,1);assert.equal(r.opcoes[0].value,'1/AP/000114');assert.equal(r.fonte,base+'/bin/rt/gAcordo.asp')
  }finally{await browser.close()}
 })
 

@@ -225,21 +225,24 @@ function montarResumoAcordo(params: {
   responsavelTelefone?: string | null;
   valorBase: number;
   despesa: number;
+  cotaManual?: number;
+  despesaManual?: number;
   jurosAdicional?: number;
-  ajusteManual?: number;
   custoBoletos?: number;
   valorAcordado: number;
   entrada: number;
   quantidadeParcelas: number;
   primeiroVencimento: string;
-  parcelas: Array<{ numero: number; valor: number; vencimento: string; tipo_parcela?: string; juros?: number; amortizacao?: number; saldoDevedor?: number }>;
+  parcelas: Array<{ numero: number; valor: number; vencimento: string; tipo_parcela?: string; cota?: number; despesa?: number; juros?: number; amortizacao?: number; saldoDevedor?: number }>;
   tipo: string;
   numeroProcesso?: string | null;
 }) {
   const linhasParcelas = params.parcelas
     .map((parcela) => {
       const label = parcela.tipo_parcela === "entrada" ? "Entrada" : `Parcela ${parcela.numero}`;
-      return `${label}: ${formatBRL(Number(parcela.valor ?? 0))} · vencimento ${formatDate(parcela.vencimento)}`
+      return params.cotaManual !== undefined && params.despesaManual !== undefined
+        ? `${label}: Cota ${formatBRL(Number(parcela.cota ?? 0))} · Despesas ${formatBRL(Number(parcela.despesa ?? 0))} · Total ${formatBRL(Number(parcela.valor ?? 0))} · vencimento ${formatDate(parcela.vencimento)}`
+        : `${label}: ${formatBRL(Number(parcela.valor ?? 0))} · vencimento ${formatDate(parcela.vencimento)}`
         + (params.jurosAdicional && parcela.tipo_parcela !== "entrada" && parcela.juros !== undefined
           ? ` · Amortização: ${formatBRL(parcela.amortizacao ?? 0)} · Juros: ${formatBRL(parcela.juros)} · Saldo devedor: ${formatBRL(parcela.saldoDevedor ?? 0)}` : "");
     })
@@ -256,11 +259,11 @@ function montarResumoAcordo(params: {
     params.numeroProcesso ? `Processo: ${params.numeroProcesso}` : null,
     "",
     "Resumo financeiro:",
-    `Valor das cobranças: ${formatBRL(params.valorBase)}`,
-    `Despesa de cobrança: ${formatBRL(params.despesa)}`,
-    params.jurosAdicional ? `Juros pela tabela Price (1% ao mês sobre o saldo devedor): ${formatBRL(params.jurosAdicional)}` : null,
-    `Emissão de boletos: ${formatBRL(params.custoBoletos ?? 0)}`,
-    params.ajusteManual !== undefined ? `Ajuste manual sobre a simulação: ${formatBRL(params.ajusteManual)}` : null,
+    ...(params.cotaManual !== undefined && params.despesaManual !== undefined
+      ? [`Cotas no plano de pagamento: ${formatBRL(params.cotaManual)}`, `Despesas no plano de pagamento: ${formatBRL(params.despesaManual)}`]
+      : [`Valor das cobranças: ${formatBRL(params.valorBase)}`, `Despesa de cobrança: ${formatBRL(params.despesa)}`,
+        params.jurosAdicional ? `Juros pela tabela Price (1% ao mês sobre o saldo devedor): ${formatBRL(params.jurosAdicional)}` : null,
+        `Emissão de boletos: ${formatBRL(params.custoBoletos ?? 0)}`]),
     `Valor total do acordo: ${formatBRL(params.valorAcordado)}`,
     `Entrada: ${formatBRL(params.entrada)}`,
     `Quantidade de parcelas: ${params.quantidadeParcelas}`,
@@ -641,6 +644,7 @@ export async function createAcordo(formData: FormData) {
   const entradaVencimento = String(formData.get("entrada_vencimento") ?? "");
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
   let primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
+  const dataAcordoInformada = String(formData.get("data_acordo") ?? "").trim();
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
   const cotasSemDespesas = normalizeUuidList(formData.getAll("cotas_sem_despesas"));
   validarCotasSemDespesas(cotasSemDespesas, cobrancaIds, formData.get("cota_mes_autorizada") === "on");
@@ -668,6 +672,7 @@ export async function createAcordo(formData: FormData) {
   }
   if (!primeiroVencimento) throw new Error("Primeiro vencimento obrigatório.");
   validarDataCivil(primeiroVencimento, 'Primeiro vencimento');
+  if (dataAcordoInformada) validarDataCivil(dataAcordoInformada, 'Data do acordo');
   if (entrada > 0) validarDataCivil(entradaVencimento, 'Vencimento da entrada');
 
   const supabase = await createClient();
@@ -840,10 +845,15 @@ export async function createAcordo(formData: FormData) {
 
   const saldoParcelado = roundMoney(valorAcordado - entrada);
   if (planoManual) {
-    const totais = ratearTotalManual(valorAcordado, itensAcordo.map(item => item.valor_total_no_acordo));
+    const totalCotas = roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.cota, 0));
+    const totalDespesas = roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.despesa, 0));
+    const basesCota = itensAcordo.map((item, index) => Math.max(0, item.valor_atualizado_no_acordo - calculoDespesas.itens[index].credito));
+    const basesDespesa = itensAcordo.map(item => Math.max(0, item.encargos_no_acordo));
+    const cotasRateadas = ratearTotalManual(totalCotas, basesCota);
+    const despesasRateadas = ratearTotalManual(totalDespesas, basesDespesa.some(base => base > 0) ? basesDespesa : basesCota);
     itensAcordo.forEach((item, index) => {
-      item.valor_total_no_acordo = totais[index];
-      item.encargos_no_acordo = roundMoney(Math.max(0, totais[index] - cobrancasComValores[index].valor_base_acordo + calculoDespesas.itens[index].credito));
+      item.valor_total_no_acordo = roundMoney(cotasRateadas[index] + despesasRateadas[index]);
+      item.encargos_no_acordo = despesasRateadas[index];
     });
   }
   const parcelas = [];
@@ -879,12 +889,14 @@ export async function createAcordo(formData: FormData) {
       p_entrada: entrada,
       p_despesa_cobranca_percentual: despesaCobrancaValor > 0 ? despesaCobrancaPercentual : 0,
       p_despesa_cobranca_valor: despesaCobrancaValor,
-      p_data_acordo: toISODate(new Date()),
+      p_data_acordo: formData.get("origem_easy") === "1"
+        ? dataCivilSaoPaulo()
+        : dataAcordoInformada || (saldoParcelado > 0 ? primeiroVencimento : entradaVencimento),
       p_status: ACORDO_STATUS.ATIVO,
       p_fluxo_status: fluxoStatusInicial,
       p_exige_aprovacao_sindico: exigeAprovacaoSindico,
       p_documento_url: documentoUrl || null,
-      p_observacoes: [observacoes, planoManual ? `Plano editado manualmente pelo operador. Total calculado: ${formatBRL(calculoDespesas.total)}. Ajuste manual: ${formatBRL(ajusteManual)}. Total negociado: ${formatBRL(valorAcordado)}.` : "", calculoDespesas.custoBoletos > 0 ? `Emissão: ${calculoDespesas.quantidadeBoletos} boleto(s) × ${formatBRL(calculoDespesas.custoEmissaoBoleto)} = ${formatBRL(calculoDespesas.custoBoletos)}. Sem juros ou honorários sobre a emissão.` : "", calculoDespesas.jurosAdicional > 0
+      p_observacoes: [observacoes, planoManual ? `Plano editado manualmente pelo operador. Cotas: ${formatBRL(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.cota, 0))}. Despesas: ${formatBRL(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.despesa, 0))}. Total negociado: ${formatBRL(valorAcordado)}.` : "", calculoDespesas.custoBoletos > 0 ? `Emissão: ${calculoDespesas.quantidadeBoletos} boleto(s) × ${formatBRL(calculoDespesas.custoEmissaoBoleto)} = ${formatBRL(calculoDespesas.custoBoletos)}. Sem juros ou honorários sobre a emissão.` : "", calculoDespesas.jurosAdicional > 0
         ? `Juros pela tabela Price de 1% ao mês sobre o saldo devedor após a entrada: ${formatBRL(calculoDespesas.jurosAdicional)}.` : ""].filter(Boolean).join("\n") || null,
       p_itens: itensAcordo,
       p_parcelas: parcelas,
@@ -923,7 +935,8 @@ export async function createAcordo(formData: FormData) {
     despesa: despesaCobrancaValor,
     custoBoletos: calculoDespesas.custoBoletos,
     jurosAdicional: calculoDespesas.jurosAdicional,
-    ajusteManual: planoManual ? ajusteManual : undefined,
+    cotaManual: planoManual ? roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.cota, 0)) : undefined,
+    despesaManual: planoManual ? roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.despesa, 0)) : undefined,
     valorAcordado,
     entrada,
     quantidadeParcelas,
@@ -1456,6 +1469,7 @@ export async function marcarParcelaComoPaga(formData: FormData) {
 
   const parcelaId = String(formData.get("parcela_id") ?? "");
   const acordoId = String(formData.get("acordo_id") ?? "");
+  const valorPagoInformado = String(formData.get("valor_pago") ?? "").trim();
 
   if (!parcelaId || !acordoId) {
     throw new Error("Parcela e acordo são obrigatórios.");
@@ -1475,18 +1489,26 @@ export async function marcarParcelaComoPaga(formData: FormData) {
 
   const { data: parcelaEvento } = await supabase
     .from("parcelas_acordo")
-    .select("id, numero, valor, vencimento, status, data_pagamento")
+    .select("id, numero, valor, vencimento, status, data_pagamento, valor_pago")
     .eq("id", parcelaId)
     .eq("acordo_id", acordoId)
     .maybeSingle();
 
   if (!parcelaEvento) throw new Error("Parcela não pertence ao acordo informado.");
 
+  const valorPago = valorPagoInformado
+    ? moneyFromForm(valorPagoInformado, "Valor pago", { format: "decimal" })
+    : Number((parcelaEvento as any).valor ?? 0);
+  if (!Number.isFinite(valorPago) || valorPago < 0) {
+    throw new Error("Informe um valor pago válido, igual ou maior que zero.");
+  }
+
   const { error: parcelaError } = await supabase
     .from("parcelas_acordo")
     .update({
       status: PARCELA_ACORDO_STATUS.PAGA,
       data_pagamento: toISODate(new Date()),
+      valor_pago: roundMoney(valorPago),
     })
     .eq("id", parcelaId);
 
@@ -3211,7 +3233,6 @@ export async function atualizarAtrasosERompimentosAcordos() {
 
   const result = await checkAcordosStatus({
     diasParaRomper: 30,
-    diasParaAtraso: 15,
   });
 
   revalidatePath("/app/acordos");

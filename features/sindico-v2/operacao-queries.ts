@@ -23,9 +23,11 @@ export async function carregarFonteOperacao(condominioId: string): Promise<Fonte
       .eq('condominio_id', condominioId).order('id').range(inicio, fim)),
     paginar<FonteOperacao['acordos'][number]>((inicio, fim) => somenteAcordosCanonicos(admin.from('acordos')
       .select(`id,condominio_id,unidade_id,created_at,data_acordo,valor_acordado,quantidade_parcelas,status,exige_aprovacao_sindico,sindico_aprovado_em,${unidade}`))
+      .eq('origem_controle', 'carteira')
       .eq('condominio_id', condominioId).order('data_acordo', { ascending: false }).order('id').range(inicio, fim)),
     paginar<FonteOperacao['parcelas'][number]>((inicio, fim) => admin.from('parcelas_acordo')
       .select('id,acordo_id,numero,valor,vencimento,status,data_pagamento,acordos!inner(condominio_id)')
+      .eq('acordos.origem_controle', 'carteira')
       .eq('acordos.condominio_id', condominioId).order('id').range(inicio, fim)),
     paginar<FonteOperacao['pendencias'][number]>((inicio, fim) => admin.from('central_pendencias')
       .select('id,condominio_id,unidade_id,created_at,tipo,origem,status,prioridade,prazo_limite')

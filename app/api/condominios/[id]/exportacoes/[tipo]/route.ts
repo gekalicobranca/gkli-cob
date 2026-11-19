@@ -170,6 +170,7 @@ async function exportAcordos(id: string) {
         responsavel_nome
       )
     `)
+    .eq("origem_controle", "carteira")
     .eq("condominio_id", condominio.id)
     .order("data_acordo", { ascending: false });
 

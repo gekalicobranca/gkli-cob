@@ -252,12 +252,15 @@ export async function summarizeUnidades(scope: CarteiraScope, filters: UnidadeFi
   const supabase = await createClient()
   const normalized = normalizeUnidadeFilters(filters)
   const pageSize = 1000
-  const rows: any[] = []
+  let total = 0
+  let ativas = 0
+  let semTelefone = 0
+  let semEmail = 0
 
   for (let from = 0; ; from += pageSize) {
     let query = supabase
       .from('unidades')
-      .select('status,telefone,email,responsavel_nome')
+      .select('status,telefone,email')
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyUnidadeFilters(query, scope, normalized)).query
@@ -269,16 +272,16 @@ export async function summarizeUnidades(scope: CarteiraScope, filters: UnidadeFi
       throw new Error(`Erro ao resumir unidades: ${error.message}`)
     }
 
-    rows.push(...((data ?? []) as any[]))
+    for (const row of (data ?? []) as Array<{ status?: string | null; telefone?: string | null; email?: string | null }>) {
+      total++
+      if (row.status === 'ativa') ativas++
+      if (!row.telefone) semTelefone++
+      if (!row.email) semEmail++
+    }
     if (!data || data.length < pageSize) break
   }
 
-  return {
-    total: rows.length,
-    ativas: rows.filter((row) => row.status === 'ativa').length,
-    semTelefone: rows.filter((row) => !row.telefone).length,
-    semEmail: rows.filter((row) => !row.email).length,
-  }
+  return { total, ativas, semTelefone, semEmail }
 }
 
 export async function getUnidadeIntegral(id: string, scope: CarteiraScope) {
@@ -377,6 +380,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
       status,
       status_financeiro,
       fluxo_status,
+      origem_controle,
       created_at
     `)
     .in('id', idsAcordosDaUnidade)

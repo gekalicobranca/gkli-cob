@@ -17,6 +17,7 @@ import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 import { solicitarPlanilhaDebitosIndividual } from '@/features/planilhas-debitos/actions'
+import { ACORDO_ORIGEM_LABEL, isAcordoOrigem } from '@/features/acordos/origem-controle'
 
 export default async function UnidadeDetalhePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ planilha?: string }> }) {
   const { id } = await params
@@ -130,6 +131,8 @@ export default async function UnidadeDetalhePage({ params, searchParams }: { par
                 <Link key={acordo.id} href={`/app/acordos/${acordo.id}`} className="group flex items-center justify-between gap-3 rounded-2xl border border-slate-100 px-4 py-3 transition hover:bg-slate-50">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2"><StatusBadge status={acordo.status} /><span className="text-xs text-slate-500">{formatDateBR(acordo.data_acordo)}</span></div>
+                    {isAcordoOrigem(acordo.origem_controle) && acordo.origem_controle !== 'carteira' &&
+                      <p className="mt-1 text-xs font-medium text-slate-600">{ACORDO_ORIGEM_LABEL[acordo.origem_controle]}</p>}
                     <p className="mt-1 text-sm font-medium text-slate-950">{formatCurrency(Number(acordo.valor_acordado ?? 0))}</p>
                   </div>
                   <ArrowUpRight size={15} className="shrink-0 text-slate-400 group-hover:text-[var(--gkli-primary)]" />

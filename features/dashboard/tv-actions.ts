@@ -36,7 +36,7 @@ export async function getTvResults(start: string, end: string, selection?: { car
   const db = await createClient()
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const nextDay = new Date(Date.parse(end) + 86400000).toISOString().slice(0, 10)
-  const agreementFields = 'id,tipo,cobranca_id,carteira_id,condominio_id,data_acordo,valor_acordado,observacoes,status,status_financeiro,fluxo_status,boletos_solicitados_em,despesa_cobranca_valor,despesa_cobranca_percentual,acordo_homologado'
+  const agreementFields = 'id,tipo,cobranca_id,carteira_id,condominio_id,data_acordo,valor_acordado,observacoes,status,status_financeiro,fluxo_status,boletos_solicitados_em,despesa_cobranca_valor,despesa_cobranca_percentual,acordo_homologado,origem_controle'
   async function pages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>, label: string) {
     const rows: T[] = []
     for (let offset = 0; ; offset += 1000) {
@@ -57,6 +57,7 @@ export async function getTvResults(start: string, end: string, selection?: { car
       .order('id').range(from, to), 'os acordos'),
     pages<TvInstallment>((from, to) => applyCarteiraIdsScope(db.from('parcelas_acordo')
       .select(`id,valor,vencimento,status,data_pagamento,valor_repasse_informado,acordos!inner(${agreementFields})`).eq('acordos.tipo', 'extrajudicial')
+      .eq('acordos.origem_controle', 'carteira')
       .or(`and(vencimento.gte.${start},vencimento.lt.${nextDay}),and(data_pagamento.gte.${start},data_pagamento.lt.${nextDay})`), scope.carteiraIds, 'acordos.carteira_id')
       .order('id').range(from, to), 'as parcelas'),
     pages<{ id: string; nome: string }>((from, to) => applyCarteiraIdsScope(db.from('carteiras').select('id,nome'), scope.carteiraIds, 'id')
@@ -74,13 +75,14 @@ export async function getTvResults(start: string, end: string, selection?: { car
       .select('id,grupo'), scope.carteiraIds).order('id').range(from, to), 'os grupos dos condomínios'),
     pages<{ acordo_id: string }>((from, to) => applyCarteiraIdsScope(db.from('parcelas_acordo')
       .select('id,acordo_id,acordos!inner(carteira_id)')
+      .eq('acordos.origem_controle', 'carteira')
       .in('status', TV_PAID_INSTALLMENT_STATUSES), scope.carteiraIds, 'acordos.carteira_id')
       .order('id').range(from, to), 'os pagamentos que efetivam os acordos'),
   ])
   const availableCharges = prepareTvCollectionCharges(charges, judicialRows, agreements, agreementLinks)
   const paidAgreementIds = new Set(paidReferences.map(row => row.acordo_id))
   const withPayment = (agreement: TvAgreement): TvAgreement => ({ ...agreement, tem_parcela_paga: paidAgreementIds.has(agreement.id) })
-  const qualifiedAgreements = agreements.map(withPayment)
+  const qualifiedAgreements = agreements.filter(row => row.origem_controle === 'carteira').map(withPayment)
   const qualifiedInstallments = installments.map(row => ({
     ...row,
     acordos: Array.isArray(row.acordos) ? row.acordos.map(withPayment) : withPayment(row.acordos),

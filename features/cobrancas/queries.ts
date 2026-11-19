@@ -1,6 +1,19 @@
 import { filtroConducaoProcesso } from '@/features/unidades/conducao-processo'
 import { somenteCobrancasCanonicas, arquivamentoDuplicidadesAtivo } from '../../lib/core/cobranca-arquivamento'
-import { resumirValoresCobrancas } from './subtotais'
+import {
+  acumularValoresCobrancas,
+  criarAcumuladorValoresCobrancas,
+  finalizarAcumuladorValoresCobrancas,
+  resumirValoresCobrancas,
+} from './subtotais'
+import {
+  compareCobrancaDate as compareDate,
+  compareCobrancaText as compareText,
+  compareCobrancasPorCampoRelacionado,
+  ordenarCobrancasPorCampoRelacionado as ordenarCobrancasRelacionadas,
+  reterMenoresOrdenados,
+  type CobrancaRelatedOrder,
+} from './ordenacao-relacionada'
 import { applyBloqueioStatusFilter } from './filtros-status'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -315,38 +328,33 @@ function applyCobrancaOrder(query: any, orderBy?: string) {
 
 const RELATED_ORDER_FIELDS = new Set(['condominio', 'unidade', 'responsavel'])
 
-function compareText(left: unknown, right: unknown) {
-  return String(left ?? '').localeCompare(String(right ?? ''), 'pt-BR', {
-    numeric: true,
-    sensitivity: 'base',
-  })
-}
-
-function compareDate(left: unknown, right: unknown) {
-  return String(left ?? '').localeCompare(String(right ?? ''))
-}
-
 export function ordenarCobrancasPorCampoRelacionado(rows: any[], orderBy?: string) {
   if (!RELATED_ORDER_FIELDS.has(String(orderBy ?? ''))) return rows
+  return ordenarCobrancasRelacionadas(rows, orderBy as CobrancaRelatedOrder)
+}
 
-  return [...rows].sort((left, right) => {
-    let comparison = 0
+function compareCobrancasForReport(left: any, right: any, orderBy?: string) {
+  let comparison = 0
+  if (orderBy === 'condominio') comparison = compareText(left.condominios?.nome, right.condominios?.nome)
+  else if (orderBy === 'unidade') comparison = compareText(left.unidades?.bloco, right.unidades?.bloco)
+    || compareText(left.unidades?.identificacao, right.unidades?.identificacao)
+  else if (orderBy === 'responsavel') comparison = compareText(left.unidades?.responsavel_nome, right.unidades?.responsavel_nome)
+  else if (orderBy === 'valor_desc') comparison = Number(right.valor_atualizado ?? 0) - Number(left.valor_atualizado ?? 0)
+  else if (orderBy === 'valor_asc') comparison = Number(left.valor_atualizado ?? 0) - Number(right.valor_atualizado ?? 0)
+  else if (orderBy === 'status') comparison = compareText(left.status_operacional ?? left.status, right.status_operacional ?? right.status)
+  else if (orderBy === 'vencimento_desc') comparison = compareDate(right.vencimento, left.vencimento)
+  else comparison = compareDate(left.vencimento, right.vencimento)
 
-    if (orderBy === 'condominio') {
-      comparison = compareText(left.condominios?.nome, right.condominios?.nome)
-    } else if (orderBy === 'unidade') {
-      comparison = compareText(left.unidades?.bloco, right.unidades?.bloco)
-        || compareText(left.unidades?.identificacao, right.unidades?.identificacao)
-    } else if (orderBy === 'responsavel') {
-      comparison = compareText(left.unidades?.responsavel_nome, right.unidades?.responsavel_nome)
-    }
+  if (comparison) return comparison
+  if (orderBy === 'valor_desc' || orderBy === 'valor_asc' || orderBy === 'status'
+    || RELATED_ORDER_FIELDS.has(String(orderBy ?? ''))) {
+    return compareDate(left.vencimento, right.vencimento) || compareText(left.id, right.id)
+  }
+  return compareText(left.id, right.id)
+}
 
-    return comparison
-      || compareText(left.unidades?.bloco, right.unidades?.bloco)
-      || compareText(left.unidades?.identificacao, right.unidades?.identificacao)
-      || compareDate(left.vencimento, right.vencimento)
-      || compareText(left.id, right.id)
-  })
+export function ordenarCobrancasParaRelatorio(rows: any[], orderBy?: string) {
+  return [...rows].sort((left, right) => compareCobrancasForReport(left, right, orderBy))
 }
 
 export async function listCobrancas(scope: CarteiraScope, filters: CobrancaListFilters = {}) {
@@ -465,39 +473,28 @@ export async function listCobrancasPage(
   options: CobrancaPageOptions = {},
 ) {
   const supabase = await createClient()
-  const pageSize = Math.max(1, Number(options.pageSize ?? 100))
-  const page = Math.max(1, Number(options.page ?? 1))
+  const pageSize = Math.max(1, Math.floor(Number(options.pageSize ?? 100)))
+  const page = Math.max(1, Math.floor(Number(options.page ?? 1)))
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
   if (RELATED_ORDER_FIELDS.has(String(options.orderBy ?? ''))) {
-    const allRows: any[] = []
+    const relatedOrderBy = options.orderBy as CobrancaRelatedOrder
+    const firstRowsHeap: any[] = []
     const batchSize = 1000
+    const heapLimit = to + 1
+    let total = 0
 
     for (let batchFrom = 0; ; batchFrom += batchSize) {
       let relatedQuery = somenteCobrancasCanonicas(supabase
         .from('cobrancas')
         .select(`
           id,
-          competencia,
           vencimento,
-          valor_original,
-          valor_atualizado,
-          juros,
-          multa,
-          correcao,
-          desconto,
-          status,
-          status_operacional,
-          status_financeiro,
-          carteira_id,
           condominio_id,
           unidade_id,
-          created_at,
-          ultima_interacao_at,
-          carteiras(nome),
           condominios(nome),
-          unidades(acao_judicial, conducao_processo, advogado_externo_nome, advogado_externo_contato, identificacao, bloco, responsavel_nome)
+          unidades(identificacao, bloco, responsavel_nome)
         `))
 
       relatedQuery = applyCarteiraScope(relatedQuery, scope.carteiraIds)
@@ -507,13 +504,54 @@ export async function listCobrancasPage(
       const { data, error } = await relatedQuery
       if (error) throw new Error(`Erro ao carregar cobranças para ordenação: ${error.message}`)
 
-      const batch = normalizeRelationsList((data ?? []) as any[], ['carteiras', 'condominios', 'unidades']) as any[]
-      allRows.push(...batch)
+      const batch = normalizeRelationsList((data ?? []) as any[], ['condominios', 'unidades']) as any[]
+      total += batch.length
+      reterMenoresOrdenados(firstRowsHeap, batch, heapLimit, (left, right) =>
+        compareCobrancasPorCampoRelacionado(left, right, relatedOrderBy))
       if (batch.length < batchSize) break
     }
 
-    const orderedRows = ordenarCobrancasPorCampoRelacionado(allRows, options.orderBy)
-    const pageRows = orderedRows.slice(from, to + 1)
+    const pageIds = firstRowsHeap
+      .sort((left, right) => compareCobrancasPorCampoRelacionado(left, right, relatedOrderBy))
+      .slice(from, to + 1)
+      .map((row) => String(row.id))
+
+    let pageQuery = somenteCobrancasCanonicas(supabase
+      .from('cobrancas')
+      .select(`
+        id,
+        competencia,
+        vencimento,
+        valor_original,
+        valor_atualizado,
+        juros,
+        multa,
+        correcao,
+        desconto,
+        status,
+        status_operacional,
+        status_financeiro,
+        carteira_id,
+        condominio_id,
+        unidade_id,
+        created_at,
+        ultima_interacao_at,
+        carteiras(nome),
+        condominios(nome),
+        unidades(acao_judicial, conducao_processo, advogado_externo_nome, advogado_externo_contato, identificacao, bloco, responsavel_nome)
+      `))
+    pageQuery = applyCarteiraScope(pageQuery, scope.carteiraIds)
+    if (pageIds.length) pageQuery = pageQuery.in('id', pageIds)
+    const { data: pageData, error: pageError } = pageIds.length
+      ? await pageQuery.order('id', { ascending: true }).range(0, pageIds.length - 1)
+      : { data: [], error: null }
+    if (pageError) throw new Error(`Erro ao carregar a página de cobranças ordenadas: ${pageError.message}`)
+
+    const pageRowsById = new Map(
+      (normalizeRelationsList((pageData ?? []) as any[], ['carteiras', 'condominios', 'unidades']) as any[])
+        .map((row) => [String(row.id), row]),
+    )
+    const pageRows = pageIds.map((id) => pageRowsById.get(id)).filter(Boolean) as any[]
     const unidadesJudicializadas = await getUnidadeIdsComJudicializacaoAtiva(
       supabase,
       pageRows.map((row: any) => row.unidade_id),
@@ -524,7 +562,7 @@ export async function listCobrancasPage(
         ...row,
         unidade_bloqueada_por_judicializacao: Boolean(row.unidade_id && unidadesJudicializadas.has(row.unidade_id)),
       })),
-      total: orderedRows.length,
+      total,
       page,
       pageSize,
     }
@@ -595,12 +633,18 @@ export async function listCobrancasPage(
 export async function summarizeCobrancas(scope: CarteiraScope, filters: CobrancaListFilters = {}): Promise<CobrancaResumo> {
   const supabase = await createClient()
   const pageSize = 1000
-  const rows: any[] = []
+  const valores = criarAcumuladorValoresCobrancas()
+  let total = 0
+  let totalNegociacaoCentavos = 0
+  let novas = 0
+  let ativas = 0
+  let emNegociacao = 0
+  let possiveisAcordo = 0
 
   for (let from = 0; ; from += pageSize) {
     let query = somenteCobrancasCanonicas(supabase
       .from('cobrancas')
-      .select('id,carteira_id,condominio_id,valor_original,valor_atualizado,status,status_operacional,status_financeiro,carteiras(nome),condominios(nome)'))
+      .select('id,carteira_id,condominio_id,valor_original,valor_atualizado,status,status_operacional,carteiras(nome),condominios(nome)'))
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyCobrancaFilters(query, supabase, scope, filters)).query
@@ -612,22 +656,32 @@ export async function summarizeCobrancas(scope: CarteiraScope, filters: Cobranca
       throw new Error(`Erro ao resumir cobranças: ${error.message}`)
     }
 
-    rows.push(...((data ?? []) as any[]))
+    const batch = normalizeRelationsList((data ?? []) as any[], ['carteiras', 'condominios']) as any[]
+    total += batch.length
+    acumularValoresCobrancas(valores, batch)
+    for (const row of batch) {
+      const statusOperacional = getCobrancaStatusOperacional(row)
+      if (statusOperacional === COBRANCA_STATUS_OPERACIONAL.NOVO) novas++
+      if (statusOperacional === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA) ativas++
+      if (statusOperacional === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO) {
+        emNegociacao++
+        totalNegociacaoCentavos += Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100)
+      }
+      if (statusOperacional === COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO) possiveisAcordo++
+    }
     if (!data || data.length < pageSize) break
   }
 
-  const totalNegociacao = rows
-    .filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO)
-    .reduce((sum, row) => sum + Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100), 0) / 100
+  const subtotais = finalizarAcumuladorValoresCobrancas(valores)
 
   return {
-    total: rows.length,
-    ...resumirValoresCobrancas(normalizeRelationsList(rows, ['carteiras', 'condominios'])),
-    totalNegociacao,
-    novas: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.NOVO).length,
-    ativas: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA).length,
-    emNegociacao: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.EM_NEGOCIACAO).length,
-    possiveisAcordo: rows.filter((row) => getCobrancaStatusOperacional(row) === COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO).length,
+    total,
+    ...subtotais,
+    totalNegociacao: totalNegociacaoCentavos / 100,
+    novas,
+    ativas,
+    emNegociacao,
+    possiveisAcordo,
   }
 }
 

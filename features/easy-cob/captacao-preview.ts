@@ -1,5 +1,12 @@
 import type { ConversaoPreview } from '@/features/conversao-relatorio/server/parse-relatorio-buffer';
 import { dataCivilValida } from '@/lib/core/data-civil';
+import { COBRANCA_STATUS_OPERACIONAL } from '@/lib/constants/cobrancas';
+
+export function statusMarcadorCaptacaoManual(item: Pick<ConversaoPreview['cobrancas'][number], 'origemSistema' | 'marcadorOrigem'>) {
+  if (item.origemSistema !== 'Easy Flow manual') return;
+  if (item.marcadorOrigem === 'J' || item.marcadorOrigem === 'AJ') return COBRANCA_STATUS_OPERACIONAL.JUDICIALIZADO;
+  if (item.marcadorOrigem === 'A' || item.marcadorOrigem === 'AE') return COBRANCA_STATUS_OPERACIONAL.POSSIVEL_ACORDO;
+}
 
 export function dataCaptacaoISO(value: unknown) {
   const raw=String(value ?? '');
@@ -33,5 +40,6 @@ export function validarPreviaCaptacao(preview: ConversaoPreview) {
 export type ResumoCaptacaoEasy = {
   conversaoId:string; condominioId:string; carteiraId:string; condominio:string; arquivo:string;
   cobrancas:number; unidades:number; valor:number; substituir:number; ano:number; origem:string;
+  acordos?:number; juridicas?:number;
   avisos:string[]; amostra:{ unidade:string; bloco?:string; vencimento:string; valor:number }[];
 };

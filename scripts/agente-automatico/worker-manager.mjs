@@ -131,7 +131,7 @@ async function aguardarLogin(page, execucaoId) {
   if (usuario && senha) {
     await page.locator('input[type="text"]').first().fill(usuario)
     await page.locator('input[type="password"]').first().fill(senha)
-    await page.getByRole('button', { name: /entrar/i }).click()
+    await page.getByRole('button', { name: /entrar/i }).click({ noWaitAfter: true, timeout: 60_000 })
     await registrarLog(execucaoId, 'login', 'Credenciais locais preenchidas; aguardando acesso ao Atentum.')
   } else {
     await registrarLog(execucaoId, 'intervencao_login', 'Navegador aberto. Faça login manualmente para continuar a coleta.', 'warning')
@@ -167,12 +167,11 @@ async function coletar(execucao) {
 
     const unidades = page.locator('select').first()
     await unidades.selectOption({ label: /Todas as Unidades/i }).catch(async () => unidades.selectOption({ index: 0 }))
-    await page.getByRole('button', { name: /Consultar|Avançar/i }).first().click()
+    await page.getByRole('button', { name: /Consultar|Avançar/i }).first().click({ noWaitAfter: true })
     const exportar = page.getByText(/Exportar Excel/i, { exact: true }).first()
     await exportar.waitFor({ state: 'visible', timeout: 120_000 })
     const downloadPromise = page.waitForEvent('download', { timeout: 120_000 })
-    await exportar.click()
-    const download = await downloadPromise
+    const [download] = await Promise.all([downloadPromise, exportar.click({ noWaitAfter: true })])
     const prefixo = condominioNome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase()
     const filename = `${prefixo}_${dataDownload()}.xls`
     const localPath = await caminhoDownloadMaestro(supabase, execucao.id, downloads, filename)

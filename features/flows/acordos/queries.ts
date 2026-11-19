@@ -207,6 +207,7 @@ export async function getFlowAcordosPageData(scope: CarteiraScope, filters: Flow
     .from('parcelas_acordo')
     .select(PARCELA_SELECT)
     .eq('acordo.tipo', 'extrajudicial')
+    .eq('acordo.origem_controle', 'carteira')
     .in('status', [PARCELA_ACORDO_STATUS.PENDENTE, PARCELA_ACORDO_STATUS.VENCIDA])
     .order('vencimento', { ascending: true })
     .order('id', { ascending: true })

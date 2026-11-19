@@ -145,17 +145,19 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
 
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Carteira">
-              <Select name="carteira_id" defaultValue={condominio.carteira_id ?? ''} required>
+              <Select name="carteira_id_exibicao" defaultValue={condominio.carteira_id ?? ''} disabled>
                 <option value="" disabled>Selecione uma carteira</option>
                 {carteiras.map((carteira: any) => (
                   <option key={carteira.id} value={carteira.id}>{carteira.nome}</option>
                 ))}
               </Select>
+              <input type="hidden" name="carteira_id" value={condominio.carteira_id ?? ''} />
+              <p className="mt-1 text-xs text-slate-500">A transferência de carteira requer uma operação administrativa que atualize os registros vinculados.</p>
             </FormField>
             <FormField label="Status"><Select name="status" defaultValue={condominio.status ?? 'ativo'}><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="pausado">Pausado</option></Select></FormField>
             <FormField label="Nome oficial do condomínio"><Input name="nome" defaultValue={condominio.nome ?? ''} required /></FormField>
             <FormField label="Nome operacional"><Input name="nome_operacional" defaultValue={condominio.nome_operacional ?? ''} placeholder="Como a operação identifica este condomínio" /></FormField>
-            <FormField label="CNPJ"><Input name="cnpj" defaultValue={condominio.cnpj ?? ''} /></FormField>
+            <FormField label="CNPJ" hint="Opcional; 12 posições alfanuméricas e dois verificadores numéricos."><Input name="cnpj" defaultValue={condominio.cnpj ?? ''} inputMode="text" autoCapitalize="characters" placeholder="00.000.000/E08G-12" /></FormField>
             <GrupoField grupos={grupos} value={condominio.grupo} />
             <OperadorField operadores={operadores} value={condominio.operador_id} />
             <FormField label="Administradora"><Input name="administradora" defaultValue={condominio.administradora ?? ''} /></FormField>
@@ -205,6 +207,15 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
 
         {abaAtiva === 'cobranca' ? <CollapsibleArea id="cobranca" title="Parâmetros operacionais" description="Cobrança, acordos e automações vinculadas." defaultOpen>
 
+          <FormField label="Liberação do Easy Espelhar" hint="Em revisão permite prévias. Só cotas permite aplicar ajustes comprovados nas cotas.">
+            <select name="easy_espelhamento_liberacao" defaultValue={condominio.easy_espelhamento_liberacao}
+              disabled={!['admin', 'gestor'].includes(scope.perfil)} className="w-full rounded-lg border border-slate-300 px-3 py-2">
+              <option value="revisao">Em revisão</option>
+              <option value="cotas">Liberado só para cotas</option>
+              <option value="completo">Liberado para espelhar</option>
+            </select>
+          </FormField>
+
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Dia de vencimento da cota"><Input name="vencimento_cota_dia" type="number" min="1" max="31" defaultValue={condominio.vencimento_cota_dia ?? 10} /></FormField>
             <FormField label="Valor médio da cota"><Input name="valor_cota_condominial" defaultValue={String(condominio.valor_cota_condominial ?? 0).replace('.', ',')} /></FormField>
@@ -218,6 +229,10 @@ export default async function CondominioIntegralPage({ params, searchParams }: {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <label className="block text-sm text-slate-700">
+              <span className="block font-medium text-slate-950">Mínimo de cotas em atraso para o Pré-Jurídico</span>
+              <input type="number" name="pre_juridico_minimo_cotas" min={1} max={2147483647} step={1} required defaultValue={condominio.pre_juridico_minimo_cotas ?? 5} className="mt-1 w-24 rounded-md border border-slate-300 px-2 py-1" />
+            </label>
             <label className="flex items-start gap-3 text-sm text-slate-700"><input type="checkbox" name="pre_juridico_habilitado" defaultChecked={Boolean(condominio.pre_juridico_habilitado)} className="mt-1 h-4 w-4 rounded border-slate-300 accent-[var(--gkli-primary)]" /><span><span className="block font-medium text-slate-950">Enviar automaticamente à Pré-distribuição</span><span className="mt-1 block text-xs leading-5 text-slate-500">Após o prazo, envia apenas cobranças sem acordo. Desmarcado, a cobrança permanece como está.</span></span></label>
           </div>
 

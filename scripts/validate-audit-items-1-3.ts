@@ -109,6 +109,7 @@ test('real simulator preview and Server Action generate the same dates and defer
   await assert.rejects(load('features/acordos/actions.ts').createAcordo(form),/REDIRECT \/app\/acordos\/agreement/)
   assert.equal(state.financial.p_exige_aprovacao_sindico,quantidade>3)
   assert.equal(state.financial.p_valor_acordado,preview.total)
+  assert.equal(state.financial.p_data_acordo,state.financial.p_parcelas[0].vencimento)
   assert.equal(JSON.stringify(preview.parcelas.map((p:any)=>p.vencimento)),JSON.stringify(state.financial.p_parcelas.map((p:any)=>p.vencimento)))
   assert.equal(state.writes.some((w:any)=>['acordos_termos','mensagens'].includes(w.table)),quantidade<=3)
   }
@@ -116,8 +117,10 @@ test('real simulator preview and Server Action generate the same dates and defer
 test('Server Action obeys database approval when configuration changes during creation', async () => {
   const {state,load}=harness(), form=new FormData()
   Object.entries({cobranca_id:'receipt',primeiro_vencimento:'2026-01-31',entrada:'0,00',quantidade_parcelas:'3',despesa_cobranca_percentual:'10,00'}).forEach(([k,v])=>form.set(k,v))
+  form.set('data_acordo','2026-01-20')
   state.pending=true
   await assert.rejects(load('features/acordos/actions.ts').createAcordo(form),/REDIRECT/)
+  assert.equal(state.financial.p_data_acordo,'2026-01-20')
   assert.equal(state.writes.some((w:any)=>['acordos_termos','mensagens'].includes(w.table)),false)
 })
 test('direct Server Action rejects invalid first and entry dates before any write', async () => {

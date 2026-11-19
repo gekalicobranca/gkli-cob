@@ -196,6 +196,10 @@ function sumRows(rows: any[]) {
   return rows.reduce((sum, row) => sum + Number(row.valor ?? 0), 0)
 }
 
+function sumPaidRows(rows: any[]) {
+  return rows.reduce((sum, row) => sum + Number(row.valor_pago ?? row.valor ?? 0), 0)
+}
+
 function ParcelaActions({ row }: { row: any }) {
   const paga = isParcelaPaga(row)
   const reemissaoPermitida = podeReemitir(row)
@@ -206,6 +210,10 @@ function ParcelaActions({ row }: { row: any }) {
       <form action={marcarParcelaComoPaga}>
         <input type="hidden" name="parcela_id" value={row.id} />
         <input type="hidden" name="acordo_id" value={row.acordo_id} />
+        <label className="mr-2 inline-flex items-center gap-2 text-xs text-slate-600">
+          Valor pago
+          <input name="valor_pago" type="number" min="0" step="0.01" defaultValue={Number(row.valor_pago ?? row.valor ?? 0).toFixed(2)} className="h-9 w-28 rounded-lg border border-slate-200 px-2 text-sm" />
+        </label>
         <PendingSubmitButton
           size="sm"
           disabled={paga}
@@ -287,7 +295,7 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
           ['Parcelas', filteredRows.length, sumRows(filteredRows)],
           ['Abertas', abertas.length, sumRows(abertas)],
           ['Atrasadas', atrasadas.length, sumRows(atrasadas)],
-          ['Pagas', pagas.length, sumRows(pagas)],
+          ['Pagas', pagas.length, sumPaidRows(pagas)],
         ].map(([title, quantity, total]) => (
           <Card key={String(title)} className="p-3">
             <p className="text-xs font-medium uppercase text-slate-400">{title}</p>
@@ -433,7 +441,7 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
                       {judicial ? ` · Processo ${acordo.numero_processo || 'não informado'}` : ''}
                     </p>
                   </div>
-                  <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Valor</p><p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor ?? 0))}</p></div>
+                  <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Previsto</p><p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor ?? 0))}</p>{row.valor_pago != null ? <p className="mt-1 text-xs text-emerald-700">Pago: {formatCurrency(Number(row.valor_pago))}</p> : null}</div>
                   <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Vencimento</p><p className="mt-1 text-sm text-slate-700">{formatDateBR(row.vencimento)}</p></div>
                   <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Saúde</p><div className="mt-1"><AgreementHealthBadge health={row.saude_acordo} /></div></div>
                   <ParcelaActions row={row} />

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { acessoTemporariamenteBloqueado, CAMINHO_AVISO_ACESSO } from '@/utils/auth/janela-acesso'
 
 function safeNextPath(next: string | null) {
   if (!next || !next.startsWith('/') || next.startsWith('//')) {
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient()
 
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
       return redirectTo(request, '/redefinir-senha', {
@@ -32,11 +33,15 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    if (acessoTemporariamenteBloqueado(data.user?.id)) {
+      await supabase.auth.signOut({ scope: 'local' })
+      return redirectTo(request, CAMINHO_AVISO_ACESSO)
+    }
     return redirectTo(request, next)
   }
 
   if (tokenHash && type === 'recovery') {
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type,
     })
@@ -47,6 +52,10 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    if (acessoTemporariamenteBloqueado(data.user?.id)) {
+      await supabase.auth.signOut({ scope: 'local' })
+      return redirectTo(request, CAMINHO_AVISO_ACESSO)
+    }
     return redirectTo(request, next)
   }
 

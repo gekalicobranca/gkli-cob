@@ -1,6 +1,7 @@
 export function somenteExecucoesLiberadas(query, agora = new Date(), captacaoAtiva = true) {
   if (process.env.AGENTE_EXECUCAO_ID) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(process.env.AGENTE_EXECUCAO_ID)) throw new Error('Execução manual inválida.')
+    if (process.env.AGENTE_ESPELHAMENTO === 'true') return query.eq('id', process.env.AGENTE_EXECUCAO_ID).eq('origem', 'espelhamento')
     // O executor manual continua restrito ao pedido aberto pelo operador.
     if (process.env.AGENTE_SUPERVISIONADO !== 'true') return query.eq('id', process.env.AGENTE_EXECUCAO_ID).is('agendado_para', null).in('origem', ['maestro', 'manual'])
     query = query.eq('id', process.env.AGENTE_EXECUCAO_ID)

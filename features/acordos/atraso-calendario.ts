@@ -10,21 +10,10 @@ export function diasAtrasoAcordo(vencimento: string, hoje: string) {
 
 type Parcela = { vencimento: string; numero?: number; status: string; data_pagamento?: string | null; valor?: number | string }
 
-export function classificarSituacaoNoPeriodo(parcelas: Parcela[], inicio: string, fim: string) {
-  const periodo = parcelas.filter(p => !['cancelada', 'cancelado'].includes(p.status)
-    && p.vencimento.slice(0, 10) >= inicio && p.vencimento.slice(0, 10) <= fim)
-  if (!periodo.length) return null
-  const paga = (p: Parcela) => ['paga', 'pago', 'quitada', 'quitado', 'efetivado', 'efetivada'].includes(p.status) || Boolean(p.data_pagamento)
-  return periodo.every(paga) ? 'em_dia' : 'ativo'
-}
-
-export function classificarPrazoAcordo(parcelas: Parcela[], hoje: string, diasParaAtraso = 15, _diasParaRomper = 30, valorAcordado?: number | string) {
-  // Mantido apenas para compatibilidade com chamadas antigas; prazo não autoriza quebra.
-  void _diasParaRomper
-  const ordenadas = parcelas.filter(p => p.status !== 'cancelada')
-    .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || (a.numero ?? 0) - (b.numero ?? 0))
+export function classificarPrazoAcordo(parcelas: Parcela[], hoje: string, valorAcordado?: number | string) {
+  const validas = parcelas.filter(p => p.status !== 'cancelada')
   const paga = (p: Parcela) => p.status === 'paga' || Boolean(p.data_pagamento)
-  const abertas = ordenadas.filter(p => !paga(p))
+  const abertas = validas.filter(p => !paga(p))
   if (!abertas.length) {
     const centavos = (v: unknown) => Math.round(Number(v) * 100)
     const valoresValidos = parcelas.every(p => p.valor != null && Number.isFinite(Number(p.valor)) && Number(p.valor) >= 0)
@@ -33,11 +22,8 @@ export function classificarPrazoAcordo(parcelas: Parcela[], hoje: string, diasPa
     if (parcelas.length > 0 && parcelas.every(paga) && valoresValidos
       && valorAcordado != null && Number.isFinite(Number(valorAcordado)) && Number(valorAcordado) > 0
       && pago >= centavos(valorAcordado)) return 'quitado'
-    return ordenadas.some(p => paga(p) && p.vencimento.slice(0, 7) === hoje.slice(0, 7)) ? 'em_dia' : null
+    return validas.some(p => paga(p) && p.vencimento.slice(0, 7) === hoje.slice(0, 7)) ? 'em_dia' : null
   }
-  const atraso = diasAtrasoAcordo(abertas[0].vencimento, hoje)
-  if (atraso >= diasParaAtraso) return 'em_atraso'
-  if (atraso > 0) return 'ativo' // Tolerância D+1 a D+14 não significa “em dia”.
-  const indice = ordenadas.indexOf(abertas[0])
-  return indice > 0 && paga(ordenadas[indice - 1]) ? 'em_dia' : 'ativo'
+  if (abertas.some(p => p.vencimento && diasAtrasoAcordo(p.vencimento.slice(0, 10), hoje) > 0)) return 'em_atraso'
+  return validas.some(paga) ? 'em_dia' : 'ativo'
 }

@@ -188,6 +188,7 @@ async function carregarDados(ids: string[]) {
       condominios:condominio_id (id,nome),
       unidades:unidade_id (id,identificacao,bloco,responsavel_nome,responsavel_email,responsavel_telefone)
     `)
+    .eq("origem_controle", "carteira")
     .in("id", ids);
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds);

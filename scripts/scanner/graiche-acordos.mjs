@@ -2,6 +2,9 @@ import {documentoScannerPermitido} from './portais.mjs'
 
 const origem='https://servc9-1.webware.com.br'
 const referencia=/^[a-z0-9]+\/[a-z0-9]+\/[a-z0-9]+$/i
+// Itens administrativos observados no Jerivás não identificam unidade:
+// não devem invalidar o filtro nem ser tratados como apartamentos.
+const itensAdministrativos=new Set(['0//0FEIRA','0//CONSTR'])
 const erro=(codigo,motivo,diagnostico)=>Object.assign(Error(motivo),{code:codigo,diagnostico})
 
 // Apenas inventário do filtro. Tela sem seletor nunca vira inventário vazio.
@@ -29,7 +32,7 @@ export async function lerFiltroAcordosGraiche(page,{signal,timeoutMs=12000}={}){
   if(candidatos.length>1)throw erro('SCANNER_ACORDOS_AMBIGUO','Mais de um filtro de acordos; revisão necessária.',diagnostico)
   if(candidatos.length===1){
    const xs=candidatos[0],opcoes=xs.filter(o=>referencia.test(o.value))
-   if(xs.some(o=>o.value!==''&&o.value!=='>'&&!referencia.test(o.value))||opcoes.length>1000)throw erro('SCANNER_ACORDOS_FORMATO','Filtro de acordos não reconhecido; revisão necessária.',diagnostico)
+   if(xs.some(o=>o.value!==''&&o.value!=='>'&&!referencia.test(o.value)&&!itensAdministrativos.has(o.value))||opcoes.length>1000)throw erro('SCANNER_ACORDOS_FORMATO','Filtro de acordos não reconhecido; revisão necessária.',diagnostico)
    // "Todas unidades" sem opções também pode ser carregamento parcial.
    if(opcoes.length)return {opcoes,fonte:page.url()}
   }

@@ -134,7 +134,7 @@ export async function criarFlowsAcordos(formData: FormData) {
       status,
       vencimento,
       data_pagamento,
-      acordo:acordos(
+      acordo:acordos!inner(
         id,
         tipo,
         carteira_id,
@@ -147,6 +147,7 @@ export async function criarFlowsAcordos(formData: FormData) {
         unidade:unidades(responsavel_nome)
       )
     `)
+    .eq('acordo.origem_controle', 'carteira')
     .in('id', parcelaIds)
   const { data, error } = await query
   if (error) throw new Error(`Erro ao carregar parcelas para Flow: ${error.message}`)

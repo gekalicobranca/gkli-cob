@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { requireUser } from '@/utils/auth/require-user'
+import { requireRole } from '@/utils/auth/require-role'
+import { cnpjValido, MENSAGEM_CNPJ_INVALIDO, normalizarCnpj } from './cnpj'
 
 function str(formData: FormData, key: string) {
   const value = formData.get(key)
@@ -14,16 +15,22 @@ function bool(formData: FormData, key: string) {
   return formData.get(key) === 'on'
 }
 
-function onlyDigits(value: string | null) {
-  return value ? value.replace(/\D/g, '') : null
+function normalizarCnpjAdministradora(cnpj: string | null) {
+  if (!cnpj) throw new Error('Informe o CNPJ da administradora.')
+  if (!cnpjValido(cnpj)) throw new Error(MENSAGEM_CNPJ_INVALIDO)
+  return normalizarCnpj(cnpj)
+}
+
+function erroCadastroAdministradora(message: string, code?: string) {
+  if (code === '23505') return new Error('Já existe uma administradora cadastrada com este CNPJ.')
+  if (code === '23514') return new Error('O CNPJ informado é inválido.')
+  return new Error(message)
 }
 
 export async function createAdministradora(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin'])
   const supabase = createAdminClient()
-  const cnpj = onlyDigits(str(formData, 'cnpj'))
-  if (!cnpj) throw new Error('Informe o CNPJ da administradora.')
-  if (cnpj.length !== 14) throw new Error('Informe um CNPJ válido com 14 dígitos.')
+  const cnpj = normalizarCnpjAdministradora(str(formData, 'cnpj'))
 
   const payload = {
     nome: str(formData, 'nome'),
@@ -40,19 +47,17 @@ export async function createAdministradora(formData: FormData) {
   if (!payload.nome) throw new Error('Informe o nome da administradora.')
   if (!payload.nome_operacional) payload.nome_operacional = payload.nome
   const { data, error } = await supabase.from('administradoras').insert(payload).select('id').single()
-  if (error) throw new Error(`Erro ao criar administradora: ${error.message}`)
+  if (error) throw erroCadastroAdministradora(`Erro ao criar administradora: ${error.message}`, error.code)
   revalidatePath('/app/administradoras')
   redirect(`/app/administradoras/${data.id}`)
 }
 
 export async function updateAdministradora(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin'])
   const supabase = createAdminClient()
   const id = str(formData, 'id')
   if (!id) throw new Error('Administradora não informada.')
-  const cnpj = onlyDigits(str(formData, 'cnpj'))
-  if (!cnpj) throw new Error('Informe o CNPJ da administradora.')
-  if (cnpj.length !== 14) throw new Error('Informe um CNPJ válido com 14 dígitos.')
+  const cnpj = normalizarCnpjAdministradora(str(formData, 'cnpj'))
 
   const payload = {
     nome: str(formData, 'nome'),
@@ -69,13 +74,13 @@ export async function updateAdministradora(formData: FormData) {
   if (!payload.nome) throw new Error('Informe o nome da administradora.')
   if (!payload.nome_operacional) payload.nome_operacional = payload.nome
   const { error } = await supabase.from('administradoras').update(payload).eq('id', id)
-  if (error) throw new Error(`Erro ao atualizar administradora: ${error.message}`)
+  if (error) throw erroCadastroAdministradora(`Erro ao atualizar administradora: ${error.message}`, error.code)
   revalidatePath('/app/administradoras')
   revalidatePath(`/app/administradoras/${id}`)
 }
 
 export async function createContatoAdministradora(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = createAdminClient()
   const administradora_id = str(formData, 'administradora_id')
   if (!administradora_id) throw new Error('Administradora não informada.')
@@ -100,7 +105,7 @@ export async function createContatoAdministradora(formData: FormData) {
 }
 
 export async function createSolicitacaoAdm(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = createAdminClient()
   const administradora_id = str(formData, 'administradora_id')
   if (!administradora_id) throw new Error('Administradora não informada.')
@@ -128,7 +133,7 @@ export async function createSolicitacaoAdm(formData: FormData) {
 }
 
 export async function resolverSolicitacaoAdm(formData: FormData) {
-  await requireUser()
+  await requireRole(['admin', 'gestor', 'operador'])
   const supabase = createAdminClient()
   const id = str(formData, 'id')
   const administradoraId = str(formData, 'administradora_id')

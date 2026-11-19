@@ -55,6 +55,7 @@ async function fixture() {
   await db.exec('create or replace function public.flow_cancelar_mensagem' + cancelamento)
   await db.exec(migration)
   await db.exec(readFileSync('supabase/migrations/20261105112018_flows_limitar_limpeza_acordos.sql', 'utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261113152951_flows_bloquear_cotas_vinculadas_acordo.sql', 'utf8'))
   await db.exec(`
     insert into carteiras values('${id(1)}');
     insert into condominios values('${id(2)}','${id(1)}','ativo');
@@ -63,14 +64,15 @@ async function fixture() {
     insert into cobrancas values
       ('${id(10)}','${id(1)}','${id(2)}','${id(100)}','em_cobranca_ativa'),
       ('${id(11)}','${id(1)}','${id(2)}','${id(100)}','em_cobranca_ativa'),
-      ('${id(12)}','${id(1)}','${id(2)}','${id(101)}','em_cobranca_ativa');
+      ('${id(12)}','${id(1)}','${id(2)}','${id(101)}','em_cobranca_ativa'),
+      ('${id(13)}','${id(1)}','${id(2)}','${id(100)}','em_cobranca_ativa');
     insert into cobranca_flows(id,carteira_id,regua_id,nome,status)
       values('${id(20)}','${id(1)}','${id(3)}','Origem','concluido');
   `)
   return db
 }
 
-test('acordo vigente protege a unidade por cadastro, vínculo direto e composição, com estados encerrados liberados', async () => {
+test('acordo vigente protege apenas vínculos diretos ou de composição e libera estados encerrados', async () => {
   const db = await fixture()
   try {
     for (const link of ['unidade', 'direto', 'composicao']) {
@@ -83,12 +85,12 @@ test('acordo vigente protege a unidade por cadastro, vínculo direto e composiç
         const result = await db.query<{ bloqueado: boolean; outra: boolean }>(
           'select flow_cobrancas_tem_acordo_vigente($1) bloqueado,flow_cobrancas_tem_acordo_vigente($2) outra',
           [[id(10)], [id(12)]])
-        assert.equal(result.rows[0].bloqueado, ['ativo', 'em_dia', 'em_atraso'].includes(status), `${link} ${status}`)
+        assert.equal(result.rows[0].bloqueado, false, `${link} ${status}`)
         assert.equal(result.rows[0].outra, false)
         const blocked = await db.query<{ flow_cobrancas_bloqueadas_por_acordo: string }>(
           'select * from flow_cobrancas_bloqueadas_por_acordo($1)', [[id(10), id(11), id(12)]])
         assert.deepEqual(blocked.rows.map(r => r.flow_cobrancas_bloqueadas_por_acordo).sort(),
-          ['ativo', 'em_dia', 'em_atraso'].includes(status) ? [id(10), id(11)] : [])
+          link !== 'unidade' && ['ativo', 'em_dia', 'em_atraso'].includes(status) ? [id(11)] : [])
       }
     }
   } finally { await db.close() }
@@ -97,12 +99,12 @@ test('acordo vigente protege a unidade por cadastro, vínculo direto e composiç
 test('ciclo cancela cobrança consolidada, mantém outra unidade, histórico, acordo e tentativas incertas', async () => {
   const db = await fixture()
   try {
-    await db.exec(`insert into acordos(id,unidade_id,status) values('${id(30)}','${id(100)}','ativo');`)
-    const kinds = ['pendente_aprovacao', 'agendada', 'enviada', 'incerto', 'reservado', 'em_envio', 'acordo', 'outra', 'consolidada', 'itens', 'falha', 'provider']
+    await db.exec(`insert into acordos(id,unidade_id,cobranca_id,status) values('${id(30)}','${id(100)}','${id(10)}','ativo'); insert into acordo_cobrancas values('${id(30)}','${id(11)}');`)
+    const kinds = ['pendente_aprovacao', 'agendada', 'enviada', 'incerto', 'reservado', 'em_envio', 'acordo', 'outra', 'consolidada', 'itens', 'falha', 'provider', 'mesma_unidade']
     for (const [index, kind] of kinds.entries()) {
       const msg = id(200 + index)
       const status = kind === 'enviada' ? 'enviada' : kind === 'falha' ? 'falha' : 'pendente_aprovacao'
-      const charge = ['outra', 'consolidada', 'itens'].includes(kind) ? id(12) : id(10)
+      const charge = kind === 'mesma_unidade' ? id(13) : ['outra', 'consolidada', 'itens'].includes(kind) ? id(12) : id(10)
       const payload = kind === 'consolidada' ? { cobranca_ids: [id(11)] } : {}
       await db.query(`insert into mensagens(id,cobranca_id,carteira_id,contexto,canal,status,status_operacional,
         payload,cobranca_flow_id,regua_etapa_id,sent_at,acordo_id,provider_message_id) values($1,$2,$3,$4,$5,$6,$6,$7,$8,$9,$10,$11,$12)`,
@@ -142,7 +144,7 @@ test('continuação com acordo durante a montagem termina cancelada e não volta
     const job = (await db.query<any>('select * from flow_progressao_claim()')).rows[0]
     await db.query(`insert into mensagens(id,lote_id,cobranca_id,carteira_id,contexto,status,regua_etapa_id)
       values($1,$2,$3,$4,'cobranca','pendente_aprovacao',$5)`, [id(201), job.lote_id, id(10), id(1), id(5)])
-    await db.exec(`insert into acordos(unidade_id,status) values('${id(100)}','em_dia');`)
+    await db.exec(`insert into acordos(unidade_id,cobranca_id,status) values('${id(100)}','${id(10)}','em_dia');`)
     assert.equal((await db.query<{ id: string | null }>('select flow_progressao_finalizar($1,$2,$3) id', [job.id, job.token, 'sender'])).rows[0].id, null)
     const cancelled = (await db.query<any>('select * from flow_progressao where id=$1', [job.id])).rows[0]
     assert.equal(cancelled.status, 'cancelado')

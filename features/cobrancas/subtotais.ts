@@ -8,12 +8,22 @@ type Row = {
   carteiras?: { nome?: string } | null; condominios?: { nome?: string } | null
 }
 
-export function resumirValoresCobrancas(rows: Row[]) {
-  const carteiras = new Map<string, {
-    carteiraId: string; carteira: string; centavos: number; quantidade: number
-    condominios: Map<string, { condominioId: string; condominio: string; centavos: number; quantidade: number }>
-  }>()
-  let centavos = 0
+type CondominioTotal = { condominioId: string; condominio: string; centavos: number; quantidade: number }
+type CarteiraTotal = {
+  carteiraId: string; carteira: string; centavos: number; quantidade: number
+  condominios: Map<string, CondominioTotal>
+}
+
+export type AcumuladorValoresCobrancas = {
+  centavos: number
+  carteiras: Map<string, CarteiraTotal>
+}
+
+export function criarAcumuladorValoresCobrancas(): AcumuladorValoresCobrancas {
+  return { centavos: 0, carteiras: new Map() }
+}
+
+export function acumularValoresCobrancas(acumulador: AcumuladorValoresCobrancas, rows: Row[]) {
   for (const row of rows) {
     if (cobrancaArquivada(row)) continue
     // Os filtros da consulta já definem quais cobranças entram na lista.
@@ -21,26 +31,35 @@ export function resumirValoresCobrancas(rows: Row[]) {
     const valor = Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100)
     const carteiraId = row.carteira_id ?? 'sem-carteira'
     const condominioId = row.condominio_id ?? 'sem-condominio'
-    const carteira = carteiras.get(carteiraId) ?? {
+    const carteira = acumulador.carteiras.get(carteiraId) ?? {
       carteiraId, carteira: row.carteiras?.nome ?? 'Carteira não informada',
       centavos: 0, quantidade: 0, condominios: new Map(),
     }
     const condominio = carteira.condominios.get(condominioId) ?? {
       condominioId, condominio: row.condominios?.nome ?? 'Condomínio não informado', centavos: 0, quantidade: 0,
     }
-    centavos += valor
+    acumulador.centavos += valor
     carteira.centavos += valor
     carteira.quantidade++
     condominio.centavos += valor
     condominio.quantidade++
     carteira.condominios.set(condominioId, condominio)
-    carteiras.set(carteiraId, carteira)
+    acumulador.carteiras.set(carteiraId, carteira)
   }
+}
+
+export function finalizarAcumuladorValoresCobrancas(acumulador: AcumuladorValoresCobrancas) {
   return {
-    totalEmAberto: centavos / 100,
-    porCarteira: [...carteiras.values()].map(({ centavos, condominios, ...carteira }) => ({
+    totalEmAberto: acumulador.centavos / 100,
+    porCarteira: [...acumulador.carteiras.values()].map(({ centavos, condominios, ...carteira }) => ({
       ...carteira, valor: centavos / 100,
       condominios: [...condominios.values()].map(({ centavos, ...condominio }) => ({ ...condominio, valor: centavos / 100 })),
     })),
   }
+}
+
+export function resumirValoresCobrancas(rows: Row[]) {
+  const acumulador = criarAcumuladorValoresCobrancas()
+  acumularValoresCobrancas(acumulador, rows)
+  return finalizarAcumuladorValoresCobrancas(acumulador)
 }

@@ -14,3 +14,10 @@ test('datas parciais e acordo sem parcelas respeitam o filtro',()=>{
  assert.equal(acordoTemParcelaNoPeriodo([{vencimento:'2026-10-01'}],undefined,'2026-11-12'),true)
  assert.equal(acordoTemParcelaNoPeriodo(undefined),true)
 })
+
+test('parcelas canceladas continuam no histórico e ficam fora do recorte por vencimento', () => {
+  const parcelas = [{ vencimento: '2026-09-25', status: 'paga' }, { vencimento: '2026-10-25', status: 'cancelada' }]
+  assert.equal(acordoTemParcelaNoPeriodo(parcelas, '2026-10-11', '2026-11-11'), false)
+  assert.equal(acordoTemParcelaNoPeriodo(parcelas), true)
+  assert.equal(acordoTemParcelaNoPeriodo(parcelas, '2026-09-11', '2026-10-10'), true)
+})

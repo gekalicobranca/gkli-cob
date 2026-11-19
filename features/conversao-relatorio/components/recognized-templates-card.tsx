@@ -113,8 +113,17 @@ const templates: RecognizedTemplate[] = [
     status: "Homologado",
     cobertura: "PDF · Relação Analítica de Pendentes",
     descricao:
-      "Extrai recibos, vencimentos, totais por unidade, marcadores A/AE/AJ/J/D/B/P e gera a planilha oficial de Importações/Cobranças.",
-    exemplos: "Lavance, Bem Moema, Ápice, Metrocasa e Jequitibás",
+      "Extrai recibos, vencimentos, totais por unidade, marcadores A/AE/AJ/J/D/B/P e relatórios Inadimplência Zero, gerando a planilha oficial de Importações/Cobranças.",
+    exemplos: "Lavance, Bem Moema, Ápice, Metrocasa, Jequitibás e Key Moema",
+  },
+  {
+    nome: "Superlógica · Inadimplência Zero",
+    categoria: "Cobranças",
+    status: "Homologado",
+    cobertura: "PDF · Relação Analítica de Pendentes (Recibo do Inadimplência Zero)",
+    descricao:
+      "Reconhece os recibos de composição sem discriminação de encargos, confere os totais de cada unidade e o total geral, e gera a planilha oficial de Importações/Cobranças.",
+    exemplos: "Key Moema",
   },
   {
     nome: "Hflex / LiveFacilities · Cobranças",

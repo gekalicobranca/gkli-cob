@@ -29,6 +29,7 @@ export function CaptacaoEasy({condominios,canWrite,manualCondominio,onWorking,on
       const form=await createConversionFormData(file,'cobrancas',condominio.cnpj);
       form.set('condominio_id',condominio.id);
       if(usarModelo)form.set('modelo','easy_flow_v1');
+      if(manualCondominio)form.set('contexto','easy_flow');
       const response=await fetch('/api/easy-cob/captacao',{method:'POST',body:form});
       const payload=await response.json();
       if(requestVersion!==version.current) return;
@@ -68,6 +69,7 @@ export function CaptacaoEasy({condominios,canWrite,manualCondominio,onWorking,on
         <div>
           <h2 className="text-sm font-semibold">Planilha de carga de inadimplência</h2>
           <p className="mt-1 text-xs text-slate-600">Preencha todas as cobranças no modelo. Use o CNPJ <strong>{condominio.cnpj}</strong> na célula B3.</p>
+          <p className="mt-1 text-xs text-slate-600">E-mail e telefone são opcionais. Para identificar acordos ou cobranças jurídicas, use a coluna “Marcador no PDF” após Recibo.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <a href="/modelos/easy-flow-importacao.xlsx" download className={styles.primary}><Download size={16} aria-hidden="true" />Baixar planilha modelo</a>
@@ -80,6 +82,7 @@ export function CaptacaoEasy({condominios,canWrite,manualCondominio,onWorking,on
     {resumo&&!result&&<section className={`${styles.panel} space-y-5`}>
       <header><h2>Confira a captação</h2><p className="mt-1 break-words text-xs text-slate-500">{resumo.condominio} · {resumo.arquivo}</p></header>
       <div className={styles.totalBand}><div><p>Inadimplência captada</p><strong>{formatCurrency(resumo.valor)}</strong></div><span className="text-sm">{resumo.unidades} unidade(s) · {resumo.cobrancas} cobrança(s)</span></div>
+      {Boolean(resumo.acordos||resumo.juridicas)&&<p className="text-sm text-slate-700">{resumo.acordos??0} com marcador de acordo · {resumo.juridicas??0} com marcador jurídico</p>}
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950"><strong>{resumo.substituir} cobrança(s) anterior(es) serão substituídas.</strong>
         <p className="mt-1">Como no Maestro: status Regular, Novo e Cobrança ativa, com vencimento em {resumo.ano}, sem vínculo com acordo. Acordos e os demais status serão preservados.</p>
       </div>

@@ -13,7 +13,7 @@ node --env-file=.env.local scripts/acordos-portais/fila.mjs bbz
 node --env-file=.env.local scripts/acordos-portais/cadastrar.mjs
 ```
 
-A migração `20261006041349_agente_acordos_lello_bbz.sql` amplia exclusivamente as tabelas do agente de PDFs e mantém a reivindicação Manager restrita à própria administradora. Consumidores independentes publicam no bucket privado `acordos-pdfs`, atualizam execução e presença próprias e validam administradora, carteira, código e alvos antes de publicar. Não alteram captação, receitas, agendamentos, controle global ou Maestro. Não importam acordos, parcelas, pagamentos nem baixas.
+A migração `20261006040409_agente_acordos_lello_bbz.sql` amplia exclusivamente as tabelas do agente de PDFs e mantém a reivindicação Manager restrita à própria administradora. Consumidores independentes publicam no bucket privado `acordos-pdfs`, atualizam execução e presença próprias e validam administradora, carteira, código e alvos antes de publicar. Não alteram captação, receitas, agendamentos, controle global ou Maestro. Não importam acordos, parcelas, pagamentos nem baixas.
 
 ## Coletor manual
 

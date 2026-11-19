@@ -233,7 +233,7 @@ async function carregarAcordos(supabase: SupabaseAdmin, ids: string[], scope: Ca
       endereco_bairro,endereco_cidade,endereco_uf,endereco_cep,administradora_id
     ),
     unidades:unidade_id (id,identificacao,bloco,responsavel_nome,responsavel_documento,email,telefone)
-  `).in("id", ids).order("data_acordo", { ascending: false });
+  `).eq("origem_controle", "carteira").in("id", ids).order("data_acordo", { ascending: false });
   query = applyCarteiraScope(query, scope.carteiraIds);
   const { data, error } = await query;
   if (error) throw new Error(`Erro ao carregar acordos para documento: ${error.message}`);

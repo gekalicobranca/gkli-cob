@@ -1,3 +1,5 @@
+import { MOTIVO_COBRANCA_COM_ACORDO_VIGENTE } from '@/lib/constants/acordos';
+import { unidadesComMinimoPreJuridico } from '@/features/pre-juridico/minimo-cotas';
 import { liberarCobrancasRegulares } from '@/features/cobrancas/regular';
 import { resolverCorrespondenciasUnidade } from '@/lib/core/identidade-unidade';
 import { carregarApoiosParaCorrespondencia } from '@/features/responsaveis-unidades/correspondencia';
@@ -131,6 +133,8 @@ type ProcessarReguaParams = {
   // Preparação manual sem ativação: permite rascunhar o canal desabilitado.
   // As mensagens continuam pendentes de aprovação, nunca agendadas para envio.
   prepararFlowPausado?: boolean;
+  destinatariosConfirmados?: ReadonlyMap<string, string>;
+  cicloFechamento?: string;
 };
 
 type Contadores = ReguaContadores;
@@ -534,7 +538,7 @@ function avaliarElegibilidade(params: {
   }
 
   if (params.acordosAtivos.has(row.id)) {
-    return { elegivel: false, motivo: "Cobrança possui acordo ativo/vigente.", diasAtraso, inicio };
+    return { elegivel: false, motivo: MOTIVO_COBRANCA_COM_ACORDO_VIGENTE, diasAtraso, inicio };
   }
 
   if (!isCobrancaElegivelParaRegua({ vencimento: row.vencimento, inicioCobrancaDias: inicio })) {
@@ -592,7 +596,7 @@ export async function processarReguaCobranca(
   const carteiraPermiteCanal = createCarteiraCanalChecker(supabase);
   const resolverTemplate = params.montagemMaestroId ? criarResolvedorTemplateDaParte() : resolveTemplateMensagem;
   const cooldownDias = Number(params.cooldownDias ?? 3);
-  const ciclo = cicloReferencia();
+  const ciclo = params.cicloFechamento ?? cicloReferencia();
   const selectedIdsForQuery = params.cobrancaIds
     ? params.cobrancaIds.map((id) => String(id).trim()).filter(Boolean)
     : null;
@@ -643,6 +647,9 @@ export async function processarReguaCobranca(
     .filter((row) => matchesSearch(row, params.q))
     .filter((row) => matchesContato(row, params.contato));
 
+  const unidadesComMinimo = await unidadesComMinimoPreJuridico(supabase, rows
+    .filter(row => avaliarExpiracaoPreJuridico(row).expirada)
+    .map(row => row.unidades?.id));
   const cobrancaIds = rows.map((row) => row.id).filter(Boolean);
   const reguaIds = [
     params.reguaId,
@@ -743,7 +750,7 @@ export async function processarReguaCobranca(
           row.status_financeiro !== COBRANCA_STATUS_FINANCEIRO.QUITADO &&
           !acordosAtivos.has(row.id);
 
-        if (expiracaoPreJuridico.expirada && podeExpirarParaPreJuridico) {
+        if (expiracaoPreJuridico.expirada && podeExpirarParaPreJuridico && unidade && unidadesComMinimo.has(unidade.id)) {
           const motivo = "Cobrança expirada após a régua e encaminhada automaticamente para preparação documental.";
           const payloadExpiracao = {
             origem: "expiracao_regua_pre_juridico",
@@ -895,6 +902,18 @@ export async function processarReguaCobranca(
         });
         const intensidade = (condominio?.intensidade_regua ?? etapa.tom ?? "medio") as ReguaTom;
         const destinatario = contatoRegua.destinatario;
+        if (params.destinatariosConfirmados) {
+          const atual = canal === 'email' ? destinatario?.trim().toLowerCase() : destinatario?.replace(/\D/g, '');
+          if (!atual || atual !== params.destinatariosConfirmados.get(row.id)) {
+            const motivo = 'Destinatário mudou após a conferência no espelhamento.';
+            total.puladas += 1;
+            lote.contadores.puladas += 1;
+            itens.push({ cobrancaId: row.id, status: LOTE_ITEM_STATUS.PULADA, motivo });
+            await criarItemLote({ supabase, loteId: lote.id, row, status: LOTE_ITEM_STATUS.PULADA, motivo,
+              reguaEtapaId: normalizarEtapaId(etapa.id), payload: { canal, origem: 'espelhamento', ciclo } });
+            continue;
+          }
+        }
         const reguaEtapaId = normalizarEtapaId(etapa.id);
         const etapaReferencia = reguaEtapaId ?? etapa.id ?? null;
         const fingerprint = criarReguaFingerprint({

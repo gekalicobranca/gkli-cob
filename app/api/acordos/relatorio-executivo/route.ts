@@ -223,7 +223,7 @@ async function carregarParcelas(acordoIds: string[]) {
   const supabase = await createClient();
   const data = await carregarParcelasRelatorio(acordoIds, (ids, from, to) =>
     supabase.from('parcelas_acordo')
-      .select('id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento,valor_repasse_informado')
+      .select('id,acordo_id,numero,tipo_parcela,valor,valor_pago,status,data_pagamento,vencimento,valor_repasse_informado')
       .in('acordo_id', ids).order('id').range(from, to));
 
   const map = new Map<string, any[]>();

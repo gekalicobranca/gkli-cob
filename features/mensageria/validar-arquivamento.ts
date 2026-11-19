@@ -2,8 +2,13 @@ import { arquivamentoDuplicidadesAtivo } from '@/lib/core/cobranca-arquivamento'
 
 /** Defesa adicional antes do envio; a reserva atômica no banco também deve validar. */
 export async function validarMensagemSemCobrancaArquivada(db: { from: (table: string) => any }, mensagemId: string) {
-  const { data: mensagem, error } = await db.from('mensagens').select('id,cobranca_id,payload').eq('id', mensagemId).single()
+  const { data: mensagem, error } = await db.from('mensagens')
+    .select('id,cobranca_id,payload,acordo_id,acordo:acordo_id(origem_controle)')
+    .eq('id', mensagemId).single()
   if (error || !mensagem) throw new Error('Não foi possível validar os débitos da mensagem antes do envio.')
+  if (mensagem.acordo_id && mensagem.acordo?.origem_controle !== 'carteira') {
+    throw new Error('Envio bloqueado para acordo fora dos controles da GEKALI.')
+  }
   const { data: itens, error: itensError } = await db.from('lote_itens').select('cobranca_id').eq('mensagem_id', mensagemId)
   if (itensError) throw new Error('Não foi possível validar os vínculos da mensagem antes do envio.')
   const payloadIds = mensagem.payload?.cobranca_ids

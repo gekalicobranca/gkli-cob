@@ -7,6 +7,7 @@ import {getCondominioAgenteStatus} from '@/features/agente-automatico/queries';
 import {somenteCobrancasCanonicas} from '@/lib/core/cobranca-arquivamento';
 import {ACORDO_STATUS_VIGENTES} from '@/lib/core/status';
 import {carregarCanaisOcupados} from '@/features/flows/cobranca/vinculos-canais';
+import {cicloFechamentoCobranca} from '@/features/flows/cobranca/ciclo-fechamento';
 import {canaisDaRegua,conflitoDeCanais} from '@/features/flows/cobranca/canais';
 import {dividirCriacaoFlows} from '@/features/flows/cobranca/dividir-criacao';
 import {carregarApoiosParaCorrespondencia} from '@/features/responsaveis-unidades/correspondencia';
@@ -20,7 +21,7 @@ export async function contextoEasyFlow(condominioId:string) {
   const scope=await getPermittedCarteiras();
   if(!['admin','gestor','operador'].includes(scope.perfil)) throw Error('Perfil sem permissão para montar flows.');
   const db=createAdminClient();
-  const {data:c,error}=await applyCarteiraScope(db.from('condominios').select('id,nome,nome_operacional,carteira_id,status,regua_cobranca_id,inicio_cobranca_dias,dias_apos_vencimento_regua,dias_cobranca_ativa,pre_juridico_habilitado,carteira:carteiras(email_transporte)').eq('id',condominioId),scope.carteiraIds).maybeSingle();
+  const {data:c,error}=await applyCarteiraScope(db.from('condominios').select('id,nome,nome_operacional,carteira_id,status,regua_cobranca_id,inicio_cobranca_dias,dias_apos_vencimento_regua,dias_cobranca_ativa,pre_juridico_habilitado,vencimento_cota_dia,carteira:carteiras(email_transporte)').eq('id',condominioId),scope.carteiraIds).maybeSingle();
   if(error||!c||c.status!=='ativo')throw Error('Condomínio indisponível para este usuário.');
   if(await getCondominioAgenteStatus(c.id,scope.carteiraIds)!=='nao_configurado')throw Error('Este condomínio possui agente remoto. Acompanhe os flows no Maestro.');
   return {db,scope,c};
@@ -56,7 +57,9 @@ export async function planejarEasyFlow(condominioId:string,reguaId:string,smtpId
     const [a,v]=await Promise.all([db.from('acordos').select('cobranca_id').in('cobranca_id',ids).in('status',ACORDO_STATUS_VIGENTES),db.from('acordo_cobrancas').select('cobranca_id,acordo:acordos!inner(status)').in('cobranca_id',ids).in('acordo.status',ACORDO_STATUS_VIGENTES)]);
     if(a.error||v.error)throw Error('Não foi possível conferir os acordos.');for(const r of [...a.data,...v.data])acordos.add(r.cobranca_id);
   }
-  const [ocupados,apoios]=await Promise.all([carregarCanaisOcupados(db,rows.map(r=>r.id)),carregarApoiosParaCorrespondencia(db,[c.id])]);
+  const diaFechamento=c.vencimento_cota_dia??undefined;
+  const ciclo=cicloFechamentoCobranca(diaFechamento??null);
+  const [ocupados,apoios]=await Promise.all([carregarCanaisOcupados(db,rows.map(r=>r.id),{diaFechamento}),carregarApoiosParaCorrespondencia(db,[c.id])]);
   const aptas:any[]=[];const pendencias=new Map<string,number>();const versoes:Record<string,string>={};
   for(const row of rows){
     const unidade=Array.isArray(row.unidade)?row.unidade[0]:row.unidade;
@@ -68,7 +71,7 @@ export async function planejarEasyFlow(condominioId:string,reguaId:string,smtpId
     const expirada=c.pre_juridico_habilitado&&Number.isFinite(expiracao)&&expiracao>=0&&diasDesdeVencimento(row.vencimento)>=inicio+Math.trunc(expiracao);
     const motivo=impedimentoEasyFlow(row,inicio,acordos.has(row.id),conflitoDeCanais(ocupados.get(row.id)??[],canais),semContato)||(expirada?'Prazo da régua encerrado; revisar pré-jurídico':null);
     if(motivo){pendencias.set(motivo,(pendencias.get(motivo)??0)+1);continue;}
-    aptas.push(row);versoes[row.id]=flowHash({row,destinatarios});
+    aptas.push(row);versoes[row.id]=flowHash({row,destinatarios,ciclo});
   }
   return {...ctx,regua,canais,smtp,aptas,versoes,configVersion:flowHash(regua),partes:dividirCriacaoFlows(aptas).map(parte=>parte.map(row=>row.id)),resumo:{condominio:c.nome_operacional||c.nome,regua:regua.nome,canais,smtp:smtp?.label??'Não se aplica',cobrancas:aptas.length,unidades:new Set(aptas.map(r=>r.unidade_id)).size,valor:aptas.reduce((sum,r)=>sum+Math.round(Number(r.valor_atualizado)*100),0)/100,pendencias:[...pendencias].map(([motivo,quantidade])=>({motivo,quantidade})),amostra:aptas.slice(0,8).map(row=>{const u=Array.isArray(row.unidade)?row.unidade[0]:row.unidade;return {unidade:[u?.bloco,u?.identificacao].filter(Boolean).join(' · '),valor:Number(row.valor_atualizado)};})}};
 }

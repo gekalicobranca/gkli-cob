@@ -15,6 +15,7 @@ import {
   ListKpiGrid,
   ListMetric,
   ListPage,
+  ListPagination,
   ListPanel,
   ListPanelHeader,
   ListRow,
@@ -23,7 +24,7 @@ import {
   ListTitle,
   ListTitleBar,
 } from '@/components/layout/list-page'
-import { listAdministradoras, normalizeAdmFilters } from '@/features/administradoras/queries'
+import { listAdministradorasPage, normalizeAdmFilters, type AdministradoraOrder } from '@/features/administradoras/queries'
 
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> }
 
@@ -31,30 +32,18 @@ function getParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
 }
 
-function normalizeText(value: unknown) {
-  return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+const PAGE_SIZE = 50
+const ORDER_OPTIONS: AdministradoraOrder[] = ['nome', 'status', 'acesso_acordo', 'contato']
+
+function positiveInteger(value: string | undefined, fallback: number) {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback
 }
 
-function filterAdministradoras(
-  rows: Awaited<ReturnType<typeof listAdministradoras>>,
-  params: Record<string, string | string[] | undefined> | undefined,
-) {
-  const acessoAcordo = getParam(params?.acesso_acordo)
-  if (!acessoAcordo) return rows
-  return rows.filter((row) => (acessoAcordo === 'sim' ? row.acesso_gerar_acordo : !row.acesso_gerar_acordo))
-}
-
-function sortAdministradoras(rows: Awaited<ReturnType<typeof listAdministradoras>>, ordenar: string) {
-  const field = ordenar || 'nome'
-  return [...rows].sort((a, b) => {
-    const getValue = (row: any) => {
-      if (field === 'status') return normalizeText(row.status)
-      if (field === 'acesso_acordo') return row.acesso_gerar_acordo ? '0' : '1'
-      if (field === 'contato') return normalizeText(row.email ?? row.telefone)
-      return normalizeText(row.nome_operacional || row.nome)
-    }
-    return getValue(a).localeCompare(getValue(b), 'pt-BR', { numeric: true })
-  })
+function pageHref(params: URLSearchParams, page: number) {
+  const next = new URLSearchParams(params)
+  next.set('page', String(page))
+  return `/app/administradoras?${next.toString()}`
 }
 
 export default async function AdministradorasPage({ searchParams }: Props) {
@@ -63,10 +52,23 @@ export default async function AdministradorasPage({ searchParams }: Props) {
   const filters = normalizeAdmFilters({
     search: getParam(params?.q),
     status: statusParam === undefined ? 'ativo' : statusParam,
+    acessoAcordo: getParam(params?.acesso_acordo),
   })
-  const ordenar = getParam(params?.ordenar) ?? 'nome'
-  const rows = sortAdministradoras(filterAdministradoras(await listAdministradoras(filters), params), ordenar)
-  const ativas = rows.filter((row) => row.status !== 'inativo').length
+  const requestedOrder = getParam(params?.ordenar) ?? 'nome'
+  const ordenar = ORDER_OPTIONS.includes(requestedOrder as AdministradoraOrder)
+    ? requestedOrder as AdministradoraOrder
+    : 'nome'
+  const page = positiveInteger(getParam(params?.page), 1)
+  let pageData: Awaited<ReturnType<typeof listAdministradorasPage>> | null = null
+  let loadError: string | null = null
+  try {
+    pageData = await listAdministradorasPage(filters, { page, pageSize: PAGE_SIZE, order: ordenar })
+  } catch (error) {
+    console.error('Falha ao carregar a listagem de administradoras.', error)
+    loadError = 'O cadastro não foi carregado. Tente novamente; se o erro persistir, acione o suporte.'
+  }
+  const rows = pageData?.rows ?? []
+  const ativas = pageData?.activeTotal ?? 0
   const filtrosAtivos = Boolean(
     filters.search ||
     (filters.status && filters.status !== 'ativo') ||
@@ -76,7 +78,7 @@ export default async function AdministradorasPage({ searchParams }: Props) {
   const exportParams = new URLSearchParams()
   if (filters.search) exportParams.set('q', filters.search)
   if (filters.status) exportParams.set('status', filters.status)
-  if (getParam(params?.acesso_acordo)) exportParams.set('acesso_acordo', getParam(params?.acesso_acordo)!)
+  if (filters.acessoAcordo) exportParams.set('acesso_acordo', filters.acessoAcordo)
   if (ordenar) exportParams.set('ordenar', ordenar)
   const exportAdministradorasHref = `/api/administradoras/exportacoes/administradoras${exportParams.toString() ? `?${exportParams.toString()}` : ''}`
 
@@ -98,7 +100,7 @@ export default async function AdministradorasPage({ searchParams }: Props) {
       />
 
       <ListKpiGrid className="md:grid-cols-3 xl:grid-cols-3">
-        <KpiCard label="Total" value={rows.length} />
+        <KpiCard label="Total filtrado" value={pageData?.total ?? '—'} />
         <KpiCard label="Ativas" value={ativas} />
         <KpiCard label="Hub externo" value="ADM" />
       </ListKpiGrid>
@@ -143,7 +145,9 @@ export default async function AdministradorasPage({ searchParams }: Props) {
           </ListFiltersForm>
         </ListPanelHeader>
 
-        {rows.length === 0 ? (
+        {loadError ? (
+          <ListEmptyState title="Não foi possível carregar as administradoras" description={loadError} />
+        ) : rows.length === 0 ? (
           <ListEmptyState
             title="Nenhuma administradora encontrada"
             description="Cadastre a primeira administradora para começar a controlar contatos, planilhas e boletos."
@@ -181,6 +185,25 @@ export default async function AdministradorasPage({ searchParams }: Props) {
             ))}
           </ListRows>
         )}
+        {pageData ? (
+          <ListPagination
+            page={pageData.page}
+            pageSize={pageData.pageSize}
+            total={pageData.total}
+            previousHref={pageData.page > 1 ? pageHref(new URLSearchParams({
+              ...(filters.search ? { q: filters.search } : {}),
+              ...(filters.status ? { status: filters.status } : {}),
+              ...(filters.acessoAcordo ? { acesso_acordo: filters.acessoAcordo } : {}),
+              ...(ordenar ? { ordenar } : {}),
+            }), pageData.page - 1) : undefined}
+            nextHref={pageData.page * pageData.pageSize < pageData.total ? pageHref(new URLSearchParams({
+              ...(filters.search ? { q: filters.search } : {}),
+              ...(filters.status ? { status: filters.status } : {}),
+              ...(filters.acessoAcordo ? { acesso_acordo: filters.acessoAcordo } : {}),
+              ...(ordenar ? { ordenar } : {}),
+            }), pageData.page + 1) : undefined}
+          />
+        ) : null}
       </ListPanel>
     </ListPage>
   )

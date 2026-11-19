@@ -5,6 +5,7 @@ import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
 import {acordoIdsDaUnidade} from './unidades-consulta';
 import { acordoTemParcelaNoPeriodo } from './filtro-vencimento'
 import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
+import { type AcordoOrigem } from './origem-controle'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
 import { applyAgreementKind, matchesAgreementKind, isJudicialUnderReview, type AgreementKind } from './agreement-kind';
@@ -17,7 +18,7 @@ import {
   COBRANCA_STATUS_JUDICIALIZACAO,
 } from "@/lib/constants/cobrancas";
 import { getCobrancaStatusOperacional } from "@/lib/core/cobranca-status";
-import { ACORDO_STATUS, ACORDO_STATUS_VIGENTES } from "@/lib/constants/acordos";
+import { ACORDO_STATUS, ACORDO_STATUS_VIGENTES, PARCELA_ACORDO_STATUS } from "@/lib/constants/acordos";
 import { normalizeStatus } from "@/lib/core/status";
 import { aplicarFiltroCriacao, criadoNoIntervalo } from '@/lib/core/filtros-criacao';
 import { operadorResponsavelId } from '@/lib/core/operador-responsavel';
@@ -52,10 +53,74 @@ async function marcarBloqueioJudicializacaoUnidade(
 function isBloqueadaParaAcordo(cobranca: any) {
   return (COBRANCA_STATUS_BLOQUEADOS_PARA_ACORDO as string[]).includes(
     statusOperacionalDaCobranca(cobranca),
-  );
+  ) || Boolean(cobranca.bloqueada_por_acordo_existente);
 }
 
-export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind) {
+const ACORDO_STATUS_QUE_LIBERAM_COTAS = [
+  "cancelado",
+  "cancelada",
+  "quebrado",
+  "rompido",
+  "renegociado",
+] as const;
+
+async function marcarCotasVinculadasAcordoVigente(supabase: any, cobrancas: any[]) {
+  const ids = uniqueStrings(cobrancas.map((cobranca) => cobranca.id));
+  if (!ids.length) return cobrancas;
+
+  const [diretos, vinculos] = await Promise.all([
+    supabase
+      .from("acordos")
+      .select("id,cobranca_id,status,status_financeiro,observacoes")
+      .in("cobranca_id", ids),
+    supabase
+      .from("acordo_cobrancas")
+      .select("acordo_id,cobranca_id")
+      .in("cobranca_id", ids),
+  ]);
+  if (diretos.error) throw new Error(`Erro ao conferir acordos das cobranças: ${diretos.error.message}`);
+  if (vinculos.error) throw new Error(`Erro ao conferir vínculos das cobranças: ${vinculos.error.message}`);
+
+  const acordosDiretos = (diretos.data ?? []) as any[];
+  const idsDiretos = new Set(acordosDiretos.map((acordo) => acordo.id));
+  const idsVinculados = uniqueStrings((vinculos.data ?? []).map((vinculo: any) => vinculo.acordo_id))
+    .filter((id) => !idsDiretos.has(id));
+  let acordosVinculados: any[] = [];
+  if (idsVinculados.length) {
+    const resultado = await supabase
+      .from("acordos")
+      .select("id,cobranca_id,status,status_financeiro,observacoes")
+      .in("id", idsVinculados);
+    if (resultado.error) throw new Error(`Erro ao conferir acordos vinculados: ${resultado.error.message}`);
+    acordosVinculados = resultado.data ?? [];
+  }
+
+  const acordos = [...acordosDiretos, ...acordosVinculados].filter((acordo) =>
+    !(ACORDO_STATUS_QUE_LIBERAM_COTAS as readonly string[]).includes(String(acordo.status ?? "").toLowerCase()) &&
+    !String(acordo.observacoes ?? "").includes("[DUPLICIDADE_ACORDO_CONCILIADA]"),
+  );
+  const acordoPorId = new Map<string, any>(acordos.map((acordo) => [acordo.id, acordo]));
+  const acordoPorCobranca = new Map<string, string>();
+
+  for (const acordo of acordos) {
+    if (acordo.cobranca_id && ids.includes(acordo.cobranca_id)) {
+      acordoPorCobranca.set(acordo.cobranca_id, acordo.id);
+    }
+  }
+  for (const vinculo of vinculos.data ?? []) {
+    if (acordoPorId.has(vinculo.acordo_id)) {
+      acordoPorCobranca.set(vinculo.cobranca_id, vinculo.acordo_id);
+    }
+  }
+
+  return cobrancas.map((cobranca) => ({
+    ...cobranca,
+    acordo_existente_id: acordoPorCobranca.get(cobranca.id) ?? null,
+    bloqueada_por_acordo_existente: acordoPorCobranca.has(cobranca.id),
+  }));
+}
+
+export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind, origem: AcordoOrigem = "carteira") {
   const supabase = await createClient();
 
   let query = somenteAcordosCanonicos(supabase
@@ -97,6 +162,7 @@ export async function listAcordos(scope?: CarteiraScope, tipo?: AgreementKind) {
       termos:acordos_termos (*)
     `,
     ))
+    .eq("origem_controle", origem)
     .order("data_acordo", { ascending: false }).order("id", { ascending: true });
 
   if (scope) {
@@ -398,7 +464,8 @@ export async function listCobrancasElegiveisParaAcordo(scope?: CarteiraScope) {
     );
   }
 
-  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, (data ?? []) as any[]);
+  const comAcordos = await marcarCotasVinculadasAcordoVigente(supabase, (data ?? []) as any[]);
+  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, comAcordos);
 
   return cobrancas.filter((cobranca) =>
     !isBloqueadaParaAcordo(cobranca) &&
@@ -580,7 +647,8 @@ export async function listCobrancasDaUnidadeParaAcordo(params: {
     if (!pagina || pagina.length < 500) break;
   }
 
-  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, (data ?? []) as any[]);
+  const comAcordos = await marcarCotasVinculadasAcordoVigente(supabase, (data ?? []) as any[]);
+  const cobrancas = await marcarBloqueioJudicializacaoUnidade(supabase, comAcordos);
   const unidadeBloqueadaPorJudicializacao = false; // A seleção bloqueia cada cobrança individualmente.
 
   return {
@@ -779,21 +847,22 @@ function attachAgreementHealth(acordos: any[], parcelas: any[]) {
     return {
       ...acordo,
       parcelas_lista: parcelasDoAcordo,
-      parcelas_periodo: parcelasDoAcordo.map(parcela => ({ vencimento: parcela.vencimento })),
+      parcelas_periodo: parcelasDoAcordo.map(parcela => ({ vencimento: parcela.vencimento, status: parcela.status })),
       parcelas_alertas: health,
       saude_acordo: health.saude,
     };
   });
 }
 
-export async function listAcordosComSaude(scope?: CarteiraScope, tipo?: AgreementKind) {
-  const acordos = await listAcordos(scope, tipo);
+export async function listAcordosComSaude(scope?: CarteiraScope, tipo?: AgreementKind, origem?: AcordoOrigem) {
+  const acordos = await listAcordos(scope, tipo, origem);
   const parcelas = await getParcelasDosAcordos(acordos.map((acordo: any) => acordo.id));
   return attachAgreementHealth(acordos as any[], parcelas);
 }
 
 export type ListAcordosComSaudePageFilters = {
   tipo_acordo?: AgreementKind;
+  origem_controle?: AcordoOrigem;
   operador_id?: string;
   q?: string;
   condominio_id?: string;
@@ -954,6 +1023,7 @@ function canUsePagedAcordosQuery(filters: ListAcordosComSaudePageFilters) {
 }
 
 async function applyAcordosDirectFilters(query: any, filters: ListAcordosComSaudePageFilters, scope?: CarteiraScope) {
+  query = query.eq("origem_controle", filters.origem_controle ?? "carteira");
   if (filters.tipo_acordo) query = applyAgreementKind(query, filters.tipo_acordo);
   query = (await aplicarFiltroOperador(query, await createClient(), scope, filters.operador_id)).query;
   query = aplicarFiltroCriacao(query, filters.criacao_de, filters.criacao_ate);
@@ -969,6 +1039,7 @@ async function applyAcordosDirectFilters(query: any, filters: ListAcordosComSaud
   if (unidadeId) query = query.in("id", filters.acordo_ids_unidade ?? []);
   if (carteiraId) query = query.eq("carteira_id", carteiraId);
   if (status) query = query.eq("status", status);
+  if (dataDe || dataAte) query = query.neq("parcelas_periodo.status", PARCELA_ACORDO_STATUS.CANCELADA);
   if (dataDe) query = query.gte("parcelas_periodo.vencimento", dataDe);
   if (dataAte) query = query.lte("parcelas_periodo.vencimento", dataAte);
 
@@ -997,7 +1068,7 @@ export async function listAcordosComSaudePage(
   const ordenar = cleanPageFilter(filters.ordenar) || "data_desc";
 
   if (!canUsePagedAcordosQuery(filters)) {
-    const allRows = await listAcordosComSaude(scope, filters.tipo_acordo);
+    const allRows = await listAcordosComSaude(scope, filters.tipo_acordo, filters.origem_controle);
     const filteredRows = filterAcordosPageRows(allRows, filters);
     const sortedRows = sortAcordosPageRows(filteredRows, ordenar);
     return {
@@ -1334,6 +1405,7 @@ export async function getAgreementOperationalIntelligence(params: {
   let query = somenteAcordosCanonicos(supabase
     .from("acordos")
     .select("id,status,status_financeiro"))
+    .eq("origem_controle", "carteira")
     .eq("unidade_id", params.unidadeId);
 
   query = applyCarteiraScope(query, params.scope.carteiraIds);
@@ -1399,7 +1471,7 @@ async function getParcelasDosAcordos(acordoIds: string[]) {
   return await carregarParcelasRelatorio(ids, (batch, from, to) =>
     supabase
       .from("parcelas_acordo")
-      .select("id,acordo_id,numero,tipo_parcela,valor,status,data_pagamento,vencimento,valor_repasse_informado,created_at")
+      .select("id,acordo_id,numero,tipo_parcela,valor,valor_pago,status,data_pagamento,vencimento,valor_repasse_informado,created_at")
       .in("acordo_id", batch)
       .order("id", { ascending: true })
       .range(from, to),
@@ -1413,7 +1485,7 @@ function calculateAgreementSummary(acordos: any[], parcelas: any[]): AgreementPe
   );
   const valorRecuperado = parcelas
     .filter((parcela) => isStatusPago(parcela.status) || Boolean(parcela.data_pagamento))
-    .reduce((sum, parcela) => sum + Number(parcela.valor ?? 0), 0);
+    .reduce((sum, parcela) => sum + Number(parcela.valor_pago ?? parcela.valor ?? 0), 0);
   const acordosRompidos = acordos.filter(isStatusRompido).length;
   const acordosEfetivados = acordos.filter(isStatusEfetivado).length;
   const acordosAtivos = acordos.filter(
@@ -1617,7 +1689,7 @@ export async function listAgreementManualActivationInbox(
       destinatario_email,
       visualizado_em,
       created_at,
-      acordos:acordo_id (
+      acordos:acordo_id!inner (
         id,
         carteira_id,
         fluxo_status,
@@ -1629,6 +1701,7 @@ export async function listAgreementManualActivationInbox(
       )
     `,
     )
+    .eq("acordos.origem_controle", "carteira")
     .eq("tipo_aceite", tipoAceite)
     .in("status", ["pendente", "visualizado"])
     .order("created_at", { ascending: true })
