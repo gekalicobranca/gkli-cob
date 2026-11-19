@@ -21,6 +21,8 @@ A conferência de ausências em `features/importacoes/cobrancas-conciliacao.ts` 
 
 ## Integridade e retomada
 
+Na substituição inicial e na limpeza final, uma mensagem já cancelada que referencia uma cópia arquivada por duplicidade mantém seu histórico integral. A verificação usa a mesma regra do bloqueio de duplicidade e considera a cobrança direta, os IDs no conteúdo estruturado da mensagem e os itens do lote. Quando a mensagem tem uma FK direta para uma cobrança elegível, a limpeza preserva também essa cobrança para evitar a exclusão em cascata. Uma referência apenas no conteúdo histórico permite remover a cobrança elegível. A proteção de mensagens ativas continua valendo.
+
 As RPCs são `SECURITY INVOKER`, com execução restrita a `service_role`. A ação verifica papel e carteira antes de usar o cliente administrativo. O banco bloqueia a importação, os condomínios e as cobranças enquanto verifica vínculos e remove os elegíveis. A sobrecarga com `p_unidades` persiste os IDs resolvidos pelo servidor nos itens, evitando apagar uma cobrança presente por causa de um ID obsoleto na prévia.
 
 A transação cancela mensagens pendentes e continuidades dos Flows, atualiza seus vínculos e contadores e resolve pendências de ausência, sem presumir pagamento. Mensagens enviadas, interações e histórico de saneamento são preservados por desvinculação. A auditoria inclui snapshot das cobranças e dependências antes da exclusão. Erro de FK ou auditoria reverte toda a transação.
@@ -43,3 +45,13 @@ Comando de regressão: `node node_modules/tsx/dist/cli.mjs --test scripts/valida
 Migration aplicada em 19/11/2026 no projeto Supabase `GKLI - COB` (`vjcmotflmcczoepflhwc`), registrada como `20261119205808_importacao_ausentes_preservar_acordos_judicializadas`. O arquivo foi alinhado à versão gerada pelo Supabase. Conferidos pré-requisitos, corpo exato das duas assinaturas da RPC, `security invoker`, `search_path` vazio e execução restrita a `service_role`. Testes remotos com identificador nulo foram recusados sem acessar dados; advisor manteve as contagens anteriores e não apontou ocorrência para a RPC. A remoção efetiva e o rollback foram testados somente no banco sintético.
 
 Após a aplicação, aguardar quality e Vercel Preview do commit final antes de merge do PR #42 e conferir Production READY ligado ao commit de main e ao domínio. Importações anteriores não são modificadas automaticamente. Os fluxos próprios de conversão PDF e Maestro mantêm suas rotinas existentes. Não executar reimportação, remoção, saneamento ou envio como parte da publicação.
+
+## Publicação do ajuste de mensagens canceladas — 19/11/2026
+
+Migration `20261119232502_importacao_preservar_mensagem_cancelada_com_copia.sql`, preparada no commit `c947ba7e`, aplicada no Supabase **GKLI - COB** (`vjcmotflmcczoepflhwc`) pelo CLI **2.117.0**, com dry-run prévio e alvo explícito: `db push --project-ref vjcmotflmcczoepflhwc --skip-vault --yes`. Somente essa versão foi listada/aplicada, sem seeds ou roles. O histórico passou de 318 para 319 versões.
+
+Conferência remota somente leitura: as duas funções `importacao_substituir_cobrancas_anteriores(uuid)` e `importacao_remover_cobrancas_ausentes(uuid)` têm os dois filtros novos, mantêm `security invoker`, `search_path` vazio e execução restrita a `service_role`; o timeout existente da substituição foi preservado. As contagens do advisor de segurança permaneceram iguais antes/depois, sem novo apontamento para essas funções.
+
+As três suítes isoladas `validate-importacao-ausentes-regra.ts`, `validate-importacao-substituicao-db.ts` e `validate-importacao-lotes.ts` passaram, incluindo o caso de mensagem cancelada com referências mistas, proteção da FK direta, bloqueio da mensagem ativa e rollback. Nenhuma rotina de limpeza foi executada contra registros reais para testar a publicação. Não houve reimportação, retomada de lote ou envio de mensagens.
+
+Publicação da aplicação vinculada ao PR #45, usando a branch já existente `codex/limpeza-mensagem-cancelada`. Conferir quality e Vercel Preview da revisão final antes do merge; SHA de main, Production READY e alias serão registrados no próprio PR. Este ajuste passa a valer nas próximas operações de limpeza; não reabre importações nem altera mensagens históricas automaticamente.
