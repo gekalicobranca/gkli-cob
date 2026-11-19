@@ -1,5 +1,9 @@
 type FonteRecibo = { recibo?: string | null; referencia?: string | null; observacoes?: string | null }
 
+export function marcadoresAdministrativosCompativeis(a?: string | null, b?: string | null) {
+  return [a, b].every(m => m == null || ['A', 'AE', 'J'].includes(m))
+}
+
 /** Conserva o identificador completo; separa apenas marcadores conhecidos da origem. */
 export function identidadeRecibo(fonte: FonteRecibo): { recibo: string; marcador: string | null } | null {
   for (const campo of [fonte.recibo, fonte.referencia]) {
@@ -17,7 +21,9 @@ export function observacoesComRecibo(fonte: FonteRecibo): string | null {
   const observacao = fonte.observacoes?.trim() || null
   if (!identidade) return observacao
   const naObservacao = identidadeRecibo({ observacoes: observacao })
-  if (naObservacao && (naObservacao.recibo !== identidade.recibo || naObservacao.marcador !== identidade.marcador)) {
+  const marcadoresCompativeis = naObservacao && (naObservacao.marcador === identidade.marcador
+    || marcadoresAdministrativosCompativeis(naObservacao.marcador, identidade.marcador))
+  if (naObservacao && (naObservacao.recibo !== identidade.recibo || !marcadoresCompativeis)) {
     throw new Error('Recibo explícito diverge do recibo nas observações. Revise a origem.')
   }
   if (naObservacao) return observacao

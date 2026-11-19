@@ -32,9 +32,11 @@ import {
 } from "./cobrancas-conciliacao";
 import { formatOrigemImportacao } from "./origem-importacao";
 import { observacoesComRecibo } from "./identidade-recibo";
+import { atualizarReciboComMarcador } from './atualizar-recibo-marcador';
 import { carregarItensImportacao } from "./carregar-itens";
 import { explicarCobrancasPreservadas } from "./mensagens-preservacao";
 import { substituirCobrancasAnterioresDaImportacao } from "./substituir-anteriores";
+import { removerCobrancasAusentesDaImportacao } from './remover-ausentes';
 import { bloquearAutomacaoAcordoHflex, isImportacaoAcordoHflex, statusOperacionalParaCobrancaImportada } from "./status-cobranca-importada";
 import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "./regra-judicial-importacao";
 import { associarCobrancaConciliada } from "./reaproveitar-conversao";
@@ -2641,6 +2643,9 @@ async function importarCobrancas(
         vencimento: payload.vencimento || null,
         valor_original: payload.valor_original,
         valor_atualizado: payload.valor_atualizado,
+        juros: payload.juros,
+        multa: payload.multa,
+        correcao: payload.correcao,
         recibo: payload.recibo || null,
         referencia: payload.referencia || null,
         observacoes: payload.observacoes || null,
@@ -2653,6 +2658,12 @@ async function importarCobrancas(
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao);
       const cobrancaExistenteId = conciliacao.cobrancaId;
       if (conciliacao.status === "ja_existente") {
+        if (conciliacao.atualizarReciboComMarcador) {
+          const atualizada = await atualizarReciboComMarcador(supabase, conciliacao.cobrancaId, importadaConciliacao, { origem_importacao: origemImportacao });
+          if (atualizada) resultado.atualizados += 1;
+          else resultado.ignorados += 1;
+          continue;
+        }
         await bloquearAutomacaoAcordoHflex(supabase, conciliacao.cobrancaId, payload);
         await associarCobrancaConciliada(supabase, conciliacao.cobrancaId, payload as any);
         const reclassificada = await reclassificarCobrancaJudicialImportada(supabase, cobrancaExistenteId, statusOperacional, payload, contextoJudicial);
@@ -3383,18 +3394,26 @@ async function executarLoteImportacao(formData: FormData) {
     const unidade = unidades.get(unidadeKey({ condominio_id: payload.condominio_id, identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco }));
     payload.unidade_id = unidade?.id ?? null;
   }
+  // A RPC revalida arquivo completo, progresso, falhas, carteira e proteções.
+  // Só depois da remoção são gerados alertas/pendências das cobranças preservadas.
+  const limpezaAusentes = await removerCobrancasAusentesDaImportacao(createAdminClient(), id,
+    payloads.map(p => ({ linha: Number(p.__linha), unidade_id: p.unidade_id ?? null })));
   const ausencias = await importarCobrancas(supabase, payloads, origem, resumo.somente_ano_corrente !== false, { somenteAusencias: true });
+  if (limpezaAusentes.motivo) ausencias.erros.push(`ALERTA: ${limpezaAusentes.motivo}`);
   const erros = await explicarCobrancasPreservadas(supabase, [...execucao.resultado.erros, ...ausencias.erros], execucao.limpeza === "concluida");
   const resultado = {
     ...execucao.resultado, importados: count, ausentes: ausencias.ausentes, erros,
-    sucesso: count > 0 || erros.length === 0, tipo: "cobrancas",
-    mensagem: mensagemPorTipo("cobrancas", count, execucao.resultado.criados), destino: destinoPorTipo("cobrancas"),
+    sucesso: count > 0 || execucao.resultado.atualizados > 0 || limpezaAusentes.removidas > 0 || erros.length === 0, tipo: "cobrancas",
+    mensagem: mensagemPorTipo("cobrancas", count, execucao.resultado.criados)
+      + (limpezaAusentes.removidas ? ` ${limpezaAusentes.removidas} cobrança(s) ausente(s) sem acordo e sem situação judicial removida(s).` : ''), destino: destinoPorTipo("cobrancas"),
     cobrancas_anteriores_removidas: execucao.removidas,
+    cobrancas_ausentes_removidas: limpezaAusentes.removidas,
   };
   // A reserva continua ativa até salvar o resultado final.
   await finalizarImportacao({ supabase, importacaoId: id, tipo: "cobrancas", resultado,
     redirecionar: false, reservaToken: token ?? undefined,
-    resumoAnterior: { ...resumo, execucao_lotes: { ...execucao, token: null, lease_ate: null }, limpar_cobrancas_anteriores: execucao.limpeza === "concluida" },
+    resumoAnterior: { ...resumo, ...(limpezaAusentes.motivo ? {} : { limpeza_ausentes: limpezaAusentes }),
+      execucao_lotes: { ...execucao, token: null, lease_ate: null }, limpar_cobrancas_anteriores: execucao.limpeza === "concluida" },
   });
   return { concluida: true, processadas: payloads.length, total: payloads.length, gravadas: count };
 }
