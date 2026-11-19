@@ -1,5 +1,5 @@
 import { registrarEventoOperacional } from '../operacional/service'
-import { identidadeRecibo, competenciaNormalizada, marcadorConciliavelRecibo } from './identidade-recibo'
+import { identidadeRecibo, marcadoresAdministrativosCompativeis } from './identidade-recibo'
 import type { CobrancaImportadaConciliacao } from './cobrancas-conciliacao'
 
 /** Atualiza a posição da origem, sem alterar parcelas, composição contratada ou estados. */
@@ -14,21 +14,21 @@ export async function atualizarReciboComMarcador(
   if (error) throw new Error('Erro ao conferir recibo com marcador: ' + error.message)
   const recebida = identidadeRecibo(importada)
   const existente = row && identidadeRecibo(row)
-  const marcador = recebida && existente && marcadorConciliavelRecibo(recebida.marcador, existente.marcador)
+  const marcador = existente?.marcador ?? recebida?.marcador
   const valor = Number(importada.valor_atualizado ?? importada.valor_original)
   const original = Number(importada.valor_original ?? importada.valor_atualizado)
   if (!row || !recebida || !existente || recebida.recibo !== existente.recibo
-    || !marcador
+    || !marcadoresAdministrativosCompativeis(recebida.marcador, existente.marcador)
     || row.carteira_id !== importada.carteira_id || row.condominio_id !== importada.condominio_id
     || row.unidade_id !== importada.unidade_id || row.vencimento !== importada.vencimento
-    || (row.competencia && importada.competencia && competenciaNormalizada(row.competencia) !== competenciaNormalizada(importada.competencia))
+    || !importada.vencimento || importada.valor_original == null || row.valor_original == null || importada.valor_atualizado == null
     || !Number.isFinite(valor) || !Number.isFinite(original) || valor < 0 || original < 0
     || Math.round(original * 100) !== Math.round(Number(row.valor_original ?? row.valor_atualizado) * 100)
     || [row.status_financeiro, row.status_operacional].some(s => ['quitado', 'pago', 'cancelado', 'baixado'].includes(String(s).toLowerCase()))
     || !row.updated_at) throw new Error('Recibo com marcador alterado ou sem correspondência segura; revise a importação.')
 
   // Conserva as observações históricas; normaliza somente o identificador conhecido.
-  const observacoes = row.observacoes.replace(/\brecibo(?:\s*:\s*|\s+)(?:(?:AE|J)\s+)?[a-z0-9][a-z0-9._/-]*(?=\s|\||$)/i, `Recibo ${marcador} ${existente.recibo}`)
+  const observacoes = !existente.marcador && marcador ? row.observacoes.replace(/\brecibo(?:\s*:\s*|\s+)(?:(?:AE|J|A)\s+)?[a-z0-9][a-z0-9._/-]*(?=\s|\||$)/i, `Recibo ${marcador} ${existente.recibo}`) : row.observacoes
   const depois = { valor_atualizado: valor, competencia: row.competencia || importada.competencia || null, observacoes }
   const antes = { valor_atualizado: row.valor_atualizado, competencia: row.competencia, observacoes: row.observacoes }
   for (const campo of ['juros', 'multa', 'correcao'] as const) {
@@ -46,7 +46,7 @@ export async function atualizarReciboComMarcador(
   if (updateError || changed?.length !== 1) throw new Error('Cobrança alterada durante atualização do recibo com marcador; reavalie a importação.')
   await registrarEventoOperacional(db as any, {
     carteiraId: row.carteira_id, entidadeTipo: 'cobranca', entidadeId: id,
-    eventoCodigo: `cobranca.recibo_${marcador.toLowerCase()}_importacao`, titulo: `Atualização de recibo ${marcador} pela importação`,
+    eventoCodigo: `cobranca.recibo_${(marcador ?? 'sem_marcador').toLowerCase()}_importacao`, titulo: `Atualização de recibo pela importação`,
     descricao: 'Posição da origem atualizada, preservando estados, histórico e vínculos com acordos.',
     antes, depois, payload: origem, origem: 'importacao', auditavel: true, required: true,
   })

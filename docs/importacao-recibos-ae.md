@@ -19,3 +19,7 @@ Preparação de publicação em 19/11/2026: alterações preservadas em commit e
 Publicação pelo GitHub: aguardar `quality` e Vercel Preview aprovados antes do merge; confirmar Production READY para o commit resultante. Se a pausa da equipe Vercel por limite Hobby persistir, manter o PR aberto sem contornar o check. Nenhuma alteração SQL remota é necessária.
 
 Pendente: concluir a publicação e reprocessar a importação desejada em operação separada autorizada; resultados históricos de importação não são reescritos automaticamente. Publicar código não executa importações, não altera cobranças existentes e não envia mensagens.
+
+## Atualização do saldo em 19/11/2026
+
+A, AE, J e ausência de marcador são compatíveis. Com o mesmo recibo, principal e vencimento no mesmo escopo, a mudança de saldo atualiza a cobrança existente. A competência cadastrada, os estados e os acordos são preservados. Essa atualização não conta como divergência para a limpeza do lote.

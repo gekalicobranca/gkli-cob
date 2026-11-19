@@ -66,7 +66,7 @@ test('equivalência funciona nos dois sentidos e na repetição com AE', async (
 })
 
 test('mantém bloqueios de situação, identidade e escopo; não escolhe duplicata', async () => {
-  for (const changes of [{ valor_original: 1 }, { vencimento: '2026-07-11' }, { competencia: '06/2026' },
+  for (const changes of [{ valor_original: 1 }, { vencimento: '2026-07-11' },
     { observacoes: 'Recibo AJ 16093767' }, { carteira_id: 'outra' },
     { status_financeiro: 'quitado' }, { status_operacional: 'cancelado' }]) {
     const db = banco([{ ...row, ...changes }])
@@ -96,10 +96,9 @@ test('preenche competência ausente e rejeita saldo ou encargos inválidos', asy
 })
 
 test('AE, J e ausência são metadados da ADM: todas as trocas preservam estados e acordo', async () => {
-  for (const cadastrado of [null, 'AE', 'J']) {
-    for (const recebido of [null, 'AE', 'J']) {
-      if (!cadastrado && !recebido) continue // comportamento anterior sem marcadores
-      for (const estado of ['judicializado', 'acordo_efetivado', 'em_cobranca_ativa']) {
+  for (const cadastrado of [null, 'A', 'AE', 'J']) {
+    for (const recebido of [null, 'A', 'AE', 'J']) {
+      for (const estado of ['judicializado', 'acordo_efetivado', 'suspenso', 'em_cobranca_ativa']) {
         const recibo = (m: string | null) => `Recibo ${m ? m + ' ' : ''}16093767`
         const db = banco([{ ...row, status: estado, status_operacional: estado,
           observacoes: `${recibo(cadastrado)} | Histórico judicial e do acordo` }])
@@ -124,7 +123,7 @@ test('AE, J e ausência são metadados da ADM: todas as trocas preservam estados
 
 test('J não libera principal, vencimento, escopo, duplicidade nem cobranças encerradas', async () => {
   const input = { ...entrada, competencia: '07/2026', observacoes: 'Recibo J 16093767' }
-  for (const changes of [{ valor_original: 1 }, { vencimento: '2026-07-11' }, { competencia: '06/2026' },
+  for (const changes of [{ valor_original: 1 }, { vencimento: '2026-07-11' },
     { carteira_id: 'outra' }, { status_financeiro: 'quitado' }, { status_operacional: 'cancelado' },
     { observacoes: 'Recibo AJ 16093767' }]) {
     const db = banco([{ ...row, ...changes }])
