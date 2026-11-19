@@ -1,13 +1,15 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
-import { cancelEasyAgreement } from "./actions";
+import { useRef, useState } from "react";
+import { cancelEasyAgreement,consultarCancelamentoEasy } from "./actions";
 import { CheckCircle2, FileUp, ArrowRight, CircleX } from "lucide-react";
 import styles from "@/components/easy/easy.module.css";
 
-export function EasyCancellation({ id }: { id: string }) {
-  const [state, action, pending] = useActionState(cancelEasyAgreement, { error: "", success: false });
+export function EasyCancellation({ id,operacaoId }: { id: string;operacaoId:string }) {
+  const [state,setState]=useState<{error:string;success:boolean;attachmentUrl?:string}>({error:'',success:false});
+  const [pending,setPending]=useState(false);
+  const [needsReview,setNeedsReview]=useState(false);
+  const mutating=useRef(false);
   const [review, setReview] = useState(false);
   const [reason, setReason] = useState("");
   const [fileName, setFileName] = useState("");
@@ -15,13 +17,28 @@ export function EasyCancellation({ id }: { id: string }) {
     <p className="flex items-center gap-2 font-semibold"><CheckCircle2 size={20} aria-hidden="true" />Acordo cancelado.</p>
     {state.attachmentUrl && <a href={state.attachmentUrl} target="_blank" rel="noopener noreferrer" className="underline">Ver débito atualizado</a>}
   </div>;
-  return <form action={action} className="space-y-4" onReset={event => event.preventDefault()} onSubmitCapture={event => {
+  async function consultar(){
+    if(mutating.current)return;mutating.current=true;setPending(true);
+    try{const result=await consultarCancelamentoEasy(id,operacaoId);if(result.error)throw Error(result.error);
+      if(result.confirmado)setState({error:'',success:true,attachmentUrl:result.attachmentUrl});
+      else{setNeedsReview(false);setState({error:'Nenhum cancelamento confirmado para esta operação. Você pode retomar o mesmo pedido.',success:false});}
+    }catch{setNeedsReview(true);setState({error:'Consulta indisponível. Não repita o cancelamento.',success:false});}
+    finally{mutating.current=false;setPending(false);}
+  }
+  return <form className="space-y-4" onReset={event => event.preventDefault()} onSubmit={async event => {
+    event.preventDefault();
     if (!review) {
-      event.preventDefault();
       if (event.currentTarget.reportValidity() && reason.trim()) setReview(true);
+      return;
     }
+    if(mutating.current||needsReview)return;
+    const form=new FormData(event.currentTarget);mutating.current=true;setPending(true);
+    try{const result=await cancelEasyAgreement(state,form);setState(result);if(!result.success)setNeedsReview(true);}
+    catch{setNeedsReview(true);setState({error:'Resposta interrompida. Consulte o resultado antes de continuar.',success:false});}
+    finally{mutating.current=false;setPending(false);}
   }}>
     <input type="hidden" name="acordo_id" value={id} />
+    <input type="hidden" name="operacao_id" value={operacaoId} />
     <input type="hidden" name="confirmacao" value="on" />
     <div hidden={review} className="space-y-4">
       <div className="flex items-center gap-3"><span className={styles.icon}><CircleX size={21} aria-hidden="true" /></span><div><h2>Cancelar este acordo</h2><p className="mt-1 text-sm text-slate-500">Registre o motivo e confira antes de confirmar.</p></div></div>
@@ -45,11 +62,12 @@ export function EasyCancellation({ id }: { id: string }) {
         <p className="mt-3 whitespace-pre-wrap break-words text-sm text-rose-900">{reason}</p></div>
       <p className="flex items-center gap-2 break-words text-xs text-slate-500"><FileUp size={15} aria-hidden="true" />{fileName || "Sem débito atualizado anexado."}</p>
       <div className="flex flex-wrap justify-between gap-3 border-t border-slate-100 pt-4">
-        <button type="button" disabled={pending} className="rounded-xl border border-slate-200 px-4 py-3 text-sm" onClick={() => setReview(false)}>Voltar</button>
-        <PendingSubmitButton className="h-11 rounded-xl px-6" variant="danger" pendingLabel="Cancelando…">Confirmar cancelamento</PendingSubmitButton>
+        <button type="button" disabled={pending||needsReview} className="rounded-xl border border-slate-200 px-4 py-3 text-sm" onClick={() => setReview(false)}>Voltar</button>
+        <button type="submit" disabled={pending||needsReview} className="h-11 rounded-xl bg-rose-800 px-6 text-white disabled:opacity-50">{pending?'Conferindo…':'Confirmar cancelamento'}</button>
       </div>
     </div>}
     {state.error && <p role="alert" className="text-sm text-rose-700">{state.error}</p>}
-    {!state.success && state.attachmentUrl && <a href={state.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline">Débito atualizado já anexado</a>}
+    {needsReview&&<button type="button" disabled={pending} onClick={consultar} className="text-sm underline">Consultar resultado do cancelamento</button>}
+    <p className="break-all text-xs text-slate-500">Operação {operacaoId}. O anexo só fica disponível depois de confirmar o cancelamento.</p>
   </form>;
 }

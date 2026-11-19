@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:easy-p0": "tsx --test scripts/validate-easy-p0-db.ts scripts/validate-easy-p0-boundaries.ts",
+    "test:easy-p1-cancelamento": "node --no-wasm-tier-up node_modules/tsx/dist/cli.mjs --test --test-concurrency=2 scripts/validate-easy-p1-cancelamento.ts scripts/validate-easy-p1-cancelamento-boundaries.ts",
+    "test:easy-flow-transacional": "node --no-wasm-tier-up node_modules/tsx/dist/cli.mjs --test scripts/validate-easy-flow-transaction.ts scripts/validate-easy-flow-boundaries.ts",
+    "test:easy-p0-publicacao": "node --no-wasm-tier-up node_modules/tsx/dist/cli.mjs --test --test-concurrency=2 scripts/validate-easy-p0-publicacao.ts scripts/validate-easy-p0-db.ts scripts/validate-easy-p0-boundaries.ts scripts/validate-easy-cap-transaction.ts scripts/validate-easy-cap-boundaries.ts scripts/validate-easy-flow-transaction.ts scripts/validate-easy-flow-boundaries.ts scripts/validate-easy-flow.ts scripts/validate-easy-captacao.ts scripts/validate-easy-planilha-manual.ts",
+    "test:easy-cap-transacional": "tsx --test scripts/validate-easy-cap-transaction.ts scripts/validate-easy-cap-boundaries.ts",
     "test:audit-1-3": "tsx --test scripts/validate-audit-items-1-3.ts",
     "test:auth": "node --test scripts/validate-auth-authorization.cjs",
     "test:whatsapp-consolidacao": "tsx --test scripts/validate-whatsapp-consolidacao.ts",
@@ -45,7 +50,9 @@
     "condominios:atualizar-dados-operacao": "node scripts/atualizar-condominios-dados-operacao.mjs",
     "captacao:worker": "tsx scripts/captacao-automatizada/worker.ts",
     "prebuild": "npm run backup:generate-schema",
-    "test:dependencias": "tsx scripts/validate-dependency-updates.ts"
+    "test:dependencias": "tsx scripts/validate-dependency-updates.ts",
+    "test:easy-p1-operacional": "node --no-wasm-tier-up node_modules/tsx/dist/cli.mjs --test --test-concurrency=2 scripts/validate-easy-p1-operacional.ts scripts/validate-easy-p1-operacional-boundaries.ts",
+    "test:easy-p1": "npm run test:easy-p1-cancelamento && npm run test:easy-p1-operacional"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

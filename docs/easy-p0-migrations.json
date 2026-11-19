@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "normalization": "UTF-8, CRLF normalized to LF",
+  "base": "c36d4e93",
+  "branch": "codex/easy-p0-publicacao",
+  "migrations": [
+    {
+      "path": "supabase/migrations/20261118205314_easy_p0_contencao.sql",
+      "sha256": "d4ebdd851163d0267fcd5ec5bf9a9e197407170db2aca110a5f51add573d94b1"
+    },
+    {
+      "path": "supabase/migrations/20261118211109_easy_cap_commit_transacional.sql",
+      "sha256": "587cffe2f8554b275cc37ffc8cd121004abb73133b7d272891fbf85f54fae803"
+    },
+    {
+      "path": "supabase/migrations/20261118220528_easy_flow_transacional.sql",
+      "sha256": "a659d304ebf257ce51df46561c545e695cd8db786dbec834351b9f4998c694d2"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import {impedimentoCancelamento} from "@/features/acordos/cancelamento-elegibilidade";
 import { MoneyForm } from '@/components/ui/money-form'
 import { AgreementInstallmentsTable } from "@/features/acordos/components/agreement-installments-table";
 import { AgreementFinancialDetail } from "@/features/acordos/components/agreement-financial-detail";
@@ -267,7 +268,7 @@ export default async function AcordoDetalhePage({ params }: Props) {
   const possuiFormalizacaoPendente = termos.some((termo: any) =>
     ["pendente", "visualizado"].includes(String(termo.status ?? "")),
   ) || ["aguardando_aprovacao_sindico", "aprovado_sindico_aguardando_aceite_devedor", "aguardando_aceite_devedor"].includes(String(acordo.fluxo_status ?? ""));
-  const podeCancelarFormalizacao = possuiFormalizacaoPendente && !possuiPagamentoRegistrado && !statusFechado;
+  const podeCancelarFormalizacao = possuiFormalizacaoPendente && !impedimentoCancelamento(acordo,parcelas);
   const podeRevisar = ["admin", "gestor"].includes(scope.perfil);
   const actionFieldClass = "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10";
   const actionTextareaClass = "min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#351b40] focus:ring-2 focus:ring-[#351b40]/10";
