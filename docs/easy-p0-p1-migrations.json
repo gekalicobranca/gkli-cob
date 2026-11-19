@@ -1,0 +1,35 @@
+{
+  "base": "d66689fe9dc874186f6cdf96d3706c6928d865bb",
+  "normalization": "UTF-8, CRLF normalized to LF",
+  "alreadyApplied": "20261119205808",
+  "migrations": [
+    {
+      "path": "supabase/migrations/20261118205314_easy_p0_contencao.sql",
+      "sha256": "d4ebdd851163d0267fcd5ec5bf9a9e197407170db2aca110a5f51add573d94b1"
+    },
+    {
+      "path": "supabase/migrations/20261118211109_easy_cap_commit_transacional.sql",
+      "sha256": "587cffe2f8554b275cc37ffc8cd121004abb73133b7d272891fbf85f54fae803"
+    },
+    {
+      "path": "supabase/migrations/20261118220528_easy_flow_transacional.sql",
+      "sha256": "a659d304ebf257ce51df46561c545e695cd8db786dbec834351b9f4998c694d2"
+    },
+    {
+      "path": "supabase/migrations/20261119204222_acordo_cancelamento_transacional.sql",
+      "sha256": "1b777de348b4079e877d2343f7a9d899f43a83d3332bbdac824e8f2bf277d521"
+    },
+    {
+      "path": "supabase/migrations/20261119205321_easy_maestro_consentimento.sql",
+      "sha256": "756dad595f707700e7b6e7788458d01a7ae71f4054f2e8625358b671c7d63d9f"
+    },
+    {
+      "path": "supabase/migrations/20261119205324_easy_recuperacao_administrativa.sql",
+      "sha256": "1e78a06bffc48bd1ea54a29f96d5b25abd9e60820333039cab6a2fac8537f25f"
+    },
+    {
+      "path": "supabase/migrations/20261119205728_easy_saude_workers.sql",
+      "sha256": "0f96045d4a5d12a2baec7810f9badd3c5846d282f5ffa189e50330df64451296"
+    }
+  ]
+}
