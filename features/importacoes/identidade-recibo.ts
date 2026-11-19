@@ -1,5 +1,13 @@
 type FonteRecibo = { recibo?: string | null; referencia?: string | null; observacoes?: string | null }
 
+/** AE e J são metadados da ADM, sem efeito nos estados do app.
+ * Conserva o marcador já cadastrado, quando houver, inclusive em AE/J. */
+export function marcadorConciliavelRecibo(a: string | null | undefined, b: string | null | undefined): 'AE' | 'J' | null {
+  const marcador = b ?? a
+  return (marcador === 'AE' || marcador === 'J')
+    && [a, b].every(m => m == null || m === 'AE' || m === 'J') ? marcador : null
+}
+
 /** Conserva o identificador completo; separa apenas marcadores conhecidos da origem. */
 export function identidadeRecibo(fonte: FonteRecibo): { recibo: string; marcador: string | null } | null {
   for (const campo of [fonte.recibo, fonte.referencia]) {
@@ -17,7 +25,9 @@ export function observacoesComRecibo(fonte: FonteRecibo): string | null {
   const observacao = fonte.observacoes?.trim() || null
   if (!identidade) return observacao
   const naObservacao = identidadeRecibo({ observacoes: observacao })
-  if (naObservacao && (naObservacao.recibo !== identidade.recibo || naObservacao.marcador !== identidade.marcador)) {
+  const marcadoresCompativeis = naObservacao && (naObservacao.marcador === identidade.marcador
+    || Boolean(marcadorConciliavelRecibo(naObservacao.marcador, identidade.marcador)))
+  if (naObservacao && (naObservacao.recibo !== identidade.recibo || !marcadoresCompativeis)) {
     throw new Error('Recibo explícito diverge do recibo nas observações. Revise a origem.')
   }
   if (naObservacao) return observacao

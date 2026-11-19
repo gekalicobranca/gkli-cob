@@ -19,6 +19,7 @@ import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
 import { bloquearAutomacaoAcordoHflex, isImportacaoAcordoHflex, statusOperacionalParaCobrancaImportada } from "@/features/importacoes/status-cobranca-importada"
 import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "@/features/importacoes/regra-judicial-importacao"
 import { associarCobrancaConciliada } from "@/features/importacoes/reaproveitar-conversao"
+import { atualizarReciboComMarcador } from "@/features/importacoes/atualizar-recibo-marcador"
 import { observacoesComComposicao, persistirComposicaoConciliada } from "@/features/importacoes/composicao-origem"
 import {
   avaliarBloqueioGarantidora,
@@ -254,6 +255,7 @@ export async function POST(request: NextRequest) {
     }
 
     let cobrancasCriadas = 0
+    let cobrancasAtualizadas = 0
     let cobrancasIgnoradas = 0
     let cobrancasDivergentes = 0
     let cobrancasAusentes = 0
@@ -449,6 +451,7 @@ export async function POST(request: NextRequest) {
         vencimento: vencimentoMaisAntigo,
         valor_original: valorPrincipal,
         valor_atualizado: valorTotal,
+        juros, multa, correcao,
         recibo,
         referencia: recibo ? `Recibo ${recibo}` : null,
         observacoes,
@@ -483,6 +486,12 @@ export async function POST(request: NextRequest) {
       }
 
       if (conciliacao.status === "ja_existente") {
+        if (conciliacao.atualizarReciboComMarcador) {
+          const atualizada = await atualizarReciboComMarcador(supabase, conciliacao.cobrancaId, importadaConciliacao, { conversao_relatorio_id: conversaoId })
+          if (atualizada) cobrancasAtualizadas += 1
+          else cobrancasIgnoradas += 1
+          continue
+        }
         if (conciliarMaestro) {
           cobrancasIgnoradas += 1
           continue
@@ -765,6 +774,7 @@ export async function POST(request: NextRequest) {
       ...(captacaoEasy && falhasImportacao ? { error: 'A captação teve falhas após a substituição. Consulte as inconsistências e o histórico antes de realizar uma nova captação.' } : {}),
       resumo: {
         cobrancasCriadas,
+        cobrancasAtualizadas,
         cobrancasIgnoradas,
         cobrancasDivergentes,
         cobrancasAusentes,
