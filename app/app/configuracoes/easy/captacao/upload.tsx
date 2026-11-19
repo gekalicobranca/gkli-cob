@@ -15,7 +15,9 @@ type ResultadoCap={ok:boolean;conversaoId?:string;jaConfirmada?:boolean;error?:s
 export function CaptacaoEasy({condominios,canWrite,manualCondominio,onWorking}:{condominios:{id:string;nome:string;cnpj:string}[];canWrite:boolean;manualCondominio?:{id:string;nome:string;cnpj:string};onWorking?:(busy:boolean)=>void}) {
   const [selected,setSelected]=useState(manualCondominio?.id??'');
   const [reading,setReading]=useState(false);
-  const [confirming,setConfirming]=useState(false),[incerto,setIncerto]=useState(false),[retryChecked,setRetryChecked]=useState(false);
+  const [atividade, setAtividade] = useState<'confirmacao' | 'consulta' | null>(null);
+  const confirming = atividade !== null;
+  const [incerto,setIncerto]=useState(false),[retryChecked,setRetryChecked]=useState(false);
   const [resultado,setResultado]=useState<ResultadoCap|null>(null),[rejeitada,setRejeitada]=useState(false);
   const mutation=useRef(false);
   const [resumo,setResumo]=useState<ResumoCaptacaoEasy|null>(null);
@@ -43,7 +45,7 @@ export function CaptacaoEasy({condominios,canWrite,manualCondominio,onWorking}:{
   }
   async function confirmar() {
     if(!resumo||resumo.protocolo!==2||!canWrite||mutation.current||rejeitada||(incerto&&!retryChecked))return;
-    mutation.current=true;setConfirming(true);setRetryChecked(false);setError('');onWorking?.(true);
+    mutation.current=true;setAtividade('confirmacao');setRetryChecked(false);setError('');onWorking?.(true);
     try {
       const response=await fetch('/api/conversao-relatorio/confirmar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         conversaoId:resumo.conversaoId,condominioId:resumo.condominioId,carteiraId:resumo.carteiraId,easy:true,confirmacao:true})});
@@ -54,18 +56,18 @@ export function CaptacaoEasy({condominios,canWrite,manualCondominio,onWorking}:{
       }
       setResultado(data);setIncerto(false);
     } catch {setIncerto(true);setError('A resposta foi interrompida ou está indisponível. Consulte o resultado desta operação antes de continuar.');}
-    finally {mutation.current=false;setConfirming(false);onWorking?.(false);}
+    finally {mutation.current=false;setAtividade(null);onWorking?.(false);}
   }
   async function recuperarResultado() {
-    if(!resumo||mutation.current)return;mutation.current=true;setConfirming(true);setRetryChecked(false);setError('');onWorking?.(true);
+    if(!resumo||mutation.current)return;mutation.current=true;setAtividade('consulta');setRetryChecked(false);setError('');onWorking?.(true);
     try {
       const response=await fetch(`/api/easy-cob/captacao/status?conversaoId=${encodeURIComponent(resumo.conversaoId)}`,{cache:'no-store'});
       const data=await response.json();
       if(!response.ok||!data.ok)throw Error('lookup_failed');
       if(data.execucao.resultado==='confirmado'&&data.execucao.resumo) {setResultado({ok:true,jaConfirmada:true,resumo:data.execucao.resumo});setIncerto(false);}
-      else {setRetryChecked(data.execucao.status==='preview');setError('Ainda não há resultado confirmado. Você pode consultar novamente ou retomar a mesma confirmação, sem enviar outro arquivo.');}
+      else {setRetryChecked(data.execucao.status==='preview');setError(data.execucao.status === 'preview' ? 'A prévia continua disponível. Você pode retomar esta confirmação com o mesmo arquivo.' : 'Ainda não há confirmação. Consulte novamente o resultado desta operação antes de continuar.');}
     } catch {setError('Não foi possível consultar. Não inicie outra captação para este condomínio.');}
-    finally {mutation.current=false;setConfirming(false);onWorking?.(false);}
+    finally {mutation.current=false;setAtividade(null);onWorking?.(false);}
   }
   return <div className="space-y-5"><DiagnosticoCaptacao conversaoId={resumo?.conversaoId}/>{!manualCondominio&&<EasySteps labels={['Condomínio','Arquivo','Conferência']} current={resumo?2:selected?1:0} />}
     {!manualCondominio&&<section className={styles.panel}><label htmlFor="capture-condominium" className="text-sm font-semibold">Qual condomínio?</label>
@@ -100,20 +102,21 @@ export function CaptacaoEasy({condominios,canWrite,manualCondominio,onWorking}:{
       {resultado.resumo?.inconsistencias.map((aviso,index)=><p key={index} className="text-sm text-amber-900">{aviso}</p>)}
       <button type="button" className={styles.primary} onClick={reset}>Nova captação</button></section>}
     {resumo&&!resultado?.ok&&<section className={`${styles.panel} space-y-5`}>
-      <header><h2>Confira a captação</h2><p className="mt-1 break-words text-xs text-slate-500">{resumo.condominio} · {resumo.arquivo}</p></header>
+      <header><h2><span role="status">Prévia pronta: confira a captação</span></h2><p className="mt-1 break-words text-xs text-slate-500">{resumo.condominio} · {resumo.arquivo}</p></header>
       <div className={styles.totalBand}><div><p>Inadimplência na prévia</p><strong>{formatCurrency(resumo.valor)}</strong></div><span className="text-sm">{resumo.unidades} unidade(s) · {resumo.cobrancas} cobrança(s)</span></div>
       {Boolean(resumo.acordos||resumo.juridicas)&&<p className="text-sm text-slate-700">{resumo.acordos??0} com marcador de acordo · {resumo.juridicas??0} com marcador jurídico</p>}
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950"><strong>{resumo.substituir} cobrança(s) anterior(es) no recorte de substituição. Esta prévia não altera a base.</strong>
         <p className="mt-1">Cobranças elegíveis com vencimento em {resumo.ano} serão atualizadas ou arquivadas. Pagamentos, acordos, bloqueios e histórico protegido serão preservados.</p>
       </div>
       <details className="text-sm"><summary className="cursor-pointer font-semibold text-slate-600">Ver amostra do arquivo · {resumo.origem}</summary>
-        <div className="mt-3 overflow-auto rounded-xl border border-slate-200"><table className="w-full text-left text-xs"><caption className="sr-only">Amostra de cobranças captadas</caption><thead className="bg-slate-50"><tr><th className="p-3">Unidade</th><th className="p-3">Vencimento</th><th className="p-3 text-right">Valor</th></tr></thead><tbody>{resumo.amostra.map((item,index)=><tr key={index} className="border-t border-slate-100"><td className="p-3">{item.bloco?`${item.bloco} · `:''}{item.unidade}</td><td className="whitespace-nowrap p-3">{formatarVencimentoAcordo(item.vencimento)}</td><td className="whitespace-nowrap p-3 text-right">{formatCurrency(item.valor)}</td></tr>)}</tbody></table></div>
+        <div tabIndex={0} role="region" aria-label="Amostra do arquivo" className="mt-3 overflow-auto rounded-xl border border-slate-200"><table className="w-full text-left text-xs"><caption className="sr-only">Amostra de cobranças captadas</caption><thead className="bg-slate-50"><tr><th scope="col" className="p-3">Unidade</th><th scope="col" className="p-3">Vencimento</th><th scope="col" className="p-3 text-right">Valor</th></tr></thead><tbody>{resumo.amostra.map((item,index)=><tr key={index} className="border-t border-slate-100"><td className="p-3">{item.bloco?`${item.bloco} · `:''}{item.unidade}</td><td className="whitespace-nowrap p-3">{formatarVencimentoAcordo(item.vencimento)}</td><td className="whitespace-nowrap p-3 text-right">{formatCurrency(item.valor)}</td></tr>)}</tbody></table></div>
       </details>
       {resumo.avisos.length>0&&<details className="rounded-xl bg-slate-50 p-3 text-sm"><summary className="cursor-pointer">Observações do arquivo ({resumo.avisos.length})</summary><ul className="mt-2 list-inside list-disc space-y-2 text-xs text-slate-600">{resumo.avisos.map((aviso,index)=><li key={index}>{aviso}</li>)}</ul></details>}
       <p className="break-all text-xs text-slate-500">Operação {resumo.conversaoId}. Ao confirmar, você declara que conferiu o condomínio e enviou o relatório completo.</p>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4"><button type="button" disabled={reading||confirming||incerto} onClick={reset} className="rounded-xl border border-slate-200 px-4 py-3 text-sm">Trocar arquivo</button>
+      <p role="status" className="text-sm text-cyan-800">{atividade === 'consulta' ? 'Consultando o resultado desta operação…' : atividade === 'confirmacao' ? 'Confirmando a captação…' : ''}</p>
+      <div className={styles.operationActions}><button type="button" disabled={reading||confirming||incerto} onClick={reset} className="rounded-xl border border-slate-200 px-4 py-3 text-sm">Trocar arquivo</button>
         {incerto&&<button type="button" disabled={confirming} onClick={recuperarResultado} className="rounded-xl border px-4 py-3 text-sm">Consultar resultado desta operação</button>}
-        <button type="button" className={styles.primary} disabled={!canWrite||confirming||resumo.protocolo!==2||rejeitada||(incerto&&!retryChecked)} onClick={confirmar}>{confirming?'Consultando…':incerto?'Retomar mesma confirmação':'Confirmar captação'}</button></div>
+        <button type="button" className={styles.primary} disabled={!canWrite||confirming||resumo.protocolo!==2||rejeitada||(incerto&&!retryChecked)} onClick={confirmar}>{atividade==='confirmacao'?'Confirmando…':incerto?'Retomar mesma confirmação':'Confirmar captação'}</button></div>
     </section>}
   </div>;
 }
@@ -141,6 +144,6 @@ function DiagnosticoCaptacao({conversaoId}:{conversaoId?:string}) {
     <input id="easy-cap-status" value={id} placeholder={conversaoId||'Identificador da operação'} className="w-full rounded-xl border p-3 text-sm"
       onChange={event=>{version.current++;setId(event.target.value);setMessage('');setBusy(false);}} />
     <button type="button" disabled={!selected||busy} onClick={consultar} className="rounded-xl border px-4 py-3 text-sm">{busy?'Consultando…':'Consultar resultado'}</button>
-    {message&&<p role="status" className="text-sm">{message}</p>}
+    {message&&<p role="status" className="break-words text-sm">{message}</p>}
   </section>;
 }

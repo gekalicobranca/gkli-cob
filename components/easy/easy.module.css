@@ -78,3 +78,9 @@
   .destinations[data-open=false] { display:none; }
   .destinations a { border:1px solid #dce5ee; }
 }
+
+.operationActions { display:flex; flex-wrap:wrap; align-items:center; gap:.75rem; padding-top:1rem; border-top:1px solid #e2e8f0; }
+@media(max-width:640px) {
+  .operationActions { display:grid; grid-template-columns:minmax(0,1fr); }
+  .operationActions > :is(button,a) { min-height:44px; text-align:center; }
+}

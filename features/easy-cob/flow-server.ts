@@ -102,5 +102,5 @@ export async function bloqueioEasyFlow(condominioId:string) {
 export async function viewEasyFlow(run:any):Promise<EasyFlowView>{
   return {...run.resumo,id:run.id,condominioId:run.condominio_id,status:run.status,parte:run.parte,partes:run.plano.length,flowIds:run.flow_ids,mensagens:run.mensagens,liberadas:run.liberadas,
     erro:run.erro?'A operação exige conferência dos flows e mensagens antes de continuar.':null,
-    criadaEm:run.created_at,atualizadaEm:run.updated_at,requerConferencia:['montando','liberando','atencao'].includes(run.status)};
+    legado:run.protocolo!==3,criadaEm:run.created_at,atualizadaEm:run.updated_at,requerConferencia:['montando','liberando','atencao'].includes(run.status)};
 }

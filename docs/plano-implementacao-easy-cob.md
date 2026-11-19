@@ -189,3 +189,11 @@ Começar por E0/PR-0: estabelecer checkout isolado, ler o importador e o motor d
 No mesmo worktree, a branch local `codex/easy-p2-experiencia` parte da candidata conjunta `4c971239`. O menu do Easy inclui Cobranças, identifica a seção atual e recolhe os destinos em telas menores que 768 px. O atalho para o conteúdo evita percorrer o menu pelo teclado. O indicador de etapas informa a posição e as etapas concluídas a leitores de tela. No Pag, uma falha de leitura permite atualizar a lista mantendo a administradora. Se o pedido perde a resposta, o painel consulta novamente o estado das parcelas. Uma atualização indisponível identifica a última leitura e bloqueia nova solicitação até a conferência.
 
 Validação de interação em Chrome local a 320 e 1200 px com componentes reais e serviços simulados: menu pelo teclado, seção atual, erro inicial de leitura, atualização sem novo pedido e resposta interrompida. O ensaio não utilizou autenticação ou serviços de produção. As outras frentes P2 continuam no plano.
+
+### P2 — Easy Cap, Easy Flow e Maestro
+
+Easy Cap diferencia confirmação em curso e consulta de recibo. O texto de retomada depende do estado retornado: somente uma prévia recuperável oferece retomar a mesma confirmação. A tabela de amostra permite foco pelo teclado e as ações da confirmação ficam empilhadas no celular.
+
+Easy Flow identifica a etapa de montagem parcial, apresenta o estado em português e oferece o monitor para execuções legadas. A interface usa o protocolo já consultado no servidor para ocultar ações incompatíveis. Easy Maestro distingue a conferência de efeitos do registro do pedido, informa quando a leitura está desatualizada e permite consultar novamente o andamento sem criar outro pedido. Em telas pequenas, seletor, ação e estados das coletas ficam em linhas separadas.
+
+Verificação local em Chrome, largura de 320 px, com componentes reais e serviços simulados: consulta anterior do Cap pelo teclado, Flow legado pronto com acesso ao monitor e sem botão de liberação, falha do Maestro seguida de releitura. As suítes de fronteira de Cap, Flow, contenção e Maestro cobriram perda de resposta, recuperação pelo mesmo ID e consentimento. Nenhuma migration ou publicação faz parte desta etapa.

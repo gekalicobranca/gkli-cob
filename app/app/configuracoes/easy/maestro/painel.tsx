@@ -27,6 +27,8 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [montarFlow, setMontarFlow] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  const [leituraFalhou, setLeituraFalhou] = useState(false)
+  const [releitura, setReleitura] = useState(0)
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
   const [pedido,setPedido] = useState<string | null>(null)
@@ -46,7 +48,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   let motivoBloqueio = ''
   if (!painel.ativo) motivoBloqueio = 'A captação está desligada no Maestro.'
   else if (!podeCaptar) motivoBloqueio = 'Seu perfil não tem permissão para iniciar captações.'
-  else if (enviando) motivoBloqueio = 'Registrando o pedido de captação.'
+  else if (enviando) motivoBloqueio = conferencia ? 'Registrando o pedido de captação.' : 'Conferindo os efeitos da seleção.'
   else if (captacaoEmAndamento) motivoBloqueio = 'Aguarde a captação em andamento nesta administradora.'
   else if (montagemEmAndamento) motivoBloqueio = `Aguarde a montagem do flow de ${montagemEmAndamento.condominio}.`
   const disponiveis = motivoBloqueio ? 0 : emPrazo.size
@@ -69,6 +71,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
       try {
         const resultado = await consultarEasyMaestro(administradora)
         if (!cancelado) {
+          setLeituraFalhou(false)
           setPainel(atual => ({
             ativo: resultado.ativo,
             saude:resultado.saude,saudeIndisponivel:resultado.saudeIndisponivel,
@@ -76,14 +79,14 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
           }))
         }
       } catch {
-        // Mantém a última leitura e tenta novamente.
+        if (!cancelado) setLeituraFalhou(true)
       } finally {
         if (!cancelado && atualizando) timer = setTimeout(atualizar, 8000)
       }
     }
     void atualizar()
     return () => { cancelado = true; clearTimeout(timer) }
-  }, [administradora, atualizando, enviando])
+  }, [administradora, atualizando, enviando, releitura])
 
   async function captar() {
     if (solicitando.current||!administradora || (!conferencia&&(disponiveis === 0 || !selecaoDisponivel.length))) return
@@ -137,9 +140,10 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
       <EasyWorkerHealth saude={painel.saude} erro={painel.saudeIndisponivel}/>
       <section className={styles.panel}>
         <label htmlFor="easy-maestro-administradora" className="text-sm font-semibold">Qual administradora?</label>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <select id="easy-maestro-administradora" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" value={administradora} disabled={enviando||Boolean(pedido)}
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <select id="easy-maestro-administradora" className="min-w-0 w-full sm:flex-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" value={administradora} disabled={enviando||Boolean(pedido)}
             onChange={event => {
+              setLeituraFalhou(false)
               setAdministradora(event.target.value)
               atualizarSelecao([])
             }}>
@@ -147,7 +151,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
             {[...administradoras].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
           </select>
           <button type="button" className={styles.primary} disabled={enviando||!podeCaptar||(!conferencia&&(disponiveis===0||!selecaoDisponivel.length))} onClick={captar}>
-            <Play size={16} aria-hidden="true" /> {enviando ? 'Conferindo pedido…' : conferencia ? pedido?'Retomar o mesmo pedido':'Confirmar pedido' : 'Conferir efeitos da captação'}
+            <Play size={16} aria-hidden="true" /> {enviando ? (conferencia ? 'Registrando pedido…' : 'Conferindo efeitos…') : conferencia ? pedido?'Retomar o mesmo pedido':'Confirmar pedido' : 'Conferir efeitos da captação'}
           </button>
         </div>
         <label className="mt-4 flex items-start gap-2 text-sm">
@@ -193,10 +197,16 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
       {administradora && (
         <section className={styles.panel}>
           <h2 className="text-lg font-semibold">Captações da administradora</h2>
+          {leituraFalhou && <div className="my-3 space-y-2">
+            <p role="alert" className="text-sm text-amber-900">A atualização falhou. A lista mostra a última leitura disponível.</p>
+            <button type="button" className="rounded-xl border px-4 py-3 text-sm" disabled={enviando}
+              onClick={() => setReleitura(n => n + 1)}>Atualizar andamento</button>
+          </div>}
           <p className="mt-1 text-sm text-slate-600">{primeiraReceita.size} condomínio(s) · {receitas.length} coleta(s){atualizando ? ' · Atualização automática' : ''}</p>
           {disponiveis > 0 && (
             <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold">
               <input type="checkbox" className="h-4 w-4 accent-cyan-700" checked={selecaoDisponivel.length === disponiveis}
+                disabled={Boolean(pedido) || enviando}
                 onChange={event => atualizarSelecao(event.target.checked ? [...emPrazo] : [])} />
               Selecionar todos os disponíveis
             </label>
@@ -206,13 +216,13 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
               const consolidado = receita.consolidado
               const dataExibida = consolidado && !emAndamento(receita) ? consolidado.captadoEm : receita.solicitadaEm
               return (
-                <li key={receita.id} className={`flex flex-wrap items-start justify-between gap-2 rounded-xl px-3 py-3 text-sm ${receita.ultimaCaptacaoNoMes ? 'bg-emerald-50' : ''}`}>
-                  <div>
+                <li key={receita.id} className={`flex flex-wrap items-start justify-between gap-2 break-words rounded-xl px-3 py-3 text-sm ${receita.ultimaCaptacaoNoMes ? 'bg-emerald-50' : ''}`}>
+                  <div className="min-w-0 max-w-full">
                     <div className="flex flex-wrap items-center gap-2">
                       {primeiraReceita.get(receita.condominioId) === receita.id ? (
                         <label className="inline-flex items-center gap-2 font-semibold">
                           <input type="checkbox" className="h-4 w-4 accent-cyan-700"
-                            disabled={disponiveis === 0 || !emPrazo.has(receita.condominioId)}
+                            disabled={Boolean(pedido) || disponiveis === 0 || !emPrazo.has(receita.condominioId)}
                             checked={selecaoDisponivel.includes(receita.condominioId)}
                             onChange={event => atualizarSelecao(event.target.checked
                               ? [...selecaoDisponivel, receita.condominioId]
@@ -245,7 +255,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
                       <Link className="mt-1 inline-block text-xs font-semibold text-cyan-800 underline" href={`/app/configuracoes/lab/captacao-automatizada/${consolidado.conversaoId}`}>Ver validação do consolidado</Link>
                     ) : receita.conversaoId && <Link className="mt-1 inline-block text-xs font-semibold text-cyan-800 underline" href={`/app/configuracoes/lab/captacao-automatizada/${receita.conversaoId}`}>Ver validação</Link>}
                   </div>
-                  <div className="text-right">
+                  <div className="w-full text-left sm:w-auto sm:text-right">
                     <p className="font-semibold text-slate-800">{consolidado && !emAndamento(receita)
                       ? 'Importado no consolidado'
                       : <>{receita.estado === 'disponivel' && !receita.liberada ? 'Aguardando régua' : estados[receita.estado]}{receita.estado === 'importado' && receita.cobrancas !== null ? ` · ${receita.cobrancas} cobrança(s)` : ''}</>}</p>
