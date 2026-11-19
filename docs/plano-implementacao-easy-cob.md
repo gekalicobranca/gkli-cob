@@ -197,3 +197,13 @@ Easy Cap diferencia confirmação em curso e consulta de recibo. O texto de reto
 Easy Flow identifica a etapa de montagem parcial, apresenta o estado em português e oferece o monitor para execuções legadas. A interface usa o protocolo já consultado no servidor para ocultar ações incompatíveis. Easy Maestro distingue a conferência de efeitos do registro do pedido, informa quando a leitura está desatualizada e permite consultar novamente o andamento sem criar outro pedido. Em telas pequenas, seletor, ação e estados das coletas ficam em linhas separadas.
 
 Verificação local em Chrome, largura de 320 px, com componentes reais e serviços simulados: consulta anterior do Cap pelo teclado, Flow legado pronto com acesso ao monitor e sem botão de liberação, falha do Maestro seguida de releitura. As suítes de fronteira de Cap, Flow, contenção e Maestro cobriram perda de resposta, recuperação pelo mesmo ID e consentimento. Nenhuma migration ou publicação faz parte desta etapa.
+
+### P2 — Acordos, Cobranças e Espelhar
+
+A seleção de unidade em Acordos e Cobranças explica quando falta escolher o condomínio e quando a carteira ou a operação não tem opções. A revisão do cancelamento empilha as ações no celular e anuncia separadamente o registro e a consulta do resultado. A tabela de parcelas pode receber foco para rolagem pelo teclado.
+
+Cobranças identifica as situações operacional e financeira e sinaliza valor ou vencimento ausente. A exclusão explica bloqueios conhecidos e mantém disponível a consulta da mesma unidade quando a resposta é inconclusiva. Uma falha de atualização do cache após a confirmação da RPC preserva o resultado confirmado.
+
+Espelhar mantém a confirmação do pedido se a leitura seguinte falhar. O painel identifica a lista desatualizada, permite consultar novamente e habilita novos pedidos após uma leitura bem-sucedida. A seleção e as ações principais ficam em linhas separadas no celular.
+
+Verificação em Chrome local a 320 px com componentes reais, dados sintéticos e ações simuladas. O ensaio cobriu consulta de cancelamento pelo teclado, resposta interrompida na exclusão e falha de leitura após o aceite da conferência, com contagem de envios. Os testes de fronteira e de arquivamento usam dependências isoladas e PGlite.

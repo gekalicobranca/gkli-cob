@@ -43,7 +43,7 @@ export function EasyCancellation({ id,operacaoId }: { id: string;operacaoId:stri
     <div hidden={review} className="space-y-4">
       <div className="flex items-center gap-3"><span className={styles.icon}><CircleX size={21} aria-hidden="true" /></span><div><h2>Cancelar este acordo</h2><p className="mt-1 text-sm text-slate-500">Registre o motivo e confira antes de confirmar.</p></div></div>
       <label className="block text-sm font-semibold">Motivo do cancelamento
-        <textarea name="motivo" required value={reason} onChange={event => setReason(event.target.value)}
+        <textarea name="motivo" required maxLength={2000} value={reason} onChange={event => setReason(event.target.value)}
           className="mt-2 min-h-24 w-full rounded-lg border border-slate-300 p-3" />
       </label>
       <label className={`${styles.upload} text-sm font-semibold`}><span className="mb-2 flex items-center gap-2"><FileUp size={18} aria-hidden="true" />Débito atualizado da unidade (opcional)</span>
@@ -55,19 +55,20 @@ export function EasyCancellation({ id,operacaoId }: { id: string;operacaoId:stri
           }} />
         <span className="mt-1 block font-normal text-slate-500">PDF de até 2 MB.</span>
       </label>
-      <div className="flex justify-end border-t border-slate-100 pt-4"><button type="submit" disabled={!reason.trim()} className={styles.primary}>Revisar cancelamento<ArrowRight size={16} aria-hidden="true" /></button></div>
+      <div className={styles.operationActions}><button type="submit" disabled={!reason.trim()} className={styles.primary}>Revisar cancelamento<ArrowRight size={16} aria-hidden="true" /></button></div>
     </div>
     {review && <div className="space-y-4">
       <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5"><h2 className="font-semibold text-rose-950">Confirma o cancelamento deste acordo?</h2>
         <p className="mt-3 whitespace-pre-wrap break-words text-sm text-rose-900">{reason}</p></div>
       <p className="flex items-center gap-2 break-words text-xs text-slate-500"><FileUp size={15} aria-hidden="true" />{fileName || "Sem débito atualizado anexado."}</p>
-      <div className="flex flex-wrap justify-between gap-3 border-t border-slate-100 pt-4">
+      <div className={styles.operationActions}>
         <button type="button" disabled={pending||needsReview} className="rounded-xl border border-slate-200 px-4 py-3 text-sm" onClick={() => setReview(false)}>Voltar</button>
-        <button type="submit" disabled={pending||needsReview} className="h-11 rounded-xl bg-rose-800 px-6 text-white disabled:opacity-50">{pending?'Conferindo…':'Confirmar cancelamento'}</button>
+        <button type="submit" disabled={pending||needsReview} className="h-11 rounded-xl bg-rose-800 px-6 text-white disabled:opacity-50">{pending && !needsReview?'Cancelando…':'Confirmar cancelamento'}</button>
       </div>
     </div>}
-    {state.error && <p role="alert" className="text-sm text-rose-700">{state.error}</p>}
-    {needsReview&&<button type="button" disabled={pending} onClick={consultar} className="text-sm underline">Consultar resultado do cancelamento</button>}
+    {pending && <p role="status">{needsReview ? 'Consultando o resultado do cancelamento…' : 'Registrando o cancelamento…'}</p>}
+    {!pending && state.error && <p role="alert" className="text-sm text-rose-700">{state.error}</p>}
+    {needsReview&&<button type="button" disabled={pending} onClick={consultar} className="min-h-11 text-sm underline">Consultar resultado do cancelamento</button>}
     <p className="break-all text-xs text-slate-500">Operação {operacaoId}. O anexo só fica disponível depois de confirmar o cancelamento.</p>
   </form>;
 }

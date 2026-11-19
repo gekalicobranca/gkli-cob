@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Check, ScanLine } from 'lucide-react'
 import { EasyEmpty } from '@/components/easy/easy-ui'
@@ -27,6 +27,9 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
   const [administradora, setAdministradora] = useState('')
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [enviando, setEnviando] = useState<AcaoEspelhamento | null>(null)
+  const [leituraFalhou, setLeituraFalhou] = useState(false)
+  const [consultando, setConsultando] = useState(false)
+  const ultimaLeitura = useRef(0)
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
   const [entregando, setEntregando] = useState<string | null>(null)
@@ -40,29 +43,37 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
   const selecao = disponiveis.filter(c => selecionados.includes(c.id))
   const selecaoIds = new Set(selecao.map(c => c.id))
   const totalEmRevisao = selecao.filter(c => !permiteAplicar(c)).length
-  const podeSolicitar = podeExecutar && Boolean(administradora) && selecao.length > 0 && !enviando
+  const podeSolicitar = podeExecutar && Boolean(administradora) && selecao.length > 0 && !enviando && !leituraFalhou
   const atualizando = condominios.some(emAndamento)
   const mesAtual = dataCivilSaoPaulo().slice(0, 7)
+
+  const atualizarPainel = useCallback(async () => {
+    const leitura = ++ultimaLeitura.current
+    setConsultando(true)
+    try {
+      const painel = await consultarEspelhamentos()
+      if (leitura === ultimaLeitura.current) {
+        setCondominios(painel)
+        setLeituraFalhou(false)
+      }
+    } catch {
+      if (leitura === ultimaLeitura.current) setLeituraFalhou(true)
+    } finally {
+      if (leitura === ultimaLeitura.current) setConsultando(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (!atualizando) return
     let ativo = true
     let timer: ReturnType<typeof setTimeout>
     async function atualizar() {
-      try {
-        if (!document.hidden) {
-          const painel = await consultarEspelhamentos()
-          if (ativo) setCondominios(painel)
-        }
-      } catch {
-        // Mantém o último resultado disponível enquanto o painel tenta atualizar.
-      } finally {
-        if (ativo) timer = setTimeout(atualizar, 8000)
-      }
+      if (!document.hidden) await atualizarPainel()
+      if (ativo) timer = setTimeout(atualizar, 8000)
     }
     timer = setTimeout(atualizar, 8000)
     return () => { ativo = false; clearTimeout(timer) }
-  }, [atualizando])
+  }, [atualizando, atualizarPainel])
 
   function selecionar(ids: string[]) {
     lotes.current = {}
@@ -84,13 +95,14 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
         setErro(resposta.error)
         return
       }
-      setCondominios(await consultarEspelhamentos())
       selecionar([])
       setMensagem(resposta.quantidade
         ? aplicar ? 'Espelhamento solicitado. Acompanhe o andamento na lista.' : 'Conferência solicitada. Acompanhe o andamento na lista.'
         : 'As solicitações já foram registradas.')
+      await atualizarPainel()
     } catch {
-      setErro('Não foi possível confirmar a solicitação. Tente novamente para atualizar o mesmo pedido.')
+      setErro('Não foi possível confirmar a solicitação. Confira o andamento na lista antes de retomar o pedido.')
+      await atualizarPainel()
     } finally {
       setEnviando(null)
     }
@@ -135,8 +147,8 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
       <AcordosHomologados condominios={administradora ? condominiosDaAdministradora : condominios} />
       <section className={styles.panel}>
         <label htmlFor="espelhar-administradora" className="text-sm font-semibold">Qual administradora?</label>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <select id="espelhar-administradora" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <select id="espelhar-administradora" className="w-full min-w-0 rounded-xl sm:w-auto sm:flex-1 border border-slate-200 bg-slate-50 p-3 text-sm"
             value={administradora} disabled={Boolean(enviando)} onChange={event => { setAdministradora(event.target.value); selecionar([]) }}>
             <option value="">Selecione a administradora</option>
             {administradoras.map(nome => <option key={nome} value={nome}>{nome}</option>)}
@@ -150,11 +162,17 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
             <ScanLine size={16} aria-hidden="true" /> {enviando === 'espelhar' ? 'Registrando espelhamento…' : 'Espelhar agora'}
           </button>
         </div>
-        {administradora && <p className="mt-3 text-sm text-slate-600">{selecao.length} de {disponiveis.length} disponíveis selecionados.</p>}
+        {administradora && <p role="status" className="mt-3 text-sm text-slate-600">{selecao.length} de {disponiveis.length} disponíveis selecionados.</p>}
         {totalEmRevisao > 0 && <p id="espelhar-liberacao" className="mt-2 text-sm text-amber-800">
           {totalEmRevisao === 1 ? 'Um condomínio selecionado está em revisão.' : `${totalEmRevisao} condomínios selecionados estão em revisão.`}
           {' '}Só conferir está disponível. Para usar Espelhar agora, a gestão precisa liberar esses condomínios no cadastro.
         </p>}
+        {leituraFalhou && <div className="mt-3">
+          <p role="alert">Não foi possível atualizar o andamento. A lista mostra a última consulta disponível.</p>
+          <button type="button" disabled={consultando} onClick={atualizarPainel} className="min-h-11 underline">
+            {consultando ? 'Consultando andamento…' : 'Atualizar andamento'}
+          </button>
+        </div>}
         {mensagem && <p role="status" className="mt-3 text-sm text-cyan-900">{mensagem}</p>}
         {erro && <p role="alert" className="mt-3 text-sm text-rose-800">{erro}</p>}
       </section>
@@ -220,7 +238,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
                         {resumo.cotas} cotas em atraso · {resumo.acordos == null ? 'acordos sem demonstrativo' : `${resumo.acordos} acordos consultados`} · {resumo.parcelasPagas} parcelas confirmadas · {resumo.pendencias} pendências
                       </summary>
                       {detalhe === 'carregando' && <p role="status" className="mt-2">Carregando resultado…</p>}
-                      {detalhe === 'erro' && <button type="button" className="mt-2 text-cyan-800 underline" onClick={() => carregarDetalhe(execucao.id)}>Tentar carregar o resultado novamente</button>}
+                      {detalhe === 'erro' && <><p role="alert">Não foi possível consultar os detalhes desta execução.</p><button type="button" className="mt-2 text-cyan-800 underline" onClick={() => carregarDetalhe(execucao.id)}>Tentar carregar o resultado novamente</button></>}
                       {resultado && <>
                       {!!resultado.avisos?.length && (
                         <div className="mt-2 rounded-lg bg-amber-50 p-3 text-amber-900">
@@ -230,7 +248,7 @@ export function EspelharForm({ inicial, podeExecutar, podeAprovarBordero }: { in
                           </ul>
                         </div>
                       )}
-                      <div className="mt-2 max-h-96 overflow-y-auto">
+                      <div role="region" aria-label="Ajustes e pendências do espelhamento" tabIndex={0} className="mt-2 max-h-96 overflow-y-auto">
                         <p className="font-semibold">{execucao.aplicar ? `${resultado.aplicadas ?? 0} ajustes aplicados` : `${resultado.alteracoes?.length ?? 0} ajustes identificados na conferência`}</p>
                         <ul className="mt-1 list-inside list-disc space-y-1 text-slate-700">
                           {resultado.alteracoes?.map((a, i) => <li key={i}>{a.unidade} · {rotulos[a.tipo] ?? a.tipo} · {a.recibo ?? a.numero}{a.vencimento && ` · ${a.vencimento.split('-').reverse().join('/')}`}{(a.valorPago ?? a.total) != null && ` · ${moeda.format((a.valorPago ?? a.total ?? 0) / 100)}`}</li>)}
