@@ -20,6 +20,6 @@ export async function solicitarEasyPague(administradora: string) {
     p_administradora: administradora.trim().toLowerCase(),
     p_usuario: scope.userId,
   })
-  if (error) return { error: 'Não foi possível registrar a consulta. Tente novamente.' }
+  if (error) return { error: 'Não foi possível confirmar o pedido. Confira o estado das parcelas na lista atualizada.' }
   return { criadas: Number(data) }
 }

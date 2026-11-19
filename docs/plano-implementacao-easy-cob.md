@@ -183,3 +183,9 @@ Autorizações de produção serão tratadas no contexto concreto da implantaç�
 ## 11. Próxima tarefa executável
 
 Começar por E0/PR-0: estabelecer checkout isolado, ler o importador e o motor de Flow completos, fechar a matriz de preservação Easy Cap e documentar os pontos exatos de commit. Depois implementar PR-1, a contenção de repetição insegura. A entrega seguinte é a preparação e aplicação transacional do Easy Cap, seguida da idempotência e reconciliação de Flow.
+
+### P2 iniciada — navegação do módulo e estados do Easy Pag
+
+No mesmo worktree, a branch local `codex/easy-p2-experiencia` parte da candidata conjunta `4c971239`. O menu do Easy inclui Cobranças, identifica a seção atual e recolhe os destinos em telas menores que 768 px. O atalho para o conteúdo evita percorrer o menu pelo teclado. O indicador de etapas informa a posição e as etapas concluídas a leitores de tela. No Pag, uma falha de leitura permite atualizar a lista mantendo a administradora. Se o pedido perde a resposta, o painel consulta novamente o estado das parcelas. Uma atualização indisponível identifica a última leitura e bloqueia nova solicitação até a conferência.
+
+Validação de interação em Chrome local a 320 e 1200 px com componentes reais e serviços simulados: menu pelo teclado, seção atual, erro inicial de leitura, atualização sem novo pedido e resposta interrompida. O ensaio não utilizou autenticação ou serviços de produção. As outras frentes P2 continuam no plano.
