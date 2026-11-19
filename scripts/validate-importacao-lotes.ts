@@ -51,6 +51,7 @@ async function main() {
   let record: any
   let count = 0
   let limpeza = 0
+  let remocoesAusentes = 0
   let falhar = false
   let final: any
   let sizes: number[] = []
@@ -69,10 +70,17 @@ async function main() {
     reservarLoteImportacao: async (_db: any, _id: any, _r: any, e: any) => ({ ...e, token: 'token', lease_ate: new Date(Date.now() + 300000).toISOString() }),
     salvarLoteImportacao: async (_db: any, _id: any, r: any, e: any) => { record.resumo = structuredClone({ ...r, execucao_lotes: e }) },
     substituirCobrancasAnterioresDaImportacao: async () => { limpeza++; return { removidas: 7 } },
+    removerCobrancasAusentesDaImportacao: async (_db: any, _id: string, unidades: any[]) => {
+      assert.equal(sizes.length, 2, 'Remoção só depois de todos os lotes')
+      assert.equal(unidades.length, 30)
+      assert.ok(unidades.every(u => u.unidade_id === 'u'), 'Usa a resolução atual das unidades')
+      remocoesAusentes++
+      return { removidas: 3, ids: ['ausente'], mensagens_canceladas: 1, itens_removidos: 1 }
+    },
     formatOrigemImportacao: () => 'teste',
     importarCobrancas: async (_db: any, p: any[], _o: any, _ano: any, options: any) => {
       if (falhar) throw new Error('conexão perdida')
-      if (options.somenteAusencias) { assert.equal(p.length, 30); return empty() }
+      if (options.somenteAusencias) { assert.equal(p.length, 30); assert.equal(remocoesAusentes,1,'Alertas só depois da remoção'); return empty() }
       assert.ok(p.every(item => item.unidade_id === 'u'), 'IDs da prévia devem ser revalidados contra o cadastro atual')
       assert.equal(options.validarAusencias, false)
       sizes.push(p.length); count += p.length
@@ -89,6 +97,7 @@ async function main() {
   await assert.rejects(context.executarLoteImportacao(semOpcao), /não foi recebida/)
   const first = await context.executarLoteImportacao(form)
   assert.equal(first.processadas, 15); assert.equal(limpeza, 1)
+  assert.equal(remocoesAusentes,0)
   falhar = true
   await assert.rejects(context.executarLoteImportacao(form), /conexão perdida/)
   assert.equal(record.resumo.execucao_lotes.cursor, 15, 'Uma falha não deve avançar o cursor')
@@ -97,6 +106,8 @@ async function main() {
   await context.executarLoteImportacao(form)
   assert.deepEqual(sizes, [15, 15]); assert.equal(limpeza, 1, 'A retomada não repete a limpeza')
   assert.equal(final.resultado.importados, 30); assert.equal(final.redirecionar, false)
+  assert.equal(final.resultado.cobrancas_ausentes_removidas,3)
+  assert.equal(final.resumoAnterior.limpeza_ausentes.removidas,3,'Conclusão conserva marcador de idempotência')
   // Recuperação de uma execução antiga parcialmente gravada ignora a limpeza marcada.
   record = { id: 'i', tipo: 'cobrancas', status: 'preview', total_validas: 30, resumo: {} }
   count = 377
