@@ -12,6 +12,8 @@ O arquivo deve ter recorte `todos`, todas as linhas válidas e todos os lotes pr
 
 ## Preservações
 
+A conferência de ausências em `features/importacoes/cobrancas-conciliacao.ts` descarta cobranças vinculadas a acordo por qualquer uma das duas relações, cobranças judicializadas no status operacional ou legado e cobranças de unidades com ação judicial. A ausência dessas cobranças não entra na contagem, nos alertas nem na criação de pendências.
+
 - Qualquer vínculo em `acordos.cobranca_id` ou `acordo_cobrancas`, inclusive histórico, independentemente do status do acordo.
 - Situação `judicializado` no status operacional ou legado, ou unidade marcada com ação judicial. Marcadores AE/J da administradora não determinam essa situação.
 - Cobranças quitadas, pagas, canceladas ou baixadas; qualquer valor/data de pagamento, referências em `fechamento_pagamentos` e `scanner_baixas`, mesmo quando o status estiver desatualizado.

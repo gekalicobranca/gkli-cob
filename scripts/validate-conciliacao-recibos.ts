@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
-import { conciliarCobrancaImportada } from '../features/importacoes/cobrancas-conciliacao'
+import { conciliarCobrancaImportada, encontrarCobrancasAbertasAusentes } from '../features/importacoes/cobrancas-conciliacao'
 import { identidadeRecibo, observacoesComRecibo } from '../features/importacoes/identidade-recibo'
 
 const antiga = {
@@ -17,6 +17,7 @@ function client(rows: typeof antiga[]) {
     const query = {
       select: () => query,
       eq: (key: string, value: unknown) => { selected = selected.filter(row => row[key] === value); return query },
+      in: (key: string, values: unknown[]) => { selected = selected.filter(row => values.includes(row[key])); return query },
       is: (key: string, value: unknown) => { selected = selected.filter(row => (row[key] ?? null) === value); return query },
       order: () => query,
       range: async (start: number, end: number) => ({ data: selected.slice(start, end + 1), error: null }),
@@ -24,6 +25,23 @@ function client(rows: typeof antiga[]) {
     return query
   } }
 }
+test('ausência só gera alerta e candidato a pendência para cobrança sem proteção', async () => {
+  const rows = [
+    { ...antiga, id: 'direto', acordos_diretos: [{}] },
+    { ...antiga, id: 'composicao', composicao: [{}] },
+    { ...antiga, id: 'judicial', status_operacional: 'judicializado' },
+    { ...antiga, id: 'legado', status: 'judicializado' },
+    { ...antiga, id: 'unidade-judicial', unidades: { acao_judicial: true } },
+    { ...antiga, id: 'comum' },
+  ]
+  const resultado = await encontrarCobrancasAbertasAusentes(client(rows), {
+    carteiraId: 'carteira', condominioIds: ['condominio'], importadas: [{ ...entrada, unidade_id: 'outra' }],
+  })
+  assert.equal(resultado.total, 1)
+  assert.deepEqual(resultado.ausentes.map(item => item.cobrancaId), ['comum'])
+  assert.equal(resultado.mensagens.length, 1)
+  assert.match(resultado.mensagens[0], /id comum$/)
+})
 test('reimportação reconhece recibo nas observações apesar da competência antiga ausente', async () => {
   assert.equal((await conciliarCobrancaImportada(client([antiga]), entrada)).status, 'ja_existente')
   assert.equal((await conciliarCobrancaImportada(client([{ ...antiga, competencia: '2026-06-01' }]), entrada)).status, 'ja_existente')
