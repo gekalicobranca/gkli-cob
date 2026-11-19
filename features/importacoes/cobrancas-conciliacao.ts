@@ -49,6 +49,8 @@ type AtualizacaoConciliada = {
   atualizadoEm: string;
 };
 
+type UnidadeDaCobranca = { identificacao?: string | null; bloco?: string | null; acao_judicial?: boolean | null };
+
 type CobrancaExistente = {
   id: string;
   carteira_id?: string | null;
@@ -60,10 +62,11 @@ type CobrancaExistente = {
   valor_atualizado: number | null;
   observacoes: string | null;
   status_financeiro: string | null;
+  status?: string | null;
   status_operacional: string | null;
   updated_at?: string;
   arquivada_em?: string | null;
-  unidades?: { identificacao?: string | null; bloco?: string | null } | { identificacao?: string | null; bloco?: string | null }[] | null;
+  unidades?: UnidadeDaCobranca | UnidadeDaCobranca[] | null;
 };
 
 export type CobrancaAbertaAusente = {
@@ -249,21 +252,26 @@ async function listarCobrancasAbertasDoEscopo(
     let query = somenteCobrancasCanonicas(supabase
       .from("cobrancas")
       .select(
-        "id, carteira_id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status_financeiro, status_operacional, unidades:unidade_id(identificacao, bloco)",
+        "id, carteira_id, condominio_id, unidade_id, competencia, vencimento, valor_original, valor_atualizado, observacoes, status, status_financeiro, status_operacional, unidades:unidade_id(identificacao, bloco, acao_judicial), acordos_diretos:acordos!acordos_cobranca_id_fkey(), composicao:acordo_cobrancas!acordo_cobrancas_cobranca_id_fkey()",
       ))
-      .in("condominio_id", condominioIds)
-      .range(from, from + pageSize - 1);
+      .is("acordos_diretos", null)
+      .is("composicao", null)
+      .in("condominio_id", condominioIds);
 
     if (carteiraId) {
       query = query.eq("carteira_id", carteiraId);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) {
       throw new Error(`Erro ao listar cobranças abertas para validação de ausência: ${error.message}`);
     }
 
-    const page = ((data ?? []) as CobrancaExistente[]).filter(statusAberto);
+    const page = ((data ?? []) as CobrancaExistente[]).filter((c) => {
+      const unidade = Array.isArray(c.unidades) ? c.unidades[0] : c.unidades;
+      return statusAberto(c) && c.status !== "judicializado"
+        && c.status_operacional !== "judicializado" && !unidade?.acao_judicial;
+    });
     rows.push(...page);
 
     if (!data || data.length < pageSize) break;
