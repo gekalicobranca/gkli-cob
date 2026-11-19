@@ -121,6 +121,8 @@ Injetar queda depois de criar lote, consolidar mensagens, criar Flow, ativar age
 
 ## 6. P1 — consistência operacional
 
+Implementação local em 19/11/2026: ver [entrega e verificação P1](easy-cob-p1-consistencia.md). O anexo foi incorporado ao repositório privado transacional existente, eliminando a necessidade de staging/limpeza deste percurso. Implantação e homologação multi-sessão permanecem separadas da implementação.
+
 | Item | Implementação | Dependência | Aceite |
 | --- | --- | --- | --- |
 | Cancelamento transacional | Centralizar elegibilidade; executar alterações de acordo, termos, parcelas, cobranças e auditoria em RPC; conferir erros de todas as escritas | Mapa completo do cancelamento e das filas | Pagamento concorrente impede cancelamento; falha reverte mutações; `renegociado` tratado igualmente na UI e servidor |

@@ -5,7 +5,8 @@ import { Check, Play } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import styles from '@/components/easy/easy.module.css'
 import { formatarVencimentoAcordo } from '@/features/acordos/formatar-vencimento'
-import { captarEasyMaestro, consultarEasyMaestro, type PainelEasyMaestro, type ReceitaEasyMaestro } from './actions'
+import { captarEasyMaestro, consultarEasyMaestro,prepararEasyMaestro, type PainelEasyMaestro, type ReceitaEasyMaestro } from './actions'
+import {EasyWorkerHealth} from '@/components/easy/worker-health'
 
 const estados: Record<ReceitaEasyMaestro['estado'], string> = {
   disponivel: 'Disponível',
@@ -28,7 +29,9 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   const [enviando, setEnviando] = useState(false)
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
-  const pedido = useRef<string | null>(null)
+  const [pedido,setPedido] = useState<string | null>(null)
+  const solicitando=useRef(false)
+  const [conferencia,setConferencia]=useState<{administradora:string;condominios:string[];montarFlow:boolean;versao:string;ativacaoAutomatica:boolean}|null>(null)
   const administradoras = new Map(inicial.receitas.map(r => [r.administradora, r.administradoraNome]))
   const receitas = painel.receitas.filter(r => r.administradora === administradora)
   const primeiraReceita = new Map<string, string>()
@@ -50,7 +53,9 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   const selecaoDisponivel = selecionados.filter(id => emPrazo.has(id))
 
   function atualizarSelecao(ids: string[]) {
-    pedido.current = null
+    if(pedido)return
+    setConferencia(null)
+    setPedido(null)
     setSelecionados(ids)
     setMensagem('')
     setErro('')
@@ -66,6 +71,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
         if (!cancelado) {
           setPainel(atual => ({
             ativo: resultado.ativo,
+            saude:resultado.saude,saudeIndisponivel:resultado.saudeIndisponivel,
             receitas: [...atual.receitas.filter(r => r.administradora !== administradora), ...resultado.receitas],
           }))
         }
@@ -80,43 +86,59 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   }, [administradora, atualizando, enviando])
 
   async function captar() {
-    if (!administradora || disponiveis === 0 || !selecaoDisponivel.length) return
+    if (solicitando.current||!administradora || (!conferencia&&(disponiveis === 0 || !selecaoDisponivel.length))) return
+    solicitando.current=true
     setEnviando(true)
     setErro('')
     setMensagem('')
-    pedido.current ??= crypto.randomUUID()
+    let pedidoIniciado=Boolean(pedido)
+    let pedidoConfirmado=false
     try {
-      const resultado = await captarEasyMaestro(administradora, pedido.current, montarFlow, selecaoDisponivel)
+      if(!conferencia){
+        const previa=await prepararEasyMaestro(administradora,selecaoDisponivel,montarFlow)
+        if(previa.error||!previa.efeitos){setErro(previa.error??'Não foi possível conferir os efeitos.');return}
+        setConferencia({administradora,condominios:[...selecaoDisponivel],montarFlow:previa.efeitos.montarFlow,versao:previa.efeitos.versao,ativacaoAutomatica:previa.efeitos.ativacaoAutomatica})
+        return
+      }
+      const pedidoId=pedido??crypto.randomUUID()
+      setPedido(pedidoId)
+      pedidoIniciado=true
+      const resultado = await captarEasyMaestro(conferencia.administradora, pedidoId, conferencia.montarFlow, conferencia.condominios,conferencia.versao,conferencia.ativacaoAutomatica)
       if (resultado.error) {
-        pedido.current = null
         setErro(resultado.error)
         return
       }
       setMensagem(resultado.criadas
         ? `${resultado.criadas} pedido(s) registrado(s) na fila do Maestro.`
         : 'As captações selecionadas já têm pedido registrado ou em andamento.')
-      pedido.current = null
+      pedidoConfirmado=true
+      setPedido(null)
+      setConferencia(null)
+      pedidoIniciado=false
       setSelecionados([])
       const atualizado = await consultarEasyMaestro(administradora)
       setPainel(atual => ({
         ativo: atualizado.ativo,
+        saude:atualizado.saude,saudeIndisponivel:atualizado.saudeIndisponivel,
         receitas: [...atual.receitas.filter(r => r.administradora !== administradora), ...atualizado.receitas],
       }))
     } catch {
-      setErro(pedido.current
-        ? 'Não foi possível confirmar o pedido. Clique em Captar agora para tentar o mesmo pedido.'
-        : 'Pedido processado. Recarregue a página para atualizar o painel.')
+      setErro(pedidoIniciado
+        ? 'Não foi possível confirmar o pedido. Clique em Retomar o mesmo pedido para consultar/repetir a mesma operação.'
+        : pedidoConfirmado?'Pedido registrado. Recarregue a página para atualizar o painel.':'Conferência indisponível. Nenhuma captação foi solicitada.')
     } finally {
+      solicitando.current=false
       setEnviando(false)
     }
   }
 
   return (
     <div className="space-y-5">
+      <EasyWorkerHealth saude={painel.saude} erro={painel.saudeIndisponivel}/>
       <section className={styles.panel}>
         <label htmlFor="easy-maestro-administradora" className="text-sm font-semibold">Qual administradora?</label>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <select id="easy-maestro-administradora" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" value={administradora} disabled={enviando}
+          <select id="easy-maestro-administradora" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" value={administradora} disabled={enviando||Boolean(pedido)}
             onChange={event => {
               setAdministradora(event.target.value)
               atualizarSelecao([])
@@ -124,22 +146,27 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
             <option value="">Selecione a administradora</option>
             {[...administradoras].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
           </select>
-          <button type="button" className={styles.primary} disabled={disponiveis === 0 || !selecaoDisponivel.length} onClick={captar}>
-            <Play size={16} aria-hidden="true" /> {enviando ? 'Registrando pedido…' : 'Captar agora'}
+          <button type="button" className={styles.primary} disabled={enviando||!podeCaptar||(!conferencia&&(disponiveis===0||!selecaoDisponivel.length))} onClick={captar}>
+            <Play size={16} aria-hidden="true" /> {enviando ? 'Conferindo pedido…' : conferencia ? pedido?'Retomar o mesmo pedido':'Confirmar pedido' : 'Conferir efeitos da captação'}
           </button>
         </div>
         <label className="mt-4 flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-0.5 h-4 w-4 accent-cyan-700" checked={montarFlow}
-            disabled={!podeCaptar || enviando || loteEmAndamento}
+            disabled={!podeCaptar || enviando || loteEmAndamento||Boolean(pedido)}
             onChange={event => {
-              pedido.current = null
+              setConferencia(null)
               setMontarFlow(event.target.checked)
             }} />
           <span>
             <span className="block font-semibold">Montar flow após a captação</span>
-            <span className="text-xs text-slate-600">Deixa o flow pronto para revisão e liberação em Flows.</span>
+            <span className="text-xs text-slate-600">A montagem pode levar à ativação automática conforme a carteira. Confira os efeitos antes de confirmar.</span>
           </span>
         </label>
+        {conferencia&&<div role="status" className="mt-4 space-y-2 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
+          <p>{conferencia.condominios.length} condomínio(s): captar e importar{conferencia.montarFlow?', montar os Flows':''}{conferencia.ativacaoAutomatica?' e permitir a ativação automática pelas regras atuais da carteira':'. A ativação automática não está autorizada neste pedido.'}</p>
+          <p>Alterações de configuração exigirão uma nova conferência; um pedido aceito não comprova execução ou entrega.</p>
+          {!pedido&&<button type="button" disabled={enviando} onClick={()=>setConferencia(null)} className="underline">Ajustar antes de confirmar</button>}
+        </div>}
         <p className="mt-3 text-sm text-slate-600">A captação fica disponível quando a cota do ciclo completa o prazo da régua do condomínio.</p>
         <div aria-live="polite">
           {administradora && (

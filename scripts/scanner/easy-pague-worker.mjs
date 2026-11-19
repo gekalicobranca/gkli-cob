@@ -9,6 +9,7 @@ import { abrirManager } from './manager.mjs'
 import { abrirWebware } from './webware.mjs'
 import { portalOcupado } from './carga.mjs'
 import { resultadosEasyPague } from './easy-pague-resultado.mjs'
+import {startWorkerHeartbeat} from '../agente-automatico/worker-heartbeat.mjs'
 
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
   global: { fetch: createWorkerFetch() }, auth: { persistSession: false, autoRefreshToken: false },
@@ -108,9 +109,12 @@ async function consultar() {
   return true
 }
 
+const heartbeat=await startWorkerHeartbeat(db,'easy_pague',{log:()=>console.warn('Sinal de vida do Easy Pag indisponível.')})
 try {
   if (await consultar()) process.exitCode = 10
 } catch {
   console.error('Easy Pague indisponível nesta rodada.')
   process.exitCode = 1
+} finally {
+  heartbeat.stop()
 }

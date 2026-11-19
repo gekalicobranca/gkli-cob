@@ -6,8 +6,7 @@ import {gerarAssinaturaCaptacao} from '../features/easy-cob/captacao-assinatura'
 import type {ConversaoPreview} from '../features/conversao-relatorio/server/parse-relatorio-buffer';
 
 export const migrationCap='supabase/migrations/20261118211109_easy_cap_commit_transacional.sql';
-export async function fixtureCap() {
-  const db=new PGlite();
+export async function fixtureCap(db=new PGlite()) {
   await db.exec(`
     create role anon;create role authenticated;create role service_role bypassrls;
     create schema auth;create table auth.users(id uuid primary key);

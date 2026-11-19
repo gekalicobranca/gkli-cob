@@ -3,9 +3,12 @@
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { carregarEasyPague, podeConsultarBaixas } from '@/features/easy-cob/pague-server'
+import {consultarSaudeEasy} from '@/features/easy-cob/worker-health-server'
 
 export async function consultarEasyPague(administradora: string) {
-  return carregarEasyPague(await getPermittedCarteiras(), administradora.trim().toLowerCase())
+  const nome=administradora.trim().toLowerCase()
+  const [painel,saude]=await Promise.all([carregarEasyPague(await getPermittedCarteiras(),nome),consultarSaudeEasy('pague',nome).catch(()=>undefined)])
+  return {...painel,saude,saudeIndisponivel:!saude}
 }
 
 export async function solicitarEasyPague(administradora: string) {

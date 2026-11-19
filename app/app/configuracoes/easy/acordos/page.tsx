@@ -1,3 +1,5 @@
+import {randomUUID} from "node:crypto";
+import {impedimentoCancelamento} from "@/features/acordos/cancelamento-elegibilidade";
 import { nomeCondominioEasy } from '@/features/easy-cob/nome-condominio';
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -106,8 +108,6 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
     : [];
   const canWrite = ["admin", "gestor", "operador"].includes(scope.perfil);
   const closed = ["cancelado", "quitado", "rompido", "quebrado", "renegociado"].includes(detail?.acordo.status ?? "");
-  const paid = detail?.parcelas.some(parcel =>
-    parcel.data_pagamento || ["paga", "pago", "quitada", "quitado"].includes(String(parcel.status))) ?? false;
   let debtDownload: string | undefined;
   if (detail?.acordo.status === "cancelado" && operation.key === "cancelar") {
     const { data: attachment, error } = await db.from("timeline_operacional")
@@ -120,6 +120,12 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
       const { data } = await createAdminClient().storage.from("acordos-pdfs").createSignedUrl(path, 600);
       debtDownload = data?.signedUrl;
     }
+  }
+
+  if (detail?.acordo.status === "cancelado" && operation.key === "cancelar") {
+    const {data:recibo,error}=await createAdminClient().from("acordo_cancelamentos").select("documento_id").eq("acordo_id",detail.acordo.id).eq("carteira_id",detail.acordo.carteira_id).maybeSingle();
+    if(error&&error.code!=="42P01"&&error.code!=="PGRST205")throw Error("Resultado do cancelamento indisponível.");
+    if(recibo?.documento_id)debtDownload=`/api/acordos/documentos/${recibo.documento_id}`;
   }
 
   return <div className={`${styles.container} ${operation.color} space-y-5`}>
@@ -180,7 +186,7 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
       {detail.acordo.status === "cancelado" ? <div role="status" className="space-y-2">
         <p>Acordo cancelado.</p>
         {debtDownload && <a href={debtDownload} target="_blank" rel="noopener noreferrer" className="text-cyan-800 underline">Ver débito atualizado</a>}
-      </div> : canWrite && !closed && !paid ? <EasyCancellation key={detail.acordo.id} id={detail.acordo.id} />
+      </div> : canWrite && !impedimentoCancelamento(detail.acordo,detail.parcelas) ? <EasyCancellation key={detail.acordo.id} id={detail.acordo.id} operacaoId={randomUUID()} />
         : <p>Este acordo não permite cancelamento por este fluxo. Consulte os detalhes do acordo.</p>}
     </section>}
     </div>

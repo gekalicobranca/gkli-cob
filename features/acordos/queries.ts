@@ -1,4 +1,5 @@
 import { calculateAgreementHealth } from './health';
+import {impedimentoCancelamento} from './cancelamento-elegibilidade';
 export { calculateAgreementHealth } from './health';
 export type { AgreementHealth } from './health';
 import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
@@ -1647,6 +1648,7 @@ export async function listAgreementApprovalInbox(scope?: CarteiraScope) {
 }
 
 export type AgreementManualActivationRow = {
+  podeCancelarFormalizacao?:boolean;
   termoId: string;
   acordoId: string;
   mensagemId: string | null;
@@ -1692,6 +1694,9 @@ export async function listAgreementManualActivationInbox(
       acordos:acordo_id!inner (
         id,
         carteira_id,
+        status,
+        status_financeiro,
+        data_quitacao,
         fluxo_status,
         valor_acordado,
         data_acordo,
@@ -1752,6 +1757,13 @@ export async function listAgreementManualActivationInbox(
     }
   }
 
+  const parcelasCancelamento=new Map<string,any[]>();
+  if(acordoIds.length)for(let offset=0;;offset+=500){
+    const {data:linhas,error:erroParcelas}=await supabase.from('parcelas_acordo').select('id,acordo_id,status,data_pagamento,valor_pago').in('acordo_id',acordoIds).order('id').range(offset,offset+499);
+    if(erroParcelas)throw Error('Não foi possível conferir parcelas para o cancelamento.');
+    for(const p of linhas??[]){const rows=parcelasCancelamento.get(p.acordo_id)??[];rows.push(p);parcelasCancelamento.set(p.acordo_id,rows);}
+    if((linhas??[]).length<500)break;
+  }
   return ((termos ?? []) as any[]).map((termo) => {
     const acordo = Array.isArray(termo.acordos) ? termo.acordos[0] : termo.acordos;
     const carteira = Array.isArray(acordo?.carteiras) ? acordo?.carteiras[0] : acordo?.carteiras;
@@ -1767,6 +1779,7 @@ export async function listAgreementManualActivationInbox(
     return {
       termoId: termo.id,
       acordoId: termo.acordo_id,
+      podeCancelarFormalizacao:Boolean(acordo)&&!impedimentoCancelamento(acordo,parcelasCancelamento.get(termo.acordo_id)??[]),
       mensagemId: mensagem?.id ?? null,
       carteiraId: termo.carteira_id ?? acordo?.carteira_id ?? null,
       fluxoStatus: acordo?.fluxo_status ?? null,

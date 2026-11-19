@@ -4,8 +4,8 @@ import {fixtureId as id} from './easy-p0-fixture';
 
 export const migrationFlow='supabase/migrations/20261118220528_easy_flow_transacional.sql';
 /** Somente Postgres WASM em memória, dados sintéticos, sem env/rede/providers. */
-export async function fixtureFlow(){
-  const db=await fixtureCap();
+export async function fixtureFlow(connection?:Parameters<typeof fixtureCap>[0]){
+  const db=await fixtureCap(connection);
   await db.exec(`
     drop table easy_flow_execucoes;
     alter table condominios add column vencimento_cota_dia integer;

@@ -234,7 +234,7 @@ function ActivationButtons({ row, canal, returnTo }: { row: AgreementManualActiv
           </PendingSubmitButton>
         </form>
       )}
-      {canal === "devedor" ? (
+      {canal === "devedor" && row.podeCancelarFormalizacao ? (
         <form action={cancelarFormalizacaoAcordo}>
           <input type="hidden" name="acordo_id" value={row.acordoId} />
           <input type="hidden" name="motivo" value="Primeiro pagamento não foi identificado" />
