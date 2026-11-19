@@ -1,6 +1,6 @@
 # Remoção de cobranças ausentes na importação
 
-Decisão de 19/11/2026: ao concluir uma importação de cobranças, remover as cobranças abertas ausentes no relatório, desde que não tenham vínculo com acordo nem situação judicial. Implementação local; esta etapa não aplicou migration, não publicou e não removeu dados em produção.
+Decisão de 19/11/2026: ao concluir uma importação de cobranças, remover as cobranças abertas ausentes no relatório, desde que não tenham vínculo com acordo nem situação judicial. Publicação autorizada pelo usuário pelo PR #42, na branch já existente `codex/importacao-remover-ausentes`. Nenhum dado operacional foi removido durante a preparação/publicação.
 
 ## Fluxo e escopo
 
@@ -30,7 +30,7 @@ Antes de cancelar, bloqueia as mensagens em ordem estável e recusa a operação
 ## Arquivos e validação
 
 - `features/importacoes/actions.ts` e `features/importacoes/remover-ausentes.ts`.
-- `supabase/migrations/20261119204211_importacao_ausentes_preservar_acordos_judicializadas.sql`.
+- `supabase/migrations/20261119205808_importacao_ausentes_preservar_acordos_judicializadas.sql`.
 - `scripts/validate-importacao-ausentes-regra.ts`: banco Postgres isolado com PGlite; remoção, proteções, identidade, unidades resolvidas, falha de auditoria, histórico e idempotência.
 - `scripts/validate-importacao-lotes.ts`: integração da conclusão; nenhuma remoção antes de terminar os lotes e alertas somente após a limpeza.
 
@@ -38,4 +38,6 @@ Comando de regressão: `node node_modules/tsx/dist/cli.mjs --test scripts/valida
 
 `npm run typecheck` e `git diff --check` aprovados. Lint de `actions.ts` e `remover-ausentes.ts` sem erros; sete avisos existentes de funções/parâmetros não usados em `actions.ts`. As permissões da RPC foram verificadas no banco isolado: execução negada a `anon`/`authenticated` e concedida a `service_role`.
 
-Pendente: aplicar a migration antes de publicar a aplicação no ambiente autorizado. Importações anteriores não são modificadas automaticamente. Os fluxos próprios de conversão PDF e Maestro mantêm suas rotinas existentes.
+Migration aplicada em 19/11/2026 no projeto Supabase `GKLI - COB` (`vjcmotflmcczoepflhwc`), registrada como `20261119205808_importacao_ausentes_preservar_acordos_judicializadas`. O arquivo foi alinhado à versão gerada pelo Supabase. Conferidos pré-requisitos, corpo exato das duas assinaturas da RPC, `security invoker`, `search_path` vazio e execução restrita a `service_role`. Testes remotos com identificador nulo foram recusados sem acessar dados; advisor manteve as contagens anteriores e não apontou ocorrência para a RPC. A remoção efetiva e o rollback foram testados somente no banco sintético.
+
+Após a aplicação, aguardar quality e Vercel Preview do commit final antes de merge do PR #42 e conferir Production READY ligado ao commit de main e ao domínio. Importações anteriores não são modificadas automaticamente. Os fluxos próprios de conversão PDF e Maestro mantêm suas rotinas existentes. Não executar reimportação, remoção, saneamento ou envio como parte da publicação.

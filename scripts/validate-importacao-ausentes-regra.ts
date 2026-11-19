@@ -67,7 +67,7 @@ async function main() {
     `)
     const guard = readFileSync('supabase/migrations/20260923010000_cobrancas_recibo_guard.sql', 'utf8')
     await db.exec(guard.slice(guard.indexOf('create function public.cobranca_recibo_identidade'), guard.indexOf('create table public.cobrancas_recibo_guard')))
-    await db.exec(readFileSync('supabase/migrations/20261119204211_importacao_ausentes_preservar_acordos_judicializadas.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261119205808_importacao_ausentes_preservar_acordos_judicializadas.sql', 'utf8'))
     const permissions = (await db.query<any>(`select
       has_function_privilege('anon','public.importacao_remover_cobrancas_ausentes(uuid,jsonb)','execute') as anon,
       has_function_privilege('authenticated','public.importacao_remover_cobrancas_ausentes(uuid,jsonb)','execute') as authenticated,
