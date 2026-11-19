@@ -174,7 +174,7 @@ function classificarCandidato(
   const mesmoOriginal = cents(importada.valor_original ?? importada.valor_atualizado) === cents(existente.valor_original ?? existente.valor_atualizado);
   const mesmoAtualizado = cents(importada.valor_atualizado ?? importada.valor_original) === cents(existente.valor_atualizado ?? existente.valor_original);
   const marcadorConflitante = mesmoRecibo && reciboImportado?.marcador !== reciboExistente?.marcador;
-  // AE, J ou marcador ausente não transformam o recibo em outro débito. Outros marcadores
+  // A, AE, J ou marcador ausente não transformam o recibo em outro débito. Outros marcadores
   // continuam exigindo revisão. O Maestro mantém sua conciliação transacional.
   const atualizarSaldo = reciboImportado && reciboExistente && reciboImportado.recibo === reciboExistente.recibo
     && (reciboImportado.marcador || reciboExistente.marcador || !mesmoAtualizado) && marcadoresAdministrativosCompativeis(reciboImportado?.marcador, reciboExistente?.marcador);
