@@ -32,6 +32,7 @@ import {
 } from "./cobrancas-conciliacao";
 import { formatOrigemImportacao } from "./origem-importacao";
 import { observacoesComRecibo } from "./identidade-recibo";
+import { atualizarReciboComMarcador } from './atualizar-recibo-marcador';
 import { carregarItensImportacao } from "./carregar-itens";
 import { explicarCobrancasPreservadas } from "./mensagens-preservacao";
 import { substituirCobrancasAnterioresDaImportacao } from "./substituir-anteriores";
@@ -2641,6 +2642,9 @@ async function importarCobrancas(
         vencimento: payload.vencimento || null,
         valor_original: payload.valor_original,
         valor_atualizado: payload.valor_atualizado,
+        juros: payload.juros,
+        multa: payload.multa,
+        correcao: payload.correcao,
         recibo: payload.recibo || null,
         referencia: payload.referencia || null,
         observacoes: payload.observacoes || null,
@@ -2653,6 +2657,12 @@ async function importarCobrancas(
       const conciliacao = await conciliarCobrancaImportada(supabase, importadaConciliacao);
       const cobrancaExistenteId = conciliacao.cobrancaId;
       if (conciliacao.status === "ja_existente") {
+        if (conciliacao.atualizarReciboComMarcador) {
+          const atualizada = await atualizarReciboComMarcador(supabase, conciliacao.cobrancaId, importadaConciliacao, { origem_importacao: origemImportacao });
+          if (atualizada) resultado.atualizados += 1;
+          else resultado.ignorados += 1;
+          continue;
+        }
         await bloquearAutomacaoAcordoHflex(supabase, conciliacao.cobrancaId, payload);
         await associarCobrancaConciliada(supabase, conciliacao.cobrancaId, payload as any);
         const reclassificada = await reclassificarCobrancaJudicialImportada(supabase, cobrancaExistenteId, statusOperacional, payload, contextoJudicial);
