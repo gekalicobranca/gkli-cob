@@ -14,4 +14,8 @@ Validação de regressão: `node node_modules/tsx/dist/cli.mjs --test scripts/va
 
 Resultados da ampliação AE/J: 19 testes aprovados em `validate-importacao-recibo-ae.ts`, `validate-conciliacao-recibos.ts` e `validate-importacao-ano-corrente.ts`; `npm run typecheck`, lint dos módulos de conciliação/identidade/atualização e `git diff --check` aprovados. Inclui matriz de trocas AE/J/ausente para cobranças judicializadas, em acordo e ativas, com verificação de estados, histórico, auditoria e idempotência.
 
-Pendente: publicar a alteração e reprocessar a importação desejada no ambiente autorizado; resultados históricos de importação não são reescritos automaticamente.
+Preparação de publicação em 19/11/2026: alterações preservadas em commit e `main` (`c36d4e93`) integrada por merge na mesma branch `codex/importacao-recibo-ae`. O diff final contém apenas os oito arquivos desta tarefa, sem migrations ou ajustes históricos de outras tarefas. Após a integração, 20 testes passaram, incluindo a regressão Lello presente na main; lint dirigido e `git diff --check` passaram. O teste de confirmação PDF falha por helper `observacoesComMarcador` ausente no mock da suíte; a mesma falha foi reproduzida lendo a rota diretamente de `origin/main`, sem alterar o checkout.
+
+Publicação pelo GitHub: aguardar `quality` e Vercel Preview aprovados antes do merge; confirmar Production READY para o commit resultante. Se a pausa da equipe Vercel por limite Hobby persistir, manter o PR aberto sem contornar o check. Nenhuma alteração SQL remota é necessária.
+
+Pendente: concluir a publicação e reprocessar a importação desejada em operação separada autorizada; resultados históricos de importação não são reescritos automaticamente. Publicar código não executa importações, não altera cobranças existentes e não envia mensagens.
