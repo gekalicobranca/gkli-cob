@@ -10,3 +10,11 @@ export function compararHierarquiaCotas(a: any, b: any) {
     || comparar(a.unidades?.identificacao, b.unidades?.identificacao)
     || comparar(a.unidade_id, b.unidade_id)
 }
+
+export function compararHierarquiaComDesempate<T>(
+  a: T,
+  b: T,
+  compararDesempate: (left: T, right: T) => number,
+) {
+  return compararHierarquiaCotas(a, b) || compararDesempate(a, b)
+}

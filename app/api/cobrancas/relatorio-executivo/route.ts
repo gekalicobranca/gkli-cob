@@ -1,4 +1,4 @@
-import { compararHierarquiaCotas } from '@/features/cobrancas/ordem-relatorio'
+import { compararHierarquiaComDesempate } from '@/features/cobrancas/ordem-relatorio'
 import { IDENTIDADE_GKLI, aplicarIdentidadePdf } from '@/features/exportacoes/identidade-visual'
 import { filtrosRelatorioCobrancas } from '@/features/cobrancas/filtros-relatorio'
 import { createClient } from "@/utils/supabase/server";
@@ -11,7 +11,7 @@ import {
   COBRANCA_STATUS_OPERACIONAL,
 } from "@/lib/constants/cobrancas";
 import { CONDUCAO_PROCESSO } from '@/features/unidades/conducao-processo'
-import { listCobrancas, ordenarCobrancasParaRelatorio, type CobrancaListFilters } from "@/features/cobrancas/queries";
+import { compareCobrancasForReport, listCobrancas, type CobrancaListFilters } from "@/features/cobrancas/queries";
 
 export const runtime = "nodejs";
 
@@ -566,7 +566,9 @@ export async function GET(request: Request) {
   const filters = filtrosRelatorioCobrancas(searchParams);
 
   const scope = await getPermittedCarteiras();
-  const rows = ordenarCobrancasParaRelatorio(await listCobrancas(scope, filters), filters.ordenar).sort(compararHierarquiaCotas);
+  const rows = (await listCobrancas(scope, filters)).sort((left, right) =>
+    compararHierarquiaComDesempate(left, right, (a, b) => compareCobrancasForReport(a, b, filters.ordenar)),
+  );
   const reguas = await carregarReguas(rows);
   const condominios = resumirPorCondominio(rows, reguas);
   const pdf = await aplicarIdentidadePdf(montarPdf(rows, condominios, filters));
