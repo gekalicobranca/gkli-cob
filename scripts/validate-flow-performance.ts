@@ -26,10 +26,13 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
       assert.equal(url.searchParams.get('carteira_id'), 'in.(permitida)')
       assert.equal(url.searchParams.get('duplicada_de_id'), 'is.null')
       assert.equal(url.searchParams.get('order'), 'vencimento.asc,id.asc')
-      const rows = Array.from({ length: Math.max(0, Math.min(limit, 1205 - offset)) }, (_, i) => ({
+      const rows = Array.from({ length: Math.max(0, Math.min(limit, 1207 - offset)) }, (_, i) => ({
         id: `${novo ? 'nova' : 'ativa'}-${offset + i}`, carteira_id: 'permitida', condominio_id: 'condominio', unidade_id: `unidade-${offset + i}`, valor_original: 10,
+        // As duas últimas simulam status Novo/Ativa incorreto antes do D+ e vencimento ausente.
+        vencimento: offset + i === 1206 ? null : offset + i === 1205 ? '2099-01-01' : '2020-01-01',
+        condominio: { dias_apos_vencimento_regua: 30 },
         status_operacional: novo ? 'novo' : 'em_cobranca_ativa',
-        unidade: { responsavel_nome: (offset + i) % 2 ? '' : 'Responsável' },
+        unidade: { responsavel_nome: (offset + i) % 2 ? '' : 'Responsável', email: 'teste@example.invalid', telefone: '11999999999' },
       }))
       transferredRows += rows.length
       return Response.json(rows)
@@ -52,6 +55,7 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
       })))
     }
     if (table === 'maestro_flow_montagens') return Response.json([])
+    if (table === 'responsaveis_unidades' || table === 'flow_saneamento_dispensas') return Response.json([])
     if (table === 'condominios') return Response.json([])
     throw new Error(`Consulta inesperada: ${table}`)
   }
@@ -69,7 +73,7 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
     assert.equal(first.valorPainel, 6030)
     assert.equal(first.unidadesPainel, 603)
     assert.equal(requests.filter(url => url.pathname.endsWith('/mensagens')).length, 1)
-    assert.equal(transferredRows, 2410)
+    assert.equal(transferredRows, 2414)
     assert.ok(requests.filter(url => url.pathname.endsWith('/cobrancas')).every(url => Number(url.searchParams.get('limit')) <= 500))
     const montageQuery = requests.find(url => url.pathname.endsWith('/maestro_flow_montagens'))!
     assert.equal(montageQuery.searchParams.get('condominio_id'), 'in.(condominio)')
