@@ -9,7 +9,7 @@ export default async function EasyModulePage() {
   </header><div className={`${styles.grid} ${styles.moduleGrid}`}>{[
     { title:'Acordos', text:'Consulte, simule, cancele e efetive acordos.', href:'/app/configuracoes/easy/acordos', icon:Handshake, tone:styles.blue },
     { title:'Cobranças', text:'Consulte, crie, edite e exclua cobranças.', href:'/app/configuracoes/easy/cobrancas', icon:WalletCards, tone:styles.violet },
-    { title:'Easy Cap', text:'Atualize a inadimplência dos condomínios sem agente remoto usando o relatório da administradora ou a planilha modelo.', href:'/app/configuracoes/easy/captacao', icon:FileUp, tone:styles.green },
+    { title:'Easy Cap + Flow', text:'Atualize a inadimplência pelo relatório ou pela planilha modelo e escolha se quer montar o Flow do condomínio.', href:'/app/configuracoes/easy/captacao', icon:FileUp, tone:styles.green },
     { title:'Easy Flow', text:'Escolha a régua e a conta SMTP, monte os flows e libere para a agenda.', href:'/app/configuracoes/easy/flow', icon:Workflow, tone:styles.blue },
     { title:'Easy Pag', text:'Consulte pagamentos de parcelas de acordos por administradora ou gere uma planilha para conferência.', href:'/app/configuracoes/easy/pag', icon:ReceiptText, tone:styles.violet },
     { title:'Easy Maestro', text:'Capte a inadimplência automaticamente por administradora e acompanhe a atualização das cobranças.', href:'/app/configuracoes/easy/maestro', icon:Bot, tone:styles.green },

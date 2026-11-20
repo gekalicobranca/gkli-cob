@@ -3,16 +3,20 @@ import {getPermittedCarteiras} from '@/utils/auth/get-permitted-carteiras';
 import {listarCondominiosEasy} from '@/features/easy-cob/captacao-server';
 import {EasyHeader} from '@/components/easy/easy-ui';
 import styles from '@/components/easy/easy.module.css';
+import {opcoesFlowEasy} from './actions';
 import {EasyFlow} from './wizard';
 import Link from 'next/link';
-export default async function EasyFlowPage(){
+export default async function EasyFlowPage({searchParams}:{searchParams:Promise<{condominio?:string}>}){
   const scope=await getPermittedCarteiras();
   const condominios=await listarCondominiosEasy(scope,false);
+  const {condominio}=await searchParams;
+  const inicial=condominios.find(c=>c.id===condominio);
+  const dados=inicial ? await opcoesFlowEasy(inicial.id) : undefined;
   return (
     <div className={`${styles.container} ${styles.blue}`}>
       <EasyHeader title="Easy Flow" description="Monte os flows do condomínio, confira e libere para a agenda." />
       {['admin','gestor'].includes(scope.perfil)&&<Link href="/app/configuracoes/easy/flow/recuperacao" className="text-sm text-cyan-800 underline">Conferência administrativa de execuções</Link>}
-      <EasyFlow condominios={condominios.map(c => ({ id: c.id, nome: nomeCondominioEasy(c.nome, c.nome_operacional), cnpj: c.cnpj }))} canWrite={['admin', 'gestor', 'operador'].includes(scope.perfil)} />
+      <EasyFlow condominioInicial={inicial?.id} dadosIniciais={dados} condominios={condominios.map(c => ({ id: c.id, nome: nomeCondominioEasy(c.nome, c.nome_operacional), cnpj: c.cnpj }))} canWrite={['admin', 'gestor', 'operador'].includes(scope.perfil)} />
     </div>
   );
 }

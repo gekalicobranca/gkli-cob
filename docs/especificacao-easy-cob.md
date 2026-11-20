@@ -166,6 +166,14 @@ Modelo: `public/modelos/easy-flow-importacao.xlsx`; aba `Cobranças`, marcador A
 
 Exige e-mail ou telefone e contato consistente entre linhas da mesma unidade/bloco. Rejeita fórmulas nos demais campos, erros de célula, valores com precisão inválida e texto acima de 500 caracteres. Erros são apresentados por linha, com os dez primeiros e contagem adicional; qualquer erro impede a importação da planilha. A exceção explícita dos componentes opcionais não autoriza transformar valores financeiros obrigatórios ausentes em zero.
 
+### Captação com montagem opcional do Flow
+
+Na conferência do arquivo, o operador pode escolher **Montar Flow após a captação com a configuração deste condomínio?**. A tela mostra a régua ativa cadastrada no condomínio e seus canais. Para e-mail, mostra a conta da rota específica ou a conta ativa de maior prioridade da carteira usada pelo Easy Flow. Uma régua ausente ou SMTP incompatível permite continuar somente com a captação. A planilha manual dentro do Easy Flow oferece a mesma escolha.
+
+Depois do recibo da importação, o servidor reconfere a configuração apresentada e calcula a elegibilidade atual do condomínio. A migration `20261120013000_easy_flow_apos_captacao.sql`, posterior à retenção P2, vincula a execução ao recibo por uma chave única. A operação exige o mesmo operador, condomínio e carteira. Uma execução anterior aberta de outra origem segue para conferência no Easy Flow. Cada parte usa a montagem transacional existente. O resultado fica pausado até o operador liberar no Easy Flow.
+
+A tela conduz a sequência enquanto está aberta. Se a resposta da captação se perder, a consulta do recibo permite continuar. Se a montagem for interrompida, consulte o mesmo condomínio no Easy Flow para recuperar as partes. O diagnóstico por ID de uma captação confirmada também abre o condomínio. Uma montagem pendente ou recusada preserva o resultado da importação.
+
 ## 7. Easy Flow
 
 **Observado:** destina-se a condomínio ativo sem agente remoto; permite listar sem exigir CNPJ, mas uma captação manual continua exigindo-o. Configuração consulta réguas ativas de cobrança da carteira, canais e contas SMTP ativas. Rota SMTP do condomínio restringe a escolha; conta incompatível bloqueia. Transporte Thunderbird não oferece SMTP por esse percurso.
