@@ -1,0 +1,10 @@
+{
+  "base": "e24883132044371bd76b015d043b0a53086b4f19",
+  "normalization": "UTF-8, CRLF normalized to LF",
+  "migrations": [
+    {
+      "path": "supabase/migrations/20261120000100_easy_retencao_previas.sql",
+      "sha256": "5ac4e26bf30f642a346a8a23908d0f48395011764c1ab1becc8df3294c0514ca"
+    }
+  ]
+}

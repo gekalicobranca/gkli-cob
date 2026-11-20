@@ -1,5 +1,6 @@
 {
   "base": "d66689fe9dc874186f6cdf96d3706c6928d865bb",
+  "released": "0558b32b55dc3349c54a063ed864baa6c86eb3a5",
   "normalization": "UTF-8, CRLF normalized to LF",
   "alreadyApplied": "20261119205808",
   "migrations": [

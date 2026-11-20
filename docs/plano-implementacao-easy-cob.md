@@ -220,3 +220,5 @@ Verificação em Chrome local a 320 px com componentes reais, dados sintéticos 
 | 6. Documentação | Especificação e plano atualizados nesta entrega de interface. | Revisar contratos, recuperação e compatibilidade a cada mudança correspondente. Esta entrega usa o schema já previsto pela P1. |
 
 Ensaios locais em Chrome a 320 px, com dados fictícios e ações de servidor simuladas, verificaram o download por teclado, o conteúdo do TXT, o bloqueio do download durante edição e a ausência de chamadas de criação. Na recuperação administrativa, o ensaio interrompeu a resposta da reconciliação e a primeira releitura. A tela exigiu consulta bem-sucedida antes da retomada e reutilizou a mesma chave ao repetir com a mesma versão e motivo.
+
+A [candidata de publicação da P2](easy-p2-publicacao.md) consolida o manifesto de banco, a ordem dos consumidores, as verificações da janela e as decisões de negócio e jurídico para emissão do documento final.

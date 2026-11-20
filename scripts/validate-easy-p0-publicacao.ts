@@ -12,7 +12,7 @@ test('manifesto P0 é prefixo do conjunto P0/P1 e snapshot corresponde às sete 
   const conjunto=JSON.parse(await readFile('docs/easy-p0-p1-migrations.json','utf8'));
   assert.equal(conjunto.migrations.length,7);
   assert.deepEqual(conjunto.migrations.slice(0,3),manifesto.migrations);
-  const diff=execFileSync('git',['diff','--name-only',conjunto.base,'--','supabase/migrations'],{encoding:'utf8'}).trim().split(/\r?\n/).sort();
+  const diff=execFileSync('git',['diff','--name-only',conjunto.base,conjunto.released,'--','supabase/migrations'],{encoding:'utf8'}).trim().split(/\r?\n/).sort();
   assert.deepEqual(diff,conjunto.migrations.map((x:any)=>x.path).sort());
   const gerado=await readFile('lib/backup/schema-files.generated.ts','utf8');
   const snapshot=JSON.parse(gerado.slice(gerado.indexOf('= ')+2));
