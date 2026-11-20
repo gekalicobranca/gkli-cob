@@ -1,6 +1,6 @@
 'use server';
 import {revalidatePath} from 'next/cache';
-import {configuracaoEasyFlow,planejarEasyFlow,carregarEasyFlow,viewEasyFlow,bloqueioEasyFlow,exigirContencaoFlow} from '@/features/easy-cob/flow-server';
+import {flowHash,configuracaoEasyFlow,planejarEasyFlow,carregarEasyFlow,viewEasyFlow,bloqueioEasyFlow,exigirContencaoFlow} from '@/features/easy-cob/flow-server';
 import {prepararParteEasy} from '@/features/easy-cob/flow-preparacao';
 import {getEmailRemetenteKey} from '@/features/mensageria/email-provider';
 import type {EasyFlowView} from '@/features/easy-cob/flow-model';
@@ -16,17 +16,53 @@ export async function opcoesFlowEasy(condominioId:string){
   }catch(e){return {error:mensagem(e)};}
 }
 export async function prepararFlowEasy(condominioId:string,reguaId:string,smtpId:string){
+  return preparar(condominioId,reguaId,smtpId);
+}
+
+function padraoCaptacao(ctx:Awaited<ReturnType<typeof configuracaoEasyFlow>>) {
+  const regua=ctx.options.reguas.find(r=>r.id===ctx.c.regua_cobranca_id);
+  if(!regua)throw Error('Configure uma régua de cobrança ativa no cadastro do condomínio ou confirme somente a captação.');
+  const smtp=regua.canais.includes('email') ? ctx.options.smtp.find(s=>s.id===ctx.options.smtpPadrao) : null;
+  if(regua.canais.includes('email')&&!smtp)throw Error('Configure uma conta SMTP ativa para este condomínio ou confirme somente a captação.');
+  const regra=ctx.reguas.find(r=>r.id===regua.id)!;
+  const versao=flowHash({regua:{...regra,etapas:[...(regra.etapas??[])].sort((a,b)=>String(a.id).localeCompare(String(b.id)))},smtp,rota:ctx.options.smtpFixo});
+  return {regua,smtp,versao};
+}
+
+export async function conferirPadraoCaptacao(condominioId:string) {
+  try {
+    if(await bloqueioEasyFlow(condominioId))throw Error('Já existe uma execução aberta. Confira o andamento no Easy Flow.');
+    return {padrao:padraoCaptacao(await configuracaoEasyFlow(condominioId))};
+  } catch(e) {return {error:mensagem(e)};}
+}
+
+export async function prepararFlowDaCaptacao(condominioId:string,conversaoId:string,versao:string) {
+  return preparar(condominioId,'','',{conversaoId,versao});
+}
+
+async function preparar(condominioId:string,reguaId:string,smtpId:string,captacao?:{conversaoId:string;versao:string}) {
   try{
     const existente=await bloqueioEasyFlow(condominioId);
-    if(existente)return {run:await viewEasyFlow(existente)};
+    if(existente){
+      if(captacao && existente.captacao_id!==captacao.conversaoId)throw Error('Já existe outro Flow aberto. Confira o andamento no Easy Flow.');
+      if(captacao && existente.resumo?.versaoCapFlow!==captacao.versao)throw Error('Confira a configuração da execução já registrada no Easy Flow.');
+      return {run:await viewEasyFlow(existente)};
+    }
     const ctx=await configuracaoEasyFlow(condominioId);
+    if(captacao){
+      const padrao=padraoCaptacao(ctx);
+      if(padrao.versao!==captacao.versao)throw Error('A configuração mudou. Confira a régua e a conta no Easy Flow.');
+      reguaId=padrao.regua.id;
+      smtpId=padrao.smtp?.id??'';
+    }
     await exigirContencaoFlow(ctx.db);
     await exigirProtocolo(ctx.db);
     const {data:snapshot,error:se}=await ctx.db.rpc('easy_flow_snapshot',{p_condominio:condominioId,p_regua:reguaId});
     if(se||!snapshot)throw Error('Não foi possível conferir os dados. Nenhuma montagem foi iniciada.');
     const p=await planejarEasyFlow(condominioId,reguaId,smtpId);
+    if(captacao && padraoCaptacao(p).versao!==captacao.versao)throw Error('A configuração mudou. Confira os dados no Easy Flow.');
     if(!p.aptas.length)return {empty:p.resumo};
-    const {data,error}=await p.db.rpc('easy_flow_iniciar',{p_operador:p.scope.userId,p_condominio:p.c.id,p_regua:reguaId,p_smtp:p.smtp?.id??null,p_plano:p.partes,p_versoes:p.versoes,p_config:p.configVersion,p_resumo:p.resumo,p_snapshot:snapshot});
+    const {data,error}=await p.db.rpc(captacao?'easy_flow_iniciar_da_captacao':'easy_flow_iniciar',{...(captacao?{p_conversao:captacao.conversaoId}:{}),p_operador:p.scope.userId,p_condominio:p.c.id,p_regua:reguaId,p_smtp:p.smtp?.id??null,p_plano:p.partes,p_versoes:p.versoes,p_config:p.configVersion,p_resumo:captacao?{...p.resumo,versaoCapFlow:captacao.versao}:p.resumo,p_snapshot:snapshot});
     if(error)throw Error('Não foi possível guardar o resumo. Os dados podem ter mudado ou possuir vínculos concorrentes. Consulte o andamento.');
     return {run:await viewEasyFlow(data)};
   }catch(e){return {error:mensagem(e)};}

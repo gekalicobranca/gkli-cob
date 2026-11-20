@@ -8,7 +8,7 @@ import styles from './easy.module.css';
 
 const base = '/app/configuracoes/easy';
 const sections = [
-  ['acordos', 'Acordos'], ['cobrancas', 'Cobranças'], ['captacao', 'Easy Cap'],
+  ['acordos', 'Acordos'], ['cobrancas', 'Cobranças'], ['captacao', 'Easy Cap + Flow'],
   ['flow', 'Easy Flow'], ['pag', 'Easy Pag'], ['maestro', 'Easy Maestro'], ['espelhar', 'Espelhar'],
 ];
 

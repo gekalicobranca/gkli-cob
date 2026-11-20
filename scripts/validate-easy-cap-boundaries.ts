@@ -79,7 +79,11 @@ test('plano adulterado, RPC ausente e revogação de carteira não ativam fallba
   }finally{await h.db.close();}
 });
 
-test('interface exige consulta após interrupção e retoma o mesmo ID, sem novo upload',async()=>{
+for(const montar of [false,true])test(`interface recupera captação interrompida · montar Flow: ${montar}`,async()=>{
+  const partes:number[]=[];
+  let inicios=0;
+  const execucao={id:id(80),legado:false,parte:0,partes:2,status:'preview'};
+
   const hooks:any[]=[];let index=0;const requests:{url:string;body?:string}[]=[];let confirmar=0;
   const resumo={protocolo:2,conversaoId:id(20),condominioId:id(2),carteiraId:id(1),condominio:'Sintético',arquivo:'fixture.csv',cobrancas:1,unidades:1,valor:150,substituir:1,ano:2026,origem:'Fixture',avisos:[],amostra:[]};
   const react={useState:(initial:any)=>{
@@ -96,6 +100,15 @@ test('interface exige consulta após interrupção e retoma o mesmo ID, sem novo
   };
   const component=moduloIsolado('app/app/configuracoes/easy/captacao/upload.tsx',{
     react,'react/jsx-runtime':{jsx,jsxs:jsx},'lucide-react':{},
+    '../flow/actions':{
+      conferirPadraoCaptacao:async()=>({padrao:{versao:'v1',regua:{nome:'Régua da carteira',canais:['email']},smtp:{label:'Teste'}}}),
+      prepararFlowDaCaptacao:async(condo:string,cap:string,versao:string)=>{
+        assert.deepEqual([condo,cap,versao],[id(2),id(20),'v1']);inicios++;return {run:execucao};
+      },
+      montarParteFlowEasy:async(run:string,parte:number)=>{
+        assert.equal(run,execucao.id);partes.push(parte);return {run:{...execucao,parte:parte+1,status:parte===0?'entre_partes':'pronto'}};
+      },
+    },
     '@/components/ui/searchable-select':{SearchableSelect:'SearchableSelect'},'@/components/easy/easy-ui':{},
     '@/features/conversao-relatorio/prepare-upload':{createConversionFormData:async()=>new FormData()},
     '@/utils/formatters/currency':{formatCurrency:String},'@/utils/formatters/date':{},
@@ -105,12 +118,18 @@ test('interface exige consulta após interrupção e retoma o mesmo ID, sem novo
   const find=(tree:any,fn:(node:any)=>boolean)=>{const node=all(tree).find(fn);assert.ok(node,'Controle esperado na interface');return node;};
   let tree=render();find(tree,n=>n.type==='SearchableSelect').props.onValueChange(id(2));tree=render();
   await find(tree,n=>n.type==='input'&&n.props.name==='file').props.onChange({target:{files:[{name:'fixture.csv'}]}});tree=render();
-  await find(tree,n=>n.type==='button'&&n.props.children==='Confirmar captação').props.onClick();tree=render();
+  if(montar){
+    await find(tree,n=>n.type==='input'&&n.props.type==='checkbox').props.onChange({target:{checked:true}});tree=render();
+  }
+  const botao=montar?'Confirmar captação e montar Flow':'Confirmar captação';
+  await find(tree,n=>n.type==='button'&&n.props.children===botao).props.onClick();tree=render();
+  assert.equal(inicios,0);
   assert.equal(find(tree,n=>n.type==='button'&&n.props.children==='Trocar arquivo').props.disabled,true);
   assert.equal(find(tree,n=>n.type==='button'&&n.props.children==='Retomar mesma confirmação').props.disabled,true);
   await find(tree,n=>n.type==='button'&&n.props.children==='Consultar resultado desta operação').props.onClick();tree=render();
   const retry=find(tree,n=>n.type==='button'&&n.props.children==='Retomar mesma confirmação');assert.equal(retry.props.disabled,false);
   await retry.props.onClick();tree=render();assert.ok(find(tree,n=>n.type==='button'&&n.props.children==='Nova captação'));
+  assert.equal(inicios,montar?1:0);assert.deepEqual(partes,montar?[0,1]:[]);
   const commits=requests.filter(r=>r.url==='/api/conversao-relatorio/confirmar');assert.equal(commits.length,2);
   assert.equal(JSON.parse(commits[0].body!).conversaoId,JSON.parse(commits[1].body!).conversaoId);
   assert.equal(requests.filter(r=>r.url==='/api/easy-cob/captacao').length,1);

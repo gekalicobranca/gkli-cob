@@ -99,5 +99,5 @@ test('ações do servidor rejeitam mistura de condomínios antes de gravar ou pr
   const form = new FormData()
   rows.forEach(row => form.append('cobranca_id', row.id))
   assert.match((await exports.criarFlowsCobranca(null, form)).error, /apenas um condomínio/)
-  await assert.rejects(exports.ativarCobrancasFiltradasFlowCobranca(form), /apenas um condomínio/)
+  assert.match((await exports.ativarCobrancasFiltradasFlowCobranca(form)).error, /apenas um condomínio/)
 })

@@ -12,6 +12,7 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { separarSaneamento } from './eligibilidade'
+import { filtrarCobrancasNoPrazo } from './prazo-regua'
 import { motivosSaneamentoAtuais } from './saneamento-atual'
 import { aplicarCanalNaConsultaFlows, canaisDasMensagensFlow, FLOW_CANAIS_SELECT } from './consulta-canais'
 
@@ -31,7 +32,7 @@ const COBRANCA_SELECT = `
   automacao_bloqueada,
   updated_at,
   carteira:carteiras(nome),
-  condominio:condominios(id,nome,nome_operacional,regua_cobranca_id),
+  condominio:condominios(id,nome,nome_operacional,regua_cobranca_id,dias_apos_vencimento_regua,inicio_cobranca_dias),
   unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone,acao_judicial)
 `
 
@@ -248,8 +249,10 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   if (painelError) throw new Error(`Erro ao carregar cobranças novas para Flow: ${painelError.message}`)
   if (disponibilidadeError) throw new Error(`Erro ao carregar cobranças disponíveis para Flow: ${disponibilidadeError.message}`)
 
-  const novas = separarSaneamento(painel ?? [])
-  const ativas = separarSaneamento(disponibilidade ?? [])
+  // Antes de contatos, vínculos, totais e paginação; inclui também seleções de todas as páginas.
+  const agora = new Date()
+  const novas = separarSaneamento(filtrarCobrancasNoPrazo<any>(painel ?? [], agora))
+  const ativas = separarSaneamento(filtrarCobrancasNoPrazo<any>(disponibilidade ?? [], agora))
   const comContatos = await carregarContatosFlow(supabase, [...novas.aptas, ...ativas.aptas])
   const contatosPorId = new Map(comContatos.map(row => [row.id, row]))
   const semContato = comContatos.filter(row => reguasDisponiveis({ ...row, canais_sem_destinatario: [] }, reguasDoCanal).length > 0
