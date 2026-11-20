@@ -306,7 +306,7 @@ O protótipo distribui centavos restantes entre as primeiras parcelas e ajusta m
 - **Observabilidade:** correlacionar conversão, execução Easy, Flow, mensagem e job; distinguir falha, ausência de evidência e resultado incerto.
 - **Operação:** informar quantidade solicitada/aceita/processada e motivos de exclusão. Explicitar espera de worker e não anunciar conclusão só porque o pedido entrou na fila.
 - **Recuperação:** preservar histórico, impedir repetição cega e oferecer procedimento por execução para captação parcial, Flow interrompido e consulta vencida.
-- **Desempenho:** não há SLA validado nesta análise; tempos de página, tamanho por lote, retenção, expiração de prévias e alertas operacionais precisam de metas acordadas.
+- **Desempenho:** a [medição P2](easy-cob-p2-desempenho.md) registra latência, tamanho de partes, espera na fila e recuperação em laboratório. O SLA do ambiente alvo permanece em aberto. A [política de retenção](easy-cob-p2-retencao.md) define os prazos das prévias e dos temporários.
 
 ## 13. Critérios de aceite para homologação
 
