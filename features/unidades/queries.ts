@@ -365,7 +365,16 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
 
-  const idsAcordosDaUnidade = await acordoIdsDaUnidade(id,scope);
+  const mensagensQuery = applyCarteiraScope(supabase.from('mensagens')
+    .select('id,canal,destinatario,enviada_em,created_at')
+    .eq('unidade_id', id).eq('status', 'enviada')
+    .order('enviada_em', { ascending: false, nullsFirst: false }).limit(30), scope.carteiraIds)
+  const [idsAcordosDaUnidade, cobrancasResult, mensagensResult] = await Promise.all([
+    acordoIdsDaUnidade(id, scope),
+    cobrancasQuery,
+    mensagensQuery,
+  ])
+
   let acordosQuery = supabase
     .from('acordos')
     .select(`
@@ -388,16 +397,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
     .limit(40)
 
   acordosQuery = applyCarteiraScope(acordosQuery, scope.carteiraIds)
-
-  const mensagensQuery = applyCarteiraScope(supabase.from('mensagens')
-    .select('id,canal,destinatario,enviada_em,created_at')
-    .eq('unidade_id', id).eq('status', 'enviada')
-    .order('enviada_em', { ascending: false, nullsFirst: false }).limit(30), scope.carteiraIds)
-  const [cobrancasResult, acordosResult, mensagensResult] = await Promise.all([
-    cobrancasQuery,
-    acordosQuery,
-    mensagensQuery,
-  ])
+  const acordosResult = await acordosQuery
 
   if (cobrancasResult.error) {
     throw new Error(`Erro ao carregar cobranças da unidade: ${cobrancasResult.error.message}`)
