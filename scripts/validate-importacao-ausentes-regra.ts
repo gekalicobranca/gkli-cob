@@ -68,6 +68,39 @@ async function main() {
     const guard = readFileSync('supabase/migrations/20260923010000_cobrancas_recibo_guard.sql', 'utf8')
     await db.exec(guard.slice(guard.indexOf('create function public.cobranca_recibo_identidade'), guard.indexOf('create table public.cobrancas_recibo_guard')))
     await db.exec(readFileSync('supabase/migrations/20261119205808_importacao_ausentes_preservar_acordos_judicializadas.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261008181542_importacao_preservar_historico_whatsapp.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261008203444_importacao_substituir_regular.sql', 'utf8'))
+    await db.exec(readFileSync('supabase/migrations/20261117190117_importacao_preservar_cobrancas_arquivadas.sql', 'utf8'))
+    await db.exec('alter table lote_itens add column mensagem_id uuid; alter table mensagens add column conteudo text, add column conteudo_renderizado text')
+    const arquivo = readFileSync('supabase/migrations/20260923020000_cobrancas_arquivamento_base.sql', 'utf8')
+    const inicio = arquivo.indexOf('create function public.mensagem_contem_cobranca_arquivada')
+    await db.exec(arquivo.slice(inicio, arquivo.indexOf('do $$ declare tabela text;', inicio)))
+    await db.exec('create trigger proteger_copias before update on mensagens for each row execute function impedir_operacao_em_copia()')
+    await db.exec(readFileSync('supabase/migrations/20261119232502_importacao_preservar_mensagem_cancelada_com_copia.sql', 'utf8'))
+    for (const rotina of ['importacao_substituir_cobrancas_anteriores', 'importacao_remover_cobrancas_ausentes']) {
+      await db.exec('begin')
+      await db.exec(`insert into cobrancas(id,duplicada_de_id) values('${id(71)}','${id(13)}');
+        insert into mensagens(id,cobranca_id,payload,status) values
+          ('${id(72)}','${id(12)}','{"cobranca_ids":["${id(71)}","${id(11)}"]}','cancelada'),
+          ('${id(73)}',null,'{"cobranca_ids":["${id(11)}"]}','agendada');
+        insert into lote_itens(id,cobranca_id,mensagem_id) values('${id(74)}','${id(71)}','${id(73)}')`)
+      const executar = () => db.query<{result: {ids: string[]}}>(`select ${rotina}($1) result`, [id(1)])
+      const historico = () => db.query('select * from mensagens where id in ($1,$2) order by id', [id(72),id(73)])
+      // Uma mensagem ativa com referência a cópia pelo lote continua bloqueada.
+      await db.exec('savepoint ativa')
+      await assert.rejects(executar(), /arquivada por duplicidade/)
+      await db.exec('rollback to savepoint ativa')
+      // Simula mensagem já cancelada antes do arquivamento.
+      await db.exec(`delete from lote_itens where id='${id(74)}';
+        update mensagens set status='cancelada' where id='${id(73)}';
+        insert into lote_itens(id,cobranca_id,mensagem_id) values('${id(74)}','${id(71)}','${id(73)}')`)
+      const antes = await historico()
+      const { ids } = (await executar()).rows[0].result
+      assert.ok(ids.includes(id(11)), 'Remove o débito elegível citado somente no payload histórico')
+      assert.ok(!ids.includes(id(12)), 'Preserva o débito da FK direta da mensagem histórica')
+      assert.deepEqual((await historico()).rows, antes.rows, 'Preserva as duas mensagens canceladas integralmente')
+      await db.exec('rollback')
+    }
     const permissions = (await db.query<any>(`select
       has_function_privilege('anon','public.importacao_remover_cobrancas_ausentes(uuid,jsonb)','execute') as anon,
       has_function_privilege('authenticated','public.importacao_remover_cobrancas_ausentes(uuid,jsonb)','execute') as authenticated,
