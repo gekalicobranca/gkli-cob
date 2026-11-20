@@ -22,3 +22,9 @@ O helper `features/flows/cobranca/prazo-regua.ts` centraliza a regra. `queries.t
 Pendente: publicação e conferência autenticada da versão implantada. Os testes locais não executam ativações nem envios em produção.
 
 Resultado local: 12 testes de prazo/ativação/escopo aprovados; teste integrado de disponibilidade e paginação aprovado; teste de formulário no Edge headless aprovado; TypeScript (`tsc --noEmit --pretty false --incremental false`) aprovado. O teste de navegador usa retorno simulado de Server Action, não substitui a conferência autenticada após publicação.
+
+## Janela de publicação
+
+Em 20/11/2026, a correção foi registrada na branch já existente `codex/flows-prazo-regua` e integrada à main `61692ac7` (PR #48), sem conflito. A publicação preserva as entregas do Review e do Easy Cap/Flow. Não foi criada branch nesta janela, não há migration e nenhuma ativação/envio real faz parte da validação.
+
+A repetição dos quatro validadores de prazo, condomínio, reativação e disponibilidade passou com 13 testes. A preparação original já registrava TypeScript, lint e ensaio do formulário com Server Action simulada; a janela repete lint e UI e exige quality (TypeScript/build) e Preview do SHA final antes do merge. Registrar resultado final, SHA de main, Production READY e alias no PR. A conferência autenticada de listagem/ativação não será simulada em produção nem presumida a partir do smoke sem sessão.
