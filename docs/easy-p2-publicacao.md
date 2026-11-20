@@ -66,3 +66,13 @@ A [homologação de retenção](easy-cob-p2-retencao.md) registra os controles d
 Na preparação desta candidata, o build Next.js concluiu a compilação, a verificação TypeScript e a geração das 52 páginas estáticas. Os verificadores dos dois manifestos passaram. Os 15 testes selecionados cobriram publicação, Cap, Flow, cancelamento, Maestro, retenção e a regressão de importação da PR #45. Cinco ensaios em Chrome local com serviços simulados passaram, incluindo navegação por teclado, telas estreitas, consulta após interrupção e download do TXT sem criação de acordo.
 
 O replay estrutural restaurou o dump local de schema de 19/11 em PostgreSQL 17.11 descartável em loopback. As nove versões ausentes desse dump (sete da P0/P1, PR #45 e P2) foram aplicadas na ordem esperada. A consulta de simulação de retenção retornou zero para Cap e Flow no banco sem dados de clientes. O estado atual do banco, do deploy e dos workers de produção será conferido na janela autorizada.
+
+## Janela de publicação P2
+
+Alvo conferido: **GKLI - COB** (`vjcmotflmcczoepflhwc`), com as sete versões P0/P1 e a migration do PR #45 instaladas. O CLI 2.117.0 executou o dry-run direcionado e aplicou somente `20261120000100_easy_retencao_previas.sql`, com `--project-ref vjcmotflmcczoepflhwc --skip-vault --yes`, sem seeds/roles. A instalação não executa retenção nem agenda cron. O resultado final da conferência de catálogo, SHA de merge e Production será registrado no PR #46.
+
+Os 17 testes selecionados desta janela passaram, incluindo as fronteiras e a exclusão de cobrança; manifesto P2 e `git diff --check` passaram. O advisor de segurança manteve as mesmas contagens anteriores (25/2/27/1), sem novo apontamento relacionado à P2. Nenhuma importação, coleta de portal, retenção mutável, acordo ou envio foi executado nesta publicação.
+
+O host local possui o supervisor `GKLI-Maestro-Supervisor`, com raiz `C:/Users/Gekali/gkli-cob`. A cópia de `espelhamento-fontes.ts` foi comparada em leitura com a main anterior e não contém divergências locais; `espelhamento-temporarios.mjs` ainda não existe nesse host. Após aprovação e publicação, distribuir apenas esses dois arquivos, preservando o anterior em backup operacional local e conferindo hashes. Não reiniciar o supervisor nem disparar jobs para validar: a comprovação da revisão carregada depende da próxima execução normal. O deploy web não comprova que essa execução ocorreu.
+
+A emissão do documento final, o responsável/cadência da manutenção por carteira e os casos legados retidos continuam como pendências próprias, sem impedir a disponibilização da simulação TXT e das proteções instaladas.
