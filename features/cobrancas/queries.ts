@@ -333,7 +333,7 @@ export function ordenarCobrancasPorCampoRelacionado(rows: any[], orderBy?: strin
   return ordenarCobrancasRelacionadas(rows, orderBy as CobrancaRelatedOrder)
 }
 
-function compareCobrancasForReport(left: any, right: any, orderBy?: string) {
+export function compareCobrancasForReport(left: any, right: any, orderBy?: string) {
   let comparison = 0
   if (orderBy === 'condominio') comparison = compareText(left.condominios?.nome, right.condominios?.nome)
   else if (orderBy === 'unidade') comparison = compareText(left.unidades?.bloco, right.unidades?.bloco)

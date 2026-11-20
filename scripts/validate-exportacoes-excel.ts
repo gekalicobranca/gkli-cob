@@ -5,6 +5,8 @@ import { criarExcelRelatorioAcordos } from '../features/acordos/exportacao-excel
 import { carregarParcelasRelatorio } from '../features/acordos/parcelas-relatorio'
 import { criarExcelAdministradoras } from '../features/administradoras/exportacao-excel'
 import { criarExcelRelatorioCobrancas } from '../features/cobrancas/exportacao-excel'
+import { compararHierarquiaComDesempate } from '../features/cobrancas/ordem-relatorio'
+import { compareCobrancasForReport, ordenarCobrancasParaRelatorio } from '../features/cobrancas/queries'
 import { criarExcelExportacaoCondominio } from '../features/condominios/exportacao-cadastro-excel'
 import { criarExcelCondominios } from '../features/condominios/exportacao-excel'
 import { criarExcelUnidades } from '../features/unidades/exportacao-excel'
@@ -116,7 +118,19 @@ async function validateCobrancas(outputDir: string) {
     carteiras: { nome: 'Carteira Paulista' },
     condominios: { nome: 'Condomínio São José', administradora: 'Administradora São Paulo' },
     unidades: { identificacao: '001', bloco: 'A', responsavel_nome: 'Maria de Souza' },
+  }, {
+    id: 'cob-2', carteira_id: 'cart-1', condominio_id: 'cond-1', unidade_id: 'und-1',
+    competencia: '2026-07', vencimento: '2026-07-10', valor_original: 900, valor_atualizado: 1000,
+    juros: 20, multa: 15, correcao: 65, desconto: 0, status: 'novo', status_operacional: 'em_cobranca_ativa',
+    status_financeiro: 'aberto', ultima_interacao_at: '2026-09-01', unidade_bloqueada_por_judicializacao: false,
+    carteiras: { nome: 'Carteira Paulista' }, condominios: { nome: 'Condomínio São José', administradora: 'Administradora São Paulo' },
+    unidades: { identificacao: '001', bloco: 'A', responsavel_nome: 'Maria de Souza' },
   }]
+  for (const orderBy of ['vencimento_asc', 'vencimento_desc', 'valor_desc', 'valor_asc', 'condominio', 'unidade', 'responsavel', 'status']) {
+    const expected = ordenarCobrancasParaRelatorio(rows, orderBy).sort((a, b) => compararHierarquiaComDesempate(a, b, () => 0))
+    const actual = [...rows].sort((a, b) => compararHierarquiaComDesempate(a, b, (left, right) => compareCobrancasForReport(left, right, orderBy)))
+    assert.deepEqual(actual.map((row) => row.id), expected.map((row) => row.id), `ordenação do relatório: ${orderBy}`)
+  }
   const bytes = await criarExcelRelatorioCobrancas({
     search: '',
     condominioId: '',
@@ -137,14 +151,17 @@ async function validateCobrancas(outputDir: string) {
     return resumo.getCell(row, 2)
   }
   assert.equal(summaryValue('Ordenação do arquivo').value, 'Carteira / Condomínio / Bloco / Unidade, com a ordenação selecionada dentro da unidade')
-  assert.equal(summaryValue('Total de cobranças').value, 1)
-  assert.equal(summaryValue('Valor atualizado total').value, 1125.75)
+  assert.equal(summaryValue('Total de cobranças').value, 2)
+  assert.equal(summaryValue('Valor atualizado total').value, 2125.75)
   assert.equal(summaryValue('Valor atualizado total').numFmt, '"R$" #,##0.00')
-  assert.equal(agrupado.getCell('K6').value, 1125.75)
+  assert.equal(agrupado.getCell('G6').value, 2)
+  assert.equal((agrupado.getCell('H6').value as Date).toISOString().startsWith('2026-07-10'), true)
+  assert.equal((agrupado.getCell('I6').value as Date).toISOString().startsWith('2026-08-10'), true)
+  assert.equal(agrupado.getCell('K6').value, 2125.75)
   assert.equal(agrupado.getCell('K6').numFmt, '"R$" #,##0.00')
   assert.equal(detalhado.getCell('G6').value instanceof Date, true)
-  assert.equal(detalhado.getCell('R6').value, 'cob-1')
-  assert.equal(detalhado.autoFilter, 'A5:R6')
+  assert.deepEqual([detalhado.getCell('R6').value, detalhado.getCell('R7').value], ['cob-2', 'cob-1'])
+  assert.equal(detalhado.autoFilter, 'A5:R7')
   writeFileSync(`${outputDir}/cobrancas.xlsx`, bytes)
 }
 
