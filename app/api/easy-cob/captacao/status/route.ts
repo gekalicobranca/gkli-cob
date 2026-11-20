@@ -20,7 +20,7 @@ export async function GET(request:NextRequest) {
     const scope=await getPermittedCarteiras();
     // Escopo E proprietário aplicados antes de retornar qualquer diagnóstico.
     const {data,error}=await applyCarteiraScope(createAdminClient().from('conversoes_relatorio')
-      .select('id,status,atualizado_em,protocolo:preview_json->easyCaptacao->substituicao->>protocolo').eq('id',id).eq('origem','easy_captacao')
+      .select('id,status,atualizado_em,expirada:preview_json->easyCaptacao->>expiradaEm,protocolo:preview_json->easyCaptacao->substituicao->>protocolo').eq('id',id).eq('origem','easy_captacao')
       .eq('preview_json->easyCaptacao->>operadorId',scope.userId),scope.carteiraIds).maybeSingle();
     if(error)throw Error('lookup_failed');
     if(!data)return NextResponse.json({ok:false,error:'Captação indisponível para este usuário.'},{status:404,headers});
@@ -32,8 +32,8 @@ export async function GET(request:NextRequest) {
       resultadoPersistido=receipt.data?.resultado??null;
     }
     const confirmado=resultadoPersistido!==null;
-    const estado=confirmado?(resultadoPersistido.resumo.inconsistencias.length?'concluido_com_alertas':'concluido'):data.status;
-    const classificacao=confirmado?'confirmado':data.protocolo==='2'&&['concluido','concluido_com_alertas'].includes(data.status)?'requer_conferencia':resultadoCaptacao(data.status);
+    const estado=confirmado?(resultadoPersistido.resumo.inconsistencias.length?'concluido_com_alertas':'concluido'):data.expirada ? 'expirada' : data.status;
+    const classificacao=estado==='expirada'?'expirada':confirmado?'confirmado':data.protocolo==='2'&&['concluido','concluido_com_alertas'].includes(data.status)?'requer_conferencia':resultadoCaptacao(data.status);
     return NextResponse.json({ok:true,execucao:{id:data.id,status:estado,
       atualizadaEm:data.atualizado_em,resultado:classificacao,
       ...(resultadoPersistido?{resumo:resultadoPersistido.resumo}:{} )}},{headers});

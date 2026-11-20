@@ -273,6 +273,10 @@ Não criar tabelas paralelas de acordos ou pagamentos para o Easy. `acordos_parc
 
 As assinaturas completas devem ser extraídas das migrations aplicáveis ao implementar clientes; existem sobrecargas e substituições históricas. Não executar migrations isoladas presumindo que representam o schema final.
 
+### Retenção operacional da P2
+
+No worktree P2, Cap e Flow verificam o prazo da prévia ao aplicar a primeira mutação. A manutenção por carteira compacta apenas o staging elegível. Conversões concluídas mantêm o plano assinado usado no replay e os recibos. Documentos vinculados, eventos financeiros e chaves de idempotência permanecem fora da limpeza. Os critérios de elegibilidade, prazos e comandos estão no [procedimento de retenção](easy-cob-p2-retencao.md).
+
 ## 11. Protótipo local e diferenças
 
 **Observado:** HTML/CSS/JavaScript sem backend, com dados fictícios e `localStorage` na chave `easy-cob.demo-agreements`. O rodapé identifica demonstração. Não há autenticação, carteira, RLS, auditoria central, integração de portal ou sincronização entre usuários.

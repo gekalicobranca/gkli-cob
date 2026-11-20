@@ -6,8 +6,11 @@ import type {createAdminClient} from '@/utils/supabase/admin';
 
 export async function confirmarCaptacaoTransacional(db:ReturnType<typeof createAdminClient>,
   conversao:{id:string;condominio_id:string;carteira_id:string;preview_json:unknown},operador:string) {
-  const preview=conversao.preview_json as ConversaoPreview&{easyCaptacao:{plano:unknown;planoHash:string;assinatura:string;substituicao:{protocolo?:number}}};
+  const preview=conversao.preview_json as ConversaoPreview&{easyCaptacao:{expiradaEm?:string;plano:unknown;planoHash:string;assinatura:string;substituicao:{protocolo?:number}}};
   const marker=preview?.easyCaptacao;
+  if (marker?.expiradaEm) {
+    return {ok:false,code:'EASY_CAP_COMMIT_REJECTED',error:'A prévia expirou. Leia o arquivo novamente para conferir uma nova prévia.',httpStatus:410};
+  }
   if(marker?.substituicao?.protocolo!==2||!marker.plano||!marker.planoHash) {
     return {ok:false,code:'EASY_CAP_CONFIRMATION_PAUSED',error:'Esta prévia é anterior ao commit transacional. Envie o arquivo novamente para conferir um novo resumo.',httpStatus:503};
   }
@@ -24,6 +27,7 @@ export async function confirmarCaptacaoTransacional(db:ReturnType<typeof createA
   if(error) {
     // Erro de transporte pode ocorrer depois do commit: nunca gravar status falha
     // daqui nem converter isso em autorização de repetir a importação antiga.
+    if(error.code==='P0E01') return {ok:false,code:'EASY_CAP_COMMIT_REJECTED',error:'A prévia expirou. Leia o arquivo novamente.',httpStatus:410};
     if(['P0001','42501','23505','23514'].includes(error.code)) {
       return {ok:false,code:'EASY_CAP_COMMIT_REJECTED',error:'A transação foi recusada. Confira mudanças na base, permissões e pendências e envie uma nova prévia. Nenhuma alteração desta tentativa foi aplicada.',httpStatus:409};
     }

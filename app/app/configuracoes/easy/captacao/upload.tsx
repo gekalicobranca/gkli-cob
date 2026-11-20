@@ -65,6 +65,7 @@ export function CaptacaoEasy({condominios,canWrite,manualCondominio,onWorking}:{
       const data=await response.json();
       if(!response.ok||!data.ok)throw Error('lookup_failed');
       if(data.execucao.resultado==='confirmado'&&data.execucao.resumo) {setResultado({ok:true,jaConfirmada:true,resumo:data.execucao.resumo});setIncerto(false);}
+      else if (data.execucao.status === 'expirada') {setIncerto(false);setRejeitada(true);setError('A prévia expirou. Use Trocar arquivo para conferir uma nova prévia.');}
       else {setRetryChecked(data.execucao.status==='preview');setError(data.execucao.status === 'preview' ? 'A prévia continua disponível. Você pode retomar esta confirmação com o mesmo arquivo.' : 'Ainda não há confirmação. Consulte novamente o resultado desta operação antes de continuar.');}
     } catch {setError('Não foi possível consultar. Não inicie outra captação para este condomínio.');}
     finally {mutation.current=false;setAtividade(null);onWorking?.(false);}
@@ -133,7 +134,7 @@ function DiagnosticoCaptacao({conversaoId}:{conversaoId?:string}) {
       if(current!==version.current)return;
       if(!response.ok||!data.ok)throw Error(data.error??'Não foi possível consultar.');
       const result=data.execucao;
-      const outcome=result.resultado==='confirmado'?'Conclusão registrada.':result.resultado==='sem_aplicacao_confirmada'
+      const outcome=result.status==='expirada'?'Prévia expirada. Leia o arquivo novamente.':result.resultado==='confirmado'?'Conclusão registrada.':result.resultado==='sem_aplicacao_confirmada'
         ?'Prévia salva; nenhuma aplicação confirmada.':'O resultado exige conferência do histórico. Não repita a captação.';
       setMessage(`Operação ${result.id} · Estado: ${result.status} · ${outcome}`);
     } catch(e) {if(current===version.current)setMessage(e instanceof Error?e.message:'Não foi possível consultar. Não repita a confirmação.');}
