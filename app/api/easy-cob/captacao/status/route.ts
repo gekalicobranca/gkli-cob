@@ -20,7 +20,7 @@ export async function GET(request:NextRequest) {
     const scope=await getPermittedCarteiras();
     // Escopo E proprietário aplicados antes de retornar qualquer diagnóstico.
     const {data,error}=await applyCarteiraScope(createAdminClient().from('conversoes_relatorio')
-      .select('id,status,atualizado_em,expirada:preview_json->easyCaptacao->>expiradaEm,protocolo:preview_json->easyCaptacao->substituicao->>protocolo').eq('id',id).eq('origem','easy_captacao')
+      .select('id,condominio_id,status,atualizado_em,expirada:preview_json->easyCaptacao->>expiradaEm,protocolo:preview_json->easyCaptacao->substituicao->>protocolo').eq('id',id).eq('origem','easy_captacao')
       .eq('preview_json->easyCaptacao->>operadorId',scope.userId),scope.carteiraIds).maybeSingle();
     if(error)throw Error('lookup_failed');
     if(!data)return NextResponse.json({ok:false,error:'Captação indisponível para este usuário.'},{status:404,headers});
@@ -36,7 +36,7 @@ export async function GET(request:NextRequest) {
     const classificacao=estado==='expirada'?'expirada':confirmado?'confirmado':data.protocolo==='2'&&['concluido','concluido_com_alertas'].includes(data.status)?'requer_conferencia':resultadoCaptacao(data.status);
     return NextResponse.json({ok:true,execucao:{id:data.id,status:estado,
       atualizadaEm:data.atualizado_em,resultado:classificacao,
-      ...(resultadoPersistido?{resumo:resultadoPersistido.resumo}:{} )}},{headers});
+      ...(resultadoPersistido?{resumo:resultadoPersistido.resumo,condominioId:data.condominio_id}:{} )}},{headers});
   } catch {
     return NextResponse.json({ok:false,error:'Não foi possível consultar o resultado. Não repita a confirmação.'},{status:503,headers});
   }

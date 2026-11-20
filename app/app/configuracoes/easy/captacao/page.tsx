@@ -7,7 +7,7 @@ import { CaptacaoEasy } from './upload';
 export default async function EasyCapturePage() {
   const scope=await getPermittedCarteiras();
   const condominios=await listarCondominiosEasy(scope);
-  return <div className={`${styles.container} ${styles.green}`}><EasyHeader title="Easy Cap" description="Escolha o condomínio, envie o arquivo de inadimplência e confira antes de atualizar as cobranças." />
+  return <div className={`${styles.container} ${styles.green}`}><EasyHeader title="Easy Cap + Flow" description="Confira o arquivo de inadimplência e escolha se também quer montar o Flow do condomínio." />
     <CaptacaoEasy condominios={condominios.map(c=>({id:c.id,nome: nomeCondominioEasy(c.nome, c.nome_operacional),cnpj:c.cnpj}))} canWrite={['admin','gestor','operador'].includes(scope.perfil)} />
   </div>;
 }
