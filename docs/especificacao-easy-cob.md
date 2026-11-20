@@ -88,7 +88,7 @@ O simulador integrado contempla despesas de cobrança percentuais, custos de emi
 - Garantir soma exata em centavos e vencimentos civis mensais válidos.
 - Aplicar limite de parcelas sem aprovação configurado por condomínio e as pendências de autorização correspondentes.
 - Diferenciar simulação, minuta, criação, aprovação e homologação; baixar minuta não cria acordo nem comprova aceite.
-- A minuta TXT observada deve ser identificada como simulação; formato final e assinatura são decisões de produto pendentes.
+- Na P2 local, “Baixar simulação (TXT)” exporta as condições exibidas na conferência como `simulacao-de-acordo.txt`. O arquivo identifica a prévia e contém as cobranças, os totais e as parcelas. Durante a edição manual, o operador conclui a edição antes do download. A criação continua em ação própria. O modelo do documento final, seu formato e a evidência de aceite aguardam definição de negócio e jurídico.
 
 ### 5.3 Cancelar
 
@@ -198,6 +198,9 @@ Liberação é separada, por índice de Flow. Revalida disponibilidade SMTP, rei
 | `cancelado` | Prévia descartada |
 
 **Limitações:** criação, atualização operacional e persistência da execução ocorrem em chamadas distintas. Falha pode deixar efeitos parciais; a action preserva IDs conhecidos e orienta não repetir. O índice único não inclui `atencao`, portanto esse estado não garante bloqueio de nova execução. Não foi identificada nessas actions uma recuperação por lease para `montando`/`liberando` interrompidos. Requisito: reconciliar flows e mensagens reais antes de retomar ou liberar nova montagem.
+
+**Atualização local P1/P2.** A conferência administrativa consulta a execução por ID. No protocolo 3, a reconciliação dos contadores usa recibos, motivo, versão e chave de operação. Após resposta inconclusiva, a interface exige uma nova leitura. Se a versão e a intenção permanecem as mesmas, a retomada usa a chave anterior. Execuções legadas seguem para revisão manual.
+
 
 ## 8. Easy Pag / Easy Pague
 
@@ -343,7 +346,7 @@ Os cenários abaixo são propostos; não foram executados nesta tarefa.
 | P1 | Montagem Maestro pode resultar em ativação automática | Tornar consequência visível na confirmação e validar configuração por carteira |
 | P1 | Resultado Pag pode ser interpretado como baixa | Ajustar textos e definir ponte humana/auditada para conciliação |
 | P1 | Dependência de worker sem prova de disponibilidade | Expor heartbeat, fila, último processamento e alerta de atraso |
-| P2 | Protótipo diverge em despesas, CSV, estados e armazenamento | Decidir se permanece demonstração ou migra para contratos canônicos |
+| P2 | Protótipo diverge em despesas, CSV, estados e armazenamento | Manter o modo demonstração. Uma eventual integração exige contratos canônicos. |
 | P2 | Homologação jurídica da minuta e formato final não definidos | Definir template, versão, assinatura e trilha de aceite |
 | P2 | Retenção, expiração de prévias, SLAs e retomada administrativa não definidos | Aprovar política operacional e critérios mensuráveis |
 

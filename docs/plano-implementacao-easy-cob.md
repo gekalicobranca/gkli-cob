@@ -207,3 +207,16 @@ Cobranças identifica as situações operacional e financeira e sinaliza valor o
 Espelhar mantém a confirmação do pedido se a leitura seguinte falhar. O painel identifica a lista desatualizada, permite consultar novamente e habilita novos pedidos após uma leitura bem-sucedida. A seleção e as ações principais ficam em linhas separadas no celular.
 
 Verificação em Chrome local a 320 px com componentes reais, dados sintéticos e ações simuladas. O ensaio cobriu consulta de cancelamento pelo teclado, resposta interrompida na exclusão e falha de leitura após o aceite da conferência, com contagem de envios. Os testes de fronteira e de arquivamento usam dependências isoladas e PGlite.
+
+### Revisão da P2 — simulação de acordo e pendências
+
+| Item da seção 7 | Situação no worktree | Continuidade |
+| --- | --- | --- |
+| 1. Experiência | Entregas locais nos módulos listados acima e na revisão da simulação. | A conferência administrativa de Flows agora identifica a última leitura e bloqueia a reconciliação após resposta inconclusiva. Consultar novamente é uma operação de leitura. A repetição com a mesma versão e motivo reutiliza a chave do pedido. |
+| 2. Protótipo | O rodapé do `esay-cob` identifica o modo demonstração e orienta usar dados fictícios. | Manter a demonstração externa ao módulo operacional. Qualquer integração futura depende dos contratos canônicos. |
+| 3. Documentos | O simulador Easy baixa `simulacao-de-acordo.txt` com as condições revisadas e identifica a prévia no próprio arquivo. | Negócio e jurídico devem definir o responsável pelo modelo final, a versão, os campos obrigatórios, o formato, os signatários e a evidência de aceite. |
+| 4. Retenção | Política pendente. | Definir prazos e critérios separados para prévias, staging, anexos temporários, recibos, evidências financeiras e chaves idempotentes. |
+| 5. Medidas e SLA | A medição de travas da P1 cobre uma parte do desempenho do Maestro. | Medir latência de prévia e confirmação, tamanho das partes, espera de worker e taxa de recuperação antes de fixar metas. |
+| 6. Documentação | Especificação e plano atualizados nesta entrega de interface. | Revisar contratos, recuperação e compatibilidade a cada mudança correspondente. Esta entrega usa o schema já previsto pela P1. |
+
+Ensaios locais em Chrome a 320 px, com dados fictícios e ações de servidor simuladas, verificaram o download por teclado, o conteúdo do TXT, o bloqueio do download durante edição e a ausência de chamadas de criação. Na recuperação administrativa, o ensaio interrompeu a resposta da reconciliação e a primeira releitura. A tela exigiu consulta bem-sucedida antes da retomada e reutilizou a mesma chave ao repetir com a mesma versão e motivo.
