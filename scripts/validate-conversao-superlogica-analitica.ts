@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as XLSX from "xlsx";
-import { parseRelatorioBuffer, parseSuperlogicaPendentesCobrancasPdf } from "../features/conversao-relatorio/server/parse-relatorio-buffer";
+import { parseRelatorioBuffer, parseSuperlogicaPendentesCobrancasPdf, parseSuperlogicaPendentesZeroCobrancasPdf } from "../features/conversao-relatorio/server/parse-relatorio-buffer";
 
 const text = `Bloco: 0 Unidade: SU0001 EMPRESA EXEMPLO CNPJ: 12.345.678/0001-90
 1234567810/09/20262614821COTA R$100,00100,002,000,000,00102,00AE
@@ -21,6 +21,40 @@ Celular: (11) 99999-0000E-mail: proprietario@example.com
 Quantidade de Unidades inadimplentes do Condomínio: 1Total:350,00350,007,000,001,00358,00`;
 
 async function main() {
+  const zeroHeader = "RECIBO VENCIMENTO EMISSAO CONTA HISTORICO VALOR TOTAL RECIBO TOTAL";
+  const zeroUnit = (unit: string, expected: string, receipts: string[]) => [
+    `Bloco: A Unidade: ${unit} Morador Exemplo CPF: 123.456.789-00`, zeroHeader,
+    ...receipts, `Total da Unidade: ${expected}`,
+  ].join("\n");
+  const zeroText = [
+    "RECIBO DO INADIMPLENCIA ZERO", "RELACAO ANALITICA DE PENDENTES",
+    zeroUnit("0001", "300,00", [
+      "1234567810/09/20262614821 COTA 100,00 100,00",
+      "1234567910/10/20262614821 COTA 200,00 200,00",
+    ]),
+    zeroUnit("0002", "50,00", ["1234568010/11/20262614821 COTA 50,00 50,00"]),
+    "Quantidade de Unidades inadimplentes do Condomínio:2Total:350,00",
+  ].join("\n");
+  const zeroReceipts = parseSuperlogicaPendentesZeroCobrancasPdf(zeroText);
+  assert.equal(zeroReceipts.length, 3);
+  assert.deepEqual(zeroReceipts.map((item) => item.valorTotal), [100, 200, 50]);
+  assert.throws(() => parseSuperlogicaPendentesZeroCobrancasPdf(zeroText.replace("Total da Unidade: 300,00", "Total da Unidade: 301,00")), /total divergente na unidade/);
+  assert.throws(() => parseSuperlogicaPendentesZeroCobrancasPdf(zeroText.replace("Total:350,00", "Total:351,00")), /total geral divergente/);
+  const repeatedUnit = [
+    "RECIBO DO INADIMPLENCIA ZERO", "RELACAO ANALITICA DE PENDENTES",
+    zeroUnit("0001", "100,00", ["1234567810/09/20262614821 COTA 100,00 100,00"]),
+    zeroUnit("0001", "300,00", ["1234567910/10/20262614821 COTA 200,00 200,00"]),
+    "Quantidade de Unidades inadimplentes do Condomínio:1Total:300,00",
+  ].join("\n");
+  assert.equal(parseSuperlogicaPendentesZeroCobrancasPdf(repeatedUnit).length, 2);
+  const scaleUnits = Array.from({ length: 2000 }, (_, index) => zeroUnit(
+    String(index + 1).padStart(4, "0"), "1,00",
+    [`${String(100000 + index)}10/09/20262614821 COTA 1,00 1,00`],
+  ));
+  const scaleText = ["RECIBO DO INADIMPLENCIA ZERO", "RELACAO ANALITICA DE PENDENTES", ...scaleUnits,
+    "Quantidade de Unidades inadimplentes do Condomínio:2000Total:2.000,00"].join("\n");
+  assert.equal(parseSuperlogicaPendentesZeroCobrancasPdf(scaleText).length, 2000);
+
   const records = parseSuperlogicaPendentesCobrancasPdf(text);
   assert.equal(records.length, 3);
   assert.deepEqual(records.map((item) => item.valorTotal), [153, 103, 102]);
@@ -70,6 +104,6 @@ Quantidade de Unidades inadimplentes do Condomínio: 1Total:1.462,581.462,5829,2
     assert.ok(rows.every((row) => row.condominio_cnpj === "52.151.457/0003-62" && row.responsavel_documento && row.telefone && row.email));
     console.log("Square Garden Studios: 28 recibos, 15 unidades, R$ 20.737,25; 6 AE, 9 J e 13 normais; documentos e contatos completos.");
   }
-  console.log("Superlógica analítica: marcadores, continuação de páginas, cadastros, contatos e totais validados.");
+  console.log("Superlógica analítica e Inadimplência Zero: marcadores, continuação de páginas, totais por unidade e relatório de 2.000 unidades validados.");
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

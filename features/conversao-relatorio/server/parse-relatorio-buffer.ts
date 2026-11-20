@@ -3741,7 +3741,7 @@ function detectSuperlogicaPendentesZeroCobrancas(text: string): DeteccaoPdfCobra
   return { ok, confianca: ok ? Math.min(99, 60 + Math.min(units, 20) + Math.min(receipts, 19)) : 0, condominioDetectado, semDevedores: false };
 }
 
-function parseSuperlogicaPendentesZeroCobrancasPdf(text: string): ReciboCondopro[] {
+export function parseSuperlogicaPendentesZeroCobrancasPdf(text: string): ReciboCondopro[] {
   const lines = normalizePdfText(text).split("\n").map(normalize).filter(Boolean);
   const result: ReciboCondopro[] = [];
   let bloco = "";
@@ -3753,6 +3753,7 @@ function parseSuperlogicaPendentesZeroCobrancasPdf(text: string): ReciboCondopro
   let marcador: string | undefined;
   let linhasItem: string[] = [];
   let unitExpected: number | null = null;
+  const unitTotals = new Map<string, number>();
   let reportExpected: number | null = null;
   let reportCount: number | null = null;
   const money = (value: string) => {
@@ -3774,11 +3775,14 @@ function parseSuperlogicaPendentesZeroCobrancasPdf(text: string): ReciboCondopro
     }
     if (total === null) return;
     result.push({ bloco, unidade, responsavel, responsavelDocumento: documento || undefined, recibo, vencimento, valorPrincipal: total, multa: 0, correcao: 0, juros: 0, valorTotal: total, marcadorOrigem: marcador, situacaoOrigem: situacaoOrigemFromMarcador(marcador), detalhesOrigem: "Inadimplência Zero: o relatório informa somente o total do recibo, sem discriminar principal e encargos." });
+    const unitKey = JSON.stringify([bloco, unidade]);
+    unitTotals.set(unitKey, (unitTotals.get(unitKey) ?? 0) + total);
     recibo = ""; vencimento = ""; marcador = undefined; linhasItem = [];
   };
   const flushUnit = () => {
     flushReceipt(true);
-    if (unitExpected !== null && unidade && Math.abs(result.filter((item) => item.bloco === bloco && item.unidade === unidade).reduce((sum, item) => sum + item.valorTotal, 0) - unitExpected) > 0.011) {
+    const unitTotal = unitTotals.get(JSON.stringify([bloco, unidade])) ?? 0;
+    if (unitExpected !== null && unidade && Math.abs(unitTotal - unitExpected) > 0.011) {
       throw new Error(`Superlógica Inadimplência Zero: total divergente na unidade ${unidade}. A planilha não foi gerada.`);
     }
     unitExpected = null;

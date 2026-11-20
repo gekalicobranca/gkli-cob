@@ -1,8 +1,8 @@
-import { compararHierarquiaCotas } from './ordem-relatorio'
+import { compararHierarquiaComDesempate } from './ordem-relatorio'
 import { COBRANCA_STATUS_LABEL } from '@/lib/constants/cobrancas'
 import { CONDUCAO_PROCESSO } from '@/features/unidades/conducao-processo'
 import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
-import { ordenarCobrancasParaRelatorio } from './queries'
+import { compareCobrancasForReport } from './queries'
 import {
   addStyledTableSheet,
   addSummarySheet,
@@ -119,8 +119,11 @@ function buildGroupedRows(rows: any[]): GroupedCobrancaRow[] {
     }
 
     current.qtd += 1
-    current.primeiroVencimento = [current.primeiroVencimento, row.vencimento].filter(Boolean).sort()[0] ?? ''
-    current.ultimoVencimento = [current.ultimoVencimento, row.vencimento].filter(Boolean).sort().at(-1) ?? ''
+    const vencimento = row.vencimento ?? ''
+    if (vencimento && (!current.primeiroVencimento || vencimento < current.primeiroVencimento)) {
+      current.primeiroVencimento = vencimento
+    }
+    if (vencimento && vencimento > current.ultimoVencimento) current.ultimoVencimento = vencimento
     current.totalOriginal += money(row.valor_original)
     current.totalAtualizado += money(row.valor_atualizado ?? row.valor_original)
     current.totalJuros += money(row.juros)
@@ -182,7 +185,9 @@ export async function criarExcelRelatorioCobrancas(
   rows: any[],
   generatedAt = new Date(),
 ) {
-  const sortedRows = ordenarCobrancasParaRelatorio(rows, filters.ordenar).sort(compararHierarquiaCotas)
+  const sortedRows = [...rows].sort((left, right) =>
+    compararHierarquiaComDesempate(left, right, (a, b) => compareCobrancasForReport(a, b, filters.ordenar)),
+  )
   const groupedRows = buildGroupedRows(sortedRows)
   const totalOriginal = rows.reduce((sum, row) => sum + money(row.valor_original), 0)
   const totalAtualizado = rows.reduce((sum, row) => sum + money(row.valor_atualizado ?? row.valor_original), 0)
