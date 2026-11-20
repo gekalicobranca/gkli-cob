@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
 import { cnpjValido, normalizarCnpj } from '../features/administradoras/cnpj'
 
-const migration = readFileSync('supabase/migrations/20261118122054_administradoras_cnpj_validacao_unicidade.sql', 'utf8')
+const migration = readFileSync('supabase/migrations/20261118132407_administradoras_cnpj_validacao_unicidade.sql', 'utf8')
 const adminId = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const condoId = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const walletId = (n: number) => `20000000-0000-4000-8000-${String(n).padStart(12, '0')}`
