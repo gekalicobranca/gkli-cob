@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import ts from 'typescript'
 import { temFlowEmAndamento } from '../features/flows/cobranca/vinculos-canais'
 import { hasResponsavelVinculado, motivoImpedimentoFlow, unicoCondominio } from '../features/flows/cobranca/eligibilidade'
+import { atingiuPrazoRegua } from '../features/flows/cobranca/prazo-regua'
 
 const file = ts.createSourceFile('actions.ts', readFileSync('features/flows/cobranca/actions.ts', 'utf8'), ts.ScriptTarget.Latest, true)
 const action = file.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'ativarCobrancasFiltradasFlowCobranca')!
@@ -14,6 +15,7 @@ test('reativação ignora Flow concluído, preserva Flow em andamento, responsá
   const rows = ['historico_enviado', 'historico_cancelado', 'em_andamento', 'sem_responsavel', 'outra_carteira', 'bloqueada', 'judicializada'].map(id => ({
     id, carteira_id: id === 'outra_carteira' ? 'outra' : 'permitida', condominio_id: 'rio',
     status: 'novo', status_operacional: 'novo', duplicada_de_id: null,
+    vencimento: '2020-01-01', condominio: { dias_apos_vencimento_regua: 30 },
     automacao_bloqueada: id === 'bloqueada',
     unidade: { responsavel_nome: id === 'sem_responsavel' ? '' : 'Responsável', acao_judicial: id === 'judicializada' },
   }))
@@ -41,7 +43,7 @@ test('reativação ignora Flow concluído, preserva Flow em andamento, responsá
     URLSearchParams, requireRole: async () => {}, getPermittedCarteiras: async () => ({ carteiraIds: ['permitida'] }),
     createAdminClient: () => db, somenteCobrancasCanonicas: (q: any) => q.is('duplicada_de_id', null),
     applyCarteiraScope: (q: any, ids: string[]) => q.in('carteira_id', ids),
-    unicoCondominio, hasResponsavelVinculado, motivoImpedimentoFlow, temFlowEmAndamento,
+    unicoCondominio, hasResponsavelVinculado, motivoImpedimentoFlow, temFlowEmAndamento, atingiuPrazoRegua,
     COBRANCA_STATUS_OPERACIONAL: { NOVO: 'novo', EM_COBRANCA_ATIVA: 'em_cobranca_ativa' },
     revalidatePath: () => {}, canalFlowCobranca: () => 'email', flowCobrancaPath: () => '/app/flows/cobranca/email',
     redirect: (url: string) => { destination = url },
