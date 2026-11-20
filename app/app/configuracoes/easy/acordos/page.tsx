@@ -36,7 +36,7 @@ type Row = AcordoEasy & { id: string; nome?: string; nome_operacional?: string |
 const cobrancaAtiva = (charge: Row) =>
   (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as readonly string[]).includes(getCobrancaStatusOperacional(charge)) &&
   !["quitado", "renegociado"].includes(getCobrancaStatusFinanceiro(charge));
-const panelClass = `${styles.panel} space-y-4`;
+const panelClass = `${styles.panel} min-w-0 space-y-4`;
 
 export default async function EasyPage({ searchParams }: { searchParams: Promise<Search> }) {
   const query = await searchParams;
@@ -166,12 +166,12 @@ export default async function EasyPage({ searchParams }: { searchParams: Promise
       <div className={styles.totalBand}><div><p>Valor do acordo</p><strong>{formatCurrency(detail.acordo.valor_acordado)}</strong></div>
         <div className="text-right"><p className="flex items-center gap-2"><CalendarDays size={14} aria-hidden="true" />{formatarVencimentoAcordo(detail.acordo.data_acordo)}</p>
           <span className="mt-2 block text-sm">{detail.parcelas.length} parcela(s)</span></div></div>
-      <div className="max-h-80 overflow-auto rounded-xl border border-slate-100"><table className="w-full text-left text-sm">
+      <div role="region" aria-label="Parcelas do acordo" tabIndex={0} className="max-h-80 min-w-0 overflow-auto rounded-xl border border-slate-100"><table className="w-full text-left text-sm">
         <caption className="sr-only">Parcelas do acordo</caption><thead className="sticky top-0 bg-slate-50 text-xs text-slate-500"><tr>
           <th scope="col" className="p-3 font-medium">Parcela</th><th scope="col" className="p-3 font-medium">Vencimento</th><th scope="col" className="p-3 text-right font-medium">Valor</th><th scope="col" className="p-3 font-medium">Situação</th>
         </tr></thead><tbody className="divide-y divide-slate-100">{detail.parcelas.map(parcel => <tr key={parcel.id} className="hover:bg-slate-50/80">
           <td className="p-3">{parcel.numero === 0 ? "Entrada" : String(parcel.numero).padStart(2, '0')}</td><td className="whitespace-nowrap p-3 text-slate-600">{formatarVencimentoAcordo(parcel.vencimento)}</td>
-          <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums">{formatCurrency(parcel.valor)}</td><td className="p-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-600">{parcel.status}</span></td>
+          <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums">{formatCurrency(parcel.valor)}</td><td className="p-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-600">{parcel.status?.replaceAll("_", " ") || "Não informada"}</span></td>
         </tr>)}</tbody></table></div>
       <Link className="inline-flex items-center gap-2 text-xs font-semibold text-cyan-800" href={`/app/acordos/${detail.acordo.id}`}>Abrir detalhes do acordo<ExternalLink size={13} aria-hidden="true" /></Link>
     </section>}

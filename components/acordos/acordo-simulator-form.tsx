@@ -439,15 +439,12 @@ export function AcordoSimulatorForm({
     }
     const creationBlocked = blocked || easyEditing || acordoJaCriado || bloqueadoPorPendenciaPlanilha ||
       bloqueadoPorPendenciaAprovacaoSindico || !contatoAcionavel;
-    function downloadTerm() {
-      const content = ["TERMO DE ACORDO", "Minuta da simulação", "", simulationText, "",
-        "Representante do condomínio: ______________________________",
-        "Responsável pela unidade: _________________________________",
-        "Data: ____/____/________"].join("\n");
+    function downloadSimulation() {
+      const content = ["SIMULAÇÃO DE ACORDO", "Prévia para conferência das condições de pagamento.", "", simulationText].join("\n");
       const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
       const link = document.createElement("a");
       link.href = url;
-      link.download = "termo-de-acordo.txt";
+      link.download = "simulacao-de-acordo.txt";
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
@@ -536,7 +533,7 @@ export function AcordoSimulatorForm({
             </div>
             {easyEditing && <p className="text-sm text-slate-600">Altere separadamente o valor de cota e as despesas de cada parcela. O total é calculado automaticamente.</p>}
             {manualError && <p role="alert" className="text-sm text-rose-700">{manualError}</p>}
-            <div className="max-h-64 overflow-auto rounded-xl border border-slate-200">
+            <div role="region" aria-label="Revisão das parcelas da simulação" tabIndex={0} className="max-h-64 overflow-auto rounded-xl border border-slate-200">
               <table className="w-full text-left text-sm">
                 <caption className="sr-only">Parcelas da simulação</caption>
                 <thead className="sticky top-0 bg-slate-50 text-slate-600"><tr>
@@ -556,14 +553,15 @@ export function AcordoSimulatorForm({
             </div>
             <div className="rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-slate-900">Documentos e comunicação</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="secondary" disabled={blocked} onClick={copyAdministratorText}>Copiar texto da administradora</Button>
-                  <Button type="button" variant="ghost" disabled={blocked} onClick={downloadTerm}>Gerar termo de acordo</Button>
+                <p className="text-sm font-semibold text-slate-900">Compartilhar simulação</p>
+                <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
+                  <Button type="button" variant="secondary" disabled={blocked || easyEditing} onClick={copyAdministratorText}>Copiar texto da administradora</Button>
+                  <Button type="button" variant="ghost" disabled={blocked || easyEditing} onClick={downloadSimulation}>Baixar simulação (TXT)</Button>
                 </div>
               </div>
+              <p className="mt-2 text-sm text-slate-600">{easyEditing ? "Conclua a edição das parcelas para compartilhar a simulação." : "Use a prévia para conferir valores e vencimentos. A criação do acordo exige confirmação em uma etapa própria."}</p>
               {easyCopyStatus && <p role="status" className="mt-2 text-sm text-cyan-800">{easyCopyStatus}</p>}
-              <details className="mt-3 text-sm">
+              <details hidden={blocked || easyEditing} className="mt-3 text-sm">
                 <summary className="cursor-pointer font-medium text-slate-600">Ver texto para a administradora</summary>
                 <label className="sr-only" htmlFor="easy-administrator-text">Texto para a administradora</label>
                 <textarea id="easy-administrator-text" readOnly value={administratorText} rows={8}

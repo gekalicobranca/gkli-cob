@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { moduloIsolado } from './easy-p0-module-harness'
 import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
 
@@ -52,4 +53,38 @@ test('Easy arquiva sem alterar valores e bloqueia carteira, pagamentos, acordos 
     await db.exec('set role authenticated')
     await assert.rejects(call(), /permission denied/)
   } finally { await db.close() }
+})
+
+test('exclusão confirmada sobrevive à falha de cache e erro técnico não chega à tela', async () => {
+  let falhaRpc = false
+  let chamadas = 0
+  const consulta = { eq: () => consulta, single: async () => ({ data: { carteira_id: 'carteira' } }) }
+  const { excluirCobranca } = moduloIsolado('app/app/configuracoes/easy/cobrancas/actions.ts', {
+    '@/utils/auth/require-role': { requireRole: async () => {} },
+    '@/utils/auth/require-user': { requireUser: async () => ({ id: 'operador' }) },
+    '@/utils/auth/get-permitted-carteiras': { getPermittedCarteiras: async () => ({ carteiraIds: ['carteira'] }) },
+    '@/utils/supabase/server': { createClient: async () => ({ from: () => ({ select: () => consulta }) }) },
+    '@/lib/core/cobranca-arquivamento': { somenteCobrancasCanonicas: () => consulta },
+    '@/utils/auth/apply-carteira-scope': { applyCarteiraScope: () => consulta },
+    '@/utils/supabase/admin': { createAdminClient: () => ({ rpc: async () => {
+      chamadas++
+      return { error: falhaRpc ? { message: 'erro técnico sintético' } : null }
+    } }) },
+    'next/cache': { revalidatePath: () => { throw Error('Cache indisponível') } },
+  })
+  const form = new FormData()
+  form.set('id', 'cobranca')
+  form.set('motivo', 'Motivo sintético')
+  assert.equal((await excluirCobranca(form)).estado, 'invalido')
+  assert.equal(chamadas, 0)
+  form.set('confirmar', 'on')
+  const confirmado = await excluirCobranca(form)
+  assert.equal(confirmado.estado, 'excluida')
+  assert.equal(confirmado.atualizar, true)
+  assert.equal(chamadas, 1)
+  falhaRpc = true
+  const incerto = await excluirCobranca(form)
+  assert.equal(incerto.estado, 'conferir')
+  assert.doesNotMatch(incerto.mensagem, /erro técnico/)
+  assert.equal(chamadas, 2)
 })

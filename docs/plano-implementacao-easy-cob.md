@@ -183,3 +183,42 @@ Autorizações de produção serão tratadas no contexto concreto da implantaç�
 ## 11. Próxima tarefa executável
 
 Começar por E0/PR-0: estabelecer checkout isolado, ler o importador e o motor de Flow completos, fechar a matriz de preservação Easy Cap e documentar os pontos exatos de commit. Depois implementar PR-1, a contenção de repetição insegura. A entrega seguinte é a preparação e aplicação transacional do Easy Cap, seguida da idempotência e reconciliação de Flow.
+
+### P2 iniciada — navegação do módulo e estados do Easy Pag
+
+No mesmo worktree, a branch local `codex/easy-p2-experiencia` parte da candidata conjunta `4c971239`. O menu do Easy inclui Cobranças, identifica a seção atual e recolhe os destinos em telas menores que 768 px. O atalho para o conteúdo evita percorrer o menu pelo teclado. O indicador de etapas informa a posição e as etapas concluídas a leitores de tela. No Pag, uma falha de leitura permite atualizar a lista mantendo a administradora. Se o pedido perde a resposta, o painel consulta novamente o estado das parcelas. Uma atualização indisponível identifica a última leitura e bloqueia nova solicitação até a conferência.
+
+Validação de interação em Chrome local a 320 e 1200 px com componentes reais e serviços simulados: menu pelo teclado, seção atual, erro inicial de leitura, atualização sem novo pedido e resposta interrompida. O ensaio não utilizou autenticação ou serviços de produção. As outras frentes P2 continuam no plano.
+
+### P2 — Easy Cap, Easy Flow e Maestro
+
+Easy Cap diferencia confirmação em curso e consulta de recibo. O texto de retomada depende do estado retornado: somente uma prévia recuperável oferece retomar a mesma confirmação. A tabela de amostra permite foco pelo teclado e as ações da confirmação ficam empilhadas no celular.
+
+Easy Flow identifica a etapa de montagem parcial, apresenta o estado em português e oferece o monitor para execuções legadas. A interface usa o protocolo já consultado no servidor para ocultar ações incompatíveis. Easy Maestro distingue a conferência de efeitos do registro do pedido, informa quando a leitura está desatualizada e permite consultar novamente o andamento sem criar outro pedido. Em telas pequenas, seletor, ação e estados das coletas ficam em linhas separadas.
+
+Verificação local em Chrome, largura de 320 px, com componentes reais e serviços simulados: consulta anterior do Cap pelo teclado, Flow legado pronto com acesso ao monitor e sem botão de liberação, falha do Maestro seguida de releitura. As suítes de fronteira de Cap, Flow, contenção e Maestro cobriram perda de resposta, recuperação pelo mesmo ID e consentimento. Nenhuma migration ou publicação faz parte desta etapa.
+
+### P2 — Acordos, Cobranças e Espelhar
+
+A seleção de unidade em Acordos e Cobranças explica quando falta escolher o condomínio e quando a carteira ou a operação não tem opções. A revisão do cancelamento empilha as ações no celular e anuncia separadamente o registro e a consulta do resultado. A tabela de parcelas pode receber foco para rolagem pelo teclado.
+
+Cobranças identifica as situações operacional e financeira e sinaliza valor ou vencimento ausente. A exclusão explica bloqueios conhecidos e mantém disponível a consulta da mesma unidade quando a resposta é inconclusiva. Uma falha de atualização do cache após a confirmação da RPC preserva o resultado confirmado.
+
+Espelhar mantém a confirmação do pedido se a leitura seguinte falhar. O painel identifica a lista desatualizada, permite consultar novamente e habilita novos pedidos após uma leitura bem-sucedida. A seleção e as ações principais ficam em linhas separadas no celular.
+
+Verificação em Chrome local a 320 px com componentes reais, dados sintéticos e ações simuladas. O ensaio cobriu consulta de cancelamento pelo teclado, resposta interrompida na exclusão e falha de leitura após o aceite da conferência, com contagem de envios. Os testes de fronteira e de arquivamento usam dependências isoladas e PGlite.
+
+### Revisão da P2 — simulação de acordo e pendências
+
+| Item da seção 7 | Situação no worktree | Continuidade |
+| --- | --- | --- |
+| 1. Experiência | Entregas locais nos módulos listados acima e na revisão da simulação. | A conferência administrativa de Flows agora identifica a última leitura e bloqueia a reconciliação após resposta inconclusiva. Consultar novamente é uma operação de leitura. A repetição com a mesma versão e motivo reutiliza a chave do pedido. |
+| 2. Protótipo | O rodapé do `esay-cob` identifica o modo demonstração e orienta usar dados fictícios. | Manter a demonstração externa ao módulo operacional. Qualquer integração futura depende dos contratos canônicos. |
+| 3. Documentos | O simulador Easy baixa `simulacao-de-acordo.txt` com as condições revisadas e identifica a prévia no próprio arquivo. | Negócio e jurídico devem definir o responsável pelo modelo final, a versão, os campos obrigatórios, o formato, os signatários e a evidência de aceite. |
+| 4. Retenção | [Implementada e validada localmente](easy-cob-p2-retencao.md). Sete dias para prévias elegíveis e 24 horas para temporários identificados de workers encerrados. | Para publicação futura, definir cadência e responsável pela manutenção por carteira. Artefatos legados sem comprovação de origem temporária exigem conferência manual. |
+| 5. Medidas e SLA | [Ensaio P2 concluído em PostgreSQL 17 isolado](easy-cob-p2-desempenho.md), com prévia e confirmação do Cap, partes do Flow, espera na fila do Maestro e recuperação após commit. | Calibrar carga e capacidade do ambiente alvo antes de pactuar SLA. |
+| 6. Documentação | Especificação e plano atualizados nesta entrega de interface. | Revisar contratos, recuperação e compatibilidade a cada mudança correspondente. Esta entrega usa o schema já previsto pela P1. |
+
+Ensaios locais em Chrome a 320 px, com dados fictícios e ações de servidor simuladas, verificaram o download por teclado, o conteúdo do TXT, o bloqueio do download durante edição e a ausência de chamadas de criação. Na recuperação administrativa, o ensaio interrompeu a resposta da reconciliação e a primeira releitura. A tela exigiu consulta bem-sucedida antes da retomada e reutilizou a mesma chave ao repetir com a mesma versão e motivo.
+
+A [candidata de publicação da P2](easy-p2-publicacao.md) consolida o manifesto de banco, a ordem dos consumidores, as verificações da janela e as decisões de negócio e jurídico para emissão do documento final.

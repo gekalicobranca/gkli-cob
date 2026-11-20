@@ -66,6 +66,7 @@ export async function montarParteFlowEasy(id:string,parte:number){
     if(run.parte!==parte||!['preview','entre_partes'].includes(run.status))return {run:await viewEasyFlow(run)};
     const manifesto=await prepararParteEasy(run,parte);
     const {data,error}=await db.rpc('easy_flow_montar',{p_execucao:id,p_indice:parte,p_operador:scope.userId,p_manifesto:manifesto});
+    if(error?.code==='P0E01')throw Error('A prévia expirou. Consulte o andamento e ajuste o resumo para iniciar outra montagem.');
     if(error)throw Error('Não foi possível confirmar esta parte. Consulte o andamento para recuperar o resultado antes de continuar.');
     revalidar();return {run:await viewEasyFlow(data)};
   }catch(e){return {error:mensagem(e)};}

@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
-import os from 'node:os'
+import { readFile, readdir, rm } from 'node:fs/promises'
+import { criarPastaEspelhamento } from './espelhamento-temporarios.mjs'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { parseRelatorioBuffer } from '../../features/conversao-relatorio/server/parse-relatorio-buffer'
@@ -31,7 +31,7 @@ export async function captarCotasEspelhamento(db, job, receitas, signal) {
   const { data: cadastro, error: erroCadastro } = await db.from('condominios').select('cnpj').eq('id', job.condominio_id).eq('carteira_id', job.carteira_id).single()
   if (erroCadastro) throw Error('Cadastro do condomínio indisponível para a captação.')
   const cotas = [], fontes = [], avisos: string[] = []
-  const pasta = await mkdtemp(path.join(os.tmpdir(), 'gkli-espelhamento-'))
+  const pasta = await criarPastaEspelhamento()
   try {
     for (const receita of receitas) {
       signal.throwIfAborted()
@@ -90,7 +90,7 @@ export async function captarCotasEspelhamento(db, job, receitas, signal) {
 
 export async function coletarAcordosManager(codigo: string, condominioId: string, signal: AbortSignal) {
   if (!/^\d+$/.test(codigo)) throw Error('Código da Manager não configurado.')
-  const pasta = await mkdtemp(path.join(os.tmpdir(), 'gkli-acordos-espelhamento-'))
+  const pasta = await criarPastaEspelhamento()
   try {
     await executar(process.execPath, ['scripts/manager-acordos/worker.mjs', '--codigo', codigo, '--saida', pasta],
       { windowsHide: true, signal, timeout: 6 * 60_000, maxBuffer: 1024 * 1024 })
@@ -114,7 +114,7 @@ export async function coletarAcordosWebware(db, job, portal: 'bbz' | 'atipass', 
   const { data, error } = await db.from('agente_acordos_configuracoes').select('alvos_portal').eq('condominio_id', job.condominio_id)
     .eq('carteira_id', job.carteira_id).eq('administradora', portal === 'bbz' ? 'BBZ' : 'ATIPASS').eq('habilitado', true).maybeSingle()
   if (error || !data?.alvos_portal?.length) return null
-  const pasta = await mkdtemp(path.join(os.tmpdir(), 'gkli-acordos-webware-'))
+  const pasta = await criarPastaEspelhamento()
   const acordos = []
   try {
     for (const [indice, alvo] of data.alvos_portal.entries()) {

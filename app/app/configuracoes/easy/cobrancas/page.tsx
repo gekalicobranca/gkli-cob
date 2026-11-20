@@ -10,7 +10,7 @@ import { createClient } from '@/utils/supabase/server'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { somenteCobrancasCanonicas } from '@/lib/core/cobranca-arquivamento'
 import { nomeCondominioEasy } from '@/features/easy-cob/nome-condominio'
-import { excluirCobranca } from './actions'
+import { ExclusaoCobranca } from './exclusao'
 
 const path = '/app/configuracoes/easy/cobrancas'
 const operations = [
@@ -37,7 +37,7 @@ export default async function EasyCobrancas({searchParams}:{searchParams:Promise
   const write = ['admin','gestor','operador'].includes(scope.perfil)
   const remove = ['admin','gestor'].includes(scope.perfil)
   const available = operations.filter(op => op.key==='consultar' || (op.key==='excluir' ? remove : write))
-  if(!q.operacao) return <main className={styles.container}>
+  if(!q.operacao) return <div className={styles.container}>
     <EasyHeader title="Cobranças" description="Escolha uma operação." />
     {q.resultado==='excluida' && <p role="status">Cobrança excluída da operação.</p>}
     <div className={styles.grid}>{available.map(op=><Link key={op.key} className={styles.card+' '+op.tone}
@@ -45,7 +45,7 @@ export default async function EasyCobrancas({searchParams}:{searchParams:Promise
       <span className={styles.icon}><op.icon aria-hidden="true"/></span><h2>{op.title}</h2><p>{op.description}</p>
       <span className={styles.cardFooter}>Continuar <ArrowRight size={16}/></span>
     </Link>)}</div>
-  </main>
+  </div>
   const op = available.find(item=>item.key===q.operacao)
   if(!op || op.key==='criar') notFound()
   const db = await createClient()
@@ -58,7 +58,7 @@ export default async function EasyCobrancas({searchParams}:{searchParams:Promise
   if(q.unidade && !unit) notFound()
   const charges = condo && unit ? await pages(somenteCobrancasCanonicas(scoped('cobrancas','id,vencimento,valor_original,valor_atualizado,status_operacional,status_financeiro,data_pagamento,valor_pago')
     .eq('condominio_id',condo.id).eq('unidade_id',unit.id)).order('vencimento').order('id')) : []
-  return <main className={styles.container+' '+op.tone+' space-y-5'}>
+  return <div className={styles.container+' '+op.tone+' space-y-5'}>
     <EasyHeader title={op.title+' cobrança'} description={op.description} backHref={path} backLabel="Voltar às cobranças"/>
     <EasySteps labels={['Localizar unidade','Escolher cobrança']} current={unit?1:0}/>
     <EasyFilters operation={op.key} basePath={path} condominium={condo?.id??''} unit={unit?.id??''}
@@ -66,15 +66,11 @@ export default async function EasyCobrancas({searchParams}:{searchParams:Promise
       units={units.map(u=>({id:u.id,label:[u.bloco && 'Bloco '+u.bloco,u.identificacao].filter(Boolean).join(' · ')}))}/>
     {unit && !charges.length && <EasyEmpty title="Nenhuma cobrança encontrada" description="Selecione outra unidade."/>}
     {charges.map(c=><section key={c.id} className={styles.panel+' space-y-3'}>
-      <h2>{formatCurrency(c.valor_atualizado??c.valor_original??0)} · {c.vencimento?.split('-').reverse().join('/')}</h2>
-      <p>{c.status_operacional?.replaceAll('_',' ')} · {c.status_financeiro?.replaceAll('_',' ')}</p>
-      {op.key==='excluir' && (c.status_financeiro!=='em_aberto' || c.data_pagamento || Number(c.valor_pago)>0 || !['novo','regular','em_cobranca_ativa','suspenso'].includes(c.status_operacional??'')) ? <p>Esta cobrança não está disponível para exclusão.</p> : op.key==='excluir' ? <details><summary className="cursor-pointer">Revisar exclusão</summary>
-        <form action={excluirCobranca} className="mt-4 grid gap-3">
-          <input type="hidden" name="id" value={c.id}/>
-          <label>Motivo da exclusão<textarea name="motivo" required minLength={10} className="block w-full border p-2"/></label>
-          <label><input type="checkbox" name="confirmar" required/> Confirmo a retirada desta cobrança da operação.</label>
-          <button className={styles.primary}>Excluir cobrança</button>
-        </form></details> : <Link className={styles.primary} href={'/app/cobrancas/'+c.id+(op.key==='editar'?'?acao=editar-financeiro#financeiro':'')}>{op.title} cobrança</Link>}
+      <h2>{c.valor_atualizado == null && c.valor_original == null ? 'Valor não informado' : formatCurrency(c.valor_atualizado ?? c.valor_original)} · {c.vencimento ? 'Vencimento em '+c.vencimento.split('-').reverse().join('/') : 'Vencimento não informado'}</h2>
+      <p>Situação operacional · {c.status_operacional?.replaceAll('_',' ') || 'Não informada'}</p>
+      <p>Situação financeira · {c.status_financeiro?.replaceAll('_',' ') || 'Não informada'}</p>
+      {op.key==='excluir' && (c.status_financeiro!=='em_aberto' || c.data_pagamento || Number(c.valor_pago)>0 || !['novo','regular','em_cobranca_ativa','suspenso'].includes(c.status_operacional??'')) ? <p>Esta cobrança não está disponível para exclusão.</p> : op.key==='excluir' ? <details><summary className="min-h-11 cursor-pointer py-3">Revisar exclusão</summary>
+        <ExclusaoCobranca id={c.id} consulta={path+'?operacao=consultar&condominio='+condo!.id+'&unidade='+unit!.id}/></details> : <Link className={styles.primary} href={'/app/cobrancas/'+c.id+(op.key==='editar'?'?acao=editar-financeiro#financeiro':'')}>{op.title} cobrança</Link>}
     </section>)}
-  </main>
+  </div>
 }

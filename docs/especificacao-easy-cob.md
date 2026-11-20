@@ -88,7 +88,7 @@ O simulador integrado contempla despesas de cobrança percentuais, custos de emi
 - Garantir soma exata em centavos e vencimentos civis mensais válidos.
 - Aplicar limite de parcelas sem aprovação configurado por condomínio e as pendências de autorização correspondentes.
 - Diferenciar simulação, minuta, criação, aprovação e homologação; baixar minuta não cria acordo nem comprova aceite.
-- A minuta TXT observada deve ser identificada como simulação; formato final e assinatura são decisões de produto pendentes.
+- Na P2 local, “Baixar simulação (TXT)” exporta as condições exibidas na conferência como `simulacao-de-acordo.txt`. O arquivo identifica a prévia e contém as cobranças, os totais e as parcelas. Durante a edição manual, o operador conclui a edição antes do download. A criação continua em ação própria. O modelo do documento final, seu formato e a evidência de aceite aguardam definição de negócio e jurídico.
 
 ### 5.3 Cancelar
 
@@ -199,6 +199,9 @@ Liberação é separada, por índice de Flow. Revalida disponibilidade SMTP, rei
 
 **Limitações:** criação, atualização operacional e persistência da execução ocorrem em chamadas distintas. Falha pode deixar efeitos parciais; a action preserva IDs conhecidos e orienta não repetir. O índice único não inclui `atencao`, portanto esse estado não garante bloqueio de nova execução. Não foi identificada nessas actions uma recuperação por lease para `montando`/`liberando` interrompidos. Requisito: reconciliar flows e mensagens reais antes de retomar ou liberar nova montagem.
 
+**Atualização local P1/P2.** A conferência administrativa consulta a execução por ID. No protocolo 3, a reconciliação dos contadores usa recibos, motivo, versão e chave de operação. Após resposta inconclusiva, a interface exige uma nova leitura. Se a versão e a intenção permanecem as mesmas, a retomada usa a chave anterior. Execuções legadas seguem para revisão manual.
+
+
 ## 8. Easy Pag / Easy Pague
 
 O produto usa título Easy Pag e nomes técnicos `easy_pague_*`; são a mesma área. Consulta parcelas de acordos por administradora normalizada, com data limite **ontem em America/Sao_Paulo**.
@@ -270,6 +273,10 @@ Não criar tabelas paralelas de acordos ou pagamentos para o Easy. `acordos_parc
 
 As assinaturas completas devem ser extraídas das migrations aplicáveis ao implementar clientes; existem sobrecargas e substituições históricas. Não executar migrations isoladas presumindo que representam o schema final.
 
+### Retenção operacional da P2
+
+No worktree P2, Cap e Flow verificam o prazo da prévia ao aplicar a primeira mutação. A manutenção por carteira compacta apenas o staging elegível. Conversões concluídas mantêm o plano assinado usado no replay e os recibos. Documentos vinculados, eventos financeiros e chaves de idempotência permanecem fora da limpeza. Os critérios de elegibilidade, prazos e comandos estão no [procedimento de retenção](easy-cob-p2-retencao.md).
+
 ## 11. Protótipo local e diferenças
 
 **Observado:** HTML/CSS/JavaScript sem backend, com dados fictícios e `localStorage` na chave `easy-cob.demo-agreements`. O rodapé identifica demonstração. Não há autenticação, carteira, RLS, auditoria central, integração de portal ou sincronização entre usuários.
@@ -299,7 +306,7 @@ O protótipo distribui centavos restantes entre as primeiras parcelas e ajusta m
 - **Observabilidade:** correlacionar conversão, execução Easy, Flow, mensagem e job; distinguir falha, ausência de evidência e resultado incerto.
 - **Operação:** informar quantidade solicitada/aceita/processada e motivos de exclusão. Explicitar espera de worker e não anunciar conclusão só porque o pedido entrou na fila.
 - **Recuperação:** preservar histórico, impedir repetição cega e oferecer procedimento por execução para captação parcial, Flow interrompido e consulta vencida.
-- **Desempenho:** não há SLA validado nesta análise; tempos de página, tamanho por lote, retenção, expiração de prévias e alertas operacionais precisam de metas acordadas.
+- **Desempenho:** a [medição P2](easy-cob-p2-desempenho.md) registra latência, tamanho de partes, espera na fila e recuperação em laboratório. O SLA do ambiente alvo permanece em aberto. A [política de retenção](easy-cob-p2-retencao.md) define os prazos das prévias e dos temporários.
 
 ## 13. Critérios de aceite para homologação
 
@@ -343,7 +350,7 @@ Os cenários abaixo são propostos; não foram executados nesta tarefa.
 | P1 | Montagem Maestro pode resultar em ativação automática | Tornar consequência visível na confirmação e validar configuração por carteira |
 | P1 | Resultado Pag pode ser interpretado como baixa | Ajustar textos e definir ponte humana/auditada para conciliação |
 | P1 | Dependência de worker sem prova de disponibilidade | Expor heartbeat, fila, último processamento e alerta de atraso |
-| P2 | Protótipo diverge em despesas, CSV, estados e armazenamento | Decidir se permanece demonstração ou migra para contratos canônicos |
+| P2 | Protótipo diverge em despesas, CSV, estados e armazenamento | Manter o modo demonstração. Uma eventual integração exige contratos canônicos. |
 | P2 | Homologação jurídica da minuta e formato final não definidos | Definir template, versão, assinatura e trilha de aceite |
 | P2 | Retenção, expiração de prévias, SLAs e retomada administrativa não definidos | Aprovar política operacional e critérios mensuráveis |
 

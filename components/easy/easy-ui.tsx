@@ -12,7 +12,7 @@ export function EasyHeader({ title, description, backHref, backLabel = 'Voltar a
 export function EasySteps({ labels, current }: { labels: string[]; current: number }) {
   return <ol aria-label="Etapas da operação" className={styles.steps}>{labels.map((label, index) => <li key={label}
     className={`${styles.step} ${index < current ? styles.done : ''}`} aria-current={index === current ? 'step' : undefined}>
-    <span>{index < current ? <Check size={13} aria-hidden="true" /> : index + 1}</span>{label}
+    <span aria-hidden="true">{index < current ? <Check size={13} aria-hidden="true" /> : index + 1}</span><span className="sr-only">{`Etapa ${index + 1} de ${labels.length}, ${index < current ? "concluída, " : ""}`}</span>{label}
   </li>)}</ol>;
 }
 export function EasyEmpty({ title, description }: { title: string; description: string }) {

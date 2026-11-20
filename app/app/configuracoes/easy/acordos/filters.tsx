@@ -23,27 +23,32 @@ export function EasyFilters({ operation, condominium, unit, condominiums, units,
     if (unidade) params.set("unidade", unidade);
     startTransition(() => router.push(`${basePath}?${params}`));
   }
+  const emptyUnits: Record<string, string> = {
+    consultar: "Nenhuma unidade com acordo neste condomínio.",
+    criar: "Nenhuma unidade com cobrança ativa neste condomínio.",
+    cancelar: "Nenhuma unidade com acordo para cancelar neste condomínio.",
+    efetivar: "Nenhuma unidade com acordo para efetivar neste condomínio.",
+  };
+  let unitHint = "";
+  if (!condominiums.length) unitHint = "Nenhum condomínio disponível na sua carteira.";
+  else if (!condominium) unitHint = "Escolha um condomínio para buscar a unidade.";
+  else if (!units.length) unitHint = (basePath.endsWith("/acordos") && emptyUnits[operation]) || "Nenhuma unidade disponível neste condomínio.";
   const fieldClass = "mt-3 w-full border bg-slate-50/60 p-3 text-sm disabled:opacity-60";
   return <div className={`${styles.panel} grid gap-5 sm:grid-cols-2`} aria-busy={pending}>
-    <fieldset disabled={pending} className="min-w-0">
+    <fieldset disabled={pending || !condominiums.length} className="min-w-0">
       <label htmlFor="easy-condominium" className="flex items-center gap-2 text-sm font-semibold"><Building2 size={16} className="text-slate-400" aria-hidden="true" />Qual condomínio?</label>
       <SearchableSelect id="easy-condominium" name="condominio" selectedValue={condominium}
         options={condominiums.map(option => ({ value: option.id, label: option.label }))}
         placeholder="Busque pelo nome do condomínio" inputClassName={fieldClass}
         onValueChange={value => navigate(value)} />
     </fieldset>
-    <fieldset disabled={!condominium || pending || !units.length} className="min-w-0">
+    <fieldset aria-describedby={unitHint && !pending ? "easy-unit-hint" : undefined} disabled={!condominium || pending || !units.length} className="min-w-0">
       <label htmlFor="easy-unit" className="flex items-center gap-2 text-sm font-semibold"><DoorOpen size={16} className="text-slate-400" aria-hidden="true" />Qual unidade?</label>
       <SearchableSelect key={condominium} id="easy-unit" name="unidade" selectedValue={unit}
         options={units.map(option => ({ value: option.id, label: option.label }))}
-        placeholder={condominium && !units.length
-          ? basePath.endsWith("/cobrancas") ? "Nenhuma unidade disponível" : operation === "consultar" ? "Nenhuma unidade com acordo"
-            : operation === "criar" ? "Nenhuma unidade com cobrança ativa"
-              : operation === "cancelar" ? "Nenhuma unidade com acordo para cancelar"
-                : "Nenhuma unidade com acordo para efetivar"
-          : "Digite a unidade ou o bloco"}
-        inputClassName={fieldClass} onValueChange={value => navigate(condominium, value)} />
+        placeholder="Digite a unidade ou o bloco" inputClassName={fieldClass} onValueChange={value => navigate(condominium, value)} />
     </fieldset>
+    {unitHint && !pending && <p id="easy-unit-hint" role="status" className="text-sm text-slate-600 sm:col-span-2">{unitHint}</p>}
     {pending && <p role="status" className="flex items-center gap-2 text-xs text-cyan-700 sm:col-span-2"><LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Buscando opções disponíveis…</p>}
   </div>;
 }
