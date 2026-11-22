@@ -5,6 +5,27 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ImportProgressIndicator } from '@/components/feedback/import-progress-indicator'
 import { enviarFlowCobranca } from '@/features/flows/cobranca/actions'
+import { ERRO_ATIVACAO_INCERTA, type ResultadoAtivacaoFlow } from '@/features/flows/cobranca/ativacao-resultado'
+import { Play } from 'lucide-react'
+
+export function AtivarFlowButton({ flowId, pausado = false }: { flowId: string; pausado?: boolean }) {
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  const [resultado, setResultado] = useState<ResultadoAtivacaoFlow | null>(null)
+  async function ativar() {
+    if (busy) return
+    setBusy(true)
+    setResultado(null)
+    try { setResultado(await enviarFlowCobranca(flowId)) }
+    catch { setResultado({ ok: false, error: ERRO_ATIVACAO_INCERTA }) }
+    finally { setBusy(false); router.refresh() }
+  }
+  return <div className="space-y-2">
+    <Button type="button" disabled={busy} loading={busy} loadingLabel={pausado ? 'Retomando...' : 'Ativando...'} onClick={() => void ativar()}><Play size={16} />{pausado ? 'Retomar Flow' : 'Ativar Flow'}</Button>
+    {resultado?.ok === false ? <p role="alert" className="max-w-md text-sm text-rose-800">{resultado.error}</p> : null}
+    {resultado?.ok === true && resultado.aviso ? <p role="status" className="max-w-md text-sm text-amber-800">{resultado.aviso}</p> : null}
+  </div>
+}
 
 export function AtivacaoLoteFlows({ flows, selected, onSelectedChange, onBusyChange, onSelectAllChange }: {
   flows: any[]
@@ -35,12 +56,21 @@ export function AtivacaoLoteFlows({ flows, selected, onSelectedChange, onBusyCha
       for (const [index, flow] of selecionados.entries()) {
         setProgresso(`Ativando ${index + 1} de ${selecionados.length} · ${ativados} ativado(s)`)
         try {
-          await enviarFlowCobranca(flow.id)
+          const resultado = await enviarFlowCobranca(flow.id)
+          if (resultado.ok === false) {
+            erros.push({ nome: flow.nome, motivo: resultado.error })
+            setFalhas([...erros])
+            continue
+          }
           ativados += 1
           restantes.delete(flow.id)
           onSelectedChange([...restantes])
-        } catch (error) {
-          erros.push({ nome: flow.nome, motivo: error instanceof Error ? error.message : 'Não foi possível confirmar a ativação. Atualize a lista para conferir o status.' })
+          if (resultado.aviso) {
+            erros.push({ nome: flow.nome, motivo: resultado.aviso })
+            setFalhas([...erros])
+          }
+        } catch {
+          erros.push({ nome: flow.nome, motivo: ERRO_ATIVACAO_INCERTA })
           setFalhas([...erros])
         }
       }

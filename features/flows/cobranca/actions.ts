@@ -3,6 +3,7 @@ import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamen
 
 import { temFlowEmAndamento, validarCriacaoPorCanal } from './vinculos-canais'
 import { atingiuPrazoRegua } from './prazo-regua'
+import { erroAtivacaoFlow, ERRO_ATIVACAO_INCERTA, type ResultadoAtivacaoFlow } from './ativacao-resultado'
 import { filtrarCobrancasSemPausa } from '@/features/regua/services/pausa-escopo'
 import { canalFlowCobranca, flowCobrancaPath } from './rotas'
 import { consolidarEmailsLote } from './consolidar-emails'
@@ -339,51 +340,65 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData): 
   redirect(`${returnPath}?${nextParams.toString()}`)
 }
 
-export async function enviarFlowCobranca(flowId: string) {
+export async function enviarFlowCobranca(flowId: string): Promise<ResultadoAtivacaoFlow> {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
-  const flow = await getFlow(supabase, flowId, scope)
-  if ((flow.payload as any)?.easy_execucao_id) {
-    const remetente = (flow.payload as any)?.canais?.includes('email') ? await getEmailRemetenteKey(flow.carteira_id) : ''
+  let flow: any
+  try {
+    flow = await getFlow(supabase, flowId, scope)
+  } catch {
+    return { ok: false, error: 'Não foi possível conferir este Flow ou sua permissão de acesso. Atualize a lista.' }
+  }
+  const easy = Boolean(flow.payload?.easy_execucao_id)
+  if (!easy && !['pronto', 'pausado'].includes(flow.status)) return { ok: false, error: 'Este Flow não está pronto para ativação. Atualize a lista para conferir o status.' }
+  const { data: canais, error: canaisError } = await supabase.from('mensagens').select('canal').eq('cobranca_flow_id', flowId)
+  if (canaisError) return { ok: false, error: 'Não foi possível conferir os canais deste Flow. Tente novamente após atualizar a lista.' }
+  let remetente = ''
+  try {
+    if (canais?.some(m => m.canal === 'email') || (easy && flow.payload?.canais?.includes('email'))) remetente = await getEmailRemetenteKey(flow.carteira_id)
+  } catch {
+    return erroAtivacaoFlow('Conta SMTP indisponível')
+  }
+  try {
     const { error } = await supabase.rpc('email_ativar_flow', { p_flow: flowId, p_remetente: remetente, p_usuario: user.id })
-    if (error) throw new Error('A liberação Easy exige consulta e conferência do andamento.')
-    revalidatePath('/app/configuracoes/easy/flow')
+    if (error) return erroAtivacaoFlow(error.message)
+  } catch {
+    return { ok: false, error: ERRO_ATIVACAO_INCERTA }
+  }
+
+  // A RPC já confirmou a ativação: falhas posteriores nunca devem sugerir repetir o envio.
+  try {
+    if (!easy) {
+      const { data: itens, error: itensError } = await supabase.from('lote_itens').select('cobranca_id').eq('cobranca_flow_id', flowId)
+      if (itensError) throw new Error('Falha ao conferir itens após ativação.')
+      const cobrancaIds = Array.from(new Set((itens ?? []).map((item: any) => item.cobranca_id).filter(Boolean)))
+      if (cobrancaIds.length) {
+        const { error: cobrancasError } = await supabase
+          .from('cobrancas')
+          .update({ status_operacional: COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA } as any)
+          .in('id', cobrancaIds)
+        if (cobrancasError) throw new Error('Falha ao atualizar cobranças após ativação.')
+      }
+      await recalcularFlowCobranca(supabase, flowId)
+      await registrarLogMensageria(supabase as any, {
+        carteira_id: flow.carteira_id,
+        lote_id: flow.lote_id,
+        evento: flow.status === 'pausado' ? 'flow_cobranca_retomado' : 'flow_cobranca_ativado',
+        status_anterior: flow.status,
+        status_novo: 'em_execucao',
+        descricao: 'Flow cobrança liberado para agenda de disparos.',
+        payload: { flow_id: flowId },
+      })
+    }
+    if (easy) revalidatePath('/app/configuracoes/easy/flow')
     revalidatePath('/app/flows/cobranca/email')
     revalidatePath('/app/flows/cobranca/whatsapp')
-    return
+  } catch {
+    return { ok: true, aviso: 'A ativação foi confirmada, mas a atualização do acompanhamento precisa de conferência. Atualize a lista; não repita a ativação.' }
   }
-  if (!['pronto', 'pausado'].includes(flow.status)) throw new Error('Este Flow não está pronto para ativação.')
-  const { data: canais, error: canaisError } = await supabase.from('mensagens').select('canal').eq('cobranca_flow_id', flowId)
-  if (canaisError) throw new Error(canaisError.message)
-  const remetente = canais?.some(m => m.canal === 'email') ? await getEmailRemetenteKey(flow.carteira_id) : ''
-  const { error } = await supabase.rpc('email_ativar_flow', { p_flow: flowId, p_remetente: remetente, p_usuario: user.id })
-  if (error) throw new Error(`Erro ao ativar Flow: ${error.message}`)
-
-  const { data: itens } = await supabase.from('lote_itens').select('cobranca_id').eq('cobranca_flow_id', flowId)
-  const cobrancaIds = Array.from(new Set((itens ?? []).map((item: any) => item.cobranca_id).filter(Boolean)))
-  if (cobrancaIds.length) {
-    await supabase
-      .from('cobrancas')
-      .update({ status_operacional: COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA } as any)
-      .in('id', cobrancaIds)
-  }
-
-  await recalcularFlowCobranca(supabase, flowId)
-  await registrarLogMensageria(supabase as any, {
-    carteira_id: flow.carteira_id,
-    lote_id: flow.lote_id,
-    evento: flow.status === 'pausado' ? 'flow_cobranca_retomado' : 'flow_cobranca_ativado',
-    status_anterior: flow.status,
-    status_novo: 'em_execucao',
-    descricao: 'Flow cobrança liberado para agenda de disparos.',
-    payload: { flow_id: flowId },
-  })
-
-
-  revalidatePath('/app/flows/cobranca/email')
-  revalidatePath('/app/flows/cobranca/whatsapp')
+  return { ok: true }
 }
 
 export async function pausarFlowCobranca(flowId: string) {

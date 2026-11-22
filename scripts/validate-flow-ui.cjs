@@ -23,7 +23,7 @@ async function main() {
       b.onLoad({filter:/.*/,namespace:'stub'},args=>({resolveDir:process.cwd(),loader:'jsx',contents:args.path==='next/navigation'
         ? 'export const useRouter=()=>({refresh(){},push(){}}); export const usePathname=()=>"/";'
         : args.path==='next/link' ? 'import React from "react"; export default function Link({children,...props}){return <a {...props}>{children}</a>}'
-        : 'export const carregarSelecaoFlows=async()=>[],cancelarFlowCobranca=async()=>{},criarFlowsCobranca=async()=>{},desfazerAtivacaoCobrancasFlowCobranca=async()=>{},enviarFlowCobranca=async()=>{},excluirFlowCobranca=async()=>{},pausarFlowCobranca=async()=>{},reenviarItemFlowCobranca=async()=>{};'}))
+        : 'export const carregarSelecaoFlows=async()=>[],cancelarFlowCobranca=async()=>{},criarFlowsCobranca=async()=>{},desfazerAtivacaoCobrancasFlowCobranca=async()=>{},enviarFlowCobranca=async()=>({ok:true}),excluirFlowCobranca=async()=>{},pausarFlowCobranca=async()=>{},reenviarItemFlowCobranca=async()=>{};'}))
     }}],
   })
   const browser = await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL || 'msedge'})
