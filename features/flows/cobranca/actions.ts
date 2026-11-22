@@ -3,6 +3,7 @@ import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamen
 
 import { temFlowEmAndamento, validarCriacaoPorCanal } from './vinculos-canais'
 import { atingiuPrazoRegua } from './prazo-regua'
+import { filtrarCobrancasSemPausa } from '@/features/regua/services/pausa-escopo'
 import { canalFlowCobranca, flowCobrancaPath } from './rotas'
 import { consolidarEmailsLote } from './consolidar-emails'
 import { carregarContatosFlow } from './contatos-flow'
@@ -134,6 +135,13 @@ export async function criarFlowsComDestinatariosConferidos(formData: FormData, d
   if (cobrancas.some(row => !atingiuPrazoRegua(row, agora))) {
     return { error: 'Uma ou mais cobranças ainda não atingiram o prazo da régua ou não têm vencimento válido. Atualize a lista antes de criar o Flow.' }
   }
+  try {
+    if ((await filtrarCobrancasSemPausa(supabase, cobrancas, agora)).length !== cobrancas.length) {
+      return { error: 'A seleção contém cobrança com pausa ativa na régua. O bloqueio foi preservado; atualize a lista antes de criar o Flow.' }
+    }
+  } catch {
+    return { error: 'Não foi possível conferir as pausas da régua. Nenhum Flow foi criado. Tente novamente.' }
+  }
   const grupos = new Map<string, any[]>()
   for (const cobranca of cobrancas) {
     const carteiraId = String(cobranca.carteira_id ?? '')
@@ -251,7 +259,7 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData): 
   for (let offset = 0; offset < cobrancaIds.length; offset += 200) {
     let query = somenteCobrancasCanonicas(supabase
       .from('cobrancas')
-      .select('id,carteira_id,condominio_id,vencimento,status,status_operacional,status_financeiro,automacao_bloqueada,condominio:condominios(dias_apos_vencimento_regua,inicio_cobranca_dias),unidade:unidades(responsavel_nome,acao_judicial)'))
+      .select('id,carteira_id,condominio_id,unidade_id,vencimento,status,status_operacional,status_financeiro,automacao_bloqueada,condominio:condominios(dias_apos_vencimento_regua,inicio_cobranca_dias),unidade:unidades(responsavel_nome,acao_judicial)'))
       .in('id', cobrancaIds.slice(offset, offset + 200))
     query = applyCarteiraScope(query, scope.carteiraIds)
     const { data, error } = await query
@@ -268,6 +276,14 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData): 
     revalidatePath('/app/flows/cobranca/email')
     revalidatePath('/app/flows/cobranca/whatsapp')
     return { error: 'A seleção contém cobranças que ainda não atingiram o prazo da régua ou não têm vencimento válido. Atualize a lista e revise a seleção. Nenhuma cobrança foi ativada.' }
+  }
+
+  try {
+    if ((await filtrarCobrancasSemPausa(supabase, rows, agora)).length !== rows.length) {
+      return { error: 'A seleção contém cobrança com pausa ativa na régua. Nenhuma cobrança foi ativada. Atualize a lista.' }
+    }
+  } catch {
+    return { error: 'Não foi possível conferir as pausas da régua. Nenhuma cobrança foi ativada. Tente novamente.' }
   }
 
   const vinculadasIds = new Set<string>()

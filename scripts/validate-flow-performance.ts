@@ -54,7 +54,7 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
         flow: { canais: ['email'] },
       })))
     }
-    if (table === 'maestro_flow_montagens') return Response.json([])
+    if (table === 'maestro_flow_montagens' || table === 'regua_pausas') return Response.json([])
     if (table === 'responsaveis_unidades' || table === 'flow_saneamento_dispensas') return Response.json([])
     if (table === 'condominios') return Response.json([])
     throw new Error(`Consulta inesperada: ${table}`)

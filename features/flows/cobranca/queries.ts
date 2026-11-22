@@ -13,6 +13,7 @@ import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { separarSaneamento } from './eligibilidade'
 import { filtrarCobrancasNoPrazo } from './prazo-regua'
+import { filtrarCobrancasSemPausa } from '@/features/regua/services/pausa-escopo'
 import { motivosSaneamentoAtuais } from './saneamento-atual'
 import { aplicarCanalNaConsultaFlows, canaisDasMensagensFlow, FLOW_CANAIS_SELECT } from './consulta-canais'
 
@@ -251,8 +252,10 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
 
   // Antes de contatos, vínculos, totais e paginação; inclui também seleções de todas as páginas.
   const agora = new Date()
-  const novas = separarSaneamento(filtrarCobrancasNoPrazo<any>(painel ?? [], agora))
-  const ativas = separarSaneamento(filtrarCobrancasNoPrazo<any>(disponibilidade ?? [], agora))
+  const semPausa = await filtrarCobrancasSemPausa<any>(supabase, [...(painel ?? []), ...(disponibilidade ?? [])], agora)
+  const idsSemPausa = new Set(semPausa.map(row => row.id))
+  const novas = separarSaneamento(filtrarCobrancasNoPrazo<any>((painel ?? []).filter(row => idsSemPausa.has(row.id)), agora))
+  const ativas = separarSaneamento(filtrarCobrancasNoPrazo<any>((disponibilidade ?? []).filter(row => idsSemPausa.has(row.id)), agora))
   const comContatos = await carregarContatosFlow(supabase, [...novas.aptas, ...ativas.aptas])
   const contatosPorId = new Map(comContatos.map(row => [row.id, row]))
   const semContato = comContatos.filter(row => reguasDisponiveis({ ...row, canais_sem_destinatario: [] }, reguasDoCanal).length > 0
