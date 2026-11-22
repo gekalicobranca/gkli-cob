@@ -3,7 +3,8 @@ import { cicloReferencia, criarReguaFingerprint, normalizarEtapaId } from '@/fea
 import type { ReguaEtapa } from '@/features/regua/types'
 import { reguasDisponiveis } from './canais'
 
-type ReguaFingerprint = { id: string; carteira_id?: string | null; etapas?: Partial<ReguaEtapa>[] }
+type EtapaFingerprint = { id?: string; ordem?: number; delay_dias?: number; canal?: string | null; ativo?: boolean | null }
+type ReguaFingerprint = { id: string; carteira_id?: string | null; etapas?: EtapaFingerprint[] }
 type CobrancaFingerprint = { id: string; carteira_id?: string; canais_ocupados?: string[]; reguas_email_pendentes?: string[]; canais_sem_destinatario?: string[] }
 
 export function fingerprintInicialFlow(cobrancaId: string, regua: ReguaFingerprint, ciclo: string) {
