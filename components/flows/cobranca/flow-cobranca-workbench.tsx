@@ -4,18 +4,18 @@ import { FlowWorkerStatus, FlowWorkerExplanation } from './flow-worker-status'
 import { agruparCobrancasFlow, avaliarGruposFlow, selecionarCondominiosIniciais, selecionarReguaGrupo } from '@/features/flows/cobranca/selecao-workbench'
 import { useActionState, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, ChevronRight, CirclePause, FileSignature, LoaderCircle, Play, RefreshCw, RotateCcw, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronRight, CirclePause, FileSignature, LoaderCircle, RefreshCw, RotateCcw, Trash2, XCircle } from 'lucide-react'
 import { ListCollapsibleSectionHeader, ListEmptyState, ListPanel, ListRow, ListRows } from '@/components/layout/list-page'
 import { Button } from '@/components/ui/button'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
 import { ImportProgressIndicator } from '@/components/feedback/import-progress-indicator'
-import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlowCobranca, enviarFlowCobranca, excluirFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
+import { cancelarFlowCobranca, criarFlowsCobranca, desfazerAtivacaoCobrancasFlowCobranca, excluirFlowCobranca, pausarFlowCobranca, reenviarItemFlowCobranca } from '@/features/flows/cobranca/actions'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { hasResponsavelVinculado } from '@/features/flows/cobranca/eligibilidade'
 import { dividirCriacaoFlows, LIMITE_EMAILS_FLOW } from '@/features/flows/cobranca/dividir-criacao'
 import { planejarFlowsSequenciais } from '@/features/flows/cobranca/criacao-sequencial'
 import { carregarSelecaoFlows } from '@/features/flows/cobranca/selecao-actions'
-import { AtivacaoLoteFlows } from './ativacao-lote'
+import { AtivacaoLoteFlows, AtivarFlowButton } from './ativacao-lote'
 import { flowCobrancaPath, type CanalFlowCobranca } from '@/features/flows/cobranca/rotas'
 
 type StepId = 'lotes' | 'flows'
@@ -498,7 +498,7 @@ function FlowRow({ flow, showContext = false }: { flow: any; showContext?: boole
       </div>
       <div className="flex flex-wrap justify-end gap-2">
         {status === 'pronto' || status === 'pausado' ? (
-          <form action={enviarFlowCobranca.bind(null, flow.id)}><PendingSubmitButton pendingLabel={status === 'pausado' ? 'Retomando...' : 'Ativando...'}><Play size={16} />{status === 'pausado' ? 'Retomar Flow' : 'Ativar Flow'}</PendingSubmitButton></form>
+          <AtivarFlowButton flowId={flow.id} pausado={status === 'pausado'} />
         ) : null}
         {status === 'em_execucao' ? (
           <>
