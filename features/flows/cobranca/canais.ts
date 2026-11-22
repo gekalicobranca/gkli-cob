@@ -17,8 +17,9 @@ export function filtrarReguasPorCanal<T extends { etapas?: Etapa[] | null }>(reg
   return canal ? reguas.filter(regua => canaisDaRegua(regua).includes(canal)) : reguas
 }
 
-export function reguasDisponiveis(row: { carteira_id?: string; canais_ocupados?: string[]; canais_sem_destinatario?: string[] }, reguas: any[]) {
+export function reguasDisponiveis(row: { carteira_id?: string; canais_ocupados?: string[]; canais_sem_destinatario?: string[]; reguas_email_pendentes?: string[] }, reguas: any[]) {
   return reguas.filter(regua => (!regua.carteira_id || regua.carteira_id === row.carteira_id)
     && canaisDaRegua(regua).length > 0 && !conflitoDeCanais(row.canais_ocupados ?? [], canaisDaRegua(regua))
-    && !conflitoDeCanais(row.canais_sem_destinatario ?? [], canaisDaRegua(regua)))
+    && !conflitoDeCanais(row.canais_sem_destinatario ?? [], canaisDaRegua(regua))
+    && !(canaisDaRegua(regua).includes('email') && row.reguas_email_pendentes?.includes(regua.id)))
 }

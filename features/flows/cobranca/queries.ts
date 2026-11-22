@@ -3,6 +3,7 @@ import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamen
 import { registrarPerformanceFlow } from '../performance'
 import { flowCobrancaOrdem, type OrdemFlowCobranca } from './rotas'
 import { carregarCanaisOcupados } from './vinculos-canais'
+import { carregarReguasEmailPendentesUnidade, chaveUnidadeEmail } from './email-pendente-unidade'
 import { carregarContatosFlow } from './contatos-flow'
 import { priorizarWhatsappSemEmail } from './prioridade-whatsapp'
 import { reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from './canais'
@@ -256,7 +257,14 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const idsSemPausa = new Set(semPausa.map(row => row.id))
   const novas = separarSaneamento(filtrarCobrancasNoPrazo<any>((painel ?? []).filter(row => idsSemPausa.has(row.id)), agora))
   const ativas = separarSaneamento(filtrarCobrancasNoPrazo<any>((disponibilidade ?? []).filter(row => idsSemPausa.has(row.id)), agora))
-  const comContatos = await carregarContatosFlow(supabase, [...novas.aptas, ...ativas.aptas])
+  const aptas = [...novas.aptas, ...ativas.aptas]
+  const [contatos, reguasPendentes] = await Promise.all([
+    carregarContatosFlow(supabase, aptas),
+    carregarReguasEmailPendentesUnidade(supabase, aptas, reguasDoCanal),
+  ])
+  const comContatos = contatos.map(row => ({ ...row,
+    reguas_email_pendentes: [...(reguasPendentes.get(chaveUnidadeEmail(row.carteira_id, row.unidade_id)) ?? [])],
+  }))
   const contatosPorId = new Map(comContatos.map(row => [row.id, row]))
   const semContato = comContatos.filter(row => reguasDisponiveis({ ...row, canais_sem_destinatario: [] }, reguasDoCanal).length > 0
     && reguasDisponiveis(row, reguasDoCanal).length === 0)
@@ -300,7 +308,8 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const saneamentoMaestro = [...(painel ?? []), ...(disponibilidade ?? [])].filter((row: any) => motivos.has(row.id))
     .map((row: any) => ({ ...row, motivo_saneamento: motivos.get(row.id) }))
   const normalize = (row: any) => ({ ...row, carteira: relation(row.carteira), condominio: relation(row.condominio), unidade: relation(row.unidade) })
-  const painelElegivel = priorizarWhatsappSemEmail(options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id) && !idsSemContato.has(row.id)).map(row => normalize(contatosPorId.get(row.id) ?? row)), normalized.canal)
+  const painelElegivel = priorizarWhatsappSemEmail(options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id) && !idsSemContato.has(row.id)).map(row => normalize(contatosPorId.get(row.id) ?? row))
+    .filter(row => reguasDisponiveis(row, reguasDoCanal).length > 0), normalized.canal)
   const disponibilidadeElegivel = priorizarWhatsappSemEmail(options.somenteSaneamento ? [] : candidatas
     .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
     .filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)

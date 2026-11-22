@@ -1,5 +1,6 @@
 import type { createAdminClient } from '@/utils/supabase/admin'
 import { canaisDaRegua, conflitoDeCanais } from './canais'
+import { STATUS_EMAIL_PENDENTE } from './email-pendente-unidade'
 import { MOTIVO_COBRANCA_COM_ACORDO_VIGENTE } from '@/lib/constants/acordos'
 import { cicloFechamentoCobranca } from './ciclo-fechamento'
 
@@ -107,7 +108,7 @@ export async function validarCriacaoPorCanal(db: ReturnType<typeof createAdminCl
     const { data: pendentes, error: pendentesError } = await db.from('mensagens')
       .select('id,cobranca:cobrancas!inner(unidade_id),flow:cobranca_flows!inner(regua_id,status)')
       .eq('carteira_id', rows[0].carteira_id).eq('canal', 'email')
-      .in('cobranca.unidade_id', unidades).in('status', ['pendente_aprovacao','aprovada','agendada'])
+      .in('cobranca.unidade_id', unidades).in('status', STATUS_EMAIL_PENDENTE)
       .eq('flow.regua_id', reguaId).neq('flow.status', 'cancelado').limit(1)
     if (pendentesError) throw new Error('Não foi possível conferir os e-mails pendentes da unidade.')
     if (pendentes?.length) throw new Error('Uma unidade já tem e-mail pendente nesta régua. Consolide as parcelas antes de criar outro Flow para a mesma unidade.')
