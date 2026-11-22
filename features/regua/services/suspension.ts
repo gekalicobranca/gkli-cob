@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/utils/supabase/admin'
 import { registrarEventoOperacional } from '@/features/operacional/service'
+import { carregarPausasRegua, pausaAbrangeContexto } from './pausa-escopo'
 
 export type ReguaSuspensaoContext = {
   carteiraId?: string | null
@@ -15,30 +16,11 @@ export type ReguaSuspensaoContext = {
 
 export async function verificarSuspensaoRegua(ctx: ReguaSuspensaoContext) {
   const supabase = createAdminClient()
-  let query = supabase
-    .from('regua_pausas')
-    .select('id, motivo, pausa_ate, origem, regra_codigo')
-    .eq('ativo', true)
-    .or(`pausa_ate.is.null,pausa_ate.gte.${new Date().toISOString()}`)
-    .limit(1)
-
-  const filters: string[] = []
-  if (ctx.cobrancaId) filters.push(`cobranca_id.eq.${ctx.cobrancaId}`)
-  if (ctx.acordoId) filters.push(`acordo_id.eq.${ctx.acordoId}`)
-  if (ctx.unidadeId) filters.push(`unidade_id.eq.${ctx.unidadeId}`)
-  if (ctx.condominioId) filters.push(`condominio_id.eq.${ctx.condominioId}`)
-  if (!filters.length) return { pausada: false as const }
-
-  query = query.or(filters.join(','))
-  const { data, error } = await query.maybeSingle()
-
-  if (error) {
-    if (error.code === '42P01' || error.code === '42703') return { pausada: false as const }
-    throw new Error(`Erro ao verificar suspensão da régua: ${error.message}`)
-  }
-
-  if (!data?.id) return { pausada: false as const }
-  return { pausada: true as const, motivo: (data as any).motivo as string | null, pausa: data as any }
+  const agora = new Date()
+  const pausas = await carregarPausasRegua(supabase, [ctx], agora)
+  const pausa = pausas.find(item => pausaAbrangeContexto(item, ctx, agora))
+  if (!pausa) return { pausada: false as const }
+  return { pausada: true as const, motivo: pausa.motivo, pausa }
 }
 
 export async function criarPausaRegua(ctx: ReguaSuspensaoContext) {
