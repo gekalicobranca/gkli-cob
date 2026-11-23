@@ -36,6 +36,7 @@ export async function GET() {
 <main>
 <h1>Teste de observação da Keila no Safira</h1>
 <form method="post">
+<p><label>E-mail do remetente <input name="remetente" type="email" maxlength="254" required></label></p>
 <label>Data do e-mail <input name="data" type="date" required></label>
 <p><label>Trecho já lido, sem dados pessoais<br><textarea name="texto" maxlength="6000" cols="65" rows="10" required></textarea></label></p>
 <button>Executar observação</button>
@@ -51,6 +52,10 @@ export async function POST(request: Request) {
     return Response.json({ erro: 'Origem da solicitação inválida.' }, { status: 403, headers })
   }
   const form = await request.formData()
+  const remetente = form.get('remetente')
+  if (typeof remetente !== 'string' || remetente.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(remetente.trim())) {
+    return Response.json({ erro: 'Informe o e-mail do remetente.' }, { status: 400, headers })
+  }
   const data = form.get('data')
   const trecho = form.get('texto')
   if (typeof data !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data)
@@ -58,7 +63,8 @@ export async function POST(request: Request) {
     return Response.json({ erro: 'Informe a data e um trecho válido de até 6.000 caracteres.' }, { status: 400, headers })
   }
 
-  const { data: cadastro, error } = await createAdminClient().from('condominios')
+  const db = createAdminClient()
+  const { data: cadastro, error } = await db.from('condominios')
     .select('parcelas_acordo_sem_aprovacao_sindico, despesas_acordo_avista_percentual, despesas_acordo_parcelado_percentual, dias_apos_vencimento_regua, inicio_cobranca_dias')
     .eq('id', safira).eq('carteira_id', gekali).maybeSingle()
   if (error || !cadastro) {
@@ -71,15 +77,27 @@ export async function POST(request: Request) {
     return Response.json({ erro: 'O cadastro do Safira tem condições incompletas para a observação.' }, { status: 422, headers })
   }
 
+  // Escape pattern characters so the lookup compares complete addresses.
+  const emailExato = remetente.trim().replace(/[\\%_*]/g, '\\$&')
+  const { data: vinculos, error: erroVinculo } = await db.from('responsaveis_unidades')
+    .select('unidade, bloco')
+    .eq('condominio_id', safira).eq('carteira_id', gekali).eq('ativo', true)
+    .ilike('email', emailExato)
+  if (erroVinculo || !vinculos) {
+    return Response.json({ erro: 'Não foi possível consultar o vínculo do remetente.' }, { status: 503, headers })
+  }
+  const unidades = new Set(vinculos.filter(v => v.unidade?.trim()).map(v => JSON.stringify([v.bloco, v.unidade])))
+  const unidadeConfirmada = unidades.size === 1 && vinculos.every(v => v.unidade?.trim())
+
   try {
     const resultado = await observarKeila({
-      referencia: 'Safira — observação em Preview, sem caso ou unidade confirmada',
+      referencia: 'Safira — observação em Preview',
       condominio_confirmado: 'Safira',
       planilha_atual_administradora_conferida: false,
       mensagens: [{ origem: 'condomino', data, texto: trecho.trim() }],
       cadastro: {
         autonomia_habilitada: false,
-        unidade_confirmada: false,
+        unidade_confirmada: unidadeConfirmada,
         parcelas_sem_aprovacao: parcelas,
         despesas_avista_percentual: avista,
         despesas_parcelado_percentual: parcelado,
@@ -87,7 +105,7 @@ export async function POST(request: Request) {
       },
     })
     console.info('[keila-safira-preview]', { modelo: resultado.modelo, response_id: resultado.response_id })
-    return Response.json(resultado, { headers })
+    return Response.json({ ...resultado, unidade_confirmada_pelo_remetente: unidadeConfirmada }, { headers })
   } catch {
     console.error('[keila-safira-preview] Observação indisponível.')
     return Response.json({ erro: 'A observação não foi concluída.' }, { status: 502, headers })
