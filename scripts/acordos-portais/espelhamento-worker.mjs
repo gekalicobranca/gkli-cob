@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { coletarEspelhoLello, FalhaTemporariaLello } from './espelhamento-lello.mjs'
 import { lerEspelhoApp, lerIdentidadesAcordosApp, lerPeriodosBordero, planejarEspelhoLello } from './espelhamento-conciliar.mjs'
 import { auditarAcordosHomologados, situacaoAcordoDemonstrativo } from './espelhamento-auditoria-acordos.mjs'
+import { mensagemPublicaDaColeta } from '../../features/easy-cob/espelhamento-falhas.mjs'
 import fontesDoEspelhamento from './espelhamento-fontes.ts'
 import { coletarExtratos, completarFinanceiro, conferirDemonstrativo, planejarCotasPortais } from './espelhamento-portais.mjs'
 import { alvosContatoManager, basePreviaManager, planejarPreviasManager } from './espelhamento-manager.mjs'
@@ -153,7 +154,9 @@ async function processar(pedido) {
     if (error) throw error
     progresso(`concluído em ${Date.now() - inicio} ms`)
   } catch (error) {
-    const motivo = etapa === 'configuração' ? error.message : `O espelhamento foi interrompido na ${etapa}.`
+    const motivo = etapa === 'configuração' ? error.message
+      : etapa === 'coleta da inadimplência' ? mensagemPublicaDaColeta(error.message)
+      : `O espelhamento foi interrompido na ${etapa}.`
     const detalhe = String(error.message ?? error).split('\n')[0].replace(/https?:\/\/\S+/g, '[link da fonte]')
     const seguro = [config?.usuario, config?.senha].filter(Boolean).reduce((texto, segredo) => texto.replaceAll(segredo, '[credencial]'), detalhe)
     const repetir = error instanceof FalhaTemporariaLello && pedido.tentativas < 2

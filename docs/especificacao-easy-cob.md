@@ -376,4 +376,8 @@ Fontes principais no commit analisado:
 - Schema: migrations `20261108022636_easy_acordo_parcelas_pdf.sql`, `20261108132205_easy_captacao_maestro.sql`, `20261108142307_easy_flow_smtp.sql`, `20261109112259_easy_maestro.sql`, `20261109190919_easy_pague.sql` e evoluções Easy Maestro de 09–10/11/2026.
 - Validadores existentes identificados, não executados: `scripts/validate-easy-{captacao,disponibilidade,flow,pdf-parcelas,planilha-manual,valores}.ts` e `scripts/scanner/easy-pague-resultado.test.mjs`.
 
+### Diagnóstico de coleta no Easy Espelhar
+
+Quando o coletor registra uma falha de conexão ou um tempo limite de navegação, o painel orienta a conferir o acesso ao portal ou repetir **Só conferir** após o portal responder. Se a coleta chegou a produzir um relatório, mas o conversor recusou o formato ou o conteúdo, o aviso orienta a conferir o arquivo. Erros desconhecidos conservam o aviso da etapa. Nas execuções antigas com aviso genérico, o painel consulta a fonte vinculada ao pedido para recuperar uma causa reconhecida. Apenas a mensagem pública é enviada ao navegador.
+
 Para continuar em outro chat: objetivo é evoluir o módulo integrado preservando os domínios GKLI; esta especificação é a base inicial. Confirmar o novo HEAD e o checkout antes de alterar código. Permanecem pendentes homologação dos cenários, inspeção da configuração implantada e decisões da seção 14. Nenhuma autorização de deploy, migration, execução de worker ou envio decorre deste documento.
