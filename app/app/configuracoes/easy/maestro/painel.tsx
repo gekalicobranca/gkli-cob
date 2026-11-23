@@ -214,7 +214,10 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
           <ul className="mt-3 divide-y divide-slate-100">
             {receitas.map(receita => {
               const consolidado = receita.consolidado
-              const dataExibida = consolidado && !emAndamento(receita) ? consolidado.captadoEm : receita.solicitadaEm
+              const tentativaAnterior = Boolean(consolidado && receita.estado === 'revisar' && receita.finalizadaEm
+                && receita.montagemStatus !== 'atencao' && Date.parse(receita.finalizadaEm) <= Date.parse(consolidado.captadoEm))
+              const mostrarConsolidado = consolidado && !emAndamento(receita) && (receita.estado !== 'revisar' || tentativaAnterior)
+              const ultimaConclusao = receita.ultimaCaptacaoNoMes ?? consolidado?.captadoEm
               return (
                 <li key={receita.id} className={`flex flex-wrap items-start justify-between gap-2 break-words rounded-xl px-3 py-3 text-sm ${receita.ultimaCaptacaoNoMes ? 'bg-emerald-50' : ''}`}>
                   <div className="min-w-0 max-w-full">
@@ -230,10 +233,10 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
                           {receita.condominio}
                         </label>
                       ) : <p className="font-semibold">{receita.condominio}</p>}
-                      {receita.ultimaCaptacaoNoMes && (
+                      {ultimaConclusao && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">
                           <Check size={13} aria-hidden="true" />
-                          {consolidado ? 'Captado no consolidado' : 'Captado no mês'} · {new Date(consolidado?.captadoEm ?? receita.ultimaCaptacaoNoMes).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                          Última captação concluída em {new Date(ultimaConclusao).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                         </span>
                       )}
                     </div>
@@ -243,7 +246,13 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
                         {receita.liberacaoEm ? `Libera em ${formatarVencimentoAcordo(receita.liberacaoEm)}` : 'Cadastre o dia de vencimento da cota para liberar.'}
                       </p>
                     )}
-                    {receita.detalhe && <p className="mt-1 text-xs text-slate-600">{consolidado && receita.estado === 'revisar' ? 'Tentativa avulsa: ' : ''}{receita.detalhe}</p>}
+                    {tentativaAnterior ? (
+                      <details className="mt-1 text-xs text-slate-600">
+                        <summary className="cursor-pointer">Histórico da tentativa avulsa</summary>
+                        {receita.solicitadaEm && <p>Pedido em {new Date(receita.solicitadaEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>}
+                        <p>Encerrada em {new Date(receita.finalizadaEm!).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. {receita.detalhe}</p>
+                      </details>
+                    ) : receita.detalhe && <p className="mt-1 text-xs text-slate-600">{receita.fonteEmRevisao ? 'O espelhamento terminou com falha. A seleção aguarda a conferência da coleta vinculada.' : receita.detalhe}</p>}
                     {montandoFlow(receita) && <p className="mt-1 text-xs text-slate-600">Montando flow para revisão.</p>}
                     {receita.montagemStatus === 'atencao' && <p className="mt-1 text-xs text-amber-800">A montagem precisa de revisão no Maestro.</p>}
                     {receita.montagemStatus === 'concluido' && (
@@ -256,10 +265,12 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
                     ) : receita.conversaoId && <Link className="mt-1 inline-block text-xs font-semibold text-cyan-800 underline" href={`/app/configuracoes/lab/captacao-automatizada/${receita.conversaoId}`}>Ver validação</Link>}
                   </div>
                   <div className="w-full text-left sm:w-auto sm:text-right">
-                    <p className="font-semibold text-slate-800">{consolidado && !emAndamento(receita)
+                    <p className="font-semibold text-slate-800">{mostrarConsolidado
                       ? 'Importado no consolidado'
+                      : receita.fonteEmRevisao ? 'Coleta do Espelhar em revisão'
                       : <>{receita.estado === 'disponivel' && !receita.liberada ? 'Aguardando régua' : estados[receita.estado]}{receita.estado === 'importado' && receita.cobrancas !== null ? ` · ${receita.cobrancas} cobrança(s)` : ''}</>}</p>
-                    {dataExibida && <p className="text-xs text-slate-500">{new Date(dataExibida).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>}
+                    {mostrarConsolidado && <p className="text-xs text-slate-500">Consolidado concluído em {new Date(consolidado.captadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>}
+                    {!tentativaAnterior && receita.solicitadaEm && <p className="text-xs text-slate-500">Pedido em {new Date(receita.solicitadaEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>}
                   </div>
                 </li>
               )
