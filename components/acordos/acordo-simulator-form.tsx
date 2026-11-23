@@ -1,13 +1,13 @@
 "use client";
 
 import { MoneyForm } from '@/components/ui/money-form';
-import { moneyFromForm, percentageFromForm, validateMoneyFields } from '@/utils/formatters/parse-money';
+import { moneyFromForm, parseMoneyInput, validateMoneyFields } from '@/utils/formatters/parse-money';
 import { ContatoRapidoAcordo } from "@/components/acordos/contato-rapido";
 import { dataCivilValida, dataCivilSaoPaulo, somarDiasCivis, vencimentoMensal } from '@/lib/core/data-civil';
 
 import {rotuloUnidade} from "@/features/acordos/unidade-titular";
 
-import { type ChangeEvent, useActionState, useMemo, useState } from "react";
+import { type ChangeEvent, useActionState, useState } from "react";
 import { AlertTriangle, Save, UserRound, Calculator, CheckCircle2, FileText, Layers } from "lucide-react";
 import {
   createAcordoComEstado,
@@ -26,7 +26,7 @@ import { calculateAgreementInsight } from "@/features/acordos/insights";
 
 import { calcularDespesasAcordo } from "@/features/acordos/calculo-despesas";
 import { valorCotaParaAcordo } from "@/features/acordos/valor-cota";
-import { lerPlanoManual, type ParcelaManual } from "@/features/acordos/plano-manual";
+import { lerPlanoManual, ratearTotalManual, type ParcelaManual } from "@/features/acordos/plano-manual";
 import { EasySteps } from "@/components/easy/easy-ui";
 import easyStyles from "@/components/easy/easy.module.css";
 
@@ -91,17 +91,17 @@ function formatMoneyInput(value: number) {
   });
 }
 
-function parsePercent(value: string) {
-  try { return percentageFromForm(value, "Despesa de cobrança"); }
-  catch { return 0; }
-}
-
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
 function safeMailtoPart(value: string) {
   return encodeURIComponent(value).replace(/%20/g, "+");
+}
+
+function getValorAtualizado(cobranca: CobrancaOption, valorInformado?: string) {
+  const valor = parseMoneyInput(valorInformado, "form");
+  return valor.kind === "value" && valor.cents > 0 ? valor.value : valorCotaParaAcordo(cobranca);
 }
 
 export function AcordoSimulatorForm({
@@ -137,14 +137,16 @@ export function AcordoSimulatorForm({
   const [titularId, setTitularId] = useState(formularioInicial.unidade_titular_id || initial?.unidade_id || "");
   const [tipo, setTipo] = useState(formularioInicial.tipo || "extrajudicial");
   const [numeroProcesso, setNumeroProcesso] = useState(formularioInicial.numero_processo || "");
-  const [despesaCobrancaPercentual, setDespesaCobrancaPercentual] =
-    useState(formularioInicial.despesa_cobranca_percentual || "10,00");
+  const [valoresCotas, setValoresCotas] = useState<Record<string, string>>({});
+  const [repasseInput, setRepasseInput] = useState("");
+  const [valoresRevisados, setValoresRevisados] = useState(false);
+  const [confirmouAdministradora, setConfirmouAdministradora] = useState(false);
+  const repasseLido = parseMoneyInput(repasseInput, "form");
+  const repasse = repasseLido.kind === "value" ? repasseLido.value : 0;
   const [aplicarJurosAdicional, setJurosAdicional] = useState(formularioInicial.juros_adicional === "on");
   const [entrada, setEntrada] = useState(formularioInicial.entrada || "0,00");
-  const erroValores = validateMoneyFields({ get: name => name === 'entrada' ? entrada : despesaCobrancaPercentual }, [
-    { name: 'entrada', label: 'Entrada', format: 'form', optional: true },
-    { name: 'despesa_cobranca_percentual', label: 'Despesa de cobrança', percentage: true },
-  ]);
+  const camposMonetarios = [{ name: "entrada", label: "Entrada", format: "form", optional: true }] as const;
+  const erroValores = validateMoneyFields({ get: () => entrada }, [...camposMonetarios]);
 
   const [usarCreditoAdministradora, setUsarCreditoAdministradora] = useState(formularioInicial.usar_credito_administradora === "on");
   const [entradaVencimento, setEntradaVencimento] = useState(() => formularioInicial.entrada_vencimento || dataCivilSaoPaulo());
@@ -189,18 +191,26 @@ export function AcordoSimulatorForm({
   const primeiroVencimentoSelecionado = vencimentosSelecionados[0] ?? null;
   const ultimoVencimentoSelecionado = vencimentosSelecionados[vencimentosSelecionados.length - 1] ?? null;
 
-  function getValorAtualizado(cobranca?: CobrancaOption) {
-    return cobranca ? valorCotaParaAcordo(cobranca) : 0;
+  const cotasValidas = cobrancasSelecionadas.length > 0 && cobrancasSelecionadas.every(item => {
+    const valor = parseMoneyInput(valoresCotas[item.id], "form");
+    return valor.kind === "value" && valor.cents > 0;
+  });
+  const podeAvancar = cotasValidas && repasseLido.kind === "value";
+  const etapaPagamento = valoresRevisados && podeAvancar;
+
+  function voltarParaValores() {
+    setValoresRevisados(false);
+    setConfirmouAdministradora(false);
+    setEasyReview(false);
+    setEasyManualPlan(null);
+    setEasyEditing(false);
+    setEasyCopyStatus("");
   }
 
-  const preview = useMemo(() => {
+  const preview = (() => {
     const valorOriginal = cobrancasSelecionadas.reduce(
-      (total, item) => total + getValorAtualizado(item),
+      (total, item) => total + getValorAtualizado(item, valoresCotas[item.id]),
       0,
-    );
-    const percentualDespesa = Math.max(
-      0,
-      parsePercent(despesaCobrancaPercentual),
     );
     const creditoDisponivel = Math.max(
       0,
@@ -211,9 +221,9 @@ export function AcordoSimulatorForm({
       : 0;
     const valorAposCredito = roundMoney(valorOriginal - creditoUtilizado);
     const calculo = calcularDespesasAcordo(
-      cobrancasSelecionadas.map((item) => ({ id: item.id, valor: getValorAtualizado(item) })),
-      cotasSemDespesas, percentualDespesa, creditoUtilizado,
-      { quantidadeParcelas: Math.max(1, Math.floor(Number(quantidadeParcelas)) || 1), entrada: parseMoney(entrada), jurosAdicional, custoEmissaoBoleto: Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0) },
+      cobrancasSelecionadas.map((item) => ({ id: item.id, valor: getValorAtualizado(item, valoresCotas[item.id]) })),
+      cotasSemDespesas, 0, creditoUtilizado,
+      { quantidadeParcelas: Math.max(1, Math.floor(Number(quantidadeParcelas)) || 1), entrada: parseMoney(entrada), jurosAdicional, custoEmissaoBoleto: Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0), repasse },
     );
     const despesaCobranca = calculo.despesa;
     const total = calculo.total;
@@ -247,7 +257,6 @@ export function AcordoSimulatorForm({
       creditoDisponivel,
       creditoUtilizado,
       valorAposCredito,
-      percentualDespesa,
       despesaCobranca,
       custoBoletos: calculo.custoBoletos,
       quantidadeBoletos: calculo.quantidadeBoletos,
@@ -257,19 +266,7 @@ export function AcordoSimulatorForm({
       saldo,
       parcelas,
     };
-  }, [
-    cobrancasSelecionadas,
-    cotasSemDespesas,
-    despesaCobrancaPercentual,
-    entrada,
-    entradaVencimento,
-    quantidadeParcelas,
-    primeiroVencimento,
-    usarCreditoAdministradora,
-    jurosAdicional,
-    cobrancaSelecionada?.unidades?.credito_administradora,
-    cobrancaSelecionada?.condominios?.custo_emissao_boleto,
-  ]);
+  })();
 
   const insight = calculateAgreementInsight({
     valorTotal: preview.valorOriginal,
@@ -281,24 +278,24 @@ export function AcordoSimulatorForm({
     unidadeBloqueadaPorJudicializacao: false,
   });
 
-  const sugestoesParcelamento = useMemo(() => {
+  const sugestoesParcelamento = etapaPagamento && !simplified ? (() => {
     const limites = [3, 6, 12, 18, 24].filter((parcelas) =>
       limiteParcelasSemSindico > 0 ? parcelas <= Math.max(limiteParcelasSemSindico, parcelasInformadas) : true,
     );
     return Array.from(new Set(limites)).slice(0, 4).map((parcelas) => ({
       parcelas,
       valor: calcularDespesasAcordo(
-        cobrancasSelecionadas.map((item) => ({ id: item.id, valor: getValorAtualizado(item) })),
-        cotasSemDespesas, preview.percentualDespesa, preview.creditoUtilizado,
-        { quantidadeParcelas: parcelas, entrada: parseMoney(entrada), jurosAdicional, custoEmissaoBoleto: Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0) },
+        cobrancasSelecionadas.map((item) => ({ id: item.id, valor: getValorAtualizado(item, valoresCotas[item.id]) })),
+        cotasSemDespesas, 0, preview.creditoUtilizado,
+        { quantidadeParcelas: parcelas, entrada: parseMoney(entrada), jurosAdicional, custoEmissaoBoleto: Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0), repasse },
       ).parcelas[0]?.valor ?? 0,
       exigeSindico: limiteParcelasSemSindico > 0 && parcelas > limiteParcelasSemSindico,
     }));
-  }, [cobrancasSelecionadas, cotasSemDespesas, preview.percentualDespesa, preview.creditoUtilizado,
-    entrada, cobrancaSelecionada?.condominios?.custo_emissao_boleto, jurosAdicional, limiteParcelasSemSindico, parcelasInformadas]);
+  })() : [];
 
   function handleCobrancaChange(value: string) {
     setCobrancaId(value);
+    voltarParaValores();
   }
 
   function buildAprovacaoSindicoEmailHref() {
@@ -312,7 +309,7 @@ export function AcordoSimulatorForm({
     const cobrancasResumo = cobrancasSelecionadas
       .map(
         (cobranca, index) =>
-          `${index + 1}. ${rotuloUnidade(cobranca.unidades)} · Vencimento ${formatDateBR(cobranca.vencimento)} · Competência ${cobranca.competencia ?? "-"} · Valor ${formatCurrency(getValorAtualizado(cobranca))}`,
+          `${index + 1}. ${rotuloUnidade(cobranca.unidades)} · Vencimento ${formatDateBR(cobranca.vencimento)} · Competência ${cobranca.competencia ?? "-"} · Valor ${formatCurrency(getValorAtualizado(cobranca, valoresCotas[cobranca.id]))}`,
       )
       .join("\n");
 
@@ -351,7 +348,7 @@ export function AcordoSimulatorForm({
         ? "Cota do mês à vista, sem despesas de cobrança, com autorização da administradora."
         : "Cota do mês incluída com despesas de cobrança: pagamento parcelado."] : []),
       `Emissão de ${preview.quantidadeBoletos} boleto(s): ${formatCurrency(preview.custoBoletos)}`,
-      `Despesa de cobrança (${preview.percentualDespesa.toLocaleString("pt-BR")}%): ${formatCurrency(preview.despesaCobranca)}`,
+      `Repasse: ${formatCurrency(preview.despesaCobranca)}`,
       ...(preview.jurosAdicional > 0 ? [`Juros adicionais (Tabela Price, 1% ao mês sobre o saldo devedor): ${formatCurrency(preview.jurosAdicional)}`] : []),
       `Valor total proposto: ${formatCurrency(preview.total)}`,
       `Entrada: ${formatCurrency(preview.entrada)}`,
@@ -379,7 +376,7 @@ export function AcordoSimulatorForm({
     const href = buildAprovacaoSindicoEmailHref();
     const opened = window.open(href, "_blank", "noopener,noreferrer");
     if (!opened) {
-      window.location.href = href;
+      window.location.assign(href);
     }
   }
 
@@ -398,19 +395,62 @@ export function AcordoSimulatorForm({
   }
 
 
+  const repasseIncompativel = etapaPagamento && preview.despesaCobranca !== repasse;
+  const avisoRepasse = repasseIncompativel && <p role="alert" className="text-sm text-rose-700">
+    Informe repasse de R$ 0,00 quando não houver cotas sujeitas a despesas ou revise as condições do pagamento.
+  </p>;
+  const etapaValores = (
+    <section hidden={easyReview} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+      <h2 className="text-lg font-semibold text-slate-950">1. Atualizar cotas e repasse</h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {cobrancasSelecionadas.map(item => {
+          const cota = `${item.competencia || formatDateBR(item.vencimento)} · ${rotuloUnidade(item.unidades)}`;
+          return <FormField key={item.id} label={`Valor atualizado da cota · ${cota}`}
+            hint={`Valor na carteira: ${formatCurrency(valorCotaParaAcordo(item))}`}>
+            <Input aria-label={`Valor atualizado da cota · ${cota}`} name={`valor_cota_atualizado_${item.id}`}
+              inputMode="decimal" required readOnly={etapaPagamento} value={valoresCotas[item.id] ?? ""}
+              onChange={event => setValoresCotas({ ...valoresCotas, [item.id]: event.target.value })} />
+          </FormField>;
+        })}
+        <FormField label="Repasse atualizado (R$)" hint="Se houver isenção confirmada pela administradora, informe 0,00.">
+          <Input aria-label="Repasse atualizado (R$)" name="repasse_atualizado" inputMode="decimal"
+            required readOnly={etapaPagamento} value={repasseInput} onChange={event => setRepasseInput(event.target.value)} />
+        </FormField>
+      </div>
+      {etapaPagamento ? (
+        <Button type="button" variant="secondary" disabled={isCreatingAcordo} onClick={voltarParaValores}>Revisar cotas e repasse</Button>
+      ) : (
+        <Button type="button" disabled={!podeAvancar} onClick={() => setValoresRevisados(true)}>Continuar para parcelas e vencimentos</Button>
+      )}
+    </section>
+  );
+  const confirmacaoAdministradora = (
+    <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-900">
+      <input type="checkbox" name="valores_administradora_confirmados" required
+        checked={confirmouAdministradora} onChange={event => setConfirmouAdministradora(event.target.checked)} />
+      Confirma que os valores informados estão atualizados com a administradora?
+    </label>
+  );
+
   if (simplified) {
     let manual: ReturnType<typeof lerPlanoManual> = null;
     let manualError = "";
     try { manual = lerPlanoManual(easyManualPlan ? JSON.stringify(easyManualPlan) : null, preview.parcelas.length); }
     catch (error) { manualError = error instanceof Error ? error.message : "Confira as parcelas."; }
-    const reviewParcels = manual?.parcelas ?? preview.parcelas.map(parcela => ({
+    const amortizacoes = preview.parcelas.map(parcela => parcela.amortizacao);
+    const cotasRateadas = amortizacoes.some(valor => valor > 0)
+      ? ratearTotalManual(preview.valorAposCredito, amortizacoes) : amortizacoes;
+    const parcelasCalculadas = preview.parcelas.map((parcela, index) => ({
       ...parcela,
-      cota: parcela.amortizacao,
-      despesa: roundMoney(parcela.valor - parcela.amortizacao),
+      cota: cotasRateadas[index],
+      despesa: roundMoney(parcela.valor - cotasRateadas[index]),
     }));
+    const reviewParcels = manual?.parcelas ?? parcelasCalculadas;
     const reviewTotal = manual?.total ?? preview.total;
     const reviewCota = roundMoney(reviewParcels.reduce((sum, parcela) => sum + parcela.cota, 0));
     const reviewDespesa = roundMoney(reviewParcels.reduce((sum, parcela) => sum + parcela.despesa, 0));
+    if (manual && (reviewTotal !== preview.total || reviewCota !== preview.valorAposCredito))
+      manualError = "Mantenha o total de cotas e o total do acordo conforme os valores atualizados.";
     const paymentLines = reviewParcels.map(parcela =>
       `Parcela ${parcela.numero} · ${formatDateBR(parcela.vencimento)} · Cota ${formatCurrency(parcela.cota ?? parcela.valor)} · Despesa ${formatCurrency(parcela.despesa ?? 0)} · Total ${formatCurrency(parcela.valor)}`,
     );
@@ -419,15 +459,16 @@ export function AcordoSimulatorForm({
       rotuloUnidade(cobrancaSelecionada?.unidades),
       "",
       "Cobranças selecionadas:",
-      ...cobrancasSelecionadas.map(item => `${item.competencia || "Cobrança"} · ${formatDateBR(item.vencimento)} · ${formatCurrency(getValorAtualizado(item))}`),
+      ...cobrancasSelecionadas.map(item => `${item.competencia || "Cobrança"} · ${formatDateBR(item.vencimento)} · ${formatCurrency(getValorAtualizado(item, valoresCotas[item.id]))}`),
       "",
       `Cotas no plano de pagamento: ${formatCurrency(reviewCota)}`,
+      `Repasse: ${formatCurrency(repasse)}`,
       `Despesas no plano de pagamento: ${formatCurrency(reviewDespesa)}`,
       `Total: ${formatCurrency(reviewTotal)}`,
       "",
       ...paymentLines,
     ].join("\n");
-    const blocked = Boolean(erroValores) || Boolean(manualError) || !preview.datasValidas || reviewTotal <= 0;
+    const blocked = !etapaPagamento || repasseIncompativel || Boolean(erroValores) || Boolean(manualError) || !preview.datasValidas || reviewTotal <= 0;
     const administratorText = `Prezados, segue a simulação do acordo para conferência.\n\n${simulationText}`;
     async function copyAdministratorText() {
       try {
@@ -437,7 +478,7 @@ export function AcordoSimulatorForm({
         setEasyCopyStatus("Abra o texto abaixo para copiar manualmente.");
       }
     }
-    const creationBlocked = blocked || easyEditing || acordoJaCriado || bloqueadoPorPendenciaPlanilha ||
+    const creationBlocked = blocked || !confirmouAdministradora || easyEditing || acordoJaCriado || bloqueadoPorPendenciaPlanilha ||
       bloqueadoPorPendenciaAprovacaoSindico || !contatoAcionavel;
     function downloadSimulation() {
       const content = ["SIMULAÇÃO DE ACORDO", "Prévia para conferência das condições de pagamento.", "", simulationText].join("\n");
@@ -449,24 +490,17 @@ export function AcordoSimulatorForm({
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     return <div className={`${easyStyles.workspace} mx-auto max-w-3xl space-y-5`}>
-      <EasySteps labels={["Cobranças", "Condições", "Conferência"]} current={easyReview ? 2 : 1} />
+      <EasySteps labels={["Cobranças", "Valores", "Parcelas e vencimentos"]} current={etapaPagamento ? 2 : 1} />
       <aside className={`${easyStyles.context} !block`} aria-label="Resumo da operação">
         <p className="text-xs font-medium tracking-wide text-slate-600">{cobrancaSelecionada?.condominios?.nome}</p>
         <p className="mt-1 font-semibold text-slate-950">{rotuloUnidade(cobrancaSelecionada?.unidades)}</p>
         <p className="mt-1 text-sm text-slate-600">{cobrancasSelecionadas.length} cobrança(s) selecionada(s)</p>
       </aside>
-      <MoneyForm fields={[{ name: "despesa_cobranca_percentual", label: "Despesas de cobrança", percentage: true }]}
+      <MoneyForm fields={[]}
         action={createAcordoAction} className="space-y-4"
         onSubmitCapture={event => {
-          if (easyReview && (blocked || easyEditing)) { event.preventDefault(); return; }
-          if (!easyReview) {
-            event.preventDefault();
-            if (event.currentTarget.reportValidity() && !erroValores && preview.total > 0) {
-              const submitted = new FormData(event.currentTarget);
-              setPrimeiroVencimento(String(submitted.get("primeiro_vencimento") ?? ""));
-              setEasyReview(true);
-            }
-          }
+          if (!easyReview || creationBlocked) event.preventDefault();
+          if (!easyReview && !blocked) setEasyReview(true);
         }}>
         {cobrancasSelecionadas.map(item => <input key={item.id} type="hidden" name="cobranca_ids" value={item.id} />)}
         <input type="hidden" name="unidade_titular_id" value={cobrancaSelecionada?.unidade_id ?? ""} />
@@ -475,7 +509,8 @@ export function AcordoSimulatorForm({
         <input type="hidden" name="juros_adicional" value={jurosAdicional ? "on" : "off"} />
         <input type="hidden" name="origem_easy" value="1" />
         {easyManualPlan && <input type="hidden" name="plano_manual" value={JSON.stringify(easyManualPlan)} />}
-        <section hidden={easyReview} className={`${easyStyles.panel} space-y-5`}>
+        {etapaValores}
+        <section hidden={!etapaPagamento || easyReview} className={`${easyStyles.panel} space-y-5`}>
           <h2 className="text-xl font-semibold">Como será o pagamento?</h2>
           <div className="grid gap-5 sm:grid-cols-2">
           <FormField label="O acordo será à vista ou parcelado?">
@@ -483,10 +518,6 @@ export function AcordoSimulatorForm({
               onChange={event => setQuantidadeParcelas(event.target.value === "avista" ? "1" : "2")}>
               <option value="avista">À vista</option><option value="parcelado">Parcelado</option>
             </Select>
-          </FormField>
-          <FormField label="Despesas de cobrança (%)" hint={`Valor calculado: ${formatCurrency(preview.despesaCobranca)}`}>
-            <Input aria-label="Despesas de cobrança (%)" name="despesa_cobranca_percentual" required
-              value={despesaCobrancaPercentual} onChange={event => setDespesaCobrancaPercentual(event.target.value)} />
           </FormField>
           {Number(quantidadeParcelas) === 1 ? <input type="hidden" name="quantidade_parcelas" value="1" /> :
           <FormField label="Quantidade de parcelas">
@@ -499,11 +530,12 @@ export function AcordoSimulatorForm({
               onChange={event => setPrimeiroVencimento(event.target.value)} />
           </FormField>
           </div>
-          <p className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">Cotas com juros e multa registrados. Parcelamento com Price de 1% ao mês. Boleto: {formatCurrency(Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0))} por emissão.</p>
+          <p className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">Parcelamento com Price de 1% ao mês. Boleto: {formatCurrency(Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0))} por emissão.</p>
           <div className="flex justify-end border-t border-slate-100 pt-4"><Button type="submit" className="h-11 rounded-xl px-6" disabled={blocked}>Simular acordo →</Button></div>
         </section>
-        {erroValores && <p role="alert" className="text-sm text-rose-700">{erroValores.message}</p>}
-        {!preview.datasValidas && <p role="alert" className="text-sm text-rose-700">Informe um vencimento válido.</p>}
+        {avisoRepasse}
+        {etapaPagamento && erroValores && <p role="alert" className="text-sm text-rose-700">{erroValores.message}</p>}
+        {etapaPagamento && !preview.datasValidas && <p role="alert" className="text-sm text-rose-700">Informe um vencimento válido.</p>}
         {easyReview && <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="space-y-5 p-5 sm:p-6">
             <header>
@@ -518,6 +550,7 @@ export function AcordoSimulatorForm({
               </div>
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between gap-3"><dt className="text-slate-600">Cotas no plano</dt><dd className="font-medium tabular-nums">{formatCurrency(reviewCota)}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-600">Repasse</dt><dd className="font-medium tabular-nums">{formatCurrency(repasse)}</dd></div>
                 <div className="flex justify-between gap-3"><dt className="text-slate-600">Despesas no plano</dt><dd className="font-medium tabular-nums">{formatCurrency(reviewDespesa)}</dd></div>
               </dl>
             </div>
@@ -526,12 +559,12 @@ export function AcordoSimulatorForm({
               <div className="flex flex-wrap gap-2">
                 {easyManualPlan && <Button type="button" variant="ghost" disabled={isCreatingAcordo} onClick={() => { setEasyManualPlan(null); setEasyEditing(false); setEasyCopyStatus(""); }}>Restaurar cálculo</Button>}
                 <Button type="button" variant="secondary" disabled={isCreatingAcordo || (easyEditing && Boolean(manualError))} onClick={() => {
-                  if (!easyManualPlan) setEasyManualPlan(preview.parcelas.map(p => ({ numero: p.numero, cota: p.amortizacao.toFixed(2).replace('.', ','), despesa: Math.max(0, p.valor - p.amortizacao).toFixed(2).replace('.', ','), vencimento: p.vencimento })));
+                  if (!easyManualPlan) setEasyManualPlan(parcelasCalculadas.map(p => ({ numero: p.numero, cota: formatMoneyInput(p.cota), despesa: formatMoneyInput(p.despesa), vencimento: p.vencimento })));
                   setEasyEditing(!easyEditing); setEasyCopyStatus("");
                 }}>{easyEditing ? "Concluir edição" : "Editar manualmente"}</Button>
               </div>
             </div>
-            {easyEditing && <p className="text-sm text-slate-600">Altere separadamente o valor de cota e as despesas de cada parcela. O total é calculado automaticamente.</p>}
+            {easyEditing && <p className="text-sm text-slate-600">Distribua os valores entre as parcelas, mantendo o total das cotas e do acordo.</p>}
             {manualError && <p role="alert" className="text-sm text-rose-700">{manualError}</p>}
             <div role="region" aria-label="Revisão das parcelas da simulação" tabIndex={0} className="max-h-64 overflow-auto rounded-xl border border-slate-200">
               <table className="w-full text-left text-sm">
@@ -573,9 +606,10 @@ export function AcordoSimulatorForm({
             <p role="status" className="text-sm text-amber-800">Resolva a pendência de planilha ou aprovação desta unidade para criar o acordo.</p>}
           {!contatoAcionavel && <p className="text-sm text-amber-800">Complete o nome e o e-mail ou telefone do responsável em <a className="underline" href={`/app/unidades/${responsavelAcionado.unidadeId}`}>cadastro da unidade</a>.</p>}
           {actionState.error && <p role="alert" className="text-sm text-rose-700">{actionState.error}</p>}
+          {confirmacaoAdministradora}
           </div>
           <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <Button type="button" variant="ghost" disabled={isCreatingAcordo} onClick={() => { setEasyReview(false); setEasyCopyStatus(""); setEasyManualPlan(null); setEasyEditing(false); }}>← Ajustar simulação</Button>
+            <Button type="button" variant="ghost" disabled={isCreatingAcordo} onClick={() => { setEasyReview(false); setConfirmouAdministradora(false); setEasyCopyStatus(""); setEasyManualPlan(null); setEasyEditing(false); }}>← Ajustar simulação</Button>
             <Button type="submit" className="h-11 px-6" disabled={creationBlocked} loading={isCreatingAcordo} loadingLabel="Criando…">
               {exigeAprovacaoSindico ? "Criar proposta para aprovação" : "Criar acordo"}
             </Button>
@@ -586,7 +620,7 @@ export function AcordoSimulatorForm({
   }
 
   return (
-    <MoneyForm fields={[{ name: 'entrada', label: 'Entrada', format: 'form', optional: true }, { name: 'despesa_cobranca_percentual', label: 'Despesa de cobrança', percentage: true }]} action={createAcordoAction} className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px] [&_input:not([type=checkbox]):not([type=hidden])]:min-h-11 [&_input:not([type=checkbox])]:text-base [&_select]:min-h-11 [&_select]:text-base [&_textarea]:text-base [&_button]:min-h-11 [&_button]:h-auto [&_button]:py-2.5">
+    <MoneyForm fields={[...camposMonetarios]} action={createAcordoAction} className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px] [&_input:not([type=checkbox]):not([type=hidden])]:min-h-11 [&_input:not([type=checkbox])]:text-base [&_select]:min-h-11 [&_select]:text-base [&_textarea]:text-base [&_button]:min-h-11 [&_button]:h-auto [&_button]:py-2.5">
       {cobrancasSelecionadas.map((cobranca) => (
         <input
           key={cobranca.id}
@@ -600,7 +634,7 @@ export function AcordoSimulatorForm({
       <input type="hidden" name="cobranca_id_origem" value={cobrancaSelecionada?.id ?? cobrancaId} />
       <div className="min-w-0 space-y-4">
       <Card className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950"><Layers className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />1. Cobranças e unidade titular</h2>
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950"><Layers className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />Cobranças e unidade titular</h2>
         {cotasSemDespesas.length > 0 && (
           <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
             <input type="checkbox" name="cota_mes_autorizada" defaultChecked={formularioInicial.cota_mes_autorizada === "on"} required className="mt-1" />
@@ -608,7 +642,7 @@ export function AcordoSimulatorForm({
           </label>
         )}
         <FormField label="Unidade titular do acordo">
-          <Select value={cobrancaSelecionada?.unidade_id ?? ""} onChange={(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setTitularId(event.target.value)} required>
+          <Select value={cobrancaSelecionada?.unidade_id ?? ""} onChange={(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { setTitularId(event.target.value); voltarParaValores(); }} required>
             {unidadesSelecionadas.map(c => <option key={c.unidade_id} value={c.unidade_id}>{rotuloUnidade(c.unidades)} · {c.unidades?.responsavel_nome ?? "Responsável não informado"}</option>)}
           </Select>
           <p className="mt-1 text-xs text-slate-500">A administradora controlará boletos, parcelas e pagamentos pela unidade titular. As cobranças mantêm suas unidades de origem.</p>
@@ -648,7 +682,7 @@ export function AcordoSimulatorForm({
                     </p>
                   </div>
                   <p className="text-sm font-semibold text-slate-950">
-                    {formatCurrency(getValorAtualizado(cobranca))}
+                    {formatCurrency(getValorAtualizado(cobranca, valoresCotas[cobranca.id]))}
                   </p>
                 </div>
               ))}
@@ -671,7 +705,7 @@ export function AcordoSimulatorForm({
                     {cobranca.unidades?.responsavel_nome ??
                       "Responsável não informado"}{" "}
                     · Unidade {cobranca.unidades?.identificacao ?? "-"} ·{" "}
-                    {formatCurrency(getValorAtualizado(cobranca))}
+                    {formatCurrency(getValorAtualizado(cobranca, valoresCotas[cobranca.id]))}
                   </option>
                 ))}
               </Select>
@@ -725,8 +759,9 @@ export function AcordoSimulatorForm({
         <p className="text-sm text-slate-600">{cobrancasSelecionadas.length} cobrança(s) · Saldo {formatCurrency(preview.valorOriginal)} · Maior atraso {insight.maiorAtrasoDias} dias</p>
 
       </Card>
-      <Card className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950"><Calculator className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />2. Condições do acordo</h2>
+      {etapaValores}
+      {etapaPagamento && <Card className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950"><Calculator className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />2. Parcelas e vencimentos</h2>
 
         <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
           <FormField label="Tipo de acordo">
@@ -753,20 +788,6 @@ export function AcordoSimulatorForm({
                 event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
               ) => setNumeroProcesso(event.target.value)}
               placeholder="0000000-00.0000.0.00.0000"
-            />
-          </FormField>
-
-          <FormField
-            label="Despesa de cobrança (%)"
-            hint="Calculada sobre o valor atualizado/original da cobrança."
-          >
-            <Input
-              aria-label="Despesa de cobrança (%)" name="despesa_cobranca_percentual"
-              required
-              value={despesaCobrancaPercentual}
-              onChange={(
-                event: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-              ) => setDespesaCobrancaPercentual(event.target.value)}
             />
           </FormField>
 
@@ -881,8 +902,8 @@ export function AcordoSimulatorForm({
           </span>
         </label>
 
-      </Card>
-
+      {avisoRepasse}
+      </Card>}
 
       </div>
       <div className="flex min-w-0 flex-col gap-4 xl:col-start-2 xl:row-start-1 xl:row-span-2">
@@ -909,6 +930,7 @@ export function AcordoSimulatorForm({
           <ContatoRapidoAcordo />
         </Card>
 
+        {etapaPagamento && <>
         <Card className="space-y-3">
           <h2 className="text-lg font-semibold text-slate-950">
             Resumo financeiro
@@ -933,8 +955,7 @@ export function AcordoSimulatorForm({
             ) : null}
             <div className="flex justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
               <span className="text-sm text-slate-500">
-                Despesa de cobrança (
-                {preview.percentualDespesa.toLocaleString("pt-BR")}%)
+                Repasse
               </span>
               <strong className="text-sm text-slate-950">
                 {formatCurrency(preview.despesaCobranca)}
@@ -1039,9 +1060,10 @@ export function AcordoSimulatorForm({
           </div>
         </details>
         </Card>
+        </>}
       </div>
-      <Card className="space-y-3 xl:col-start-1 xl:row-start-2">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950"><FileText className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />3. Conferência e criação</h2>
+      {etapaPagamento && <Card className="space-y-3 xl:col-start-1 xl:row-start-2">
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950"><FileText className="size-5 text-[var(--gkli-primary)]" aria-hidden="true" />Confirmação da gravação</h2>
         <details open={Boolean(documentoUrl || observacoes)} className="rounded-xl border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium text-slate-700">Documento e observações (opcional)</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
         <FormField label="Link do documento/pasta">
           <Input
@@ -1138,6 +1160,7 @@ export function AcordoSimulatorForm({
         {contemCobrancasForaRegua && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           Esta seleção contém cotas fora da régua. Mantenha as confirmações de autorização para a inclusão e a eventual isenção de despesas.
         </div>}
+        {confirmacaoAdministradora}
         <div className="flex flex-col justify-end gap-2 sm:flex-row [&>button]:flex-1">
           {!exigeAprovacaoSindico ? (
             <Button
@@ -1145,14 +1168,14 @@ export function AcordoSimulatorForm({
               variant="secondary"
               formAction={solicitarAprovacaoSindicoAcordo}
               onClick={handleOpenAprovacaoSindicoEmail}
-              disabled={Boolean(erroValores) || isCreatingAcordo || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
+              disabled={!confirmouAdministradora || repasseIncompativel || Boolean(erroValores) || isCreatingAcordo || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0}
             >
               Pedir aprovação do síndico
             </Button>
           ) : null}
           <Button
             type="submit"
-            disabled={Boolean(erroValores) || acordoJaCriado || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0 || !preview.datasValidas}
+            disabled={!confirmouAdministradora || repasseIncompativel || Boolean(erroValores) || acordoJaCriado || bloqueadoPorPendenciaPlanilha || bloqueadoPorPendenciaAprovacaoSindico || preview.total <= 0 || !preview.datasValidas}
             loading={isCreatingAcordo}
             loadingLabel="Criando acordo..."
             className="whitespace-normal"
@@ -1161,7 +1184,7 @@ export function AcordoSimulatorForm({
           </Button>
         </div>
 
-      </Card>
+      </Card>}
     </MoneyForm>
   );
 }

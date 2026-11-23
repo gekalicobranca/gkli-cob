@@ -47,6 +47,7 @@ function calcularValores(
   cotasSemDespesas: string[],
   percentual: number,
   credito: number,
+  repasse?: number,
 ) {
   const bases = itens.map((item) => round(Math.max(0, item.valor)));
   const totalBase = round(bases.reduce((a, b) => a + b, 0));
@@ -55,7 +56,7 @@ function calcularValores(
   const basesDespesa = bases.map((base, index) => cotasSemDespesas.includes(itens[index].id)
     ? 0 : round(base - creditos[index]));
   const baseDespesa = round(basesDespesa.reduce((a, b) => a + b, 0));
-  const despesa = round(baseDespesa * Math.max(0, percentual) / 100);
+  const despesa = baseDespesa > 0 ? repasse ?? round(baseDespesa * Math.max(0, percentual) / 100) : 0;
   const despesas = ratear(despesa, basesDespesa);
   return {
     baseDespesa,
@@ -78,13 +79,13 @@ export function calcularDespesasAcordo(
   cotasSemDespesas: string[],
   percentual: number,
   credito: number,
-  pagamento: { quantidadeParcelas: number; entrada: number; jurosAdicional?: boolean; custoEmissaoBoleto?: number },
+  pagamento: { quantidadeParcelas: number; entrada: number; jurosAdicional?: boolean; custoEmissaoBoleto?: number; repasse?: number },
 ) {
-  const comIsencao = calcularValores(itens, cotasSemDespesas, percentual, credito);
+  const comIsencao = calcularValores(itens, cotasSemDespesas, percentual, credito, pagamento.repasse);
   const pagamentoAVista = (pagamento.quantidadeParcelas === 1 && pagamento.entrada === 0)
     || (comIsencao.total > 0 && round(pagamento.entrada) >= comIsencao.total);
   const isencaoAplicada = pagamentoAVista && cotasSemDespesas.length > 0;
-  const valores = isencaoAplicada ? comIsencao : calcularValores(itens, [], percentual, credito);
+  const valores = isencaoAplicada ? comIsencao : calcularValores(itens, [], percentual, credito, pagamento.repasse);
   const parcelas = calcularParcelamentoAcordo(round(valores.total - pagamento.entrada),
     pagamento.quantidadeParcelas, Boolean(pagamento.jurosAdicional && !pagamentoAVista));
   const custoEmissaoBoleto = round(Number(pagamento.custoEmissaoBoleto ?? 0));

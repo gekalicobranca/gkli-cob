@@ -97,26 +97,110 @@ test('dates stay civil under different host timezones and Sao Paulo day rollover
     assert.equal(dataCivilSaoPaulo(new Date('2026-11-03T03:00:00Z')),'2026-11-03')
   } } finally { if (previous === undefined) delete process.env.TZ; else process.env.TZ=previous }
 })
+const valoresConfirmados = {
+  repasse_atualizado: '12,37',
+  valor_cota_atualizado_receipt: '115,21',
+  valores_administradora_confirmados: 'on',
+}
+function findElement(node: any, predicate: (props: any) => boolean): any {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findElement(child, predicate)
+      if (found) return found
+    }
+  } else if (node?.props) {
+    if (predicate(node.props)) return node.props
+    return findElement(node.props.children, predicate)
+  }
+}
+function simulator(state: ReturnType<typeof harness>['state'], load: ReturnType<typeof harness>['load'], input: Record<string, string>, simplified = false) {
+  return () => {
+    state.hookIndex = 0
+    return load('components/acordos/acordo-simulator-form.tsx').AcordoSimulatorForm({
+      cobrancas: [state.cobranca], initialCobrancaId: 'receipt', formularioInicial: input, simplified,
+    })
+  }
+}
+function renderedDates(node: any): string[] {
+  if (Array.isArray(node)) return node.flatMap(renderedDates)
+  if (!node?.props) return []
+  const children = node.props.children
+  if (node.type === 'p' && Array.isArray(children) && children[0] === 'Venc. ') return [children[1]]
+  return renderedDates(children)
+}
+const cont = (props: any) => props.children === 'Continuar para parcelas e vencimentos'
+function preencherValores(ui: any) {
+  for (const field of ['repasse_atualizado', 'valor_cota_atualizado_receipt'] as const)
+    findElement(ui, props => props.name === field).onChange({ target: { value: valoresConfirmados[field] } })
+}
+test('simulador exige cota e repasse antes de liberar vencimentos e exige nova confirmação ao rever valores', () => {
+  for (const simplified of [false, true]) {
+    const {state,load}=harness()
+    const render = simulator(state, load, {}, simplified)
+    let ui = render()
+    assert.equal(findElement(ui, cont).disabled, true)
+    findElement(ui, p => p.name === 'valor_cota_atualizado_receipt').onChange({target:{value:'100,00'}})
+    assert.equal(findElement(render(), cont).disabled, true)
+    findElement(ui, p => p.name === 'repasse_atualizado').onChange({target:{value:'0,00'}})
+    ui = render()
+    assert.equal(findElement(ui, cont).disabled, false)
+    findElement(ui, cont).onClick()
+    ui = render()
+    assert.ok(findElement(ui, p => p.name === 'primeiro_vencimento'))
+    const confirmation = (p: any) => p.name === 'valores_administradora_confirmados'
+    if (simplified) {
+      assert.equal(findElement(ui, confirmation), undefined)
+      findElement(ui, p => p.onSubmitCapture).onSubmitCapture({ preventDefault() {} })
+      ui = render()
+      assert.equal(findElement(ui, confirmation).checked, false)
+      assert.equal(findElement(ui, p => p.children === 'Criar acordo').disabled, true)
+      findElement(ui, confirmation).onChange({target:{checked:true}})
+      assert.equal(findElement(render(), p => p.children === 'Criar acordo').disabled, false)
+    } else {
+      assert.equal(findElement(ui, confirmation).checked, false)
+      findElement(ui, confirmation).onChange({target:{checked:true}})
+      ui = render()
+      assert.equal(findElement(ui, confirmation).checked, true)
+      findElement(ui, p => p.children === 'Revisar cotas e repasse').onClick()
+      findElement(render(), cont).onClick()
+      assert.equal(findElement(render(), confirmation).checked, false)
+    }
+  }
+})
+test('Server Action bloqueia gravação sem cota atualizada, repasse ou confirmação', async () => {
+  for (const [field,error] of [['repasse_atualizado',/Repasse atualizado/],['valor_cota_atualizado_receipt',/Valor atualizado da cota/],['valores_administradora_confirmados',/Confirme/]] as const) {
+    const {state,load}=harness(), form=new FormData()
+    Object.entries({...valoresConfirmados,cobranca_id:'receipt'}).forEach(([key,value])=>form.set(key,value))
+    form.delete(field)
+    await assert.rejects(load('features/acordos/actions.ts').createAcordo(form),error)
+    assert.equal(state.financial,null)
+    assert.equal(state.writes.length,0)
+  }
+})
 test('real simulator preview and Server Action generate the same dates and defer formalization', async () => {
   for(const quantidade of [2,3,4]) {
   const {state,load}=harness()
   state.pending=quantidade>3
-  const input={quantidade_parcelas:String(quantidade),primeiro_vencimento:'2026-01-31',entrada:'0,00',despesa_cobranca_percentual:'10,00'}
-  load('components/acordos/acordo-simulator-form.tsx').AcordoSimulatorForm({cobrancas:[state.cobranca],initialCobrancaId:'receipt',formularioInicial:input})
-  const preview=state.memos.find((m:any)=>m?.parcelas&&m?.total)
-  assert.ok(preview)
+  const input={quantidade_parcelas:String(quantidade),primeiro_vencimento:'2026-01-31',entrada:'0,00',...valoresConfirmados}
+  const render = simulator(state, load, input)
+  preencherValores(render())
+  findElement(render(), cont).onClick()
+  const preview=render()
   const form=new FormData();Object.entries(input).forEach(([key,value])=>form.set(key,value));form.set('cobranca_id','receipt')
   await assert.rejects(load('features/acordos/actions.ts').createAcordo(form),/REDIRECT \/app\/acordos\/agreement/)
   assert.equal(state.financial.p_exige_aprovacao_sindico,quantidade>3)
-  assert.equal(state.financial.p_valor_acordado,preview.total)
+  assert.equal(findElement(preview, props=>props.name==='valor_acordado').value,'127,58')
+  assert.equal(state.financial.p_valor_acordado,127.58)
+  assert.equal(state.financial.p_despesa_cobranca_valor,12.37)
+  assert.equal(state.financial.p_itens[0].valor_atualizado_no_acordo,115.21)
   assert.equal(state.financial.p_data_acordo,state.financial.p_parcelas[0].vencimento)
-  assert.equal(JSON.stringify(preview.parcelas.map((p:any)=>p.vencimento)),JSON.stringify(state.financial.p_parcelas.map((p:any)=>p.vencimento)))
+  assert.deepEqual(Array.from(renderedDates(preview)),Array.from(state.financial.p_parcelas,(p:any)=>p.vencimento.split('-').reverse().join('/')))
   assert.equal(state.writes.some((w:any)=>['acordos_termos','mensagens'].includes(w.table)),quantidade<=3)
   }
 })
 test('Server Action obeys database approval when configuration changes during creation', async () => {
   const {state,load}=harness(), form=new FormData()
-  Object.entries({cobranca_id:'receipt',primeiro_vencimento:'2026-01-31',entrada:'0,00',quantidade_parcelas:'3',despesa_cobranca_percentual:'10,00'}).forEach(([k,v])=>form.set(k,v))
+  Object.entries({cobranca_id:'receipt',primeiro_vencimento:'2026-01-31',entrada:'0,00',quantidade_parcelas:'3',...valoresConfirmados}).forEach(([k,v])=>form.set(k,v))
   form.set('data_acordo','2026-01-20')
   state.pending=true
   await assert.rejects(load('features/acordos/actions.ts').createAcordo(form),/REDIRECT/)
@@ -126,7 +210,7 @@ test('Server Action obeys database approval when configuration changes during cr
 test('direct Server Action rejects invalid first and entry dates before any write', async () => {
   for(const [first,entry] of [['2026-02-30',''],['2026-01-31','2026-04-31']]) {
     const {state,load}=harness(),form=new FormData()
-    Object.entries({cobranca_id:'receipt',primeiro_vencimento:first,entrada:entry?'10,00':'0,00',entrada_vencimento:entry,quantidade_parcelas:'4',despesa_cobranca_percentual:'10,00'}).forEach(([k,v])=>form.set(k,v))
+    Object.entries({cobranca_id:'receipt',primeiro_vencimento:first,entrada:entry?'10,00':'0,00',entrada_vencimento:entry,quantidade_parcelas:'4',...valoresConfirmados}).forEach(([k,v])=>form.set(k,v))
     await assert.rejects(load('features/acordos/actions.ts').createAcordo(form),/inválido/)
     assert.equal(state.financial,null);assert.equal(state.writes.length,0)
   }
