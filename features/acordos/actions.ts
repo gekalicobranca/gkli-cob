@@ -10,11 +10,10 @@ import { validarDataCivil, vencimentoMensal, dataCivilSaoPaulo, somarDiasCivis, 
 import {selecionarCobrancaTitular, rotuloUnidade} from "./unidade-titular";
 
 import { calcularDespesasAcordo, validarCotasSemDespesas } from "./calculo-despesas";
-import { valorCotaParaAcordo } from "./valor-cota";
 import { lerPlanoManual, ratearTotalManual } from "./plano-manual";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
-import { moneyFromForm, percentageFromForm } from '@/utils/formatters/parse-money'
+import { moneyFromForm } from '@/utils/formatters/parse-money'
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
@@ -639,7 +638,14 @@ export async function createAcordo(formData: FormData) {
   const titularId = String(formData.get("unidade_titular_id") ?? "").trim();
   const tipo = String(formData.get("tipo") ?? "extrajudicial");
   const numeroProcesso = String(formData.get("numero_processo") ?? "").trim();
-  const despesaCobrancaPercentual = percentageFromForm(formData.get("despesa_cobranca_percentual"), "Despesa de cobrança");
+  const repasse = moneyFromForm(formData.get("repasse_atualizado"), "Repasse atualizado", { format: "form" });
+  const valoresCotas = new Map(cobrancaIds.map(id => [
+    id, moneyFromForm(formData.get(`valor_cota_atualizado_${id}`), "Valor atualizado da cota", { format: "form" }),
+  ]));
+  if ([...valoresCotas.values()].some(valor => valor <= 0))
+    throw new Error("Informe um valor maior que zero para cada cota.");
+  if (formData.get("valores_administradora_confirmados") !== "on")
+    throw new Error("Confirme que os valores informados estão atualizados com a administradora.");
 
   let entrada = moneyFromForm(formData.get("entrada"), "Entrada", { format: "form", emptyValue: 0 });
   const usarCreditoAdministradora = formData.get("usar_credito_administradora") === "on";
@@ -652,6 +658,7 @@ export async function createAcordo(formData: FormData) {
   validarCotasSemDespesas(cotasSemDespesas, cobrancaIds, formData.get("cota_mes_autorizada") === "on");
   const observacoes = [
     String(formData.get("observacoes") ?? "").trim(),
+    `Valores das cotas e do repasse confirmados com a administradora por ${user.id}.`,
     cotasSemDespesas.length ? `Cota do mês fora da régua. Isenção de despesas somente à vista; no parcelamento, despesas aplicadas. Autorização da administradora confirmada por ${user.id}. Recibos: ${cotasSemDespesas.join(", ")}.` : "",
   ].filter(Boolean).join("\n");
 
@@ -774,14 +781,10 @@ export async function createAcordo(formData: FormData) {
     );
   }
 
-  const cobrancasComValores = cobrancas.map((item) => {
-    const valorBase = valorCotaParaAcordo(item);
-
-    return {
-      ...item,
-      valor_base_acordo: roundMoney(valorBase),
-    };
-  });
+  const cobrancasComValores = cobrancas.map(item => ({
+    ...item,
+    valor_base_acordo: valoresCotas.get(item.id)!,
+  }));
 
   const valorBaseCobranca = roundMoney(
     cobrancasComValores.reduce(
@@ -802,23 +805,27 @@ export async function createAcordo(formData: FormData) {
     : (cobrancaPrincipal as any).condominios;
   const calculoDespesas = calcularDespesasAcordo(
     cobrancasComValores.map((item) => ({ id: item.id, valor: item.valor_base_acordo })),
-    cotasSemDespesas, despesaCobrancaPercentual, creditoAdministradoraUtilizado,
-    { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on", custoEmissaoBoleto: Number(condominioPrincipal?.custo_emissao_boleto ?? 0) },
+    cotasSemDespesas, 0, creditoAdministradoraUtilizado,
+    { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on", custoEmissaoBoleto: Number(condominioPrincipal?.custo_emissao_boleto ?? 0), repasse },
   );
   entrada = calculoDespesas.entradaComBoleto;
   const despesaCobrancaValor = calculoDespesas.despesa;
+  if (despesaCobrancaValor !== repasse)
+    throw new Error("O repasse deve ser zero quando não houver cotas sujeitas a despesas.");
+  const despesaCobrancaPercentual = calculoDespesas.baseDespesa > 0
+    ? roundMoney(repasse / calculoDespesas.baseDespesa * 100) : 0;
   const planoManual = lerPlanoManual(formData.get("plano_manual"), quantidadeParcelas);
   if (planoManual && (entrada > 0 || tipo !== 'extrajudicial')) throw new Error('A edição manual está disponível para acordos extrajudiciais sem entrada.');
   const valorAcordado = planoManual?.total ?? calculoDespesas.total;
   const ajusteManual = roundMoney(valorAcordado - calculoDespesas.total);
+  if (ajusteManual !== 0)
+    throw new Error("Mantenha o total de cotas e o total do acordo conforme os valores atualizados.");
   if (planoManual) primeiroVencimento = planoManual.parcelas[0].vencimento;
 
   if (valorBaseCobranca <= 0)
     throw new Error("Valor das cobranças deve ser maior que zero.");
   if (valorAcordado <= 0)
     throw new Error("Valor acordado deve ser maior que zero.");
-  if (despesaCobrancaPercentual < 0)
-    throw new Error("Despesa de cobrança inválida.");
   if (entrada > valorAcordado)
     throw new Error("Entrada não pode ser maior que o valor acordado.");
 
@@ -848,6 +855,8 @@ export async function createAcordo(formData: FormData) {
   const saldoParcelado = roundMoney(valorAcordado - entrada);
   if (planoManual) {
     const totalCotas = roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.cota, 0));
+    if (totalCotas !== valorBaseAposCredito)
+      throw new Error("Mantenha o total de cotas e o total do acordo conforme os valores atualizados.");
     const totalDespesas = roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.despesa, 0));
     const basesCota = itensAcordo.map((item, index) => Math.max(0, item.valor_atualizado_no_acordo - calculoDespesas.itens[index].credito));
     const basesDespesa = itensAcordo.map(item => Math.max(0, item.encargos_no_acordo));
@@ -1019,6 +1028,7 @@ export async function createAcordo(formData: FormData) {
       cotas_sem_despesas: calculoDespesas.isencaoAplicada ? cotasSemDespesas : [],
       cotas_mes: cotasSemDespesas,
       cota_mes_autorizada: cotasSemDespesas.length > 0,
+      valores_administradora_confirmados: true,
       valor_base_cobranca: valorBaseCobranca,
       credito_administradora_utilizado: creditoAdministradoraUtilizado,
       valor_base_apos_credito: valorBaseAposCredito,
@@ -1280,7 +1290,14 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
 
   const tipo = String(formData.get("tipo") ?? "extrajudicial");
   const numeroProcesso = String(formData.get("numero_processo") ?? "").trim();
-  const despesaCobrancaPercentual = percentageFromForm(formData.get("despesa_cobranca_percentual"), "Despesa de cobrança");
+  const repasse = moneyFromForm(formData.get("repasse_atualizado"), "Repasse atualizado", { format: "form" });
+  const valoresCotas = new Map(cobrancaIds.map(id => [
+    id, moneyFromForm(formData.get(`valor_cota_atualizado_${id}`), "Valor atualizado da cota", { format: "form" }),
+  ]));
+  if ([...valoresCotas.values()].some(valor => valor <= 0))
+    throw new Error("Informe um valor maior que zero para cada cota.");
+  if (formData.get("valores_administradora_confirmados") !== "on")
+    throw new Error("Confirme que os valores informados estão atualizados com a administradora.");
 
   let entrada = moneyFromForm(formData.get("entrada"), "Entrada", { format: "form", emptyValue: 0 });
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
@@ -1290,6 +1307,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
   validarCotasSemDespesas(cotasSemDespesas, cobrancaIds, formData.get("cota_mes_autorizada") === "on");
   const observacoes = [
     String(formData.get("observacoes") ?? "").trim(),
+    `Valores das cotas e do repasse confirmados com a administradora por ${user.id}.`,
     cotasSemDespesas.length ? `Cota do mês fora da régua. Isenção de despesas somente à vista; no parcelamento, despesas aplicadas. Autorização da administradora confirmada por ${user.id}. Recibos: ${cotasSemDespesas.join(", ")}.` : "",
   ].filter(Boolean).join("\n");
 
@@ -1350,15 +1368,18 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
     ? cobrancaReferenciaAny.unidades[0]
     : cobrancaReferenciaAny.unidades;
   const administradoraId = condominioReferencia?.administradora_id ?? null;
-  if (despesaCobrancaPercentual < 0) throw new Error("Despesa de cobrança inválida.");
   const calculo = calcularDespesasAcordo(cobrancas.map((item) => ({
     id: item.id,
-    valor: valorCotaParaAcordo(item),
-  })), cotasSemDespesas, despesaCobrancaPercentual,
+    valor: valoresCotas.get(item.id)!,
+  })), cotasSemDespesas, 0,
     formData.get("usar_credito_administradora") === "on" ? Number(unidadeReferencia?.credito_administradora ?? 0) : 0,
-    { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on", custoEmissaoBoleto: Number(condominioReferencia?.custo_emissao_boleto ?? 0) });
+    { quantidadeParcelas, entrada, jurosAdicional: formData.get("juros_adicional") === "on", custoEmissaoBoleto: Number(condominioReferencia?.custo_emissao_boleto ?? 0), repasse });
   entrada = calculo.entradaComBoleto;
   const despesaCobrancaValor = calculo.despesa;
+  if (despesaCobrancaValor !== repasse)
+    throw new Error("O repasse deve ser zero quando não houver cotas sujeitas a despesas.");
+  const despesaCobrancaPercentual = calculo.baseDespesa > 0
+    ? roundMoney(repasse / calculo.baseDespesa * 100) : 0;
   const valorAcordado = calculo.total;
 
   const { data: pendenciaPlanilha, error: pendenciaPlanilhaError } = await supabase
@@ -1450,6 +1471,8 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
         cotas_sem_despesas: calculo.isencaoAplicada ? cotasSemDespesas : [],
         cotas_mes: cotasSemDespesas,
         cota_mes_autorizada: cotasSemDespesas.length > 0,
+        valores_administradora_confirmados: true,
+        valores_cotas_atualizados: Object.fromEntries(valoresCotas),
         despesa_cobranca_percentual: despesaCobrancaPercentual,
         despesa_cobranca_valor: despesaCobrancaValor,
         documento_url: documentoUrl || null,
