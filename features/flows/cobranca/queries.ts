@@ -3,6 +3,9 @@ import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamen
 import { registrarPerformanceFlow } from '../performance'
 import { flowCobrancaOrdem, type OrdemFlowCobranca } from './rotas'
 import { carregarCanaisOcupados } from './vinculos-canais'
+import { carregarReguasComFingerprintExistente } from './fingerprint-disponibilidade'
+import { cicloReferencia } from '@/features/regua/services/regua-shared'
+import { carregarReguasEmailPendentesUnidade, chaveUnidadeEmail } from './email-pendente-unidade'
 import { carregarContatosFlow } from './contatos-flow'
 import { priorizarWhatsappSemEmail } from './prioridade-whatsapp'
 import { reguasDisponiveis, filtrarFlowsPorCanal, filtrarReguasPorCanal } from './canais'
@@ -12,6 +15,8 @@ import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { separarSaneamento } from './eligibilidade'
+import { filtrarCobrancasNoPrazo } from './prazo-regua'
+import { filtrarCobrancasSemPausa } from '@/features/regua/services/pausa-escopo'
 import { motivosSaneamentoAtuais } from './saneamento-atual'
 import { aplicarCanalNaConsultaFlows, canaisDasMensagensFlow, FLOW_CANAIS_SELECT } from './consulta-canais'
 
@@ -31,7 +36,7 @@ const COBRANCA_SELECT = `
   automacao_bloqueada,
   updated_at,
   carteira:carteiras(nome),
-  condominio:condominios(id,nome,nome_operacional,regua_cobranca_id),
+  condominio:condominios(id,nome,nome_operacional,regua_cobranca_id,dias_apos_vencimento_regua,inicio_cobranca_dias),
   unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone,acao_judicial)
 `
 
@@ -164,7 +169,7 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const reguas = await listReguasForSelect(scope, 'cobranca')
   for (let offset = 0; offset < reguas.length; offset += 80) {
     const parte = reguas.slice(offset, offset + 80)
-    const { data: etapas, error } = await supabase.from('regua_etapas').select('regua_id,canal,ativo').in('regua_id', parte.map(r => r.id))
+    const { data: etapas, error } = await supabase.from('regua_etapas').select('id,regua_id,ordem,delay_dias,canal,ativo').in('regua_id', parte.map(r => r.id))
     if (error) throw new Error('Não foi possível conferir os canais das réguas.')
     for (const regua of parte) regua.etapas = (etapas ?? []).filter(e => e.regua_id === regua.id) as any
   }
@@ -248,9 +253,20 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   if (painelError) throw new Error(`Erro ao carregar cobranças novas para Flow: ${painelError.message}`)
   if (disponibilidadeError) throw new Error(`Erro ao carregar cobranças disponíveis para Flow: ${disponibilidadeError.message}`)
 
-  const novas = separarSaneamento(painel ?? [])
-  const ativas = separarSaneamento(disponibilidade ?? [])
-  const comContatos = await carregarContatosFlow(supabase, [...novas.aptas, ...ativas.aptas])
+  // Antes de contatos, vínculos, totais e paginação; inclui também seleções de todas as páginas.
+  const agora = new Date()
+  const semPausa = await filtrarCobrancasSemPausa<any>(supabase, [...(painel ?? []), ...(disponibilidade ?? [])], agora)
+  const idsSemPausa = new Set(semPausa.map(row => row.id))
+  const novas = separarSaneamento(filtrarCobrancasNoPrazo<any>((painel ?? []).filter(row => idsSemPausa.has(row.id)), agora))
+  const ativas = separarSaneamento(filtrarCobrancasNoPrazo<any>((disponibilidade ?? []).filter(row => idsSemPausa.has(row.id)), agora))
+  const aptas = [...novas.aptas, ...ativas.aptas]
+  const [contatos, reguasPendentes] = await Promise.all([
+    carregarContatosFlow(supabase, aptas),
+    carregarReguasEmailPendentesUnidade(supabase, aptas, reguasDoCanal),
+  ])
+  const comContatos = contatos.map(row => ({ ...row,
+    reguas_email_pendentes: [...(reguasPendentes.get(chaveUnidadeEmail(row.carteira_id, row.unidade_id)) ?? [])],
+  }))
   const contatosPorId = new Map(comContatos.map(row => [row.id, row]))
   const semContato = comContatos.filter(row => reguasDisponiveis({ ...row, canais_sem_destinatario: [] }, reguasDoCanal).length > 0
     && reguasDisponiveis(row, reguasDoCanal).length === 0)
@@ -294,9 +310,17 @@ export async function getFlowCobrancaPageData(scope: CarteiraScope, filters: Flo
   const saneamentoMaestro = [...(painel ?? []), ...(disponibilidade ?? [])].filter((row: any) => motivos.has(row.id))
     .map((row: any) => ({ ...row, motivo_saneamento: motivos.get(row.id) }))
   const normalize = (row: any) => ({ ...row, carteira: relation(row.carteira), condominio: relation(row.condominio), unidade: relation(row.unidade) })
-  const painelElegivel = priorizarWhatsappSemEmail(options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id) && !idsSemContato.has(row.id)).map(row => normalize(contatosPorId.get(row.id) ?? row)), normalized.canal)
-  const disponibilidadeElegivel = priorizarWhatsappSemEmail(options.somenteSaneamento ? [] : candidatas
-    .map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
+  const candidatasComVinculos = candidatas.map((row: any) => ({ ...row, canais_ocupados: [...(canaisOcupados.get(row.id) ?? [])] }))
+  const idsNovas = new Set(novas.aptas.map(row => row.id))
+  const fingerprintsExistentes = await carregarReguasComFingerprintExistente(supabase,
+    options.somenteSaneamento ? [] : [...comContatos.filter(row => idsNovas.has(row.id)), ...candidatasComVinculos],
+    reguasDoCanal, cicloReferencia(agora))
+  const comHistorico = (row: any) => ({ ...row, reguas_fingerprint_existente: [...(fingerprintsExistentes.get(row.id) ?? [])] })
+  const painelElegivel = priorizarWhatsappSemEmail(options.somenteSaneamento ? [] : novas.aptas.filter((row: any) => !motivos.has(row.id) && !idsSemContato.has(row.id)).map(row => normalize(contatosPorId.get(row.id) ?? row))
+    .map(comHistorico)
+    .filter(row => reguasDisponiveis(row, reguasDoCanal).length > 0), normalized.canal)
+  const disponibilidadeElegivel = priorizarWhatsappSemEmail(options.somenteSaneamento ? [] : candidatasComVinculos
+    .map(comHistorico)
     .filter((row: any) => reguasDisponiveis(row, reguasDoCanal).length > 0)
     .map(normalize), normalized.canal)
   const offset = (Math.max(1, options.page ?? 1) - 1) * COBRANCAS_FLOW_PAGE_SIZE

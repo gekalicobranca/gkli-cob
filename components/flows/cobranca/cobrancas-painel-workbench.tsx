@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useActionState, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowUpRight, ChevronDown, Gauge } from 'lucide-react'
 import { EmptyState } from '@/components/data/empty-state'
 import { StatusBadge } from '@/components/data/status-badge'
@@ -43,6 +43,10 @@ function isAtivavel(row: Row) {
 }
 
 export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: Row[]; returnQuery?: string }) {
+  const [ativacaoState, ativarAction, ativando] = useActionState(
+    async (_state: { error: string } | null, formData: FormData) => ativarCobrancasFiltradasFlowCobranca(formData),
+    null,
+  )
   const [selectedCondominio, setSelectedCondominio] = useState('')
   const [ativacaoEmMassa, setAtivacaoEmMassa] = useState(false)
   const novas = useMemo(() => rows.filter(isNovo), [rows])
@@ -88,13 +92,14 @@ export function FlowCobrancaPainelWorkbench({ rows, returnQuery = '' }: { rows: 
             <div className="rounded-xl bg-[var(--gkli-primary-light)] p-2 text-[var(--gkli-primary)]"><Gauge size={18} /></div>
             <div><h2 className="text-sm font-semibold text-slate-950">{ativacaoEmMassa ? 'Ativar cobranças em massa' : 'Ativar cobranças do condomínio'}</h2><p className="mt-1 text-xs text-slate-500">Depois da ativação, as cobranças entram na esteira de cobrança ativa.</p>{bloqueadasSemResponsavel ? <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"><AlertTriangle size={13} />{bloqueadasSemResponsavel} cobrança(s) sem responsável não podem evoluir.</p> : null}</div>
           </div>
-          <form action={ativarCobrancasFiltradasFlowCobranca} onSubmit={(event) => { if (!window.confirm(`Ativar ${selectedIds.length} cobrança(s)?`)) event.preventDefault() }}>
+          <form action={ativarAction} onSubmit={(event) => { if (!window.confirm(`Ativar ${selectedIds.length} cobrança(s)?`)) event.preventDefault() }}>
             {selectedIds.map((id) => <input key={id} type="hidden" name="cobranca_id" value={id} />)}
             <input type="hidden" name="return_query" value={returnQuery} />
             <input type="hidden" name="ativacao_em_massa" value={ativacaoEmMassa ? '1' : '0'} />
-            <PendingSubmitButton disabled={selectedIds.length === 0} pendingLabel="Ativando...">Ativar {selectedIds.length || ''} cobrança(s)</PendingSubmitButton>
+            <PendingSubmitButton disabled={ativando || selectedIds.length === 0} pendingLabel="Ativando...">Ativar {selectedIds.length || ''} cobrança(s)</PendingSubmitButton>
           </form>
         </div>
+        {ativacaoState?.error ? <p role="alert" className="mt-3 rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{ativacaoState.error}</p> : null}
       </Card>
 
       <Card className="overflow-hidden p-0">

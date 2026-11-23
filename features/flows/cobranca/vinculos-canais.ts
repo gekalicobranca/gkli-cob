@@ -1,7 +1,10 @@
 import type { createAdminClient } from '@/utils/supabase/admin'
 import { canaisDaRegua, conflitoDeCanais } from './canais'
+import { STATUS_EMAIL_PENDENTE } from './email-pendente-unidade'
 import { MOTIVO_COBRANCA_COM_ACORDO_VIGENTE } from '@/lib/constants/acordos'
 import { cicloFechamentoCobranca } from './ciclo-fechamento'
+import { carregarReguasComFingerprintExistente } from './fingerprint-disponibilidade'
+import { cicloReferencia } from '@/features/regua/services/regua-shared'
 
 const relation = (value: any) => Array.isArray(value) ? value[0] : value
 
@@ -97,7 +100,7 @@ export async function carregarCanaisOcupados(db: ReturnType<typeof createAdminCl
 
 export async function validarCriacaoPorCanal(db: ReturnType<typeof createAdminClient>, rows: { id: string; carteira_id: string; condominio_id: string; unidade_id?: string }[], reguaId: string, diaFechamento?: number) {
   if (!rows.length || rows.some(row => row.carteira_id !== rows[0].carteira_id || row.condominio_id !== rows[0].condominio_id)) throw new Error('Selecione um condomínio e uma carteira por Flow.')
-  const { data: regua, error } = await db.from('reguas').select('id,carteira_id,tipo,ativo,status,etapas:regua_etapas(canal,ativo)').eq('id', reguaId).single()
+  const { data: regua, error } = await db.from('reguas').select('id,carteira_id,tipo,ativo,status,etapas:regua_etapas(id,ordem,delay_dias,canal,ativo)').eq('id', reguaId).single()
   if (error || !regua || regua.tipo !== 'cobranca' || regua.ativo === false || regua.status === 'inativa'
     || (regua.carteira_id && regua.carteira_id !== rows[0].carteira_id)) throw new Error('Selecione uma régua de cobrança ativa desta carteira.')
   const canais = canaisDaRegua(regua)
@@ -107,7 +110,7 @@ export async function validarCriacaoPorCanal(db: ReturnType<typeof createAdminCl
     const { data: pendentes, error: pendentesError } = await db.from('mensagens')
       .select('id,cobranca:cobrancas!inner(unidade_id),flow:cobranca_flows!inner(regua_id,status)')
       .eq('carteira_id', rows[0].carteira_id).eq('canal', 'email')
-      .in('cobranca.unidade_id', unidades).in('status', ['pendente_aprovacao','aprovada','agendada'])
+      .in('cobranca.unidade_id', unidades).in('status', STATUS_EMAIL_PENDENTE)
       .eq('flow.regua_id', reguaId).neq('flow.status', 'cancelado').limit(1)
     if (pendentesError) throw new Error('Não foi possível conferir os e-mails pendentes da unidade.')
     if (pendentes?.length) throw new Error('Uma unidade já tem e-mail pendente nesta régua. Consolide as parcelas antes de criar outro Flow para a mesma unidade.')
@@ -123,6 +126,11 @@ export async function validarCriacaoPorCanal(db: ReturnType<typeof createAdminCl
   const ocupados = await carregarCanaisOcupados(db, rows.map(row => row.id), { diaFechamento })
   if (rows.some(row => conflitoDeCanais(ocupados.get(row.id) ?? [], canais))) {
     throw new Error('Uma ou mais cobranças já possuem Flow ou mensagem pendente no mesmo canal. Atualize a lista e revise a seleção.')
+  }
+  const ciclo = cicloFechamentoCobranca(diaFechamento ?? null) ?? cicloReferencia()
+  const historico = await carregarReguasComFingerprintExistente(db, rows, [regua], ciclo)
+  if (rows.some(row => historico.get(row.id)?.has(reguaId))) {
+    throw new Error('Uma ou mais cobranças já têm mensagem para esta etapa, canal e ciclo, inclusive no histórico cancelado. Atualize a lista; o histórico foi preservado.')
   }
   return canais
 }

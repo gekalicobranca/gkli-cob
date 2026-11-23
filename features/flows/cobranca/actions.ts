@@ -2,6 +2,9 @@
 import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
 
 import { temFlowEmAndamento, validarCriacaoPorCanal } from './vinculos-canais'
+import { atingiuPrazoRegua } from './prazo-regua'
+import { erroAtivacaoFlow, ERRO_ATIVACAO_INCERTA, type ResultadoAtivacaoFlow } from './ativacao-resultado'
+import { filtrarCobrancasSemPausa } from '@/features/regua/services/pausa-escopo'
 import { canalFlowCobranca, flowCobrancaPath } from './rotas'
 import { consolidarEmailsLote } from './consolidar-emails'
 import { carregarContatosFlow } from './contatos-flow'
@@ -113,7 +116,7 @@ export async function criarFlowsComDestinatariosConferidos(formData: FormData, d
 
   let query = somenteCobrancasCanonicas(supabase
     .from('cobrancas')
-    .select('id,carteira_id,condominio_id,unidade_id,status,status_operacional,status_financeiro,automacao_bloqueada,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional,vencimento_cota_dia),unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone,acao_judicial)'))
+    .select('id,carteira_id,condominio_id,unidade_id,vencimento,status,status_operacional,status_financeiro,automacao_bloqueada,carteira:carteiras(nome),condominio:condominios(nome,nome_operacional,vencimento_cota_dia,dias_apos_vencimento_regua,inicio_cobranca_dias),unidade:unidades(id,identificacao,bloco,responsavel_nome,email,telefone,acao_judicial)'))
     .in('id', cobrancaIds)
   query = applyCarteiraScope(query, scope.carteiraIds)
   const { data, error } = await query
@@ -129,6 +132,17 @@ export async function criarFlowsComDestinatariosConferidos(formData: FormData, d
   }
   const impedimento = cobrancas.map(motivoImpedimentoFlow).find(Boolean)
   if (impedimento) return { error: `${impedimento} Atualize a lista e revise a seleção antes de criar o Flow.` }
+  const agora = new Date()
+  if (cobrancas.some(row => !atingiuPrazoRegua(row, agora))) {
+    return { error: 'Uma ou mais cobranças ainda não atingiram o prazo da régua ou não têm vencimento válido. Atualize a lista antes de criar o Flow.' }
+  }
+  try {
+    if ((await filtrarCobrancasSemPausa(supabase, cobrancas, agora)).length !== cobrancas.length) {
+      return { error: 'A seleção contém cobrança com pausa ativa na régua. O bloqueio foi preservado; atualize a lista antes de criar o Flow.' }
+    }
+  } catch {
+    return { error: 'Não foi possível conferir as pausas da régua. Nenhum Flow foi criado. Tente novamente.' }
+  }
   const grupos = new Map<string, any[]>()
   for (const cobranca of cobrancas) {
     const carteiraId = String(cobranca.carteira_id ?? '')
@@ -234,29 +248,44 @@ export async function criarFlowsComDestinatariosConferidos(formData: FormData, d
   return { flowIds }
 }
 
-export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
+export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData): Promise<{ error: string } | null> {
   const ativacaoEmMassa = formData.get('ativacao_em_massa') === '1'
   await requireRole(['admin', 'gestor', 'operador'])
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
   const cobrancaIds = Array.from(new Set(formData.getAll('cobranca_id').map(String).map((id) => id.trim()).filter(Boolean)))
-  if (!cobrancaIds.length) throw new Error('Nenhuma cobrança filtrada para ativar.')
+  if (!cobrancaIds.length) return { error: 'Selecione ao menos uma cobrança para ativar.' }
 
   const rows: any[] = []
   for (let offset = 0; offset < cobrancaIds.length; offset += 200) {
     let query = somenteCobrancasCanonicas(supabase
       .from('cobrancas')
-      .select('id,carteira_id,condominio_id,status,status_operacional,status_financeiro,automacao_bloqueada,unidade:unidades(responsavel_nome,acao_judicial)'))
+      .select('id,carteira_id,condominio_id,unidade_id,vencimento,status,status_operacional,status_financeiro,automacao_bloqueada,condominio:condominios(dias_apos_vencimento_regua,inicio_cobranca_dias),unidade:unidades(responsavel_nome,acao_judicial)'))
       .in('id', cobrancaIds.slice(offset, offset + 200))
     query = applyCarteiraScope(query, scope.carteiraIds)
     const { data, error } = await query
-    if (error) throw new Error(`Erro ao carregar cobranças filtradas: ${error.message}`)
+    if (error) return { error: 'Não foi possível conferir as cobranças selecionadas. Tente novamente.' }
 
     rows.push(...(data ?? []))
   }
-  if (!ativacaoEmMassa && !unicoCondominio(rows)) throw new Error('Selecione apenas um condomínio ou marque a ativação em massa.')
+  if (!ativacaoEmMassa && !unicoCondominio(rows)) return { error: 'Selecione apenas um condomínio ou marque a ativação em massa.' }
   const rowsIds = rows.map((row) => row.id).filter(Boolean)
-  if (!rowsIds.length) throw new Error('Nenhuma cobrança permitida encontrada no filtro atual.')
+  if (!rowsIds.length) return { error: 'Nenhuma cobrança permitida encontrada no filtro atual.' }
+
+  const agora = new Date()
+  if (rows.some(row => !atingiuPrazoRegua(row, agora))) {
+    revalidatePath('/app/flows/cobranca/email')
+    revalidatePath('/app/flows/cobranca/whatsapp')
+    return { error: 'A seleção contém cobranças que ainda não atingiram o prazo da régua ou não têm vencimento válido. Atualize a lista e revise a seleção. Nenhuma cobrança foi ativada.' }
+  }
+
+  try {
+    if ((await filtrarCobrancasSemPausa(supabase, rows, agora)).length !== rows.length) {
+      return { error: 'A seleção contém cobrança com pausa ativa na régua. Nenhuma cobrança foi ativada. Atualize a lista.' }
+    }
+  } catch {
+    return { error: 'Não foi possível conferir as pausas da régua. Nenhuma cobrança foi ativada. Tente novamente.' }
+  }
 
   const vinculadasIds = new Set<string>()
   for (let offset = 0; offset < rowsIds.length; offset += 200) {
@@ -265,7 +294,7 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
       .select('cobranca_id,flow:cobranca_flows!lote_itens_cobranca_flow_id_fkey(status)')
       .in('cobranca_id', rowsIds.slice(offset, offset + 200))
       .not('cobranca_flow_id', 'is', null)
-    if (vinculadasError) throw new Error(`Erro ao verificar Flows existentes: ${vinculadasError.message}`)
+    if (vinculadasError) return { error: 'Não foi possível conferir os Flows existentes. Tente novamente.' }
     for (const row of vinculadas ?? []) if (temFlowEmAndamento(row)) vinculadasIds.add(String(row.cobranca_id))
   }
 
@@ -276,7 +305,7 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
     .filter(hasResponsavelVinculado)
     .map((row) => row.id)
 
-  if (!elegiveis.length) throw new Error('Nenhuma cobrança filtrada continua elegível para virar Cobrança ativa. Verifique bloqueios de automação, ações judiciais e responsáveis nas unidades selecionadas.')
+  if (!elegiveis.length) return { error: 'Nenhuma cobrança selecionada continua elegível. Atualize a lista e verifique bloqueios, ações judiciais e responsáveis.' }
 
   for (let offset = 0; offset < elegiveis.length; offset += 200) {
     const { error: updateError } = await supabase
@@ -286,7 +315,14 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
         status_operacional: COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA,
       } as any)
       .in('id', elegiveis.slice(offset, offset + 200))
-    if (updateError) throw new Error(`Erro ao ativar cobranças filtradas: ${updateError.message}`)
+    if (updateError) {
+      revalidatePath('/app/flows/cobranca/email')
+      revalidatePath('/app/flows/cobranca/whatsapp')
+      const motivo = updateError.message.includes('Cobrança Regular')
+        ? 'Uma cobrança ainda não atingiu o prazo da régua. O lote atual não foi ativado.'
+        : 'Não foi possível ativar o lote atual.'
+      return { error: `${motivo} ${offset} cobrança(s) ativada(s) nas partes anteriores. Atualize a lista antes de continuar.` }
+    }
   }
 
   const returnQuery = String(formData.get('return_query') ?? '').trim()
@@ -304,51 +340,65 @@ export async function ativarCobrancasFiltradasFlowCobranca(formData: FormData) {
   redirect(`${returnPath}?${nextParams.toString()}`)
 }
 
-export async function enviarFlowCobranca(flowId: string) {
+export async function enviarFlowCobranca(flowId: string): Promise<ResultadoAtivacaoFlow> {
   await requireRole(['admin', 'gestor', 'operador'])
   const user = await requireUser()
   const scope = await getPermittedCarteiras()
   const supabase = createAdminClient()
-  const flow = await getFlow(supabase, flowId, scope)
-  if ((flow.payload as any)?.easy_execucao_id) {
-    const remetente = (flow.payload as any)?.canais?.includes('email') ? await getEmailRemetenteKey(flow.carteira_id) : ''
+  let flow: any
+  try {
+    flow = await getFlow(supabase, flowId, scope)
+  } catch {
+    return { ok: false, error: 'Não foi possível conferir este Flow ou sua permissão de acesso. Atualize a lista.' }
+  }
+  const easy = Boolean(flow.payload?.easy_execucao_id)
+  if (!easy && !['pronto', 'pausado'].includes(flow.status)) return { ok: false, error: 'Este Flow não está pronto para ativação. Atualize a lista para conferir o status.' }
+  const { data: canais, error: canaisError } = await supabase.from('mensagens').select('canal').eq('cobranca_flow_id', flowId)
+  if (canaisError) return { ok: false, error: 'Não foi possível conferir os canais deste Flow. Tente novamente após atualizar a lista.' }
+  let remetente = ''
+  try {
+    if (canais?.some(m => m.canal === 'email') || (easy && flow.payload?.canais?.includes('email'))) remetente = await getEmailRemetenteKey(flow.carteira_id)
+  } catch {
+    return erroAtivacaoFlow('Conta SMTP indisponível')
+  }
+  try {
     const { error } = await supabase.rpc('email_ativar_flow', { p_flow: flowId, p_remetente: remetente, p_usuario: user.id })
-    if (error) throw new Error('A liberação Easy exige consulta e conferência do andamento.')
-    revalidatePath('/app/configuracoes/easy/flow')
+    if (error) return erroAtivacaoFlow(error.message)
+  } catch {
+    return { ok: false, error: ERRO_ATIVACAO_INCERTA }
+  }
+
+  // A RPC já confirmou a ativação: falhas posteriores nunca devem sugerir repetir o envio.
+  try {
+    if (!easy) {
+      const { data: itens, error: itensError } = await supabase.from('lote_itens').select('cobranca_id').eq('cobranca_flow_id', flowId)
+      if (itensError) throw new Error('Falha ao conferir itens após ativação.')
+      const cobrancaIds = Array.from(new Set((itens ?? []).map((item: any) => item.cobranca_id).filter(Boolean)))
+      if (cobrancaIds.length) {
+        const { error: cobrancasError } = await supabase
+          .from('cobrancas')
+          .update({ status_operacional: COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA } as any)
+          .in('id', cobrancaIds)
+        if (cobrancasError) throw new Error('Falha ao atualizar cobranças após ativação.')
+      }
+      await recalcularFlowCobranca(supabase, flowId)
+      await registrarLogMensageria(supabase as any, {
+        carteira_id: flow.carteira_id,
+        lote_id: flow.lote_id,
+        evento: flow.status === 'pausado' ? 'flow_cobranca_retomado' : 'flow_cobranca_ativado',
+        status_anterior: flow.status,
+        status_novo: 'em_execucao',
+        descricao: 'Flow cobrança liberado para agenda de disparos.',
+        payload: { flow_id: flowId },
+      })
+    }
+    if (easy) revalidatePath('/app/configuracoes/easy/flow')
     revalidatePath('/app/flows/cobranca/email')
     revalidatePath('/app/flows/cobranca/whatsapp')
-    return
+  } catch {
+    return { ok: true, aviso: 'A ativação foi confirmada, mas a atualização do acompanhamento precisa de conferência. Atualize a lista; não repita a ativação.' }
   }
-  if (!['pronto', 'pausado'].includes(flow.status)) throw new Error('Este Flow não está pronto para ativação.')
-  const { data: canais, error: canaisError } = await supabase.from('mensagens').select('canal').eq('cobranca_flow_id', flowId)
-  if (canaisError) throw new Error(canaisError.message)
-  const remetente = canais?.some(m => m.canal === 'email') ? await getEmailRemetenteKey(flow.carteira_id) : ''
-  const { error } = await supabase.rpc('email_ativar_flow', { p_flow: flowId, p_remetente: remetente, p_usuario: user.id })
-  if (error) throw new Error(`Erro ao ativar Flow: ${error.message}`)
-
-  const { data: itens } = await supabase.from('lote_itens').select('cobranca_id').eq('cobranca_flow_id', flowId)
-  const cobrancaIds = Array.from(new Set((itens ?? []).map((item: any) => item.cobranca_id).filter(Boolean)))
-  if (cobrancaIds.length) {
-    await supabase
-      .from('cobrancas')
-      .update({ status_operacional: COBRANCA_STATUS_OPERACIONAL.EM_COBRANCA_ATIVA } as any)
-      .in('id', cobrancaIds)
-  }
-
-  await recalcularFlowCobranca(supabase, flowId)
-  await registrarLogMensageria(supabase as any, {
-    carteira_id: flow.carteira_id,
-    lote_id: flow.lote_id,
-    evento: flow.status === 'pausado' ? 'flow_cobranca_retomado' : 'flow_cobranca_ativado',
-    status_anterior: flow.status,
-    status_novo: 'em_execucao',
-    descricao: 'Flow cobrança liberado para agenda de disparos.',
-    payload: { flow_id: flowId },
-  })
-
-
-  revalidatePath('/app/flows/cobranca/email')
-  revalidatePath('/app/flows/cobranca/whatsapp')
+  return { ok: true }
 }
 
 export async function pausarFlowCobranca(flowId: string) {

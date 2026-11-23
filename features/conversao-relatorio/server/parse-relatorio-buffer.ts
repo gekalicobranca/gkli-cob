@@ -3756,10 +3756,6 @@ export function parseSuperlogicaPendentesZeroCobrancasPdf(text: string): ReciboC
   const unitTotals = new Map<string, number>();
   let reportExpected: number | null = null;
   let reportCount: number | null = null;
-  const money = (value: string) => {
-    const match = value.match(/(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}/);
-    return match ? parseMoney(match[0]) : null;
-  };
   const flushReceipt = (finalInUnit = false) => {
     if (!recibo || !vencimento || !unidade || !linhasItem.length) return;
     let total: number | null = null;
