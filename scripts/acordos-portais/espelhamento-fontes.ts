@@ -1,3 +1,4 @@
+import { mensagemDaNavegacao } from '../../features/easy-cob/espelhamento-falhas.mjs'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFile, readdir, rm } from 'node:fs/promises'
@@ -39,7 +40,7 @@ export async function captarCotasEspelhamento(db, job, receitas, signal) {
         p_espelhamento: job.id, p_tentativa: job.tentativas, p_receita: receita.receita_id,
       })
       if (error) throw Error('Não foi possível reservar a fonte de inadimplência do espelhamento.')
-      let { data: execucao } = await db.from('agente_execucoes').select('status,origem,finalizado_em').eq('id', id).single()
+      let { data: execucao } = await db.from('agente_execucoes').select('status,origem,finalizado_em,erro_mensagem').eq('id', id).single()
       if (execucao?.origem !== 'espelhamento') throw Error('Execução de captação fora da origem do espelhamento.')
       if (execucao.status === 'pendente') {
         const arquivo = path.join('scripts', 'agente-automatico', coletorManual(receita.script_key))
@@ -53,9 +54,9 @@ export async function captarCotasEspelhamento(db, job, receitas, signal) {
           await db.from('agente_execucoes').update({ status: 'precisa_intervencao', finalizado_em: new Date().toISOString(),
             erro_mensagem: 'Coletor do espelhamento interrompido. O relatório requer nova coleta.' }).eq('id', id).eq('origem', 'espelhamento').in('status', ['pendente', 'em_execucao'])
         }
-        ;({ data: execucao } = await db.from('agente_execucoes').select('status,origem,finalizado_em').eq('id', id).single())
+        ;({ data: execucao } = await db.from('agente_execucoes').select('status,origem,finalizado_em,erro_mensagem').eq('id', id).single())
       }
-      if (execucao?.status !== 'sucesso' || !execucao.finalizado_em) throw Error('O agente remoto não concluiu a coleta de inadimplência.')
+      if (execucao?.status !== 'sucesso' || !execucao.finalizado_em) throw Error(mensagemDaNavegacao(execucao?.erro_mensagem) ?? 'O agente remoto não concluiu a coleta de inadimplência.')
       const { data: arquivos, error: erroArquivos } = await db.from('agente_arquivos')
         .select('nome_arquivo,tipo_arquivo,storage_path,hash_arquivo').eq('execucao_id', id)
       if (!erroArquivos && !arquivos.length && receita.script_key === 'captacao_sell') {
