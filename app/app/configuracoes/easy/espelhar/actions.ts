@@ -1,5 +1,6 @@
 'use server'
 
+import { falhaColetaGenerica, mensagemDaNavegacao } from '@/features/easy-cob/espelhamento-falhas.mjs'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -19,6 +20,23 @@ export async function consultarEspelhamentos(): Promise<CondominioEspelhamento[]
   if (error) throw new Error('Não foi possível consultar o espelhamento.')
   const condominios = data as CondominioEspelhamento[]
   if (!condominios.length) return condominios
+
+  // Workers anteriores guardavam a causa somente na execução da fonte.
+  const falhas = new Map(condominios.flatMap(({ execucao }) =>
+    execucao?.estado === 'falha' && execucao.resumo?.erro === falhaColetaGenerica
+      ? [[execucao.id, execucao.resumo] as const] : []))
+  if (falhas.size) {
+    const { data: fontes } = await db.from('easy_espelhamento_fontes')
+      .select('espelhamento_id, agente:agente_execucoes!inner(status,origem,erro_mensagem)')
+      .in('espelhamento_id', [...falhas.keys()]).eq('agente.origem', 'espelhamento')
+      .in('agente.status', ['falha', 'precisa_intervencao'])
+      .returns<{ espelhamento_id: string; agente: { erro_mensagem: string | null } }[]>()
+    for (const fonte of fontes ?? []) {
+      const resumo = falhas.get(fonte.espelhamento_id)
+      const mensagem = mensagemDaNavegacao(fonte.agente?.erro_mensagem)
+      if (resumo && mensagem) resumo.erro = mensagem
+    }
+  }
 
   const pendentes = new Map(condominios.map(c => [c.id, c]))
   const tamanhoPagina = 100
