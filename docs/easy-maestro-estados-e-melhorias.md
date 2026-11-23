@@ -16,3 +16,13 @@ Quando uma fonte interrompida já tem arquivo, registro de importação ou monta
 ## Verificação de 23/11
 
 A reconciliação encerrou uma fonte do Hi View como precisa de intervenção, com um registro de auditoria. A consulta do Easy Maestro retornou disponível e liberada para a receita, com zero bloqueios gerais da BBZ. Na mesma consulta, três tentativas avulsas anteriores à cobertura do Living Wellness se qualificaram para o histórico. O teste em Chrome a 360 px confirmou histórico recolhido, preservação de uma tentativa posterior em revisão e seleção de uma receita disponível.
+
+## Cádiz — coleta, importação e novas tentativas
+
+Em 23/11 a primeira validação parou na proteção de mensagens em envio. Durante a segunda tentativa, a execução geral continuava em execução e o painel mostrava “Captando”, inclusive depois do upload. Também podia oferecer a validação da tentativa anterior. A captação terminou às 20h49 de Brasília, com 63 cobranças, alertas e montagem de Flow concluída.
+
+O painel passa a mostrar “Importando” assim que há arquivo da tentativa ativa. Até então, deixa o link anterior fora da linha atual. Falhas por mensagens em envio têm orientação específica. O bloqueio financeiro da importação continua vigente. Como melhoria futura, avaliar a retomada da validação pelo mesmo arquivo após a confirmação dos envios, com autorização, auditoria e proteção contra duplicidade.
+
+### Ocupação por condomínio
+
+O painel e a RPC de confirmação bloqueavam a administradora inteira se houvesse uma captação ou montagem Easy em andamento. A seleção e a confirmação agora verificam os condomínios do pedido. Quando há várias receitas para o mesmo condomínio, basta uma ocupada para impedir duplicação naquele condomínio. O worker mantém o processamento em fila por administradora; aceitar um novo pedido para outro condomínio não inicia coletas concorrentes no portal.

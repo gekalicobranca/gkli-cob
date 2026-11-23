@@ -40,17 +40,13 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   for (const receita of receitas) {
     if (!primeiraReceita.has(receita.condominioId)) primeiraReceita.set(receita.condominioId, receita.id)
   }
-  const emPrazo = new Set(receitas.filter(r => r.liberada && !emAndamento(r)).map(r => r.condominioId))
-  const atualizando = receitas.some(r => emAndamento(r) || montandoFlow(r))
-  const captacaoEmAndamento = receitas.some(r => r.easy && emAndamento(r))
-  const montagemEmAndamento = receitas.find(r => r.easy && montandoFlow(r))
-  const loteEmAndamento = captacaoEmAndamento || Boolean(montagemEmAndamento)
+  const ocupados = new Set(receitas.filter(r => emAndamento(r) || montandoFlow(r)).map(r => r.condominioId))
+  const emPrazo = new Set(receitas.filter(r => r.liberada && !ocupados.has(r.condominioId)).map(r => r.condominioId))
+  const atualizando = ocupados.size > 0
   let motivoBloqueio = ''
   if (!painel.ativo) motivoBloqueio = 'A captação está desligada no Maestro.'
   else if (!podeCaptar) motivoBloqueio = 'Seu perfil não tem permissão para iniciar captações.'
   else if (enviando) motivoBloqueio = conferencia ? 'Registrando o pedido de captação.' : 'Conferindo os efeitos da seleção.'
-  else if (captacaoEmAndamento) motivoBloqueio = 'Aguarde a captação em andamento nesta administradora.'
-  else if (montagemEmAndamento) motivoBloqueio = `Aguarde a montagem do flow de ${montagemEmAndamento.condominio}.`
   const disponiveis = motivoBloqueio ? 0 : emPrazo.size
   const selecaoDisponivel = selecionados.filter(id => emPrazo.has(id))
 
@@ -108,6 +104,11 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
       pedidoIniciado=true
       const resultado = await captarEasyMaestro(conferencia.administradora, pedidoId, conferencia.montarFlow, conferencia.condominios,conferencia.versao,conferencia.ativacaoAutomatica)
       if (resultado.error) {
+        if (resultado.selecaoOcupada) {
+          setPedido(null)
+          setConferencia(null)
+          setReleitura(valor => valor + 1)
+        }
         setErro(resultado.error)
         return
       }
@@ -156,7 +157,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
         </div>
         <label className="mt-4 flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-0.5 h-4 w-4 accent-cyan-700" checked={montarFlow}
-            disabled={!podeCaptar || enviando || loteEmAndamento||Boolean(pedido)}
+            disabled={!podeCaptar || enviando || Boolean(pedido)}
             onChange={event => {
               setConferencia(null)
               setMontarFlow(event.target.checked)
