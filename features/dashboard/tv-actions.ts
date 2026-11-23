@@ -37,6 +37,12 @@ export async function getTvResults(start: string, end: string, selection?: { car
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
   const nextDay = new Date(Date.parse(end) + 86400000).toISOString().slice(0, 10)
   const agreementFields = 'id,tipo,cobranca_id,carteira_id,condominio_id,data_acordo,valor_acordado,observacoes,status,status_financeiro,fluxo_status,boletos_solicitados_em,despesa_cobranca_valor,despesa_cobranca_percentual,acordo_homologado,origem_controle'
+  function applySelection(query: any, relation?: string) {
+    const prefix = relation ? `${relation}.` : ''
+    if (selection?.carteiraId) query = query.eq(`${prefix}carteira_id`, selection.carteiraId)
+    if (selection?.condominioId) query = query.eq(`${prefix}condominio_id`, selection.condominioId)
+    return query
+  }
   async function pages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>, label: string) {
     const rows: T[] = []
     for (let offset = 0; ; offset += 1000) {
@@ -47,37 +53,63 @@ export async function getTvResults(start: string, end: string, selection?: { car
     }
   }
   const [charges, agreements, installments, wallets, judicialRows, agreementLinks, condominiums, paidReferences] = await Promise.all([
-    pages<TvCharge>((from, to) => applyCarteiraIdsScope(somenteCobrancasCanonicas(db.from('cobrancas')
-      .select('id,carteira_id,condominio_id,unidade_id,valor_atualizado,vencimento,status,status_operacional,status_financeiro,unidades(acao_judicial)'))
-      .eq('excluida_por_cessao_espaco', false)
-      .lte('vencimento', today < end ? today : end)
-      .or('status_operacional.in.(novo,em_cobranca_ativa,em_negociacao,possivel_acordo),status_operacional.is.null'), scope.carteiraIds).order('id').range(from, to), 'a captação'),
-    pages<TvAgreement>((from, to) => applyCarteiraIdsScope(db.from('acordos').select(agreementFields).eq('tipo', 'extrajudicial')
-      .or(`and(data_acordo.gte.${start},data_acordo.lt.${nextDay}),data_acordo.eq.${today},status.in.(${TV_COLLECTION_AGREEMENT_STATUSES.join(',')})`), scope.carteiraIds)
-      .order('id').range(from, to), 'os acordos'),
-    pages<TvInstallment>((from, to) => applyCarteiraIdsScope(db.from('parcelas_acordo')
-      .select(`id,valor,vencimento,status,data_pagamento,valor_repasse_informado,acordos!inner(${agreementFields})`).eq('acordos.tipo', 'extrajudicial')
-      .eq('acordos.origem_controle', 'carteira')
-      .or(`and(vencimento.gte.${start},vencimento.lt.${nextDay}),and(data_pagamento.gte.${start},data_pagamento.lt.${nextDay})`), scope.carteiraIds, 'acordos.carteira_id')
-      .order('id').range(from, to), 'as parcelas'),
-    pages<{ id: string; nome: string }>((from, to) => applyCarteiraIdsScope(db.from('carteiras').select('id,nome'), scope.carteiraIds, 'id')
-      .order('id').range(from, to), 'as carteiras'),
-    pages<{ unidade_id: string | null }>((from, to) => applyCarteiraIdsScope(somenteCobrancasCanonicas(db.from('cobrancas')
-      .select('id,unidade_id'))
-      .eq('excluida_por_cessao_espaco', false)
-      .or('status_operacional.in.(pre_distribuicao,pre_juridico,judicializado),status.in.(pre_distribuicao,pre_juridico,judicializado)'), scope.carteiraIds)
-      .order('id').range(from, to), 'os bloqueios jurídicos'),
-    pages<TvAgreementLink>((from, to) => applyCarteiraIdsScope(db.from('acordo_cobrancas')
-      .select('acordo_id,cobranca_id,acordos!inner(status,carteira_id)')
-      .in('acordos.status', TV_COLLECTION_AGREEMENT_STATUSES), scope.carteiraIds, 'acordos.carteira_id')
-      .order('acordo_id').order('cobranca_id').range(from, to), 'os vínculos dos acordos'),
-    pages<{ id: string; grupo: string | null }>((from, to) => applyCarteiraIdsScope(db.from('condominios')
-      .select('id,grupo'), scope.carteiraIds).order('id').range(from, to), 'os grupos dos condomínios'),
-    pages<{ acordo_id: string }>((from, to) => applyCarteiraIdsScope(db.from('parcelas_acordo')
-      .select('id,acordo_id,acordos!inner(carteira_id)')
-      .eq('acordos.origem_controle', 'carteira')
-      .in('status', TV_PAID_INSTALLMENT_STATUSES), scope.carteiraIds, 'acordos.carteira_id')
-      .order('id').range(from, to), 'os pagamentos que efetivam os acordos'),
+    pages<TvCharge>((from, to) => {
+      let query = somenteCobrancasCanonicas(db.from('cobrancas')
+        .select('id,carteira_id,condominio_id,unidade_id,valor_atualizado,vencimento,status,status_operacional,status_financeiro,unidades(acao_judicial)'))
+        .eq('excluida_por_cessao_espaco', false)
+        .lte('vencimento', today < end ? today : end)
+        .or('status_operacional.in.(novo,em_cobranca_ativa,em_negociacao,possivel_acordo),status_operacional.is.null')
+      query = applyCarteiraIdsScope(query, scope.carteiraIds)
+      return applySelection(query).order('id').range(from, to)
+    }, 'a captação'),
+    pages<TvAgreement>((from, to) => {
+      let query = db.from('acordos').select(agreementFields).eq('tipo', 'extrajudicial')
+        .or(`and(data_acordo.gte.${start},data_acordo.lt.${nextDay}),data_acordo.eq.${today},status.in.(${TV_COLLECTION_AGREEMENT_STATUSES.join(',')})`)
+      query = applyCarteiraIdsScope(query, scope.carteiraIds)
+      return applySelection(query).order('id').range(from, to)
+    }, 'os acordos'),
+    pages<TvInstallment>((from, to) => {
+      let query = db.from('parcelas_acordo')
+        .select(`id,valor,vencimento,status,data_pagamento,valor_repasse_informado,acordos!inner(${agreementFields})`)
+        .eq('acordos.tipo', 'extrajudicial')
+        .eq('acordos.origem_controle', 'carteira')
+        .or(`and(vencimento.gte.${start},vencimento.lt.${nextDay}),and(data_pagamento.gte.${start},data_pagamento.lt.${nextDay})`)
+      query = applyCarteiraIdsScope(query, scope.carteiraIds, 'acordos.carteira_id')
+      return applySelection(query, 'acordos').order('id').range(from, to)
+    }, 'as parcelas'),
+    pages<{ id: string; nome: string }>((from, to) => {
+      let query = applyCarteiraIdsScope(db.from('carteiras').select('id,nome'), scope.carteiraIds, 'id')
+      if (selection?.carteiraId) query = query.eq('id', selection.carteiraId)
+      return query.order('id').range(from, to)
+    }, 'as carteiras'),
+    pages<{ unidade_id: string | null }>((from, to) => {
+      let query = somenteCobrancasCanonicas(db.from('cobrancas').select('id,unidade_id'))
+        .eq('excluida_por_cessao_espaco', false)
+        .or('status_operacional.in.(pre_distribuicao,pre_juridico,judicializado),status.in.(pre_distribuicao,pre_juridico,judicializado)')
+      query = applyCarteiraIdsScope(query, scope.carteiraIds)
+      return applySelection(query).order('id').range(from, to)
+    }, 'os bloqueios jurídicos'),
+    pages<TvAgreementLink>((from, to) => {
+      let query = db.from('acordo_cobrancas')
+        .select('acordo_id,cobranca_id,acordos!inner(status,carteira_id,condominio_id)')
+        .in('acordos.status', TV_COLLECTION_AGREEMENT_STATUSES)
+      query = applyCarteiraIdsScope(query, scope.carteiraIds, 'acordos.carteira_id')
+      return applySelection(query, 'acordos').order('acordo_id').order('cobranca_id').range(from, to)
+    }, 'os vínculos dos acordos'),
+    pages<{ id: string; grupo: string | null }>((from, to) => {
+      let query = applyCarteiraIdsScope(db.from('condominios').select('id,grupo'), scope.carteiraIds)
+      if (selection?.carteiraId) query = query.eq('carteira_id', selection.carteiraId)
+      if (selection?.condominioId) query = query.eq('id', selection.condominioId)
+      return query.order('id').range(from, to)
+    }, 'os grupos dos condomínios'),
+    pages<{ acordo_id: string }>((from, to) => {
+      let query = db.from('parcelas_acordo')
+        .select('id,acordo_id,acordos!inner(carteira_id,condominio_id)')
+        .eq('acordos.origem_controle', 'carteira')
+        .in('status', TV_PAID_INSTALLMENT_STATUSES)
+      query = applyCarteiraIdsScope(query, scope.carteiraIds, 'acordos.carteira_id')
+      return applySelection(query, 'acordos').order('id').range(from, to)
+    }, 'os pagamentos que efetivam os acordos'),
   ])
   const availableCharges = prepareTvCollectionCharges(charges, judicialRows, agreements, agreementLinks)
   const paidAgreementIds = new Set(paidReferences.map(row => row.acordo_id))
