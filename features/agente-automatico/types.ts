@@ -1,6 +1,7 @@
 export type AgenteStatusExecucao =
   | 'pendente'
   | 'em_execucao'
+  | 'aguardando_work'
   | 'sucesso'
   | 'falha'
   | 'precisa_intervencao'

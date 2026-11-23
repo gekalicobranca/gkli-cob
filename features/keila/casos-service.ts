@@ -1,3 +1,4 @@
+import { dispararWorkKeila, ORIGEM_WORK_KEILA, STATUS_WORK_KEILA, usarWorkKeila } from './work-github'
 import { diaBrasilia } from '../agentes-virtuais/validade-proposta'
 import { createHash } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -113,21 +114,30 @@ export async function buscarDebitosCasoKeila(supabase: SupabaseClient, input: {
 }) {
   const caso = await carregarCaso(supabase, input.id, input.carteiraIds, input.agenteId)
   if (['atendimento_humano', 'concluido'].includes(caso.payload.estado)) throw new Error('Este caso não permite uma nova coleta pelo agente virtual.')
+  const viaWork = (!input.agenteId || input.agenteId === 'keila') && usarWorkKeila(caso.condominio_id)
   if (caso.payload.execucao_id) {
-    const { data: execucao, error } = await supabase.from('agente_execucoes').select('id,status,created_at')
+    const { data: execucao, error } = await supabase.from('agente_execucoes').select('id,status,created_at,origem')
       .eq('id', caso.payload.execucao_id).eq('condominio_id', caso.condominio_id).single()
     if (error) throw new Error(error.message)
+    if (execucao?.origem === ORIGEM_WORK_KEILA && execucao.status === STATUS_WORK_KEILA) {
+      if (!viaWork) throw new Error('Coleta pelo Work desabilitada neste condomínio.')
+      await dispararWorkKeila(execucao.id)
+      return execucao.id as string
+    }
     if (execucao && (['pendente', 'em_execucao'].includes(execucao.status) || (execucao.status === 'sucesso' && diaBrasilia(new Date(execucao.created_at)) === diaBrasilia()))) return execucao.id as string
   }
   const { data: receitas, error } = await supabase.from('agente_receitas')
-    .select('id,administradora:agente_administradoras!inner(ativo)')
+    .select('id,script_key,administradora:agente_administradoras!inner(ativo)')
     .eq('config_json->>condominio_id', caso.condominio_id).eq('ativo', true).eq('administradora.ativo', true)
     .not('script_key', 'is', null).neq('script_key', '')
   if (error) throw new Error(error.message)
   if (!receitas?.length) throw new Error('Sem agente remoto cadastrado. Registre a solicitação à administradora e acompanhe a pendência.')
   if (receitas.length !== 1) throw new Error('Há mais de um agente remoto. Defina a receita correta na área de agentes.')
+  if (viaWork && receitas[0].script_key !== 'captacao_lello') throw new Error('A coleta pelo Work está disponível para a receita Lello.')
+  if (viaWork && !process.env.KEILA_WORK_GITHUB_TOKEN) throw new Error('Credencial do GitHub para a coleta pelo Work não configurada.')
   const resultado = await enfileirarColetaReceita(supabase, {
     receitaId: receitas[0].id, solicitadoPor: input.usuarioId, carteiraIds: input.carteiraIds, origem: 'manual',
+    ...(viaWork ? { workCasoId: caso.id } : {}),
     execucaoId: casoId(caso.condominio_id, caso.payload.unidade_ids, `${caso.id}:coleta:${caso.payload.execucao_id ?? 'inicial'}`),
   })
   await salvarCaso(supabase, caso, {
@@ -135,5 +145,6 @@ export async function buscarDebitosCasoKeila(supabase: SupabaseClient, input: {
     proxima_acao: 'Acompanhar coleta, validar o relatório e conferir os débitos das unidades antes de preparar a resposta.',
     atividades: [...caso.payload.atividades, { em: new Date().toISOString(), descricao: `Coleta supervisionada ${resultado.reutilizada ? 'vinculada' : 'criada'}: ${resultado.execucaoId}.`, usuario_id: input.usuarioId }],
   }, input.usuarioId)
+  if (viaWork) await dispararWorkKeila(resultado.execucaoId)
   return resultado.execucaoId
 }
