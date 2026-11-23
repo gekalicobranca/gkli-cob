@@ -40,7 +40,14 @@ export async function consultarEasyMaestro(administradora: string | null = null)
   if (error) throw new Error('Não foi possível consultar as captações.')
   const saude=await consultarSaudeEasy('maestro',administradora).catch(()=>undefined)
   const painel=data as PainelEasyMaestro
-  return {...painel,receitas:painel.receitas.map(r=>({...r,detalhe:r.estado==='revisar'&&r.detalhe?'Captação ou montagem exige revisão no Maestro.':r.detalhe})),saude,saudeIndisponivel:!saude}
+  const receitas = painel.receitas.map(receita => {
+    if (receita.estado !== 'revisar' || !receita.detalhe) return receita
+    const detalhe = receita.detalhe.includes('Há mensagens em envio.')
+      ? 'A importação foi interrompida porque havia mensagens em envio. Confira a conclusão dos envios antes de retomar a validação do relatório.'
+      : 'Captação ou montagem exige revisão no Maestro.'
+    return { ...receita, detalhe }
+  })
+  return { ...painel, receitas, saude, saudeIndisponivel: !saude }
 }
 
 export async function prepararEasyMaestro(administradora:string,condominios:string[],montarFlow:boolean){
@@ -73,6 +80,9 @@ export async function captarEasyMaestro(administradora: string, lote: string, mo
     p_ativacao:ativacaoAutomatica===true,
     p_condominios: [...new Set(condominios)],
   })
+  if (error?.code === 'P0M01') {
+    return { selecaoOcupada: true, error: 'Um condomínio da seleção entrou em captação ou montagem. Confira os disponíveis e confirme uma nova seleção.' }
+  }
   if (error) {
     return { error: 'Não foi possível confirmar o pedido. Consulte o andamento e confira a configuração antes de continuar.' }
   }
