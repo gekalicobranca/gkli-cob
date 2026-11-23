@@ -36,20 +36,50 @@ export default function TvDashboard() {
 
   useEffect(() => {
     let cancelled = false
-    let timer: ReturnType<typeof setTimeout>
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let refreshing = false
+    let consecutiveFailures = 0
+    const schedule = (delay: number) => {
+      if (!cancelled && !document.hidden) timer = setTimeout(() => {
+        timer = undefined
+        void refresh()
+      }, delay)
+    }
     async function refresh() {
+      if (cancelled || document.hidden || refreshing) return
+      refreshing = true
       try {
         const result = await getTvClosingResults(periodId)
-        if (!cancelled) { setData(result); setError('') }
+        if (!cancelled) { setData(result); setError(''); consecutiveFailures = 0 }
       } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Falha na atualização. Tentando novamente em 30 segundos.')
+        consecutiveFailures += 1
+        if (!cancelled) {
+          setError(cause instanceof Error && cause.message !== 'Failed to fetch'
+            ? cause.message
+            : 'Falha de comunicação ao atualizar. Os dados serão consultados novamente automaticamente.')
+        }
       } finally {
-        if (!cancelled) timer = setTimeout(refresh, 30000)
+        refreshing = false
+        const baseDelay = consecutiveFailures === 0 ? 30000 : Math.min(30000 * 2 ** Math.min(consecutiveFailures - 1, 4), 300000)
+        schedule(Math.floor(baseDelay * (0.8 + Math.random() * 0.4)))
       }
     }
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (timer) clearTimeout(timer)
+        timer = undefined
+      } else if (!refreshing && !timer) {
+        void refresh()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
     setData(null)
     void refresh()
-    return () => { cancelled = true; clearTimeout(timer) }
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [periodId])
 
   async function toggleFullscreen() {

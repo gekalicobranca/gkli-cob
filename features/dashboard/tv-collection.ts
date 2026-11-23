@@ -3,6 +3,15 @@ import type { TvAgreement, TvCharge } from './tv-metrics'
 export const TV_COLLECTION_AGREEMENT_STATUSES = ['ativo', 'em_dia', 'em_atraso', 'quitado']
 export type TvAgreementLink = { cobranca_id: string; acordos: { status: string | null } | { status: string | null }[] | null }
 
+export function collectTvRelevantAgreementIds(agreements: TvAgreement[], installments: Array<{ acordos: TvAgreement | TvAgreement[] | null }>) {
+  const ids = new Set(agreements.map(row => row.id))
+  for (const row of installments) {
+    const related = Array.isArray(row.acordos) ? row.acordos : [row.acordos]
+    for (const agreement of related) if (agreement?.id) ids.add(agreement.id)
+  }
+  return [...ids]
+}
+
 function blocksCollection(status?: string | null) {
   return TV_COLLECTION_AGREEMENT_STATUSES.includes((status ?? '').trim().toLowerCase())
 }

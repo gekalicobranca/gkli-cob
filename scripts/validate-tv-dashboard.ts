@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildTvMetrics, tvAgreementStage, tvExpectedTransfer, type TvAgreement, type TvCharge, type TvInstallment } from '../features/dashboard/tv-metrics'
 import { buildTvSlides, tvWalletTheme } from '../features/dashboard/tv-slides'
-import { prepareTvCollectionCharges } from '../features/dashboard/tv-collection'
+import { collectTvRelevantAgreementIds, prepareTvCollectionCharges } from '../features/dashboard/tv-collection'
 
 const agreement = (changes: Partial<TvAgreement> = {}): TvAgreement => ({ id: 'a', data_acordo: '2026-10-20', valor_acordado: 1000, status: 'ativo', status_financeiro: 'em_aberto', fluxo_status: 'boletos_solicitados', observacoes: null, despesa_cobranca_valor: 100, despesa_cobranca_percentual: 20, acordo_homologado: true, ...changes })
 const charge = (changes: Partial<TvCharge> = {}): TvCharge => ({ unidade_id: 'u', vencimento: '2026-09-01', valor_atualizado: 100, status: 'novo', status_operacional: 'novo', status_financeiro: 'em_aberto', ...changes })
@@ -199,4 +199,16 @@ test('judiciais efetivados não entram nos totais extrajudiciais, mesmo após mi
   assert.equal(metrics.result.paid, 0)
   assert.equal(metrics.result.transfer, 0)
   assert.equal(metrics.result.transferToday, 0)
+})
+
+test('referências de pagamento consideram acordos exibidos e acordos presentes nas parcelas do período', () => {
+  const listed = agreement({ id: 'listed' })
+  const nestedOld = agreement({ id: 'nested-old' })
+  const unrelated = agreement({ id: 'unrelated' })
+  assert.deepEqual(collectTvRelevantAgreementIds([listed], [
+    { acordos: nestedOld },
+    { acordos: [listed] },
+    { acordos: null },
+  ]).sort(), ['listed', 'nested-old'])
+  assert.equal(collectTvRelevantAgreementIds([], [{ acordos: unrelated }])[0], 'unrelated')
 })
