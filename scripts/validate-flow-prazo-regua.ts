@@ -43,7 +43,7 @@ test('virada do dia segue São Paulo, independentemente do fuso do servidor', ()
   assert.deepEqual(filtrarCobrancasNoPrazo([row(), row('2026-10-22')], agora).map(r => r.vencimento), ['2026-10-21'])
 })
 
-function ativacao(rows: any[], falharParte = -1) {
+function ativacao(rows: any[], falharParte = -1, pausadas: string[] = []) {
   const file = ts.createSourceFile('actions.ts', readFileSync('features/flows/cobranca/actions.ts', 'utf8'), ts.ScriptTarget.Latest, true)
   const action = file.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'ativarCobrancasFiltradasFlowCobranca')!
   const source = ts.transpileModule(action.getText(file).replace(/^export /, ''), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
@@ -69,6 +69,7 @@ function ativacao(rows: any[], falharParte = -1) {
     URLSearchParams, requireRole: async () => {}, getPermittedCarteiras: async () => ({ carteiraIds: ['permitida'] }),
     createAdminClient: () => db, somenteCobrancasCanonicas: (q: any) => q, applyCarteiraScope: (q: any) => q,
     unicoCondominio, hasResponsavelVinculado, motivoImpedimentoFlow, temFlowEmAndamento,
+    filtrarCobrancasSemPausa: async (_db: unknown, rows: any[]) => rows.filter(row => !pausadas.includes(row.id)),
     atingiuPrazoRegua: (r: any) => atingiuPrazoRegua(r, agora),
     COBRANCA_STATUS_OPERACIONAL: { NOVO: 'novo', EM_COBRANCA_ATIVA: 'em_cobranca_ativa' },
     revalidatePath: () => {}, canalFlowCobranca: () => 'email', flowCobrancaPath: () => '/app/flows/cobranca/email',
@@ -83,6 +84,13 @@ function ativacao(rows: any[], falharParte = -1) {
 test('seleção antiga com cota fora do prazo devolve erro sem gravar ou redirecionar', async () => {
   const app = ativacao([row(), { ...row('2026-10-22'), id: 'fora' }])
   assert.match((await app.executar()).error, /prazo da régua/)
+  assert.equal(app.updates.length, 0)
+  assert.equal(app.destino(), '')
+})
+
+test('seleção antiga com pausa ativa não ativa cobranças nem redireciona', async () => {
+  const app = ativacao([row()], -1, ['cota'])
+  assert.match((await app.executar()).error, /pausa ativa/)
   assert.equal(app.updates.length, 0)
   assert.equal(app.destino(), '')
 })

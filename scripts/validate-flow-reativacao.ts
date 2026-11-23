@@ -44,6 +44,7 @@ test('reativação ignora Flow concluído, preserva Flow em andamento, responsá
     createAdminClient: () => db, somenteCobrancasCanonicas: (q: any) => q.is('duplicada_de_id', null),
     applyCarteiraScope: (q: any, ids: string[]) => q.in('carteira_id', ids),
     unicoCondominio, hasResponsavelVinculado, motivoImpedimentoFlow, temFlowEmAndamento, atingiuPrazoRegua,
+    filtrarCobrancasSemPausa: async (_db: unknown, rows: unknown[]) => rows,
     COBRANCA_STATUS_OPERACIONAL: { NOVO: 'novo', EM_COBRANCA_ATIVA: 'em_cobranca_ativa' },
     revalidatePath: () => {}, canalFlowCobranca: () => 'email', flowCobrancaPath: () => '/app/flows/cobranca/email',
     redirect: (url: string) => { destination = url },

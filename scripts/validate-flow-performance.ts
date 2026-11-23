@@ -38,6 +38,18 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
       return Response.json(rows)
     }
     if (table === 'lote_itens' || table === 'mensagens') {
+      if (url.searchParams.has('fingerprint')) {
+        const fingerprints = url.searchParams.get('fingerprint')!.slice(4,-1).split(',')
+        return Response.json(table === 'mensagens' ? fingerprints.filter(key => key.includes('-1202:') && key.includes(':email:')).map(fingerprint=>({fingerprint})) : [])
+      }
+      if (table === 'mensagens' && url.searchParams.has('cobranca.unidade_id')) {
+        assert.equal(url.searchParams.get('carteira_id'), 'eq.permitida')
+        assert.equal(url.searchParams.get('flow.status'), 'neq.cancelado')
+        const unidades = url.searchParams.get('cobranca.unidade_id')!
+        return Response.json(unidades.includes('unidade-1204') ? [{ id: 'email-anterior',
+          cobranca: { unidade_id: 'unidade-1204' }, flow: { regua_id: 'email', status: 'pronto' },
+        }] : [])
+      }
       if (table === 'mensagens' && url.searchParams.has('carteira_id')) {
         assert.equal(url.searchParams.get('carteira_id'), 'in.(permitida)')
         assert.equal(url.searchParams.get('limit'), '500')
@@ -54,7 +66,7 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
         flow: { canais: ['email'] },
       })))
     }
-    if (table === 'maestro_flow_montagens') return Response.json([])
+    if (table === 'maestro_flow_montagens' || table === 'regua_pausas') return Response.json([])
     if (table === 'responsaveis_unidades' || table === 'flow_saneamento_dispensas') return Response.json([])
     if (table === 'condominios') return Response.json([])
     throw new Error(`Consulta inesperada: ${table}`)
@@ -68,11 +80,13 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
     assert.equal(first.painel.length, COBRANCAS_FLOW_PAGE_SIZE)
     assert.equal(first.disponibilidade.length, COBRANCAS_FLOW_PAGE_SIZE)
     assert.equal(first.disponibilidade[0].id, 'ativa-208')
-    assert.equal(first.totalDisponibilidade, 499)
-    assert.equal(first.totalPainel, 603)
-    assert.equal(first.valorPainel, 6030)
-    assert.equal(first.unidadesPainel, 603)
-    assert.equal(requests.filter(url => url.pathname.endsWith('/mensagens')).length, 1)
+    assert.equal(first.totalDisponibilidade, 497)
+    assert.equal(first.totalPainel, 601)
+    assert.equal(first.valorPainel, 6010)
+    assert.equal(first.unidadesPainel, 601)
+    assert.ok(full.disponibilidade.every(row => row.unidade_id !== 'unidade-1204'))
+    assert.ok(full.disponibilidade.every(row => row.id !== 'ativa-1202'))
+    assert.equal(requests.filter(url => url.pathname.endsWith('/mensagens') && !url.searchParams.has('cobranca.unidade_id') && !url.searchParams.has('fingerprint')).length, 1)
     assert.equal(transferredRows, 2414)
     assert.ok(requests.filter(url => url.pathname.endsWith('/cobrancas')).every(url => Number(url.searchParams.get('limit')) <= 500))
     const montageQuery = requests.find(url => url.pathname.endsWith('/maestro_flow_montagens'))!
@@ -86,7 +100,7 @@ test('gerar flows pagina elegíveis após vínculos e saneamento, conta o total 
     assert.deepEqual(allPages.map(row => row.id), full.disponibilidade.map(row => row.id))
     const last = await getFlowCobrancaPageData(scope, { canal: 'email' }, { page: 7 })
     assert.equal(last.hasNext, false)
-    assert.equal(last.painel.length, 3)
+    assert.equal(last.painel.length, 1)
     assert.equal(last.disponibilidade.length, 0)
     const whatsapp = await getFlowCobrancaPageData(scope, { canal: 'whatsapp' }, { page: 1 })
     assert.equal(whatsapp.totalDisponibilidade, 603)
