@@ -55,6 +55,13 @@ const groups: Array<{
         tag: 'Motor',
       },
       {
+        title: 'Limpeza da fila do Maestro',
+        description: 'Gerencie o cancelamento diário dos pedidos pendentes do Maestro e do Easy Maestro às 06h.',
+        href: '/app/configuracoes/limpeza-maestro',
+        icon: SlidersHorizontal,
+        tag: 'Admin',
+      },
+      {
         title: 'Execuções e lotes',
         description: 'Acompanhe processamentos, falhas e reprocessamentos.',
         href: '/app/lotes',

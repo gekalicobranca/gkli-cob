@@ -380,4 +380,8 @@ Fontes principais no commit analisado:
 
 Quando o coletor registra uma falha de conexão ou um tempo limite de navegação, o painel orienta a conferir o acesso ao portal ou repetir **Só conferir** após o portal responder. Se a coleta chegou a produzir um relatório, mas o conversor recusou o formato ou o conteúdo, o aviso orienta a conferir o arquivo. Erros desconhecidos conservam o aviso da etapa. Nas execuções antigas com aviso genérico, o painel consulta a fonte vinculada ao pedido para recuperar uma causa reconhecida. Apenas a mensagem pública é enviada ao navegador.
 
+### Limpeza diária da fila de captação
+
+Em Configurações → Automação → Limpeza da fila do Maestro, administradores podem pausar ou ativar a rotina global e consultar o horário e o total da última execução. O job do banco processa Maestro e Easy Maestro às 06h de Brasília. Usa a data de criação e o agendamento do pedido em relação ao corte, respeita tentativas e evidências da coleta e registra cada cancelamento no histórico da execução e na auditoria. A pausa também se aplica a dias sem pedidos. Reativar permite a próxima execução agendada.
+
 Para continuar em outro chat: objetivo é evoluir o módulo integrado preservando os domínios GKLI; esta especificação é a base inicial. Confirmar o novo HEAD e o checkout antes de alterar código. Permanecem pendentes homologação dos cenários, inspeção da configuração implantada e decisões da seção 14. Nenhuma autorização de deploy, migration, execução de worker ou envio decorre deste documento.
