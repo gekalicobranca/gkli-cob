@@ -74,6 +74,8 @@ export async function POST(request: Request) {
   try {
     const resultado = await observarKeila({
       referencia: 'Safira — observação em Preview, sem caso ou unidade confirmada',
+      condominio_confirmado: 'Safira',
+      planilha_atual_administradora_conferida: false,
       mensagens: [{ origem: 'condomino', data, texto: trecho.trim() }],
       cadastro: {
         autonomia_habilitada: false,
