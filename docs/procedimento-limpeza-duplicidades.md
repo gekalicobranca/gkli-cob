@@ -233,3 +233,5 @@ Evidências em `outputs/auditoria-cobrancas-2026-09-22/`: `resultado-piloto.md`,
 A confirmação por lotes guarda a unidade resolvida por linha junto com o cursor. A limpeza final revalida essas unidades no banco. Quando a limpeza informa que a comparação ficou incompleta, o resultado da importação registra o motivo e dispensa a geração de pendências por ausência.
 
 Dois formatos históricos do Moema Flat repetem o código do débito nas observações. A conciliação e a limpeza reconhecem o número quando as duas ocorrências concordam. Recibos numéricos diferentes continuam distintos, inclusive quando têm o mesmo vencimento e principal. O arquivamento administrativo de duplicidades tem validação de identidade própria.
+
+Nas planilhas convertidas do relatório do Moema Flat, a conversão omite vencimentos com mais de cinco anos. A substituição, a remoção de ausentes e a geração de pendências respeitam esse recorte.
