@@ -55,7 +55,7 @@ async function main() {
   assert.match(result.preview.cobrancas[0]?.detalhesOrigem ?? "", /1002 COTAS CONDOMINIAIS: R\$ 590,98/);
   assert.match(result.preview.csv, /2026-08-10/);
 
-  // O recorte operacional usa cinco anos, inclusive para chamadas com a opção legada.
+  // O recorte operacional usa cinco anos, inclusive para chamadas com a opÃ§Ã£o legada.
   for (const anosAtras of [1, 6]) {
     const ano = new Date().getFullYear() - anosAtras;
     const antigas = JSON.parse(JSON.stringify(rows).replaceAll('/2026', `/${ano}`));
