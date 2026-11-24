@@ -134,3 +134,18 @@ test('J não libera principal, vencimento, escopo, duplicidade nem cobranças en
   }
   assert.equal((await conciliarCobrancaImportada(banco([{ ...row }, { ...row, id: 'dup' }]), input)).status, 'divergente')
 })
+
+test('Moema Flat reconhece código histórico confirmado e mantém a cobrança suspensa', async () => {
+  const condominio_id = 'e0c3e623-3b32-4499-b649-20564da4cb8f'
+  for (const observacoes of ['Recibo CODIGO-12345 | Código 12345; Histórico',
+    'Código 12345; Histórico | Código fonte 12345 | Moema Flat: posição']) {
+    const anterior = { ...row, condominio_id, observacoes, status_operacional: 'suspenso', status_financeiro: 'em_aberto' }
+    const db = banco([anterior])
+    const recebida = { ...anterior, observacoes: 'Recibo: 12345', valor_atualizado: 470 }
+    assert.equal((await conciliarCobrancaImportada(db, recebida)).status, 'ja_existente')
+    assert.equal(await atualizarReciboComMarcador(db, anterior.id, recebida), true)
+    assert.equal(db.rows[0].status_operacional, 'suspenso')
+    assert.equal(db.rows[0].observacoes, observacoes)
+    assert.equal((await conciliarCobrancaImportada(db, { ...recebida, observacoes: 'Recibo: 2345' })).status, 'novo')
+  }
+})

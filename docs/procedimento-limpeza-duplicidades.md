@@ -227,3 +227,9 @@ A primeira tentativa em produção foi desfeita por timeout do inventário, sem 
 Os outros 199 grupos da auditoria inicial não foram incluídos. O total da fila ainda não representa saldo líquido integralmente conciliado com acordos, pagamentos e bases jurídicas.
 
 Evidências em `outputs/auditoria-cobrancas-2026-09-22/`: `resultado-piloto.md`, `piloto-producao-aplicar.json`, `verificacao-final-piloto.json`, `fila-depois-piloto.json`, `teste-executor-piloto.json`, `replay-piloto-producao.json`, `controle-janela-piloto.json` e `backup-piloto/verificacao.json`. Dados restritos não são versionados. Executor administrativo em `scripts/limpeza-duplicidades/piloto-transacional.mjs`; não expor como RPC ou endpoint do aplicativo.
+
+### Importação de cobranças do Moema Flat
+
+A confirmação por lotes guarda a unidade resolvida por linha junto com o cursor. A limpeza final revalida essas unidades no banco. Quando a limpeza informa que a comparação ficou incompleta, o resultado da importação registra o motivo e dispensa a geração de pendências por ausência.
+
+Dois formatos históricos do Moema Flat repetem o código do débito nas observações. A conciliação e a limpeza reconhecem o número quando as duas ocorrências concordam. Recibos numéricos diferentes continuam distintos, inclusive quando têm o mesmo vencimento e principal. O arquivamento administrativo de duplicidades tem validação de identidade própria.

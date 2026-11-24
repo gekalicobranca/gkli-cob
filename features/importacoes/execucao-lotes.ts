@@ -9,6 +9,7 @@ export type ResultadoLote = {
 }
 export type ExecucaoImportacao = {
   cursor: number
+  unidades_por_linha?: Record<string, string | null>
   total: number
   token: string | null
   lease_ate: string | null
