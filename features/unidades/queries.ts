@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
 import type { CarteiraScope } from '@/utils/auth/get-permitted-carteiras'
 import { normalizeRelations, normalizeRelationsList } from '@/utils/supabase/normalize-relation'
-import { getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
+import { getCobrancaStatusFinanceiro, getCobrancaStatusOperacional } from '@/lib/core/cobranca-status'
 import {
   COBRANCA_STATUS_JUDICIALIZACAO,
   COBRANCA_STATUS_OPERACIONAL,
@@ -429,7 +429,10 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
   // Cópias continuam visíveis no histórico, mas não representam uma segunda dívida.
   const cobrancasCanonicas = cobrancas.filter((cobranca) => !cobranca.duplicada_de_id && !cobranca.arquivada_em)
   const valorEmAberto = cobrancasCanonicas
-    .filter((cobranca) => !['acordo_efetivado', 'quitado', 'pago'].includes(getCobrancaStatusOperacional(cobranca)))
+    .filter((cobranca) =>
+      getCobrancaStatusFinanceiro(cobranca) !== 'quitado' &&
+      !['acordo_efetivado', 'quitado', 'pago'].includes(getCobrancaStatusOperacional(cobranca)),
+    )
     .reduce((sum, cobranca) => sum + Number(cobranca.valor_atualizado ?? cobranca.valor_original ?? 0), 0)
 
   const acordosRompidos = acordos.filter((acordo) => ['quebrado', 'rompido', 'cancelado'].includes(String(acordo.status))).length
