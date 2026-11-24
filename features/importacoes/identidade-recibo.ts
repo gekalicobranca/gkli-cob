@@ -1,4 +1,4 @@
-type FonteRecibo = { recibo?: string | null; referencia?: string | null; observacoes?: string | null }
+type FonteRecibo = { condominio_id?: string | null; recibo?: string | null; referencia?: string | null; observacoes?: string | null }
 
 export function marcadoresAdministrativosCompativeis(a?: string | null, b?: string | null) {
   return [a, b].every(m => m == null || ['A', 'AE', 'J'].includes(m))
@@ -10,6 +10,11 @@ export function identidadeRecibo(fonte: FonteRecibo): { recibo: string; marcador
     if (!campo?.trim()) continue
     const parsed = interpretar(campo.trim().replace(/^recibo(?:\s*:\s*|\s+)/i, ''))
     if (parsed) return parsed
+  }
+  if (fonte.condominio_id === 'e0c3e623-3b32-4499-b649-20564da4cb8f') {
+    const codigo = fonte.observacoes?.match(/^Recibo CODIGO-(\d+) \| Código \1;/i)
+      ?? fonte.observacoes?.match(/^Código (\d+);[^\n]*\| Código fonte \1 \| Moema Flat:/i)
+    if (codigo) return { recibo: codigo[1], marcador: null }
   }
   const match = fonte.observacoes?.match(/\brecibo(?:\s*:\s*|\s+)((?:(?:AE|AJ|J|A|D|B|P)\s+)?[a-z0-9][a-z0-9._/-]*)(?=\s|\||$)/i)
   return match ? interpretar(match[1]) : null

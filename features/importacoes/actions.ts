@@ -3373,32 +3373,29 @@ async function executarLoteImportacao(formData: FormData) {
   const origem = formatOrigemImportacao("importacao_cobrancas");
   if (execucao.cursor < payloads.length) {
     const lote = payloads.slice(execucao.cursor, execucao.cursor + TAMANHO_LOTE_IMPORTACAO);
-    // Revalidar IDs evita usar a fotografia antiga da prévia após recriação de unidades.
-    // Uma consulta por lote também elimina buscas repetidas para unidades cadastradas.
-    const unidadesAtuais = await resolveUnidadesByCondominioIds(supabase, lote.map(p => p.condominio_id));
-    for (const payload of lote) {
-      payload.unidade_id = unidadesAtuais.get(unidadeKey({ condominio_id: payload.condominio_id,
-        identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco }))?.id ?? null;
-    }
     const resultado = await importarCobrancas(supabase, lote, origem, resumo.somente_ano_corrente !== false, { validarAusencias: false, cobrancasClassificacao: payloads, indiceInicial: execucao.cursor });
     const acumulado = { ...execucao.resultado, erros: [...execucao.resultado.erros, ...resultado.erros] };
     for (const chave of ["importados", "criados", "atualizados", "divergentes", "ausentes", "ignorados"] as const) acumulado[chave] += resultado[chave];
-    execucao = { ...execucao, cursor: execucao.cursor + lote.length, resultado: acumulado };
+    const unidadesPorLinha = { ...execucao.unidades_por_linha };
+    for (const payload of lote) unidadesPorLinha[payload.__linha] = payload.unidade_id ?? null;
+    execucao = { ...execucao, cursor: execucao.cursor + lote.length, resultado: acumulado, unidades_por_linha: unidadesPorLinha };
     await salvarLoteImportacao(supabase, id, resumo, { ...execucao, token: null, lease_ate: null }, token);
     return { concluida: false, processadas: execucao.cursor, total: payloads.length, gravadas: count + resultado.importados };
   }
 
   // Ausências só podem ser conciliadas depois de conferir o arquivo completo.
-  const unidades = await resolveUnidadesByCondominioIds(supabase, payloads.map(p => p.condominio_id));
   for (const payload of payloads) {
-    const unidade = unidades.get(unidadeKey({ condominio_id: payload.condominio_id, identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco }));
-    payload.unidade_id = unidade?.id ?? null;
+    // Em execuções antigas, a RPC também revalida o ID registrado na prévia.
+    if (execucao.unidades_por_linha && Object.hasOwn(execucao.unidades_por_linha, payload.__linha)) {
+      payload.unidade_id = execucao.unidades_por_linha[payload.__linha];
+    }
   }
   // A RPC revalida arquivo completo, progresso, falhas, carteira e proteções.
   // Só depois da remoção são gerados alertas/pendências das cobranças preservadas.
   const limpezaAusentes = await removerCobrancasAusentesDaImportacao(createAdminClient(), id,
     payloads.map(p => ({ linha: Number(p.__linha), unidade_id: p.unidade_id ?? null })));
-  const ausencias = await importarCobrancas(supabase, payloads, origem, resumo.somente_ano_corrente !== false, { somenteAusencias: true });
+  const ausencias = limpezaAusentes.motivo ? emptyImportExecutionResult()
+    : await importarCobrancas(supabase, payloads, origem, resumo.somente_ano_corrente !== false, { somenteAusencias: true });
   if (limpezaAusentes.motivo) ausencias.erros.push(`ALERTA: ${limpezaAusentes.motivo}`);
   const erros = await explicarCobrancasPreservadas(supabase, [...execucao.resultado.erros, ...ausencias.erros], execucao.limpeza === "concluida");
   const resultado = {

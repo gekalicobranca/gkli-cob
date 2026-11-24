@@ -306,7 +306,17 @@ export async function encontrarCobrancasAbertasAusentes(
     importadasPorUnidadeVencimento.set(chave, grupo);
   }
 
+  const moemaFlat = 'e0c3e623-3b32-4499-b649-20564da4cb8f';
+  const planilhaConvertidaMoema = importadas.some(i => i.condominio_id === moemaFlat
+    && i.observacoes?.includes('Origem: Conversão de Relatório | Sistema: Moema Flat |'));
+  const dataLocal = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo',
+    year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const corte = new Date(dataLocal + 'T00:00:00Z');
+  corte.setUTCFullYear(corte.getUTCFullYear() - 5);
+  const vencimentoMinimo = corte.toISOString().slice(0, 10);
   const ausentes = abertas.filter((existente) => {
+    if (planilhaConvertidaMoema && existente.condominio_id === moemaFlat
+      && existente.vencimento && existente.vencimento < vencimentoMinimo) return false;
     const candidatas = importadasPorUnidadeVencimento.get(
       chaveAusenciaPorUnidadeVencimento(existente.unidade_id, existente.vencimento),
     ) ?? [];
