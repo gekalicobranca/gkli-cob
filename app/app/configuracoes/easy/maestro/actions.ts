@@ -15,6 +15,7 @@ export type ReceitaEasyMaestro = {
   estado: 'disponivel' | 'fila' | 'captando' | 'importando' | 'importado' | 'sem_inadimplencia' | 'revisar'
   detalhe: string | null
   conversaoId: string | null
+  unidadesComEnvioPendente?: number
   cobrancas: number | null
   fonteEmRevisao?: boolean
   finalizadaEm?: string | null

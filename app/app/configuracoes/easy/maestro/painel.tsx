@@ -217,7 +217,8 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
               const consolidado = receita.consolidado
               const tentativaAnterior = Boolean(consolidado && receita.estado === 'revisar' && receita.finalizadaEm
                 && receita.montagemStatus !== 'atencao' && Date.parse(receita.finalizadaEm) <= Date.parse(consolidado.captadoEm))
-              const mostrarConsolidado = consolidado && !emAndamento(receita) && (receita.estado !== 'revisar' || tentativaAnterior)
+              const parcial = receita.estado === 'importado' && Boolean(receita.unidadesComEnvioPendente)
+              const mostrarConsolidado = consolidado && !parcial && !emAndamento(receita) && (receita.estado !== 'revisar' || tentativaAnterior)
               const ultimaConclusao = receita.ultimaCaptacaoNoMes ?? consolidado?.captadoEm
               return (
                 <li key={receita.id} className={`flex flex-wrap items-start justify-between gap-2 break-words rounded-xl px-3 py-3 text-sm ${receita.ultimaCaptacaoNoMes ? 'bg-emerald-50' : ''}`}>
@@ -269,7 +270,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
                     <p className="font-semibold text-slate-800">{mostrarConsolidado
                       ? 'Importado no consolidado'
                       : receita.fonteEmRevisao ? 'Coleta do Espelhar em revisão'
-                      : <>{receita.estado === 'disponivel' && !receita.liberada ? 'Aguardando régua' : estados[receita.estado]}{receita.estado === 'importado' && receita.cobrancas !== null ? ` · ${receita.cobrancas} cobrança(s)` : ''}</>}</p>
+                      : <>{receita.estado === 'disponivel' && !receita.liberada ? 'Aguardando régua' : parcial ? 'Importação parcial' : estados[receita.estado]}{receita.estado === 'importado' && receita.cobrancas !== null ? ` · ${receita.cobrancas} cobrança(s)` : ''}</>}</p>
                     {mostrarConsolidado && <p className="text-xs text-slate-500">Consolidado concluído em {new Date(consolidado.captadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>}
                     {!tentativaAnterior && receita.solicitadaEm && <p className="text-xs text-slate-500">Pedido em {new Date(receita.solicitadaEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p>}
                   </div>
