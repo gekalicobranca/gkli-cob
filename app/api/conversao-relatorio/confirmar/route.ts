@@ -275,7 +275,7 @@ export async function POST(request: NextRequest) {
     let cobrancasAnterioresRemovidas = 0
     let falhasImportacao = 0
     let limpezaAusentesPdf: { removidas: number; motivo?: string } | undefined
-    let conciliacaoMaestro: { atualizadas: number; arquivadas: number; removidas?: number; comAcordo: number; motivo?: string } | undefined
+    let conciliacaoMaestro: { atualizadas: number; arquivadas: number; removidas?: number; unidadesComEnvioPendente?: string[]; linhasComEnvioPendente?: number; comAcordo: number; motivo?: string } | undefined
     const valoresMaestro = new Map<string, {
       id: string; atualizado_em: string; valor_atualizado: number; juros: number; multa: number; correcao: number
     }>()
@@ -699,7 +699,11 @@ export async function POST(request: NextRequest) {
       conciliacaoMaestro = data
       cobrancasAnterioresRemovidas = Number(data.removidas ?? 0)
       if (data.semReciboCorrespondente > 0) inconsistencias.push(`${data.semReciboCorrespondente} cobrança(s) preservada(s) sem recibo correspondente na captação.`)
+      cobrancasCriadas = Number(data.criadas ?? cobrancasCriadas)
+      parcelasCriadas = Number(data.parcelasCriadas ?? parcelasCriadas)
+      const retidas = new Set<string>(data.unidadesComEnvioPendente ?? [])
       for (const dados of saneamentoMaestro) {
+        if (dados.unidade && retidas.has(dados.unidade.id)) continue
         try { await registrarSaneamentoConversao(supabase, dados) }
         catch (erro) { inconsistencias.push(erro instanceof Error ? erro.message : 'Erro ao registrar pendência da unidade.') }
       }
@@ -770,6 +774,13 @@ export async function POST(request: NextRequest) {
       inconsistencias.push(
         `${historicoCaptacao.retidas} unidade(s) da captação não foram gravadas no histórico do síndico por falta de vínculo único ou valor válido.`
       )
+    }
+    if (conciliacaoMaestro?.unidadesComEnvioPendente?.length) {
+      const ids = new Set(conciliacaoMaestro.unidadesComEnvioPendente)
+      const { data: unidades, error } = await supabase.from('unidades').select('id,bloco,identificacao')
+        .eq('condominio_id', condominioId).in('id', [...ids])
+      const nomes = !error && unidades?.length ? unidades.map(u => [u.bloco, u.identificacao].filter(Boolean).join(' / ')).join(', ') : [...ids].join(', ')
+      inconsistencias.push(`Importação parcial. Unidades com envio em curso ou sem confirmação: ${nomes}. Confira a entrega antes de retomar essas unidades em nova captação.`)
     }
     const previewSemBaseRanking = { ...preview }
     delete previewSemBaseRanking.cobrancasRankingMensal

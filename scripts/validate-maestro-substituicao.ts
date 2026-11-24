@@ -48,6 +48,7 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
         payload jsonb,created_at timestamptz default now(),lote_item_id uuid references lote_itens on delete set null,
         cancelado_em timestamptz,cancelada_em timestamptz,agendada_para timestamptz,scheduled_at timestamptz,motivo_cancelamento text);
       create table email_agenda(mensagem_id uuid);
+      create table thunderbird_envios(mensagem_id uuid,estado text);
       create table email_tentativas(mensagem_id uuid,estado text);
       create table whatsapp_web_envios(mensagem_id uuid,estado text);
       create table flow_progressao(cobranca_ids uuid[],status text,token uuid,lease_ate timestamptz,erro text,updated_at timestamptz);
@@ -128,6 +129,43 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
       /proteção operacional/)
     await assert.rejects(substituir([{ ...nova, id: id(13) }]), /duplicate key/)
     assert.equal((await db.query('select id from cobrancas')).rows.length, 7)
+    await db.exec(migration('20261124023000_maestro_isolar_unidades_com_envio'))
+    for (const caso of ['email cancelado com tentativa aberta', 'whatsapp incerto agrupado', 'thunderbird reservado', 'mensagem em envio']) {
+      await db.exec('begin')
+      try {
+        await db.exec(`
+          insert into unidades values ('${id(7)}','${id(1)}','${id(2)}','A',false);
+          update cobrancas set unidade_id='${id(7)}' where id='${id(12)}';
+          update mensagens set unidade_id='${id(7)}' where id='${id(21)}';
+        `)
+        if (caso.startsWith('email')) {
+          await db.query("update mensagens set canal='email',status='cancelada' where id=$1", [id(21)])
+          await db.query("insert into email_tentativas values($1,'em_envio')", [id(21)])
+        } else if (caso.startsWith('whatsapp')) {
+          await db.query("update mensagens set cobranca_id=null,payload=jsonb_build_object('cobranca_ids',jsonb_build_array($1::text)) where id=$2", [id(12), id(21)])
+          await db.query("insert into whatsapp_web_envios values($1,'incerto')", [id(21)])
+        } else if (caso.startsWith('thunderbird')) {
+          await db.query("insert into thunderbird_envios values($1,'reservado')",[id(21)])
+        } else {
+          await db.query("update mensagens set status='em_envio' where id=$1",[id(21)])
+        }
+        const novas = [nova, { ...nova, id: id(42), unidade_id: id(7), observacoes: 'Recibo 42' }]
+        const captadas = importadas.map(i => i.recibo === '18' ? { ...i, unidade_id: id(7), recibo: '42' } : i)
+        const parcelas = novas.map(n => ({ cobranca_id: n.id, valor_original: 100, valor_atualizado: 120 }))
+        const antes = (await db.query('select * from mensagens where id=$1',[id(21)])).rows
+        const {rows} = await db.query<{r: Record<string, unknown>}>(
+          'select maestro_substituir_captacao($1,$2,$3::uuid[],$4,$5,$6,$7) r',
+          [id(4),'2026-11-10',ids,JSON.stringify(captadas),JSON.stringify(valores),JSON.stringify(novas),JSON.stringify(parcelas)])
+        assert.deepEqual(rows[0].r.unidadesComEnvioPendente,[id(7)],caso)
+        assert.equal(rows[0].r.linhasComEnvioPendente,1)
+        assert.equal(rows[0].r.removidas,2)
+        assert.equal(rows[0].r.criadas,1)
+        assert.equal(rows[0].r.parcelasCriadas,1)
+        assert.deepEqual((await db.query('select * from mensagens where id=$1',[id(21)])).rows,antes)
+        assert.deepEqual((await db.query('select id,conversao_relatorio_id from cobrancas where unidade_id=$1',[id(7)])).rows,
+          [{id:id(12),conversao_relatorio_id:null}])
+      } finally { await db.exec('rollback') }
+    }
     const { rows } = await substituir([nova])
     assert.equal(rows[0].r.removidas, 3)
     assert.equal(rows[0].r.atualizadas, 2)
