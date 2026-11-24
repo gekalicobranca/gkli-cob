@@ -19,6 +19,7 @@ import { avaliarReguaImportacao } from "@/features/importacoes/regua-importacao"
 import { bloquearAutomacaoAcordoHflex, isImportacaoAcordoHflex, statusOperacionalParaCobrancaImportada } from "@/features/importacoes/status-cobranca-importada"
 import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImportada } from "@/features/importacoes/regra-judicial-importacao"
 import { associarCobrancaConciliada } from "@/features/importacoes/reaproveitar-conversao"
+import { carregarCadastroRecibosLello, resolverRecibosLello } from "@/features/importacoes/maestro-recibos-lello"
 import { atualizarReciboComMarcador } from "@/features/importacoes/atualizar-recibo-marcador"
 import { observacoesComComposicao, observacoesComMarcador, persistirComposicaoConciliada } from "@/features/importacoes/composicao-origem"
 import { statusMarcadorCaptacaoManual } from "@/features/easy-cob/captacao-preview"
@@ -248,7 +249,7 @@ export async function POST(request: NextRequest) {
 
     const captacaoPdf = conversaoPdfDeCobrancas(preview)
     const conciliarMaestro = preview?.captacaoAutomatizada === true && String(conversao.origem ?? "").startsWith("captacao_automatizada:")
-    const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
+    let cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
     const { data: condominioConfiguracao, error: condominioError } = await supabase
       .from("condominios")
       .select("carteira_id, inicio_cobranca_dias, dias_apos_vencimento_regua, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")
@@ -294,6 +295,18 @@ export async function POST(request: NextRequest) {
         || (preview.recorteRegua ?? 'todos') !== 'todos'
         || (!cobrancas.length && preview.semPendencias !== true)) {
         throw new Error('A captação precisa estar completa para substituir as cobranças.')
+      }
+      if (conversao.origem === "captacao_automatizada:lello"
+        && preview.padraoDetectado?.id === "lello-cotas-atrasadas-xlsx-cobrancas-v1" && cobrancas.length) {
+        const cadastro = await carregarCadastroRecibosLello(supabase, carteiraId, condominioId)
+        cobrancas = resolverRecibosLello(cobrancas, cadastro)
+        // A RPC de substituição também lê os recibos da prévia para decidir o que preservar.
+        const { error } = await supabase.from("conversoes_relatorio")
+          .update({ preview_json: { ...preview, cobrancas } })
+          .eq("id", conversaoId).eq("status", "processando").eq("atualizado_em", processamentoMaestro!.inicio)
+          .select("id").single()
+        if (error) throw new Error("A tentativa mudou ao conferir os recibos da Lello. Reabra a validação.")
+        preview.cobrancas = cobrancas
       }
       const { data: ids, error } = await supabase.rpc('maestro_cobrancas_substituiveis', { p_conversao: conversaoId })
       if (error || !Array.isArray(ids)) throw new Error(error?.message ?? 'Não foi possível conferir a substituição.')
@@ -368,6 +381,10 @@ export async function POST(request: NextRequest) {
       let unidadeId = unidadeUsada?.id ?? null
       let unidadeCriada = false
 
+      if (substituirMaestro && item.unidadeReciboLello && unidadeId !== item.unidadeReciboLello) {
+        throw new Error(`Unidade ${unidadeLabel}: o cadastro do recibo Lello mudou. Confira a identificação e o bloco.`)
+      }
+
       if (!unidadeId) {
         const { data: novaUnidade, error: unidadeError } = await supabase
           .from("unidades")
@@ -420,7 +437,9 @@ export async function POST(request: NextRequest) {
       const juros = Number(item.juros ?? 0)
       const valorTotal = Number(item.valorTotal ?? valorPrincipal + multa + correcao + juros)
       const recibo = String(item.recibo ?? "").trim()
-      const observacoesBase = recibo
+      const observacoesBase = substituirMaestro && item.chavePlanilhaLello
+        ? `Recibo: ${recibo}\nConversão de relatório - recibo ${item.chavePlanilhaLello}`
+        : recibo
         ? `Conversão de relatório - recibo ${recibo}`
         : "Conversão de relatório"
       let bloqueioGarantidora = avaliarBloqueioGarantidora(condominioConfiguracao as any, {

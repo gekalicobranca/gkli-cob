@@ -42,6 +42,9 @@ export async function consultarEasyMaestro(administradora: string | null = null)
   const painel=data as PainelEasyMaestro
   const receitas = painel.receitas.map(receita => {
     if (receita.estado !== 'revisar' || !receita.detalhe) return receita
+    if (receita.detalhe.includes('A planilha não identifica a cota de forma única.')) {
+      return { ...receita, detalhe: 'Confira o recibo e o valor original no portal da Lello. Abra a validação para identificar a unidade e o vencimento.' }
+    }
     const detalhe = receita.detalhe.includes('Há mensagens em envio.')
       ? 'A importação foi interrompida porque havia mensagens em envio. Confira a conclusão dos envios antes de retomar a validação do relatório.'
       : 'Captação ou montagem exige revisão no Maestro.'

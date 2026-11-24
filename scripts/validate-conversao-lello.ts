@@ -55,16 +55,19 @@ async function main() {
   assert.match(result.preview.cobrancas[0]?.detalhesOrigem ?? "", /1002 COTAS CONDOMINIAIS: R\$ 590,98/);
   assert.match(result.preview.csv, /2026-08-10/);
 
-  const anoAnterior = new Date().getFullYear() - 1;
-  const antigas = JSON.parse(JSON.stringify(rows).replaceAll('/2026', `/${anoAnterior}`));
-  const wbAntigo = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wbAntigo, XLSX.utils.aoa_to_sheet(antigas), 'Inadimplentes');
-  const bufferAntigo = XLSX.write(wbAntigo, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
-  for (const somenteAnoCorrente of [true, false]) {
-    const antigasResult = await parseRelatorioBuffer({ buffer: bufferAntigo, filename: 'antigas.xlsx', somenteAnoCorrente });
-    assert.ok(antigasResult.ok);
-    assert.equal(antigasResult.preview.totalParcelas, somenteAnoCorrente ? 0 : 2);
-    assert.equal(antigasResult.preview.valorTotal, somenteAnoCorrente ? 0 : 1807.58);
+  // O recorte operacional usa cinco anos, inclusive para chamadas com a opção legada.
+  for (const anosAtras of [1, 6]) {
+    const ano = new Date().getFullYear() - anosAtras;
+    const antigas = JSON.parse(JSON.stringify(rows).replaceAll('/2026', `/${ano}`));
+    const wbAntigo = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wbAntigo, XLSX.utils.aoa_to_sheet(antigas), 'Inadimplentes');
+    const bufferAntigo = XLSX.write(wbAntigo, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    for (const somenteAnoCorrente of [true, false]) {
+      const antigasResult = await parseRelatorioBuffer({ buffer: bufferAntigo, filename: 'antigas.xlsx', somenteAnoCorrente });
+      assert.ok(antigasResult.ok);
+      assert.equal(antigasResult.preview.totalParcelas, anosAtras < 5 ? 2 : 0);
+      assert.equal(antigasResult.preview.valorTotal, anosAtras < 5 ? 1807.58 : 0);
+    }
   }
 
   console.log("Conversão Lello XLSX validada com sucesso.");

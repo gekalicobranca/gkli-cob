@@ -26,3 +26,9 @@ O painel passa a mostrar “Importando” assim que há arquivo da tentativa ati
 ### Ocupação por condomínio
 
 O painel e a RPC de confirmação bloqueavam a administradora inteira se houvesse uma captação ou montagem Easy em andamento. A seleção e a confirmação agora verificam os condomínios do pedido. Quando há várias receitas para o mesmo condomínio, basta uma ocupada para impedir duplicação naquele condomínio. O worker mantém o processamento em fila por administradora; aceitar um novo pedido para outro condomínio não inicia coletas concorrentes no portal.
+
+### Tour de Lion e os recibos da Lello
+
+Em 23/11 o relatório XLSX trazia 90 lançamentos. A chave gerada a partir do condomínio, da unidade e do vencimento diferia dos números do portal. Uma cota ordinária e uma contribuição de 13º salário compartilhavam a mesma chave da planilha.
+
+Na confirmação do Maestro, identificar o recibo numérico antes de calcular quais cobranças podem ser substituídas. Conferir carteira, condomínio, bloco, unidade, vencimento e principal e exigir a chave anterior registrada ou a origem de Espelhamento Lello do mesmo código de condomínio. A prévia mantém a chave original e o número reconhecido. Impedir a confirmação quando duas linhas disputam o mesmo recibo ou a identificação é ambígua. A rotina transacional continua aplicando suas proteções de pagamento, acordos e estado judicial. A validação da mudança no Tour de Lion consultou a base somente para leitura. O reprocessamento da captação em produção é uma etapa separada.
