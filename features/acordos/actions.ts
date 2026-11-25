@@ -9,7 +9,7 @@ import { validarDataCivil, vencimentoMensal, dataCivilSaoPaulo, somarDiasCivis, 
 
 import {selecionarCobrancaTitular, rotuloUnidade} from "./unidade-titular";
 
-import { calcularDespesasAcordo, validarCotasSemDespesas } from "./calculo-despesas";
+import { ratearParcelasEasy, calcularDespesasAcordo, validarCotasSemDespesas } from "./calculo-despesas";
 import { lerPlanoManual, ratearTotalManual } from "./plano-manual";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 
@@ -515,6 +515,14 @@ async function sincronizarContatoResponsavelApoioAcordo(
   return responsavelApoio.id as string;
 }
 
+function lerDiaProximasParcelas(formData: FormData, quantidade: number) {
+  const valor = formData.get("dia_proximas_parcelas");
+  if (quantidade <= 1 || valor == null || valor === "") return undefined;
+  if (typeof valor !== "string" || !/^(?:[1-9]|[12][0-9]|3[01])$/.test(valor))
+    throw new Error("Informe um dia de vencimento de 1 a 31 para as próximas parcelas.");
+  return Number(valor);
+}
+
 export async function createAcordoComEstado(
   _state: AcordoActionState,
   formData: FormData,
@@ -651,6 +659,7 @@ export async function createAcordo(formData: FormData) {
   const usarCreditoAdministradora = formData.get("usar_credito_administradora") === "on";
   const entradaVencimento = String(formData.get("entrada_vencimento") ?? "");
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
+  const diaProximas = lerDiaProximasParcelas(formData, quantidadeParcelas);
   let primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
   const dataAcordoInformada = String(formData.get("data_acordo") ?? "").trim();
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
@@ -879,12 +888,14 @@ export async function createAcordo(formData: FormData) {
     });
   }
 
+  const parcelasEasy = formData.get("origem_easy") === "1" && entrada === 0 && !planoManual
+    ? ratearParcelasEasy(valorAcordado, valorBaseAposCredito, quantidadeParcelas) : null;
   for (let index = 1; index <= quantidadeParcelas && saldoParcelado > 0; index++) {
-    const parcelaCalculada = planoManual?.parcelas[index - 1] ?? calculoDespesas.parcelas[index - 1];
+    const parcelaCalculada = planoManual?.parcelas[index - 1] ?? parcelasEasy?.[index - 1] ?? calculoDespesas.parcelas[index - 1];
     parcelas.push({
       tipo_parcela: "parcela",
       ...parcelaCalculada,
-      vencimento: planoManual?.parcelas[index - 1].vencimento ?? vencimentoMensal(primeiroVencimento, index - 1),
+      vencimento: planoManual?.parcelas[index - 1].vencimento ?? vencimentoMensal(primeiroVencimento, index - 1, diaProximas),
       status: PARCELA_ACORDO_STATUS.PENDENTE,
     });
   }
@@ -946,8 +957,8 @@ export async function createAcordo(formData: FormData) {
     despesa: despesaCobrancaValor,
     custoBoletos: calculoDespesas.custoBoletos,
     jurosAdicional: calculoDespesas.jurosAdicional,
-    cotaManual: planoManual ? roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.cota, 0)) : undefined,
-    despesaManual: planoManual ? roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.despesa, 0)) : undefined,
+    cotaManual: planoManual ? roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.cota, 0)) : parcelasEasy ? valorBaseAposCredito : undefined,
+    despesaManual: planoManual ? roundMoney(planoManual.parcelas.reduce((sum, parcela) => sum + parcela.despesa, 0)) : parcelasEasy ? roundMoney(valorAcordado - valorBaseAposCredito) : undefined,
     valorAcordado,
     entrada,
     quantidadeParcelas,
@@ -1301,6 +1312,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
 
   let entrada = moneyFromForm(formData.get("entrada"), "Entrada", { format: "form", emptyValue: 0 });
   const quantidadeParcelas = Number(formData.get("quantidade_parcelas") ?? 1);
+  const diaProximas = lerDiaProximasParcelas(formData, quantidadeParcelas);
   const primeiroVencimento = String(formData.get("primeiro_vencimento") ?? "");
   const documentoUrl = String(formData.get("documento_url") ?? "").trim();
   const cotasSemDespesas = normalizeUuidList(formData.getAll("cotas_sem_despesas"));
@@ -1468,6 +1480,7 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
         entrada,
         quantidade_parcelas: quantidadeParcelas,
         primeiro_vencimento: primeiroVencimento || null,
+        dia_proximas_parcelas: diaProximas ?? null,
         cotas_sem_despesas: calculo.isencaoAplicada ? cotasSemDespesas : [],
         cotas_mes: cotasSemDespesas,
         cota_mes_autorizada: cotasSemDespesas.length > 0,

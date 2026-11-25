@@ -24,9 +24,9 @@ import { formatCurrency } from "@/utils/formatters/currency";
 import { formatarVencimentoAcordo as formatDateBR } from "@/features/acordos/formatar-vencimento";
 import { calculateAgreementInsight } from "@/features/acordos/insights";
 
-import { calcularDespesasAcordo } from "@/features/acordos/calculo-despesas";
+import { calcularDespesasAcordo, ratearParcelasEasy } from "@/features/acordos/calculo-despesas";
 import { valorCotaParaAcordo } from "@/features/acordos/valor-cota";
-import { lerPlanoManual, ratearTotalManual, type ParcelaManual } from "@/features/acordos/plano-manual";
+import { lerPlanoManual, type ParcelaManual } from "@/features/acordos/plano-manual";
 import { EasySteps } from "@/components/easy/easy-ui";
 import easyStyles from "@/components/easy/easy.module.css";
 
@@ -152,6 +152,7 @@ export function AcordoSimulatorForm({
   const [entradaVencimento, setEntradaVencimento] = useState(() => formularioInicial.entrada_vencimento || dataCivilSaoPaulo());
   const [quantidadeParcelas, setQuantidadeParcelas] = useState(formularioInicial.quantidade_parcelas || (simplified ? "1" : "3"));
   const jurosAdicional = simplified ? Number(quantidadeParcelas) > 1 : aplicarJurosAdicional;
+  const [diaProximas, setDiaProximas] = useState(formularioInicial.dia_proximas_parcelas || "");
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => {
     if (formularioInicial.primeiro_vencimento) return formularioInicial.primeiro_vencimento;
     return somarDiasCivis(dataCivilSaoPaulo(), 7);
@@ -193,6 +194,7 @@ export function AcordoSimulatorForm({
 
   const cotasValidas = cobrancasSelecionadas.length > 0 && cobrancasSelecionadas.every(item => {
     const valor = parseMoneyInput(valoresCotas[item.id], "form");
+    if (valor.kind === "missing" || valor.kind === "empty") return valorCotaParaAcordo(item) > 0;
     return valor.kind === "value" && valor.cents > 0;
   });
   const podeAvancar = cotasValidas && repasseLido.kind === "value";
@@ -244,7 +246,7 @@ export function AcordoSimulatorForm({
     for (let index = 1; index <= parcelasCount && saldo > 0 && datasValidas; index++) {
       parcelas.push({
         ...calculo.parcelas[index - 1],
-        vencimento: vencimentoMensal(primeiroVencimento, index - 1),
+        vencimento: vencimentoMensal(primeiroVencimento, index - 1, parcelasCount > 1 && diaProximas ? Number(diaProximas) : undefined),
       });
     }
 
@@ -399,23 +401,51 @@ export function AcordoSimulatorForm({
   const avisoRepasse = repasseIncompativel && <p role="alert" className="text-sm text-rose-700">
     Informe repasse de R$ 0,00 quando não houver cotas sujeitas a despesas ou revise as condições do pagamento.
   </p>;
+  const campoDiaProximas = Number(quantidadeParcelas) > 1 && (
+    <FormField label="Em que dia vencem as próximas parcelas?" hint="Se o mês for mais curto, a parcela vence no último dia dele.">
+      <Select aria-label="Dia de vencimento das próximas parcelas" name="dia_proximas_parcelas"
+        value={diaProximas || String(Number(primeiroVencimento.slice(-2)) || 1)} onChange={event => setDiaProximas(event.target.value)}>
+        {Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={i + 1}>Dia {i + 1}</option>)}
+      </Select>
+    </FormField>
+  );
   const etapaValores = (
     <section hidden={easyReview} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
       <h2 className="text-lg font-semibold text-slate-950">1. Atualizar cotas e repasse</h2>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <p className="text-sm text-slate-600">Deixe o ajuste da cota em branco para manter o valor atual. O repasse é obrigatório.</p>
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,auto)_minmax(9rem,12rem)]">
+        <div className="col-span-full hidden grid-cols-subgrid items-center border-b border-slate-200 pb-2 text-sm font-medium text-slate-600 sm:grid">
+          <span>Item</span><span className="text-right">Valor atual</span><span className="text-right">Ajuste (R$)</span>
+        </div>
         {cobrancasSelecionadas.map(item => {
           const cota = `${item.competencia || formatDateBR(item.vencimento)} · ${rotuloUnidade(item.unidades)}`;
-          return <FormField key={item.id} label={`Valor atualizado da cota · ${cota}`}
-            hint={`Valor na carteira: ${formatCurrency(valorCotaParaAcordo(item))}`}>
-            <Input aria-label={`Valor atualizado da cota · ${cota}`} name={`valor_cota_atualizado_${item.id}`}
-              inputMode="decimal" required readOnly={etapaPagamento} value={valoresCotas[item.id] ?? ""}
-              onChange={event => setValoresCotas({ ...valoresCotas, [item.id]: event.target.value })} />
-          </FormField>;
+          const campo = `valor_cota_atualizado_${item.id}`;
+          return <div key={item.id} className="col-span-full grid grid-cols-subgrid items-center gap-y-2 border-b border-slate-200 py-3">
+            <label htmlFor={campo} className="col-span-full text-sm sm:col-span-1">
+              <span className="block font-semibold">Cota</span><span className="text-slate-600">{cota}</span>
+            </label>
+            <div className="text-sm tabular-nums sm:text-right">
+              <span className="block text-xs text-slate-600 sm:sr-only">Valor atual</span>{formatCurrency(valorCotaParaAcordo(item))}
+            </div>
+            <div>
+              <label htmlFor={campo} className="mb-1 block text-xs text-slate-600 sm:hidden">Ajuste (R$)</label>
+              <Input id={campo} aria-label={`Valor atualizado da cota · ${cota}`} name={campo} className="text-right tabular-nums"
+                inputMode="decimal" readOnly={etapaPagamento}
+                value={etapaPagamento && !valoresCotas[item.id]?.trim() ? valorCotaParaAcordo(item).toFixed(2).replace(".", ",") : valoresCotas[item.id] ?? ""}
+                onChange={event => setValoresCotas({ ...valoresCotas, [item.id]: event.target.value })} />
+            </div>
+          </div>;
         })}
-        <FormField label="Repasse atualizado (R$)" hint="Se houver isenção confirmada pela administradora, informe 0,00.">
-          <Input aria-label="Repasse atualizado (R$)" name="repasse_atualizado" inputMode="decimal"
-            required readOnly={etapaPagamento} value={repasseInput} onChange={event => setRepasseInput(event.target.value)} />
-        </FormField>
+        <div className="col-span-full grid grid-cols-subgrid items-center gap-y-2 py-3">
+          <label htmlFor="repasse_atualizado" className="col-span-full text-sm font-semibold sm:col-span-1">Repasse</label>
+          <div className="text-sm text-slate-600 sm:text-right"><span className="block text-xs sm:sr-only">Valor atual</span>Não informado</div>
+          <div>
+            <label htmlFor="repasse_atualizado" className="mb-1 block text-xs text-slate-600 sm:hidden">Ajuste (R$)</label>
+            <Input id="repasse_atualizado" aria-label="Repasse atualizado (R$)" aria-describedby="repasse-orientacao" name="repasse_atualizado" inputMode="decimal" className="text-right tabular-nums"
+              required readOnly={etapaPagamento} value={repasseInput} onChange={event => setRepasseInput(event.target.value)} />
+          </div>
+          <p id="repasse-orientacao" className="col-span-full text-xs text-slate-600">Se houver isenção confirmada pela administradora, informe 0,00.</p>
+        </div>
       </div>
       {etapaPagamento ? (
         <Button type="button" variant="secondary" disabled={isCreatingAcordo} onClick={voltarParaValores}>Revisar cotas e repasse</Button>
@@ -437,14 +467,8 @@ export function AcordoSimulatorForm({
     let manualError = "";
     try { manual = lerPlanoManual(easyManualPlan ? JSON.stringify(easyManualPlan) : null, preview.parcelas.length); }
     catch (error) { manualError = error instanceof Error ? error.message : "Confira as parcelas."; }
-    const amortizacoes = preview.parcelas.map(parcela => parcela.amortizacao);
-    const cotasRateadas = amortizacoes.some(valor => valor > 0)
-      ? ratearTotalManual(preview.valorAposCredito, amortizacoes) : amortizacoes;
-    const parcelasCalculadas = preview.parcelas.map((parcela, index) => ({
-      ...parcela,
-      cota: cotasRateadas[index],
-      despesa: roundMoney(parcela.valor - cotasRateadas[index]),
-    }));
+    const parcelasCalculadas = ratearParcelasEasy(preview.total, preview.valorAposCredito, preview.parcelas.length)
+      .map((parcela, index) => ({ ...parcela, vencimento: preview.parcelas[index].vencimento }));
     const reviewParcels = manual?.parcelas ?? parcelasCalculadas;
     const reviewTotal = manual?.total ?? preview.total;
     const reviewCota = roundMoney(reviewParcels.reduce((sum, parcela) => sum + parcela.cota, 0));
@@ -524,11 +548,11 @@ export function AcordoSimulatorForm({
             <Input aria-label="Quantidade de parcelas" name="quantidade_parcelas" type="number" min="2" max="60" step="1"
               required value={quantidadeParcelas} onChange={event => setQuantidadeParcelas(event.target.value)} />
           </FormField>}
-          <FormField label={Number(quantidadeParcelas) === 1 ? "Quando vence o pagamento?" : "Quando vence a primeira parcela?"}
-            hint={Number(quantidadeParcelas) > 1 ? "As demais vencem mensalmente no mesmo dia ou no último dia do mês." : undefined}>
+          <FormField label={Number(quantidadeParcelas) === 1 ? "Quando vence o pagamento?" : "Quando vence a primeira parcela?"}>
             <Input aria-label="Primeiro vencimento" name="primeiro_vencimento" type="date" required value={primeiroVencimento}
               onChange={event => setPrimeiroVencimento(event.target.value)} />
           </FormField>
+          {campoDiaProximas}
           </div>
           <p className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">Parcelamento com Price de 1% ao mês. Boleto: {formatCurrency(Number(cobrancaSelecionada?.condominios?.custo_emissao_boleto ?? 0))} por emissão.</p>
           <div className="flex justify-end border-t border-slate-100 pt-4"><Button type="submit" className="h-11 rounded-xl px-6" disabled={blocked}>Simular acordo →</Button></div>
@@ -880,6 +904,7 @@ export function AcordoSimulatorForm({
               ) => setPrimeiroVencimento(event.target.value)}
             />
           </FormField>
+          {campoDiaProximas}
           <FormField label="Data do acordo (opcional)" hint="Em branco, usa o vencimento da primeira parcela.">
             <Input aria-label="Data do acordo" name="data_acordo" type="date" defaultValue={formularioInicial.data_acordo ?? ""} />
           </FormField>
