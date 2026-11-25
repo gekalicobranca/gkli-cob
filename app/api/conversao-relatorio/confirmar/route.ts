@@ -343,6 +343,9 @@ export async function POST(request: NextRequest) {
       vencimento: brDateToIso(String(item.vencimento ?? '')) ?? (Array.isArray(item.parcelas)
         ? item.parcelas.map((p: any) => brDateToIso(String(p.vencimento ?? ''))).filter(Boolean).sort()[0] : null),
     })))
+    const unidadesLiteraisMaestro = new Map<string, UnidadeSaneamentoRow>()
+    const inicioCobrancaDias = condominioConfiguracao.dias_apos_vencimento_regua ?? condominioConfiguracao.inicio_cobranca_dias ?? 30
+
     for (const [indiceItem, item] of (substituicaoConcluida ? [] : cobrancas).entries()) {
       const unidadeLabel = String(item.unidade ?? "").trim()
       const blocoLabel = String(item.bloco ?? "").trim()
@@ -364,7 +367,9 @@ export async function POST(request: NextRequest) {
 
       const vencimentoMaisAntigo = vencimentoPorRecibo ?? vencimentos[0] ?? null
 
-      const unidadeExistente = await buscarUnidadeLiteral(supabase, {
+      const chaveUnidade = JSON.stringify([blocoLabel, unidadeLabel])
+      const unidadeExistente = (substituirMaestro ? unidadesLiteraisMaestro.get(chaveUnidade) : undefined)
+        ?? await buscarUnidadeLiteral(supabase, {
         condominioId,
         identificacao: unidadeLabel,
         bloco: blocoLabel,
@@ -431,6 +436,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      if (substituirMaestro && unidadeUsada && !unidadeSugerida) {
+        unidadesLiteraisMaestro.set(chaveUnidade, unidadeUsada)
+      }
+
       const valorPrincipal = Number(item.valorPrincipal ?? item.valorTotal ?? 0)
       const multa = Number(item.multa ?? 0)
       const correcao = Number(item.correcao ?? 0)
@@ -466,7 +475,7 @@ export async function POST(request: NextRequest) {
         vencimento: vencimentoMaisAntigo,
         unidade_id: unidadeId,
         observacoes,
-      }, contextoJudicial, indiceItem)
+      }, contextoJudicial, indiceItem, inicioCobrancaDias)
       const statusImportado = substituirMaestro && statusCalculado === 'novo'
         && contextoJudicial.unidadesJudiciais.get(String(unidadeId)) !== true ? 'em_cobranca_ativa' : statusCalculado
       const statusOperacional = statusComBloqueioGarantidora(statusImportado, bloqueioGarantidora.bloqueada)
