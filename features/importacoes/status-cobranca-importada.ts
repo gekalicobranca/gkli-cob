@@ -76,11 +76,15 @@ export async function statusOperacionalParaCobrancaImportada(
   payload: Record<string, any>,
   contexto?: ContextoClassificacaoJudicial,
   indice = 0,
+  inicioCobrancaDias?: number,
 ) {
-  const { data: condominio, error: condominioError } = await supabase.from('condominios')
-    .select('inicio_cobranca_dias,dias_apos_vencimento_regua').eq('id', payload.condominio_id).maybeSingle();
-  if (condominioError) throw new Error('Erro ao verificar régua do condomínio: ' + condominioError.message);
-  const inicio = condominio?.dias_apos_vencimento_regua ?? condominio?.inicio_cobranca_dias ?? 30;
+  let inicio = inicioCobrancaDias;
+  if (inicio === undefined) {
+    const { data: condominio, error: condominioError } = await supabase.from('condominios')
+      .select('inicio_cobranca_dias,dias_apos_vencimento_regua').eq('id', payload.condominio_id).maybeSingle();
+    if (condominioError) throw new Error('Erro ao verificar régua do condomínio: ' + condominioError.message);
+    inicio = condominio?.dias_apos_vencimento_regua ?? condominio?.inicio_cobranca_dias ?? 30;
+  }
   let judicial = false;
   if (contexto && payload.unidade_id) {
     const id = String(payload.unidade_id);
