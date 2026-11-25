@@ -3,6 +3,7 @@ import { COBRANCA_STATUS_OPERACIONAL } from "@/lib/constants/cobrancas";
 
 type SupabaseLike = {
   from: (table: string) => any;
+  rpc: (name: string, args: Record<string, unknown>) => PromiseLike<{ data: { removidas: number; retidas_por_envio: number } | null; error: { message: string } | null }>;
 };
 
 const TIMEZONE_OPERACIONAL = "America/Sao_Paulo";
@@ -96,41 +97,20 @@ export async function limparCobrancasDaNovaImportacao(
     .map((item: { id?: string | null }) => String(item.id ?? "").trim())
     .filter(Boolean);
 
-  // O saneamento é histórico operacional e não deve ser apagado quando uma
-  // nova importação substitui a cobrança. A FK é opcional, então preservamos
-  // a ocorrência e removemos somente o vínculo com a cobrança substituída.
+  let removidas = 0;
+  let retidasPorEnvio = 0;
   for (let index = 0; index < cobrancaIds.length; index += 500) {
-    const loteIds = cobrancaIds.slice(index, index + 500);
-    const { error: saneamentoError } = await supabase
-      .from("saneamento_cobrancas")
-      .update({ cobranca_id: null })
-      .in("cobranca_id", loteIds);
-
-    if (saneamentoError) {
-      throw new Error(
-        `Erro ao preservar o histórico de saneamento: ${saneamentoError.message}`,
-      );
+    const { data: lote, error: limpezaError } = await supabase.rpc("limpar_lote_importacao_manual", {
+      p_ids: cobrancaIds.slice(index, index + 500),
+      p_ano: anoCorrente,
+      p_status: statusOperacionais,
+    });
+    if (limpezaError || !lote) {
+      throw new Error(`Erro ao limpar cobranças anteriores: ${limpezaError?.message ?? "resultado indisponível"}`);
     }
-
-    const { error: deleteError } = await supabase
-      .from("cobrancas")
-      .delete()
-      .in("id", loteIds);
-
-    if (deleteError) {
-      throw new Error(`Erro ao limpar cobranças anteriores: ${deleteError.message}`);
-    }
-
-    const { data: restantes, error: verificacaoError } = await supabase
-      .from("cobrancas")
-      .select("id")
-      .in("id", loteIds);
-    if (verificacaoError || restantes?.length) {
-      throw new Error(
-        `A substituição das cobranças anteriores não foi concluída: ${verificacaoError?.message ?? `${restantes.length} registro(s) permaneceram na base`}. A importação foi interrompida.`,
-      );
-    }
+    removidas += lote.removidas;
+    retidasPorEnvio += lote.retidas_por_envio;
   }
 
-  return cobrancaIds.length;
+  return { removidas, retidasPorEnvio };
 }
