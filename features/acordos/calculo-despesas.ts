@@ -112,3 +112,18 @@ export function calcularDespesasAcordo(
     isencaoAplicada,
   };
 }
+
+/** Distribui os centavos excedentes nas primeiras parcelas das duas colunas.
+ * A diferença entre total e cota também fica uniforme, inclusive com arredondamento. */
+export function ratearParcelasEasy(total: number, cotas: number, quantidade: number) {
+  const totalCentavos = Math.round(total * 100);
+  const cotasCentavos = Math.round(cotas * 100);
+  function parte(centavos: number, indice: number) {
+    return Math.floor(centavos / quantidade) + Number(indice < centavos % quantidade);
+  }
+  return Array.from({ length: quantidade }, (_, indice) => {
+    const valor = parte(totalCentavos, indice);
+    const cota = parte(cotasCentavos, indice);
+    return { numero: indice + 1, valor: valor / 100, cota: cota / 100, despesa: (valor - cota) / 100 };
+  });
+}

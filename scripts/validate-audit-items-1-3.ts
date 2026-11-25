@@ -133,7 +133,7 @@ function preencherValores(ui: any) {
   for (const field of ['repasse_atualizado', 'valor_cota_atualizado_receipt'] as const)
     findElement(ui, props => props.name === field).onChange({ target: { value: valoresConfirmados[field] } })
 }
-test('simulador exige cota e repasse antes de liberar vencimentos e exige nova confirmação ao rever valores', () => {
+test('simulador mantém a cota sem ajuste, exige repasse e exige nova confirmação ao rever valores', () => {
   for (const simplified of [false, true]) {
     const {state,load}=harness()
     const render = simulator(state, load, {}, simplified)
@@ -144,7 +144,15 @@ test('simulador exige cota e repasse antes de liberar vencimentos e exige nova c
     findElement(ui, p => p.name === 'repasse_atualizado').onChange({target:{value:'0,00'}})
     ui = render()
     assert.equal(findElement(ui, cont).disabled, false)
+    const cota = (p: any) => p.name === 'valor_cota_atualizado_receipt'
+    findElement(ui, cota).onChange({target:{value:'inválido'}})
+    assert.equal(findElement(render(), cont).disabled, true)
+    findElement(render(), cota).onChange({target:{value:''}})
+    ui = render()
+    assert.equal(findElement(ui, cont).disabled, false)
     findElement(ui, cont).onClick()
+    const esperado = load('features/acordos/valor-cota.ts').valorCotaParaAcordo(state.cobranca)
+    assert.equal(findElement(render(), cota).value, esperado.toFixed(2).replace('.', ','))
     ui = render()
     assert.ok(findElement(ui, p => p.name === 'primeiro_vencimento'))
     const confirmation = (p: any) => p.name === 'valores_administradora_confirmados'
@@ -181,13 +189,14 @@ test('real simulator preview and Server Action generate the same dates and defer
   for(const quantidade of [2,3,4]) {
   const {state,load}=harness()
   state.pending=quantidade>3
-  const input={quantidade_parcelas:String(quantidade),primeiro_vencimento:'2026-01-31',entrada:'0,00',...valoresConfirmados}
+  const input={quantidade_parcelas:String(quantidade),dia_proximas_parcelas:'31',primeiro_vencimento:'2026-01-12',entrada:'0,00',...valoresConfirmados}
   const render = simulator(state, load, input)
   preencherValores(render())
   findElement(render(), cont).onClick()
   const preview=render()
   const form=new FormData();Object.entries(input).forEach(([key,value])=>form.set(key,value));form.set('cobranca_id','receipt')
   await assert.rejects(load('features/acordos/actions.ts').createAcordo(form),/REDIRECT \/app\/acordos\/agreement/)
+  assert.deepEqual(Array.from(state.financial.p_parcelas,(p:any)=>p.vencimento), ['2026-01-12','2026-02-28','2026-03-31','2026-04-30'].slice(0,quantidade))
   assert.equal(state.financial.p_exige_aprovacao_sindico,quantidade>3)
   assert.equal(findElement(preview, props=>props.name==='valor_acordado').value,'127,58')
   assert.equal(state.financial.p_valor_acordado,127.58)
@@ -353,4 +362,11 @@ test('legacy cases cannot distribute without review and may reopen documentation
   await user(11); await change(id(900),{etapa:'aguardando_documentos',observacoes:'Retorno para conferir os documentos do caso legado.'})
   assert.equal((await caseRow(id(900))).etapa,'aguardando_documentos')
   assert.equal((await caseRow(id(900))).ajuizamento_autorizado_em,null)
+})
+
+test('Easy distribui cota, despesa e total do acordo em parcelas uniformes', () => {
+  const {load} = harness()
+  const {ratearParcelasEasy} = load('features/acordos/calculo-despesas.ts')
+  const parcelas = Array.from(ratearParcelasEasy(2857.43, 2546.57, 3), (p: any) => [p.cota, p.despesa, p.valor])
+  assert.deepEqual(parcelas, [[848.86, 103.62, 952.48], [848.86, 103.62, 952.48], [848.85, 103.62, 952.47]])
 })

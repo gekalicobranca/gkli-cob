@@ -16,15 +16,18 @@ export function validarDataCivil(value: string, campo = 'Data') {
 }
 
 /** Always calculate from the original day: Jan 31 -> Feb 28 -> Mar 31. */
-export function vencimentoMensal(inicio: string, meses: number) {
+export function vencimentoMensal(inicio: string, meses: number, diaDasProximas?: number) {
   validarDataCivil(inicio, 'Vencimento')
   if (!Number.isSafeInteger(meses)) throw new Error('Intervalo mensal inválido.')
   const [ano, mes, dia] = inicio.split('-').map(Number)
+  if (diaDasProximas !== undefined && (!Number.isInteger(diaDasProximas) || diaDasProximas < 1 || diaDasProximas > 31))
+    throw new Error('Dia de vencimento inválido. Informe um dia de 1 a 31.')
+  const diaDestino = meses === 0 ? dia : diaDasProximas ?? dia
   const indice = ano * 12 + mes - 1 + meses
   const destinoAno = Math.floor(indice / 12)
   const destinoMes = ((indice % 12) + 12) % 12 + 1
   if (destinoAno < 1 || destinoAno > 9999) throw new Error('Vencimento fora do intervalo permitido.')
-  return `${String(destinoAno).padStart(4, '0')}-${String(destinoMes).padStart(2, '0')}-${String(Math.min(dia, diasNoMes(destinoAno, destinoMes))).padStart(2, '0')}`
+  return `${String(destinoAno).padStart(4, '0')}-${String(destinoMes).padStart(2, '0')}-${String(Math.min(diaDestino, diasNoMes(destinoAno, destinoMes))).padStart(2, '0')}`
 }
 
 export function dataCivilSaoPaulo(instante = new Date()) {
