@@ -325,11 +325,15 @@ export async function POST(request: NextRequest) {
         if (limpezaError) throw new Error(`Erro ao substituir cobranças do Maestro: ${limpezaError.message}`)
         cobrancasAnterioresRemovidas = Number(limpeza?.removidas ?? 0)
       } else {
-        cobrancasAnterioresRemovidas = await limparCobrancasDaNovaImportacao(supabase as any, {
+        const limpeza = await limparCobrancasDaNovaImportacao(supabase as any, {
           condominioIds: [condominioId],
           carteiraId,
           anoCorrente,
         })
+        cobrancasAnterioresRemovidas = limpeza.removidas
+        if (limpeza.retidasPorEnvio > 0) {
+          inconsistencias.push(`${limpeza.retidasPorEnvio} cobrança(s) preservada(s) por envio em curso ou sem confirmação. A importação seguiu para as demais.`)
+        }
       }
       if (cobrancasAnterioresRemovidas > 0) {
         inconsistencias.push(
