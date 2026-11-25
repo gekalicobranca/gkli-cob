@@ -3,10 +3,11 @@ import { createClient } from '@supabase/supabase-js'
 import { limparCobrancasDaNovaImportacao } from '../features/importacoes/recorte-cobrancas'
 
 async function main() {
-  const mutations: { table: string; method: string; ids: string | null }[] = []
+  const chamadas: unknown[] = []
   let falharConsulta = false
   let somenteAcordos = false
-  let falharExclusaoSilenciosamente = false
+  let falharLimpeza = false
+  let retidas = 0
   const db = createClient('https://teste.invalid', 'teste', {
     global: { fetch: async (input, init) => {
       const url = new URL(String(input))
@@ -15,10 +16,6 @@ async function main() {
       const table = url.pathname.split('/').pop()!
       if (method === 'GET') {
         assert.equal(table, 'cobrancas')
-        if (url.searchParams.has('id')) {
-          assert.equal(url.searchParams.get('id'), 'in.(sem-acordo)')
-          return Response.json(falharExclusaoSilenciosamente ? [{ id: 'sem-acordo' }] : [])
-        }
         assert.equal(url.searchParams.get('acordo_cobrancas'), 'is.null')
         assert.equal(url.searchParams.get('acordos'), 'is.null')
         assert.match(url.searchParams.get('select')!, /acordo_cobrancas!left\(id\)/)
@@ -30,27 +27,27 @@ async function main() {
         if (falharConsulta) return Response.json({ message: 'consulta indisponível' }, { status: 400 })
         return Response.json(somenteAcordos ? [] : [{ id: 'sem-acordo', acordo_cobrancas: [], acordos: [] }])
       }
-      mutations.push({ table, method, ids: url.searchParams.get(table === 'cobrancas' ? 'id' : 'cobranca_id') })
-      return new Response(null, { status: 204 })
+      assert.equal(url.pathname, '/rest/v1/rpc/limpar_lote_importacao_manual')
+      assert.equal(method, 'POST')
+      chamadas.push(JSON.parse(String(init?.body)))
+      if (falharLimpeza) return Response.json({ message: 'limpeza indisponível' }, { status: 400 })
+      return Response.json({ removidas: 1 - retidas, retidas_por_envio: retidas })
     } },
   })
   const params = { condominioIds: ['condominio'], carteiraId: 'carteira', anoCorrente: 2026 }
-  assert.equal(await limparCobrancasDaNovaImportacao(db, params), 1)
-  assert.deepEqual(mutations, [
-    { table: 'saneamento_cobrancas', method: 'PATCH', ids: 'in.(sem-acordo)' },
-    { table: 'cobrancas', method: 'DELETE', ids: 'in.(sem-acordo)' },
-  ])
-  mutations.length = 0
-  falharExclusaoSilenciosamente = true
-  await assert.rejects(limparCobrancasDaNovaImportacao(db, params), /permaneceram na base/)
-  falharExclusaoSilenciosamente = false
-  mutations.length = 0
+  assert.deepEqual(await limparCobrancasDaNovaImportacao(db, params), { removidas: 1, retidasPorEnvio: 0 })
+  assert.deepEqual(chamadas, [{ p_ids: ['sem-acordo'], p_ano: 2026, p_status: ['novo'] }])
+  retidas = 1
+  assert.deepEqual(await limparCobrancasDaNovaImportacao(db, params), { removidas: 0, retidasPorEnvio: 1 })
+  falharLimpeza = true
+  await assert.rejects(limparCobrancasDaNovaImportacao(db, params), /limpeza indisponível/)
+  chamadas.length = 0
   somenteAcordos = true
-  assert.equal(await limparCobrancasDaNovaImportacao(db, params), 0)
-  assert.equal(mutations.length, 0)
+  assert.deepEqual(await limparCobrancasDaNovaImportacao(db, params), { removidas: 0, retidasPorEnvio: 0 })
+  assert.equal(chamadas.length, 0)
   falharConsulta = true
   await assert.rejects(limparCobrancasDaNovaImportacao(db, params), /consulta indisponível/)
-  assert.equal(mutations.length, 0)
+  assert.equal(chamadas.length, 0)
   console.log('OK: vínculos de acordo excluídos da limpeza; escopo preservado; consulta vazia ou falha não altera dados.')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })
