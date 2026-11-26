@@ -427,6 +427,9 @@ function FlowRow({ flow, showContext = false }: { flow: any; showContext?: boole
     falhas: n(flow.total_falhas),
   }
   const itensResumo = itensLoaded ? itens.length : n(flow.total_mensagens)
+  const itensOperacionais = itens.filter(item => !item.conferencia_envio)
+  const itensConferencia = itens.filter(item => item.conferencia_envio)
+  const mensagensConferencia = new Set(itensConferencia.map(item => relation(item.mensagem)?.id ?? item.id)).size
 
   async function loadItens(force = false) {
     if ((!force && itensLoaded) || itensLoading) return
@@ -534,7 +537,7 @@ function FlowRow({ flow, showContext = false }: { flow: any; showContext?: boole
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
           <span>{itensError}</span><Button type="button" variant="secondary" size="sm" onClick={() => void loadItens(true)}>Tentar novamente</Button>
         </div>
-      ) : itens.length ? (
+      ) : itensOperacionais.length ? (
         <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="hidden bg-slate-50 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 lg:grid lg:grid-cols-[120px_minmax(280px,1fr)_minmax(220px,0.9fr)_170px_110px] lg:items-center">
             <span>Status</span>
@@ -543,13 +546,22 @@ function FlowRow({ flow, showContext = false }: { flow: any; showContext?: boole
             <span>Agenda</span>
             <span className="text-right">Ação</span>
           </div>
-          {itens.map((item: any) => <FlowItemRow key={item.id} item={item} />)}
+          {itensOperacionais.map((item: any) => <FlowItemRow key={item.id} item={item} />)}
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
           Nenhum item para exibir na fila deste Flow.
         </div>
       )}
+      {itensLoaded && !itensLoading && !itensError && itensConferencia.length ? (
+        <section aria-label="Conferência de envio" className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <h3 className="text-sm font-semibold text-amber-950">Conferência de envio · {mensagensConferencia} mensagem(ns) sem confirmação</h3>
+          <p className="mt-1 text-xs text-amber-900">O envio pode ter ocorrido. Confira o resultado no provedor antes de qualquer nova ação. Histórico e vínculo com este Flow preservados; reenvio automático bloqueado.</p>
+          <div className="mt-3 divide-y divide-amber-100 rounded-xl bg-white">
+            {itensConferencia.map((item: any) => <FlowItemRow key={item.id} item={item} conferencia />)}
+          </div>
+        </section>
+      ) : null}
     </div>
     </> : null}
   </details>
@@ -570,7 +582,7 @@ function FlowCounter({ label, value, tone = 'slate' }: { label: string; value: u
   )
 }
 
-function FlowItemRow({ item }: { item: any }) {
+function FlowItemRow({ item, conferencia = false }: { item: any; conferencia?: boolean }) {
   const mensagem = relation(item.mensagem)
   const cobranca = relation(item.cobranca)
   const entidade = cobrancaEntity(cobranca)
@@ -586,7 +598,7 @@ function FlowItemRow({ item }: { item: any }) {
     <div className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[120px_minmax(280px,1fr)_minmax(220px,0.9fr)_170px_110px] lg:items-center">
       <div>
         <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(effectiveStatus)}`}>
-          {statusLabel}
+          {conferencia ? 'Sem confirmação' : statusLabel}
         </span>
       </div>
       <div className="min-w-0">
@@ -600,7 +612,7 @@ function FlowItemRow({ item }: { item: any }) {
         <p className="truncate text-sm font-medium text-slate-800">{messageScheduleLabel(mensagem)}</p>
       </div>
       <div className="flex justify-start lg:justify-end">
-        {hasFailure ? (
+        {hasFailure && !conferencia ? (
           <form action={reenviarItemFlowCobranca.bind(null, item.id)} className="shrink-0">
             <PendingSubmitButton variant="secondary" size="sm" pendingLabel="Reagendando...">
               Reenviar
