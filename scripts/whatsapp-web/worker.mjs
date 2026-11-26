@@ -11,7 +11,7 @@ import { spawn } from 'node:child_process'
 import { bounded, heartbeatGate } from './recovery.mjs'
 import { assertBrowserHealthy, browserFailure, connectionRecovery } from './browser-health.mjs'
 import { resilientClient } from './resilient-client.mjs'
-import { pairingPublisher } from './pairing-publisher.mjs'
+import { pairingPublisher, activePairingRequest } from './pairing-publisher.mjs'
 import { reservationRecovery } from './reservation-recovery.mjs'
 import { shutdownBrowser } from './browser-shutdown.mjs'
 import { createPeriodicTask } from '../worker-cadence.mjs'
@@ -30,10 +30,10 @@ const expectedPhone = normalizePhone(process.env.WHATSAPP_WEB_PHONE)
 if (!expectedPhone) throw new Error('Configure WHATSAPP_WEB_PHONE com o número brasileiro da sessão.')
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Configure as credenciais do Supabase no ambiente local.')
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (url, init) => serverClock.fetch(url, { ...init, signal: AbortSignal.timeout(15000) }) } })
-const pairingControl = await db.from('whatsapp_worker_controles').select('reiniciar_id,vinculacao_pedido,vinculacao_modo').eq('sessao', session).maybeSingle()
+const pairingControl = await db.from('whatsapp_worker_controles').select('reiniciar_id,vinculacao_pedido,vinculacao_modo,atualizado_em').eq('sessao', session).maybeSingle()
 if (pairingControl.error) throw new Error('Não foi possível consultar o modo de vinculação.')
-const pairingRequest = pairingControl.data?.vinculacao_pedido === pairingControl.data?.reiniciar_id ? pairingControl.data?.vinculacao_pedido : null
-const pairByCode = pairingControl.data?.vinculacao_modo ? pairingControl.data.vinculacao_modo === 'codigo' : process.argv.includes('--pair-by-code') || process.env.WHATSAPP_WEB_PAIR_BY_CODE === 'true'
+const pairingRequest = activePairingRequest(pairingControl.data, serverClock.now())
+const pairByCode = pairingControl.data?.vinculacao_modo ? Boolean(pairingRequest && pairingControl.data.vinculacao_modo === 'codigo') : process.argv.includes('--pair-by-code') || process.env.WHATSAPP_WEB_PAIR_BY_CODE === 'true'
 const publishPairing = pairingPublisher(db, session, pairingRequest)
 const reportPairing = () => console.error('Falha ao publicar vinculação no app; tente gerar novamente.')
 // A transient failure clearing the previous request must not prevent the
@@ -130,12 +130,13 @@ client.on('pairing_error', reason => {
   void publishPairing().catch(reportPairing)
   void heartbeat()
 })
-client.on('authenticated', () => { connection = 'iniciando'; pairingRevision++; pairingCode = null; pairingCodeExpiresAt = null; void publishPairing().catch(reportPairing); console.log(new Date().toISOString(), 'Autenticação aceita; aguardando sincronização.') })
+client.on('authenticated', () => { if (stopping) return; connection = 'iniciando'; pairingRevision++; pairingCode = null; pairingCodeExpiresAt = null; void publishPairing().catch(reportPairing); console.log(new Date().toISOString(), 'Autenticação aceita; aguardando sincronização.') })
 client.on('change_state', state => {
   console.log(new Date().toISOString(), `Estado WhatsApp: ${state}`)
   if (initialized && state !== 'CONNECTED') { ready = false; connection = ['UNPAIRED', 'UNPAIRED_IDLE'].includes(state) ? 'aguardando_qr' : 'iniciando' }
 })
 client.on('code', (code) => {
+  if (stopping) return
   pairingRevision++
   ready = false; connection = 'aguardando_qr'
   pairingCode = code
@@ -145,6 +146,7 @@ client.on('code', (code) => {
   heartbeat().catch(error => console.error('Falha ao atualizar código:', error.message))
 })
 client.on('qr', async (value) => {
+  if (stopping) return
   const revision = ++pairingRevision
   ready = false; connection = 'aguardando_qr'
   // The app requires this state before showing the QR. Waiting for the
@@ -163,6 +165,7 @@ client.on('qr', async (value) => {
   } catch { console.error('Não foi possível salvar a imagem do QR Code; use o QR do terminal.') }
 })
 client.on('ready', () => {
+  if (stopping) return
   pairingRevision++
   initialized = true
   void publishPairing().catch(reportPairing)
@@ -175,7 +178,11 @@ client.on('ready', () => {
   if (!ready) stopping = true
   console.log(ready ? `Sessão ${session} conectada. ${connectOnly ? 'Modo de conexão: envios desabilitados.' : 'Processamento dos Flows habilitado.'}` : 'Número conectado diferente de WHATSAPP_WEB_PHONE. Nenhum envio será feito.')
 })
-client.on('disconnected', reason => { ready = false; connection = 'desconectado'; shutdownReason = `WhatsApp disconnected: ${reason}`; console.error(new Date().toISOString(), 'Sessão desconectada:', reason); stopping = true })
+client.on('disconnected', reason => {
+  ready = false; connection = reason === 'LOGOUT' ? 'falha_autenticacao' : 'desconectado'
+  shutdownReason = `WhatsApp disconnected: ${reason}`; console.error(new Date().toISOString(), 'Sessão desconectada:', reason); stopping = true
+  if (reason === 'LOGOUT' && process.connected) process.send({type:'state',status:'falha_autenticacao'})
+})
 client.on('auth_failure', () => { ready = false; connection = 'falha_autenticacao'; shutdownReason = 'WhatsApp informou falha de autenticação.'; stopping = true; if (process.connected) process.send({ type: 'state', status: connection }) })
 client.on('browser_failure', () => { ready = false; connection = 'erro'; stop('O processo da página do WhatsApp foi encerrado. Recuperação preservando a sessão.') })
 let closing
