@@ -45,6 +45,11 @@ export function resilientClient(BaseClient, report = console.error) {
       }
     }
     async initWebVersionCache() {
+      report('Navegador iniciado', await this.pupBrowser.version())
+      this.pupPage.on('close', () => report('Página do WhatsApp encerrada'))
+      this.pupPage.on('error', error => report('Falha do processo da página', error.name))
+      this.pupBrowser.on('disconnected', () => report('Canal de controle do navegador desconectado'))
+      this.pupBrowser.process()?.once('exit', (code, signal) => report('Navegador encerrado', JSON.stringify({code, signal})))
       await super.initWebVersionCache()
       const userAgent = (await this.pupBrowser.userAgent()).replace('HeadlessChrome/', 'Chrome/')
       await this.pupPage.setUserAgent(userAgent)
