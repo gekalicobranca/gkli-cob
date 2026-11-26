@@ -5,7 +5,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { identidadeRecibo, observacoesComRecibo } from '../features/importacoes/identidade-recibo'
 import { resolverRecibosLello } from '../features/importacoes/maestro-recibos-lello'
 
-const migration = 'supabase/migrations/20261126111516_normalizar_recibo_sem_ponto.sql'
+const migration = 'supabase/migrations/20261126113332_normalizar_recibo_sem_ponto.sql'
 
 test('pontos não fazem parte do recibo em campos explícitos, referências ou observações', () => {
   for (const recibo of ['12345678.', '12.345.678', '12345678...']) {
