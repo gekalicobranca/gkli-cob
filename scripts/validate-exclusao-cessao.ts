@@ -45,7 +45,7 @@ test('planilha oficial preserva histórico/natureza após normalizar cabeçalhos
     {Unidade:'101','Histórico':'TX CONDOMÍNIO',Natureza:'Cota condominial'},
   ]),'dados');
   const bytes=XLSX.write(wb,{type:'buffer',bookType:'xlsx'}) as Buffer;
-  const rows=parseXlsx('cotas.xlsx',bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
+  const rows=parseXlsx('cotas.xlsx',Uint8Array.from(bytes).buffer);
   assert.deepEqual(rows.rows.map(r=>origemTemCessaoEspaco(naturezaDaLinhaPlanilha(r.payload))),[true,false]);
 });
 
