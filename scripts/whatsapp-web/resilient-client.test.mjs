@@ -3,6 +3,21 @@ import { test } from 'node:test'
 import { resilientClient, synchronizationTimeoutMs } from './resilient-client.mjs'
 import { EventEmitter } from 'node:events'
 
+test('consulta somente o módulo de socket da página atual após pareamento', async () => {
+  class Base { pupPage = { evaluate: fn => fn() } }
+  const client = new (resilientClient(Base, () => {}))()
+  const previous = globalThis.window
+  try {
+    for (const login of [true, false]) {
+      globalThis.window = { location: { pathname: login ? '/login' : '/' }, require(name) {
+        assert.equal(name, login ? 'WAWebBackendEventBus' : 'WAWebSocketModel')
+        return login ? { BackendEventBus: { socketState: 'PAIRING' } } : { Socket: { state: 'CONNECTED' } }
+      } }
+      assert.equal(await client.getState(), login ? 'PAIRING' : 'CONNECTED')
+    }
+  } finally { globalThis.window = previous }
+})
+
 test('falha de código chamada sem await não derruba processo nem recria navegador', async () => {
   class Base extends EventEmitter {
     pupPage = { evaluate: async () => { throw Error('pairing rejected') } }

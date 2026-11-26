@@ -102,7 +102,7 @@ client.on('pairing_error', reason => {
   void publishPairing().catch(reportPairing)
   void heartbeat()
 })
-client.on('authenticated', () => { pairingRevision++; pairingCode = null; pairingCodeExpiresAt = null; void publishPairing().catch(reportPairing); console.log(new Date().toISOString(), 'Autenticação aceita; aguardando sincronização.') })
+client.on('authenticated', () => { connection = 'iniciando'; pairingRevision++; pairingCode = null; pairingCodeExpiresAt = null; void publishPairing().catch(reportPairing); console.log(new Date().toISOString(), 'Autenticação aceita; aguardando sincronização.') })
 client.on('change_state', state => {
   console.log(new Date().toISOString(), `Estado WhatsApp: ${state}`)
   if (initialized && state !== 'CONNECTED') { ready = false; connection = ['UNPAIRED', 'UNPAIRED_IDLE'].includes(state) ? 'aguardando_qr' : 'iniciando' }
