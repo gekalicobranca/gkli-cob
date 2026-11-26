@@ -43,12 +43,11 @@ jobs:
         run: node scripts/agente-automatico/cojur-safira-homologacao.mjs --probe
       - name: Confirmar configuração do piloto
         env:
-          GKLI_SAFIRA_CASE_ID: ${{ vars.GKLI_SAFIRA_CASE_ID }}
           LELLO_SAFIRA_USUARIO: ${{ secrets.LELLO_SAFIRA_USUARIO }}
           LELLO_SAFIRA_SENHA: ${{ secrets.LELLO_SAFIRA_SENHA }}
         run: |
-          if [ -z "$GKLI_SAFIRA_CASE_ID" ] || [ -z "$LELLO_SAFIRA_USUARIO" ] || [ -z "$LELLO_SAFIRA_SENHA" ]; then
-            echo "::error::Ambiente de homologação ainda sem atendimento ou credencial Safira."
+          if [ -z "$LELLO_SAFIRA_USUARIO" ] || [ -z "$LELLO_SAFIRA_SENHA" ]; then
+            echo "::error::Credencial da Lello ainda ausente no ambiente de homologação."
             exit 1
           fi
       - name: Preparar navegador
@@ -57,7 +56,6 @@ jobs:
           npx --no-install playwright install --with-deps chromium
       - name: Consultar a Lello e confirmar o retorno no GKLI
         env:
-          GKLI_SAFIRA_CASE_ID: ${{ vars.GKLI_SAFIRA_CASE_ID }}
           LELLO_SAFIRA_USUARIO: ${{ secrets.LELLO_SAFIRA_USUARIO }}
           LELLO_SAFIRA_SENHA: ${{ secrets.LELLO_SAFIRA_SENHA }}
         run: node scripts/agente-automatico/cojur-safira-homologacao.mjs

@@ -8,6 +8,7 @@ const audiencia = 'gkli-keila-safira-cojur-homologacao'
 const ambiente = 'keila-safira-homologacao'
 const repositorio = 'gekalicobranca/gkli-cob'
 const branch = 'refs/heads/codex/keila-safira-nuvem'
+const workflow = `${repositorio}/.github/workflows/keila-safira-cojur.yml@${branch}`
 const condominio = '2b1aa7ca-91d6-44fc-b667-8fb9bfeffb53'
 const carteira = 'e1f6e3ac-1098-4b30-9e0f-af4c47b351a3'
 const pedidoId = 'cojur-safira-homologacao-pedido-v1'
@@ -27,21 +28,28 @@ async function executar(request) {
   const claims = identidade?.payload
   const run = claims?.run_id
   if (claims?.repository !== repositorio || claims.repository_id !== '1250756745' ||
-      claims.ref !== branch || claims.workflow_ref !== `${repositorio}/.github/workflows/keila-safira-cojur.yml@${branch}` ||
+      claims.ref !== branch || claims.workflow_ref !== workflow ||
       claims.runner_environment !== 'github-hosted' || claims.environment !== ambiente ||
       claims.sub !== `repo:${repositorio}:environment:${ambiente}` ||
       claims.event_name !== 'push' || typeof run !== 'string' || !/^\d+$/.test(run)) {
     return json({ erro: 'identidade_github' }, 403)
   }
 
-  const id = new URL(request.url).searchParams.get('caso')
-  if (!id || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) return json({ erro: 'caso' }, 400)
+  const idInformado = new URL(request.url).searchParams.get('caso')
+  if ((idInformado === null && request.method === 'POST') ||
+      (idInformado !== null && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(idInformado))) {
+    return json({ erro: 'caso' }, 400)
+  }
   const db = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'), {
     auth: { persistSession: false, autoRefreshToken: false },
   })
-  const { data: caso, error: erroCaso } = await db.from('central_pendencias').select('id,titulo,payload,updated_at,unidade_id')
-    .eq('id', id).eq('tipo', 'keila_atendimento').eq('condominio_id', condominio).eq('carteira_id', carteira)
-    .eq('status', 'em_tratamento').maybeSingle()
+  const consulta = db.from('central_pendencias').select('id,titulo,payload,updated_at,unidade_id')
+    .eq('tipo', 'keila_atendimento').eq('condominio_id', condominio).eq('carteira_id', carteira)
+    .eq('status', 'em_tratamento')
+    .contains('payload', { registro_json: { eventos: [{ id: pedidoId, dados: { workflow_ref: workflow } }] } })
+    .limit(2)
+  if (idInformado !== null) consulta.eq('id', idInformado)
+  const { data: caso, error: erroCaso } = await consulta.maybeSingle()
   if (erroCaso) return json({ erro: 'consulta_gkli' }, 503)
   const payload = caso?.payload
   const eventos = payload?.registro_json?.eventos
@@ -54,6 +62,7 @@ async function executar(request) {
       payload.unidade_ids?.length !== 1 || payload.unidade_ids[0] !== caso.unidade_id ||
       pedido?.dados?.referencia !== referenciaSafira || !Number.isFinite(expira) ||
       expira <= agora || expira - agora > 24 * 60 * 60 * 1000) return json({ erro: 'caso_fora_da_homologacao' }, 404)
+  const id = caso.id
 
   const { data: unidade, error: erroUnidade } = await db.from('unidades').select('identificacao')
     .eq('id', caso.unidade_id).eq('condominio_id', condominio).eq('carteira_id', carteira).maybeSingle()

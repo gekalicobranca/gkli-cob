@@ -19,13 +19,22 @@ async function tokenGithub() {
 
 async function chamarHomologacao(caso, method, dados) {
   const url = new URL(retorno)
-  url.searchParams.set('caso', caso)
+  if (caso) url.searchParams.set('caso', caso)
   const resposta = await fetch(url, {
     method, headers: { Authorization: `Bearer ${await tokenGithub()}`, 'Content-Type': 'application/json' },
     body: dados ? JSON.stringify(dados) : undefined, redirect: 'error', signal: AbortSignal.timeout(22_000),
   })
   if (!resposta.ok) throw new Error(`gkli_http_${resposta.status}`)
   return resposta.json()
+}
+
+async function carregarPedido() {
+  const pedido = await chamarHomologacao(null, 'GET')
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(pedido.caso_id ?? '') ||
+      (!pedido.concluido && (pedido.referencia !== referenciaSafira || !/^\d{6}$/.test(pedido.unidade)))) {
+    throw new Error('pedido_fora_do_escopo')
+  }
+  return pedido
 }
 
 async function coletarCotas(unidade, usuario, senha) {
@@ -69,21 +78,21 @@ async function main() {
       erro => { if (erro.message !== 'gkli_http_404') throw erro },
     )
     console.log('Identidade do runner aceita pelo GKLI; consulta fora do escopo recusada.')
+    await carregarPedido()
+    console.log('Atendimento de homologação vinculado à execução.')
     const portal = await fetch(`${origemLello}/menuPortal2/`, { signal: AbortSignal.timeout(20_000) })
     if (!portal.ok || new URL(portal.url).origin !== origemLello) throw new Error('portal_lello_indisponivel')
     console.log('Portal da Lello acessível pelo runner hospedado.')
     return
   }
-  const { GKLI_SAFIRA_CASE_ID: caso, LELLO_SAFIRA_USUARIO: usuario, LELLO_SAFIRA_SENHA: senha } = process.env
-  if (!/^[\da-f-]{36}$/i.test(caso ?? '') || !usuario || !senha) throw new Error('configuracao_incompleta')
-  const pedido = await chamarHomologacao(caso, 'GET')
+  const { LELLO_SAFIRA_USUARIO: usuario, LELLO_SAFIRA_SENHA: senha } = process.env
+  if (!usuario || !senha) throw new Error('configuracao_incompleta')
+  const pedido = await carregarPedido()
   if (pedido.concluido) {
     console.log('O atendimento já contém o resultado do piloto.')
     return
   }
-  if (pedido.caso_id !== caso || pedido.referencia !== referenciaSafira || !/^\d{6}$/.test(pedido.unidade)) {
-    throw new Error('pedido_fora_do_escopo')
-  }
+  const caso = pedido.caso_id
   const cotas = await coletarCotas(pedido.unidade, usuario, senha)
   const resultado = await chamarHomologacao(caso, 'POST', {
     referencia: referenciaSafira, unidade: pedido.unidade, consultado_em: new Date().toISOString(), cotas,
