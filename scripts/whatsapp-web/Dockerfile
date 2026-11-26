@@ -7,7 +7,7 @@ ENV NODE_ENV=production \
     WHATSAPP_WEB_CHROME_PATH=/usr/local/bin/gkli-chrome \
     TZ=America/Sao_Paulo
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium dumb-init util-linux ca-certificates fonts-liberation \
+    chromium dumb-init util-linux ca-certificates fonts-liberation unzip \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY scripts/whatsapp-web/package.json scripts/whatsapp-web/package-lock.json ./scripts/whatsapp-web/
