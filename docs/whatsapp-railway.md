@@ -32,6 +32,8 @@ Migration aplicada ao projeto Supabase GKLI COB (`vjcmotflmcczoepflhwc`). Cartei
 
 O piloto Genske passou build Docker, healthcheck e gerou QR Code no Chromium remoto. Não foi pareado um celular nesta validação. Os serviços usam o commit `b47f485c` fixado; pushes posteriores não mudam automaticamente o conector.
 
-Serviços adicionais: Escritório `c1296ec3-20ef-46d0-ad22-7d78dee91088`, GEKALI `613f6e11-538f-40c9-8e58-ac74b30c199a`, Azevedo `243e39a8-3e30-45be-9698-abffb92b1be3`, cada um com volume próprio de 500 MB. Implantação em acompanhamento.
+Serviços adicionais: Escritório `c1296ec3-20ef-46d0-ad22-7d78dee91088`, GEKALI `613f6e11-538f-40c9-8e58-ac74b30c199a`, Azevedo `243e39a8-3e30-45be-9698-abffb92b1be3`, cada um com volume próprio de 500 MB. Os quatro serviços passaram build e healthcheck, com uma réplica online cada, sem falhas de implantação. As quatro sessões geraram QR no servidor e publicaram o payload no controle privado do app; conteúdo não registrado em logs ou documentação.
+
+Controles de conexão das quatro linhas iniciados para validar os QRs; envios seguem bloqueados nos serviços (`WHATSAPP_WEB_PROCESS_MESSAGES=false`), nas quatro carteiras e no controle global. O QR expira normalmente; use o botão do app para solicitar outro quando necessário. O pareamento e a persistência de uma sessão autenticada dependem da conexão pelo celular e ainda não foram validados. Publicação da UI acompanha o PR #92.
 
 O plano gratuito recusou a quinta linha. O usuário escolheu manter quatro por enquanto. RISE UP permanece sem serviço, controle pausado e rota inativa; o cadastro e histórico ficam preservados. Não consolidar suas credenciais no serviço GEKALI para contornar esse limite.
