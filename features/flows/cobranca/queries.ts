@@ -1,4 +1,5 @@
 import { liberarCobrancasRegulares } from '@/features/cobrancas/regular'
+import { envioExigeConferencia } from './conferencia-envio'
 import { somenteCobrancasCanonicas } from '../../../lib/core/cobranca-arquivamento'
 import { registrarPerformanceFlow } from '../performance'
 import { flowCobrancaOrdem, type OrdemFlowCobranca } from './rotas'
@@ -133,6 +134,9 @@ export async function getFlowCobrancaItens(scope: CarteiraScope, flowId: string)
         provider_read_at,
         provider_failed_at,
         provider_error_message,
+        email_tentativas(estado,iniciado_em),
+        whatsapp_web_envios(estado,iniciado_em),
+        thunderbird_envios(estado),
         erro,
         erro_envio,
         created_at
@@ -148,6 +152,7 @@ export async function getFlowCobrancaItens(scope: CarteiraScope, flowId: string)
     ...item,
     cobranca: relation(item.cobranca),
     mensagem: relation(item.mensagem),
+    conferencia_envio: envioExigeConferencia(relation(item.mensagem)),
   })).filter((item) => {
     const mensagem = item.mensagem
     const status = mensagem?.status_operacional ?? mensagem?.status ?? item.status
@@ -155,7 +160,7 @@ export async function getFlowCobrancaItens(scope: CarteiraScope, flowId: string)
     // inclusive quando a mudança ocorreu em outra parcela da mesma unidade.
     const canceladaPorElegibilidade = ['cancelada', 'cancelado'].includes(status)
       && String(mensagem?.erro ?? '').startsWith('Envio cancelado: cobrança fora da cobrança ativa.')
-    return !canceladaPorElegibilidade
+    return item.conferencia_envio || !canceladaPorElegibilidade
   })
 }
 
