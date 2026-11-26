@@ -24,3 +24,7 @@ npm run typecheck
 No XLS exclusivo identificado no cabeçalho como K 360 HUMBERTO I - SUBCOND COMERCIAL, a BBZ usa o bloco literal 0. O conversor conserva esse identificador e limita o escopo aos blocos comerciais reconhecidos presentes no relatório. No relatório compartilhado permanece o recorte COM/RES.
 
 A substituição do Maestro deve preservar cobranças referenciadas por pre_juridico_casos. A exclusão dessas cobranças dispara a FK ON DELETE SET NULL e a proteção de transições do jurídico. A migration 20261126130000 exclui esses vínculos da lista de substituíveis, sem ampliar privilégios. Na conferência somente leitura do Comoditá, 43 candidatas passaram a 42 e nenhum caso protegido permaneceu na seleção.
+
+### Habitacional no Easy Maestro
+
+O catálogo inclui receitas ativas de inadimplência do coletor Habitacional com condomínio ativo, carteira permitida e nome validado no portal. Pedidos de origem Maestro são selecionados pela fila do supervisor e entregues ao worker-habitacional.mjs. A habilitação no Easy não inclui a Habitacional na criação de pedidos da agenda mensal.
