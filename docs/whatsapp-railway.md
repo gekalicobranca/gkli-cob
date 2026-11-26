@@ -53,3 +53,13 @@ Serviços adicionais: Escritório `c1296ec3-20ef-46d0-ad22-7d78dee91088`, GEKALI
 Controles das quatro conexões iniciados; envios seguem bloqueados nos serviços, nas carteiras e no controle global. A persistência foi verificada na recuperação dos vínculos após substituição dos contêineres. Publicação inicial da UI: PR #92. Ainda será necessária validação separada do processamento completo antes de autorizar disparos.
 
 O plano gratuito recusou a quinta linha. O usuário escolheu manter quatro por enquanto. RISE UP permanece sem serviço, controle pausado e rota inativa; o cadastro e histórico ficam preservados. Não consolidar suas credenciais no serviço GEKALI para contornar esse limite.
+
+## Liberação dos envios em 26/11/2026, 18h10 (Brasília)
+
+Após solicitação explícita do usuário, as quatro carteiras tiveram `whatsapp_habilitado=true`, os quatro serviços receberam `WHATSAPP_WEB_PROCESS_MESSAGES=true` e o controle global `workers_controles.whatsapp` foi habilitado. A abertura no banco foi transacional, auditada e condicionada às quatro sessões com número correto, sinal recente e monitor em estado `operando`. Nenhum Flow foi retomado, nenhuma mensagem foi recriada ou reagendada e os resultados incertos permaneceram para conferência.
+
+Foi necessário compatibilizar a inicialização completa de eventos: o módulo legado de socket bloqueava a instalação dos listeners. No Railway o worker instala apenas os hooks que consome: recibos das próprias mensagens e mudança de estado do socket já autenticado. As APIs de envio/serialização precisam existir antes de completar a inicialização; não há evento `ready` artificial. Recibos preservam ID, corpo, destino, origem e timestamp exigidos pela verificação existente. Hooks não transmitem mensagens. Execução local conserva o caminho anterior.
+
+Conector em produção fixado no commit `e8224ff9`, branch `codex/whatsapp-liberar-envios`, PR #95. As quatro linhas confirmaram inicialização completa e modo `operando`. Índice exclusivo de tentativa ativa por mensagem, fingerprint, trava de reserva, bloqueio de mensagens já enviadas e de resultados incertos, elegibilidade financeira, status do Flow, destinatários bloqueados, cadência e quota continuam inalterados. A rota RISE UP permanece inativa.
+
+A janela da reserva vigente é 09h–18h em America/Sao_Paulo. Como a liberação ocorreu após 18h, nenhum envio de teste foi disparado; mensagens elegíveis seguem a agenda e a próxima janela. Validação: testes do worker incluindo hooks e recibos, observação dos quatro serviços/monitores e consulta das permissões após a operação. O estado anterior de envios pausados descrito acima é histórico.
