@@ -16,6 +16,7 @@ type Cadastro = {
   valor_original: number | null
   observacoes: string | null
   origem_importacao: string | null
+  arquivada_em?: string | null
 }
 
 function escopoUnidade(bloco: string | null | undefined, unidade: string) {
@@ -26,7 +27,7 @@ function escopoUnidade(bloco: string | null | undefined, unidade: string) {
 export function resolverRecibosLello<T extends Linha>(linhas: T[], cadastro: Cadastro[]) {
   const porData = new Map<string, Cadastro[]>()
   for (const cota of cadastro) {
-    if (!cota.unidades || !cota.vencimento) continue
+    if (cota.arquivada_em || !cota.unidades || !cota.vencimento) continue
     const chave = escopoUnidade(cota.unidades.bloco, cota.unidades.identificacao) + "|" + cota.vencimento
     const grupo = porData.get(chave) ?? []
     grupo.push(cota)
@@ -51,12 +52,18 @@ export function resolverRecibosLello<T extends Linha>(linhas: T[], cadastro: Cad
     let recibo = legado
     if (cota) {
       const obs = cota.observacoes ?? ""
-      const portal = /^Recibo: (\d{6,})(?=\s|\||$)/i.exec(obs)?.[1]
-      const linhaOrigem = portal ? obs.split(/\r?\n/, 2)[1] ?? "" : obs
-      const alias = /^(?:Recibo(?::)? |Conversão de relatório - recibo |Origem: Conversão de Relatório \| Sistema: Lello Condomínios \| Recibo: )(LELLO-[^\s|]+)/i.exec(linhaOrigem)?.[1]
+      // Importações antigas guardam "recibo 12345678" ou o marcador no meio do texto.
+      // Só aceitar identificadores explicitamente rotulados, sem escolher entre recibos conflitantes.
+      const marcadores = [...obs.matchAll(/\brecibo(?:[ \t]*:[ \t]*|[ \t]+)(LELLO-[^\s|]+|\d{6,})(?=\s|\||$)/gi)]
+        .map(match => match[1].toUpperCase())
+      const portais = new Set(marcadores.filter(marcador => /^\d+$/.test(marcador)))
+      const aliases = marcadores.filter(marcador => marcador.startsWith("LELLO-"))
+      if (portais.size > 1 || aliases.some(alias => alias !== legado)) throw revisar()
+      const portal = [...portais][0]
+      const alias = aliases[0]
       const origemPortal = cota.origem_importacao?.startsWith(`Espelhamento Lello ${codigo} - `)
-      if (alias && alias !== legado) throw revisar()
-      if (portal && (alias === legado || origemPortal)) recibo = portal
+      const origemLegada = /^(?:Conciliação Lello(?:\s|$)|importacao_cobrancas(?:\s|$))/i.test(cota.origem_importacao ?? "")
+      if (portal && (alias === legado || origemPortal || origemLegada)) recibo = portal
       else if (alias !== legado) throw revisar()
     }
     // Uma repetição pode representar duas cotas reais, mas nunca autoriza usar o mesmo recibo duas vezes.
@@ -72,9 +79,10 @@ export async function carregarCadastroRecibosLello(db: ReturnType<typeof createA
   const linhas: Cadastro[] = []
   for (let inicio = 0; ; inicio += 500) {
     const { data, error } = await db.from("cobrancas")
-      .select("unidade_id,unidades!inner(identificacao,bloco),vencimento,valor_original,observacoes,origem_importacao")
+      .select("unidade_id,unidades!inner(identificacao,bloco),vencimento,valor_original,observacoes,origem_importacao,arquivada_em")
       .eq("condominio_id", condominio).eq("carteira_id", carteira).eq("unidades.condominio_id", condominio)
       .is("duplicada_de_id", null).is("duplicada_origem_excluida_id", null)
+      .is("arquivada_em", null)
       .order("id").range(inicio, inicio + 499).overrideTypes<Cadastro[], { merge: false }>()
     if (error) throw new Error(`Falha ao conferir recibos da Lello: ${error.message}`)
     linhas.push(...(data ?? []))

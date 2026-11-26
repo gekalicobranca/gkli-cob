@@ -1,8 +1,9 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { resolverRecibosLello } from "../features/importacoes/maestro-recibos-lello"
+import { carregarCadastroRecibosLello, resolverRecibosLello } from "../features/importacoes/maestro-recibos-lello"
+import { conciliarCobrancaImportada } from "../features/importacoes/cobrancas-conciliacao"
 
-const linha = { unidade: "000032", bloco: "0", recibo: "LELLO-123-000032-20241020",
+const linha: Parameters<typeof resolverRecibosLello>[0][number] = { unidade: "000032", bloco: "0", recibo: "LELLO-123-000032-20241020",
   vencimento: "20/10/2024", valorPrincipal: 100 }
 const protegida = { unidade_id: "unidade-32", unidades: { identificacao: "32", bloco: "0" },
   vencimento: "2024-10-20", valor_original: 100, origem_importacao: "Conversão",
@@ -30,4 +31,120 @@ test("exige principal e origem compatíveis e vínculo único nas duas direçõe
   assert.throws(() => resolverRecibosLello([linha, linha], [protegida]), /confira o recibo/)
   assert.throws(() => resolverRecibosLello([linha, extra], []), /confira o recibo/)
   assert.deepEqual(resolverRecibosLello([linha], [{ ...protegida, unidades: { identificacao: "32", bloco: "B" } }]), [linha])
+})
+
+// Dados sintéticos reproduzem os quatro padrões encontrados na investigação da Lello.
+test("ignora a versão sintética arquivada ao selecionar a cota ativa de conciliação", () => {
+  const ativa = { ...protegida, observacoes: "Recibo: 12345678", origem_importacao: "Conciliação Lello confirmada 28/10/2026" }
+  const arquivada = { ...protegida, arquivada_em: "2026-11-12T19:21:00Z", observacoes: `Recibo ${linha.recibo}` }
+  const cadastro = [arquivada, ativa]
+  const antes = structuredClone(cadastro)
+  assert.equal(resolverRecibosLello([linha], cadastro)[0].recibo, "12345678")
+  assert.deepEqual(cadastro, antes)
+  assert.equal(resolverRecibosLello([linha], [...cadastro].reverse())[0].recibo, "12345678")
+})
+
+test("ignora o histórico arquivado quando a ativa já possui recibo e alias válidos", () => {
+  const arquivada = { ...protegida, arquivada_em: "2026-11-10T03:36:00Z", observacoes: "Recibo LELLO-12345678" }
+  const cadastro = [protegida, arquivada]
+  const resolvidas = resolverRecibosLello([linha], cadastro)
+  assert.equal(resolvidas[0].recibo, "12345678")
+  assert.deepEqual(resolverRecibosLello(resolvidas, cadastro), resolvidas)
+})
+
+test("reconhece recibo sem dois-pontos em conciliação antiga e preserva o estado de acordo", () => {
+  const cota = { ...protegida, origem_importacao: "Conciliação Lello CO. NEXT - 12/11/2026",
+    observacoes: "Conciliação de cobrança | recibo 12345678\nHistórico preservado",
+    status_operacional: "acordo_firmado", status_financeiro: "renegociado",
+    acordo_id: "acordo-existente", parcelas_acordo: [{ id: "parcela-existente", valor: 25 }] }
+  const antes = structuredClone(cota)
+  const resolvidas = resolverRecibosLello([linha], [cota])
+  assert.equal(resolvidas[0].recibo, "12345678")
+  assert.equal(resolvidas[0].unidadeReciboLello, protegida.unidade_id)
+  assert.equal(resolvidas[0].chavePlanilhaLello, linha.recibo)
+  assert.deepEqual(resolverRecibosLello(resolvidas, [cota]), resolvidas)
+  assert.deepEqual(cota, antes)
+})
+
+test("reconhece Recibo: no meio das observações de importação antiga", () => {
+  const cota = { ...protegida, origem_importacao: "importacao_cobrancas - 17/11/2026, 16:22",
+    observacoes: "Origem: relatório Lello | Recibo: 12345678 | Histórico" }
+  const resolvidas = resolverRecibosLello([linha], [cota])
+  assert.equal(resolvidas[0].recibo, "12345678")
+  assert.deepEqual(resolverRecibosLello(resolvidas, [cota]), resolvidas)
+})
+
+test("formatos antigos não liberam ambiguidade ativa, marcadores conflitantes ou valores diferentes", () => {
+  const legada = { ...protegida, origem_importacao: "importacao_cobrancas - 17/11/2026",
+    observacoes: "Histórico | Recibo: 12345678" }
+  for (const cadastro of [
+    [legada, { ...legada, observacoes: "Recibo: 87654321" }],
+    [{ ...legada, unidade_id: "outra-unidade" }, legada],
+    [{ ...legada, valor_original: 99 }],
+    [{ ...legada, observacoes: "Recibo: 12345678 | recibo 87654321" }],
+    [{ ...legada, observacoes: `${legada.observacoes} | Recibo LELLO-123-000033-20241020` }],
+    [{ ...legada, observacoes: "Outro identificador: 12345678" }],
+    [{ ...legada, observacoes: "Recibo: 12345678-9" }],
+    [{ ...legada, origem_importacao: "Origem desconhecida" }],
+    [{ ...legada, origem_importacao: "Espelhamento Lello 1234 - 17/11/2026" }],
+  ]) assert.throws(() => resolverRecibosLello([linha], cadastro), /confira o recibo/)
+  assert.throws(() => resolverRecibosLello([linha, linha], [legada]), /confira o recibo/)
+})
+
+test("carregamento seleciona somente cobranças não arquivadas dentro da carteira e condomínio", async () => {
+  const filtros = new Map<string, unknown>()
+  const retornada = { ...protegida, arquivada_em: null }
+  const arquivada = { ...protegida, arquivada_em: "2026-11-10T00:00:00Z" }
+  let consultas = 0
+  const db = { from(tabela: string) {
+    assert.equal(tabela, "cobrancas")
+    consultas++
+    const query = {
+      select() { return query },
+      eq(campo: string, valor: unknown) { filtros.set(campo, valor); return query },
+      is(campo: string, valor: unknown) { filtros.set(campo, valor); return query },
+      order() { return query }, range() { return query },
+      async overrideTypes() {
+        return { data: [retornada, arquivada].filter(cota => !filtros.has("arquivada_em") || cota.arquivada_em === filtros.get("arquivada_em")), error: null }
+      },
+    }
+    return query
+  } }
+  const resultado = await carregarCadastroRecibosLello(db as unknown as Parameters<typeof carregarCadastroRecibosLello>[0], "carteira", "condominio")
+  assert.deepEqual(resultado, [retornada])
+  assert.equal(consultas, 1)
+  assert.equal(filtros.get("carteira_id"), "carteira")
+  assert.equal(filtros.get("condominio_id"), "condominio")
+  assert.equal(filtros.get("unidades.condominio_id"), "condominio")
+})
+
+test("os quatro padrões seguem para atualização da cobrança existente sem reinserção ou mutação", async () => {
+  const historico = { ...protegida, id: "historico", arquivada_em: "2026-11-10T00:00:00Z", observacoes: `Recibo ${linha.recibo}` }
+  const casos = [
+    [{ ...protegida, observacoes: "Recibo: 12345678", origem_importacao: "Conciliação Lello confirmada 28/10/2026" }, historico],
+    [protegida, { ...historico, observacoes: "Recibo LELLO-12345678" }],
+    [{ ...protegida, observacoes: "Conciliação | recibo 12345678\nHistórico", origem_importacao: "Conciliação Lello CO. NEXT - 12/11/2026" }],
+    [{ ...protegida, observacoes: "Importação | Recibo: 12345678 | Histórico", origem_importacao: "importacao_cobrancas - 17/11/2026" }],
+  ]
+  for (const [indice, cadastro] of casos.entries()) {
+    const cobrancas = cadastro.map((cota, i) => ({ ...cota, id: i === 0 ? "ativa" : "historico",
+      carteira_id: "carteira", condominio_id: "condominio", competencia: null,
+      valor_atualizado: 105, status_operacional: indice === 2 ? "acordo_firmado" : "em_cobranca_ativa",
+      status_financeiro: indice === 2 ? "renegociado" : "em_aberto", updated_at: "2026-11-20T00:00:00Z" }))
+    const antes = structuredClone(cobrancas)
+    const [resolvida] = resolverRecibosLello([linha], cobrancas)
+    const db = { from(tabela: string) {
+      assert.equal(tabela, "cobrancas")
+      const query = { select() { return query }, is() { return query }, eq() { return query } }
+      return query
+    } }
+    const resultado = await conciliarCobrancaImportada(db, {
+      unidade_id: resolvida.unidadeReciboLello!, carteira_id: "carteira", condominio_id: "condominio",
+      recibo: resolvida.recibo, vencimento: "2024-10-20", valor_original: resolvida.valorPrincipal,
+      valor_atualizado: 110,
+    }, true, new Map([[protegida.unidade_id, cobrancas]]))
+    assert.equal(resultado.status, "atualizar")
+    assert.equal(resultado.cobrancaId, "ativa")
+    assert.deepEqual(cobrancas, antes)
+  }
 })
