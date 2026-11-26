@@ -22,13 +22,14 @@ Uma planilha que contenha só números, sem histórico/natureza nem recibo com o
 
 ## Defesa no banco
 
-Migration `20261126023534_excluir_cessao_espaco_captacao_global.sql` troca a proibição específica do Villa Lobos por uma barreira global de INSERT. Ela usa observações e, quando a cobrança aponta para conversão, também a composição original/excluída do recibo, com conferência de carteira, condomínio, unidade e bloco. Não depende da comparação de nome com/sem acento.
+As migrations `20261126023534_excluir_cessao_espaco_captacao_global.sql`, `20261126024203_excluir_recibos_cessao_origem_conhecida.sql` e `20261126024624_validar_exclusao_cessao_por_lote.sql` trocam a proibição específica do Villa Lobos por barreiras globais. O INSERT tem validação rápida das observações/flag, seguida por validação de origem anterior por comando, com transition table. A conferência por lote evita reler todo o relatório para cada linha. Carteira, condomínio, unidade, bloco e recibo delimitam a identidade. Não depende da comparação de nome com/sem acento.
 
 Uma validação de conclusão em `conversoes_relatorio` também recusa prévia operacional com rubrica proibida; isso aborta integralmente o commit transacional do Easy mesmo quando ele reutiliza cobranças existentes, sem passar por INSERT. Funções não concedem acesso a dados nem usam SECURITY DEFINER. Não há UPDATE/DELETE de cobranças, acordos, mensagens ou flows na migration.
 
 ## Validação
 
 - `scripts/validate-exclusao-cessao.ts`: paridade JS/SQL, origens estruturadas, negativos, recibo misto, idempotência, normalização XLSX e barreiras reais no Postgres/PGlite; recusa do commit Easy preservando base existente.
+- Inclui lote sintético de 5.000 linhas contra histórico de 5.000 exclusões e rollback de lote misto. A rota de montagem reconhece conclusão sem cotas elegíveis para compatibilidade com workers antigos, sem criar flow.
 - `scripts/validate-manager-composicao.ts`: parser real Manager, preservação de composição completa na evidência, exclusão do CSV e XLSX, valores das cotas elegíveis.
 - `scripts/validate-easy-planilha-manual.ts`: compatibilidade do modelo e exclusão por natureza na coluna N.
 - `scripts/validate-easy-cap-transaction.ts`: regressão da transação, rollback e replay.

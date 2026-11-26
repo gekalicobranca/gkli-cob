@@ -9,7 +9,10 @@ import * as XLSX from 'xlsx';
 import { fixtureCap, prepararConversao, previewCap, inserirCobranca } from './easy-cap-transaction-fixture';
 import { fixtureId as id } from './easy-p0-fixture';
 const migration = readFile('supabase/migrations/20261126023534_excluir_cessao_espaco_captacao_global.sql','utf8');
-const conhecida = readFile('supabase/migrations/20261126024203_excluir_recibos_cessao_origem_conhecida.sql','utf8');
+const conhecida = Promise.all([
+  readFile('supabase/migrations/20261126024203_excluir_recibos_cessao_origem_conhecida.sql','utf8'),
+  readFile('supabase/migrations/20261126024624_validar_exclusao_cessao_por_lote.sql','utf8'),
+]).then(partes=>partes.join('\n'));
 const positivos = [
   { detalhesOrigem: '8956 CESSÃO DE ESPAÇO: R$ 834,42' },
   { historico: '39 LOCAÇÃO DE ESPAÇO 25/09/2026' },
@@ -75,7 +78,14 @@ test('classificadores JS/SQL concordam e a barreira de inserção vale em qualqu
     await assert.rejects(db.query('insert into cobrancas(carteira_id,condominio_id,unidade_id,observacoes,conversao_relatorio_id) values($1,$2,$3,$4,$5)',[id(2),id(100),id(1),'Recibo J 15418010',id(3)]),/composição original/);
     // Sem conversão nem natureza na planilha: a origem anterior continua impedindo nova inserção.
     await assert.rejects(db.query('insert into cobrancas(carteira_id,condominio_id,unidade_id,observacoes) values($1,$2,$3,$4)',[id(2),id(100),id(1),'Recibo J 15418010']),/Reimportação proibida/);
+    // Um proibido em comando misto desfaz também as linhas normais do mesmo lote.
+    await assert.rejects(db.query('insert into cobrancas(carteira_id,condominio_id,unidade_id,observacoes) values($1,$2,$3,$4),($1,$2,$3,$5)',[id(2),id(100),id(1),'Recibo 99999','Recibo 15418010']),/Reimportação proibida/);
     assert.equal((await db.query<{n:number}>('select count(*)::int n from cobrancas')).rows[0].n,2);
+    const historico = Array.from({length:5000},(_,n)=>({unidade:'BOX001',bloco:'0',recibo:String(80000+n),detalhesOrigem:'CESSÃO DE ESPAÇO'}));
+    await db.query('update conversoes_relatorio set preview_json=$1 where id=$2',[{cobrancas:historico},id(3)]);
+    await db.query(`insert into cobrancas(carteira_id,condominio_id,unidade_id,observacoes)
+      select $1,$2,$3,'Recibo '||(60000+n)::text from generate_series(1,5000) n`,[id(2),id(100),id(1)]);
+    assert.equal((await db.query<{n:number}>('select count(*)::int n from cobrancas')).rows[0].n,5002);
   }finally {await db.close();}
 });
 
