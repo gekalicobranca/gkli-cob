@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY scripts/whatsapp-web/package.json scripts/whatsapp-web/package-lock.json ./scripts/whatsapp-web/
 RUN npm ci --omit=dev --ignore-scripts --prefix scripts/whatsapp-web --no-audit --no-fund
-RUN node scripts/whatsapp-web/node_modules/puppeteer/lib/puppeteer/node/cli.js browsers install chrome \
-    && node --input-type=module -e "import {executablePath} from './scripts/whatsapp-web/node_modules/puppeteer/lib/puppeteer/puppeteer.js'; import {symlinkSync} from 'node:fs'; symlinkSync(await executablePath(), '/usr/local/bin/gkli-chrome')"
+RUN cd scripts/whatsapp-web && ./node_modules/.bin/puppeteer browsers install chrome \
+    && node --input-type=module -e "import puppeteer from 'puppeteer'; import {symlinkSync} from 'node:fs'; symlinkSync(await puppeteer.executablePath(), '/usr/local/bin/gkli-chrome')"
 COPY scripts/whatsapp-web/ ./scripts/whatsapp-web/
 COPY scripts/worker-cadence.mjs ./scripts/worker-cadence.mjs
 # /data must be a mounted Railway volume; it is deliberately not created here.

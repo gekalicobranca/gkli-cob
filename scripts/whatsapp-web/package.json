@@ -21,6 +21,6 @@
     "whatsapp-web.js": "https://codeload.github.com/pedroslopez/whatsapp-web.js/tar.gz/38eb45b2759450cc6fccb6a7a3f2cbc3bdb87db2"
   },
   "overrides": {
-    "puppeteer": "25.11.0"
+    "puppeteer": "24.38.0"
   }
 }
