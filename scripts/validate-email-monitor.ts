@@ -15,7 +15,7 @@ test('usa o dia de Brasília, inclui atrasadas e ignora filas futuras e mensagen
   assert.equal(sent.total.sent, 1)
 })
 test('última tentativa prevalece; reagendadas não contam como falha e incertas não entram na fila', () => {
-  const result = summarizeEmailMonitor([base, { ...base, id: 'incerta', status: 'falha' }, { ...base, id: 'enviando' }], [attempt, { ...attempt, id: 'i', mensagem_id: 'incerta', estado: 'incerto' }, { ...attempt, id: 's', mensagem_id: 'enviando', estado: 'em_envio', finalizado_em: null }], ['c'], ['m', 'enviando'], now)
+  const result = summarizeEmailMonitor([base, { ...base, id: 'incerta', status: 'falha' }, { ...base, id: 'enviando' }], [attempt, { ...attempt, id: 'i', mensagem_id: 'incerta', estado: 'incerto' }, { ...attempt, id: 's', mensagem_id: 'enviando', estado: 'em_envio', iniciado_em: now.toISOString(), finalizado_em: null }], ['c'], ['m', 'enviando'], now)
   assert.deepEqual(result.total, { sent: 0, queued: 1, failed: 0, uncertain: 1, sending: 1 })
   const recovered = summarizeEmailMonitor([{ ...base, status: 'enviada', sent_at: '2026-09-30T16:00:00Z' }], [attempt, { ...attempt, id: 'new', estado: 'enviado', iniciado_em: '2026-09-30T16:00:00Z', finalizado_em: '2026-09-30T16:01:00Z' }], ['c'], ['m'], now)
   assert.equal(recovered.total.sent, 1)

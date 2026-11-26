@@ -10,6 +10,7 @@ export type EmailMonitorMessage = {
 export type EmailMonitorAttempt = {
   id: string; mensagem_id: string | null; carteira_id: string; estado: string
   iniciado_em: string; finalizado_em: string | null
+  recuperacao?: string | null
 }
 const empty = (): EmailCounts => ({ sent: 0, queued: 0, failed: 0, uncertain: 0, sending: 0 })
 
@@ -34,8 +35,10 @@ export function summarizeEmailMonitor(messages: EmailMonitorMessage[], attempts:
       if (inDay(message.sent_at || message.enviada_em || (attempt?.estado === 'enviado' ? at : null))) counts.sent++
       continue
     }
-    if (attempt?.estado === 'incerto' || attempt?.estado === 'em_envio') {
-      const state = attempt.estado === 'incerto' ? 'uncertain' : 'sending'
+    const semConfirmacao = attempt?.recuperacao === 'conferencia' || attempt?.estado === 'incerto'
+      || (attempt?.estado === 'em_envio' && Date.parse(attempt.iniciado_em) < now.getTime() - 10 * 60_000)
+    if (semConfirmacao || attempt?.estado === 'em_envio') {
+      const state = semConfirmacao ? 'uncertain' : 'sending'
       if (inDay(at)) counts[state]++
       issues.push({ message, state, at })
       continue

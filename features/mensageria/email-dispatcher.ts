@@ -4,10 +4,18 @@ import { EmailAdiadoError } from './email-agenda'
 import { listarAnexosMensagem } from '@/features/pre-juridico/documentos'
 import { recalcularReferenciasMensagem } from './whatsapp-cloud/flows'
 import { emailHorarioPermitido } from './email-janela'
+import { ResultadoSmtpRegistradoError } from './smtp-recuperacao'
 
 // A autorização final e a reserva de cota são atômicas no provedor/banco.
 export async function executarDisparosEmail(limit = 50, cobrancaFlowId?: string, somenteAvisosInternos = false) {
   const db = createAdminClient()
+  async function recuperar() {
+    const { data, error } = await db.rpc('email_recuperar_falhas_flows', { p_limite: 100, p_flow: cobrancaFlowId ?? null })
+    if (error) throw new Error('Não foi possível verificar a recuperação segura da fila de e-mail.')
+    for (const referencia of data?.referencias ?? []) await recalcularReferenciasMensagem(db, referencia)
+  }
+  // Só agenda; não transmite. A reserva existente revalida janela, conta, cota e elegibilidade.
+  if (!somenteAvisosInternos) await recuperar()
   // Somente mensagens que entraram explicitamente na nova agenda podem ser disparadas.
   let query = db.from('mensagens').select('*,carteira:carteiras!inner(email_transporte),reserva:email_agenda!inner(mensagem_id)').neq('carteira.email_transporte', 'thunderbird').eq('canal', 'email').eq('status', 'agendada')
     // O executor do scanner usa a credencial local e controla a retomada deste relatório.
@@ -45,12 +53,15 @@ export async function executarDisparosEmail(limit = 50, cobrancaFlowId?: string,
       if (error instanceof EmailAdiadoError) resultado.adiadas++
       else {
         const detalhe = error instanceof Error ? error.message : String(error)
-        await db.from('mensagens').update({ status: 'falha', status_operacional: 'falha', erro: detalhe, erro_envio: detalhe }).eq('id', m.id).neq('status', 'enviada')
-        await db.from('lote_itens').update({ status: 'erro', erro: detalhe }).eq('mensagem_id', m.id).neq('status', 'enviado')
+        if (!(error instanceof ResultadoSmtpRegistradoError)) {
+          await db.from('mensagens').update({ status: 'falha', status_operacional: 'falha', erro: detalhe, erro_envio: detalhe }).eq('id', m.id).neq('status', 'enviada')
+          await db.from('lote_itens').update({ status: 'erro', erro: detalhe }).eq('mensagem_id', m.id).neq('status', 'enviado')
+        }
         resultado.falhas++
       }
     }
     await recalcularReferenciasMensagem(db, m)
   }
+  if (!somenteAvisosInternos) await recuperar()
   return resultado
 }

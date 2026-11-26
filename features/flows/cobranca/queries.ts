@@ -134,7 +134,7 @@ export async function getFlowCobrancaItens(scope: CarteiraScope, flowId: string)
         provider_read_at,
         provider_failed_at,
         provider_error_message,
-        email_tentativas(estado,iniciado_em),
+        email_tentativas(estado,iniciado_em,recuperacao),
         whatsapp_web_envios(estado,iniciado_em),
         thunderbird_envios(estado),
         erro,

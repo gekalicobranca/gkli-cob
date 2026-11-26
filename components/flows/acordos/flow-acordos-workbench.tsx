@@ -394,14 +394,19 @@ function FlowRow({ flow }: { flow: any }) {
         <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Carregando fila do Flow...</div>
       ) : itensError ? (
         <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">{itensError}</div>
-      ) : itens.length ? (
+      ) : itens.some(item => !item.conferencia_envio) ? (
         <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="hidden bg-slate-50 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-slate-400 lg:grid lg:grid-cols-[120px_minmax(280px,1fr)_minmax(200px,0.8fr)_170px_110px] lg:items-center">
             <span>Status</span><span>Parcela</span><span>Destino</span><span>Agenda</span><span className="text-right">Ação</span>
           </div>
-          {itens.map((item: any) => <FlowItemRow key={item.id} item={item} />)}
+          {itens.filter(item => !item.conferencia_envio).map((item: any) => <FlowItemRow key={item.id} item={item} />)}
         </div>
       ) : <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Nenhum item vinculado a este Flow ainda.</div>}
+      {!itensLoading && !itensError && itens.some(item => item.conferencia_envio) ? <section aria-label="Conferência de envio" className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+        <h3 className="text-sm font-semibold text-amber-950">Conferência de envio</h3>
+        <p className="mt-1 text-xs text-amber-900">O envio pode ter ocorrido. Confira o resultado no provedor. Histórico preservado e reenvio automático bloqueado.</p>
+        <div className="mt-3 divide-y divide-amber-100 rounded-xl bg-white">{itens.filter(item => item.conferencia_envio).map(item => <FlowItemRow key={item.id} item={item} conferencia />)}</div>
+      </section> : null}
     </div>
   </details>
 }
@@ -416,7 +421,7 @@ function FlowCounter({ label, value, tone = 'slate' }: { label: string; value: u
   return <div className={`rounded-xl border px-2.5 py-2 ${classes[tone]}`}><p className="text-[10px] font-medium uppercase tracking-wide opacity-70">{label}</p><p className="mt-0.5 text-sm font-semibold">{String(value ?? 0)}</p></div>
 }
 
-function FlowItemRow({ item }: { item: any }) {
+function FlowItemRow({ item, conferencia = false }: { item: any; conferencia?: boolean }) {
   const mensagem = relation(item.mensagem)
   const acordo = relation(item.acordo)
   const entidade = acordoEntity(acordo)
@@ -433,7 +438,7 @@ function FlowItemRow({ item }: { item: any }) {
   const vencimento = contexto?.vencimento || ''
 
   return <div className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[120px_minmax(280px,1fr)_minmax(200px,0.8fr)_170px_110px] lg:items-center">
-    <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(effectiveStatus)}`}>{statusLabel}</span></div>
+    <div><span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(effectiveStatus)}`}>{conferencia ? 'Sem confirmação' : statusLabel}</span></div>
     <div className="min-w-0">
       <p className="truncate text-sm font-semibold text-slate-950">{entidade.condominio}</p>
       <p className="mt-1 truncate text-xs text-slate-500">Unidade {entidade.unidade} · Parcela {parcela || '-'}{vencimento ? ` · venc. ${vencimento}` : ''}</p>
@@ -441,7 +446,7 @@ function FlowItemRow({ item }: { item: any }) {
     <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{destino}</p></div>
     <div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{messageScheduleLabel(mensagem)}</p></div>
     <div className="flex justify-start lg:justify-end">
-      {hasFailure ? <form action={reenviarItemFlowAcordos.bind(null, item.id)} className="shrink-0"><PendingSubmitButton variant="secondary" size="sm" pendingLabel="Reagendando...">Reenviar</PendingSubmitButton></form> : <span className="text-xs text-slate-300">—</span>}
+      {hasFailure && !conferencia ? <form action={reenviarItemFlowAcordos.bind(null, item.id)} className="shrink-0"><PendingSubmitButton variant="secondary" size="sm" pendingLabel="Reagendando...">Reenviar</PendingSubmitButton></form> : <span className="text-xs text-slate-300">—</span>}
     </div>
     {hasFailure ? <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-700 lg:col-span-5"><p><span className="font-semibold">Motivo da falha:</span> <span className="break-words">{reason}</span></p></div> : null}
   </div>

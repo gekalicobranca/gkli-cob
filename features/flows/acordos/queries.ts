@@ -1,4 +1,5 @@
 import { enriquecerEfetivacaoFlow, parcelaValidaFlow, resolverPeriodoFlow } from './elegibilidade'
+import { envioExigeConferencia } from '../cobranca/conferencia-envio'
 import { etapasDoCanal } from '@/lib/core/flow-acordos-canais'
 import { differenceInCalendarDays } from 'date-fns'
 import { registrarPerformanceFlow } from '../performance'
@@ -175,6 +176,9 @@ export async function getFlowAcordosItens(scope: CarteiraScope, flowId: string) 
         provider_read_at,
         provider_failed_at,
         provider_error_message,
+        email_tentativas(estado,iniciado_em,recuperacao),
+        whatsapp_web_envios(estado,iniciado_em),
+        thunderbird_envios(estado),
         erro,
         erro_envio,
         payload,
@@ -193,6 +197,7 @@ export async function getFlowAcordosItens(scope: CarteiraScope, flowId: string) 
     ...item,
     acordo: relation(item.acordo),
     mensagem: relation(item.mensagem),
+    conferencia_envio: envioExigeConferencia(relation(item.mensagem)),
   }))
 }
 
