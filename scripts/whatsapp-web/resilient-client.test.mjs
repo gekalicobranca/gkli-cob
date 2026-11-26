@@ -3,6 +3,18 @@ import { test } from 'node:test'
 import { resilientClient, synchronizationTimeoutMs } from './resilient-client.mjs'
 import { EventEmitter } from 'node:events'
 
+test('modo conexão não instala handlers de mensagens; processamento mantém o comportamento original', async () => {
+  let calls = 0
+  class Base { async attachEventListeners() { calls++ } }
+  const client = new (resilientClient(Base, () => {}))()
+  client.connectionOnly = true
+  await client.attachEventListeners()
+  assert.equal(calls, 0)
+  client.connectionOnly = false
+  await client.attachEventListeners()
+  assert.equal(calls, 1)
+})
+
 test('consulta somente o módulo de socket da página atual após pareamento', async () => {
   class Base { pupPage = { evaluate: fn => fn() } }
   const client = new (resilientClient(Base, () => {}))()

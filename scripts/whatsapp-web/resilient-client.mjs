@@ -56,6 +56,7 @@ export function resilientClient(BaseClient, report = console.error) {
             const disk = await statfs('/data').catch(() => null)
             report('Recursos após falha', JSON.stringify({memoryEvents: events, diskFree: disk ? disk.bavail * disk.bsize : null}))
           }
+          this.emit('browser_failure')
         })
         this.pupBrowser.on('disconnected', () => report('Canal de controle do navegador desconectado'))
         this.pupBrowser.process()?.once('exit', (code, signal) => report('Navegador encerrado', JSON.stringify({code, signal})))

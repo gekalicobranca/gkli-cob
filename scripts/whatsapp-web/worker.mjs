@@ -69,7 +69,17 @@ const check = ({ data, error }) => { if (error) throw new Error(error.message); 
 const recoverConnection = connectionRecovery({ probe: () => assertBrowserHealthy(client) })
 const publishSession = createPeriodicTask({ intervalMs: 30_000 })
 const publishMonitor = createPeriodicTask({ intervalMs: 30_000 })
+let lastSyncDiagnostic = 0
 async function publishHeartbeat() {
+  if (!initialized && !stopping && client.pupPage && Date.now() - lastSyncDiagnostic > 60000) {
+    lastSyncDiagnostic = Date.now()
+    const state = await bounded(client.pupPage.evaluate(() => {
+      const entry = window._wwjsListeners?.find(([, event]) => event === 'set_socket_state' || event === 'change:state')
+      const socket = entry?.[0]
+      return { socket: entry?.[1] === 'set_socket_state' ? socket?.socketState : socket?.state, synced: socket?.hasSynced, mainStream: socket?.isMainStreamReadyMd, integration: typeof window.WWebJS !== 'undefined' }
+    }), 3000).catch(() => null)
+    console.log('Diagnóstico da sincronização', JSON.stringify(state))
+  }
   if (initialized && !stopping) {
     const health = await recoverConnection()
     if (connection !== health.status) console.log(new Date().toISOString(), 'Saúde da conexão:', health.status, health.reason || 'Conexão restabelecida.')
@@ -150,6 +160,7 @@ client.on('ready', () => {
 })
 client.on('disconnected', reason => { ready = false; connection = 'desconectado'; shutdownReason = `WhatsApp disconnected: ${reason}`; console.error(new Date().toISOString(), 'Sessão desconectada:', reason); stopping = true })
 client.on('auth_failure', () => { ready = false; connection = 'falha_autenticacao'; shutdownReason = 'WhatsApp informou falha de autenticação.'; stopping = true; if (process.connected) process.send({ type: 'state', status: connection }) })
+client.on('browser_failure', () => { ready = false; connection = 'erro'; stop('O processo da página do WhatsApp foi encerrado. Recuperação preservando a sessão.') })
 let closing
 function closeClient() {
   if (closing) return closing
