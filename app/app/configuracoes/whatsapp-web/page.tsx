@@ -52,7 +52,7 @@ export default async function WhatsappWebPage() {
       </div>
       {!daily ? <p role="alert" className="text-sm text-amber-800">Não foi possível consultar os totais. Tente atualizar novamente.</p> : null}
     </section>
-    {controles.error ? <Card><p className="text-amber-800">Os controles do supervisor ainda não estão disponíveis. Aplique a atualização do banco e inicie o supervisor no computador dos workers.</p></Card> : null}
+    {controles.error ? <Card><p className="text-amber-800">Os controles de conexão estão indisponíveis. Verifique a atualização do banco e o serviço desta linha no Railway.</p></Card> : null}
     <Card className="p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-700">Verde: pronto para enviar. Amarelo: aguardando conexão ou ação. Vermelho: indisponível ou sem resposta. Cinza: pausado ou outro canal.</p>
@@ -112,7 +112,8 @@ export default async function WhatsappWebPage() {
           <p className="text-slate-700"><strong>Próximo passo:</strong> {state.next}</p>
           <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-slate-600">
             <p><strong>Conexão informada:</strong> {stale ? 'sem sinal recente' : labels[session?.status ?? ''] ?? 'não confirmada'}</p>
-            <p><strong>Permissão de envio:</strong> {control?.habilitado === false ? 'desabilitada' : control?.habilitado ? 'habilitada' : 'não confirmada'}</p>
+            <p><strong>Conexão autorizada:</strong> {control?.habilitado === false ? 'não' : control?.habilitado ? 'sim' : 'não confirmada'}</p>
+            <p><strong>Envios na carteira:</strong> {c.whatsapp_habilitado === false ? 'desabilitados' : 'habilitados; sujeitos ao processamento e aos bloqueios dos Flows'}</p>
             <p><strong>Recuperação automática:</strong> {state.supervisorOnline ? 'ativa' : 'sem sinal recente'} · {formatSignal(control?.supervisor_em ?? null)}</p>
             <a href="#pendencias-whatsapp" className={pendentes ? 'font-medium text-amber-800 underline' : 'text-slate-500'}>{pendentes} mensagem(ns) sem confirmação</a>
           </div>

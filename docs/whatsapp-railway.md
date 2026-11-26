@@ -25,3 +25,13 @@ Antes da implantação: testes do worker, testes de configuração cloud, teste 
 Serviço piloto: `whatsapp-genske` (`176559fe-969d-41b2-bba7-1b0ca8c97c43`), volume `genske-sessao` (`44133128-d99f-4a23-8229-c6bb0e6eca8c`). Replicar as demais sessões somente após validar o piloto. Estado de implantação e pendências devem ser atualizados ao concluir a operação.
 
 O cleanup anterior permanece preservado: perfis Windows estão em quarentena e não são fonte de sessão para esta infraestrutura. Pareamento é novo. Conectar o celular requer ação humana; nunca registrar QR, código de vinculação ou segredos nesta documentação.
+
+## Estado em 26/11/2026
+
+Migration aplicada ao projeto Supabase GKLI COB (`vjcmotflmcczoepflhwc`). Carteiras configuradas com suas sessões e números esperados, mantendo `whatsapp_habilitado=false` e a pausa global de WhatsApp. Nenhuma mensagem ou tentativa foi reativada.
+
+O piloto Genske passou build Docker, healthcheck e gerou QR Code no Chromium remoto. Não foi pareado um celular nesta validação. Os serviços usam o commit `b47f485c` fixado; pushes posteriores não mudam automaticamente o conector.
+
+Serviços adicionais: Escritório `c1296ec3-20ef-46d0-ad22-7d78dee91088`, GEKALI `613f6e11-538f-40c9-8e58-ac74b30c199a`, Azevedo `243e39a8-3e30-45be-9698-abffb92b1be3`, cada um com volume próprio de 500 MB. Implantação em acompanhamento.
+
+O plano gratuito recusou a quinta linha. O usuário escolheu manter quatro por enquanto. RISE UP permanece sem serviço, controle pausado e rota inativa; o cadastro e histórico ficam preservados. Não consolidar suas credenciais no serviço GEKALI para contornar esse limite.
