@@ -1,10 +1,15 @@
 type FonteRecibo = { condominio_id?: string | null; recibo?: string | null; referencia?: string | null; observacoes?: string | null }
 
+/** Ponto é pontuação de origem, nunca parte da identidade de um recibo. */
+export function reciboSemPonto(value: string) {
+  return value.replace(/\./g, '')
+}
+
 export function marcadoresAdministrativosCompativeis(a?: string | null, b?: string | null) {
   return [a, b].every(m => m == null || ['A', 'AE', 'J'].includes(m))
 }
 
-/** Conserva o identificador completo; separa apenas marcadores conhecidos da origem. */
+/** Conserva o identificador sem pontos; separa marcadores conhecidos da origem. */
 export function identidadeRecibo(fonte: FonteRecibo): { recibo: string; marcador: string | null } | null {
   for (const campo of [fonte.recibo, fonte.referencia]) {
     if (!campo?.trim()) continue
@@ -23,7 +28,10 @@ export function identidadeRecibo(fonte: FonteRecibo): { recibo: string; marcador
 /** Persiste o recibo explícito também onde os importadores legados o armazenam. */
 export function observacoesComRecibo(fonte: FonteRecibo): string | null {
   const identidade = identidadeRecibo(fonte)
-  const observacao = fonte.observacoes?.trim() || null
+  const observacao = fonte.observacoes?.trim().replace(
+    /(\brecibo(?:\s*:\s*|\s+))((?:(?:AE|AJ|J|A|D|B|P)\s+)?[a-z0-9][a-z0-9._/-]*)(?=\s|\||$)/gi,
+    (trecho, prefixo: string, identificador: string) => /\d/.test(identificador) ? prefixo + reciboSemPonto(identificador) : trecho,
+  ) || null
   if (!identidade) return observacao
   const naObservacao = identidadeRecibo({ observacoes: observacao })
   const marcadoresCompativeis = naObservacao && (naObservacao.marcador === identidade.marcador
@@ -36,7 +44,7 @@ export function observacoesComRecibo(fonte: FonteRecibo): string | null {
 }
 
 function interpretar(value: string) {
-  const match = value.toUpperCase().match(/^(?:(AE|AJ|J|A|D|B|P)\s+)?([A-Z0-9][A-Z0-9._/-]*)$/)
+  const match = reciboSemPonto(value).toUpperCase().match(/^(?:(AE|AJ|J|A|D|B|P)\s+)?([A-Z0-9][A-Z0-9_/-]*)$/)
   if (!match || !/\d/.test(match[2])) return null
   return { recibo: match[2], marcador: match[1] ?? null }
 }
