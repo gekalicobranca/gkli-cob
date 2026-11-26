@@ -5,6 +5,12 @@ import { requestCodeInPage } from './pairing-code.mjs'
 export const synchronizationTimeoutMs = 600000
 export function resilientClient(BaseClient, report = console.error) {
   return class extends BaseClient {
+    async attachEventListeners() {
+      // Pairing-only services do not need message/history/media event hooks.
+      // Keep authentication/synchronization listeners installed by inject().
+      if (this.connectionOnly) return
+      return super.attachEventListeners()
+    }
     async getState() {
       // The login page and the authenticated app use different socket modules.
       // Requiring the login-only module after pairing can block page evaluation.
