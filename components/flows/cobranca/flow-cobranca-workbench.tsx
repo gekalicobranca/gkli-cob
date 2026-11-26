@@ -1,5 +1,6 @@
 'use client'
 import { FlowWorkerStatus, FlowWorkerExplanation } from './flow-worker-status'
+import { agendamentoAtrasado } from '@/features/flows/cobranca/agendamento-atrasado'
 
 import { agruparCobrancasFlow, avaliarGruposFlow, selecionarCondominiosIniciais, selecionarReguaGrupo } from '@/features/flows/cobranca/selecao-workbench'
 import { useActionState, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react'
@@ -408,6 +409,13 @@ function FlowsAgrupados({ flows, renderFlow, porAgenda = false }: { flows: any[]
 
 function FlowRow({ flow, showContext = false }: { flow: any; showContext?: boolean }) {
   const [expanded, setExpanded] = useState(false)
+  const [agora, setAgora] = useState<number | null>(null)
+  useEffect(() => {
+    if (!expanded) return
+    setAgora(Date.now())
+    const timer = window.setInterval(() => setAgora(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [expanded])
   const router = useRouter()
   const status = String(flow.status ?? 'pronto')
   const carteira = relation(flow.carteira)
@@ -546,7 +554,7 @@ function FlowRow({ flow, showContext = false }: { flow: any; showContext?: boole
             <span>Agenda</span>
             <span className="text-right">Ação</span>
           </div>
-          {itensOperacionais.map((item: any) => <FlowItemRow key={item.id} item={item} />)}
+          {itensOperacionais.map((item: any) => <FlowItemRow key={item.id} item={item} agora={agora} />)}
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
@@ -582,13 +590,14 @@ function FlowCounter({ label, value, tone = 'slate' }: { label: string; value: u
   )
 }
 
-function FlowItemRow({ item, conferencia = false }: { item: any; conferencia?: boolean }) {
+function FlowItemRow({ item, conferencia = false, agora = null }: { item: any; conferencia?: boolean; agora?: number | null }) {
   const mensagem = relation(item.mensagem)
   const cobranca = relation(item.cobranca)
   const entidade = cobrancaEntity(cobranca)
   const itemStatus = String(item.status ?? 'criado')
   const messageStatus = String(mensagem?.status_operacional ?? mensagem?.status ?? '')
   const effectiveStatus = messageStatus || itemStatus
+  const atrasado = !conferencia && agendamentoAtrasado(mensagem, agora)
   const statusLabel = MESSAGE_STATUS_LABEL[effectiveStatus] ?? effectiveStatus
   const hasFailure = isFailureStatus(effectiveStatus) || Boolean(cleanText(mensagem?.erro_envio ?? mensagem?.erro))
   const reason = hasFailure ? failureReason(item, mensagem) : ''
@@ -597,8 +606,8 @@ function FlowItemRow({ item, conferencia = false }: { item: any; conferencia?: b
   return (
     <div className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 lg:grid-cols-[120px_minmax(280px,1fr)_minmax(220px,0.9fr)_170px_110px] lg:items-center">
       <div>
-        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${itemStatusClass(effectiveStatus)}`}>
-          {conferencia ? 'Sem confirmação' : statusLabel}
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${atrasado ? 'border-amber-200 bg-amber-50 text-amber-800' : itemStatusClass(effectiveStatus)}`}>
+          {conferencia ? 'Sem confirmação' : atrasado ? 'Agendamento atrasado' : statusLabel}
         </span>
       </div>
       <div className="min-w-0">
@@ -610,6 +619,7 @@ function FlowItemRow({ item, conferencia = false }: { item: any; conferencia?: b
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-slate-800">{messageScheduleLabel(mensagem)}</p>
+        {atrasado ? <p className="mt-1 text-xs text-amber-800">Horário vencido; aguardando processamento.</p> : null}
       </div>
       <div className="flex justify-start lg:justify-end">
         {hasFailure && !conferencia ? (
