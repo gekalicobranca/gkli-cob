@@ -105,7 +105,7 @@ function aplicarBlocoPadrao(preview: any, blocoPadrao: string) {
   }
 }
 
-function aplicarFiltroBlocoManager(preview: any, nomeCondominio: string) {
+function aplicarFiltroBlocoManager(preview: any, nomeCondominio: string, nomeNoRelatorio: string) {
   const nome = normalizar(nomeCondominio)
   let blocoEsperado = ""
   if (nome.includes("K360") && nome.includes("COMERCIAL")) blocoEsperado = "COM"
@@ -114,18 +114,26 @@ function aplicarFiltroBlocoManager(preview: any, nomeCondominio: string) {
 
   const cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
   const cobrancasRankingMensal = Array.isArray(preview?.cobrancasRankingMensal) ? preview.cobrancasRankingMensal : null
-  const filtradas = cobrancas.filter((item: any) => normalizar(item.bloco) === blocoEsperado)
-  const filtradasRankingMensal = cobrancasRankingMensal?.filter((item: any) => normalizar(item.bloco) === blocoEsperado) ?? null
+  // A exportação exclusiva do Comercial usa o bloco literal 0.
+  // Só o cabeçalho do próprio relatório autoriza esse bloco no K360.
+  const comercialExclusivo = blocoEsperado === "COM"
+    && /^K ?360 HUMBERTO I SUBCOND COMERCIAL$/.test(normalizar(nomeNoRelatorio))
+  const blocos = comercialExclusivo
+    ? [...new Set<string>(cobrancas.map((item: any) => normalizar(item.bloco)).filter((bloco: string) => bloco === "0" || bloco === "COM"))]
+    : [blocoEsperado]
+  const incluir = (item: any) => blocos.includes(normalizar(item.bloco))
+  const filtradas = cobrancas.filter(incluir)
+  const filtradasRankingMensal = cobrancasRankingMensal?.filter(incluir) ?? null
   return {
     ...preview,
     cobrancas: filtradas,
-    escopoBlocosMaestro: [blocoEsperado],
+    escopoBlocosMaestro: blocos,
     ...(filtradasRankingMensal ? { cobrancasRankingMensal: filtradasRankingMensal } : {}),
     totalParcelas: filtradas.reduce((total: number, item: any) => total + Math.max(1, item.parcelas?.length ?? 0), 0),
     valorTotal: filtradas.reduce((total: number, item: any) => total + Number(item.valorTotal ?? 0), 0),
     inconsistencias: [
       ...(preview.inconsistencias ?? []),
-      `Relatório compartilhado K360: aplicado o recorte exclusivo do bloco ${blocoEsperado}.`,
+      `Relatório compartilhado K360: aplicado o recorte dos blocos ${blocos.join(", ")}.`,
     ],
   }
 }
@@ -278,13 +286,14 @@ export async function processarRelatorioCaptado(
   preview = preview.preview
   if (!preview.cobrancas?.length && !preview.semPendencias && !preview.exclusaoCessaoEspaco?.recibos.length) preview = parseBbzClock(buffer, nomeArquivo)
   preview = aplicarBlocoPadrao(preview, blocoPadraoCaptacao)
-  preview = aplicarFiltroBlocoManager(preview, condominio.nome)
+  const nomeNoRelatorio = preview.padraoDetectado?.condominioDetectado ?? ""
+  preview = aplicarFiltroBlocoManager(preview, condominio.nome, nomeNoRelatorio)
   // A análise preserva todas as datas, antes do recorte da importação operacional.
   try {
     const analise = condominio.id === 'cb988811-e0ea-45d6-990b-6476271eb109'
       ? lerAnaliseLiving(buffer, nomeArquivo) : lerAnaliseOriginal(buffer, nomeArquivo)
     if (analise) {
-      const escopo = aplicarFiltroBlocoManager(aplicarBlocoPadrao({ cobrancas: analise.recibos }, blocoPadraoCaptacao), condominio.nome)
+      const escopo = aplicarFiltroBlocoManager(aplicarBlocoPadrao({ cobrancas: analise.recibos }, blocoPadraoCaptacao), condominio.nome, nomeNoRelatorio)
       analise.recibos = escopo.cobrancas
       const ids = new Set(analise.recibos.map(r => r.id))
       analise.itens = analise.itens.filter(i => ids.has(i.reciboId))
