@@ -1,6 +1,7 @@
 // A navigation invalidates the old page context. Retry initialization in the
 // new context, never a message transmission. Keep failures bounded and visible.
 import { bounded } from './recovery.mjs'
+import { readFile, statfs } from 'node:fs/promises'
 import { requestCodeInPage } from './pairing-code.mjs'
 export const synchronizationTimeoutMs = 600000
 export function resilientClient(BaseClient, report = console.error) {
@@ -45,11 +46,20 @@ export function resilientClient(BaseClient, report = console.error) {
       }
     }
     async initWebVersionCache() {
-      report('Navegador iniciado', await this.pupBrowser.version())
-      this.pupPage.on('close', () => report('Página do WhatsApp encerrada'))
-      this.pupPage.on('error', error => report('Falha do processo da página', error.name))
-      this.pupBrowser.on('disconnected', () => report('Canal de controle do navegador desconectado'))
-      this.pupBrowser.process()?.once('exit', (code, signal) => report('Navegador encerrado', JSON.stringify({code, signal})))
+      if (this.pupBrowser.version) {
+        report('Navegador iniciado', await this.pupBrowser.version())
+        this.pupPage.on('close', () => report('Página do WhatsApp encerrada'))
+        this.pupPage.on('error', async error => {
+          report('Falha do processo da página', error.name)
+          if (process.env.WHATSAPP_WEB_RUNTIME === 'railway') {
+            const events = await readFile('/sys/fs/cgroup/memory.events','utf8').catch(() => 'indisponivel')
+            const disk = await statfs('/data').catch(() => null)
+            report('Recursos após falha', JSON.stringify({memoryEvents: events, diskFree: disk ? disk.bavail * disk.bsize : null}))
+          }
+        })
+        this.pupBrowser.on('disconnected', () => report('Canal de controle do navegador desconectado'))
+        this.pupBrowser.process()?.once('exit', (code, signal) => report('Navegador encerrado', JSON.stringify({code, signal})))
+      }
       await super.initWebVersionCache()
       const userAgent = (await this.pupBrowser.userAgent()).replace('HeadlessChrome/', 'Chrome/')
       await this.pupPage.setUserAgent(userAgent)
