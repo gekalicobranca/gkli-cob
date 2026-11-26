@@ -28,6 +28,14 @@ O cleanup anterior permanece preservado: perfis Windows estão em quarentena e n
 
 ## Estado em 26/11/2026
 
+### Investigação após pareamento (17h17, Brasília)
+
+O QR inicial não validava o ciclo autenticado completo. Após o usuário parear as quatro linhas, foram observados travamentos na inicialização e no probe de saúde. PR #93 permanece em investigação: estado `iniciando` após autenticação, consulta do socket já inicializado e remoção exclusiva dos symlinks Singleton obsoletos de contêiner anterior. A limpeza de locks recuperou a sessão Azevedo sem novo pareamento. Mensagens e credenciais não foram apagadas.
+
+Azevedo confirmou 6828 e permaneceu conectada em sucessivos heartbeats. Genske e GEKALI confirmaram 7774/0545, mas voltaram a timeout; Escritório ainda não confirmou número. Portanto não considerar as quatro linhas recuperadas. Isolar os event handlers de mensagens no modo conexão não resolveu o timeout da GEKALI; a hipótese de falha exclusivamente no probe ainda não está comprovada. Investigar travamento do contexto Chromium/integração após ready antes de liberar processamento.
+
+Versões remotas durante diagnóstico: Azevedo/Genske/Escritório `8ec07363`; GEKALI `56602f13`. Todos continuam com `WHATSAPP_WEB_PROCESS_MESSAGES=false`, carteiras e controle global desabilitados. Não reenviar mensagens nem limpar perfis como tentativa de recuperação.
+
 Migration aplicada ao projeto Supabase GKLI COB (`vjcmotflmcczoepflhwc`). Carteiras configuradas com suas sessões e números esperados, mantendo `whatsapp_habilitado=false` e a pausa global de WhatsApp. Nenhuma mensagem ou tentativa foi reativada.
 
 O piloto Genske passou build Docker, healthcheck e gerou QR Code no Chromium remoto. Não foi pareado um celular nesta validação. Os serviços usam o commit `b47f485c` fixado; pushes posteriores não mudam automaticamente o conector.
