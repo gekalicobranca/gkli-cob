@@ -51,6 +51,7 @@ const client = new ResilientClient({
     ...(process.env.WHATSAPP_WEB_CHROME_PATH ? { executablePath: process.env.WHATSAPP_WEB_CHROME_PATH } : {}) },
 })
 client.connectionOnly = connectOnly
+client.outboundOnly = process.env.WHATSAPP_WEB_RUNTIME === 'railway'
 let ready = false
 let initialized = false
 let stopping = false
