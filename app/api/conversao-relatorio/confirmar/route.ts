@@ -23,6 +23,7 @@ import { criarContextoClassificacaoJudicial, reclassificarCobrancaJudicialImport
 import { associarCobrancaConciliada } from "@/features/importacoes/reaproveitar-conversao"
 import { carregarCadastroRecibosLello, resolverRecibosLello } from "@/features/importacoes/maestro-recibos-lello"
 import { atualizarReciboComMarcador } from "@/features/importacoes/atualizar-recibo-marcador"
+import { reciboSemPonto } from "@/features/importacoes/identidade-recibo"
 import { observacoesComComposicao, observacoesComMarcador, persistirComposicaoConciliada } from "@/features/importacoes/composicao-origem"
 import { statusMarcadorCaptacaoManual } from "@/features/easy-cob/captacao-preview"
 import {
@@ -471,7 +472,7 @@ export async function POST(request: NextRequest) {
       const correcao = Number(item.correcao ?? 0)
       const juros = Number(item.juros ?? 0)
       const valorTotal = Number(item.valorTotal ?? valorPrincipal + multa + correcao + juros)
-      const recibo = String(item.recibo ?? "").trim()
+      const recibo = reciboSemPonto(String(item.recibo ?? "").trim())
       const observacoesBase = substituirMaestro && item.chavePlanilhaLello
         ? `Recibo: ${recibo}\nConversão de relatório - recibo ${item.chavePlanilhaLello}`
         : recibo

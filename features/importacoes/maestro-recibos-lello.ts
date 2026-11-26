@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/utils/supabase/admin"
+import { reciboSemPonto } from "./identidade-recibo"
 
 type Linha = {
   unidade: string
@@ -54,9 +55,9 @@ export function resolverRecibosLello<T extends Linha>(linhas: T[], cadastro: Cad
       const obs = cota.observacoes ?? ""
       // Importações antigas guardam "recibo 12345678" ou o marcador no meio do texto.
       // Só aceitar identificadores explicitamente rotulados, sem escolher entre recibos conflitantes.
-      const marcadores = [...obs.matchAll(/\brecibo(?:[ \t]*:[ \t]*|[ \t]+)(LELLO-[^\s|]+|\d{6,})(?=\s|\||$)/gi)]
-        .map(match => match[1].toUpperCase())
-      const portais = new Set(marcadores.filter(marcador => /^\d+$/.test(marcador)))
+      const marcadores = [...obs.matchAll(/\brecibo(?:[ \t]*:[ \t]*|[ \t]+)(LELLO-[^\s|]+|[\d.]{6,})(?=\s|\||$)/gi)]
+        .map(match => reciboSemPonto(match[1]).toUpperCase())
+      const portais = new Set(marcadores.filter(marcador => /^\d{6,}$/.test(marcador)))
       const aliases = marcadores.filter(marcador => marcador.startsWith("LELLO-"))
       if (portais.size > 1 || aliases.some(alias => alias !== legado)) throw revisar()
       const portal = [...portais][0]

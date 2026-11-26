@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import { resolverRecibosLello } from '../features/importacoes/maestro-recibos-lello'
 import { observacoesComMarcador } from '../features/importacoes/composicao-origem'
+import { reciboSemPonto } from '../features/importacoes/identidade-recibo'
 import { marcarCessaoDeOrigemConhecida } from '../features/importacoes/exclusao-cessao-conhecida'
 import { excluirCessaoEspacoDaPrevia } from '../features/importacoes/exclusao-cessao-espaco'
 import ts from 'typescript'
@@ -15,7 +16,7 @@ const functions=ast.statements.filter(n=>ts.isFunctionDeclaration(n)&&names.incl
 const js=ts.transpileModule(functions,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText
 async function scenario(failure=false,allowCleanup=true,maestro=false,cron=maestro,lello=maestro) {
   const events:string[]=[]
-  const preview={tipoConversao:'cobrancas',padraoDetectado:lello?{id:'lello-cotas-atrasadas-xlsx-cobrancas-v1'}:undefined,captacaoAutomatizada:maestro,arquivo:maestro?'captacao.xlsx':'captacao.pdf',cobrancas:[{unidade:'101',vencimento:'10/09/2026',valorPrincipal:100,valorTotal:100,recibo:lello?'LELLO-123-101-20260910':'123'}]}
+  const preview={tipoConversao:'cobrancas',padraoDetectado:lello?{id:'lello-cotas-atrasadas-xlsx-cobrancas-v1'}:undefined,captacaoAutomatizada:maestro,arquivo:maestro?'captacao.xlsx':'captacao.pdf',cobrancas:[{unidade:'101',vencimento:'10/09/2026',valorPrincipal:100,valorTotal:100,recibo:lello?'LELLO-123-101-20260910':'1.2.3.'}]}
   const supabase={from(table:string) {
     let inserted=false
     const result=()=>({data:null,error:null})
@@ -41,7 +42,7 @@ async function scenario(failure=false,allowCleanup=true,maestro=false,cron=maest
     if (name==='captacao_recibos_cessao_espaco') return {range:async()=>({data:[],error:null})}
     if (name==='maestro_iniciar_conciliacao') return {data:{inicio:'2026-11-09'},error:null}
     if (name==='maestro_cobrancas_substituiveis') {
-      assert.equal(preview.cobrancas[0].recibo,lello?'12345678':'123')
+      assert.equal(reciboSemPonto(preview.cobrancas[0].recibo),lello?'12345678':'123')
       return {data:[],error:null}
     }
     if (name==='maestro_substituir_captacao') {
@@ -57,6 +58,7 @@ async function scenario(failure=false,allowCleanup=true,maestro=false,cron=maest
     exports:{},console,NextResponse:{json:(body:any,options?:any)=>({status:options?.status??200,json:async()=>body})},
     isCronSecretAuthorized:()=>cron,requireAuthenticatedApiUser:async()=>({user:{id:'operador'},profile:{role:'admin'}}),createAdminClient:()=>supabase,
     conversaoPdfDeCobrancas,removerAusentesDaConversaoPdf,observacoesComMarcador,resolverRecibosLello,
+    reciboSemPonto,
     marcarCessaoDeOrigemConhecida,excluirCessaoEspacoDaPrevia,
     carregarCadastroRecibosLello:async()=>[{unidade_id:'unidade',unidades:{identificacao:'101',bloco:''},vencimento:'2026-09-10',valor_original:100,observacoes:'Recibo: 12345678',origem_importacao:'Espelhamento Lello 123 - 10/09/2026'}],
     carregarCobrancasPreservadasMaestro:async()=>new Map(),chaveConciliacaoCobranca:()=> 'chave',
