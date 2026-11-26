@@ -1,8 +1,10 @@
+import { filtroOrigemAcordo } from "./origem-controle"
 import type { AgreementKind } from './agreement-kind'
 
 export function filtrosRelatorioAcordos(params: URLSearchParams) {
   const get = (key: string) => (params.get(key) ?? '').trim()
   return {
+    origem_controle: filtroOrigemAcordo(get("origem_controle")),
     q: get('q'), condominio_id: get('condominio_id'), unidade_id: get('unidade_id'),
     carteira_id: get('carteira_id'), status: get('status'),
     data_de: get('data_de'), data_ate: get('data_ate'),

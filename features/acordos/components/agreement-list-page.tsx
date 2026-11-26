@@ -34,7 +34,7 @@ import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listCondominiosForSelect, listUnidadesForSelect } from '@/features/cadastros/queries'
 import { listAcordosComSaudePage } from '@/features/acordos/queries'
-import { ACORDO_ORIGEM_LABEL, isAcordoOrigem } from '@/features/acordos/origem-controle'
+import { ACORDO_ORIGEM_LABEL, filtroOrigemAcordo } from '@/features/acordos/origem-controle'
 import { listCarteiras } from '@/features/carteiras/queries'
 import { AgreementHealthBadge } from '@/features/acordos/components/agreement-health-badge'
 import { listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
@@ -145,7 +145,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
   const judicial = agreementKind === 'judicial'
   const basePath = judicial ? '/app/acordos/judiciais' : '/app/acordos'
   const params = searchParams ? await searchParams : {}
-  const origem = isAcordoOrigem(params.origem_controle) ? params.origem_controle : 'carteira'
+  const origem = filtroOrigemAcordo(params.origem_controle)
   const controleInterno = origem === 'carteira'
   const scope = await getPermittedCarteiras()
   const page = getPageParam(params.page)
@@ -176,7 +176,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
         eyebrow="Base Operacional"
         title={judicial ? "Acordos judiciais" : "Acordos extrajudiciais"}
         description={judicial ? "Controle processos, parcelas, pagamentos e pendências dos acordos judiciais." : "Controle acordos extrajudiciais, parcelas, atrasos e quebras operacionais."}
-        actions={controleInterno &&
+        actions={
           <>
             <ButtonLink href={`/api/acordos/relatorio?${reportQuery}`} prefetch={false} variant="secondary"><Download size={16} />Exportar</ButtonLink>
             <ButtonLink href={`/api/acordos/relatorio-executivo?${reportQuery}`} prefetch={false} target="_blank" rel="noopener noreferrer" variant="secondary"><FileText size={16} />Relatório executivo</ButtonLink>
@@ -214,6 +214,7 @@ export default async function AgreementListPage({ searchParams, agreementKind }:
             <label className="max-w-xs space-y-1 text-sm">
               <span>Origem do acordo</span>
               <Select name="origem_controle" defaultValue={origem}>
+                <option value="todas">Todas as origens</option>
                 {Object.entries(ACORDO_ORIGEM_LABEL).map(([value, label]) =>
                   <option key={value} value={value}>{label}</option>
                 )}
