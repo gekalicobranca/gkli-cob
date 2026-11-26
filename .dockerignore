@@ -1,0 +1,10 @@
+**
+!scripts/
+!scripts/worker-cadence.mjs
+!scripts/whatsapp-web/
+!scripts/whatsapp-web/**
+**/node_modules
+**/.env*
+**/*.log
+**/.whatsapp*
+**/auth*

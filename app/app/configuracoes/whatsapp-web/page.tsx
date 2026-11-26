@@ -10,6 +10,7 @@ import { MetricCard } from '@/components/data/metric-card'
 import { loadWhatsappDailySummary } from '@/features/mensageria/whatsapp-daily-query'
 import { WhatsappPairing } from '@/components/configuracoes/whatsapp-pairing'
 import { WhatsappCloudMonitor } from '@/components/configuracoes/whatsapp-cloud-monitor'
+import { WhatsappDisconnect } from '@/components/configuracoes/whatsapp-disconnect'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,21 +52,21 @@ export default async function WhatsappWebPage() {
       </div>
       {!daily ? <p role="alert" className="text-sm text-amber-800">Não foi possível consultar os totais. Tente atualizar novamente.</p> : null}
     </section>
-    {controles.error ? <Card><p className="text-amber-800">Os controles do supervisor ainda não estão disponíveis. Aplique a atualização do banco e inicie o supervisor no computador dos workers.</p></Card> : null}
+    {controles.error ? <Card><p className="text-amber-800">Os controles de conexão estão indisponíveis. Verifique a atualização do banco e o serviço desta linha no Railway.</p></Card> : null}
     <Card className="p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-700">Verde: pronto para enviar. Amarelo: aguardando conexão ou ação. Vermelho: indisponível ou sem resposta. Cinza: pausado ou outro canal.</p>
-        <a href="http://localhost:3877" target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-emerald-800">Abrir QR Code ou código de vinculação</a>
+        <a href="#conexoes-whatsapp" className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-emerald-800">Abrir conexões e códigos</a>
       </div>
       <details className="mt-3 border-t border-slate-100 pt-3"><summary className="cursor-pointer text-sm text-slate-500">Como funcionam os envios e a recuperação</summary>
-      <p className="mt-2 text-sm text-slate-600">O computador dos workers precisa permanecer ligado e conectado. Uma sessão em conexão ainda não está pronta para enviar.</p>
+      <p className="mt-2 text-sm text-slate-600">As conexões são mantidas no servidor Railway. Nenhum computador local precisa permanecer ligado. QR Codes e códigos de vinculação são exibidos nesta página. Conectar uma linha não habilita seus envios.</p>
       <p className="mt-2 text-sm text-slate-600">Somente Flows ativos com agenda vencida são processados. Limite de 20 mensagens por número em qualquer período de 24 horas, das 9h às 18h (Brasília), com intervalo mínimo de 60 segundos. Envios confirmados, em andamento, parciais e incertos ocupam a cota; falhas antes da transmissão não.</p>
-      <p className="mt-2 text-sm text-slate-600">Ao salvar WhatsApp Web, mensagens agendadas elegíveis passam a ser processadas pelo worker conectado. Pausar o Flow impede novas reservas; um envio já iniciado pode terminar.</p>
+      <p className="mt-2 text-sm text-slate-600">Salvar a configuração ou conectar a linha não habilita envios. O canal na carteira e o modo de processamento do serviço precisam estar autorizados. Pausar o Flow impede novas reservas; um envio já iniciado pode terminar.</p>
       <p className="mt-2 text-sm text-slate-600">O supervisor recupera falhas de conexão com novas tentativas após 15, 30 e até 60 segundos. Mensagens sem confirmação ficam pendentes individualmente; as demais continuam. Uma autenticação expirada ainda exige leitura do QR Code.</p>
       </details>
     </Card>
     {rotas.error ? <Card><p role="alert">Não foi possível consultar as linhas por grupo. Atualize a página para conferir todas as conexões.</p></Card> : null}
-    <div className="space-y-4">{connections.map(c => {
+    <div id="conexoes-whatsapp" className="space-y-4">{connections.map(c => {
       const session = sessoes.data?.find(s => s.id === c.whatsapp_web_sessao)
       const signalAge = session ? Date.now()-Date.parse(session.atualizado_em) : Infinity
       const stale = !Number.isFinite(signalAge) || signalAge < -30000 || signalAge >= 120000
@@ -91,9 +92,10 @@ export default async function WhatsappWebPage() {
           <form action={controlarWhatsappWorker} className="flex flex-wrap gap-2">
             <input type="hidden" name="sessao" value={c.whatsapp_web_sessao} />
             <button disabled={Boolean(controles.error)} name="acao" value="reiniciar" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">Reconectar WhatsApp</button>
-            {control?.habilitado === false ? <button disabled={Boolean(controles.error)} name="acao" value="iniciar" className="rounded-lg border px-3 py-2 text-sm">Retomar envios</button> : null}
+            {control?.habilitado === false ? <button disabled={Boolean(controles.error)} name="acao" value="iniciar" className="rounded-lg border px-3 py-2 text-sm">Iniciar conexão</button> : null}
             <button disabled={Boolean(controles.error)} name="acao" value="pausar" className="rounded-lg border px-3 py-2 text-sm">Pausar worker</button>
           </form>
+          <WhatsappDisconnect session={c.whatsapp_web_sessao} />
 
         </div> : null}
         </div>
@@ -110,7 +112,8 @@ export default async function WhatsappWebPage() {
           <p className="text-slate-700"><strong>Próximo passo:</strong> {state.next}</p>
           <div className="flex flex-wrap gap-x-8 gap-y-2 text-xs text-slate-600">
             <p><strong>Conexão informada:</strong> {stale ? 'sem sinal recente' : labels[session?.status ?? ''] ?? 'não confirmada'}</p>
-            <p><strong>Permissão de envio:</strong> {control?.habilitado === false ? 'desabilitada' : control?.habilitado ? 'habilitada' : 'não confirmada'}</p>
+            <p><strong>Conexão autorizada:</strong> {control?.habilitado === false ? 'não' : control?.habilitado ? 'sim' : 'não confirmada'}</p>
+            <p><strong>Envios na carteira:</strong> {c.whatsapp_habilitado === false ? 'desabilitados' : 'habilitados; sujeitos ao processamento e aos bloqueios dos Flows'}</p>
             <p><strong>Recuperação automática:</strong> {state.supervisorOnline ? 'ativa' : 'sem sinal recente'} · {formatSignal(control?.supervisor_em ?? null)}</p>
             <a href="#pendencias-whatsapp" className={pendentes ? 'font-medium text-amber-800 underline' : 'text-slate-500'}>{pendentes} mensagem(ns) sem confirmação</a>
           </div>

@@ -5,6 +5,22 @@ import { requireAdmin } from '@/utils/auth/require-admin'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { assertWhatsappSessionConfigured } from './whatsapp-session-config'
 
+export async function desconectarWhatsapp(_state: { error?: string; requested?: boolean }, form: FormData): Promise<{ error?: string; requested?: boolean }> {
+  try {
+    const user = await requireAdmin()
+    const sessao = String(form.get('sessao') ?? '')
+    if (!/^[a-zA-Z0-9_-]{1,60}$/.test(sessao)) return { error: 'Sessão inválida.' }
+    const db = createAdminClient()
+    await assertWhatsappSessionConfigured(db, sessao)
+    const { error } = await db.rpc('whatsapp_solicitar_desconexao', { p_sessao: sessao, p_usuario: user.id, p_pedido: crypto.randomUUID() })
+    if (error) return { error: 'Não foi possível solicitar a desconexão. Pause a linha e confira se há envio em andamento.' }
+    revalidatePath('/app/configuracoes/whatsapp-web')
+    return { requested: true }
+  } catch {
+    return { error: 'Não foi possível validar sua permissão ou a configuração desta linha.' }
+  }
+}
+
 export async function controlarWhatsappWorker(form: FormData) {
   const user = await requireAdmin()
   const sessao = String(form.get('sessao') ?? '')

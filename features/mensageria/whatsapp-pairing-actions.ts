@@ -9,7 +9,7 @@ async function lookup(sessao: string) {
   const db = createAdminClient()
   await assertWhatsappSessionConfigured(db, sessao)
   const [control, session] = await Promise.all([
-    db.from('whatsapp_worker_controles').select('habilitado,atualizado_em,reiniciar_id,aplicado_id,supervisor_em,vinculacao_pedido,vinculacao_modo,vinculacao_payload,vinculacao_expira_em').eq('sessao', sessao).maybeSingle(),
+    db.from('whatsapp_worker_controles').select('habilitado,atualizado_em,reiniciar_id,aplicado_id,supervisor_em,vinculacao_pedido,vinculacao_modo,vinculacao_payload,vinculacao_expira_em,desconectar_id,desconectado_id').eq('sessao', sessao).maybeSingle(),
     db.from('whatsapp_web_sessoes').select('status,atualizado_em').eq('id', sessao).maybeSingle(),
   ])
   if (control.error || session.error) throw new Error('Não foi possível consultar a vinculação. Tente novamente.')
@@ -33,5 +33,5 @@ export async function solicitarVinculacaoWhatsapp(sessao: string, mode: 'qr' | '
     reiniciar_id: requestId, solicitado_por: user.id, atualizado_em: new Date().toISOString(),
   }).eq('sessao', sessao).eq('habilitado', true).select('sessao')
   if (result.error || !result.data?.length) throw new Error('Não foi possível solicitar a vinculação.')
-  return { status: 'waiting', mode, message: 'Solicitação enviada. Aguarde o notebook gerar a vinculação…' }
+  return { status: 'waiting', mode, message: 'Solicitação enviada. Aguarde o serviço de conexão gerar a vinculação…' }
 }

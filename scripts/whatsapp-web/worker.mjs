@@ -17,12 +17,14 @@ import { shutdownBrowser } from './browser-shutdown.mjs'
 import { createPeriodicTask } from '../worker-cadence.mjs'
 import { createServerClock } from './server-clock.mjs'
 import { assertMessageRoute } from './route.mjs'
+import { workerPaths } from './railway-config.mjs'
 const serverClock = createServerClock()
 
 const { Client, LocalAuth, MessageMedia } = whatsapp
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+const paths = workerPaths(root)
 const session = process.env.WHATSAPP_WEB_SESSION ?? 'gekali'
-const connectOnly = process.argv.includes('--connect-only')
+const connectOnly = process.argv.includes('--connect-only') || (process.env.WHATSAPP_WEB_RUNTIME === 'railway' && process.env.WHATSAPP_WEB_PROCESS_MESSAGES !== 'true')
 if (!/^[a-zA-Z0-9_-]{1,60}$/.test(session)) throw new Error('WHATSAPP_WEB_SESSION inválida.')
 const expectedPhone = normalizePhone(process.env.WHATSAPP_WEB_PHONE)
 if (!expectedPhone) throw new Error('Configure WHATSAPP_WEB_PHONE com o número brasileiro da sessão.')
@@ -42,9 +44,11 @@ const client = new ResilientClient({
   userAgent: false,
   authTimeoutMs: 120000,
   ...(pairByCode ? { pairWithPhoneNumber: { phoneNumber: expectedPhone, showNotification: true, intervalMs: 180000 } } : {}),
-  authStrategy: new LocalAuth({ clientId: session, dataPath: path.resolve(root, process.env.WHATSAPP_WEB_AUTH_PATH || '.whatsapp-web/auth') }),
+  authStrategy: new LocalAuth({ clientId: session, dataPath: paths.auth }),
   webVersionCache: { type: 'none' },
-  puppeteer: { headless: true, protocolTimeout: 900000, ...(process.env.WHATSAPP_WEB_CHROME_PATH ? { executablePath: process.env.WHATSAPP_WEB_CHROME_PATH } : {}) },
+  puppeteer: { headless: true, protocolTimeout: 900000,
+    ...(process.env.WHATSAPP_WEB_RUNTIME === 'railway' ? { args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] } : {}),
+    ...(process.env.WHATSAPP_WEB_CHROME_PATH ? { executablePath: process.env.WHATSAPP_WEB_CHROME_PATH } : {}) },
 })
 let ready = false
 let initialized = false
@@ -73,8 +77,8 @@ async function publishHeartbeat() {
     if (health.restart || (health.ready && !ready)) stop(health.reason || 'Número conectado diferente do esperado.')
   }
   const status={ id: session, numero: connectedPhone, status: connection, atualizado_em: new Date().toISOString() }
-  await mkdir(path.join(root,'.whatsapp-web'),{recursive:true})
-  await writeFile(path.join(root,'.whatsapp-web',`status-${session}.json`),JSON.stringify({...status,pid:process.pid,connectOnly,pairByCode,pairingCode:connection === 'aguardando_qr' ? pairingCode : null,pairingCodeExpiresAt}))
+  await mkdir(paths.state,{recursive:true})
+  await writeFile(path.join(paths.state,`status-${session}.json`),JSON.stringify({...status,pid:process.pid,connectOnly,pairByCode,pairingCode:connection === 'aguardando_qr' ? pairingCode : null,pairingCodeExpiresAt}))
   await publishSession(JSON.stringify([status.numero, status.status]), async () => {
     check(await db.from('whatsapp_web_sessoes').upsert({ ...status, atualizado_em: serverClock.iso() }))
   })
@@ -124,8 +128,8 @@ client.on('qr', async (value) => {
     const png = await QRCode.toDataURL(value, { width: 420, margin: 2 })
     if (revision !== pairingRevision || ready || stopping || connection !== 'aguardando_qr') return
     void publishPairing(png, expiresAt).catch(reportPairing)
-    await mkdir(path.join(root,'.whatsapp-web'),{recursive:true})
-    const qrPath=path.join(root,'.whatsapp-web',`qr-${session}.png`)
+    await mkdir(paths.state,{recursive:true})
+    const qrPath=path.join(paths.state,`qr-${session}.png`)
     await QRCode.toFile(qrPath,value,{width:420,margin:2})
     console.log(`QR Code da sessão ${session}: ${qrPath}`)
   } catch { console.error('Não foi possível salvar a imagem do QR Code; use o QR do terminal.') }
@@ -135,7 +139,7 @@ client.on('ready', () => {
   initialized = true
   void publishPairing().catch(reportPairing)
   pairingCode = null; pairingCodeExpiresAt = null
-  rm(path.join(root,'.whatsapp-web',`qr-${session}.png`),{force:true}).catch(()=>{})
+  rm(path.join(paths.state,`qr-${session}.png`),{force:true}).catch(()=>{})
   connectedPhone = normalizePhone(client.info?.wid?.user)
   ready = connectedPhone === expectedPhone
   connection = ready ? 'conectado' : 'numero_incorreto'
@@ -164,6 +168,10 @@ process.on('disconnect', () => stop('Conexão com supervisor encerrada.'))
 
 async function confirm(message) {
   if (!ready || stopping || normalizePhone(client.info?.wid?.user) !== expectedPhone) throw new Error('Sessão indisponível ou número incorreto.')
+  if (process.env.WHATSAPP_WEB_RUNTIME === 'railway') {
+    const control = check(await db.from('whatsapp_worker_controles').select('habilitado,desconectar_id,desconectado_id').eq('sessao',session).single())
+    if (!control.habilitado || (control.desconectar_id && control.desconectar_id !== control.desconectado_id)) throw new Error('Conexão pausada ou desconexão solicitada antes do envio.')
+  }
   const current = check(await db.from('mensagens').select('status,agendada_para,carteira_id,cobranca_flow_id,acordo_flow_id,pre_juridico_flow_id').eq('id', message.id).single())
   if (current.status !== 'agendada' || new Date(current.agendada_para) > new Date()) throw new Error('Mensagem cancelada ou reagendada.')
   const route = check(await db.rpc('whatsapp_web_rota_mensagem', { p_mensagem: message.id }))

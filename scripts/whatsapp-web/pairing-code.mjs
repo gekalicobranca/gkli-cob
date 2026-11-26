@@ -5,7 +5,7 @@ export async function requestCodeInPage(phoneNumber, showNotification, intervalM
   window.codeInterval = undefined
   const getCode = async () => {
     try {
-      const api = window.AuthStore.PairingCodeLinkUtils
+      const api = window.AuthStore?.PairingCodeLinkUtils ?? window.require?.('WAWebAltDeviceLinkingApi')
       api.setPairingType('ALT_DEVICE_LINKING')
       await api.initializeAltDeviceLinking()
       const code = await api.startAltLinkingFlow(phoneNumber, showNotification)
@@ -21,7 +21,7 @@ export async function requestCodeInPage(phoneNumber, showNotification, intervalM
   }
   const code = await getCode()
   if (code) window.codeInterval = setInterval(async () => {
-    const state = window.AuthStore.AppState.state
+    const state = window.AuthStore?.AppState?.state ?? window.require?.('WAWebBackendEventBus')?.BackendEventBus?.socketState
     if (state !== 'UNPAIRED' && state !== 'UNPAIRED_IDLE') {
       clearInterval(window.codeInterval)
       window.codeInterval = undefined
