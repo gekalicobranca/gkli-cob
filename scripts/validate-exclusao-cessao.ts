@@ -4,10 +4,12 @@ import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { origemTemCessaoEspaco, excluirCessaoEspacoDaPrevia, naturezaDaLinhaPlanilha } from '../features/importacoes/exclusao-cessao-espaco';
 import {parseXlsx} from '../features/importacoes/engine/xlsx-parser';
+import {marcarCessaoDeOrigemConhecida} from '../features/importacoes/exclusao-cessao-conhecida';
 import * as XLSX from 'xlsx';
 import { fixtureCap, prepararConversao, previewCap, inserirCobranca } from './easy-cap-transaction-fixture';
 import { fixtureId as id } from './easy-p0-fixture';
 const migration = readFile('supabase/migrations/20261126023534_excluir_cessao_espaco_captacao_global.sql','utf8');
+const conhecida = readFile('supabase/migrations/20261126024203_excluir_recibos_cessao_origem_conhecida.sql','utf8');
 const positivos = [
   { detalhesOrigem: '8956 CESSÃO DE ESPAÇO: R$ 834,42' },
   { historico: '39 LOCAÇÃO DE ESPAÇO 25/09/2026' },
@@ -57,6 +59,7 @@ test('classificadores JS/SQL concordam e a barreira de inserção vale em qualqu
       create table cobrancas(id uuid default gen_random_uuid(),carteira_id uuid,condominio_id uuid,unidade_id uuid,
         observacoes text,excluida_por_cessao_espaco bool default false,conversao_relatorio_id uuid);`);
     await db.exec(await migration);
+    await db.exec(await conhecida);
     for(const x of [...positivos,...negativos]) {
       const result=await db.query<{excluir:boolean}>('select public.origem_tem_cessao_espaco($1::jsonb) excluir',[JSON.stringify(x)]);
       assert.equal(result.rows[0].excluir,origemTemCessaoEspaco(x));
@@ -70,6 +73,8 @@ test('classificadores JS/SQL concordam e a barreira de inserção vale em qualqu
     await db.query('insert into unidades values($1,$2,$3,$4,$5)',[id(1),id(2),id(100),'BOX001','0']);
     await db.query('insert into conversoes_relatorio(id,carteira_id,condominio_id,preview_json) values($1,$2,$3,$4::jsonb)',[id(3),id(2),id(100),JSON.stringify({cobrancas:[{recibo:'J 15418010',bloco:'0',unidade:'BOX001',...positivos[0]}]})]);
     await assert.rejects(db.query('insert into cobrancas(carteira_id,condominio_id,unidade_id,observacoes,conversao_relatorio_id) values($1,$2,$3,$4,$5)',[id(2),id(100),id(1),'Recibo J 15418010',id(3)]),/composição original/);
+    // Sem conversão nem natureza na planilha: a origem anterior continua impedindo nova inserção.
+    await assert.rejects(db.query('insert into cobrancas(carteira_id,condominio_id,unidade_id,observacoes) values($1,$2,$3,$4)',[id(2),id(100),id(1),'Recibo J 15418010']),/Reimportação proibida/);
     assert.equal((await db.query<{n:number}>('select count(*)::int n from cobrancas')).rows[0].n,2);
   }finally {await db.close();}
 });
@@ -78,6 +83,7 @@ test('Easy: tentativa antiga proibida aborta substituição inteira, preservando
   const db=await fixtureCap();try {
     await db.exec('alter table cobrancas add column excluida_por_cessao_espaco boolean default false;');
     await db.exec(await migration);
+    await db.exec(await conhecida);
     await inserirCobranca(db,30);
     const ano=(await db.query<{ano:number}>("select extract(year from now())::int ano")).rows[0].ano;
     const preview=previewCap(ano);preview.cobrancas[0].detalhesOrigem='8956 CESSÃO DE ESPAÇO';
@@ -85,5 +91,30 @@ test('Easy: tentativa antiga proibida aborta substituição inteira, preservando
     await assert.rejects(operacao.confirmar(),/cessão\/locação|composição original/i);
     const rows=(await db.query<{id:string}>('select id from cobrancas')).rows;
     assert.deepEqual(rows,[{id:id(30)}]);
+  }finally {await db.close();}
+});
+
+test('planilha sem rubrica recupera exclusão só na mesma identidade; falha de consulta impede prosseguir',async()=>{
+  const linhas=[{condominio_id:id(100),unidade:'BOX001',bloco:'0',observacoes:'Recibo J 15418010',valorTotal:100},
+    {condominio_id:id(200),unidade:'BOX001',bloco:'0',observacoes:'Recibo J 15418010',valorTotal:200},
+    {condominio_id:id(100),unidade:'BOX002',bloco:'0',observacoes:'Recibo J 15418010',valorTotal:300}];
+  const db={rpc:()=>({range:async()=>({data:[{condominio_id:id(100),unidade:'BOX001',bloco:'0',recibo:'15418010'}],error:null})})};
+  const resultado=await marcarCessaoDeOrigemConhecida(db,linhas);
+  assert.deepEqual(resultado.map(origemTemCessaoEspaco),[true,false,false]);
+  assert.deepEqual(resultado.map(l=>l.valorTotal),[100,200,300]);assert.equal(origemTemCessaoEspaco(linhas[0]),false);
+  await assert.rejects(marcarCessaoDeOrigemConhecida({rpc:()=>({range:async()=>({error:{message:'falha'}})})},linhas),/Nenhuma importação deve prosseguir/);
+});
+
+test('Easy recusa reaproveitar cota quando a prévia omite rubrica já comprovada em outra origem',async()=>{
+  const db=await fixtureCap();try {
+    await db.exec('alter table cobrancas add column excluida_por_cessao_espaco boolean default false;');
+    await db.exec(await migration);await db.exec(await conhecida);
+    await inserirCobranca(db,30);
+    const ano=(await db.query<{ano:number}>('select extract(year from now())::int ano')).rows[0].ano;
+    const operacao=await prepararConversao(db,20,previewCap(ano));
+    await db.query('insert into conversoes_relatorio(id,carteira_id,condominio_id,status,preview_json) values($1,$2,$3,$4,$5)',
+      [id(21),id(1),id(2),'preview',{cobrancas:[{unidade:'101',bloco:'0',recibo:'J 123',detalhesOrigem:'CESSÃO DE ESPAÇO'}]}]);
+    await assert.rejects(operacao.confirmar(),/cessão\/locação/i);
+    assert.deepEqual((await db.query('select id,valor_atualizado from cobrancas')).rows,[{id:id(30),valor_atualizado:'100'}]);
   }finally {await db.close();}
 });

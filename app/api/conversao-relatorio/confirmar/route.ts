@@ -1,3 +1,4 @@
+import { marcarCessaoDeOrigemConhecida } from '@/features/importacoes/exclusao-cessao-conhecida';
 import { excluirCessaoEspacoDaPrevia } from '@/features/importacoes/exclusao-cessao-espaco';
 import { randomUUID } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
@@ -249,8 +250,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Revalidar prévias antigas antes de reservar a conciliação ou tocar na base.
-    const filtrada = excluirCessaoEspacoDaPrevia(preview)
-    if (filtrada !== preview) {
+    const linhasConferidas = await marcarCessaoDeOrigemConhecida(supabase, preview.cobrancas ?? [], condominioId)
+    const filtrada = excluirCessaoEspacoDaPrevia({ ...preview, cobrancas: linhasConferidas })
+    if (JSON.stringify(filtrada) !== JSON.stringify(preview)) {
       const { error } = await supabase.from('conversoes_relatorio').update({ preview_json: filtrada,
         total_cobrancas: filtrada.cobrancas.length, total_parcelas: filtrada.totalParcelas, valor_total: filtrada.valorTotal,
         inconsistencias_json: filtrada.inconsistencias }).eq('id', conversaoId).eq('status', conversao.status)

@@ -16,7 +16,9 @@ A importação oficial preserva Natureza/Tipo de cobrança, Histórico/Descriç�
 
 O leitor da planilha manual Easy v1 aceita opcionalmente a coluna N, cabeçalho **Natureza da cobrança** na linha 8. A coluna M de marcador continua independente. A exclusão ocorre antes da assinatura/plano de confirmação. Arquivo composto apenas de exclusões não autoriza substituição da base. Os modelos anteriores continuam compatíveis.
 
-Uma planilha que contenha só números, sem histórico/natureza ou qualquer origem identificável, não permite determinar essa natureza. Não presumir cessão apenas porque a unidade é BUSS/BOX/CE; preservar a classificação no arquivo de entrada. Os exportadores do conversor eliminam as rubricas identificadas antes de gerar a planilha.
+A segunda migration e `exclusao-cessao-conhecida.ts` recuperam a natureza já comprovada de um recibo mesmo quando uma planilha antiga omite a descrição. A identidade inclui condomínio, unidade, bloco e recibo completo, sem copiar valores. A consulta respeita RLS e é paginada; falha de consulta impede prosseguir. A barreira de INSERT e a validação transacional também conferem essa origem anterior.
+
+Uma planilha que contenha só números, sem histórico/natureza nem recibo com origem conhecida, não permite determinar essa natureza. Não presumir cessão apenas porque a unidade é BUSS/BOX/CE; preservar a classificação no arquivo de entrada. Os exportadores do conversor eliminam as rubricas identificadas antes de gerar a planilha.
 
 ## Defesa no banco
 
