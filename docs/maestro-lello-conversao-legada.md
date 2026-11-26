@@ -1,0 +1,11 @@
+# Maestro Lello: origem conversao_relatorio
+
+Em 26/11/2026 a captação do Safira parou na unidade 100032, vencimento 10/02/2026. O cadastro canônico possui recibo explícito e principal compatível, mas sua origem histórica `conversao_relatorio - ...` não era reconhecida pelo resolver. O status judicial não causou essa rejeição.
+
+`features/importacoes/maestro-recibos-lello.ts` passa a aceitar o prefixo exato `conversao_relatorio`, com fim de texto ou espaço, junto das origens legadas já aceitas. A consulta permanece limitada à carteira/condomínio da conversão e às cotas canônicas não arquivadas. A resolução continua exigindo a mesma unidade/bloco/vencimento, principal idêntico em centavos, candidata única, recibo explicitamente rotulado, ausência de marcadores conflitantes e não reutilização do recibo. Não aceita prefixos semelhantes como `conversao_relatorio_outro`.
+
+A mudança apenas resolve a identidade do recibo. Não muda status operacional/financeiro, flag judicial da unidade, bloqueio de automação, principal, pagamentos, parcelas de acordo ou histórico. Não relaxa bloqueios por duplicidade, principal divergente ou alias de outra competência. Nenhuma migration ou alteração direta de dados integra esta correção.
+
+Validação: `node node_modules/tsx/dist/cli.mjs --test scripts/validate-maestro-recibos-lello.ts scripts/validate-maestro-conciliacao.ts` — 12 testes aprovados. Inclui reconhecimento da origem legada seguido do conciliador, preservação integral do cadastro judicial e casos negativos de ambiguidade, valores e identificadores conflitantes. A integração local do Maestro também confere a preservação de cotas judicializadas.
+
+Simulação somente leitura das 737 linhas da conversão do Safira ultrapassa o bloqueio original e identifica 18 rejeições posteriores: aliases de datas conflitantes, registros sem identidade inequívoca, candidatas duplicadas e principal divergente. Esses registros exigem conferência própria; esta correção não escolhe um candidato nem reduz principal por suposição. Não foi retomada a importação para testar a mudança, evitando efeitos operacionais de uma execução real. O diagnóstico local detalhado permanece fora do código, com acesso aos dados limitado ao ambiente autorizado.
