@@ -133,6 +133,27 @@ function preencherValores(ui: any) {
   for (const field of ['repasse_atualizado', 'valor_cota_atualizado_receipt'] as const)
     findElement(ui, props => props.name === field).onChange({ target: { value: valoresConfirmados[field] } })
 }
+test('Easy calcula repasse percentual em reais e recalcula ao ajustar a cota', () => {
+  const { state, load } = harness()
+  const render = simulator(state, load, {}, true)
+  const editar = (campo: string, valor: string) =>
+    findElement(render(), p => p.id === campo || p.name === campo).onChange({ target: { value: valor } })
+  findElement(render(), p => p['aria-label'] === 'Forma de informar o repasse').onChange({ target: { value: 'percentual' } })
+  assert.equal(findElement(render(), cont).disabled, true)
+  editar('repasse_atualizado', '10')
+  editar('valor_cota_atualizado_receipt', '2.500,05')
+  const enviado = () => findElement(render(), p => p.name === 'repasse_atualizado').value
+  assert.equal(enviado(), '250,01')
+  editar('valor_cota_atualizado_receipt', '150,00')
+  editar('repasse_atualizado', '2,5')
+  assert.equal(enviado(), '3,75')
+  editar('repasse_atualizado', '101')
+  assert.equal(findElement(render(), cont).disabled, true)
+  editar('repasse_atualizado', '0')
+  assert.equal(enviado(), '0,00')
+  assert.equal(findElement(render(), cont).disabled, false)
+})
+
 test('simulador mantém a cota sem ajuste, exige repasse e exige nova confirmação ao rever valores', () => {
   for (const simplified of [false, true]) {
     const {state,load}=harness()

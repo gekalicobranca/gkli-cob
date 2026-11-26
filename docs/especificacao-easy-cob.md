@@ -79,6 +79,8 @@ Percurso: condomínio → unidade → cobranças disponíveis → condições �
 
 **Observado:** seleção utiliza `listCobrancasDaUnidadeParaAcordo`, filtro `cobrancaAtiva` e valor via `valorCotaParaAcordo`. A simulação reutiliza `NovoAcordoPage` e `AcordoSimulatorForm`, com interface simplificada. A unidade pode ter vários acordos; a disponibilidade precisa respeitar o vínculo de cada cobrança.
 
+Na etapa de valores do Easy, o operador informa o repasse em reais ou em percentual (0 a 100%, com até duas casas decimais). A base é a soma das cotas selecionadas, usando o valor da carteira quando o ajuste fica em branco. O simulador exibe o repasse em reais, arredondado ao centavo, e usa esse valor na proposta e na criação do acordo.
+
 O simulador integrado contempla despesas de cobrança percentuais, custos de emissão de boleto, crédito e entrada no cálculo compartilhado, juros adicionais no parcelamento e plano manual. A interface simplificada indica Price a 1% ao mês para juros do parcelamento. Regras de isenção de cotas, aprovação do síndico e pendências pertencem ao domínio compartilhado; não devem ser reimplementadas isoladamente no Easy.
 
 **Requisitos:**
