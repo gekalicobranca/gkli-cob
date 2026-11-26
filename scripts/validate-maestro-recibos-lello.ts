@@ -91,6 +91,50 @@ test("formatos antigos não liberam ambiguidade ativa, marcadores conflitantes o
   assert.throws(() => resolverRecibosLello([linha, linha], [legada]), /confira o recibo/)
 })
 
+test("resolve recibo de conversão legada sem alterar proteção judicial, pagamentos ou histórico", async () => {
+  const importada: Parameters<typeof resolverRecibosLello>[0][number] = { unidade: "100032", bloco: "0", recibo: "LELLO-63004-100032-20260210",
+    vencimento: "10/02/2026", valorPrincipal: 426.2 }
+  const cota = { id: "cota-judicial", unidade_id: "unidade-judicial", carteira_id: "carteira", condominio_id: "safira",
+    unidades: { identificacao: "100032", bloco: "0", acao_judicial: true }, competencia: "02/2026",
+    vencimento: "2026-02-10", valor_original: 426.2, valor_atualizado: 493.5,
+    origem_importacao: "conversao_relatorio - 15/09/2026, 21:46",
+    observacoes: "Histórico preservado | Recibo: 53105613 | Recibo 53105613",
+    status: "judicializado", status_operacional: "judicializado", status_financeiro: "em_aberto",
+    automacao_bloqueada: true, data_pagamento: null, valor_pago: null, updated_at: "2026-11-17T19:42:53Z",
+    historico: [{ evento: "judicializacao_confirmada" }] }
+  const antes = structuredClone({ importada, cota })
+  const [resolvida] = resolverRecibosLello([importada], [cota])
+  assert.equal(resolvida.recibo, "53105613")
+  assert.equal(resolvida.chavePlanilhaLello, importada.recibo)
+  assert.equal(resolvida.unidadeReciboLello, cota.unidade_id)
+  assert.deepEqual(resolverRecibosLello([resolvida], [cota]), [resolvida])
+  const db = { from(tabela: string) {
+    assert.equal(tabela, "cobrancas")
+    const query = { select() { return query }, is() { return query }, eq() { return query } }
+    return query
+  } }
+  const resultado = await conciliarCobrancaImportada(db, {
+    unidade_id: cota.unidade_id, carteira_id: cota.carteira_id, condominio_id: cota.condominio_id,
+    recibo: resolvida.recibo, vencimento: cota.vencimento, valor_original: resolvida.valorPrincipal,
+    valor_atualizado: 493.5,
+  }, true, new Map([[cota.unidade_id, [cota]]]))
+  assert.equal(resultado.status, "atualizar")
+  assert.equal(resultado.cobrancaId, cota.id)
+  assert.deepEqual({ importada, cota }, antes)
+})
+
+test("conversão legada continua exigindo recibo único, principal e alias sem conflito", () => {
+  const cota = { ...protegida, origem_importacao: "conversao_relatorio - 15/09/2026, 21:46",
+    observacoes: "Origem Lello | Recibo: 12345678" }
+  for (const cadastro of [
+    [cota, { ...cota, observacoes: "Recibo: 87654321" }],
+    [{ ...cota, valor_original: 99.99 }],
+    [{ ...cota, observacoes: "Recibo: 12345678 | Recibo: 87654321" }],
+    [{ ...cota, observacoes: `${cota.observacoes} | Recibo LELLO-123-000033-20241020` }],
+    [{ ...cota, origem_importacao: "conversao_relatorio_outro - 15/09/2026" }],
+  ]) assert.throws(() => resolverRecibosLello([linha], cadastro), /confira o recibo/)
+})
+
 test("carregamento seleciona somente cobranças não arquivadas dentro da carteira e condomínio", async () => {
   const filtros = new Map<string, unknown>()
   const retornada = { ...protegida, arquivada_em: null }

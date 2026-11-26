@@ -63,7 +63,7 @@ export function resolverRecibosLello<T extends Linha>(linhas: T[], cadastro: Cad
       const portal = [...portais][0]
       const alias = aliases[0]
       const origemPortal = cota.origem_importacao?.startsWith(`Espelhamento Lello ${codigo} - `)
-      const origemLegada = /^(?:Conciliação Lello(?:\s|$)|importacao_cobrancas(?:\s|$))/i.test(cota.origem_importacao ?? "")
+      const origemLegada = /^(?:Conciliação Lello(?:\s|$)|importacao_cobrancas(?:\s|$)|conversao_relatorio(?:\s|$))/i.test(cota.origem_importacao ?? "")
       if (portal && (alias === legado || origemPortal || origemLegada)) recibo = portal
       else if (alias !== legado) throw revisar()
     }
