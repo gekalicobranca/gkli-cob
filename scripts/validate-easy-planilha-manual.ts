@@ -62,3 +62,13 @@ test('duplicidades e divergência de contatos na mesma unidade não geram import
   assert.throws(f.parse,/repete uma cobrança/);
   f.s.C10={t:'s',v:'11/09/2026'};f.s.J10={t:'s',v:'outro@example.invalid'};assert.throws(f.parse,/Linha 10.*contatos/);
 });
+
+test('natureza na coluna N exclui cessão antes do plano; só exclusões não autoriza limpar a base',async()=>{
+  const {s,parse}=await fixture();s.N8={t:'s',v:'Natureza da cobrança'};s.N9={t:'s',v:'Cessão de espaço'};
+  s['!ref']='A1:N100';
+  assert.throws(parse,/Nenhuma cobrança foi identificada/);
+  for(const col of ['A','B','C','D','E','F','G','I','J'])s[`${col}10`]={...s[`${col}9`]};
+  s.B10={t:'s',v:'000002'};s.N10={t:'s',v:'Cota condominial'};
+  const p=parse();assert.equal(p.cobrancas.length,1);assert.equal(p.cobrancas[0].unidade,'000002');assert.equal(p.valorTotal,106);
+  assert.equal((p as any).exclusaoCessaoEspaco.recibos.length,1);
+});

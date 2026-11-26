@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx'
 import { parseRelatorioBuffer } from '../features/conversao-relatorio/server/parse-relatorio-buffer'
 import { observacoesComComposicao, tipoCobrancaDoHistorico } from '../features/importacoes/composicao-origem'
 
-test('Manager preserva componentes de recibos mistos, valores e separa multa de atraso', async () => {
+test('Manager preserva recibo misto na evidência, exclui da captação/exportação e mantém multa elegível', async () => {
   const rows = [
     ['Manager / Atentum', 'Cotas Pendentes'], ['Condomínio: 123 - CONDOMÍNIO TESTE'],
     ['Bloco: A Unidade: 101 Pessoa Teste'],
@@ -19,8 +19,10 @@ test('Manager preserva componentes de recibos mistos, valores e separa multa de 
   const w = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(w,XLSX.utils.aoa_to_sheet(rows),'Dados')
   const result = await parseRelatorioBuffer({buffer:XLSX.write(w,{type:'buffer',bookType:'xlsx'}),filename:'manager.xlsx',somenteAnoCorrente:false})
   assert.ok(result.ok); if(!result.ok)return
-  const [misto,multa] = result.preview.cobrancas
-  assert.equal(result.preview.cobrancas.length,2,JSON.stringify(result.preview.cobrancas))
+  const [multa] = result.preview.cobrancas
+  const [misto] = (result.preview as any).exclusaoCessaoEspaco.recibos
+  assert.equal(result.preview.cobrancas.length,1,JSON.stringify(result.preview.cobrancas))
+  assert.equal(result.preview.valorTotal,30.60)
   assert.equal(misto.valorTotal,153); assert.equal(misto.multa,3)
   assert.deepEqual(misto.tiposCobranca,['cessao_espaco','cota_condominial'])
   assert.equal(misto.composicaoOrigem?.[0].valorPrincipal,100)
@@ -30,7 +32,11 @@ test('Manager preserva componentes de recibos mistos, valores e separa multa de 
   const obs = observacoesComComposicao('Nota humana preservada',misto)
   assert.match(obs,/Nota humana preservada/); assert.match(obs,/Cessão\/locação de espaço/)
   assert.equal(observacoesComComposicao(obs,misto),obs)
-  assert.match(result.preview.csv,/CESSÃO DE ESPAÇO/)
+  assert.doesNotMatch(result.preview.csv,/CESSÃO DE ESPAÇO/)
+  const exportado=XLSX.read(Buffer.from(result.preview.xlsxBase64,'base64'),{type:'buffer'})
+  const dados=XLSX.utils.sheet_to_json(exportado.Sheets.dados)
+  assert.equal(dados.length,1)
+  assert.doesNotMatch(JSON.stringify(dados),/CESSÃO DE ESPAÇO/)
 })
 
 test('classificação usa histórico e não presume cota em descrições desconhecidas', () => {

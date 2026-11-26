@@ -1,3 +1,5 @@
+import { excluirCessaoEspacoDaPrevia } from '@/features/importacoes/exclusao-cessao-espaco';
+import { marcarCessaoDeOrigemConhecida } from '@/features/importacoes/exclusao-cessao-conhecida';
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID, createHash } from 'node:crypto';
 import { createAdminClient } from '@/utils/supabase/admin';
@@ -26,13 +28,14 @@ export async function POST(request:NextRequest) {
       ? {ok:true as const,preview:lerPlanilhaManualEasy(bytes,file.name,condominio,{exigirContato:form.get('contexto')==='easy_flow'})}
       : await parseRelatorioBuffer({buffer:bytes,filename:file.name,mimeType:encoding?String(form.get('original_mime_type')??''):file.type,condominioCnpj:condominio.cnpj,tipoConversao:'cobrancas',somenteAnoCorrente:false});
     if(parsed.ok === false) throw new Error(parsed.error);
+    const admin=createAdminClient();
+    parsed.preview=excluirCessaoEspacoDaPrevia({...parsed.preview,cobrancas:await marcarCessaoDeOrigemConhecida(admin,parsed.preview.cobrancas,condominio.id)});
     const stats=validarPreviaCaptacao(parsed.preview);
     const plano=prepararPlanoCaptacao(parsed.preview);
     const acordos=parsed.preview.cobrancas.filter(item=>['acordo','acordo_extrajudicial','acordo_judicial'].includes(item.situacaoOrigem??'')).length;
     const juridicas=parsed.preview.cobrancas.filter(item=>item.situacaoOrigem==='juridico').length;
     const detected=parsed.preview.padraoDetectado?.condominioDetectado;
     if(detected&&!autoMatchCondominio([{id:condominio.id,nome:condominio.nome,nomeOperacional:condominio.nome_operacional,cnpj:condominio.cnpj}],detected)) throw new Error('O condomínio identificado no arquivo não corresponde ao selecionado. Confira o documento.');
-    const admin=createAdminClient();
     const {data:snapshot,error:se}=await admin.rpc('easy_captacao_snapshot',{p_condominio:condominio.id,p_carteira:condominio.carteira_id});
     if(se||snapshot?.protocolo!==2) throw new Error('A substituição transacional ainda não está disponível. Nenhuma cobrança foi alterada.');
     const conversaoId=randomUUID();

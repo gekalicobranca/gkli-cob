@@ -1,3 +1,4 @@
+import { excluirCessaoEspacoDaPrevia } from '@/features/importacoes/exclusao-cessao-espaco';
 import * as XLSX from 'xlsx';
 import type {ConversaoPreview,CobrancaPreview} from '@/features/conversao-relatorio/server/parse-relatorio-buffer';
 import {dataCaptacaoISO,validarPreviaCaptacao} from './captacao-preview';
@@ -21,8 +22,9 @@ export function lerPlanilhaManualEasy(buffer:Buffer,filename:string,condominio:{
   const sheet=wb.Sheets['Cobranças'];
   if(!sheet||sheet.A1?.v!=='Easy Flow - importação manual v1'||HEADERS.some((h,i)=>sheet[XLSX.utils.encode_cell({r:7,c:i})]?.v!==h))throw Error('Use o modelo de planilha do Easy Flow, sem alterar os títulos das colunas.');
   const range=XLSX.utils.decode_range(sheet['!fullref']??sheet['!ref']??'A1');
+  const temColunaNatureza=sheet.N8?.v==='Natureza da cobrança';
   const temColunaMarcador=sheet.M8?.v==='Marcador no PDF';
-  if(range.e.r>5007||range.e.c>(temColunaMarcador?12:11))throw Error('A planilha permite até 5.000 cobranças nas colunas do modelo.');
+  if(range.e.r>5007||range.e.c>(temColunaNatureza?13:temColunaMarcador?12:11))throw Error('A planilha permite até 5.000 cobranças nas colunas do modelo.');
   function text(address:string, aba=sheet){
     const c=aba[address];if(c?.f||c?.t==='e')throw Error(`${address}: preencha um valor, sem fórmulas ou erros de cálculo.`);
     const value=String(c?.t==='n'?XLSX.utils.format_cell(c):c?.v??'').trim();
@@ -59,7 +61,7 @@ export function lerPlanilhaManualEasy(buffer:Buffer,filename:string,condominio:{
   const contatos=new Map<string,[string,string,string]>();
   for(let row=9;row<=range.e.r+1;row++){
     // Fórmulas de total vazias não transformam linhas reservadas em cobranças.
-    if(['A','B','C','D','E','F','G','I','J','K','L','M'].every(col=>sheet[`${col}${row}`]?.v==null||sheet[`${col}${row}`]?.v==='')){
+    if(['A','B','C','D','E','F','G','I','J','K','L','M','N'].every(col=>sheet[`${col}${row}`]?.v==null||sheet[`${col}${row}`]?.v==='')){
       if(!sheet[`H${row}`]?.f&&(sheet[`H${row}`]?.v??'')!=='')errors.push(`Linha ${row}: há total sem os dados da cobrança.`);continue;
     }
     try{
@@ -93,7 +95,7 @@ export function lerPlanilhaManualEasy(buffer:Buffer,filename:string,condominio:{
       contatos.set(key,[contato[0],contato[1]||anterior?.[1]||'',contato[2]||anterior?.[2]||'']);
       // O importador compartilhado recebe as datas das conversões em formato brasileiro.
       const vencimentoBr=`${vencimento.slice(8,10)}/${vencimento.slice(5,7)}/${vencimento.slice(0,4)}`;
-      rows.push({bloco,unidade,responsavel,email,telefone,recibo,vencimento:vencimentoBr,vencimentoMaisAntigo:vencimentoBr,competencia:vencimento.slice(0,7),valorPrincipal:original/100,multa:multa/100,juros:juros/100,correcao:correcao/100,valorTotal:total/100,parcelas:[],origemSistema:'Easy Flow manual',
+      rows.push({bloco,unidade,responsavel,email,telefone,recibo,vencimento:vencimentoBr,vencimentoMaisAntigo:vencimentoBr,competencia:vencimento.slice(0,7),valorPrincipal:original/100,multa:multa/100,juros:juros/100,correcao:correcao/100,valorTotal:total/100,parcelas:[],origemSistema:'Easy Flow manual', detalhesOrigem:temColunaNatureza?text(`N${row}`):undefined,
         ...(marcadorOrigem ? {marcadorOrigem,situacaoOrigem:SITUACOES[marcadorOrigem]} : {}),
       });
     }catch(e){errors.push(`Linha ${row}: ${e instanceof Error?e.message:'dados inválidos.'}`);}
@@ -101,5 +103,5 @@ export function lerPlanilhaManualEasy(buffer:Buffer,filename:string,condominio:{
   if(errors.length)throw Error(`${errors.slice(0,10).join('\n')}${errors.length>10?`\nMais ${errors.length-10} linha(s) com erro.`:''} Nenhuma cobrança foi importada.`);
   if(marcadoresConferencia.size)throw Error('Há recibos marcados na aba Conferência sem correspondência na aba Cobranças.');
   const preview:ConversaoPreview={tipoConversao:'cobrancas',origem:'Planilha manual Easy Flow',arquivo:filename,totalParcelas:rows.length,valorTotal:rows.reduce((n,r)=>n+Math.round(r.valorTotal*100),0)/100,padraoDetectado:{id:'easy-flow-manual-v1',nome:'Planilha manual Easy Flow',tipoConversao:'cobrancas',fornecedor:'GKLI',sistema:'Easy Flow',relatorio:'Importação manual',condominioDetectado:condominio.nome,confianca:100,ativo:true},cobrancas:rows,unidades:[],inconsistencias:[],csv:'',xlsxBase64:''};
-  validarPreviaCaptacao(preview);return preview;
+  const filtrada=excluirCessaoEspacoDaPrevia(preview);validarPreviaCaptacao(filtrada);return filtrada;
 }

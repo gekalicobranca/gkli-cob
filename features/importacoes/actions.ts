@@ -1,5 +1,8 @@
 "use server";
 
+import { marcarCessaoDeOrigemConhecida } from '@/features/importacoes/exclusao-cessao-conhecida';
+
+import { origemTemCessaoEspaco, MOTIVO_EXCLUSAO_CESSAO, naturezaDaLinhaPlanilha } from '@/features/importacoes/exclusao-cessao-espaco';
 import { garantirUnidadeImportacao } from "@/features/unidades/importacao";
 import { isAcordoOrigem, type AcordoOrigem } from "@/features/acordos/origem-controle";
 
@@ -1132,6 +1135,8 @@ function buildImportacaoPayload(
 
     return {
       condominio_cnpj: condominioCnpj,
+      recibo: getFirst(raw, ['recibo', 'numero_recibo', 'numero_do_recibo']),
+      ...naturezaDaLinhaPlanilha(raw),
       unidade,
       bloco,
       responsavel_nome: responsavelNome,
@@ -1415,6 +1420,7 @@ async function enrichCobrancaPreview(
   return rows.map((row) => {
     const payload = row.payload;
     const erros: string[] = [];
+    if (origemTemCessaoEspaco(payload)) erros.push(MOTIVO_EXCLUSAO_CESSAO);
     const alertas: string[] = alertasTelefonesImportacao(payload);
     const condominioCnpj = normalizeCnpj(payload.condominio_cnpj ?? "");
 
@@ -2305,6 +2311,9 @@ async function createImportacaoPreviewInternal(formData: FormData) {
       somenteValidasNaRegua,
       somenteAnoCorrente,
     );
+    const conferidas = await marcarCessaoDeOrigemConhecida(supabase, itens.map(item => item.payload));
+    itens = itens.map((item, indice) => ({ ...item, payload: conferidas[indice],
+      ...(origemTemCessaoEspaco(conferidas[indice]) ? { valido: false, erros: [...new Set([...item.erros, MOTIVO_EXCLUSAO_CESSAO])] } : {}) }));
   } else {
     const rows = parsedRows.map((row) => {
       const payload =
@@ -2615,6 +2624,7 @@ async function importarCobrancas(
   _somenteAnoCorrente = false,
   opcoes: { validarAusencias?: boolean; somenteAusencias?: boolean; cobrancasClassificacao?: Record<string, any>[]; indiceInicial?: number } = {},
 ): Promise<ImportExecutionResult> {
+  payloads = await marcarCessaoDeOrigemConhecida(supabase, payloads);
   const resultado = emptyImportExecutionResult();
   const importadasParaAusencia: CobrancaImportadaConciliacao[] = [];
   const unidadesResolvidas = new Map<string, Awaited<ReturnType<typeof garantirUnidadeDaImportacao>>>();
@@ -2625,7 +2635,11 @@ async function importarCobrancas(
     const linha = Number(payload.__linha ?? index + 1);
 
     try {
-
+      if (origemTemCessaoEspaco(payload)) {
+        resultado.ignorados += 1;
+        resultado.erros.push(`Linha ${linha}: ${MOTIVO_EXCLUSAO_CESSAO}`);
+        continue;
+      }
       const chaveUnidade = unidadeKey({ condominio_id: payload.condominio_id,
         identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco });
       const unidadeCache = unidadesResolvidas.get(chaveUnidade);
@@ -3338,10 +3352,12 @@ async function executarLoteImportacao(formData: FormData) {
   const scope = await getPermittedCarteiras();
   if (importacao.carteira_id) assertCarteiraPermitida(scope, importacao.carteira_id);
   const itens = await carregarItensImportacao(supabase, id, { somenteValidos: true, totalEsperado: importacao.total_validas });
-  const payloads = itens.map(item => ({ ...item.payload, importacao_id: id, __linha: item.linha })) as Record<string, any>[];
+  let payloads = itens.map(item => ({ ...item.payload, importacao_id: id, __linha: item.linha })) as Record<string, any>[];
   assertPayloadsPermitidos(scope, payloads);
+  payloads = await marcarCessaoDeOrigemConhecida(supabase, payloads);
   if (importacao.status === "confirmada") return { concluida: true, processadas: payloads.length, total: payloads.length, gravadas: Number(importacao.resumo?.resultado?.importados ?? 0) };
   if (!["preview", "erro"].includes(importacao.status) || !payloads.length) throw new Error("Importação não disponível para confirmar.");
+  if (payloads.some(origemTemCessaoEspaco)) throw new Error('A prévia contém cessão/locação de espaço. Gere uma nova prévia para excluir essas linhas antes de substituir cobranças.');
   const resumo = (importacao.resumo ?? {}) as Record<string, any>;
   const opcao = String(formData.get("limpar_cobrancas_anteriores") ?? "");
   if (!resumo.execucao_lotes && !["sim", "nao", "on"].includes(opcao)) throw new Error("A opção de substituir cobranças não foi recebida. Recarregue a página.");

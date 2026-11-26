@@ -1,3 +1,4 @@
+import { excluirCessaoEspacoDaPrevia } from '@/features/importacoes/exclusao-cessao-espaco';
 import { readFile } from "node:fs/promises"
 import { escopoLiving, lerAnaliseLiving } from '@/features/importacoes/living-escopo'
 import path from "node:path"
@@ -275,7 +276,7 @@ export async function processarRelatorioCaptado(
   })
   if (!preview?.ok) throw new Error(preview?.error || "Não foi possível converter o relatório.")
   preview = preview.preview
-  if (!preview.cobrancas?.length && !preview.semPendencias) preview = parseBbzClock(buffer, nomeArquivo)
+  if (!preview.cobrancas?.length && !preview.semPendencias && !preview.exclusaoCessaoEspaco?.recibos.length) preview = parseBbzClock(buffer, nomeArquivo)
   preview = aplicarBlocoPadrao(preview, blocoPadraoCaptacao)
   preview = aplicarFiltroBlocoManager(preview, condominio.nome)
   // A análise preserva todas as datas, antes do recorte da importação operacional.
@@ -294,8 +295,8 @@ export async function processarRelatorioCaptado(
   } catch (erro) {
     preview.inconsistencias = [...(preview.inconsistencias ?? []), `Relatório detalhado indisponível: ${erro instanceof Error ? erro.message : 'falha na validação do original'}`]
   }
-  preview = aplicarRecorteOperacionalDeVencimento(preview)
-  if (!preview.cobrancas?.length && !preview.semPendencias && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos"))) {
+  preview = excluirCessaoEspacoDaPrevia(aplicarRecorteOperacionalDeVencimento(preview))
+  if (!preview.cobrancas?.length && !preview.semPendencias && !preview.exclusaoCessaoEspaco?.recibos.length && !(preview.inconsistencias ?? []).some((item: string) => item.includes("5 anos"))) {
     throw new Error("O relatório não contém cobranças reconhecíveis.")
   }
 
