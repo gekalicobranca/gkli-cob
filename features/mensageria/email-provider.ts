@@ -8,6 +8,7 @@ import { normalizarEmailControle } from '@/features/carteiras/email-controle'
 import { validarMensagemSemCobrancaArquivada } from './validar-arquivamento'
 import { buscarRotaSmtpFlow } from './smtp-rota-condominio'
 import { normalizarContaEnvio } from './email-conta'
+import { classificarFalhaSmtp, ResultadoSmtpRegistradoError } from './smtp-recuperacao'
 
 export type EmailPayload = {
   to: string
@@ -312,19 +313,20 @@ function smtpCommandError(commandLabel: string, response: string) {
   // Só 4xx/5xx confirmam recusa. Uma resposta inesperada após DATA
   // continua incerta e não pode liberar reenvio automático.
   const ClasseErro = /^[45]\d{2}\b/.test(cleanResponse) ? SmtpRespostaRecusadaError : Error
+  const criarErro = (message: string) => Object.assign(new ClasseErro(message), { smtpCode: Number(cleanResponse.slice(0, 3)) })
 
   if (cleanResponse.includes('5.7.139') || lower.includes('smtpclientauthentication is disabled')) {
-    return new ClasseErro(
+    return criarErro(
       'Autenticação SMTP recusada pelo Microsoft 365: o SMTP AUTH está desativado no tenant ou nesta caixa postal. ' +
       'Ative "Authenticated SMTP" no Microsoft 365 para o tenant e para o usuário/remetente, ou use outro método de envio compatível, como Graph/OAuth.',
     )
   }
 
   if (commandLabel === 'AUTH LOGIN') {
-    return new ClasseErro(`SMTP recusou a autenticação: ${cleanResponse}`)
+    return criarErro(`SMTP recusou a autenticação: ${cleanResponse}`)
   }
 
-  return new ClasseErro(`SMTP rejeitou comando "${commandLabel}": ${cleanResponse}`)
+  return criarErro(`SMTP rejeitou comando "${commandLabel}": ${cleanResponse}`)
 }
 
 async function command(
@@ -598,8 +600,17 @@ export async function sendSmtpEmail(payload: EmailPayload, options?: SmtpConfig 
     // O aceite de DATA confirma o envio; falha ao encerrar a conexão não autoriza reenvio.
     await command(socket, 'QUIT', [221]).catch(() => undefined)
   } catch (error) {
-    if (tentativaId && !aceito) await finalizarDisparoEmail(tentativaId,
-      dadosTransmitidos && !(error instanceof SmtpRespostaRecusadaError) ? 'incerto' : 'falha')
+    if (tentativaId && !aceito) {
+      const recuperacao = classificarFalhaSmtp(error, dadosTransmitidos)
+      const { error: registroError } = await createAdminClient().rpc('email_registrar_falha_smtp', {
+        p_tentativa: tentativaId, p_recuperacao: recuperacao,
+        p_dados_transmitidos: dadosTransmitidos,
+        p_erro: error instanceof Error ? error.message : String(error),
+      })
+      // Se o registro falhar, a reserva em_envio continua bloqueando qualquer reenvio.
+      if (registroError) throw new Error('Não foi possível registrar o resultado SMTP; envio exige conferência.')
+      throw new ResultadoSmtpRegistradoError(error instanceof Error ? error.message : String(error))
+    }
     throw error
   } finally {
     socket?.destroy()

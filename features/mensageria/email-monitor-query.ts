@@ -20,7 +20,7 @@ export async function loadEmailMonitor(now: Date, db = createAdminClient()) {
     all('integracoes_smtp_config', 'id,carteira_id,host,remetente,usuario,atualizado_em', q => q.eq('ativo', true)),
     all('agente_workers', 'script_key,ultimo_sinal_em,metadata_json', q => q.eq('script_key', 'mensageria:email')),
     all('mensagens', 'id,carteira_id,status,agendada_para,sent_at,enviada_em,ultima_tentativa_em,updated_at,erro_envio,erro,lote_id', q => q.eq('canal', 'email').in('status', ['enviada', 'agendada', 'falha', 'cancelada'])),
-    all('email_tentativas', 'id,mensagem_id,carteira_id,estado,iniciado_em,finalizado_em'),
+    all('email_tentativas', 'id,mensagem_id,carteira_id,estado,iniciado_em,finalizado_em,recuperacao'),
     all('email_agenda', 'mensagem_id', q => q),
   ])
   const summary = summarizeEmailMonitor(messages, attempts, wallets.map(w => w.id), agenda.map(a => a.mensagem_id), now)
