@@ -139,10 +139,10 @@ export function AcordoSimulatorForm({
   const [numeroProcesso, setNumeroProcesso] = useState(formularioInicial.numero_processo || "");
   const [valoresCotas, setValoresCotas] = useState<Record<string, string>>({});
   const [repasseInput, setRepasseInput] = useState("");
+  const [modoRepasse, setModoRepasse] = useState("reais");
+  const [percentualRepasse, setPercentualRepasse] = useState("");
   const [valoresRevisados, setValoresRevisados] = useState(false);
   const [confirmouAdministradora, setConfirmouAdministradora] = useState(false);
-  const repasseLido = parseMoneyInput(repasseInput, "form");
-  const repasse = repasseLido.kind === "value" ? repasseLido.value : 0;
   const [aplicarJurosAdicional, setJurosAdicional] = useState(formularioInicial.juros_adicional === "on");
   const [entrada, setEntrada] = useState(formularioInicial.entrada || "0,00");
   const camposMonetarios = [{ name: "entrada", label: "Entrada", format: "form", optional: true }] as const;
@@ -197,6 +197,20 @@ export function AcordoSimulatorForm({
     if (valor.kind === "missing" || valor.kind === "empty") return valorCotaParaAcordo(item) > 0;
     return valor.kind === "value" && valor.cents > 0;
   });
+  const porPercentual = simplified && modoRepasse === "percentual";
+  const totalCotasCentavos = cobrancasSelecionadas.reduce((total, item) =>
+    total + Math.round(getValorAtualizado(item, valoresCotas[item.id]) * 100), 0);
+  const percentual = parseMoneyInput(percentualRepasse, "form");
+  const percentualValido = /^\d+(?:[.,]\d{1,2})?$/.test(percentualRepasse.trim()) &&
+    percentual.kind === "value" && percentual.cents <= 10000;
+  const repasseCalculado = cotasValidas && Number.isSafeInteger(totalCotasCentavos) && percentualValido
+    ? Number((BigInt(totalCotasCentavos) * BigInt(percentual.cents) + BigInt(5000)) / BigInt(10000)) / 100
+    : null;
+  const valorRepasseFormulario = porPercentual
+    ? (repasseCalculado === null ? "" : formatMoneyInput(repasseCalculado))
+    : repasseInput;
+  const repasseLido = parseMoneyInput(valorRepasseFormulario, "form");
+  const repasse = repasseLido.kind === "value" ? repasseLido.value : 0;
   const podeAvancar = cotasValidas && repasseLido.kind === "value";
   const etapaPagamento = valoresRevisados && podeAvancar;
 
@@ -438,12 +452,25 @@ export function AcordoSimulatorForm({
         })}
         <div className="col-span-full grid grid-cols-subgrid items-center gap-y-2 py-3">
           <label htmlFor="repasse_atualizado" className="col-span-full text-sm font-semibold sm:col-span-1">Repasse</label>
-          <div className="text-sm text-slate-600 sm:text-right"><span className="block text-xs sm:sr-only">Valor atual</span>Não informado</div>
+          {simplified ? (
+            <Select aria-label="Forma de informar o repasse" value={modoRepasse} disabled={etapaPagamento}
+              onChange={event => setModoRepasse(event.target.value)}>
+              <option value="reais">Valor em R$</option>
+              <option value="percentual">Percentual (%)</option>
+            </Select>
+          ) : <div className="text-sm text-slate-600 sm:text-right">Não informado</div>}
           <div>
-            <label htmlFor="repasse_atualizado" className="mb-1 block text-xs text-slate-600 sm:hidden">Ajuste (R$)</label>
-            <Input id="repasse_atualizado" aria-label="Repasse atualizado (R$)" aria-describedby="repasse-orientacao" name="repasse_atualizado" inputMode="decimal" className="text-right tabular-nums"
-              required readOnly={etapaPagamento} value={repasseInput} onChange={event => setRepasseInput(event.target.value)} />
+            <Input id="repasse_atualizado" name={porPercentual ? undefined : "repasse_atualizado"} aria-label={porPercentual ? "Repasse sobre as cotas (%)" : "Repasse atualizado (R$)"}
+              aria-describedby="repasse-orientacao" inputMode="decimal" className="text-right tabular-nums"
+              required readOnly={etapaPagamento} value={porPercentual ? percentualRepasse : repasseInput}
+              onChange={event => (porPercentual ? setPercentualRepasse : setRepasseInput)(event.target.value)} />
+            {porPercentual && <input type="hidden" name="repasse_atualizado" value={valorRepasseFormulario} />}
           </div>
+          {porPercentual && <output htmlFor="repasse_atualizado" aria-live="polite" className="col-span-full text-sm sm:text-right">
+            {cotasValidas && <>Total das cotas atualizadas: {formatCurrency(totalCotasCentavos / 100)}. </>}
+            {repasseCalculado !== null && <>Repasse calculado: <strong>{formatCurrency(repasseCalculado)}</strong>.</>}
+            {percentualRepasse.trim() && !percentualValido && "Informe de 0 a 100%, com até duas casas decimais."}
+          </output>}
           <p id="repasse-orientacao" className="col-span-full text-xs text-slate-600">Se houver isenção confirmada pela administradora, informe 0,00.</p>
         </div>
       </div>
