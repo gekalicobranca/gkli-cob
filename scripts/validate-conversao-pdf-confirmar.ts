@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import { resolverRecibosLello } from '../features/importacoes/maestro-recibos-lello'
 import { observacoesComMarcador } from '../features/importacoes/composicao-origem'
+import { marcarCessaoDeOrigemConhecida } from '../features/importacoes/exclusao-cessao-conhecida'
+import { excluirCessaoEspacoDaPrevia } from '../features/importacoes/exclusao-cessao-espaco'
 import ts from 'typescript'
 import { conversaoPdfDeCobrancas, removerAusentesDaConversaoPdf } from '../features/importacoes/ausentes-conversao'
 
@@ -34,8 +36,9 @@ async function scenario(failure=false,allowCleanup=true,maestro=false,cron=maest
         throw Error(table)
       },
     };return q
-  },async rpc(name:string,args:any){
+  },rpc(name:string,args:any){
     events.push(`rpc:${name}`)
+    if (name==='captacao_recibos_cessao_espaco') return {range:async()=>({data:[],error:null})}
     if (name==='maestro_iniciar_conciliacao') return {data:{inicio:'2026-11-09'},error:null}
     if (name==='maestro_cobrancas_substituiveis') {
       assert.equal(preview.cobrancas[0].recibo,lello?'12345678':'123')
@@ -54,6 +57,7 @@ async function scenario(failure=false,allowCleanup=true,maestro=false,cron=maest
     exports:{},console,NextResponse:{json:(body:any,options?:any)=>({status:options?.status??200,json:async()=>body})},
     isCronSecretAuthorized:()=>cron,requireAuthenticatedApiUser:async()=>({user:{id:'operador'},profile:{role:'admin'}}),createAdminClient:()=>supabase,
     conversaoPdfDeCobrancas,removerAusentesDaConversaoPdf,observacoesComMarcador,resolverRecibosLello,
+    marcarCessaoDeOrigemConhecida,excluirCessaoEspacoDaPrevia,
     carregarCadastroRecibosLello:async()=>[{unidade_id:'unidade',unidades:{identificacao:'101',bloco:''},vencimento:'2026-09-10',valor_original:100,observacoes:'Recibo: 12345678',origem_importacao:'Espelhamento Lello 123 - 10/09/2026'}],
     carregarCobrancasPreservadasMaestro:async()=>new Map(),chaveConciliacaoCobranca:()=> 'chave',
     anoCorrenteImportacao:()=>2026,formatOrigemImportacao:()=> 'conversao_relatorio',
