@@ -496,6 +496,7 @@ export async function POST(request: NextRequest) {
         recibo,
         referencia: recibo ? `Recibo ${recibo}` : null,
         observacoes,
+        situacao_origem: item.situacaoOrigem ?? null,
       }
       importadasParaAusencia.push(importadaConciliacao)
 
