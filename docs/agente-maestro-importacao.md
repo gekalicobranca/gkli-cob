@@ -18,3 +18,9 @@ node scripts/validate-agente-maestro-pausado.mjs
 npx tsx scripts/validate-maestro-conclusao.ts
 npm run typecheck
 ```
+
+### BBZ — K360 Comercial e vínculos pré-jurídicos (26/11/2026)
+
+No XLS exclusivo identificado no cabeçalho como K 360 HUMBERTO I - SUBCOND COMERCIAL, a BBZ usa o bloco literal 0. O conversor conserva esse identificador e limita o escopo aos blocos comerciais reconhecidos presentes no relatório. No relatório compartilhado permanece o recorte COM/RES.
+
+A substituição do Maestro deve preservar cobranças referenciadas por pre_juridico_casos. A exclusão dessas cobranças dispara a FK ON DELETE SET NULL e a proteção de transições do jurídico. A migration 20261126130000 exclui esses vínculos da lista de substituíveis, sem ampliar privilégios. Na conferência somente leitura do Comoditá, 43 candidatas passaram a 42 e nenhum caso protegido permaneceu na seleção.
