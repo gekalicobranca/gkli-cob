@@ -1,3 +1,4 @@
+import { origemTemCessaoEspaco, MOTIVO_EXCLUSAO_CESSAO, naturezaDaLinhaPlanilha } from '@/features/importacoes/exclusao-cessao-espaco';
 "use server";
 
 import { garantirUnidadeImportacao } from "@/features/unidades/importacao";
@@ -1132,6 +1133,7 @@ function buildImportacaoPayload(
 
     return {
       condominio_cnpj: condominioCnpj,
+      ...naturezaDaLinhaPlanilha(raw),
       unidade,
       bloco,
       responsavel_nome: responsavelNome,
@@ -1415,6 +1417,7 @@ async function enrichCobrancaPreview(
   return rows.map((row) => {
     const payload = row.payload;
     const erros: string[] = [];
+    if (origemTemCessaoEspaco(payload)) erros.push(MOTIVO_EXCLUSAO_CESSAO);
     const alertas: string[] = alertasTelefonesImportacao(payload);
     const condominioCnpj = normalizeCnpj(payload.condominio_cnpj ?? "");
 
@@ -2625,7 +2628,11 @@ async function importarCobrancas(
     const linha = Number(payload.__linha ?? index + 1);
 
     try {
-
+      if (origemTemCessaoEspaco(payload)) {
+        resultado.ignorados += 1;
+        resultado.erros.push(`Linha ${linha}: ${MOTIVO_EXCLUSAO_CESSAO}`);
+        continue;
+      }
       const chaveUnidade = unidadeKey({ condominio_id: payload.condominio_id,
         identificacao: payload.identificacao || payload.unidade, bloco: payload.bloco });
       const unidadeCache = unidadesResolvidas.get(chaveUnidade);
@@ -3342,6 +3349,7 @@ async function executarLoteImportacao(formData: FormData) {
   assertPayloadsPermitidos(scope, payloads);
   if (importacao.status === "confirmada") return { concluida: true, processadas: payloads.length, total: payloads.length, gravadas: Number(importacao.resumo?.resultado?.importados ?? 0) };
   if (!["preview", "erro"].includes(importacao.status) || !payloads.length) throw new Error("Importação não disponível para confirmar.");
+  if (payloads.some(origemTemCessaoEspaco)) throw new Error('A prévia contém cessão/locação de espaço. Gere uma nova prévia para excluir essas linhas antes de substituir cobranças.');
   const resumo = (importacao.resumo ?? {}) as Record<string, any>;
   const opcao = String(formData.get("limpar_cobrancas_anteriores") ?? "");
   if (!resumo.execucao_lotes && !["sim", "nao", "on"].includes(opcao)) throw new Error("A opção de substituir cobranças não foi recebida. Recarregue a página.");

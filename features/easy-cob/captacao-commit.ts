@@ -1,3 +1,4 @@
+import { origemTemCessaoEspaco } from '@/features/importacoes/exclusao-cessao-espaco';
 import 'server-only';
 import {conferirAssinaturaCaptacao} from './captacao-server';
 import {hashPlanoCaptacao,prepararPlanoCaptacao} from './captacao-plano';
@@ -7,6 +8,7 @@ import type {createAdminClient} from '@/utils/supabase/admin';
 export async function confirmarCaptacaoTransacional(db:ReturnType<typeof createAdminClient>,
   conversao:{id:string;condominio_id:string;carteira_id:string;preview_json:unknown},operador:string) {
   const preview=conversao.preview_json as ConversaoPreview&{easyCaptacao:{expiradaEm?:string;plano:unknown;planoHash:string;assinatura:string;substituicao:{protocolo?:number}}};
+  if (preview?.cobrancas?.some(origemTemCessaoEspaco)) return {ok:false,code:'EASY_CAP_COMMIT_REJECTED',error:'A prévia contém cessão/locação de espaço. Leia novamente o arquivo para aplicar a exclusão.',httpStatus:409};
   const marker=preview?.easyCaptacao;
   if (marker?.expiradaEm) {
     return {ok:false,code:'EASY_CAP_COMMIT_REJECTED',error:'A prévia expirou. Leia o arquivo novamente para conferir uma nova prévia.',httpStatus:410};

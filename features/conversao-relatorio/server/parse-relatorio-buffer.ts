@@ -1,3 +1,4 @@
+import { excluirCessaoEspacoDaPrevia } from '@/features/importacoes/exclusao-cessao-espaco';
 import { createHash } from "crypto";
 import { classificarContatos } from "@/lib/core/telefone";
 import { aplicarDddPadraoConversao } from "./telefone-padrao";
@@ -5530,7 +5531,7 @@ function buildPreviewCobrancasSemDevedores({
   };
 }
 
-export async function parseRelatorioBuffer(
+async function parseRelatorioBufferOriginal(
   input: ParseInput,
 ): Promise<ParseResult> {
   const tipoConversao = input.tipoConversao ?? "cobrancas";
@@ -6068,4 +6069,16 @@ export async function parseRelatorioBuffer(
     error:
       "Reconheci indícios do relatório, mas não consegui localizar cobranças com unidade, recibo, vencimento e total.",
   };
+}
+
+/** A mesma regra atende leitura manual, Maestro e Easy Maestro. */
+export async function parseRelatorioBuffer(input: ParseInput): Promise<ParseResult> {
+  const result = await parseRelatorioBufferOriginal(input);
+  if (!result.ok || result.preview.tipoConversao !== 'cobrancas') return result;
+  const preview = excluirCessaoEspacoDaPrevia(result.preview);
+  if (preview === result.preview) return result;
+  return { ...result, preview: { ...preview,
+    csv: buildCsvPadraoGkli(preview.cobrancas, input.condominioCnpj),
+    xlsxBase64: buildXlsxBase64PadraoGkli(preview.cobrancas, input.condominioCnpj) } };
+
 }

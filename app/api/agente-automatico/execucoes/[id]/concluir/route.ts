@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     }))
     const result = await response.json()
     if (!response.ok || !result.ok) throw new Error(result.error || 'Falha na importação.')
-    const montarFlow = !execucao.easy_maestro_lote_id || execucao.easy_maestro_montar_flow
+    const montarFlow = !result.semCotasElegiveis && (!execucao.easy_maestro_lote_id || execucao.easy_maestro_montar_flow)
     if (montarFlow) await enfileirarMontagemMaestro(id, arquivo.id)
     const { error: updateError } = await db.from('agente_arquivos').update({ status_validacao: 'validado' }).eq('id', arquivo.id)
     if (updateError) throw new Error(updateError.message)

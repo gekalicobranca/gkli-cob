@@ -1,3 +1,4 @@
+import { excluirCessaoEspacoDaPrevia } from '@/features/importacoes/exclusao-cessao-espaco';
 import { randomUUID } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { EASY_CAP_CONFIRMATION_PAUSED, MENSAGEM_CAP_SUSPENSA } from '@/features/easy-cob/contencao'
@@ -196,7 +197,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "Conversão não corresponde ao condomínio e carteira informados." }, { status: 403 })
     }
 
-    const preview = conversao.preview_json as any
+    let preview = conversao.preview_json as any
     const captacaoEasy = conversao.origem === 'easy_captacao' || Boolean(preview?.easyCaptacao)
     if (body?.easy && !captacaoEasy) return NextResponse.json({ok:false,error:"Prévia Easy não encontrada."},{status:400})
     if (captacaoEasy) {
@@ -247,6 +248,25 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Revalidar prévias antigas antes de reservar a conciliação ou tocar na base.
+    const filtrada = excluirCessaoEspacoDaPrevia(preview)
+    if (filtrada !== preview) {
+      const { error } = await supabase.from('conversoes_relatorio').update({ preview_json: filtrada,
+        total_cobrancas: filtrada.cobrancas.length, total_parcelas: filtrada.totalParcelas, valor_total: filtrada.valorTotal,
+        inconsistencias_json: filtrada.inconsistencias }).eq('id', conversaoId).eq('status', conversao.status)
+        .select('id').single()
+      if (error) throw new Error('A prévia mudou; reabra a conferência antes de confirmar.')
+      preview = filtrada
+    }
+    if (!preview.cobrancas?.length && preview.exclusaoCessaoEspaco?.recibos.length) {
+      // Relatório só com exclusões NÃO significa que os demais débitos foram pagos.
+      const { error } = await supabase.from('conversoes_relatorio').update({ status: 'concluido_com_alertas' })
+        .eq('id', conversaoId).eq('status', conversao.status).select('id').single()
+      if (error) throw new Error('Não foi possível registrar a exclusão da captação.')
+      return NextResponse.json({ ok: true, semCotasElegiveis: true,
+        resumo: { cobrancasCriadas: 0, cobrancasExcluidas: preview.exclusaoCessaoEspaco.recibos.length,
+          cobrancasAnterioresRemovidas: 0, inconsistencias: preview.inconsistencias } })
+    }
     const captacaoPdf = conversaoPdfDeCobrancas(preview)
     const conciliarMaestro = preview?.captacaoAutomatizada === true && String(conversao.origem ?? "").startsWith("captacao_automatizada:")
     let cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []

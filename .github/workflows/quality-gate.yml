@@ -29,5 +29,7 @@ jobs:
         run: npm ci
       - name: Verificar tipos
         run: npm run typecheck
+      - name: Conferir exclusão de cessão e locação na captação
+        run: node --no-wasm-tier-up node_modules/tsx/dist/cli.mjs --test --test-concurrency=1 scripts/validate-exclusao-cessao.ts scripts/validate-manager-composicao.ts scripts/validate-easy-planilha-manual.ts
       - name: Gerar build de produção
         run: npm run build
