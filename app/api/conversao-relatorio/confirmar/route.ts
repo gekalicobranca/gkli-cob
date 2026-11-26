@@ -1,3 +1,4 @@
+import { primeiroEmailHabitacional } from "@/features/conversao-relatorio/email-habitacional"
 import { marcarCessaoDeOrigemConhecida } from '@/features/importacoes/exclusao-cessao-conhecida';
 import { excluirCessaoEspacoDaPrevia } from '@/features/importacoes/exclusao-cessao-espaco';
 import { randomUUID } from "node:crypto"
@@ -273,6 +274,10 @@ export async function POST(request: NextRequest) {
     const captacaoPdf = conversaoPdfDeCobrancas(preview)
     const conciliarMaestro = preview?.captacaoAutomatizada === true && String(conversao.origem ?? "").startsWith("captacao_automatizada:")
     let cobrancas = Array.isArray(preview?.cobrancas) ? preview.cobrancas : []
+    // Prévias anteriores podem trazer os endereços concatenados.
+    if (preview.padraoDetectado?.id === "habitacional-inadimplencia-atualizada-cobrancas-v1") {
+      cobrancas = cobrancas.map((item: typeof cobrancas[number]) => ({ ...item, email: primeiroEmailHabitacional(item.email) }))
+    }
     const { data: condominioConfiguracao, error: condominioError } = await supabase
       .from("condominios")
       .select("carteira_id, inicio_cobranca_dias, dias_apos_vencimento_regua, bloqueio_garantidora_habilitado, bloqueio_garantidora_inicio, bloqueio_garantidora_fim")

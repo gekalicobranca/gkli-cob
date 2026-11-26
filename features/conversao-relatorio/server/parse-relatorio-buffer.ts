@@ -1,3 +1,4 @@
+import { primeiroEmailHabitacional } from "../email-habitacional";
 import { excluirCessaoEspacoDaPrevia } from '@/features/importacoes/exclusao-cessao-espaco';
 import { createHash } from "crypto";
 import { classificarContatos } from "@/lib/core/telefone";
@@ -5095,7 +5096,7 @@ export function parseHabitacionalCobrancasPdf(text: string): ReciboCondopro[] {
   let responsavelAtual = "Responsável não identificado";
   let documentoAtual = "";
   let telefonesAtuais: string[] = [];
-  let emailsAtuais: string[] = [];
+  let emailAtual: string | undefined;
   let boletoAtual = "";
   let vencimentoAtual = "";
   let marcadorAtual: string | undefined;
@@ -5132,7 +5133,7 @@ export function parseHabitacionalCobrancasPdf(text: string): ReciboCondopro[] {
       documentoAtual = normalize(unidadeMatch[4]);
       if (!mesmaUnidade) {
         telefonesAtuais = [];
-        emailsAtuais = [];
+        emailAtual = undefined;
         resetBoleto();
       }
       continue;
@@ -5143,8 +5144,7 @@ export function parseHabitacionalCobrancasPdf(text: string): ReciboCondopro[] {
       if (telefone && !telefonesAtuais.includes(telefone)) telefonesAtuais.push(telefone);
     }
     for (const match of line.matchAll(/E-mail:\s*(.+?)(?=E-mail:|$)/gi)) {
-      const email = normalize(match[1]);
-      if (email && !emailsAtuais.includes(email)) emailsAtuais.push(email);
+      emailAtual ??= primeiroEmailHabitacional(match[1]);
     }
 
     const vencimentoMatch = line.match(/\d{2}\/\d{2}\/\d{2}/);
@@ -5174,7 +5174,7 @@ export function parseHabitacionalCobrancasPdf(text: string): ReciboCondopro[] {
           responsavel: responsavelAtual,
           responsavelDocumento: documentoAtual,
           telefone: telefonesAtuais.join(" | ") || undefined,
-          email: emailsAtuais.join(" | ") || undefined,
+          email: emailAtual,
           recibo: boletoAtual,
           vencimento: vencimentoAtual,
           valorPrincipal: totais.valorPrincipal,
