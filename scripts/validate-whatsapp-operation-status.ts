@@ -10,11 +10,13 @@ const base = {
   control: { habilitado: true, reiniciar_id: 'a', aplicado_id: 'a', atualizado_em: date, supervisor_em: date, supervisor_status: 'supervisionando' },
   monitor: { ultimo_sinal_em: date, metadata_json: { estado: 'operando' } },
 }
-test('disabled wallet channel takes priority over a connected and authorized worker', () => {
+test('connected wallet with disabled sending clearly separates connection and delivery', () => {
   const state = whatsappOperationStatus({ ...base, channelEnabled: false })
   assert.equal(state.tone, 'amber')
-  assert.equal(state.title, 'WhatsApp desabilitado na carteira')
-  assert.match(state.next, /cadastro da carteira/)
+  assert.equal(state.title, 'Conectado · envios pausados')
+  assert.match(state.next, /não libera envios/)
+  assert.equal(whatsappOperationStatus({ ...base, channelEnabled:false, expectedPhone:'other' }).tone, 'red')
+  assert.equal(whatsappOperationStatus({ ...base, channelEnabled:false, session:{...base.session,atualizado_em:new Date(now-300000).toISOString()} }).tone, 'red')
 })
 test('green requires current connection, matching number and active processing', () => {
   assert.equal(whatsappOperationStatus(base).tone, 'green')
