@@ -56,3 +56,9 @@ assert.match(recibos[0]?.detalhesOrigem ?? "", /Cotas de meses anteriores/);
 assert.match(recibos[0]?.detalhesOrigem ?? "", /Fundo de reserva/);
 
 console.log("Conversão Habitacional PDF validada com sucesso.");
+
+const comVariosEmails = text.replace(/^E-mail:.*$/m,
+  "E-mail: inválido; primeiro@example.comE-mail: segundo@example.com\nE-mail: terceiro@example.com");
+const semEmail = text.replace("000025", "000026").replace(/^E-mail:.*$/m, "E-mail: inválido");
+assert.deepEqual(parseHabitacionalCobrancasPdf(comVariosEmails + semEmail).map(item => item.email),
+  ["primeiro@example.com", undefined]);
