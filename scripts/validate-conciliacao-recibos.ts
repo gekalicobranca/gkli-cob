@@ -11,6 +11,42 @@ const antiga = {
   observacoes: 'Conversão de relatório - recibo 12345', status_financeiro: 'em_aberto', status_operacional: 'em_cobranca_ativa',
 }
 const entrada = { ...antiga, competencia: '06/2026' }
+
+test('Maestro atualiza saldo residual de acordo sem exigir vínculo ou alterar o principal', async () => {
+  const casos = [
+    { unidade: '000113', recibo: '3285013', original: 774.30, saldo: 785.96, residual: 711.81, status: 'acordo_firmado' },
+    { unidade: '000117', recibo: '3218500', original: 1241.22, saldo: 224.35, residual: 118.52, status: 'em_negociacao' },
+    { unidade: '001001', recibo: '2831672', original: 916.94, saldo: 689.38, residual: 405.32, status: 'em_negociacao' },
+    { unidade: '001117', recibo: '3218702', original: 1241.22, saldo: 392.96, residual: 274.93, status: 'em_negociacao' },
+  ]
+  for (const caso of casos) {
+    const existente = { ...antiga, unidade_id: caso.unidade, valor_original: caso.original,
+      observacoes: `Recibo ${caso.recibo}`, status_operacional: caso.status, updated_at: '2026-11-20T00:00:00Z' }
+    const importada = { ...entrada, unidade_id: caso.unidade, recibo: caso.recibo,
+      valor_original: caso.residual, valor_atualizado: caso.saldo, situacao_origem: 'acordo' }
+    const snapshot = structuredClone(existente)
+    const preservadas = new Map([[caso.unidade, [existente]]])
+    const r = await conciliarCobrancaImportada(client([existente]), importada, true, preservadas)
+    assert.equal(r.status, 'atualizar', caso.unidade)
+    assert.equal(r.cobrancaId, existente.id)
+    assert.deepEqual(existente, snapshot)
+    assert.equal((await conciliarCobrancaImportada(client([existente]), { ...importada, situacao_origem: null }, true, preservadas)).status, 'divergente')
+  }
+})
+
+test('saldo residual mantém bloqueios de identidade, duplicidade, quitação e valores inválidos', async () => {
+  const existente = { ...antiga, competencia: '06/2026', updated_at: '2026-11-20T00:00:00Z' }
+  const residual = { ...entrada, recibo: '12345', valor_original: 40, valor_atualizado: 45, situacao_origem: 'acordo' }
+  for (const mudanca of [{ vencimento: '2026-06-11' }, { competencia: '05/2026' }, { recibo: 'AJ 12345' },
+    { valor_atualizado: 0 }, { valor_atualizado: -1 }, { situacao_origem: 'regular' }]) {
+    assert.equal((await conciliarCobrancaImportada(client([existente]), { ...residual, ...mudanca }, true)).status, 'divergente', JSON.stringify(mudanca))
+  }
+  for (const mudanca of [{ status_financeiro: 'quitado' }, { status_operacional: 'pago' }, { arquivada_em: '2026-11-01' }]) {
+    assert.equal((await conciliarCobrancaImportada(client([{ ...existente, ...mudanca }]), residual, true)).status, 'divergente')
+  }
+  assert.equal((await conciliarCobrancaImportada(client([existente,{ ...existente,id:'outra' }]),residual,true)).status,'divergente')
+  assert.equal((await conciliarCobrancaImportada(client([existente]),residual,false)).status,'divergente')
+})
 function client(rows: typeof antiga[]) {
   return { from: () => {
     let selected = [...rows]

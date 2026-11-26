@@ -19,6 +19,8 @@ export type CobrancaImportadaConciliacao = {
   recibo?: string | null;
   referencia?: string | null;
   observacoes?: string | null;
+  /** Situação explícita lida do relatório; não homologa vínculo com acordo. */
+  situacao_origem?: string | null;
 };
 
 export type ResultadoConciliacaoCobranca =
@@ -190,6 +192,21 @@ function classificarCandidato(
   }
   if (conciliarValores && existente.arquivada_em) {
     return { status: "divergente" as const, motivo: "Recibo já arquivado reapareceu no relatório. Confira o registro original." };
+  }
+  // Em linhas de acordo, o principal do relatório pode ser saldo residual.
+  // Só o saldo/encargos seguem para a RPC: principal, estados e plano ficam intactos.
+  // A existência de vínculo no app não é pré-requisito nem tarefa da captação.
+  if (conciliarValores && importada.situacao_origem === 'acordo'
+    && reciboImportado && reciboExistente && reciboImportado.recibo === reciboExistente.recibo
+    && marcadoresAdministrativosCompativeis(reciboImportado.marcador, reciboExistente.marcador)
+    && importada.vencimento && mesmoVencimento && temMesmaCompetencia(importada, existente)
+    && importada.carteira_id && existente.carteira_id === importada.carteira_id
+    && importada.condominio_id && existente.condominio_id === importada.condominio_id
+    && existente.unidade_id === importada.unidade_id && existente.updated_at && statusAberto(existente)
+    && ![existente.status_financeiro, existente.status_operacional].some(s => normalizeText(s) === 'pago')
+    && importada.valor_atualizado != null && Number.isFinite(Number(importada.valor_atualizado))
+    && Number(importada.valor_atualizado) > 0) {
+    return { status: 'atualizar' as const, atualizadoEm: existente.updated_at };
   }
   const situacoes = [existente.status_financeiro, existente.status_operacional].map(normalizeText);
   if (preservarQuitadas && mesmoRecibo && mesmoVencimento && importada.vencimento

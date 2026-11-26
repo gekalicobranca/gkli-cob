@@ -166,6 +166,29 @@ async function conferirSubstituicao(origemJaMigrada: boolean) {
           [{id:id(12),conversao_relatorio_id:null}])
       } finally { await db.exec('rollback') }
     }
+    for (const vinculado of [false,true]) {
+      await db.exec('begin')
+      try {
+        await db.exec(`
+          create table parcelas_acordo(id uuid,acordo_id uuid,valor numeric,vencimento date,status text);
+          insert into acordos values('${id(81)}',null,'em_atraso');
+          insert into parcelas_acordo values('${id(82)}','${id(81)}',50,'2026-12-01','aberta');
+          update cobrancas set status='em_negociacao',status_operacional='em_negociacao',automacao_bloqueada=true where id='${id(13)}';
+        `)
+        if(vinculado) await db.exec(`insert into acordo_cobrancas values('${id(81)}','${id(13)}')`)
+        const acordosAntes=(await db.query('select * from acordos order by id')).rows
+        const parcelasAntes=(await db.query('select * from parcelas_acordo order by id')).rows
+        const vinculosAntes=(await db.query('select * from acordo_cobrancas order by acordo_id,cobranca_id')).rows
+        const captadas=importadas.map(i=>i.recibo==='13'?{...i,valor_original:40,situacao_origem:'acordo'}:i)
+        const resultado=(await substituir([nova],captadas)).rows[0].r
+        assert.equal(resultado.atualizadas,2)
+        assert.deepEqual((await db.query(`select valor_original::int,valor_atualizado::int,status_operacional,automacao_bloqueada from cobrancas where id=$1`,[id(13)])).rows,
+          [{valor_original:100,valor_atualizado:130,status_operacional:'em_negociacao',automacao_bloqueada:true}])
+        assert.deepEqual((await db.query('select * from acordos order by id')).rows,acordosAntes)
+        assert.deepEqual((await db.query('select * from parcelas_acordo order by id')).rows,parcelasAntes)
+        assert.deepEqual((await db.query('select * from acordo_cobrancas order by acordo_id,cobranca_id')).rows,vinculosAntes)
+      } finally { await db.exec('rollback') }
+    }
     const { rows } = await substituir([nova])
     assert.equal(rows[0].r.removidas, 3)
     assert.equal(rows[0].r.atualizadas, 2)
