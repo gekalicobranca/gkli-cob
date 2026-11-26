@@ -32,7 +32,8 @@ export type ReceitaEasyMaestro = {
 
 export type PainelEasyMaestro = { ativo: boolean; receitas: ReceitaEasyMaestro[];saude?:SaudeEasy;saudeIndisponivel?:boolean }
 
-export async function consultarEasyMaestro(administradora: string | null = null): Promise<PainelEasyMaestro> {
+export async function consultarEasyMaestro(administradora: string): Promise<PainelEasyMaestro> {
+  if (typeof administradora !== 'string' || !administradora.trim()) throw new Error('Selecione uma administradora.')
   const scope = await getPermittedCarteiras()
   const { data, error } = await createAdminClient().rpc('easy_maestro_painel', {
     p_carteiras: scope.carteiraIds,

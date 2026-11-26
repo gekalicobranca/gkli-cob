@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Check, Play } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import styles from '@/components/easy/easy.module.css'
 import { formatarVencimentoAcordo } from '@/features/acordos/formatar-vencimento'
 import { captarEasyMaestro, consultarEasyMaestro,prepararEasyMaestro, type PainelEasyMaestro, type ReceitaEasyMaestro } from './actions'
@@ -21,8 +22,15 @@ const emAndamento = (receita: ReceitaEasyMaestro) => ['fila', 'captando', 'impor
 const montandoFlow = (receita: ReceitaEasyMaestro) => receita.estado === 'importado' && receita.montarFlow
   && !['concluido', 'atencao'].includes(receita.montagemStatus ?? '')
 
-export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestro; podeCaptar: boolean }) {
-  const [painel, setPainel] = useState(inicial)
+export function EasyMaestro({ administradoras, saudeInicial, podeCaptar }: {
+  administradoras: [string, string][] | null
+  saudeInicial: PainelEasyMaestro['saude']
+  podeCaptar: boolean
+}) {
+  const router = useRouter()
+  const [recarregando, recarregar] = useTransition()
+  const [painel, setPainel] = useState<PainelEasyMaestro>({ ativo: false, receitas: [] })
+  const [administradoraLida, setAdministradoraLida] = useState('')
   const [administradora, setAdministradora] = useState('')
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [montarFlow, setMontarFlow] = useState(true)
@@ -34,7 +42,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   const [pedido,setPedido] = useState<string | null>(null)
   const solicitando=useRef(false)
   const [conferencia,setConferencia]=useState<{administradora:string;condominios:string[];montarFlow:boolean;versao:string;ativacaoAutomatica:boolean}|null>(null)
-  const administradoras = new Map(inicial.receitas.map(r => [r.administradora, r.administradoraNome]))
+  const temLeitura = Boolean(administradora && administradoraLida === administradora)
   const receitas = painel.receitas.filter(r => r.administradora === administradora)
   const primeiraReceita = new Map<string, string>()
   for (const receita of receitas) {
@@ -44,7 +52,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
   const emPrazo = new Set(receitas.filter(r => r.liberada && !ocupados.has(r.condominioId)).map(r => r.condominioId))
   const atualizando = ocupados.size > 0
   let motivoBloqueio = ''
-  if (!painel.ativo) motivoBloqueio = 'A captação está desligada no Maestro.'
+  if (temLeitura && !painel.ativo) motivoBloqueio = 'A captação está desligada no Maestro.'
   else if (!podeCaptar) motivoBloqueio = 'Seu perfil não tem permissão para iniciar captações.'
   else if (enviando) motivoBloqueio = conferencia ? 'Registrando o pedido de captação.' : 'Conferindo os efeitos da seleção.'
   const disponiveis = motivoBloqueio ? 0 : emPrazo.size
@@ -67,12 +75,9 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
       try {
         const resultado = await consultarEasyMaestro(administradora)
         if (!cancelado) {
+          setAdministradoraLida(administradora)
           setLeituraFalhou(false)
-          setPainel(atual => ({
-            ativo: resultado.ativo,
-            saude:resultado.saude,saudeIndisponivel:resultado.saudeIndisponivel,
-            receitas: [...atual.receitas.filter(r => r.administradora !== administradora), ...resultado.receitas],
-          }))
+          setPainel(resultado)
         }
       } catch {
         if (!cancelado) setLeituraFalhou(true)
@@ -121,11 +126,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
       pedidoIniciado=false
       setSelecionados([])
       const atualizado = await consultarEasyMaestro(administradora)
-      setPainel(atual => ({
-        ativo: atualizado.ativo,
-        saude:atualizado.saude,saudeIndisponivel:atualizado.saudeIndisponivel,
-        receitas: [...atual.receitas.filter(r => r.administradora !== administradora), ...atualizado.receitas],
-      }))
+      setPainel(atualizado)
     } catch {
       setErro(pedidoIniciado
         ? 'Não foi possível confirmar o pedido. Clique em Retomar o mesmo pedido para consultar/repetir a mesma operação.'
@@ -138,18 +139,20 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
 
   return (
     <div className="space-y-5">
-      <EasyWorkerHealth saude={painel.saude} erro={painel.saudeIndisponivel}/>
+      <EasyWorkerHealth saude={temLeitura ? painel.saude : saudeInicial} erro={temLeitura ? painel.saudeIndisponivel : !saudeInicial}/>
       <section className={styles.panel}>
         <label htmlFor="easy-maestro-administradora" className="text-sm font-semibold">Qual administradora?</label>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
           <select id="easy-maestro-administradora" className="min-w-0 w-full sm:flex-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm" value={administradora} disabled={enviando||Boolean(pedido)}
             onChange={event => {
               setLeituraFalhou(false)
+              setAdministradoraLida('')
+              setPainel({ ativo: false, receitas: [] })
               setAdministradora(event.target.value)
               atualizarSelecao([])
             }}>
             <option value="">Selecione a administradora</option>
-            {[...administradoras].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+            {administradoras?.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
           </select>
           <button type="button" className={styles.primary} disabled={enviando||!podeCaptar||(!conferencia&&(disponiveis===0||!selecaoDisponivel.length))} onClick={captar}>
             <Play size={16} aria-hidden="true" /> {enviando ? (conferencia ? 'Registrando pedido…' : 'Conferindo efeitos…') : conferencia ? pedido?'Retomar o mesmo pedido':'Confirmar pedido' : 'Conferir efeitos da captação'}
@@ -174,7 +177,7 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
         </div>}
         <p className="mt-3 text-sm text-slate-600">A captação fica disponível quando a cota do ciclo completa o prazo da régua do condomínio.</p>
         <div aria-live="polite">
-          {administradora && (
+          {temLeitura && (
             <p className={`mt-3 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium ${disponiveis ? 'bg-emerald-50 text-emerald-900' : 'bg-slate-100 text-slate-700'}`}>
               <strong className="text-lg font-bold tabular-nums">{disponiveis}</strong>
               {disponiveis === 1 ? 'condomínio disponível para captar agora' : 'condomínios disponíveis para captar agora'}
@@ -185,13 +188,18 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
               {selecaoDisponivel.length ? `${selecaoDisponivel.length} de ${disponiveis} selecionados.` : 'Marque na lista os condomínios que deseja captar.'}
             </p>
           )}
-          {motivoBloqueio && (administradora || !painel.ativo) && (
+          {motivoBloqueio && temLeitura && (
             <p className="mt-2 text-sm font-semibold text-amber-800">
               {motivoBloqueio}
             </p>
           )}
         </div>
-        {!inicial.receitas.length && <p className="mt-2 text-sm text-slate-600">Nenhuma captação automática está disponível nas suas carteiras.</p>}
+        {administradoras?.length === 0 && <p className="mt-2 text-sm text-slate-600">Nenhuma captação automática está disponível nas suas carteiras.</p>}
+        {administradoras === null && <div>
+          <p role="alert">A lista de administradoras está indisponível.</p>
+          <button type="button" className="underline" disabled={recarregando}
+            onClick={() => recarregar(() => router.refresh())}>Tentar carregar administradoras novamente</button>
+        </div>}
         {mensagem && <p role="status" className="mt-3 text-sm font-semibold text-cyan-900">{mensagem}</p>}
         {erro && <p role="alert" className="mt-3 text-sm font-semibold text-rose-800">{erro}</p>}
       </section>
@@ -199,11 +207,12 @@ export function EasyMaestro({ inicial, podeCaptar }: { inicial: PainelEasyMaestr
         <section className={styles.panel}>
           <h2 className="text-lg font-semibold">Captações da administradora</h2>
           {leituraFalhou && <div className="my-3 space-y-2">
-            <p role="alert" className="text-sm text-amber-900">A atualização falhou. A lista mostra a última leitura disponível.</p>
+            <p role="alert" className="text-sm text-amber-900">{temLeitura ? 'A atualização falhou. A lista mostra a última leitura disponível.' : 'A consulta das captações desta administradora falhou.'}</p>
             <button type="button" className="rounded-xl border px-4 py-3 text-sm" disabled={enviando}
               onClick={() => setReleitura(n => n + 1)}>Atualizar andamento</button>
           </div>}
-          <p className="mt-1 text-sm text-slate-600">{primeiraReceita.size} condomínio(s) · {receitas.length} coleta(s){atualizando ? ' · Atualização automática' : ''}</p>
+          {!temLeitura && !leituraFalhou && <p role="status">Consultando captações…</p>}
+          {temLeitura && <p className="mt-1 text-sm text-slate-600">{primeiraReceita.size} condomínio(s) · {receitas.length} coleta(s){atualizando ? ' · Atualização automática' : ''}</p>}
           {disponiveis > 0 && (
             <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold">
               <input type="checkbox" className="h-4 w-4 accent-cyan-700" checked={selecaoDisponivel.length === disponiveis}

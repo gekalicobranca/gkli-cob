@@ -40,3 +40,11 @@ Em 23/11, os pedidos de 22h45 e 22h53 chegaram à validação com 33 cobranças.
 A substituição transacional compartilhada pelos dois Maestros separa as unidades com comunicação em andamento ou de resultado incerto. O registro de conciliação da conversão guarda os IDs das unidades e a quantidade de linhas retidas. Nessas unidades conserva cobranças, parcelas e vínculos e exclui os lançamentos da montagem de novos Flows. As demais seguem na mesma importação. A validação mostra bloco e unidade, e o Easy Maestro identifica a importação parcial. Uma captação parcial não comprova cobertura integral do mês ou do consolidado.
 
 A retenção leva em conta a mensagem individual, as cobranças de mensagens agrupadas e a unidade da mensagem. Vale para SMTP, Thunderbird e WhatsApp Web, inclusive quando a mensagem foi cancelada após a reserva. A idade de uma tentativa não comprova seu resultado. Depois de confirmar a entrega ou a falha no transporte e encerrar a tentativa, a unidade volta a participar da próxima captação. Aplicar as duas migrations de 24/11 (023000 e 023100) antes da aplicação web.
+
+### Abertura do painel e consulta por administradora — 25/11/2026
+
+Na ocorrência 412351508, a consulta inicial calculava o andamento de todas as receitas visíveis antes da escolha da administradora. Na medição somente leitura com quatro carteiras e 68 receitas, o painel completo levou 7,43 s e a projeção do catálogo levou 4,2 ms. O plano do SQL interno mostrou 68 avaliações do agregado de captação mensal, consultando conversões e prévias.
+
+A abertura passa a paginar o catálogo de receitas por carteira, carregar a saúde separadamente e consultar o andamento apenas após a seleção. Falhas no catálogo permitem repetir a leitura na página. Falhas no andamento preservam a seleção e indicam se há uma leitura anterior da mesma administradora. A alteração utiliza as funções existentes e dispensa migration. As medições são amostras de banco, sem incluir latência de rede.
+
+Em 26/11/2026 às 08h00 (São Paulo), o log da rota em produção confirmou a recorrência do código 412351508 na consulta inicial de captações. A exceção registrada não contém o erro interno do banco.
