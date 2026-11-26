@@ -72,7 +72,7 @@ test('catálogo consulta apenas as administradoras das carteiras e percorre toda
     assert.equal(nome,'easy_maestro_receitas');
     assert.equal(args.p_carteiras,escopo);
     return {select:(campos:string)=>{
-      assert.equal(campos,'administradora,administradora_nome');
+      assert.equal(campos,'administradora,administradora_nome,receita_id');
       return {order:(ordem:string)=>{
         assert.equal(ordem,'receita_id');
         return {range:async(inicio:number,fim:number)=>{

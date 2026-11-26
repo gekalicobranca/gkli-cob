@@ -9,7 +9,7 @@ export async function listarAdministradoras(carteiras: string[] | null) {
     const { data, error } = await client.rpc('easy_maestro_receitas', {
       p_carteiras: carteiras,
       p_administradora: null,
-    }).select('administradora,administradora_nome').order('receita_id').range(inicio, inicio + tamanho - 1)
+    }).select('administradora,administradora_nome,receita_id').order('receita_id').range(inicio, inicio + tamanho - 1)
     if (error || !Array.isArray(data)) throw new Error('Falha ao listar administradoras.')
     for (const linha of data) opcoes.set(linha.administradora, linha.administradora_nome)
     if (data.length < tamanho) break
