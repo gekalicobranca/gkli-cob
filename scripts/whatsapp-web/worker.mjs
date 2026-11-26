@@ -47,7 +47,7 @@ const client = new ResilientClient({
   authStrategy: new LocalAuth({ clientId: session, dataPath: paths.auth }),
   webVersionCache: { type: 'none' },
   puppeteer: { headless: true, protocolTimeout: 900000,
-    ...(process.env.WHATSAPP_WEB_RUNTIME === 'railway' ? { args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] } : {}),
+    ...(process.env.WHATSAPP_WEB_RUNTIME === 'railway' ? { args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--disable-software-rasterizer', '--renderer-process-limit=1', '--js-flags=--max-old-space-size=384'] } : {}),
     ...(process.env.WHATSAPP_WEB_CHROME_PATH ? { executablePath: process.env.WHATSAPP_WEB_CHROME_PATH } : {}) },
 })
 client.connectionOnly = connectOnly
