@@ -9,10 +9,7 @@ test('consulta somente o módulo de socket da página atual após pareamento', a
   const previous = globalThis.window
   try {
     for (const login of [true, false]) {
-      globalThis.window = { location: { pathname: login ? '/login' : '/' }, require(name) {
-        assert.equal(name, login ? 'WAWebBackendEventBus' : 'WAWebSocketModel')
-        return login ? { BackendEventBus: { socketState: 'PAIRING' } } : { Socket: { state: 'CONNECTED' } }
-      } }
+      globalThis.window = { _wwjsListeners: [[login ? { socketState: 'PAIRING' } : { state: 'CONNECTED' }, login ? 'set_socket_state' : 'change:state']], require() { assert.fail('Não deve carregar novos módulos durante o probe') } }
       assert.equal(await client.getState(), login ? 'PAIRING' : 'CONNECTED')
     }
   } finally { globalThis.window = previous }

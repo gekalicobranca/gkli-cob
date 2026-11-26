@@ -8,9 +8,10 @@ export function resilientClient(BaseClient, report = console.error) {
     async getState() {
       // The login page and the authenticated app use different socket modules.
       // Requiring the login-only module after pairing can block page evaluation.
-      return this.pupPage.evaluate(() => window.location.pathname.startsWith('/login')
-        ? window.require('WAWebBackendEventBus').BackendEventBus.socketState
-        : window.require('WAWebSocketModel').Socket.state)
+      return this.pupPage.evaluate(() => {
+        const socket = window._wwjsListeners?.find(([, event]) => event === 'set_socket_state' || event === 'change:state')?.[0]
+        return socket?.socketState ?? socket?.state ?? null
+      })
     }
     async requestPairingCode(phoneNumber, showNotification = true, intervalMs = 180000) {
       report(new Date().toISOString(), 'Solicitando código de vinculação ao WhatsApp.')
