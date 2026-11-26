@@ -48,3 +48,5 @@ Na ocorrência 412351508, a consulta inicial calculava o andamento de todas as r
 A abertura passa a paginar o catálogo de receitas por carteira, carregar a saúde separadamente e consultar o andamento apenas após a seleção. Falhas no catálogo permitem repetir a leitura na página. Falhas no andamento preservam a seleção e indicam se há uma leitura anterior da mesma administradora. A alteração utiliza as funções existentes e dispensa migration. As medições são amostras de banco, sem incluir latência de rede.
 
 Em 26/11/2026 às 08h00 (São Paulo), o log da rota em produção confirmou a recorrência do código 412351508 na consulta inicial de captações. A exceção registrada não contém o erro interno do banco.
+
+A leitura paginada via PostgREST precisa incluir receita_id na projeção para ordenar por essa coluna. Em 26/11, a chamada sem ela retornou HTTP 400 (42703). Com ela, a consulta retornou HTTP 200, inclusive com escopo vazio.
