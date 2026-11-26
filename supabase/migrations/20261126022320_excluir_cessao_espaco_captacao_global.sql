@@ -30,7 +30,7 @@ end $fn$;
 
 create or replace function public.impedir_importacao_cessao_espaco()
 returns trigger language plpgsql set search_path='' as $fn$
-declare previa jsonb; recibo text; unidade text; bloco text; item jsonb;
+declare previa jsonb; recibo text; unidade text; bloco text;
 begin
   if coalesce(new.excluida_por_cessao_espaco,false)
     or public.origem_tem_cessao_espaco(jsonb_build_object('observacoes',new.observacoes)) then
@@ -44,16 +44,15 @@ begin
     select u.identificacao,u.bloco into unidade,bloco from public.unidades u
       where u.id=new.unidade_id and u.condominio_id=new.condominio_id and u.carteira_id=new.carteira_id;
     if recibo is not null and unidade is not null then
-      for item in select value from jsonb_array_elements(
+      if exists (select 1 from jsonb_array_elements(
         (case when jsonb_typeof(previa->'cobrancas')='array' then previa->'cobrancas' else '[]'::jsonb end)
-        || (case when jsonb_typeof(previa->'exclusaoCessaoEspaco'->'recibos')='array' then previa->'exclusaoCessaoEspaco'->'recibos' else '[]'::jsonb end)) loop
-        if regexp_replace(item->>'recibo','[^0-9]','','g')=recibo
+        || (case when jsonb_typeof(previa->'exclusaoCessaoEspaco'->'recibos')='array' then previa->'exclusaoCessaoEspaco'->'recibos' else '[]'::jsonb end)) as itens(item)
+        where regexp_replace(item->>'recibo','[^0-9]','','g')=recibo
           and ltrim(upper(trim(item->>'unidade')),'0')=ltrim(upper(trim(unidade)),'0')
           and coalesce(nullif(upper(trim(item->>'bloco')),''),'0')=coalesce(nullif(upper(trim(bloco)),''),'0')
-          and public.origem_tem_cessao_espaco(item) then
+          and public.origem_tem_cessao_espaco(item)) then
           raise exception using errcode='23514',message='Recibo de cessão/locação de espaço identificado na composição original; captação proibida.';
-        end if;
-      end loop;
+      end if;
     end if;
   end if;
   return new;
