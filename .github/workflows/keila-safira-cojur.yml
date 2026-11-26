@@ -1,0 +1,63 @@
+name: Homologar coleta COJUR no Safira
+
+on:
+  push:
+    branches: [codex/keila-safira-nuvem]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keila-safira-cojur-homologacao
+  cancel-in-progress: false
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test scripts/agente-automatico/cojur-safira-homologacao.test.mjs
+
+  consultar:
+    needs: validar
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    environment: keila-safira-homologacao
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verificar acesso ao portal e autenticação da integração
+        run: node scripts/agente-automatico/cojur-safira-homologacao.mjs --probe
+      - name: Confirmar configuração do piloto
+        env:
+          GKLI_SAFIRA_CASE_ID: ${{ vars.GKLI_SAFIRA_CASE_ID }}
+          LELLO_SAFIRA_USUARIO: ${{ secrets.LELLO_SAFIRA_USUARIO }}
+          LELLO_SAFIRA_SENHA: ${{ secrets.LELLO_SAFIRA_SENHA }}
+        run: |
+          if [ -z "$GKLI_SAFIRA_CASE_ID" ] || [ -z "$LELLO_SAFIRA_USUARIO" ] || [ -z "$LELLO_SAFIRA_SENHA" ]; then
+            echo "::error::Ambiente de homologação ainda sem atendimento ou credencial Safira."
+            exit 1
+          fi
+      - name: Preparar navegador
+        run: |
+          npm ci --ignore-scripts
+          npx --no-install playwright install --with-deps chromium
+      - name: Consultar a Lello e confirmar o retorno no GKLI
+        env:
+          GKLI_SAFIRA_CASE_ID: ${{ vars.GKLI_SAFIRA_CASE_ID }}
+          LELLO_SAFIRA_USUARIO: ${{ secrets.LELLO_SAFIRA_USUARIO }}
+          LELLO_SAFIRA_SENHA: ${{ secrets.LELLO_SAFIRA_SENHA }}
+        run: node scripts/agente-automatico/cojur-safira-homologacao.mjs
