@@ -14,6 +14,9 @@ export function resilientClient(BaseClient, report = console.error) {
     async getState() {
       // The login page and the authenticated app use different socket modules.
       // Requiring the login-only module after pairing can block page evaluation.
+      const started = Date.now()
+      const metrics = await bounded(this.pupPage.metrics(), 3000).catch(() => null)
+      report('Diagnóstico do navegador', JSON.stringify({ task: metrics?.TaskDuration, heap: metrics?.JSHeapUsedSize, beforeProbeMs: Date.now()-started }))
       return this.pupPage.evaluate(() => {
         const socket = window._wwjsListeners?.find(([, event]) => event === 'set_socket_state' || event === 'change:state')?.[0]
         return socket?.socketState ?? socket?.state ?? null
