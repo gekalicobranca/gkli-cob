@@ -7,7 +7,7 @@ import {parseXlsx} from '../features/importacoes/engine/xlsx-parser';
 import * as XLSX from 'xlsx';
 import { fixtureCap, prepararConversao, previewCap, inserirCobranca } from './easy-cap-transaction-fixture';
 import { fixtureId as id } from './easy-p0-fixture';
-const migration = readFile('supabase/migrations/20261126022320_excluir_cessao_espaco_captacao_global.sql','utf8');
+const migration = readFile('supabase/migrations/20261126023534_excluir_cessao_espaco_captacao_global.sql','utf8');
 const positivos = [
   { detalhesOrigem: '8956 CESSÃO DE ESPAÇO: R$ 834,42' },
   { historico: '39 LOCAÇÃO DE ESPAÇO 25/09/2026' },

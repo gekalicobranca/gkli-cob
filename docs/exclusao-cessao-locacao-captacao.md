@@ -20,7 +20,7 @@ Uma planilha que contenha só números, sem histórico/natureza ou qualquer orig
 
 ## Defesa no banco
 
-Migration `20261126022320_excluir_cessao_espaco_captacao_global.sql` troca a proibição específica do Villa Lobos por uma barreira global de INSERT. Ela usa observações e, quando a cobrança aponta para conversão, também a composição original/excluída do recibo, com conferência de carteira, condomínio, unidade e bloco. Não depende da comparação de nome com/sem acento.
+Migration `20261126023534_excluir_cessao_espaco_captacao_global.sql` troca a proibição específica do Villa Lobos por uma barreira global de INSERT. Ela usa observações e, quando a cobrança aponta para conversão, também a composição original/excluída do recibo, com conferência de carteira, condomínio, unidade e bloco. Não depende da comparação de nome com/sem acento.
 
 Uma validação de conclusão em `conversoes_relatorio` também recusa prévia operacional com rubrica proibida; isso aborta integralmente o commit transacional do Easy mesmo quando ele reutiliza cobranças existentes, sem passar por INSERT. Funções não concedem acesso a dados nem usam SECURITY DEFINER. Não há UPDATE/DELETE de cobranças, acordos, mensagens ou flows na migration.
 
