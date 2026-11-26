@@ -3,6 +3,7 @@
 import { bounded } from './recovery.mjs'
 import { readFile, statfs } from 'node:fs/promises'
 import { requestCodeInPage } from './pairing-code.mjs'
+import { installOutboundHooks } from './outbound-hooks.mjs'
 export const synchronizationTimeoutMs = 600000
 export function resilientClient(BaseClient, report = console.error) {
   return class extends BaseClient {
@@ -13,6 +14,7 @@ export function resilientClient(BaseClient, report = console.error) {
       // Pairing-only services do not need message/history/media event hooks.
       // Keep authentication/synchronization listeners installed by inject().
       if (this.connectionOnly) return
+      if (this.outboundOnly) return installOutboundHooks(this)
       return super.attachEventListeners()
     }
     async getState() {
