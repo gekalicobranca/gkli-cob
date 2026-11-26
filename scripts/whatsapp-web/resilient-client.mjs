@@ -6,6 +6,9 @@ import { requestCodeInPage } from './pairing-code.mjs'
 export const synchronizationTimeoutMs = 600000
 export function resilientClient(BaseClient, report = console.error) {
   return class extends BaseClient {
+    async getOwnPhone() {
+      return this.pupPage.evaluate(() => window.require('WAWebUserPrefsMeUser').getMaybeMePnUser()?.user ?? null)
+    }
     async attachEventListeners() {
       // Pairing-only services do not need message/history/media event hooks.
       // Keep authentication/synchronization listeners installed by inject().

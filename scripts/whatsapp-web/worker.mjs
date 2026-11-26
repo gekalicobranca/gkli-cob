@@ -66,7 +66,18 @@ async function timeout(promise, ms = 45000) {
   finally { clearTimeout(timer) }
 }
 const check = ({ data, error }) => { if (error) throw new Error(error.message); return data }
-const recoverConnection = connectionRecovery({ probe: () => assertBrowserHealthy(client) })
+let observedPhone = null
+const recoverConnection = connectionRecovery({ probe: async () => {
+  await assertBrowserHealthy(client)
+  if (connectOnly) {
+    observedPhone = normalizePhone(await bounded(client.getOwnPhone(), 8000))
+    if (!observedPhone) {
+      const error = new Error('Aguardando identidade da própria conta após conectar.')
+      error.whatsappState = 'OPENING'
+      throw error
+    }
+  }
+} })
 const publishSession = createPeriodicTask({ intervalMs: 30_000 })
 const publishMonitor = createPeriodicTask({ intervalMs: 30_000 })
 let lastSyncDiagnostic = 0
@@ -80,10 +91,16 @@ async function publishHeartbeat() {
     }), 3000).catch(() => null)
     console.log('Diagnóstico da sincronização', JSON.stringify(state))
   }
-  if (initialized && !stopping) {
+  if ((initialized || (connectOnly && client.pupPage)) && !stopping) {
     const health = await recoverConnection()
     if (connection !== health.status) console.log(new Date().toISOString(), 'Saúde da conexão:', health.status, health.reason || 'Conexão restabelecida.')
-    ready = health.ready && normalizePhone(client.info?.wid?.user) === expectedPhone
+    const actualPhone = connectOnly ? observedPhone : normalizePhone(client.info?.wid?.user)
+    ready = health.ready && actualPhone === expectedPhone
+    if (health.ready) connectedPhone = actualPhone
+    if (ready && connection !== 'conectado') {
+      pairingRevision++; pairingCode = null; pairingCodeExpiresAt = null
+      void publishPairing().catch(reportPairing)
+    }
     connection = health.ready && !ready ? 'numero_incorreto' : health.status
     if (health.restart || (health.ready && !ready)) stop(health.reason || 'Número conectado diferente do esperado.')
   }
