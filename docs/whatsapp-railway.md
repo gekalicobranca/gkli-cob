@@ -8,7 +8,7 @@ Um serviço e um volume persistente `/data` por sessão; uma única réplica. O 
 
 Dockerfile: `scripts/whatsapp-web/Dockerfile`, contexto raiz. Configure healthcheck `/health`, timeout 120 segundos, draining 30 segundos, overlap zero, restart ON_FAILURE (10), sem sleep. O volume impede deployments concorrentes; `flock` também impede dois supervisores no mesmo volume. Plano observado permite volume de 500 MB. Monitorar consumo; não apagar automaticamente sessões por falta de espaço.
 
-Variáveis por serviço: `WHATSAPP_WEB_SESSION`, `WHATSAPP_WEB_RUNTIME=railway`, `WHATSAPP_WEB_PROCESS_MESSAGES=false`, `WHATSAPP_WEB_CHROME_PATH=/usr/bin/chromium`, `PUPPETEER_SKIP_DOWNLOAD=true`, `TZ=America/Sao_Paulo`, além da URL Supabase e chave service role mantidas apenas no ambiente secreto. `RAILWAY_VOLUME_MOUNT_PATH` é injetada pelo Railway. O telefone esperado vem do cadastro da carteira/rota de grupo, com validação de unicidade; não duplicar no ambiente.
+Variáveis por serviço: `WHATSAPP_WEB_SESSION`, `WHATSAPP_WEB_RUNTIME=railway`, `WHATSAPP_WEB_PROCESS_MESSAGES=false`, `WHATSAPP_WEB_CHROME_PATH=/usr/local/bin/gkli-chrome`, `PUPPETEER_SKIP_DOWNLOAD=true`, `TZ=America/Sao_Paulo`, além da URL Supabase e chave service role mantidas apenas no ambiente secreto. `RAILWAY_VOLUME_MOUNT_PATH` é injetada pelo Railway. O telefone esperado vem do cadastro da carteira/rota de grupo, com validação de unicidade; não duplicar no ambiente.
 
 **Iniciar conexão não libera envios.** O processamento exige opt-in explícito no serviço (`WHATSAPP_WEB_PROCESS_MESSAGES=true`) e todos os bloqueios existentes no banco, na carteira, nas rotas, no Flow e na mensagem. A implantação inicial permanece somente conexão, com controles pausados. Não reativa mensagens anteriores.
 
@@ -28,12 +28,28 @@ O cleanup anterior permanece preservado: perfis Windows estão em quarentena e n
 
 ## Estado em 26/11/2026
 
+### Recuperação após pareamento (17h42, Brasília)
+
+O QR inicial não validava o ciclo autenticado completo. O diagnóstico do renderer confirmou `oom_kill=1` nos contadores cgroup: o Chrome completo excedia a memória do plano e o processo da página era encerrado, embora o supervisor continuasse online. Aumento para 2 GB foi recusado pelo plano; o usuário escolheu manter o plano atual.
+
+Correção: Chrome Headless Shell 153.0.8010.36 fixado no Docker, Puppeteer 24.38.0 conforme dependência do conector, modo de baixo consumo e heap limitado a 128 MB. Limite explícito de 1 GB por serviço. A revisão do navegador é mantida para preservar compatibilidade dos perfis já abertos; não fazer downgrade automático. Reinícios removem somente symlinks Singleton pertencentes ao contêiner anterior, sob exclusividade do volume/flock, nunca cookies ou bancos de autenticação.
+
+O Escritório apresentou socket `CONNECTED`, mas não fornecia o indicador legado `hasSynced`. Em modo somente conexão, o heartbeat agora exige socket atual conectado e número PN da própria conta, consultados no navegador. Número ausente não confirma conexão; número diferente interrompe a sessão. Não usa LID como telefone nem emite um evento `ready` artificial. Processamento continua dependente da inicialização completa do conector, além de todos os bloqueios existentes. Não liberar mensagens com base apenas na validação do modo conexão.
+
+As quatro sessões confirmaram números esperados em 26/11: Genske 7774, Escritório 7775, GEKALI 0545, Azevedo 6828. Os vínculos foram restaurados dos volumes sem novo pareamento. Posteriormente, às 17h44 (Brasília), a sessão Escritório recebeu `LOGOUT` do WhatsApp, enquanto o navegador seguia respondendo sem OOM. Portanto essa linha precisa de nova confirmação pelo celular; não considerar as quatro conectadas após esse evento. As outras três mantiveram socket e identidade confirmados. A origem do LOGOUT não foi determinada; não atribuir ao usuário sem confirmação.
+
+O worker interrompe a sessão em LOGOUT, sinaliza falha de autenticação ao supervisor e ignora eventos tardios de código/QR/ready durante encerramento. Um pedido de vinculação só pode ser reutilizado por até quatro minutos e se ainda corresponder ao comando atual; reinício não renova pedidos antigos de código. Isso não restaura uma credencial revogada pelo WhatsApp.
+
+O usuário confirmou que não havia desconectado a 7775 e realizou nova vinculação pelo celular às 17h49. O conector confirmou autenticação e `ready`; às 17h51 as quatro linhas voltavam a confirmar socket, número esperado e sinais recentes. Os três outros vínculos foram preservados sem novo pareamento, inclusive após substituição dos contêineres. Nenhum histórico operacional ou tentativa foi removido. Nenhuma tentativa de envio foi criada durante a correção.
+
+Versão remota validada e fixada `f8e927d5`, PR #93. A implantação não habilita envios: `WHATSAPP_WEB_PROCESS_MESSAGES=false`, carteiras e controle global desabilitados. Falha futura do renderer é registrada com contadores de recursos e encerra o worker para recuperação preservando o perfil. Dados de mensagens/QR/credenciais não entram nos diagnósticos. A UI distingue `Conectado · envios pausados` de falha de conexão e informa execução no Railway. Validação: 52 testes do worker, 7 testes de configuração/migration e 8 verificações do status operacional; build Linux e recuperação real das sessões no Railway. Isso valida modo conexão, não autoriza disparos.
+
 Migration aplicada ao projeto Supabase GKLI COB (`vjcmotflmcczoepflhwc`). Carteiras configuradas com suas sessões e números esperados, mantendo `whatsapp_habilitado=false` e a pausa global de WhatsApp. Nenhuma mensagem ou tentativa foi reativada.
 
-O piloto Genske passou build Docker, healthcheck e gerou QR Code no Chromium remoto. Não foi pareado um celular nesta validação. Os serviços usam o commit `b47f485c` fixado; pushes posteriores não mudam automaticamente o conector.
+O primeiro piloto Genske validava apenas build, healthcheck e geração do QR. A recuperação descrita acima inclui o pareamento feito pelo usuário e a verificação de identidade. Pushes posteriores não mudam automaticamente o conector, pois os serviços usam commit fixado.
 
 Serviços adicionais: Escritório `c1296ec3-20ef-46d0-ad22-7d78dee91088`, GEKALI `613f6e11-538f-40c9-8e58-ac74b30c199a`, Azevedo `243e39a8-3e30-45be-9698-abffb92b1be3`, cada um com volume próprio de 500 MB. Os quatro serviços passaram build e healthcheck, com uma réplica online cada, sem falhas de implantação. As quatro sessões geraram QR no servidor e publicaram o payload no controle privado do app; conteúdo não registrado em logs ou documentação.
 
-Controles de conexão das quatro linhas iniciados para validar os QRs; envios seguem bloqueados nos serviços (`WHATSAPP_WEB_PROCESS_MESSAGES=false`), nas quatro carteiras e no controle global. O QR expira normalmente; use o botão do app para solicitar outro quando necessário. O pareamento e a persistência de uma sessão autenticada dependem da conexão pelo celular e ainda não foram validados. Publicação da UI acompanha o PR #92.
+Controles das quatro conexões iniciados; envios seguem bloqueados nos serviços, nas carteiras e no controle global. A persistência foi verificada na recuperação dos vínculos após substituição dos contêineres. Publicação inicial da UI: PR #92. Ainda será necessária validação separada do processamento completo antes de autorizar disparos.
 
 O plano gratuito recusou a quinta linha. O usuário escolheu manter quatro por enquanto. RISE UP permanece sem serviço, controle pausado e rota inativa; o cadastro e histórico ficam preservados. Não consolidar suas credenciais no serviço GEKALI para contornar esse limite.

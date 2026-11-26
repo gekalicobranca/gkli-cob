@@ -15,12 +15,13 @@
     "test": "node --test worker.test.mjs receipt.test.mjs contact-issue.test.mjs recovery.test.mjs browser-health.test.mjs resilient-client.test.mjs pairing-code.test.mjs pairing-publisher.test.mjs reservation-recovery.test.mjs browser-shutdown.test.mjs"
   },
   "dependencies": {
+    "puppeteer": "24.38.0",
     "@supabase/supabase-js": "2.108.1",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "0.12.0",
     "whatsapp-web.js": "https://codeload.github.com/pedroslopez/whatsapp-web.js/tar.gz/38eb45b2759450cc6fccb6a7a3f2cbc3bdb87db2"
   },
   "overrides": {
-    "puppeteer": "25.11.0"
+    "puppeteer": "24.38.0"
   }
 }

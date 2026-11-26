@@ -3,6 +3,45 @@ import { test } from 'node:test'
 import { resilientClient, synchronizationTimeoutMs } from './resilient-client.mjs'
 import { EventEmitter } from 'node:events'
 
+test('identidade exige telefone PN da própria conta e não usa LID como substituto', async () => {
+  const previous = globalThis.window
+  class Base { pupPage = { evaluate: fn => fn() } }
+  const client = new (resilientClient(Base, () => {}))()
+  try {
+    globalThis.window = { require(name) {
+      assert.equal(name, 'WAWebUserPrefsMeUser')
+      return { getMaybeMePnUser: () => null, getMaybeMeLidUser: () => ({user:'test-lid'}) }
+    } }
+    assert.equal(await client.getOwnPhone(), null)
+    globalThis.window.require = () => ({ getMaybeMePnUser: () => ({user:'5511999990000'}) })
+    assert.equal(await client.getOwnPhone(), '5511999990000')
+  } finally { globalThis.window = previous }
+})
+
+test('modo conexão não instala handlers de mensagens; processamento mantém o comportamento original', async () => {
+  let calls = 0
+  class Base { async attachEventListeners() { calls++ } }
+  const client = new (resilientClient(Base, () => {}))()
+  client.connectionOnly = true
+  await client.attachEventListeners()
+  assert.equal(calls, 0)
+  client.connectionOnly = false
+  await client.attachEventListeners()
+  assert.equal(calls, 1)
+})
+
+test('consulta somente o módulo de socket da página atual após pareamento', async () => {
+  class Base { pupPage = { evaluate: fn => fn() } }
+  const client = new (resilientClient(Base, () => {}))()
+  const previous = globalThis.window
+  try {
+    for (const login of [true, false]) {
+      globalThis.window = { _wwjsListeners: [[login ? { socketState: 'PAIRING' } : { state: 'CONNECTED' }, login ? 'set_socket_state' : 'change:state']], require() { assert.fail('Não deve carregar novos módulos durante o probe') } }
+      assert.equal(await client.getState(), login ? 'PAIRING' : 'CONNECTED')
+    }
+  } finally { globalThis.window = previous }
+})
+
 test('falha de código chamada sem await não derruba processo nem recria navegador', async () => {
   class Base extends EventEmitter {
     pupPage = { evaluate: async () => { throw Error('pairing rejected') } }

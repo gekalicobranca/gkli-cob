@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { pairingPublisher } from './pairing-publisher.mjs'
+import { pairingPublisher, activePairingRequest } from './pairing-publisher.mjs'
+
+test('pedido expirado, substituído ou sem data não renova código após reinício', () => {
+  const now = Date.parse('2026-11-26T20:00:00Z')
+  const control = { vinculacao_pedido: 'a', reiniciar_id: 'a', atualizado_em: new Date(now).toISOString() }
+  assert.equal(activePairingRequest(control, now), 'a')
+  assert.equal(activePairingRequest(control, now + 240000), null)
+  assert.equal(activePairingRequest({ ...control, reiniciar_id:'b' }, now), null)
+  assert.equal(activePairingRequest({ ...control, atualizado_em:null }, now), null)
+  assert.equal(activePairingRequest(control, now - 31000), null)
+})
 test('falha ao limpar não impede publicar o próximo QR da mesma solicitação', async () => {
   const writes = []
   const db = { from: () => ({ update: value => {

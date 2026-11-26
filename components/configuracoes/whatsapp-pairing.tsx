@@ -45,7 +45,7 @@ export function WhatsappPairing({ session }: { session: string }) {
   return <details className="border-t border-slate-100 px-5 py-4" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary className="cursor-pointer text-sm font-semibold text-emerald-800">Vincular WhatsApp neste app</summary>
     {open ? <div className="mt-4 space-y-3">
-      <p className="text-sm text-slate-600">O notebook precisa estar ligado e conectado. QR Code e código exigem confirmação no celular da linha.</p>
+      <p className="text-sm text-slate-600">A conexão é mantida no Railway. QR Code e código exigem confirmação no celular da linha. Conectar não libera envios.</p>
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={disabled} onClick={() => void request('qr')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50">Gerar QR Code</button>
         <button type="button" disabled={disabled} onClick={() => void request('codigo')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50">Gerar código de vinculação</button>

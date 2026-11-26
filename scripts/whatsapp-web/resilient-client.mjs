@@ -1,10 +1,31 @@
 // A navigation invalidates the old page context. Retry initialization in the
 // new context, never a message transmission. Keep failures bounded and visible.
 import { bounded } from './recovery.mjs'
+import { readFile, statfs } from 'node:fs/promises'
 import { requestCodeInPage } from './pairing-code.mjs'
 export const synchronizationTimeoutMs = 600000
 export function resilientClient(BaseClient, report = console.error) {
   return class extends BaseClient {
+    async getOwnPhone() {
+      return this.pupPage.evaluate(() => window.require('WAWebUserPrefsMeUser').getMaybeMePnUser()?.user ?? null)
+    }
+    async attachEventListeners() {
+      // Pairing-only services do not need message/history/media event hooks.
+      // Keep authentication/synchronization listeners installed by inject().
+      if (this.connectionOnly) return
+      return super.attachEventListeners()
+    }
+    async getState() {
+      // The login page and the authenticated app use different socket modules.
+      // Requiring the login-only module after pairing can block page evaluation.
+      const started = Date.now()
+      const metrics = await bounded(this.pupPage.metrics?.(), 3000).catch(() => null)
+      report('Diagnóstico do navegador', JSON.stringify({ task: metrics?.TaskDuration, heap: metrics?.JSHeapUsedSize, beforeProbeMs: Date.now()-started }))
+      return this.pupPage.evaluate(() => {
+        const socket = window._wwjsListeners?.find(([, event]) => event === 'set_socket_state' || event === 'change:state')?.[0]
+        return socket?.socketState ?? socket?.state ?? null
+      })
+    }
     async requestPairingCode(phoneNumber, showNotification = true, intervalMs = 180000) {
       report(new Date().toISOString(), 'Solicitando código de vinculação ao WhatsApp.')
       try {
@@ -28,6 +49,21 @@ export function resilientClient(BaseClient, report = console.error) {
       }
     }
     async initWebVersionCache() {
+      if (this.pupBrowser.version) {
+        report('Navegador iniciado', await this.pupBrowser.version())
+        this.pupPage.on('close', () => report('Página do WhatsApp encerrada'))
+        this.pupPage.on('error', async error => {
+          report('Falha do processo da página', error.name)
+          if (process.env.WHATSAPP_WEB_RUNTIME === 'railway') {
+            const events = await readFile('/sys/fs/cgroup/memory.events','utf8').catch(() => 'indisponivel')
+            const disk = await statfs('/data').catch(() => null)
+            report('Recursos após falha', JSON.stringify({memoryEvents: events, diskFree: disk ? disk.bavail * disk.bsize : null}))
+          }
+          this.emit('browser_failure')
+        })
+        this.pupBrowser.on('disconnected', () => report('Canal de controle do navegador desconectado'))
+        this.pupBrowser.process()?.once('exit', (code, signal) => report('Navegador encerrado', JSON.stringify({code, signal})))
+      }
       await super.initWebVersionCache()
       const userAgent = (await this.pupBrowser.userAgent()).replace('HeadlessChrome/', 'Chrome/')
       await this.pupPage.setUserAgent(userAgent)

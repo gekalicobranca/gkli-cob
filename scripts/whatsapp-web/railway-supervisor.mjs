@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
-import { mkdir, readFile, rm } from 'node:fs/promises'
+import { mkdir, readFile, readlink, rm } from 'node:fs/promises'
+import { hostname } from 'node:os'
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
@@ -53,6 +54,20 @@ async function start() {
     }))
   }
   reconcileNeeded = false
+  // Chromium persists its container hostname in a symlink. The previous
+  // container cannot share this mounted volume; clear only obsolete singleton
+  // links, never cookies, databases or authentication credentials.
+  const profile = `${config.authPath}/session-${config.session}`
+  let lock
+  try { lock = await readlink(`${profile}/SingletonLock`) } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+  if (lock && !lock.startsWith(`${hostname()}-`)) {
+    for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+      try { await readlink(`${profile}/${name}`); await rm(`${profile}/${name}`) }
+      catch (error) { if (error.code !== 'ENOENT') throw error }
+    }
+  }
   const [wallets, routes] = await Promise.all([
     db.from('carteiras').select('whatsapp_web_numero').eq('whatsapp_transporte', 'web').eq('whatsapp_web_sessao', config.session),
     db.from('whatsapp_web_rotas_grupo').select('numero').eq('ativo', true).eq('sessao', config.session),
