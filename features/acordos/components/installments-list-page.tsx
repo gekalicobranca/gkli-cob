@@ -216,18 +216,18 @@ function ParcelasDoAcordo({ acordoId, parcelas }: { acordoId: string; parcelas: 
   const unidade = acordo?.unidades ?? {}
   const resumo = acordo?.resumoPagamentos
   return (
-    <section>
-      <div className="flex flex-wrap items-baseline gap-x-3 bg-slate-50 px-4 py-2 text-sm">
-        <Link href={`/app/acordos/${acordoId}`} title="Abrir acordo" className="font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">
+    <section className="rounded-lg border border-slate-300 bg-white">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-t-lg bg-cyan-900 px-4 py-2 text-sm text-white">
+        <Link href={`/app/acordos/${acordoId}`} title="Abrir acordo" className="font-semibold text-white underline decoration-cyan-200 underline-offset-4 focus-visible:outline-2 focus-visible:outline-white">
           {unidade.identificacao ?? '—'}{unidade.bloco != null && unidade.bloco !== '' ? `/${unidade.bloco}` : ''}
         </Link>
         <span>{unidade.responsavel_nome || 'Responsável não informado'}</span>
-        {resumo && <span className="flex flex-wrap gap-x-4 text-xs text-slate-600 tabular-nums sm:ml-auto">
+        {resumo && <span className="flex flex-wrap gap-x-4 text-xs text-cyan-50 tabular-nums sm:ml-auto">
           <span>Total do acordo: <strong>{acordo.valor_acordado == null ? 'Não informado' : formatCurrency(Number(acordo.valor_acordado))}</strong></span>
           <span>Total pago: <strong>{resumo.totalPago == null ? 'Não informado' : formatCurrency(resumo.totalPago)}</strong></span>
           <span>Parcelas pagas: <strong>{resumo.pagas} de {resumo.quantidade}</strong></span>
         </span>}
-        {acordo?.numero_processo && <span className="text-xs text-slate-500">Processo {acordo.numero_processo}</span>}
+        {acordo?.numero_processo && <span className="text-xs text-cyan-50">Processo {acordo.numero_processo}</span>}
       </div>
       <div className="divide-y divide-slate-100">
         {parcelas.map(row => <ParcelaLinha key={row.id} row={row} />)}
@@ -457,7 +457,7 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
                     </div>
                   </div>
                 </summary>
-                <div className="divide-y divide-slate-100 border-t border-slate-100">
+                <div className="space-y-3 border-t border-slate-200 bg-slate-100 p-2 sm:p-3">
                   {Array.from(agruparPorAcordo(group.parcelas), ([acordoId, parcelas]) => (
                     <ParcelasDoAcordo key={acordoId} acordoId={acordoId} parcelas={parcelas} />
                   ))}
