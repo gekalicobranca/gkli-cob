@@ -4,7 +4,7 @@ import { criadoNoIntervalo } from '@/lib/core/filtros-criacao'
 import { operadorResponsavelId } from '@/lib/core/operador-responsavel'
 import { listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
 import Link from 'next/link'
-import { ArrowUpRight, BriefcaseBusiness, CalendarClock, ChevronDown, RotateCcw } from 'lucide-react'
+import { CalendarClock, ChevronDown, RotateCcw } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import {
@@ -24,8 +24,6 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { CondominioSearchSelect } from '@/components/gestao/condominio-search-select'
 import { PendingSubmitButton } from '@/components/ui/pending-submit-button'
-import { StatusBadge } from '@/components/data/status-badge'
-import { AgreementHealthBadge } from '@/features/acordos/components/agreement-health-badge'
 import { EmptyState } from '@/components/data/empty-state'
 import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
@@ -203,35 +201,56 @@ function sumPaidRows(rows: any[]) {
   return rows.reduce((sum, row) => sum + Number(row.valor_pago ?? row.valor ?? 0), 0)
 }
 
-function ParcelaActions({ row }: { row: any }) {
+function ParcelaLinha({ row }: { row: any }) {
   const paga = isParcelaPaga(row)
-  const reemissaoPermitida = podeReemitir(row)
+  const unidade = row.acordo?.unidades ?? {}
+  const resumo = row.acordo?.resumoPagamentos
+  const cancelada = ["cancelada", "cancelado"].includes(String(row.status).toLowerCase())
+  const reemissaoPermitida = !paga && podeReemitir(row)
   const diasPermitidos = Number(row.acordo?.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0)
 
   return (
-    <div className="flex flex-wrap justify-end gap-2">
-      {!["cancelada", "cancelado"].includes(String(row.status).toLowerCase()) && (
-        <ParcelaPagamentoForm parcela={row} acordoId={row.acordo_id} paga={paga} />
-      )}
+    <div className="space-y-2 px-4 py-3 text-sm hover:bg-slate-50">
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <Link href={`/app/acordos/${row.acordo_id}`} title="Abrir acordo" className="font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">
+          {unidade.identificacao ?? '—'}{unidade.bloco != null && unidade.bloco !== '' ? `/${unidade.bloco}` : ''}
+        </Link>
+        <span>{unidade.responsavel_nome || 'Responsável não informado'}</span>
+        {resumo && <span className="flex flex-wrap gap-x-4 text-xs text-slate-600 tabular-nums sm:ml-auto">
+          <span>Total do acordo: <strong>{row.acordo.valor_acordado == null ? 'Não informado' : formatCurrency(Number(row.acordo.valor_acordado))}</strong></span>
+          <span>Total pago: <strong>{resumo.totalPago == null ? 'Não informado' : formatCurrency(resumo.totalPago)}</strong></span>
+          <span>Parcelas pagas: <strong>{resumo.pagas} de {resumo.quantidade}</strong></span>
+        </span>}
+        {row.acordo?.numero_processo && <span className="text-xs text-slate-500">Processo {row.acordo.numero_processo}</span>}
+      </div>
+      <div className="grid grid-cols-2 items-end gap-x-3 gap-y-2 sm:grid-cols-3 xl:grid-cols-[5rem_7rem_8rem_8rem_8rem_7rem]">
+        <div><span className="block text-xs text-slate-500">Parcela</span>{row.numero ?? '—'}</div>
+        <div><span className="block text-xs text-slate-500">Vencimento</span>{formatDateBR(row.vencimento)}</div>
+        {paga && <div><span className="block text-xs text-slate-500">{cancelada || row.valor_pago == null ? 'Valor' : 'Valor pago'}</span>{formatCurrency(Number(row.valor_pago ?? row.valor))}</div>}
+        {cancelada ? <>
+          <div><span className="block text-xs text-slate-500">Repasse</span>{row.valor_repasse_informado == null ? 'Automático' : formatCurrency(Number(row.valor_repasse_informado))}</div>
+          <span>Cancelada</span>
+        </> : <ParcelaPagamentoForm parcela={row} acordoId={row.acordo_id} paga={paga} compacta />}
 
-      <form action={solicitarReemissaoParcelaAcordo}>
-        <input type="hidden" name="parcela_id" value={row.id} />
-        <input type="hidden" name="acordo_id" value={row.acordo_id} />
-        <PendingSubmitButton
-          variant="secondary"
-          size="sm"
-          disabled={!reemissaoPermitida}
-          icon={<RotateCcw size={14} />}
-          pendingLabel="Solicitando..."
-          title={
-            diasPermitidos <= 0
-              ? 'Este condomínio não permite reemissão de parcela em atraso.'
-              : 'A reemissão só fica disponível para parcela vencida dentro da janela do condomínio.'
-          }
-        >
-          Reemitir
-        </PendingSubmitButton>
-      </form>
+        <form action={solicitarReemissaoParcelaAcordo}>
+          <input type="hidden" name="parcela_id" value={row.id} />
+          <input type="hidden" name="acordo_id" value={row.acordo_id} />
+          <PendingSubmitButton
+            variant="secondary"
+            size="sm"
+            disabled={!reemissaoPermitida}
+            icon={<RotateCcw size={14} />}
+            pendingLabel="Solicitando..."
+            title={
+              diasPermitidos <= 0
+                ? 'Este condomínio não permite reemissão de parcela em atraso.'
+                : 'A reemissão só fica disponível para parcela vencida dentro da janela do condomínio.'
+            }
+          >
+            Reemitir
+          </PendingSubmitButton>
+        </form>
+      </div>
     </div>
   )
 }
@@ -387,6 +406,7 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
             <div>
               <h2 className="text-base font-medium text-slate-950">Parcelas por carteira e condomínio</h2>
               <p className="text-xs text-slate-500">{groups.length} de {allGroups.length} condomínio(s) nesta página</p>
+              <p className="text-xs text-slate-500">Repasse em branco usa o rateio do acordo. Informe 0,00 para isenção.</p>
             </div>
           </div>
         </div>
@@ -419,35 +439,7 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
                   </div>
                 </summary>
                 <div className="divide-y divide-slate-100 border-t border-slate-100">
-                  {group.parcelas.map((row: any) => {
-                    const acordo = row.acordo ?? {}
-                    const unidade = acordo.unidades ?? {}
-                    return (
-                <div key={row.id} className="grid gap-3 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[minmax(320px,1.4fr)_120px_150px_120px_190px_90px] xl:items-center">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{row.janela_operacional}</span>
-                      <StatusBadge status={row.status} />
-                    </div>
-                    <p className="mt-2 truncate text-sm font-medium text-slate-950">Unidade {unidade.identificacao ?? '-'}{unidade.bloco ? ` · Bloco ${unidade.bloco}` : ''}</p>
-                    <p className="mt-1 flex items-center gap-1 truncate text-xs text-slate-500">
-                      <BriefcaseBusiness size={12} className="shrink-0" />
-                      {acordo.carteiras?.nome ?? 'Carteira não informada'} · {unidade.responsavel_nome ?? 'Responsável não informado'} · Parcela #{row.numero ?? '-'}
-                      {judicial ? ` · Processo ${acordo.numero_processo || 'não informado'}` : ''}
-                    </p>
-                  </div>
-                  <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Previsto</p><p className="mt-1 text-sm font-semibold text-slate-950">{formatCurrency(Number(row.valor ?? 0))}</p>{row.valor_pago != null ? <p className="mt-1 text-xs text-emerald-700">Pago: {formatCurrency(Number(row.valor_pago))}</p> : null}</div>
-                  <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Vencimento</p><p className="mt-1 text-sm text-slate-700">{formatDateBR(row.vencimento)}</p></div>
-                  <div><p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Saúde</p><div className="mt-1"><AgreementHealthBadge health={row.saude_acordo} /></div></div>
-                  <ParcelaActions row={row} />
-                  <div className="flex justify-end">
-                    <Link href={`/app/acordos/${row.acordo_id}`} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-[var(--gkli-primary)]" title="Abrir acordo">
-                      <ArrowUpRight size={16} />
-                    </Link>
-                  </div>
-                </div>
-                    )
-                  })}
+                  {group.parcelas.map((row) => <ParcelaLinha key={row.id} row={row} />)}
                 </div>
               </details>
             ))}

@@ -748,3 +748,7 @@ Use este checklist para validar a etapa manual:
 Em **Acordos → Controle de parcelas**, ou no detalhe do acordo em **Parcelas e repasses**, informe o repasse ao marcar a parcela como paga. Em parcelas já pagas, edite o campo e use **Salvar repasse**. A correção atua somente sobre o repasse da parcela. O campo vazio usa o rateio do acordo e o valor zero registra isenção. A edição se aplica aos acordos controlados pela carteira.
 
 Em **Controle de parcelas**, selecione **Repasse da parcela → Em branco ou R$ 0,00** e clique em **Filtrar** para localizar as parcelas sem valor informado ou com isenção explícita, inclusive quando outras parcelas do mesmo acordo já têm repasse informado.
+
+Cada parcela aparece com unidade/bloco e responsável na primeira linha. Na linha seguinte, confira número, vencimento, valor e repasse. Use **Pagar** para registrar o pagamento ou **Salvar repasse** para corrigir o repasse de uma parcela paga. O link da unidade abre o acordo.
+
+Ao lado do responsável, a lista mostra o valor total do acordo, o total pago e quantas parcelas foram pagas dentre as não canceladas. Os filtros de parcelas não alteram esses totais.

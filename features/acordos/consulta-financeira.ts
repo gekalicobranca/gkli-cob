@@ -6,6 +6,23 @@ export function valorCadastrado(value: Money): number | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
+export function resumoPagamentosParcelas(parcelas: Array<{
+  status?: string | null; data_pagamento?: string | null; valor_pago?: Money; valor?: Money;
+}>) {
+  let quantidade = 0, pagas = 0, centavos = 0;
+  let completo = true;
+  for (const parcela of parcelas) {
+    const status = String(parcela.status ?? '').toLowerCase();
+    if (['cancelada', 'cancelado'].includes(status)) continue;
+    quantidade++;
+    if (!parcela.data_pagamento && !['paga', 'pago', 'quitada', 'quitado', 'efetivada', 'efetivado'].includes(status)) continue;
+    pagas++;
+    const valor = valorCadastrado(parcela.valor_pago) ?? valorCadastrado(parcela.valor);
+    if (valor == null) completo = false;
+    else centavos += Math.round(valor * 100);
+  }
+  return { quantidade, pagas, totalPago: completo ? centavos / 100 : null };
+}
 export function repasseConsulta(acordo: { despesa_cobranca_valor?: Money; valor_acordado?: Money; despesa_cobranca_percentual?: Money }, parcela: { valor_repasse_informado?: Money; valor?: Money }) {
   const informado = valorCadastrado(parcela.valor_repasse_informado);
   if (informado != null && informado >= 0) return { valor: informado, origem: 'Informado na parcela' };
