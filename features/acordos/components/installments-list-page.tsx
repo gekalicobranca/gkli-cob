@@ -1,9 +1,10 @@
+import { ParcelaPagamentoForm } from "./parcela-pagamento-form";
 import type { AgreementKind } from '@/features/acordos/agreement-kind'
 import { criadoNoIntervalo } from '@/lib/core/filtros-criacao'
 import { operadorResponsavelId } from '@/lib/core/operador-responsavel'
 import { listOperadoresCadastro } from '@/features/condominios/organizacao-queries'
 import Link from 'next/link'
-import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CheckCircle2, ChevronDown, RotateCcw } from 'lucide-react'
+import { ArrowUpRight, BriefcaseBusiness, CalendarClock, ChevronDown, RotateCcw } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import {
@@ -30,7 +31,7 @@ import { formatCurrency } from '@/utils/formatters/currency'
 import { formatDateBR } from '@/utils/formatters/date'
 import { getPermittedCarteiras } from '@/utils/auth/get-permitted-carteiras'
 import { listParcelasAcordosOperacionais } from '@/features/acordos/queries'
-import { marcarParcelaComoPaga, solicitarReemissaoParcelaAcordo } from '@/features/acordos/actions'
+import { solicitarReemissaoParcelaAcordo } from '@/features/acordos/actions'
 
 type SearchParams = Promise<{
   condominio_id?: string
@@ -207,23 +208,9 @@ function ParcelaActions({ row }: { row: any }) {
 
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      <form action={marcarParcelaComoPaga}>
-        <input type="hidden" name="parcela_id" value={row.id} />
-        <input type="hidden" name="acordo_id" value={row.acordo_id} />
-        <label className="mr-2 inline-flex items-center gap-2 text-xs text-slate-600">
-          Valor pago
-          <input name="valor_pago" type="number" min="0" step="0.01" defaultValue={Number(row.valor_pago ?? row.valor ?? 0).toFixed(2)} className="h-9 w-28 rounded-lg border border-slate-200 px-2 text-sm" />
-        </label>
-        <PendingSubmitButton
-          size="sm"
-          disabled={paga}
-          className="bg-emerald-600 hover:bg-emerald-700"
-          icon={<CheckCircle2 size={14} />}
-          pendingLabel="Confirmando..."
-        >
-          Pago
-        </PendingSubmitButton>
-      </form>
+      {!["cancelada", "cancelado"].includes(String(row.status).toLowerCase()) && (
+        <ParcelaPagamentoForm parcela={row} acordoId={row.acordo_id} paga={paga} />
+      )}
 
       <form action={solicitarReemissaoParcelaAcordo}>
         <input type="hidden" name="parcela_id" value={row.id} />
