@@ -749,6 +749,6 @@ Em **Acordos → Controle de parcelas**, ou no detalhe do acordo em **Parcelas e
 
 Em **Controle de parcelas**, selecione **Repasse da parcela → Em branco ou R$ 0,00** e clique em **Filtrar** para localizar as parcelas sem valor informado ou com isenção explícita, inclusive quando outras parcelas do mesmo acordo já têm repasse informado.
 
-Cada parcela aparece com unidade/bloco e responsável na primeira linha. Na linha seguinte, confira número, vencimento, valor e repasse. Use **Pagar** para registrar o pagamento ou **Salvar repasse** para corrigir o repasse de uma parcela paga. O link da unidade abre o acordo.
+Cada acordo mostra unidade/bloco e responsável uma única vez no cabeçalho. Abaixo, cada parcela aparece em uma linha com número, vencimento, valor e repasse. Use **Pagar** para registrar o pagamento ou **Salvar repasse** para corrigir o repasse de uma parcela paga. O link da unidade abre o acordo.
 
 Ao lado do responsável, a lista mostra o valor total do acordo, o total pago e quantas parcelas foram pagas dentre as não canceladas. Os filtros de parcelas não alteram esses totais.
