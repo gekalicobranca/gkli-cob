@@ -27,7 +27,7 @@ jobs:
   consultar:
     needs: validar
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 10
     environment: keila-safira-homologacao
     permissions:
       contents: read
@@ -56,6 +56,7 @@ jobs:
           npx --no-install playwright install --with-deps chromium
       - name: Consultar a Lello e confirmar o retorno no GKLI
         env:
+          GKLI_GRAPH_HOMOLOGACAO_CASE_ID: '0b8cc43a-0969-44dc-9e47-2f4951cfa8cd'
           LELLO_SAFIRA_USUARIO: ${{ secrets.LELLO_SAFIRA_USUARIO }}
           LELLO_SAFIRA_SENHA: ${{ secrets.LELLO_SAFIRA_SENHA }}
         run: node scripts/agente-automatico/cojur-safira-homologacao.mjs

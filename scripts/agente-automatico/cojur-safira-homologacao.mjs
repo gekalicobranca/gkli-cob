@@ -28,13 +28,29 @@ async function chamarHomologacao(caso, method, dados) {
   return resposta.json()
 }
 
-async function carregarPedido() {
-  const pedido = await chamarHomologacao(null, 'GET')
+async function carregarPedido(caso = null) {
+  const pedido = await chamarHomologacao(caso, 'GET')
   if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(pedido.caso_id ?? '') ||
       (!pedido.concluido && (pedido.referencia !== referenciaSafira || !/^\d{6}$/.test(pedido.unidade)))) {
     throw new Error('pedido_fora_do_escopo')
   }
   return pedido
+}
+
+async function aguardarPedido(caso) {
+  if (!caso) return carregarPedido()
+  if (!/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(caso)) throw new Error('caso_de_homologacao_invalido')
+  const limite = Date.now() + 4 * 60_000
+  console.log('Runner pronto. Aguardando o atendimento criado pela entrada do Graph.')
+  while (Date.now() < limite) {
+    try {
+      return await carregarPedido(caso)
+    } catch (erro) {
+      if (erro.message !== 'gkli_http_404') throw erro
+    }
+    await new Promise(resolve => setTimeout(resolve, 8_000))
+  }
+  throw new Error('pedido_graph_nao_recebido')
 }
 
 async function coletarCotas(unidade, usuario, senha) {
@@ -78,8 +94,6 @@ async function main() {
       erro => { if (erro.message !== 'gkli_http_404') throw erro },
     )
     console.log('Identidade do runner aceita pelo GKLI; consulta fora do escopo recusada.')
-    await carregarPedido()
-    console.log('Atendimento de homologação vinculado à execução.')
     const portal = await fetch(`${origemLello}/menuPortal2/`, { signal: AbortSignal.timeout(20_000) })
     if (!portal.ok || new URL(portal.url).origin !== origemLello) throw new Error('portal_lello_indisponivel')
     console.log('Portal da Lello acessível pelo runner hospedado.')
@@ -87,12 +101,13 @@ async function main() {
   }
   const { LELLO_SAFIRA_USUARIO: usuario, LELLO_SAFIRA_SENHA: senha } = process.env
   if (!usuario || !senha) throw new Error('configuracao_incompleta')
-  const pedido = await carregarPedido()
+  const pedido = await aguardarPedido(process.env.GKLI_GRAPH_HOMOLOGACAO_CASE_ID)
   if (pedido.concluido) {
     console.log('O atendimento já contém o resultado do piloto.')
     return
   }
   const caso = pedido.caso_id
+  console.log('Atendimento de homologação vinculado à execução.')
   const cotas = await coletarCotas(pedido.unidade, usuario, senha)
   const resultado = await chamarHomologacao(caso, 'POST', {
     referencia: referenciaSafira, unidade: pedido.unidade, consultado_em: new Date().toISOString(), cotas,
