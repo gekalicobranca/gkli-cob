@@ -1,3 +1,4 @@
+import { cobrancaParticipaTotalizacao } from '@/lib/core/cobranca-totalizacao'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { redirect } from "next/navigation";
 
@@ -220,7 +221,7 @@ export async function getSindicoPortalOverview(mode: SindicoPortalMode = "ativos
 
     for (const cobranca of cobrancasRows) {
       const condominioId = (cobranca as any).condominio_id;
-      if (!condominioId || !isActiveCobranca(cobranca)) continue;
+      if (!condominioId || !cobrancaParticipaTotalizacao(cobranca) || !isActiveCobranca(cobranca)) continue;
 
       const current = cobrancasByCondominio.get(condominioId) ?? { count: 0, value: 0 };
       current.count += 1;

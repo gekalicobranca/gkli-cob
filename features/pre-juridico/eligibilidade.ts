@@ -13,7 +13,7 @@ export function acordoBloqueiaPre(status: unknown) {
 
 export function cobrancaAbertaPre(cobranca: Cobranca) {
   return !cobranca.arquivada_em && !cobranca.duplicada_de_id && !cobranca.data_pagamento &&
-    !['quitado', 'pago', 'cancelado', 'renegociado'].includes(normalizar(cobranca.status_financeiro)) &&
+    !['quitado', 'pago', 'cancelado', 'renegociado', 'vinculado'].includes(normalizar(cobranca.status_financeiro)) &&
     !['judicializado', 'acordo_firmado', 'acordo_efetivado'].includes(normalizar(cobranca.status_operacional ?? cobranca.status))
 }
 

@@ -41,6 +41,7 @@ import {
   listUnidadesForSelect,
 } from "@/features/cadastros/queries";
 import { listCobrancasPage, summarizeCobrancas, type CobrancaResumo } from "@/features/cobrancas/queries";
+import { cobrancaParticipaTotalizacao } from '@/lib/core/cobranca-totalizacao';
 import {
   COBRANCA_STATUS_OPERACIONAL,
   normalizeStatus,
@@ -214,6 +215,7 @@ function groupCobrancas(rows: any[]) {
     }
 
     group.cobrancas.push(row);
+    if (!cobrancaParticipaTotalizacao(row)) continue;
     const valor = Number(row.valor_atualizado ?? row.valor_original ?? 0);
     group.valor += valor;
     carteiraGroup.cobrancasCount += 1;
@@ -385,7 +387,7 @@ export default async function CobrancasPage({ searchParams }: PageProps) {
           </Card>
         ))}
       </LiteKpiStrip>
-      <p className="text-xs text-slate-500">Indicadores das cobranças filtradas, incluindo todas as páginas.</p>
+      <p className="text-xs text-slate-500">Indicadores das cobranças filtradas, incluindo todas as páginas. Cotas com financeiro Vinculado ficam fora dos totais gerais e mantêm seus valores nos detalhes.</p>
 
       <LiteWorkArea>
         <ListPanel className="flex h-full min-h-0 flex-col">

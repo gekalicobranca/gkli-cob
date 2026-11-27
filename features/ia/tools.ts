@@ -1,3 +1,4 @@
+import { somenteCobrancasTotalizaveis } from '@/lib/core/cobranca-totalizacao'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -23,6 +24,7 @@ export async function getResumoOperacionalIa(
     .select('id')
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, carteiraIds)
+  cobrancasQuery = somenteCobrancasTotalizaveis(cobrancasQuery)
   condominiosQuery = applyCarteiraScope(condominiosQuery, carteiraIds)
 
   const { data: cobrancas } = await cobrancasQuery

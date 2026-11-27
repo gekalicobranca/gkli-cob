@@ -53,6 +53,9 @@ export function CobrancaFinanceiroCard({
   return (
     <details id="financeiro" open={editing || undefined} className="rounded-xl border border-slate-200 bg-white p-4">
       <summary className="cursor-pointer text-sm font-semibold text-slate-950">Composição financeira</summary>
+      {cobranca.status_financeiro === 'vinculado' ? (
+        <p className="mt-2 rounded-lg bg-slate-100 p-3 text-sm text-slate-700">Vinculado: os valores desta cota ficam fora dos totais gerais. A dívida permanece registrada, sem indicação de quitação.</p>
+      ) : null}
 
       <div className="mt-2">
         <ValueBox label="Principal" value={formatCurrency(principal)} />

@@ -78,7 +78,7 @@ export function montarOperacaoSindico(fonte: FonteOperacao, condominioId: string
   const hoje = diaLocal(agora.toISOString())
   const cobrancas = fonte.cobrancas.filter((row) => row.condominio_id === condominioId &&
     !['quitado', 'cancelado', 'baixado', 'regular', 'acordo_efetivado', 'acordo_firmado'].includes(row.status_operacional || row.status || '') &&
-    !['quitado', 'pago', 'cancelado', 'baixado'].includes(row.status_financeiro ?? ''))
+    !['quitado', 'pago', 'cancelado', 'baixado', 'vinculado'].includes(row.status_financeiro ?? ''))
   const acordos = fonte.acordos.filter((row) => row.condominio_id === condominioId)
   const ativos = acordos.filter(acordoAtivo)
   const ids = new Set(acordos.map((row) => row.id))

@@ -1,3 +1,4 @@
+import { somenteCobrancasTotalizaveis } from '@/lib/core/cobranca-totalizacao'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -19,7 +20,7 @@ function sumMoney(rows: any[], field: string) {
 function isAberto(row: any) {
   const operacional = String(row?.status_operacional ?? '').toLowerCase()
   const financeiro = String(row?.status_financeiro ?? '').toLowerCase()
-  return !['baixada', 'cancelada', 'quitada', 'pago', 'paga'].includes(operacional) && !['quitado', 'pago', 'paga'].includes(financeiro)
+  return !['baixada', 'cancelada', 'quitada', 'pago', 'paga'].includes(operacional) && !['quitado', 'pago', 'paga', 'vinculado'].includes(financeiro)
 }
 
 function isVencido(row: any) {
@@ -51,6 +52,7 @@ export async function getCondominioOperationalMetrics(condominioId: string, scop
     .eq('condominio_id', condominioId)
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
+  cobrancasQuery = somenteCobrancasTotalizaveis(cobrancasQuery)
 
   const { data: cobrancas, error: cobrancasError } = await cobrancasQuery
   if (cobrancasError) throw new Error(`Erro ao carregar métricas do condomínio: ${cobrancasError.message}`)
@@ -112,6 +114,7 @@ export async function getUnidadeOperationalMetrics(unidadeId: string, scope: Car
     .eq('unidade_id', unidadeId)
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds)
+  cobrancasQuery = somenteCobrancasTotalizaveis(cobrancasQuery)
 
   const { data: cobrancas, error: cobrancasError } = await cobrancasQuery
   if (cobrancasError) throw new Error(`Erro ao carregar métricas da unidade: ${cobrancasError.message}`)
