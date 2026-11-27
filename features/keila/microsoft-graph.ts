@@ -83,13 +83,14 @@ export async function abrirMicrosoftGraph(config: ConfigGraph, signal: AbortSign
   }
 
   return {
-    async recentesSafira(desde: string) {
-      const url = new URL(caixa + '/mailFolders/inbox/messages', origem)
+    async recentes(desde: string, pasta: 'inbox' | 'archive', assuntoSafira: boolean) {
+      const url = new URL(caixa + '/mailFolders/' + pasta + '/messages', origem)
       url.searchParams.set('$select', campos)
-      url.searchParams.set('$filter', "receivedDateTime ge " + desde + " and contains(subject,'Safira')")
+      url.searchParams.set('$filter', 'receivedDateTime ge ' + desde + (assuntoSafira ? " and contains(subject,'Safira')" : ''))
       url.searchParams.set('$orderby', 'receivedDateTime desc')
-      url.searchParams.set('$top', '50')
-      const resposta = await ler(url, 'odata.maxpagesize=50')
+      url.searchParams.set('$top', '100')
+      const resposta = await ler(url, 'odata.maxpagesize=100')
+      if (pasta === 'archive' && resposta.status === 404) return []
       if (!resposta.ok) throw new ErroMicrosoftGraph('lista', resposta.status, resposta.headers.get('retry-after'))
       return paginaSchema.parse(await resposta.json()).value
     },

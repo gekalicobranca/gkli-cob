@@ -36,15 +36,17 @@ export async function homologarEntradaGraph(
     throw new Error('Safira indisponível para homologação.')
   }
   const desdePiloto = new Date(Math.max(Date.parse(desde), Date.parse(condominio.keila_retornos_desde))).toISOString()
-  const itens = await graph.recentesSafira(desdePiloto)
   const unidades = new Map<string, { id: string; identificacao: string }>()
   let inserido = false
   let concorrente = false
-  await importarRetornosGraph({
-    itens, desde: desdePiloto, signal,
+  let examinados = 0
+  let vinculados = 0
+  const importar = (itens: unknown[], usarRemetente: boolean) => importarRetornosGraph({
+    itens, desde: desdePiloto, signal, aceitarAssunto: usarRemetente ? () => true : undefined,
     corpoUnico: graph.corpoUnico,
     async jaRegistrado() { return inserido || concorrente },
     async identificar(remetente) {
+      examinados++
       if (/[%_*\\]/.test(remetente)) return false
       const { data, error } = await db.from('unidades').select('id,identificacao,condominio_id,carteira_id,acao_judicial')
         .ilike('email', remetente).limit(2).abortSignal(signal)
@@ -57,6 +59,7 @@ export async function homologarEntradaGraph(
       if (acordo.error) throw new Error('Não foi possível conferir o histórico da unidade.')
       if (acordo.data) return false
       unidades.set(remetente, unidade)
+      vinculados++
       return true
     },
     async registrar(retorno) {
@@ -88,10 +91,20 @@ export async function homologarEntradaGraph(
       inserido = true
     },
   })
+  const [entrada, arquivos] = await Promise.all([
+    graph.recentes(desdePiloto, 'inbox', true), graph.recentes(desdePiloto, 'archive', true),
+  ])
+  await importar([...entrada, ...arquivos], false)
+  if (!inserido && !concorrente) {
+    // No segundo recorte, o vínculo único com a unidade confirma o Safira
+    // mesmo quando o assunto do e-mail não menciona o condomínio.
+    await importar(await graph.recentes(desdePiloto, 'inbox', false), true)
+  }
   if (concorrente) {
     const { data, error } = await lerCaso()
     if (error || !data) throw new Error('Registro concorrente não confirmado.')
     return conferirRepeticao(data)
   }
-  return { casoId: inserido ? casoId : null, registrados: inserido ? 1 : 0, repetido: false }
+  return { casoId: inserido ? casoId : null, registrados: inserido ? 1 : 0, repetido: false,
+    ...(inserido ? {} : { assuntosSafira: entrada.length + arquivos.length, examinados, vinculados }) }
 }
