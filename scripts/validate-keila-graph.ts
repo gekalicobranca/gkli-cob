@@ -173,13 +173,20 @@ test('rota exige credencial própria e pode ficar desativada sem credenciais do 
 })
 
 test('verificação autenticada lê a caixa da Keila com o processamento pausado', async (t) => {
-  t.mock.property(process, 'env', {
-    ...process.env,
+  const variaveis = {
     KEILA_GRAPH_JOB_SECRET: 'somente-teste',
     KEILA_GRAPH_ENABLED: 'false',
     KEILA_GRAPH_TENANT_ID: 'gekali.onmicrosoft.com',
     KEILA_GRAPH_CLIENT_ID: unidade,
     KEILA_GRAPH_CLIENT_SECRET: 'simulado',
+  }
+  const anteriores = Object.keys(variaveis).map(chave => [chave, process.env[chave]] as const)
+  Object.assign(process.env, variaveis)
+  t.after(() => {
+    for (const [chave, valor] of anteriores) {
+      if (valor === undefined) delete process.env[chave]
+      else process.env[chave] = valor
+    }
   })
   const requisicoes: URL[] = []
   t.mock.method(globalThis, 'fetch', async (input: URL | string) => {
