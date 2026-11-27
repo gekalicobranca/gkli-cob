@@ -201,29 +201,49 @@ function sumPaidRows(rows: any[]) {
   return rows.reduce((sum, row) => sum + Number(row.valor_pago ?? row.valor ?? 0), 0)
 }
 
+function agruparPorAcordo(parcelas: any[]) {
+  const grupos = new Map<string, any[]>()
+  for (const parcela of parcelas) {
+    const grupo = grupos.get(parcela.acordo_id)
+    if (grupo) grupo.push(parcela)
+    else grupos.set(parcela.acordo_id, [parcela])
+  }
+  return grupos
+}
+
+function ParcelasDoAcordo({ acordoId, parcelas }: { acordoId: string; parcelas: any[] }) {
+  const acordo = parcelas[0].acordo
+  const unidade = acordo?.unidades ?? {}
+  const resumo = acordo?.resumoPagamentos
+  return (
+    <section>
+      <div className="flex flex-wrap items-baseline gap-x-3 bg-slate-50 px-4 py-2 text-sm">
+        <Link href={`/app/acordos/${acordoId}`} title="Abrir acordo" className="font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">
+          {unidade.identificacao ?? '—'}{unidade.bloco != null && unidade.bloco !== '' ? `/${unidade.bloco}` : ''}
+        </Link>
+        <span>{unidade.responsavel_nome || 'Responsável não informado'}</span>
+        {resumo && <span className="flex flex-wrap gap-x-4 text-xs text-slate-600 tabular-nums sm:ml-auto">
+          <span>Total do acordo: <strong>{acordo.valor_acordado == null ? 'Não informado' : formatCurrency(Number(acordo.valor_acordado))}</strong></span>
+          <span>Total pago: <strong>{resumo.totalPago == null ? 'Não informado' : formatCurrency(resumo.totalPago)}</strong></span>
+          <span>Parcelas pagas: <strong>{resumo.pagas} de {resumo.quantidade}</strong></span>
+        </span>}
+        {acordo?.numero_processo && <span className="text-xs text-slate-500">Processo {acordo.numero_processo}</span>}
+      </div>
+      <div className="divide-y divide-slate-100">
+        {parcelas.map(row => <ParcelaLinha key={row.id} row={row} />)}
+      </div>
+    </section>
+  )
+}
+
 function ParcelaLinha({ row }: { row: any }) {
   const paga = isParcelaPaga(row)
-  const unidade = row.acordo?.unidades ?? {}
-  const resumo = row.acordo?.resumoPagamentos
   const cancelada = ["cancelada", "cancelado"].includes(String(row.status).toLowerCase())
   const reemissaoPermitida = !paga && podeReemitir(row)
   const diasPermitidos = Number(row.acordo?.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0)
 
   return (
-    <div className="space-y-2 px-4 py-3 text-sm hover:bg-slate-50">
-      <div className="flex flex-wrap items-baseline gap-x-3">
-        <Link href={`/app/acordos/${row.acordo_id}`} title="Abrir acordo" className="font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">
-          {unidade.identificacao ?? '—'}{unidade.bloco != null && unidade.bloco !== '' ? `/${unidade.bloco}` : ''}
-        </Link>
-        <span>{unidade.responsavel_nome || 'Responsável não informado'}</span>
-        {resumo && <span className="flex flex-wrap gap-x-4 text-xs text-slate-600 tabular-nums sm:ml-auto">
-          <span>Total do acordo: <strong>{row.acordo.valor_acordado == null ? 'Não informado' : formatCurrency(Number(row.acordo.valor_acordado))}</strong></span>
-          <span>Total pago: <strong>{resumo.totalPago == null ? 'Não informado' : formatCurrency(resumo.totalPago)}</strong></span>
-          <span>Parcelas pagas: <strong>{resumo.pagas} de {resumo.quantidade}</strong></span>
-        </span>}
-        {row.acordo?.numero_processo && <span className="text-xs text-slate-500">Processo {row.acordo.numero_processo}</span>}
-      </div>
-      <div className="grid grid-cols-2 items-end gap-x-3 gap-y-2 sm:grid-cols-3 xl:grid-cols-[5rem_7rem_8rem_8rem_8rem_7rem]">
+      <div className="grid grid-cols-2 items-end gap-x-3 gap-y-2 px-4 py-2 text-sm hover:bg-slate-50 sm:grid-cols-3 xl:grid-cols-[5rem_7rem_8rem_8rem_8rem_7rem]">
         <div><span className="block text-xs text-slate-500">Parcela</span>{row.numero ?? '—'}</div>
         <div><span className="block text-xs text-slate-500">Vencimento</span>{formatDateBR(row.vencimento)}</div>
         {paga && <div><span className="block text-xs text-slate-500">{cancelada || row.valor_pago == null ? 'Valor' : 'Valor pago'}</span>{formatCurrency(Number(row.valor_pago ?? row.valor))}</div>}
@@ -251,7 +271,6 @@ function ParcelaLinha({ row }: { row: any }) {
           </PendingSubmitButton>
         </form>
       </div>
-    </div>
   )
 }
 
@@ -439,7 +458,9 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
                   </div>
                 </summary>
                 <div className="divide-y divide-slate-100 border-t border-slate-100">
-                  {group.parcelas.map((row) => <ParcelaLinha key={row.id} row={row} />)}
+                  {Array.from(agruparPorAcordo(group.parcelas), ([acordoId, parcelas]) => (
+                    <ParcelasDoAcordo key={acordoId} acordoId={acordoId} parcelas={parcelas} />
+                  ))}
                 </div>
               </details>
             ))}
