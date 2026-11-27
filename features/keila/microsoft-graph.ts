@@ -39,7 +39,7 @@ export const configGraphSchema = z.object({
 type ConfigGraph = z.infer<typeof configGraphSchema>
 
 export class ErroMicrosoftGraph extends Error {
-  constructor(readonly etapa: 'token' | 'delta' | 'mensagem', readonly status: number, readonly retryAfter: string | null) {
+  constructor(readonly etapa: 'token' | 'delta' | 'mensagem' | 'lista', readonly status: number, readonly retryAfter: string | null) {
     super('Microsoft Graph indisponível durante a leitura.')
   }
 }
@@ -83,6 +83,23 @@ export async function abrirMicrosoftGraph(config: ConfigGraph, signal: AbortSign
   }
 
   return {
+    async recentesSafira(desde: string) {
+      const url = new URL(caixa + '/mailFolders/inbox/messages', origem)
+      url.searchParams.set('$select', campos)
+      url.searchParams.set('$filter', "receivedDateTime ge " + desde + " and contains(subject,'Safira')")
+      url.searchParams.set('$orderby', 'receivedDateTime desc')
+      url.searchParams.set('$top', '50')
+      const resposta = await ler(url, 'odata.maxpagesize=50')
+      if (!resposta.ok) throw new ErroMicrosoftGraph('lista', resposta.status, resposta.headers.get('retry-after'))
+      return paginaSchema.parse(await resposta.json()).value
+    },
+    async conferirMensagem(id: string) {
+      const url = new URL(caixa + '/messages/' + encodeURIComponent(id), origem)
+      url.searchParams.set('$select', 'id')
+      const resposta = await ler(url, 'outlook.body-content-type="text"')
+      if (!resposta.ok) throw new ErroMicrosoftGraph('mensagem', resposta.status, resposta.headers.get('retry-after'))
+      return z.object({ id: z.string() }).parse(await resposta.json()).id === id
+    },
     async pagina(cursor: string | null, desde: string) {
       const url = cursor ? validarCursor(cursor, config.caixaId) : new URL(caixa + '/mailFolders/inbox/messages/delta', origem)
       if (!cursor) {
