@@ -1,10 +1,8 @@
 import { IDENTIDADE_GKLI, aplicarIdentidadePdf } from '@/features/exportacoes/identidade-visual'
 import { filtrosRelatorioAcordos } from '@/features/acordos/filtros-relatorio'
 import { listAcordosComSaudeFiltered } from '@/features/acordos/queries'
-import { carregarParcelasRelatorio } from '@/features/acordos/parcelas-relatorio'
 import { parcelasDoPeriodoExecutivo, pagamentoParcelaExecutivo, repasseParcelaExecutivo } from '@/features/acordos/parcelas-executivo'
 import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
-import { createClient } from "@/utils/supabase/server";
 import { getPermittedCarteiras } from "@/utils/auth/get-permitted-carteiras";
 import { formatCurrency } from "@/utils/formatters/currency";
 import { formatDateBR } from "@/utils/formatters/date";
@@ -218,26 +216,9 @@ function parcelaResumo(parcelas: any[]): ParcelaResumo {
   };
 }
 
-async function carregarParcelas(acordoIds: string[]) {
-  if (!acordoIds.length) return new Map<string, any[]>();
-  const supabase = await createClient();
-  const data = await carregarParcelasRelatorio(acordoIds, (ids, from, to) =>
-    supabase.from('parcelas_acordo')
-      .select('id,acordo_id,numero,tipo_parcela,valor,valor_pago,status,data_pagamento,vencimento,valor_repasse_informado')
-      .in('acordo_id', ids).order('id').range(from, to));
-
-  const map = new Map<string, any[]>();
-  for (const parcela of (data ?? []) as any[]) {
-    const acordoId = String(parcela.acordo_id ?? "");
-    if (!acordoId) continue;
-    map.set(acordoId, [...(map.get(acordoId) ?? []), parcela]);
-  }
-  return map;
-}
-
-function enriquecerAcordos(rows: any[], parcelasPorAcordo: Map<string, any[]>, de: string, ate: string) {
+function enriquecerAcordos(rows: any[], de: string, ate: string) {
   return rows.map((row) => {
-    const parcelas = parcelasPorAcordo.get(String(row.id)) ?? [];
+    const parcelas = row.parcelas_lista;
     return { ...row, parcelas_resumo: parcelaResumo(parcelas), parcelas, parcelas_executivo: parcelasDoPeriodoExecutivo(parcelas, de, ate) };
   });
 }
@@ -662,8 +643,7 @@ async function carregarAcordos(searchParams: URLSearchParams) {
   const scope = await getPermittedCarteiras();
   const filters = filtrosRelatorioAcordos(searchParams);
   const rows = await listAcordosComSaudeFiltered(scope, filters);
-  const parcelas = await carregarParcelas(rows.map(row => row.id));
-  return enriquecerAcordos(rows, parcelas, filters.data_de, filters.data_ate);
+  return enriquecerAcordos(rows, filters.data_de, filters.data_ate);
 }
 
 export async function GET(request: Request) {
