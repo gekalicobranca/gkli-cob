@@ -40,14 +40,14 @@ async function main() {
   const context = { exports: {} as any, Buffer, Date, Intl, require: (name: string) => { assert.ok(name in modules, name); return modules[name] } }
   vm.runInNewContext(code, context)
   const row = { id: 'teste', status: 'ativo', valor_acordado: 11679.23, carteiras: { nome: 'Carteira Exemplo' }, condominios: { nome: 'Condomínio Exemplo', cnpj: '00.000.000/0001-00' }, unidades: { identificacao: '101', bloco: 'A', responsavel_nome: 'Responsável Exemplo' } }
-  const enriched = context.exports.enriquecerAcordos([row], new Map([['teste', grade]]), '2026-10-13', '2026-11-11')
+  const enriched = context.exports.enriquecerAcordos([{ ...row, parcelas_lista: grade }], '2026-10-13', '2026-11-11')
   const output = '.tmp/executivo-parcelas-periodo'; mkdirSync(output, { recursive: true })
   const sample = await identidade.aplicarIdentidadePdf(context.exports.montarPdf(enriched, true, '2026-10-13', '2026-11-11'))
   writeFileSync(`${output}/sample.pdf`, sample)
   const parsed = await parsePdf(sample)
   for (const expected of ['1.234,56', '345,67', '125,25', 'Não informado', 'Sem baixa', '15/10/2026', 'Repasse previsto']) assert.ok(parsed.text.includes(expected), expected)
   const many = Array.from({length: 45}, (_, i) => ({...grade[1], id: `stress-${i}`, numero: i + 1, vencimento: '2026-10-13'}))
-  const stressRows = context.exports.enriquecerAcordos([row], new Map([['teste', many]]), '2026-10-13', '2026-11-11')
+  const stressRows = context.exports.enriquecerAcordos([{ ...row, parcelas_lista: many }], '2026-10-13', '2026-11-11')
   const stress = await identidade.aplicarIdentidadePdf(context.exports.montarPdf(stressRows, false, '2026-10-13', '2026-11-11'))
   writeFileSync(`${output}/stress.pdf`, stress)
   const parsedStress = await parsePdf(stress)
