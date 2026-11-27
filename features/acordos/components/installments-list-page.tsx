@@ -42,6 +42,7 @@ type SearchParams = Promise<{
   criacao_ate?: string
   operador_id?: string
   status?: string
+  repasse?: string
   tipo?: string
   ordenar?: string
   q?: string
@@ -153,6 +154,7 @@ function filterRows(rows: any[], filters: Awaited<SearchParams>) {
     if (vencimentoDe && vencimento < vencimentoDe) return false
     if (vencimentoAte && vencimento > vencimentoAte) return false
     if (status && row.status !== status) return false
+    if (filters.repasse === 'sem_ou_zero' && row.valor_repasse_informado != null && Number(row.valor_repasse_informado) !== 0) return false
     if (tipo && (row.tipo_parcela ?? 'parcela') !== tipo) return false
 
     if (termo) {
@@ -262,7 +264,7 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
     const dias = getDiasAtraso(row.vencimento)
     return !isParcelaPaga(row) && dias !== null && dias > 0
   })
-  const hasFilters = Boolean(params.criacao_de || params.criacao_ate || params.operador_id || params.condominio_id || params.carteira_id || params.vencimento_de || params.vencimento_ate || params.status || params.tipo || params.ordenar || params.q)
+  const hasFilters = Boolean(params.criacao_de || params.criacao_ate || params.operador_id || params.condominio_id || params.carteira_id || params.vencimento_de || params.vencimento_ate || params.status || params.repasse || params.tipo || params.ordenar || params.q)
 
   return (
     <div className="space-y-3">
@@ -335,6 +337,12 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
               <option value="">Todos</option>
               <option value="entrada">Entrada</option>
               <option value="parcela">Parcela</option>
+            </Select>
+          </ListFilterField>
+          <ListFilterField label="Repasse da parcela" className="xl:col-span-3">
+            <Select name="repasse" defaultValue={params.repasse ?? ''}>
+              <option value="">Todos</option>
+              <option value="sem_ou_zero">Em branco ou R$ 0,00</option>
             </Select>
           </ListFilterField>
           <ListFilterField label="Vencimento de" className="xl:col-span-2">
