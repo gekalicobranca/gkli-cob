@@ -1,3 +1,4 @@
+import { somenteCobrancasTotalizaveis } from '@/lib/core/cobranca-totalizacao'
 import { filtroConducaoProcesso } from '@/features/unidades/conducao-processo'
 import { somenteCobrancasCanonicas, arquivamentoDuplicidadesAtivo } from '../../lib/core/cobranca-arquivamento'
 import {
@@ -644,7 +645,8 @@ export async function summarizeCobrancas(scope: CarteiraScope, filters: Cobranca
   for (let from = 0; ; from += pageSize) {
     let query = somenteCobrancasCanonicas(supabase
       .from('cobrancas')
-      .select('id,carteira_id,condominio_id,valor_original,valor_atualizado,status,status_operacional,carteiras(nome),condominios(nome)'))
+      .select('id,carteira_id,condominio_id,valor_original,valor_atualizado,status,status_operacional,status_financeiro,carteiras(nome),condominios(nome)'))
+    query = somenteCobrancasTotalizaveis(query)
 
     query = applyCarteiraScope(query, scope.carteiraIds)
     query = (await applyCobrancaFilters(query, supabase, scope, filters)).query

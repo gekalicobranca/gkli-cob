@@ -1,3 +1,4 @@
+import { somenteCobrancasTotalizaveis } from '@/lib/core/cobranca-totalizacao'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from '@/utils/supabase/server'
 import { applyCarteiraScope } from '@/utils/auth/apply-carteira-scope'
@@ -175,6 +176,7 @@ async function listCobrancas(scope: CarteiraScope, filters: RelatorioFilters) {
   if (filters.carteiraId) query = query.eq('carteira_id', filters.carteiraId)
   if (filters.status) query = query.or(`status.eq.${filters.status},status_operacional.eq.${filters.status}`)
 
+  query = somenteCobrancasTotalizaveis(query)
   const { data, error } = await query
   if (error) throw new Error(`Erro ao carregar cobranças do relatório: ${error.message}`)
   return (data ?? []) as any[]

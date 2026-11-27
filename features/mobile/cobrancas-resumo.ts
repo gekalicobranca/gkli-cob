@@ -5,7 +5,7 @@ type Charge = { id: string; status?: string | null; status_operacional?: string 
 export function grupoCobrancaMobile(row: Charge) {
   if (cobrancaArquivada(row)) return null
   const legacy = String(row.status ?? '').toLowerCase()
-  if (['pago', 'paga', 'quitado', 'quitada', 'cancelado', 'cancelada'].includes(legacy) || ['quitado', 'renegociado'].includes(getCobrancaStatusFinanceiro(row))) return null
+  if (['pago', 'paga', 'quitado', 'quitada', 'cancelado', 'cancelada'].includes(legacy) || ['quitado', 'renegociado', 'vinculado'].includes(getCobrancaStatusFinanceiro(row))) return null
   const operational = getCobrancaStatusOperacional(row)
   return operational === 'novo' ? 'novas' : ['em_cobranca_ativa', 'em_negociacao', 'possivel_acordo'].includes(operational) ? 'ativas' : null
 }

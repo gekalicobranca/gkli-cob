@@ -1,3 +1,4 @@
+import { cobrancaParticipaTotalizacao } from '@/lib/core/cobranca-totalizacao'
 import { filtroConducaoProcesso } from './conducao-processo'
 import {acordoIdsDaUnidade} from "@/features/acordos/unidades-consulta";
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
@@ -428,7 +429,8 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
 
   // Cópias continuam visíveis no histórico, mas não representam uma segunda dívida.
   const cobrancasCanonicas = cobrancas.filter((cobranca) => !cobranca.duplicada_de_id && !cobranca.arquivada_em)
-  const valorEmAberto = cobrancasCanonicas
+  const cobrancasTotalizaveis = cobrancasCanonicas.filter(cobrancaParticipaTotalizacao)
+  const valorEmAberto = cobrancasTotalizaveis
     .filter((cobranca) =>
       getCobrancaStatusFinanceiro(cobranca) !== 'quitado' &&
       !['acordo_efetivado', 'quitado', 'pago'].includes(getCobrancaStatusOperacional(cobranca)),
@@ -446,7 +448,7 @@ export async function getHistoricoOperacionalDaUnidade(id: string, scope: Cartei
     eventos,
     mensagensEnviadas: mensagensResult.data ?? [],
     resumo: {
-      totalCobrancas: cobrancasCanonicas.length,
+      totalCobrancas: cobrancasTotalizaveis.length,
       valorEmAberto,
       acordosTotal: acordos.length,
       acordosRompidos,

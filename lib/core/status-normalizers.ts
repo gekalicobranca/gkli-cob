@@ -57,6 +57,7 @@ export function normalizeCobrancaStatusFinanceiro(value: unknown) {
     vencido: COBRANCA_STATUS_FINANCEIRO.VENCIDO,
     vencida: COBRANCA_STATUS_FINANCEIRO.VENCIDO,
     renegociado: COBRANCA_STATUS_FINANCEIRO.RENEGOCIADO,
+    vinculado: COBRANCA_STATUS_FINANCEIRO.VINCULADO,
   }
 
   return aliases[status] ?? COBRANCA_STATUS_FINANCEIRO.EM_ABERTO

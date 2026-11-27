@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cobrancaParticipaTotalizacao } from '@/lib/core/cobranca-totalizacao';
 import { AlertTriangle, ArrowRightLeft, ArrowUpRight, Search } from "lucide-react";
 
 import { EmptyState } from "@/components/data/empty-state";
@@ -79,7 +80,7 @@ export default async function SaneamentoCobrancasPage({ searchParams }: Props) {
     ? await listUnidadesDestinoCorrecao(scope, selectedCobranca.condominio_id)
     : [];
 
-  const totalJudicializado = judicialRows.reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0);
+  const totalJudicializado = judicialRows.filter(cobrancaParticipaTotalizacao).reduce((sum: number, row: any) => sum + Number(row.valor_atualizado ?? row.valor_original ?? 0), 0);
   const unidadesJudicializadas = new Set(judicialRows.map((row: any) => row.unidade_id).filter(Boolean)).size;
   const condominiosJudicializados = new Set(judicialRows.map((row: any) => row.condominio_id).filter(Boolean)).size;
 

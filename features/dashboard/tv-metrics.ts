@@ -72,7 +72,7 @@ export function buildTvMetrics(start: string, end: string, today: string, charge
   const available = charges.filter(row => row.vencimento && row.vencimento <= cutoff && money(row.valor_atualizado) > 0
     && !row.bloqueada_para_captacao
     && !['pago', 'quitado', 'cancelado', 'cancelada'].includes(normalize(row.status))
-    && !['quitado', 'renegociado'].includes(getCobrancaStatusFinanceiro(row))
+    && !['quitado', 'renegociado', 'vinculado'].includes(getCobrancaStatusFinanceiro(row))
     && (COBRANCA_STATUS_OPERACIONAIS_ATIVOS as readonly string[]).includes(getCobrancaStatusOperacional(row)))
   const paid = installments.filter(row => {
     const agreement = Array.isArray(row.acordos) ? row.acordos[0] : row.acordos

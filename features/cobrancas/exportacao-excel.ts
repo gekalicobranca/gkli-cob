@@ -1,3 +1,4 @@
+import { cobrancaParticipaTotalizacao } from '@/lib/core/cobranca-totalizacao'
 import { compararHierarquiaComDesempate } from './ordem-relatorio'
 import { COBRANCA_STATUS_LABEL } from '@/lib/constants/cobrancas'
 import { CONDUCAO_PROCESSO } from '@/features/unidades/conducao-processo'
@@ -188,9 +189,10 @@ export async function criarExcelRelatorioCobrancas(
   const sortedRows = [...rows].sort((left, right) =>
     compararHierarquiaComDesempate(left, right, (a, b) => compareCobrancasForReport(a, b, filters.ordenar)),
   )
-  const groupedRows = buildGroupedRows(sortedRows)
-  const totalOriginal = rows.reduce((sum, row) => sum + money(row.valor_original), 0)
-  const totalAtualizado = rows.reduce((sum, row) => sum + money(row.valor_atualizado ?? row.valor_original), 0)
+  const totalizaveis = rows.filter(cobrancaParticipaTotalizacao)
+  const groupedRows = buildGroupedRows(totalizaveis)
+  const totalOriginal = totalizaveis.reduce((sum, row) => sum + money(row.valor_original), 0)
+  const totalAtualizado = totalizaveis.reduce((sum, row) => sum + money(row.valor_atualizado ?? row.valor_original), 0)
   const workbook = createExcelWorkbook('Relatório de cobranças', generatedAt)
 
   const resumoRows: SummaryRow[] = [
@@ -209,7 +211,7 @@ export async function criarExcelRelatorioCobrancas(
     { label: 'Ordenação solicitada na tela', value: ordenacaoLabel(filters.ordenar) },
     { label: 'Ordenação do arquivo', value: 'Carteira / Condomínio / Bloco / Unidade, com a ordenação selecionada dentro da unidade' },
     { label: 'Total de unidades agrupadas', value: groupedRows.length, type: 'integer' },
-    { label: 'Total de cobranças', value: rows.length, type: 'integer' },
+    { label: 'Total de cobranças nos totais gerais', value: totalizaveis.length, type: 'integer' },
     { label: 'Valor original total', value: totalOriginal, type: 'currency' },
     { label: 'Valor atualizado total', value: totalAtualizado, type: 'currency' },
   ]

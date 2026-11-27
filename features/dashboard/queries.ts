@@ -1,3 +1,4 @@
+import { somenteCobrancasTotalizaveis } from '@/lib/core/cobranca-totalizacao'
 import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
 import { somenteCobrancasCanonicas } from '../../lib/core/cobranca-arquivamento'
 import { createClient } from "@/utils/supabase/server";
@@ -218,6 +219,7 @@ export async function getManagementDashboard(scope: CarteiraScope) {
     .order("vencimento", { ascending: true });
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds);
+  cobrancasQuery = somenteCobrancasTotalizaveis(cobrancasQuery);
 
   let acordosQuery = somenteAcordosCanonicos(supabase
     .from("acordos")
@@ -574,6 +576,7 @@ export async function getManagementDashboardTabs(scope: CarteiraScope) {
     .order("vencimento", { ascending: true });
 
   cobrancasQuery = applyCarteiraScope(cobrancasQuery, scope.carteiraIds);
+  cobrancasQuery = somenteCobrancasTotalizaveis(cobrancasQuery);
 
   let acordosQuery = somenteAcordosCanonicos(supabase
     .from("acordos")

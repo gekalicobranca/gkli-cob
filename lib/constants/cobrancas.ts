@@ -24,6 +24,7 @@ export const COBRANCA_STATUS_FINANCEIRO = {
   QUITADO: 'quitado',
   VENCIDO: 'vencido',
   RENEGOCIADO: 'renegociado',
+  VINCULADO: 'vinculado',
 } as const
 
 export type CobrancaStatusFinanceiro =
@@ -81,6 +82,7 @@ export const COBRANCA_STATUS_LABEL: Record<CobrancaStatusOperacional | CobrancaS
   quitado: 'Quitado',
   vencido: 'Vencido',
   renegociado: 'Renegociado',
+  vinculado: 'Vinculado',
 }
 
 export function isCobrancaStatusOperacional(value: string): value is CobrancaStatusOperacional {

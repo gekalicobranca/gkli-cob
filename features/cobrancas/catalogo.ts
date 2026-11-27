@@ -39,7 +39,7 @@ export function montarCatalogo(rows: CotaCatalogo[], dataBase: string): Condomin
     vistos.add(r.id)
     const status = getCobrancaStatusOperacional(r)
     if (!['novo', 'em_cobranca_ativa', 'em_negociacao', 'possivel_acordo', 'pre_distribuicao', 'pre_juridico', 'judicializado'].includes(status)) continue
-    if (['quitado', 'pago', 'cancelado', 'renegociado'].includes(String(r.status_financeiro ?? '').toLowerCase())) continue
+    if (['quitado', 'pago', 'cancelado', 'renegociado', 'vinculado'].includes(String(r.status_financeiro ?? '').toLowerCase())) continue
     const diasInformados = Number(r.condominios?.inicio_cobranca_dias ?? 30)
     const dias = Number.isFinite(diasInformados) ? Math.max(0, diasInformados) : 30
     const atraso = (Date.parse(`${dataBase}T00:00:00Z`) - Date.parse(`${r.vencimento}T00:00:00Z`)) / 86400000

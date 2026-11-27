@@ -1,10 +1,11 @@
-import { cobrancaArquivada } from '@/lib/core/cobranca-arquivamento'
+import { cobrancaParticipaTotalizacao } from '@/lib/core/cobranca-totalizacao'
 
 type Row = {
   duplicada_de_id?: string | null; arquivada_em?: string | null
   carteira_id?: string | null; condominio_id?: string | null
   valor_atualizado?: number | string | null; valor_original?: number | string | null
   status?: string | null; status_operacional?: string | null
+  status_financeiro?: string | null
   carteiras?: { nome?: string } | null; condominios?: { nome?: string } | null
 }
 
@@ -25,9 +26,7 @@ export function criarAcumuladorValoresCobrancas(): AcumuladorValoresCobrancas {
 
 export function acumularValoresCobrancas(acumulador: AcumuladorValoresCobrancas, rows: Row[]) {
   for (const row of rows) {
-    if (cobrancaArquivada(row)) continue
-    // Os filtros da consulta já definem quais cobranças entram na lista.
-    // Zerar status aqui faria o resumo divergir dos valores exibidos.
+    if (!cobrancaParticipaTotalizacao(row)) continue
     const valor = Math.round(Number(row.valor_atualizado ?? row.valor_original ?? 0) * 100)
     const carteiraId = row.carteira_id ?? 'sem-carteira'
     const condominioId = row.condominio_id ?? 'sem-condominio'

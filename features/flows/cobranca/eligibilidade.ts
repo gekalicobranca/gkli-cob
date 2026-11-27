@@ -14,6 +14,7 @@ export function motivoImpedimentoFlow(cobranca: CobrancaAutomacao) {
   if (unidade?.acao_judicial) return 'Unidade com ação judicial.'
   const impedidos = ['possivel_acordo', 'acordo_firmado', 'acordo_efetivado', 'acordo_quebrado', 'pre_distribuicao', 'pre_juridico', 'judicializado', 'suspenso']
   if (impedidos.includes(cobranca.status ?? '') || impedidos.includes(cobranca.status_operacional ?? '')) return 'Status fora da cobrança automática.'
+  if (cobranca.status_financeiro === 'vinculado') return 'Débito vinculado, fora dos totais gerais.'
   if (['quitado', 'renegociado'].includes(cobranca.status_financeiro ?? '')) return 'Débito quitado ou renegociado.'
   return null
 }
