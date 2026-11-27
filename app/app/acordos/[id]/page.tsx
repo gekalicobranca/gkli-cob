@@ -1,10 +1,10 @@
+import { ParcelaPagamentoForm } from "@/features/acordos/components/parcela-pagamento-form";
 import {impedimentoCancelamento} from "@/features/acordos/cancelamento-elegibilidade";
 import { MoneyForm } from '@/components/ui/money-form'
 import { AgreementInstallmentsTable } from "@/features/acordos/components/agreement-installments-table";
 import { AgreementFinancialDetail } from "@/features/acordos/components/agreement-financial-detail";
 import Link from "next/link";
 import {
-  CheckCircle2,
   XCircle,
 } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -16,7 +16,6 @@ import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import {
   cancelarFormalizacaoAcordo,
   retomarFormalizacaoAcordo,
-  marcarParcelaComoPaga,
   revisarParcelaAcordo,
   solicitarReemissaoParcelaAcordo,
 } from "@/features/acordos/actions";
@@ -106,6 +105,10 @@ function ParcelaActions({
   const diasAtraso = vencimento ? Math.floor((hoje.getTime() - vencimento.getTime()) / 86400000) : 0;
   const podeReemitir = status === "vencida" && diasReemissao > 0 && diasAtraso <= diasReemissao;
 
+  if (!["cancelada", "cancelado"].includes(status) && (parcela.data_pagamento || ["paga", "pago", "quitada", "quitado"].includes(status))) {
+    return <ParcelaPagamentoForm parcela={parcela} acordoId={acordoId} paga />;
+  }
+
   if (encerrada) {
     return (
       <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
@@ -117,22 +120,7 @@ function ParcelaActions({
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex flex-wrap justify-end gap-2">
-      <form action={marcarParcelaComoPaga}>
-        <input type="hidden" name="parcela_id" value={parcela.id} />
-        <input type="hidden" name="acordo_id" value={acordoId} />
-        <label className="mb-2 block space-y-1 text-left">
-          <span className="text-xs font-semibold text-slate-500">Valor efetivamente pago</span>
-          <input name="valor_pago" type="number" min="0" step="0.01" defaultValue={Number(parcela.valor_pago ?? parcela.valor ?? 0).toFixed(2)} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm" />
-        </label>
-        <PendingSubmitButton
-          size="sm"
-          className="bg-emerald-600 hover:bg-emerald-700"
-          icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-          pendingLabel="Baixando..."
-        >
-          Marcar como paga
-        </PendingSubmitButton>
-      </form>
+      <ParcelaPagamentoForm parcela={parcela} acordoId={acordoId} />
 
       {status === "vencida" ? (
         <form action={solicitarReemissaoParcelaAcordo}>

@@ -742,3 +742,7 @@ Use este checklist para validar a etapa manual:
 - Lote pré-jurídico: conjunto de conteúdo, itens e mensagens gerado para procurações selecionadas.
 - Flow pré-jurídico: execução monitorada de lote + régua, com agenda, envios, falhas e reenvios.
 - Judicializado: cobrança/unidade distribuída ao jurídico e retirada do fluxo extrajudicial.
+
+## Repasse por parcela
+
+Em **Acordos → Controle de parcelas**, ou no detalhe do acordo em **Parcelas e repasses**, informe o repasse ao marcar a parcela como paga. Em parcelas já pagas, edite o campo e use **Salvar repasse**. A correção atua somente sobre o repasse da parcela. O campo vazio usa o rateio do acordo e o valor zero registra isenção. A edição se aplica aos acordos controlados pela carteira.

@@ -1501,7 +1501,15 @@ export async function solicitarAprovacaoSindicoAcordo(formData: FormData) {
   redirect(`/app/acordos/novo?cobrancaIds=${encodeURIComponent(cobrancaIds.join(","))}&cotasSemDespesas=${encodeURIComponent(cotasSemDespesas.join(","))}&unidade_titular_id=${encodeURIComponent(unidadeId)}&sindico=solicitada`);
 }
 
+export async function corrigirRepassePago(formData: FormData) {
+  await salvarValoresParcela(formData, true);
+}
+
 export async function marcarParcelaComoPaga(formData: FormData) {
+  await salvarValoresParcela(formData, false);
+}
+
+async function salvarValoresParcela(formData: FormData, somenteRepasse: boolean) {
   await requireRole(["admin", "gestor", "operador"]);
   const user = await requireUser();
 
@@ -1517,7 +1525,7 @@ export async function marcarParcelaComoPaga(formData: FormData) {
 
   const { data: acordoEvento } = await supabase
     .from("acordos")
-    .select("id, carteira_id, status, status_financeiro, cobranca_id")
+    .select("id, carteira_id, status, status_financeiro, cobranca_id, origem_controle")
     .eq("id", acordoId)
     .maybeSingle();
 
@@ -1527,12 +1535,49 @@ export async function marcarParcelaComoPaga(formData: FormData) {
 
   const { data: parcelaEvento } = await supabase
     .from("parcelas_acordo")
-    .select("id, numero, valor, vencimento, status, data_pagamento, valor_pago")
+    .select("id, numero, valor, vencimento, status, data_pagamento, valor_pago, valor_repasse_informado, updated_at")
     .eq("id", parcelaId)
     .eq("acordo_id", acordoId)
     .maybeSingle();
 
   if (!parcelaEvento) throw new Error("Parcela não pertence ao acordo informado.");
+
+  const anterior = parcelaEvento.valor_repasse_informado;
+  const campo = formData.get("valor_repasse_informado");
+  const repasse = campo === null ? anterior : campo === "" ? null
+    : moneyFromForm(campo, "Repasse", { format: "decimal" });
+  const paga = Boolean(parcelaEvento.data_pagamento) || ["paga", "pago", "quitada", "quitado"].includes(parcelaEvento.status);
+  if (["cancelada", "cancelado"].includes(parcelaEvento.status)) throw new Error("Esta parcela foi cancelada.");
+  if (paga !== somenteRepasse) throw new Error("O pagamento da parcela mudou. Atualize a página.");
+  const repasseAnterior = anterior == null ? "" : Number(anterior).toFixed(2);
+  if (campo !== null && formData.get("repasse_anterior") !== repasseAnterior) {
+    throw new Error("O repasse mudou desde a abertura da tela. Atualize a página.");
+  }
+  if (campo !== null && (acordoEvento.origem_controle ?? "carteira") !== "carteira") {
+    throw new Error("O repasse só pode ser editado em acordos controlados pela carteira.");
+  }
+  if (somenteRepasse) {
+    if (campo === null) throw new Error("Campo de repasse ausente.");
+    if (repasse === anterior) return;
+    const { data, error } = await supabase.from("parcelas_acordo")
+      .update({ valor_repasse_informado: repasse })
+      .eq("id", parcelaId).eq("acordo_id", acordoId).eq("updated_at", parcelaEvento.updated_at)
+      .select("id").maybeSingle();
+    if (error || !data) throw new Error("Não foi possível corrigir o repasse. Atualize a parcela e confira o valor.");
+    await registrarEventoOperacional(supabase, {
+      carteiraId: acordoEvento.carteira_id, entidadeTipo: "acordo", entidadeId: acordoId,
+      eventoCodigo: "acordo.repasse_corrigido", titulo: "Repasse da parcela corrigido",
+      descricao: `Repasse corrigido na parcela ${parcelaEvento.numero}.`,
+      antes: { parcela_id: parcelaId, valor_repasse_informado: anterior },
+      depois: { parcela_id: parcelaId, valor_repasse_informado: repasse },
+      origem: "manual", auditavel: true, userId: user.id,
+    });
+    revalidatePath(`/app/acordos/${acordoId}`);
+    revalidatePath("/app/acordos/fila");
+    revalidatePath("/app/acordos/judiciais/fila");
+    revalidatePath("/app/dashboard");
+    return;
+  }
 
   const valorPago = valorPagoInformado
     ? moneyFromForm(valorPagoInformado, "Valor pago", { format: "decimal" })
@@ -1541,20 +1586,24 @@ export async function marcarParcelaComoPaga(formData: FormData) {
     throw new Error("Informe um valor pago válido, igual ou maior que zero.");
   }
 
-  const { error: parcelaError } = await supabase
+  const { data: atualizada, error: parcelaError } = await supabase
     .from("parcelas_acordo")
     .update({
       status: PARCELA_ACORDO_STATUS.PAGA,
       data_pagamento: toISODate(new Date()),
       valor_pago: roundMoney(valorPago),
+      ...(campo !== null && { valor_repasse_informado: repasse }),
     })
-    .eq("id", parcelaId);
+    .eq("id", parcelaId).eq("acordo_id", acordoId).eq("updated_at", parcelaEvento.updated_at)
+    .select("id").maybeSingle();
 
   if (parcelaError) {
     throw new Error(
       `Erro ao marcar parcela como paga: ${parcelaError.message}`,
     );
   }
+
+  if (!atualizada) throw new Error("A parcela foi alterada. Atualize a página antes de confirmar.");
 
   const { data: parcelas, error: parcelasError } = await supabase
     .from("parcelas_acordo")
@@ -1678,8 +1727,8 @@ export async function marcarParcelaComoPaga(formData: FormData) {
     descricao: `Parcela ${(parcelaEvento as any)?.numero ?? ""} marcada como paga.`,
     severidade: "sucesso",
     payload: { parcela_id: parcelaId, parcela: parcelaEvento ?? null },
-    antes: { parcela_id: parcelaId, status: (parcelaEvento as any)?.status ?? null },
-    depois: { parcela_id: parcelaId, status: PARCELA_ACORDO_STATUS.PAGA },
+    antes: { parcela_id: parcelaId, status: (parcelaEvento as any)?.status ?? null, valor_repasse_informado: anterior },
+    depois: { parcela_id: parcelaId, status: PARCELA_ACORDO_STATUS.PAGA, valor_repasse_informado: repasse },
     origem: "manual",
     auditavel: true,
     userId: user?.id ?? null,
