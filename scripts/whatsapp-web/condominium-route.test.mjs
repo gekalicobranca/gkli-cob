@@ -23,7 +23,7 @@ test('condominium exception is narrow, wallet-bound and does not change message 
     await db.exec(`alter table mensagens add column canal text default 'whatsapp',add column conteudo text,add column conteudo_renderizado text,add column payload jsonb default '{}'`)
     const original = await readFile(new URL('../../supabase/migrations/20261103192159_whatsapp_rotas_grupo_carteira.sql',import.meta.url),'utf8')
     await db.exec(original.match(/create or replace function public.whatsapp_web_assinatura_grupo\(\)[\s\S]*?end \$\$;/)[0])
-    await db.exec(await readFile(new URL('../../supabase/migrations/20261127155354_whatsapp_excecao_rota_condominio.sql',import.meta.url),'utf8'))
+    await db.exec(await readFile(new URL('../../supabase/migrations/20261127155621_whatsapp_excecao_rota_condominio.sql',import.meta.url),'utf8'))
     const route = async n => (await db.query(`select whatsapp_web_rota_mensagem('${id(n)}') value`)).rows[0].value
     assert.equal(await route(8), null)
     await db.exec(`insert into whatsapp_web_excecoes_grupo(condominio_id) values('${id(3)}')`)
