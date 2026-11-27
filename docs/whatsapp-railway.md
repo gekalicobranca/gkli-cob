@@ -63,3 +63,13 @@ Foi necessário compatibilizar a inicialização completa de eventos: o módulo 
 Conector em produção fixado no commit `e8224ff9`, branch `codex/whatsapp-liberar-envios`, PR #95. As quatro linhas confirmaram inicialização completa e modo `operando`. Índice exclusivo de tentativa ativa por mensagem, fingerprint, trava de reserva, bloqueio de mensagens já enviadas e de resultados incertos, elegibilidade financeira, status do Flow, destinatários bloqueados, cadência e quota continuam inalterados. A rota RISE UP permanece inativa.
 
 A janela da reserva vigente é 09h–18h em America/Sao_Paulo. Como a liberação ocorreu após 18h, nenhum envio de teste foi disparado; mensagens elegíveis seguem a agenda e a próxima janela. Validação: testes do worker incluindo hooks e recibos, observação dos quatro serviços/monitores e consulta das permissões após a operação. O estado anterior de envios pausados descrito acima é histórico.
+
+## Exceção Home Design Pinheiros — 27/11/2026
+
+Por solicitação do usuário, o Home Design Pinheiros usa a linha padrão GEKALI (final 0545), apesar de permanecer cadastrado no grupo RISE UP. A tabela privada `whatsapp_web_excecoes_grupo` autoriza somente o condomínio explicitamente cadastrado a ignorar a rota de grupo. Não armazena sessão/carteira alternativa: a linha vem da própria carteira, e as validações de carteira e de condomínio entre cobrança/acordo permanecem na RPC. RLS habilitada, sem acesso anon/authenticated; administração somente por service_role e com auditoria.
+
+Migration `20261127155621_whatsapp_excecao_rota_condominio.sql` aplicada em GKLI COB. O normalizador de assinatura respeita a mesma exceção, inclusive se a rota de grupo for ativada futuramente, e continua ignorando mensagens enviadas/canceladas. Não foram alterados grupo, rota RISE UP, Flows, agenda, fingerprint, ID, contador de tentativas ou regras de reserva/duplicidade. Foram alinhadas apenas as assinaturas das duas mensagens agendadas já existentes; mensagens confirmadas não foram recolocadas na fila. Os casos incertos foram comparados integralmente antes/depois, sem alterações.
+
+Teste PGlite cobre exceção isolada entre condomínios do mesmo grupo, rota de grupo ativa/inativa, conflito de carteira, divergência cobrança/acordo, permissões/RLS, assinatura pendente e preservação de histórico enviado. Operação e evidências locais em `outputs/home-design-whatsapp-20261127/`. O worker usa a RPC em tempo real; não há reinício de sessão ou novo pareamento para aplicar a rota.
+
+Resultado operacional: as duas mensagens existentes foram confirmadas pela sessão GEKALI às 12h57 e 12h58 (Brasília), cada uma com uma única tentativa e um recibo. O Flow concluiu pelo processamento normal; nenhuma mensagem confirmada foi recolocada na fila.
