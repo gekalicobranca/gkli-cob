@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { PGlite } from '@electric-sql/pglite'
 import { createClient } from '@supabase/supabase-js'
 import { importarRetornosGraph, sincronizarCaixaKeila } from '../features/keila/graph-sync'
+import { homologarEntradaGraph } from '../features/keila/graph-cojur-homologacao'
 import { abrirMicrosoftGraph, configGraphSchema } from '../features/keila/microsoft-graph'
 import { POST } from '../app/api/jobs/keila/graph/route'
 
@@ -203,6 +204,61 @@ test('verificação autenticada lê a caixa da Keila com o processamento pausado
   assert.equal(resposta.status, 200)
   assert.deepEqual(await resposta.json(), { caixaKeilaAcessivel: true })
   assert.equal(requisicoes.length, 2)
+})
+
+test('e-mail controlado abre um caso sem destinatário e a releitura reutiliza o mesmo vínculo', async () => {
+  const casoId = '00000000-0000-4000-8000-000000000099'
+  let registro: { id: string; titulo: string; payload: Record<string, unknown> } | undefined
+  let insercoes = 0
+  let releituras = 0
+  const fakeFetch: typeof fetch = async (input, options) => {
+    const url = new URL(String(input))
+    const caminho = url.pathname.split('/').at(-1)
+    if (url.hostname === 'login.microsoftonline.com') return Response.json({ access_token: 'simulado' })
+    if (url.hostname === 'graph.microsoft.com') {
+      if (caminho === 'messages') {
+        return Response.json({ value: [
+          email('outro', { subject: '[Homologação] Safira 200043', from: { emailAddress: { address: 'outro@example.com' } } }),
+          email('controlado', { subject: '[Homologação] Safira 200043' }),
+        ] })
+      }
+      assert.equal(caminho, 'controlado')
+      if (url.searchParams.get('$select') === 'id') {
+        releituras++
+        return Response.json({ id: 'controlado' })
+      }
+      return Response.json({ uniqueBody: { contentType: 'text', content: 'Quais cotas estão em aberto?' } })
+    }
+    if (caminho === 'central_pendencias') {
+      if (options?.method === 'POST') {
+        assert.equal(url.searchParams.get('on_conflict'), 'id')
+        registro = JSON.parse(String(options.body))
+        insercoes++
+        return Response.json(registro)
+      }
+      return Response.json(registro ?? null)
+    }
+    if (caminho === 'condominios') return Response.json({ operacao_virtual_habilitada: true, keila_retornos_desde: desde })
+    if (caminho === 'unidades') {
+      assert.equal(url.searchParams.get('identificacao'), 'eq.200043')
+      return Response.json([{ id: unidade, identificacao: '200043', condominio_id: safira, carteira_id: carteira, acao_judicial: false }])
+    }
+    if (caminho === 'acordos') return Response.json(null)
+    throw new Error('Requisição inesperada no teste de homologação.')
+  }
+  const db = createClient('https://supabase.example', 'simulado', {
+    auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: fakeFetch },
+  })
+  const signal = AbortSignal.timeout(1000)
+  const graph = await abrirMicrosoftGraph({ tenant: unidade, aplicativo: unidade, segredo: 'simulado', desde }, signal, fakeFetch)
+  assert.deepEqual(await homologarEntradaGraph(db, graph, casoId, desde, signal, 'contato@example.com'),
+    { casoId, registrados: 1, repetido: false })
+  assert.deepEqual(await homologarEntradaGraph(db, graph, casoId, desde, signal, 'contato@example.com'),
+    { casoId, registrados: 0, repetido: true })
+  assert.equal(registro?.payload.envio_permitido, false)
+  assert.deepEqual(registro?.payload.emails, [])
+  assert.equal(insercoes, 1)
+  assert.equal(releituras, 1)
 })
 
 test('migração persiste retornos em uma transação, preserva aprovações e isola avisos', async (t) => {

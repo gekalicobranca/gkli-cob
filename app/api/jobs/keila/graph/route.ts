@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
+import { z } from 'zod'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { sincronizarCaixaKeila } from '@/features/keila/graph-sync'
 import { abrirMicrosoftGraph, configGraphSchema, ErroMicrosoftGraph } from '@/features/keila/microsoft-graph'
@@ -41,8 +42,9 @@ export async function POST(request: Request) {
         return Response.json({ erro: 'Escopo de homologação inválido.' }, { status: 403 })
       }
       const credenciais = configGraphSchema.parse(config)
+      const remetente = z.email().toLowerCase().optional().parse(process.env.KEILA_GRAPH_HOMOLOGACAO_REMETENTE || undefined)
       const graph = await abrirMicrosoftGraph(credenciais, signal)
-      return Response.json(await homologarEntradaGraph(createAdminClient(), graph, casoDeHomologacao, credenciais.desde, signal))
+      return Response.json(await homologarEntradaGraph(createAdminClient(), graph, casoDeHomologacao, credenciais.desde, signal, remetente))
     }
     const resultado = await sincronizarCaixaKeila(createAdminClient(), config, signal)
     return Response.json(resultado)

@@ -8,10 +8,11 @@ const referencia = '63004'
 const workflow = 'gekalicobranca/gkli-cob/.github/workflows/keila-safira-cojur.yml@refs/heads/codex/keila-safira-nuvem'
 const entradaId = 'graph-safira-homologacao-entrada-v1'
 const titulo = '[HOMOLOGAÇÃO COJUR] Safira — e-mail da Keila'
+const assuntoControlado = '[homologação] safira 200043'
 
 export async function homologarEntradaGraph(
   db: SupabaseClient, graph: Awaited<ReturnType<typeof abrirMicrosoftGraph>>,
-  casoId: string, desde: string, signal: AbortSignal,
+  casoId: string, desde: string, signal: AbortSignal, remetenteControlado?: string,
 ) {
   const lerCaso = () => db.from('central_pendencias').select('id,titulo,payload')
     .eq('id', casoId).eq('tipo', 'keila_atendimento').eq('carteira_id', carteira)
@@ -35,21 +36,25 @@ export async function homologarEntradaGraph(
   if (erroCondominio || !condominio?.operacao_virtual_habilitada || !condominio.keila_retornos_desde) {
     throw new Error('Safira indisponível para homologação.')
   }
-  const desdePiloto = new Date(Math.max(Date.parse(desde), Date.parse(condominio.keila_retornos_desde))).toISOString()
+  const desdePiloto = new Date(Math.max(Date.parse(desde), Date.parse(condominio.keila_retornos_desde),
+    remetenteControlado ? Date.now() - 3 * 60 * 60_000 : 0)).toISOString()
   const unidades = new Map<string, { id: string; identificacao: string }>()
   let inserido = false
   let concorrente = false
   let examinados = 0
   let vinculados = 0
   const importar = (itens: unknown[], usarRemetente: boolean) => importarRetornosGraph({
-    itens, desde: desdePiloto, signal, aceitarAssunto: usarRemetente ? () => true : undefined,
+    itens, desde: desdePiloto, signal,
+    aceitarAssunto: remetenteControlado ? assunto => assunto.toLowerCase() === assuntoControlado : usarRemetente ? () => true : undefined,
     corpoUnico: graph.corpoUnico,
     async jaRegistrado() { return inserido || concorrente },
     async identificar(remetente) {
       examinados++
-      if (/[%_*\\]/.test(remetente)) return false
-      const { data, error } = await db.from('unidades').select('id,identificacao,condominio_id,carteira_id,acao_judicial')
-        .ilike('email', remetente).limit(2).abortSignal(signal)
+      if (remetenteControlado ? remetente !== remetenteControlado : /[%_*\\]/.test(remetente)) return false
+      const busca = db.from('unidades').select('id,identificacao,condominio_id,carteira_id,acao_judicial')
+      if (remetenteControlado) busca.eq('identificacao', '200043').eq('condominio_id', SAFIRA_PILOTO_ID).eq('carteira_id', carteira)
+      else busca.ilike('email', remetente)
+      const { data, error } = await busca.limit(2).abortSignal(signal)
       if (error) throw new Error('Não foi possível conferir o remetente do Graph.')
       const unidade = data?.[0]
       if (data?.length !== 1 || unidade.condominio_id !== SAFIRA_PILOTO_ID || unidade.carteira_id !== carteira ||
@@ -95,7 +100,7 @@ export async function homologarEntradaGraph(
     graph.recentes(desdePiloto, 'inbox', true), graph.recentes(desdePiloto, 'archive', true),
   ])
   await importar([...entrada, ...arquivos], false)
-  if (!inserido && !concorrente) {
+  if (!remetenteControlado && !inserido && !concorrente) {
     // No segundo recorte, o vínculo único com a unidade confirma o Safira
     // mesmo quando o assunto do e-mail não menciona o condomínio.
     await importar(await graph.recentes(desdePiloto, 'inbox', false), true)
