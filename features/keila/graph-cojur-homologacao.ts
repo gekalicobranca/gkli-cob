@@ -8,7 +8,7 @@ const referencia = '63004'
 const workflow = 'gekalicobranca/gkli-cob/.github/workflows/keila-safira-cojur.yml@refs/heads/codex/keila-safira-nuvem'
 const entradaId = 'graph-safira-homologacao-entrada-v1'
 const titulo = '[HOMOLOGAÇÃO COJUR] Safira — e-mail da Keila'
-const assuntoControlado = '[homologação] safira 200043'
+const assuntoControlado = /^(?:(?:enc|fw|fwd|re|res)\s*:\s*)*\[?homologacao\]?\s*[-:]?\s*safira\s+200043$/i
 
 export async function homologarEntradaGraph(
   db: SupabaseClient, graph: Awaited<ReturnType<typeof abrirMicrosoftGraph>>,
@@ -37,7 +37,7 @@ export async function homologarEntradaGraph(
     throw new Error('Safira indisponível para homologação.')
   }
   const desdePiloto = new Date(Math.max(Date.parse(desde), Date.parse(condominio.keila_retornos_desde),
-    remetenteControlado ? Date.now() - 3 * 60 * 60_000 : 0)).toISOString()
+    remetenteControlado ? Date.now() - 24 * 60 * 60_000 : 0)).toISOString()
   const unidades = new Map<string, { id: string; identificacao: string }>()
   let inserido = false
   let concorrente = false
@@ -45,7 +45,9 @@ export async function homologarEntradaGraph(
   let vinculados = 0
   const importar = (itens: unknown[], usarRemetente: boolean) => importarRetornosGraph({
     itens, desde: desdePiloto, signal,
-    aceitarAssunto: remetenteControlado ? assunto => assunto.toLowerCase() === assuntoControlado : usarRemetente ? () => true : undefined,
+    aceitarAssunto: remetenteControlado
+      ? assunto => assuntoControlado.test(assunto.normalize('NFD').replace(/\p{M}/gu, ''))
+      : usarRemetente ? () => true : undefined,
     corpoUnico: graph.corpoUnico,
     async jaRegistrado() { return inserido || concorrente },
     async identificar(remetente) {
@@ -69,7 +71,7 @@ export async function homologarEntradaGraph(
     },
     async registrar(retorno) {
       const unidade = unidades.get(retorno.p_remetente)
-      if (!unidade || retorno.p_revisao || retorno.p_intencao === 'outro') return
+      if (!unidade || (!remetenteControlado && (retorno.p_revisao || retorno.p_intencao === 'outro'))) return
       const em = new Date().toISOString()
       const descricao = 'E-mail do Safira recebido pelo Graph. Consulta COJUR de homologação solicitada.'
       // A referência ao e-mail fica na evidência. Não há destinatário disponível para envio.
@@ -78,7 +80,8 @@ export async function homologarEntradaGraph(
         tipo: 'keila_atendimento', origem: 'mensageria', status: 'em_tratamento', prioridade: 'normal',
         titulo, descricao, entidade_tipo: 'condominio', entidade_id: SAFIRA_PILOTO_ID,
         payload: {
-          versao: 1, modo: 'supervisionado', estado: 'buscando_debitos', intencao: retorno.p_intencao,
+          versao: 1, modo: 'supervisionado', estado: 'buscando_debitos',
+          intencao: remetenteControlado ? 'debitos' : retorno.p_intencao,
           envio_permitido: false, unidade_ids: [unidade.id], emails: [], proxima_acao: descricao,
           atividades: [{ em, descricao }],
           registro_json: { versao: 1, eventos: [
@@ -96,10 +99,12 @@ export async function homologarEntradaGraph(
       inserido = true
     },
   })
-  const [entrada, arquivos] = await Promise.all([
-    graph.recentes(desdePiloto, 'inbox', true), graph.recentes(desdePiloto, 'archive', true),
-  ])
-  await importar([...entrada, ...arquivos], false)
+  const itens = remetenteControlado
+    ? await graph.recentesDoRemetente(desdePiloto, remetenteControlado)
+    : (await Promise.all([
+      graph.recentes(desdePiloto, 'inbox', true), graph.recentes(desdePiloto, 'archive', true),
+    ])).flat()
+  await importar(itens, false)
   if (!remetenteControlado && !inserido && !concorrente) {
     // No segundo recorte, o vínculo único com a unidade confirma o Safira
     // mesmo quando o assunto do e-mail não menciona o condomínio.
@@ -111,5 +116,5 @@ export async function homologarEntradaGraph(
     return conferirRepeticao(data)
   }
   return { casoId: inserido ? casoId : null, registrados: inserido ? 1 : 0, repetido: false,
-    ...(inserido ? {} : { assuntosSafira: entrada.length + arquivos.length, examinados, vinculados }) }
+    ...(inserido ? {} : { itensEncontrados: itens.length, examinados, vinculados }) }
 }

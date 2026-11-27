@@ -83,6 +83,17 @@ export async function abrirMicrosoftGraph(config: ConfigGraph, signal: AbortSign
   }
 
   return {
+    async recentesDoRemetente(desde: string, remetente: string) {
+      const url = new URL(caixa + '/messages', origem)
+      url.searchParams.set('$select', campos)
+      url.searchParams.set('$filter', 'receivedDateTime ge ' + desde + " and from/emailAddress/address eq '" +
+        remetente.replaceAll("'", "''") + "'")
+      url.searchParams.set('$orderby', 'receivedDateTime desc')
+      url.searchParams.set('$top', '40')
+      const resposta = await ler(url, 'odata.maxpagesize=40')
+      if (!resposta.ok) throw new ErroMicrosoftGraph('lista', resposta.status, resposta.headers.get('retry-after'))
+      return paginaSchema.parse(await resposta.json()).value
+    },
     async recentes(desde: string, pasta: 'inbox' | 'archive', assuntoSafira: boolean) {
       const url = new URL(caixa + '/mailFolders/' + pasta + '/messages', origem)
       url.searchParams.set('$select', campos)
