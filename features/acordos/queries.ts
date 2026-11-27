@@ -3,6 +3,7 @@ import {impedimentoCancelamento} from './cancelamento-elegibilidade';
 export { calculateAgreementHealth } from './health';
 export type { AgreementHealth } from './health';
 import { valorAcordadoRelatorio } from "@/features/acordos/valor-relatorio";
+import { resumoPagamentosParcelas } from "@/features/acordos/consulta-financeira";
 import {acordoIdsDaUnidade} from './unidades-consulta';
 import { acordoTemParcelaNoPeriodo } from './filtro-vencimento'
 import { somenteAcordosCanonicos } from '@/lib/core/acordo-arquivamento'
@@ -1169,7 +1170,10 @@ export async function listParcelasAcordosOperacionais(scope?: CarteiraScope, tip
   const acordosBase = await listAcordos(scope, tipo);
   const parcelas = await getParcelasDosAcordos(acordosBase.map((acordo: any) => acordo.id));
   const acordos = attachAgreementHealth(acordosBase as any[], parcelas);
-  const acordoPorId = new Map(acordos.map((acordo: any) => [acordo.id, acordo]));
+  const acordoPorId = new Map(acordos.map((acordo: any) => [acordo.id, {
+    ...acordo,
+    resumoPagamentos: resumoPagamentosParcelas(acordo.parcelas_lista),
+  }]));
 
   return parcelas
     .map((parcela) => {
