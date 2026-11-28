@@ -71,7 +71,9 @@ async function executar(request) {
   }
   const entregue = eventos.find(e => e.id === entregaId)
   if (entregue) return json({ caso_id: id, concluido: true, quantidade: entregue.dados.cotas.length })
-  if (payload.estado !== 'buscando_debitos') return json({ erro: 'estado_do_caso' }, 409)
+  const revisaoDoLote = payload.homologacao_lote === 'safira-reais-homologacao-20261128' &&
+    payload.estado === 'atendimento_humano'
+  if (payload.estado !== 'buscando_debitos' && !revisaoDoLote) return json({ erro: 'estado_do_caso' }, 409)
   if (request.method === 'GET') return json({ caso_id: id, referencia: referenciaSafira, unidade: unidade.identificacao })
 
   const texto = await request.text()
@@ -102,7 +104,7 @@ async function executar(request) {
   }
   const { data: salvo, error: erroSalvo } = await db.from('central_pendencias').update({
     descricao: resumo, updated_at: em, payload: {
-      ...payload, estado: 'em_analise', proxima_acao: resumo,
+      ...payload, estado: revisaoDoLote ? 'atendimento_humano' : 'em_analise', proxima_acao: resumo,
       atividades: [...payload.atividades, { em, descricao: resumo }],
       registro_json: { versao: 1, eventos: [...eventos, entrega] },
     },
