@@ -83,6 +83,17 @@ export async function abrirMicrosoftGraph(config: ConfigGraph, signal: AbortSign
   }
 
   return {
+    async conversasSafira(desde: string) {
+      const url = new URL(caixa + '/messages', origem)
+      url.searchParams.set('$select', campos)
+      url.searchParams.set('$filter', "receivedDateTime ge " + desde + " and contains(subject,'Safira')")
+      url.searchParams.set('$orderby', 'receivedDateTime desc')
+      url.searchParams.set('$top', '200')
+      const resposta = await ler(url, 'odata.maxpagesize=200')
+      if (!resposta.ok) throw new ErroMicrosoftGraph('lista', resposta.status, resposta.headers.get('retry-after'))
+      const dados = paginaSchema.parse(await resposta.json())
+      return { itens: dados.value, temMais: Boolean(dados['@odata.nextLink']) }
+    },
     async localizarMensagemHomologacao(desde: string, criterio: { remetente: string } | { assunto: string; pasta?: 'inbox' }) {
       const pasta = 'assunto' in criterio && criterio.pasta === 'inbox' ? '/mailFolders/inbox' : ''
       const url = new URL(caixa + pasta + '/messages', origem)

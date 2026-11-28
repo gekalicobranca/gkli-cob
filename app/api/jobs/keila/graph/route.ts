@@ -4,6 +4,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { sincronizarCaixaKeila } from '@/features/keila/graph-sync'
 import { abrirMicrosoftGraph, configGraphSchema, ErroMicrosoftGraph } from '@/features/keila/microsoft-graph'
 import { homologarEntradaGraph } from '@/features/keila/graph-cojur-homologacao'
+import { homologarLoteSafira } from '@/features/keila/graph-safira-lote'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
     return Response.json({ erro: 'Não autorizado.' }, { status: 401 })
   }
   const verificar = new URL(request.url).searchParams.get('verificar') === 'graph'
+  const etapaLote = new URL(request.url).searchParams.get('loteSafira')
   const casoDeHomologacao = process.env.KEILA_GRAPH_HOMOLOGACAO_CASE_ID
   if (!verificar && process.env.KEILA_GRAPH_ENABLED !== 'true') return Response.json({ pausado: true })
 
@@ -35,6 +37,15 @@ export async function POST(request: Request) {
       const graph = await abrirMicrosoftGraph(credenciais.data, signal)
       await graph.pagina(null, credenciais.data.desde)
       return Response.json({ caixaKeilaAcessivel: true })
+    }
+    if (etapaLote) {
+      if (process.env.VERCEL_ENV !== 'preview' || process.env.VERCEL_GIT_COMMIT_REF !== 'codex/keila-graph-homologacao' ||
+          !['amostras','registrar'].includes(etapaLote)) {
+        return Response.json({ erro: 'Escopo de homologação inválido.' }, { status: 403 })
+      }
+      const credenciais = configGraphSchema.parse(config)
+      const graph = await abrirMicrosoftGraph(credenciais, signal)
+      return Response.json(await homologarLoteSafira(createAdminClient(), graph, signal, etapaLote === 'registrar'))
     }
     if (casoDeHomologacao) {
       if (process.env.VERCEL_ENV !== 'preview' || process.env.VERCEL_GIT_COMMIT_REF !== 'codex/keila-graph-homologacao' ||
