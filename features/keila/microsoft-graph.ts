@@ -83,11 +83,12 @@ export async function abrirMicrosoftGraph(config: ConfigGraph, signal: AbortSign
   }
 
   return {
-    async recentesDoRemetente(desde: string, remetente: string) {
+    async localizarMensagemHomologacao(desde: string, criterio: { remetente: string } | { assunto: string }) {
       const url = new URL(caixa + '/messages', origem)
       url.searchParams.set('$select', campos)
-      url.searchParams.set('$filter', 'receivedDateTime ge ' + desde + " and from/emailAddress/address eq '" +
-        remetente.replaceAll("'", "''") + "'")
+      const [campo, valor] = 'remetente' in criterio
+        ? ['from/emailAddress/address', criterio.remetente] : ['subject', criterio.assunto]
+      url.searchParams.set('$filter', 'receivedDateTime ge ' + desde + ` and ${campo} eq '${valor.replaceAll("'", "''")}'`)
       url.searchParams.set('$orderby', 'receivedDateTime desc')
       url.searchParams.set('$top', '40')
       const resposta = await ler(url, 'odata.maxpagesize=40')

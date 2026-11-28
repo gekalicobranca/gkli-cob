@@ -8,6 +8,7 @@ const referencia = '63004'
 const workflow = 'gekalicobranca/gkli-cob/.github/workflows/keila-safira-cojur.yml@refs/heads/codex/keila-safira-nuvem'
 const entradaId = 'graph-safira-homologacao-entrada-v1'
 const titulo = '[HOMOLOGAÇÃO COJUR] Safira — e-mail da Keila'
+const assuntoTeste = '[Homologação] Safira 200043'
 const assuntoControlado = /^(?:(?:enc|fw|fwd|re|res)\s*:\s*)*\[?homologacao\]?\s*[-:]?\s*safira\s+200043$/i
 
 export async function homologarEntradaGraph(
@@ -100,11 +101,14 @@ export async function homologarEntradaGraph(
     },
   })
   const itens = remetenteControlado
-    ? await graph.recentesDoRemetente(desdePiloto, remetenteControlado)
+    ? await graph.localizarMensagemHomologacao(desdePiloto, { remetente: remetenteControlado })
     : (await Promise.all([
       graph.recentes(desdePiloto, 'inbox', true), graph.recentes(desdePiloto, 'archive', true),
     ])).flat()
   await importar(itens, false)
+  const encontradosPorAssunto = remetenteControlado && !inserido && !concorrente
+    ? await graph.localizarMensagemHomologacao(desdePiloto, { assunto: assuntoTeste }) : []
+  await importar(encontradosPorAssunto, false)
   if (!remetenteControlado && !inserido && !concorrente) {
     // No segundo recorte, o vínculo único com a unidade confirma o Safira
     // mesmo quando o assunto do e-mail não menciona o condomínio.
@@ -116,5 +120,5 @@ export async function homologarEntradaGraph(
     return conferirRepeticao(data)
   }
   return { casoId: inserido ? casoId : null, registrados: inserido ? 1 : 0, repetido: false,
-    ...(inserido ? {} : { itensEncontrados: itens.length, examinados, vinculados }) }
+    ...(inserido ? {} : { itensEncontrados: itens.length, encontradosPorAssunto: encontradosPorAssunto.length, examinados, vinculados }) }
 }
