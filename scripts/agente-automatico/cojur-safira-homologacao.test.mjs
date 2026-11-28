@@ -29,3 +29,13 @@ test('recusa relatório parcial ou duplicado e soma incorreta', () => {
   assert.throws(() => lerBuscaCotasCojur(relatorio.replace('90000002', '90000001'), '200099'), /recibo/)
   assert.throws(() => lerBuscaCotasCojur(relatorio.replace('1.070,19', '1.070,20'), '200099'), /total/)
 })
+
+test('no demonstrativo concluído sem rodapé, valida escopo, recibos e cada soma', () => {
+  const semRodape = relatorio.split('\n').slice(0, -1).join('\n')
+  const opcoes = { paginaCompletaSemRodape: true }
+  assert.throws(() => lerBuscaCotasCojur(semRodape, '200099'), /incompleto/)
+  assert.equal(validarCotas(lerBuscaCotasCojur(semRodape, '200099', opcoes)), 117096)
+  assert.throws(() => lerBuscaCotasCojur(semRodape, '200098', opcoes), /escopo/)
+  assert.throws(() => lerBuscaCotasCojur(semRodape + '\nLimite atingido', '200099', opcoes), /incompleto/)
+  assert.throws(() => lerBuscaCotasCojur(semRodape.replace('1.070,19', '1.070,20'), '200099', opcoes), /total/)
+})

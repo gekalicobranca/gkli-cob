@@ -15,7 +15,7 @@ function semCotas(texto) {
 
 function resumirRetornoCojur(texto) {
   const sinais = normalizar(texto)
-  const vocabulario = ['nenhum', 'nenhuma', 'nao', 'ha', 'foram', 'cotas', 'debitos', 'dados', 'registros', 'encontrado', 'encontrados', 'encontrada', 'encontradas', 'localizado', 'localizados', 'localizada', 'localizadas', 'pesquisa', 'resultado', 'erro', 'acordo', 'suspensa', 'cancelada', 'baixada', 'total', 'vencimento']
+  const vocabulario = ['nenhum', 'nenhuma', 'nao', 'ha', 'foram', 'cotas', 'debitos', 'dados', 'registros', 'encontrado', 'encontrados', 'encontrada', 'encontradas', 'localizado', 'localizados', 'localizada', 'localizadas', 'pesquisa', 'resultado', 'codigo', 'correcao', 'juros', 'valor', 'unidade', 'referencia', 'multa', 'geral', 'erro', 'acordo', 'suspensa', 'cancelada', 'baixada', 'total', 'vencimento']
   const palavras = new Set(sinais.match(/[a-z]+/g) ?? [])
   return vocabulario.filter(palavra => palavras.has(palavra)).join('/') || 'sem_sinais'
 }
@@ -109,7 +109,7 @@ async function coletarCotas(page, unidade) {
   page.on('dialog', observarAviso)
   try {
     await busca.locator('input[value="Buscar"]').click()
-    const retorno = painel.getByText(/Total de Débitos|Nenhum.*(?:encontrad|localizad)|Nenhuma.*(?:encontrad|localizad)|Não (?:há|existem|foram? encontrad).*?(?:cota|débito|registro|resultado)/i)
+    const retorno = painel.getByText(/Total de Débitos|Correção\/Juros|Nenhum.*(?:encontrad|localizad)|Nenhuma.*(?:encontrad|localizad)|Não (?:há|existem|foram? encontrad).*?(?:cota|débito|registro|resultado)/i)
     await Promise.race([retorno.first().waitFor({ timeout: 25_000 }).catch(() => null), dialogo])
     const texto = await painel.locator('body').innerText({ timeout: 3000 }).catch(() => '')
     if (texto.includes('Total de Débitos')) return { cotas: lerBuscaCotasCojur(texto, unidade) }
@@ -120,6 +120,11 @@ async function coletarCotas(page, unidade) {
     if (envio) {
       const corpo = await envio.body().catch(() => null)
       const html = corpo ? new TextDecoder('windows-1252').decode(corpo) : ''
+      const frame = page.frames().find(atual => atual.name().toLowerCase() === 'main')
+      if (envio.ok() && frame?.url() === envio.url() && /<\/html>\s*$/i.test(html) &&
+          texto.includes('Correção/Juros')) {
+        return { cotas: lerBuscaCotasCojur(texto, unidade, { paginaCompletaSemRodape: true }) }
+      }
       const alertas = [...html.matchAll(/\balert\(\s*(['"])([^\r\n]{1,160}?)\1\s*\)/gi)].map(([, , mensagem]) => mensagem)
       if (envio.ok() && alertas.some(semCotas)) return { cotas: [], resultado: 'sem_cotas_sem_acordo' }
       console.log(`COJUR HTTP ${envio.status()}; navegador ${resumirRetornoCojur(texto)}; retorno ${resumirRetornoCojur(html.replace(/<[^>]*>/g, ' '))}; avisos ${resumirRetornoCojur([...avisos, ...alertas].join(' '))}.`)

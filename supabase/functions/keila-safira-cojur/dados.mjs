@@ -29,7 +29,7 @@ export function validarCotas(cotas) {
   return cotas.reduce((total, cota) => total + cota.total_centavos, 0)
 }
 
-export function lerBuscaCotasCojur(texto, unidade) {
+export function lerBuscaCotasCojur(texto, unidade, { paginaCompletaSemRodape = false } = {}) {
   const linhas = texto.split(/\r?\n/).map(linha => linha.split('\t').map(celula => celula.trim()))
   const referencias = new Set(linhas.filter(([h]) => h === 'Referência').map(([, valor]) => valor?.match(/^\d+/)?.[0]))
   const unidades = new Set(linhas.filter(([h]) => h === 'Unidade').map(([, valor]) => valor?.match(/^\d+/)?.[0]))
@@ -51,6 +51,11 @@ export function lerBuscaCotasCojur(texto, unidade) {
       correcao_juros_centavos: centavos(correcaoJuros, true), total_centavos: centavos(total),
     })
   }
-  if (totais.length !== 1 || centavos(totais[0].at(-1)) !== validarCotas(cotas)) throw new Error('relatorio_incompleto')
+  const soma = validarCotas(cotas)
+  if (linhas.some(([titulo]) => /mais registros|resultado parcial|limite atingido|relat[oó]rio incompleto/i.test(titulo))) {
+    throw new Error('relatorio_incompleto')
+  }
+  if (totais.length === 0 && paginaCompletaSemRodape) return cotas
+  if (totais.length !== 1 || centavos(totais[0].at(-1)) !== soma) throw new Error('relatorio_incompleto')
   return cotas
 }
