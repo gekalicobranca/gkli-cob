@@ -4,6 +4,7 @@ import { lerBuscaCotasCojur, referenciaSafira } from '../../supabase/functions/k
 const origemLello = 'https://portal.lellocondominios.com.br'
 const retorno = 'https://vjcmotflmcczoepflhwc.supabase.co/functions/v1/keila-safira-cojur'
 const audiencia = 'gkli-keila-safira-cojur-homologacao'
+const semCotas = /(?:nenhum(?:a)? (?:registro|resultado|cota|d[eé]bito)(?:s)? (?:encontrad[oa]s?|localizad[oa]s?)|n[aã]o (?:h[aá]|existem?|foram encontrad[oa]s?|encontrou) (?:cotas?|d[eé]bitos?|registros?))/i
 
 async function tokenGithub() {
   const url = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL)
@@ -77,9 +78,37 @@ async function coletarCotas(page, unidade) {
   await busca.locator('input[name="pre_codigo"]:not([type=hidden])').fill(referenciaSafira)
   await busca.locator('input[name="dev_codigo"]:not([type=hidden])').fill(unidade)
   await busca.locator('select[name="cota_nummax"]').selectOption('10000')
-  await busca.locator('input[value="Buscar"]').click()
-  await painel.getByText('Total de Débitos', { exact: true }).waitFor({ timeout: 25_000 })
-  return lerBuscaCotasCojur(await painel.locator('body').innerText(), unidade)
+  let confirmouVazio
+  let aviso = ''
+  const dialogo = new Promise(resolve => { confirmouVazio = resolve })
+  const observarAviso = async alerta => {
+    aviso = alerta.message()
+    await alerta.dismiss()
+    confirmouVazio(semCotas.test(aviso))
+  }
+  const resposta = page.waitForResponse(r => {
+    const url = new URL(r.url())
+    if (url.origin !== origemLello || url.pathname !== '/acob/servlet/BuscaCota') return false
+    const dados = r.request().method() === 'POST' ? new URLSearchParams(r.request().postData() ?? '') : url.searchParams
+    return dados.get('pre_codigo') === referenciaSafira && dados.get('dev_codigo') === unidade
+  }, { timeout: 20_000 }).catch(() => null)
+  page.on('dialog', observarAviso)
+  try {
+    await busca.locator('input[value="Buscar"]').click()
+    const retorno = painel.getByText(/Total de Débitos|Nenhum.*encontrad|Nenhuma.*encontrad|Não há cotas|Não existem cotas/i)
+    await Promise.race([retorno.first().waitFor({ timeout: 25_000 }).catch(() => null), dialogo])
+    const texto = await painel.locator('body').innerText({ timeout: 3000 }).catch(() => '')
+    if (texto.includes('Total de Débitos')) return { cotas: lerBuscaCotasCojur(texto, unidade) }
+    const envio = await resposta
+    if ((semCotas.test(aviso) || semCotas.test(texto)) && envio && envio.status() < 400) {
+      return { cotas: [], resultado: 'sem_cotas_sem_acordo' }
+    }
+    if (aviso) throw new Error('aviso_portal_sem_classificacao')
+    if (envio) throw new Error('consulta_sem_demonstrativo_confirmado')
+    throw new Error('requisicao_cojur_nao_confirmada')
+  } finally {
+    page.off('dialog', observarAviso)
+  }
 }
 
 function motivoDaFalha(erro) {
@@ -88,14 +117,17 @@ function motivoDaFalha(erro) {
 
 async function entregar(page, pedido) {
   const caso = pedido.caso_id
-  const cotas = await coletarCotas(page, pedido.unidade)
+  const leitura = await coletarCotas(page, pedido.unidade)
+  const { cotas } = leitura
   const resultado = await chamarHomologacao(caso, 'POST', {
-    referencia: referenciaSafira, unidade: pedido.unidade, consultado_em: new Date().toISOString(), cotas,
+    referencia: referenciaSafira, unidade: pedido.unidade, consultado_em: new Date().toISOString(), ...leitura,
   })
   if (resultado.caso_id !== caso || resultado.quantidade !== cotas.length) throw new Error('retorno_nao_confirmado')
   const confirmacao = await chamarHomologacao(caso, 'GET')
   if (!confirmacao.concluido || confirmacao.quantidade !== cotas.length) throw new Error('gravacao_nao_confirmada')
-  console.log(`Confirmação no GKLI: ${cotas.length} cota(s) registradas no atendimento de origem.`)
+  console.log(leitura.resultado
+    ? 'Confirmação no GKLI: COJUR informou ausência de cotas sem acordo.'
+    : `Confirmação no GKLI: ${cotas.length} cota(s) registradas no atendimento de origem.`)
 }
 
 async function main() {

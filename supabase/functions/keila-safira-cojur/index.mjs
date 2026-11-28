@@ -86,7 +86,9 @@ async function executar(request) {
     if (coleta.referencia !== referenciaSafira || coleta.unidade !== unidade.identificacao ||
         !Number.isFinite(quando) || quando > agora + 60_000 || agora - quando > 15 * 60 * 1000 ||
         dataBrasilia(quando) !== dataBrasilia(agora)) throw new Error('escopo')
-    total = validarCotas(coleta.cotas)
+    const semCotasNoLote = payload.homologacao_lote === 'safira-reais-homologacao-20261128' &&
+      coleta.resultado === 'sem_cotas_sem_acordo' && Array.isArray(coleta.cotas) && coleta.cotas.length === 0
+    total = semCotasNoLote ? 0 : validarCotas(coleta.cotas)
   } catch {
     return json({ erro: 'coleta_invalida' }, 422)
   }
@@ -100,7 +102,8 @@ async function executar(request) {
   const entrega = {
     id: entregaId, tipo: 'consulta_remota', em, resumo,
     dados: { referencia: referenciaSafira, unidade: unidade.identificacao, consultado_em: coleta.consultado_em,
-      origem: 'github-hosted', github_run_id: run, total_centavos: total, cotas },
+      origem: 'github-hosted', github_run_id: run, total_centavos: total, cotas,
+      ...(cotas.length === 0 ? { resultado: 'sem_cotas_sem_acordo' } : {}) },
   }
   const { data: salvo, error: erroSalvo } = await db.from('central_pendencias').update({
     descricao: resumo, updated_at: em, payload: {
