@@ -243,12 +243,12 @@ function ParcelaLinha({ row }: { row: any }) {
   const diasPermitidos = Number(row.acordo?.condominios?.dias_reemissao_parcela_acordo_atrasada ?? 0)
 
   return (
-      <div className="grid grid-cols-2 items-end gap-x-3 gap-y-2 px-4 py-2 text-sm hover:bg-slate-50 sm:grid-cols-3 xl:grid-cols-[5rem_7rem_8rem_8rem_8rem_7rem]">
-        <div><span className="block text-xs text-slate-500">Parcela</span>{row.numero ?? '—'}</div>
-        <div><span className="block text-xs text-slate-500">Vencimento</span>{formatDateBR(row.vencimento)}</div>
-        {paga && <div><span className="block text-xs text-slate-500">{cancelada || row.valor_pago == null ? 'Valor' : 'Valor pago'}</span>{formatCurrency(Number(row.valor_pago ?? row.valor))}</div>}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 text-sm tabular-nums hover:bg-slate-50">
+        <span className="whitespace-nowrap"><abbr title="Parcela" className="text-slate-600 no-underline">Parc:</abbr> {row.numero ?? '—'}</span>
+        <span className="whitespace-nowrap"><abbr title="Vencimento" className="text-slate-600 no-underline">Venc:</abbr> {formatDateBR(row.vencimento)}</span>
+        {paga && <span className="whitespace-nowrap"><span className="text-slate-600">{cancelada || row.valor_pago == null ? 'Valor:' : 'Valor pago:'}</span> {formatCurrency(Number(row.valor_pago ?? row.valor))}</span>}
         {cancelada ? <>
-          <div><span className="block text-xs text-slate-500">Repasse</span>{row.valor_repasse_informado == null ? 'Automático' : formatCurrency(Number(row.valor_repasse_informado))}</div>
+          <span className="whitespace-nowrap"><span className="text-slate-600">Despesa:</span> {row.valor_repasse_informado == null ? 'Automático' : formatCurrency(Number(row.valor_repasse_informado))}</span>
           <span>Cancelada</span>
         </> : <ParcelaPagamentoForm parcela={row} acordoId={row.acordo_id} paga={paga} compacta />}
 
@@ -425,7 +425,7 @@ export default async function InstallmentsListPage({ searchParams, agreementKind
             <div>
               <h2 className="text-base font-medium text-slate-950">Parcelas por carteira e condomínio</h2>
               <p className="text-xs text-slate-500">{groups.length} de {allGroups.length} condomínio(s) nesta página</p>
-              <p className="text-xs text-slate-500">Repasse em branco usa o rateio do acordo. Informe 0,00 para isenção.</p>
+              <p className="text-xs text-slate-500">Deixe a despesa em branco para usar o rateio do acordo ou informe 0,00 para isenção.</p>
             </div>
           </div>
         </div>
