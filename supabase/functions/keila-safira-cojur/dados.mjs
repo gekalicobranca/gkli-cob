@@ -42,8 +42,10 @@ export function lerBuscaCotasCojur(texto, unidade, { paginaCompletaSemRodape = f
   for (let i = 0; i < linhas.length; i++) {
     const linha = linhas[i]
     if (linha[0] === 'Total de Débitos') totais.push(linha)
-    if (!cabecalho.every((titulo, coluna) => linha[coluna] === titulo)) continue
-    const [recibo, data, principal, multa, correcaoJuros, total] = linhas[i + 1] ?? []
+    const colunas = cabecalho.map(titulo => linha.indexOf(titulo))
+    if (colunas.some(coluna => coluna < 0)) continue
+    const valores = linhas[i + 1] ?? []
+    const [recibo, data, principal, multa, correcaoJuros, total] = colunas.map(coluna => valores[coluna])
     if (!data || !/^\d{2}\/\d{2}\/\d{4}$/.test(data) || !total) throw new Error('linha_cota_incompleta')
     cotas.push({
       recibo, vencimento: data.split('/').reverse().join('-'),

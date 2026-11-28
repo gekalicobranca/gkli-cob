@@ -20,6 +20,23 @@ function resumirRetornoCojur(texto) {
   return vocabulario.filter(palavra => palavras.has(palavra)).join('/') || 'sem_sinais'
 }
 
+function estruturaDoRelatorio(texto) {
+  const permitidos = new Set(['cota', 'cotas', 'codigo', 'codigo da cota', 'recibo', 'vencimento', 'data de vencimento', 'valor', 'valor original', 'valor multa', 'valor da multa', 'multa', 'correcao/juros', 'correcao', 'juros', 'total', 'valor total', 'status', 'situacao', 'total geral', 'total de debitos', 'empresa', 'referencia', 'unidade', 'multicontas', 'acordo', 'descricao', 'conta', 'historico'])
+  const linhas = texto.split(/\r?\n/).map(linha => linha.split('\t').map(normalizar))
+  const inicio = linhas.findIndex(linha => linha.includes('correcao/juros'))
+  const formatar = palavra => {
+    if (permitidos.has(palavra)) return palavra
+    if (!palavra) return 'vazio'
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(palavra)) return 'data'
+    if (/^\d+(?:\.\d{3})*,\d{2}$/.test(palavra)) return 'moeda'
+    if (/^\d{6,15}$/.test(palavra)) return 'numero'
+    if (/^[-–—]+$/.test(palavra)) return 'traco'
+    return 'outro'
+  }
+  const amostra = inicio < 0 ? linhas.slice(0, 8) : linhas.slice(Math.max(0, inicio - 1), inicio + 8)
+  return JSON.stringify(amostra.map(linha => linha.map(formatar)))
+}
+
 async function tokenGithub() {
   const url = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL)
   url.searchParams.set('audience', audiencia)
@@ -123,7 +140,12 @@ async function coletarCotas(page, unidade) {
       const frame = page.frames().find(atual => atual.name().toLowerCase() === 'main')
       if (envio.ok() && frame?.url() === envio.url() && /<\/html>\s*$/i.test(html) &&
           texto.includes('Correção/Juros')) {
-        return { cotas: lerBuscaCotasCojur(texto, unidade, { paginaCompletaSemRodape: true }) }
+        try {
+          return { cotas: lerBuscaCotasCojur(texto, unidade, { paginaCompletaSemRodape: true }) }
+        } catch (erro) {
+          console.log(`Estrutura do COJUR: ${estruturaDoRelatorio(texto)}.`)
+          throw erro
+        }
       }
       const alertas = [...html.matchAll(/\balert\(\s*(['"])([^\r\n]{1,160}?)\1\s*\)/gi)].map(([, , mensagem]) => mensagem)
       if (envio.ok() && alertas.some(semCotas)) return { cotas: [], resultado: 'sem_cotas_sem_acordo' }
