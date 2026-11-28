@@ -13,6 +13,7 @@ const limite = 10
 const titulo = '[HOMOLOGAÇÃO COJUR] Safira — teste com e-mail recebido'
 type Unidade = { id: string; identificacao: string; email: string | null; acao_judicial: boolean }
 type Retorno = Parameters<Parameters<typeof importarRetornosGraph>[0]['registrar']>[0]
+type Candidato = { retorno: Retorno; unidade: Unidade; revisao: string }
 
 function idAtendimento(messageId: string) {
   const hash = createHash('sha256').update(lote + ':' + messageId).digest('hex')
@@ -57,73 +58,79 @@ export async function homologarLoteSafira(
     const email = unidade.email.trim().toLowerCase()
     porEmail.set(email, [...(porEmail.get(email) ?? []), unidade])
   }
-  const aceitos: { retorno: Retorno; unidade: Unidade }[] = []
+  const candidatos: Candidato[] = []
   const vistos = new Set<string>()
-  const conversas = new Set<string>()
-  const selecionadas = new Set<string>()
+  const vinculosConferidos = new Map<string, { valido: boolean; acordo: boolean }>()
   const motivo = { semContato: 0, acordo: 0, revisao: 0, duplicado: 0 }
   await importarRetornosGraph({
     itens: lista.itens, desde, signal,
     corpoUnico: graph.corpoUnico,
     async jaRegistrado(id) {
-      if (aceitos.length >= limite || vistos.has(id)) return true
+      if (vistos.has(id)) return true
       vistos.add(id)
       return false
     },
     async identificar(remetente) {
       const [unidade] = porEmail.get(remetente) ?? []
       return (porEmail.get(remetente)?.length === 1) && !!unidade && !unidade.acao_judicial &&
-        /^\d{6}$/.test(unidade.identificacao) && !selecionadas.has(unidade.id)
+        /^\d{6}$/.test(unidade.identificacao)
     },
     async registrar(retorno) {
       const [unidade] = porEmail.get(retorno.p_remetente) ?? []
-      if (conversas.has(retorno.p_conversation_id) || (unidade && selecionadas.has(unidade.id))) {
-        motivo.duplicado++
-        return
-      }
       if (!unidade || porEmail.get(retorno.p_remetente)?.length !== 1 || unidade.acao_judicial ||
           !/^\d{6}$/.test(unidade.identificacao) || /[%_*\\]/.test(retorno.p_remetente)) {
         motivo.semContato++
         return
       }
-      if (retorno.p_revisao || !['debitos','parcelamento'].includes(retorno.p_intencao)) {
-        motivo.revisao++
-        return
+      let conferido = vinculosConferidos.get(retorno.p_remetente)
+      if (!conferido) {
+        const [vinculos, acordos] = await Promise.all([
+          db.from('unidades').select('id').ilike('email', retorno.p_remetente).limit(2).abortSignal(signal),
+          db.from('acordos').select('id').eq('condominio_id', SAFIRA_PILOTO_ID)
+            .eq('unidade_id', unidade.id).limit(1).abortSignal(signal),
+        ])
+        if (vinculos.error || acordos.error) throw new Error('Vínculo ou histórico do lote indisponível.')
+        conferido = { valido: vinculos.data?.length === 1 && vinculos.data[0].id === unidade.id, acordo: !!acordos.data?.length }
+        vinculosConferidos.set(retorno.p_remetente, conferido)
       }
-      const [vinculos, acordos] = await Promise.all([
-        db.from('unidades').select('id').ilike('email', retorno.p_remetente).limit(2).abortSignal(signal),
-        db.from('acordos').select('id').eq('condominio_id', SAFIRA_PILOTO_ID)
-          .eq('unidade_id', unidade.id).limit(1).abortSignal(signal),
-      ])
-      if (vinculos.error || acordos.error) throw new Error('Vínculo ou histórico do lote indisponível.')
-      if (vinculos.data?.length !== 1 || vinculos.data[0].id !== unidade.id) {
+      if (!conferido.valido) {
         motivo.semContato++
         return
       }
-      if (acordos.data?.length) {
-        motivo.acordo++
-        return
-      }
-      selecionadas.add(unidade.id)
-      conversas.add(retorno.p_conversation_id)
-      aceitos.push({ retorno, unidade })
+      const revisao = conferido.acordo ? 'acordo' : retorno.p_revisao
+      if (conferido.acordo) motivo.acordo++
+      else if (revisao) motivo.revisao++
+      candidatos.push({ retorno, unidade, revisao })
     },
   })
+  const aceitos: Candidato[] = []
+  const conversas = new Set<string>()
+  const selecionadas = new Set<string>()
+  for (const candidato of candidatos.sort((a,b) => Number(!!a.revisao) - Number(!!b.revisao))) {
+    if (conversas.has(candidato.retorno.p_conversation_id) || selecionadas.has(candidato.unidade.id)) {
+      motivo.duplicado++
+      continue
+    }
+    aceitos.push(candidato)
+    conversas.add(candidato.retorno.p_conversation_id)
+    selecionadas.add(candidato.unidade.id)
+    if (aceitos.length === limite) break
+  }
   if (!gravar || !aceitos.length) return {
     pesquisados: lista.itens.length, elegiveis: aceitos.length, maisMensagens: lista.temMais, motivos: motivo,
-    amostra: aceitos.map(({ unidade }) => unidade.identificacao),
+    amostra: aceitos.map(({ unidade, revisao }) => ({ unidade: unidade.identificacao, revisao })),
   }
 
   const em = new Date().toISOString()
   const descricao = 'E-mail real do Safira lido no Graph. Consulta de homologação da Lello solicitada.'
-  const registros = aceitos.map(({ retorno, unidade }) => ({
+  const registros = aceitos.map(({ retorno, unidade, revisao }) => ({
     id: idAtendimento(retorno.p_message_id), carteira_id: carteira, condominio_id: SAFIRA_PILOTO_ID, unidade_id: unidade.id,
     tipo: 'keila_atendimento', origem: 'mensageria', status: 'em_tratamento', prioridade: 'normal',
     titulo, descricao, entidade_tipo: 'condominio', entidade_id: SAFIRA_PILOTO_ID,
     payload: {
-      versao: 1, modo: 'supervisionado', estado: 'buscando_debitos', intencao: retorno.p_intencao,
+      versao: 1, modo: 'supervisionado', estado: revisao ? 'atendimento_humano' : 'buscando_debitos', intencao: retorno.p_intencao,
       envio_permitido: false, unidade_ids: [unidade.id], emails: [], proxima_acao: descricao,
-      homologacao_lote: lote, atividades: [{ em, descricao }],
+      homologacao_lote: lote, homologacao_revisao: revisao, atividades: [{ em, descricao }],
       registro_json: { versao: 1, eventos: [
         { id: entradaId, tipo: 'retorno_recebido', em, resumo: 'E-mail real lido na caixa da Keila.',
           dados: { graph_message_id: retorno.p_message_id, recebido_em: retorno.p_recebido_em, outlook_url: retorno.p_url } },
@@ -135,7 +142,7 @@ export async function homologarLoteSafira(
   }))
   const { data, error } = await db.from('central_pendencias').upsert(registros,{ onConflict:'id', ignoreDuplicates:true })
     .select('id,payload').abortSignal(signal)
-  if (error || !data || data.some(caso => caso.payload.estado !== 'buscando_debitos')) {
+  if (error || !data || data.some(caso => !['buscando_debitos','atendimento_humano'].includes(caso.payload.estado))) {
     throw new Error('Registro do lote exige conferência.')
   }
   return { registrados: data.length, elegiveis: aceitos.length, motivos: motivo,
