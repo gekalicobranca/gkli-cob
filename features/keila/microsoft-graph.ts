@@ -86,13 +86,33 @@ export async function abrirMicrosoftGraph(config: ConfigGraph, signal: AbortSign
     async conversasSafira(desde: string) {
       const url = new URL(caixa + '/messages', origem)
       url.searchParams.set('$select', campos)
-      url.searchParams.set('$filter', "receivedDateTime ge " + desde + " and contains(subject,'Safira')")
+      const filtro = "receivedDateTime ge " + desde + " and contains(subject,'Safira')"
+      url.searchParams.set('$filter', filtro + " and from/emailAddress/address ne '" + conta + "'")
       url.searchParams.set('$orderby', 'receivedDateTime desc')
       url.searchParams.set('$top', '200')
-      const resposta = await ler(url, 'odata.maxpagesize=200')
-      if (!resposta.ok) throw new ErroMicrosoftGraph('lista', resposta.status, resposta.headers.get('retry-after'))
-      const dados = paginaSchema.parse(await resposta.json())
-      return { itens: dados.value, temMais: Boolean(dados['@odata.nextLink']) }
+      let resposta = await ler(url, 'odata.maxpagesize=200')
+      if (resposta.status === 400) {
+        url.searchParams.set('$filter', filtro)
+        resposta = await ler(url, 'odata.maxpagesize=200')
+      }
+      const itens: unknown[] = []
+      for (let pagina = 0; pagina < 6; pagina++) {
+        if (!resposta.ok) throw new ErroMicrosoftGraph('lista', resposta.status, resposta.headers.get('retry-after'))
+        const dados = paginaSchema.parse(await resposta.json())
+        itens.push(...dados.value)
+        const proxima = dados['@odata.nextLink']
+        if (!proxima || pagina === 5) return { itens, temMais: Boolean(proxima) }
+        const cursor = new URL(proxima)
+        const caminho = decodeURIComponent(cursor.pathname).toLowerCase()
+        const caminhos = [`/v1.0/users/${conta}/messages`, `/v1.0/users('${conta}')/messages`]
+        if (config.caixaId) caminhos.push(`/v1.0/users/${config.caixaId}/messages`, `/v1.0/users('${config.caixaId}')/messages`)
+        if (cursor.origin !== origem || cursor.username || cursor.password || cursor.hash ||
+            !caminhos.includes(caminho) || !(cursor.searchParams.has('$skip') || cursor.searchParams.has('$skiptoken'))) {
+          throw new Error('Continuação de busca fora da caixa da Keila.')
+        }
+        resposta = await ler(cursor, 'odata.maxpagesize=200')
+      }
+      throw new Error('A busca do Safira não foi concluída.')
     },
     async localizarMensagemHomologacao(desde: string, criterio: { remetente: string } | { assunto: string; pasta?: 'inbox' }) {
       const pasta = 'assunto' in criterio && criterio.pasta === 'inbox' ? '/mailFolders/inbox' : ''
