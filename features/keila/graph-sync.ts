@@ -31,6 +31,7 @@ type EntradaGraph = {
   desde: string
   signal: AbortSignal
   aceitarAssunto?: (assunto: string) => boolean
+  aceitarDaPropriaCaixa?: boolean
   jaRegistrado(id: string): Promise<boolean>
   identificar(remetente: string): Promise<boolean>
   corpoUnico(id: string): Promise<string | null>
@@ -50,7 +51,8 @@ export async function importarRetornosGraph(entrada: EntradaGraph) {
     const assunto = (m.subject ?? '').replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 500)
     const remetente = m.from?.emailAddress.address.toLowerCase()
     const data = Date.parse(m.receivedDateTime)
-    if (!remetente || remetente === conta || remetenteAutomatico.test(remetente) || assuntoAutomatico.test(assunto) ||
+    if (!remetente || (remetente === conta && !entrada.aceitarDaPropriaCaixa) ||
+      remetenteAutomatico.test(remetente) || assuntoAutomatico.test(assunto) ||
       m.isDraft || !(entrada.aceitarAssunto?.(assunto) ?? assuntoSafira.test(assunto)) ||
       !Number.isFinite(data) || data < desde || data > limite) continue
     let link: string

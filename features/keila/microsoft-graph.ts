@@ -83,8 +83,9 @@ export async function abrirMicrosoftGraph(config: ConfigGraph, signal: AbortSign
   }
 
   return {
-    async localizarMensagemHomologacao(desde: string, criterio: { remetente: string } | { assunto: string }) {
-      const url = new URL(caixa + '/messages', origem)
+    async localizarMensagemHomologacao(desde: string, criterio: { remetente: string } | { assunto: string; pasta?: 'inbox' }) {
+      const pasta = 'assunto' in criterio && criterio.pasta === 'inbox' ? '/mailFolders/inbox' : ''
+      const url = new URL(caixa + pasta + '/messages', origem)
       url.searchParams.set('$select', campos)
       const [campo, valor] = 'remetente' in criterio
         ? ['from/emailAddress/address', criterio.remetente] : ['subject', criterio.assunto]

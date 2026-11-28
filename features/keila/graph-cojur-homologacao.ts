@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { AGENTES_VIRTUAIS } from '../agentes-virtuais/perfis'
 import { importarRetornosGraph } from './graph-sync'
 import { abrirMicrosoftGraph } from './microsoft-graph'
 import { SAFIRA_PILOTO_ID } from './webmail'
@@ -9,6 +10,7 @@ const workflow = 'gekalicobranca/gkli-cob/.github/workflows/keila-safira-cojur.y
 const entradaId = 'graph-safira-homologacao-entrada-v1'
 const titulo = '[HOMOLOGAÇÃO COJUR] Safira — e-mail da Keila'
 const assuntoTeste = '[Homologação] Safira 200043'
+const assuntoAutoenvio = 'Safira 200043'
 const assuntoControlado = /^(?:(?:enc|fw|fwd|re|res)\s*:\s*)*\[?homologacao\]?\s*[-:]?\s*safira\s+200043$/i
 
 export async function homologarEntradaGraph(
@@ -39,6 +41,7 @@ export async function homologarEntradaGraph(
   }
   const desdePiloto = new Date(Math.max(Date.parse(desde), Date.parse(condominio.keila_retornos_desde),
     remetenteControlado ? Date.now() - 24 * 60 * 60_000 : 0)).toISOString()
+  const autoenvio = remetenteControlado === AGENTES_VIRTUAIS.keila.email
   const unidades = new Map<string, { id: string; identificacao: string }>()
   let inserido = false
   let concorrente = false
@@ -46,10 +49,11 @@ export async function homologarEntradaGraph(
   let vinculados = 0
   const importar = (itens: unknown[], usarRemetente: boolean) => importarRetornosGraph({
     itens, desde: desdePiloto, signal,
-    aceitarAssunto: remetenteControlado
+    aceitarAssunto: autoenvio ? assunto => assunto.toLowerCase() === assuntoAutoenvio.toLowerCase() : remetenteControlado
       ? assunto => assuntoControlado.test(assunto.normalize('NFD').replace(/\p{M}/gu, ''))
       : usarRemetente ? () => true : undefined,
-    corpoUnico: graph.corpoUnico,
+    aceitarDaPropriaCaixa: autoenvio,
+    corpoUnico: remetenteControlado ? async () => null : graph.corpoUnico,
     async jaRegistrado() { return inserido || concorrente },
     async identificar(remetente) {
       examinados++
@@ -100,13 +104,15 @@ export async function homologarEntradaGraph(
       inserido = true
     },
   })
-  const itens = remetenteControlado
+  const itens = autoenvio
+    ? await graph.localizarMensagemHomologacao(desdePiloto, { assunto: assuntoAutoenvio, pasta: 'inbox' })
+    : remetenteControlado
     ? await graph.localizarMensagemHomologacao(desdePiloto, { remetente: remetenteControlado })
     : (await Promise.all([
       graph.recentes(desdePiloto, 'inbox', true), graph.recentes(desdePiloto, 'archive', true),
     ])).flat()
   await importar(itens, false)
-  const encontradosPorAssunto = remetenteControlado && !inserido && !concorrente
+  const encontradosPorAssunto = remetenteControlado && !autoenvio && !inserido && !concorrente
     ? await graph.localizarMensagemHomologacao(desdePiloto, { assunto: assuntoTeste }) : []
   await importar(encontradosPorAssunto, false)
   if (!remetenteControlado && !inserido && !concorrente) {

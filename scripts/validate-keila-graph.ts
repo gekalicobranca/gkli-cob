@@ -206,8 +206,10 @@ test('verificação autenticada lê a caixa da Keila com o processamento pausado
   assert.equal(requisicoes.length, 2)
 })
 
-test('e-mail controlado abre um caso sem destinatário e a releitura reutiliza o mesmo vínculo', async () => {
+test('autoenvio controlado da Keila abre um caso sem destinatário e a releitura reutiliza o vínculo', async () => {
   const casoId = '00000000-0000-4000-8000-000000000099'
+  const caixaKeila = 'keila@gekali.com.br'
+  const proprioRemetente = { emailAddress: { address: caixaKeila } }
   let registro: { id: string; titulo: string; payload: Record<string, unknown> } | undefined
   let insercoes = 0
   let releituras = 0
@@ -217,9 +219,12 @@ test('e-mail controlado abre um caso sem destinatário e a releitura reutiliza o
     if (url.hostname === 'login.microsoftonline.com') return Response.json({ access_token: 'simulado' })
     if (url.hostname === 'graph.microsoft.com') {
       if (caminho === 'messages') {
+        assert.match(url.pathname, /\/mailFolders\/inbox\/messages$/)
+        assert.match(url.searchParams.get('$filter') ?? '', /subject eq 'Safira 200043'$/)
         return Response.json({ value: [
-          email('outro', { subject: '[Homologação] Safira 200043', from: { emailAddress: { address: 'outro@example.com' } } }),
-          email('controlado', { subject: '[Homologação] Safira 200043' }),
+          email('outro', { subject: 'Safira 200043', from: { emailAddress: { address: 'outro@example.com' } } }),
+          email('outro-assunto', { subject: 'Outra unidade do Safira', from: proprioRemetente }),
+          email('controlado', { subject: 'Safira 200043', from: proprioRemetente }),
         ] })
       }
       assert.equal(caminho, 'controlado')
@@ -227,7 +232,7 @@ test('e-mail controlado abre um caso sem destinatário e a releitura reutiliza o
         releituras++
         return Response.json({ id: 'controlado' })
       }
-      return Response.json({ uniqueBody: { contentType: 'text', content: 'Quais cotas estão em aberto?' } })
+      throw new Error('A homologação não precisa ler o corpo da mensagem.')
     }
     if (caminho === 'central_pendencias') {
       if (options?.method === 'POST') {
@@ -251,9 +256,9 @@ test('e-mail controlado abre um caso sem destinatário e a releitura reutiliza o
   })
   const signal = AbortSignal.timeout(1000)
   const graph = await abrirMicrosoftGraph({ tenant: unidade, aplicativo: unidade, segredo: 'simulado', desde }, signal, fakeFetch)
-  assert.deepEqual(await homologarEntradaGraph(db, graph, casoId, desde, signal, 'contato@example.com'),
+  assert.deepEqual(await homologarEntradaGraph(db, graph, casoId, desde, signal, caixaKeila),
     { casoId, registrados: 1, repetido: false })
-  assert.deepEqual(await homologarEntradaGraph(db, graph, casoId, desde, signal, 'contato@example.com'),
+  assert.deepEqual(await homologarEntradaGraph(db, graph, casoId, desde, signal, caixaKeila),
     { casoId, registrados: 0, repetido: true })
   assert.equal(registro?.payload.envio_permitido, false)
   assert.deepEqual(registro?.payload.emails, [])
