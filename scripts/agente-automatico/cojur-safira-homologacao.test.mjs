@@ -39,3 +39,14 @@ test('no demonstrativo concluído sem rodapé, valida escopo, recibos e cada som
   assert.throws(() => lerBuscaCotasCojur(semRodape + '\nLimite atingido', '200099', opcoes), /incompleto/)
   assert.throws(() => lerBuscaCotasCojur(semRodape.replace('1.070,19', '1.070,20'), '200099', opcoes), /total/)
 })
+
+test('extrai o demonstrativo vertical de uma única cota com dados do Safira', () => {
+  const detalhe = ['Cota', 'Referência\t63004 - SAFIRA', 'Unidade\t200099 - FICTÍCIA', 'Código\t90000001',
+    'Vencimento\t10/01/2026', 'Valor Original\t1.000,00', 'Valor Multa\t20,00',
+    'Correção/Juros\t50,19', 'Valor Total\t1.070,19'].join('\n')
+  const opcoes = { paginaCompletaSemRodape: true }
+  assert.equal(validarCotas(lerBuscaCotasCojur(detalhe, '200099', opcoes)), 107019)
+  assert.throws(() => lerBuscaCotasCojur(detalhe, '200099'), /quantidade/)
+  assert.throws(() => lerBuscaCotasCojur(detalhe + '\nCódigo\t90000002', '200099', opcoes), /campos/)
+  assert.throws(() => lerBuscaCotasCojur(detalhe.replace('1.070,19', '1.070,20'), '200099', opcoes), /total/)
+})

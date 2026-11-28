@@ -21,9 +21,8 @@ function resumirRetornoCojur(texto) {
 }
 
 function estruturaDoRelatorio(texto) {
-  const permitidos = new Set(['cota', 'cotas', 'codigo', 'codigo da cota', 'recibo', 'vencimento', 'data de vencimento', 'valor', 'valor original', 'valor multa', 'valor da multa', 'multa', 'correcao/juros', 'correcao', 'juros', 'total', 'valor total', 'status', 'situacao', 'total geral', 'total de debitos', 'empresa', 'referencia', 'unidade', 'multicontas', 'acordo', 'descricao', 'conta', 'historico'])
+  const permitidos = new Set(['cota', 'cotas', 'codigo', 'codigo da cota', 'codigo cota', 'cod. cota', 'codigo do recibo', 'recibo', 'numero', 'nº recibo', 'nº do recibo', 'numero da cota', 'numero do recibo', 'vencimento', 'data de vencimento', 'valor', 'valor original', 'valor multa', 'valor da multa', 'multa', 'correcao/juros', 'correcao', 'juros', 'total', 'valor total', 'status', 'situacao', 'total geral', 'total de debitos', 'empresa', 'referencia', 'unidade', 'multicontas', 'acordo', 'descricao', 'conta', 'historico'])
   const linhas = texto.split(/\r?\n/).map(linha => linha.split('\t').map(normalizar))
-  const inicio = linhas.findIndex(linha => linha.includes('correcao/juros'))
   const formatar = palavra => {
     if (permitidos.has(palavra)) return palavra
     if (!palavra) return 'vazio'
@@ -33,7 +32,7 @@ function estruturaDoRelatorio(texto) {
     if (/^[-–—]+$/.test(palavra)) return 'traco'
     return 'outro'
   }
-  const amostra = inicio < 0 ? linhas.slice(0, 8) : linhas.slice(Math.max(0, inicio - 1), inicio + 8)
+  const amostra = linhas.filter(linha => linha.some(Boolean)).slice(0, 30)
   return JSON.stringify(amostra.map(linha => linha.map(formatar)))
 }
 

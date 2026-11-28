@@ -29,6 +29,33 @@ export function validarCotas(cotas) {
   return cotas.reduce((total, cota) => total + cota.total_centavos, 0)
 }
 
+function detalharCota([recibo, data, principal, multa, correcaoJuros, total]) {
+  if (!data || !/^\d{2}\/\d{2}\/\d{4}$/.test(data) || !total) throw new Error('linha_cota_incompleta')
+  return {
+    recibo, vencimento: data.split('/').reverse().join('-'),
+    principal_centavos: centavos(principal), multa_centavos: centavos(multa, true),
+    correcao_juros_centavos: centavos(correcaoJuros, true), total_centavos: centavos(total),
+  }
+}
+
+function lerCotaIndividual(linhas) {
+  const campos = [
+    ['Código', 'Código da Cota', 'Código Cota', 'Código da cota', 'Recibo', 'Nº Recibo', 'Nº do Recibo', 'Número do Recibo', 'Cota'],
+    ['Vencimento', 'Data de Vencimento'],
+    ['Valor Original'],
+    ['Valor Multa', 'Valor da Multa'],
+    ['Correção/Juros'],
+    ['Valor Total'],
+  ]
+  const valores = campos.map(rotulos => {
+    const encontradas = linhas.filter(([rotulo]) => rotulos.some(opcao => opcao.toLowerCase() === rotulo.toLowerCase()))
+      .filter(linha => linha.length === 2)
+    if (encontradas.length !== 1) throw new Error('campos_da_cota_individual_incompletos')
+    return encontradas[0][1]
+  })
+  return detalharCota(valores)
+}
+
 export function lerBuscaCotasCojur(texto, unidade, { paginaCompletaSemRodape = false } = {}) {
   const linhas = texto.split(/\r?\n/).map(linha => linha.split('\t').map(celula => celula.trim()))
   const referencias = new Set(linhas.filter(([h]) => h === 'Referência').map(([, valor]) => valor?.match(/^\d+/)?.[0]))
@@ -45,13 +72,10 @@ export function lerBuscaCotasCojur(texto, unidade, { paginaCompletaSemRodape = f
     const colunas = cabecalho.map(titulo => linha.indexOf(titulo))
     if (colunas.some(coluna => coluna < 0)) continue
     const valores = linhas[i + 1] ?? []
-    const [recibo, data, principal, multa, correcaoJuros, total] = colunas.map(coluna => valores[coluna])
-    if (!data || !/^\d{2}\/\d{2}\/\d{4}$/.test(data) || !total) throw new Error('linha_cota_incompleta')
-    cotas.push({
-      recibo, vencimento: data.split('/').reverse().join('-'),
-      principal_centavos: centavos(principal), multa_centavos: centavos(multa, true),
-      correcao_juros_centavos: centavos(correcaoJuros, true), total_centavos: centavos(total),
-    })
+    cotas.push(detalharCota(colunas.map(coluna => valores[coluna])))
+  }
+  if (cotas.length === 0 && paginaCompletaSemRodape && totais.length === 0) {
+    cotas.push(lerCotaIndividual(linhas))
   }
   const soma = validarCotas(cotas)
   if (linhas.some(([titulo]) => /mais registros|resultado parcial|limite atingido|relat[oó]rio incompleto/i.test(titulo))) {
