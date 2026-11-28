@@ -4,7 +4,21 @@ import { lerBuscaCotasCojur, referenciaSafira } from '../../supabase/functions/k
 const origemLello = 'https://portal.lellocondominios.com.br'
 const retorno = 'https://vjcmotflmcczoepflhwc.supabase.co/functions/v1/keila-safira-cojur'
 const audiencia = 'gkli-keila-safira-cojur-homologacao'
-const semCotas = /(?:nenhum(?:a)? (?:registro|resultado|cota|d[eé]bito)(?:s)? (?:encontrad[oa]s?|localizad[oa]s?)|n[aã]o (?:h[aá]|existem?|foram encontrad[oa]s?|encontrou) (?:cotas?|d[eé]bitos?|registros?))/i
+function normalizar(texto) {
+  return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+function semCotas(texto) {
+  const aviso = normalizar(texto)
+  return /\b(?:nenhum(?:a)? (?:registro|resultado|cota|debito)s? (?:encontrad[oa]s?|localizad[oa]s?)|nao (?:ha|existem?|foram? encontrad[oa]s?|encontrou) (?:nenhum(?:a)? )?(?:cotas?|debitos?|registros?|resultados?)|0 (?:registros|resultados|cotas|debitos) (?:encontrados|encontradas|localizados|localizadas))\b/.test(aviso)
+}
+
+function resumirRetornoCojur(texto) {
+  const sinais = normalizar(texto)
+  const vocabulario = ['nenhum', 'nenhuma', 'nao', 'ha', 'foram', 'cotas', 'debitos', 'dados', 'registros', 'encontrado', 'encontrados', 'encontrada', 'encontradas', 'localizado', 'localizados', 'localizada', 'localizadas', 'pesquisa', 'resultado', 'erro', 'acordo', 'suspensa', 'cancelada', 'baixada', 'total', 'vencimento']
+  const palavras = new Set(sinais.match(/[a-z]+/g) ?? [])
+  return vocabulario.filter(palavra => palavras.has(palavra)).join('/') || 'sem_sinais'
+}
 
 async function tokenGithub() {
   const url = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL)
@@ -79,12 +93,12 @@ async function coletarCotas(page, unidade) {
   await busca.locator('input[name="dev_codigo"]:not([type=hidden])').fill(unidade)
   await busca.locator('select[name="cota_nummax"]').selectOption('10000')
   let confirmouVazio
-  let aviso = ''
+  const avisos = []
   const dialogo = new Promise(resolve => { confirmouVazio = resolve })
   const observarAviso = async alerta => {
-    aviso = alerta.message()
+    avisos.push(alerta.message())
     await alerta.dismiss()
-    confirmouVazio(semCotas.test(aviso))
+    if (avisos.some(semCotas)) confirmouVazio(true)
   }
   const resposta = page.waitForResponse(r => {
     const url = new URL(r.url())
@@ -95,16 +109,23 @@ async function coletarCotas(page, unidade) {
   page.on('dialog', observarAviso)
   try {
     await busca.locator('input[value="Buscar"]').click()
-    const retorno = painel.getByText(/Total de Débitos|Nenhum.*encontrad|Nenhuma.*encontrad|Não há cotas|Não existem cotas/i)
+    const retorno = painel.getByText(/Total de Débitos|Nenhum.*(?:encontrad|localizad)|Nenhuma.*(?:encontrad|localizad)|Não (?:há|existem|foram? encontrad).*?(?:cota|débito|registro|resultado)/i)
     await Promise.race([retorno.first().waitFor({ timeout: 25_000 }).catch(() => null), dialogo])
     const texto = await painel.locator('body').innerText({ timeout: 3000 }).catch(() => '')
     if (texto.includes('Total de Débitos')) return { cotas: lerBuscaCotasCojur(texto, unidade) }
     const envio = await resposta
-    if ((semCotas.test(aviso) || semCotas.test(texto)) && envio && envio.status() < 400) {
+    if ((avisos.some(semCotas) || semCotas(texto)) && envio?.ok()) {
       return { cotas: [], resultado: 'sem_cotas_sem_acordo' }
     }
-    if (aviso) throw new Error('aviso_portal_sem_classificacao')
-    if (envio) throw new Error('consulta_sem_demonstrativo_confirmado')
+    if (envio) {
+      const corpo = await envio.body().catch(() => null)
+      const html = corpo ? new TextDecoder('windows-1252').decode(corpo) : ''
+      const alertas = [...html.matchAll(/\balert\(\s*(['"])([^\r\n]{1,160}?)\1\s*\)/gi)].map(([, , mensagem]) => mensagem)
+      if (envio.ok() && alertas.some(semCotas)) return { cotas: [], resultado: 'sem_cotas_sem_acordo' }
+      console.log(`COJUR HTTP ${envio.status()}; navegador ${resumirRetornoCojur(texto)}; retorno ${resumirRetornoCojur(html.replace(/<[^>]*>/g, ' '))}; avisos ${resumirRetornoCojur([...avisos, ...alertas].join(' '))}.`)
+      throw new Error('consulta_sem_demonstrativo_confirmado')
+    }
+    if (avisos.length) throw new Error('aviso_portal_sem_classificacao')
     throw new Error('requisicao_cojur_nao_confirmada')
   } finally {
     page.off('dialog', observarAviso)

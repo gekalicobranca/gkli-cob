@@ -57,7 +57,7 @@ jobs:
       - name: Consultar a Lello e confirmar o retorno no GKLI
         env:
           GKLI_GRAPH_HOMOLOGACAO_CASE_ID: '0b8cc43a-0969-44dc-9e47-2f4951cfa8cd'
-          GKLI_GRAPH_HOMOLOGACAO_LOTE: '434945ee-14ce-4bff-87a9-368a2a6a1ef9,366284c3-6f74-4077-8b4c-e51172c12e8a,fc2f9de9-3c6a-4c6a-8897-76b501fe85a1,c3650020-4195-4a23-8b04-656b2db48e82,411d2008-cd16-49dc-86eb-11f346e4b71d,baa52f92-1722-423e-8923-48eb5f38f71b'
+          GKLI_GRAPH_HOMOLOGACAO_LOTE: '434945ee-14ce-4bff-87a9-368a2a6a1ef9,c3650020-4195-4a23-8b04-656b2db48e82,411d2008-cd16-49dc-86eb-11f346e4b71d'
           LELLO_SAFIRA_USUARIO: ${{ secrets.LELLO_SAFIRA_USUARIO }}
           LELLO_SAFIRA_SENHA: ${{ secrets.LELLO_SAFIRA_SENHA }}
         run: node scripts/agente-automatico/cojur-safira-homologacao.mjs
